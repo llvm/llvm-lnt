@@ -1,12 +1,12 @@
-"""The R4 JSON error envelope, and the handlers that make the framework produce it.
+"""The I4 JSON error envelope, and the handlers that make the framework produce it.
 
-FastAPI's defaults do not match R4: HTTPException renders `{"detail": ...}`, request validation
+FastAPI's defaults do not match I4: HTTPException renders `{"detail": ...}`, request validation
 fails with 422, an unmatched method on a declared route gives 405, and an unhandled exception
-returns a plain-text body. Neither 422 nor 405 is a status R4 permits, so these handlers are what
+returns a plain-text body. Neither 422 nor 405 is a status I4 permits, so these handlers are what
 keep the API inside its specified surface.
 
 They are registered app-wide rather than under `/api/`, so a miss on a client path answers with
-the envelope too. The one deliberate hole is an oversized request body, which R4 places at the
+the envelope too. The one deliberate hole is an oversized request body, which I4 places at the
 transport layer and outside the envelope; see `_http_exception_handler`.
 """
 
@@ -27,10 +27,10 @@ logger = logging.getLogger(__name__)
 
 
 class ErrorCode(StrEnum):
-    """R4's machine-readable error codes; see infrastructure.md for what each one means.
+    """I4's machine-readable error codes; see infrastructure.md for what each one means.
 
     Callers name a code and the status follows from it, never the other way round: the relation
-    is not invertible, since R4 serves four distinct codes as 409.
+    is not invertible, since I4 serves four distinct codes as 409.
     """
 
     INVALID_REQUEST = "invalid_request"
@@ -44,7 +44,7 @@ class ErrorCode(StrEnum):
     INTERNAL_ERROR = "internal_error"
 
 
-# The status R4 serves each code with.
+# The status I4 serves each code with.
 _STATUS: dict[ErrorCode, int] = {
     ErrorCode.INVALID_REQUEST: 400,
     ErrorCode.UNAUTHORIZED: 401,
@@ -87,14 +87,14 @@ class ErrorEnvelope(BaseModel):
 
 
 class ApiError(Exception):
-    """An error an endpoint reports by naming its R4 code.
+    """An error an endpoint reports by naming its I4 code.
 
-    The code is what a client branches on, and it does not follow from the status: R4 serves four
+    The code is what a client branches on, and it does not follow from the status: I4 serves four
     distinct codes as 409. So a caller names the code and the status follows, which is why this
     exists rather than endpoints raising HTTPException with a status the handler would have to
     guess a code from.
 
-    `headers` carries anything the response must include beside the envelope -- today only R5's
+    `headers` carries anything the response must include beside the envelope -- today only I5's
     `WWW-Authenticate: Bearer` on a 401.
     """
 
@@ -145,7 +145,7 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     assert isinstance(exc, StarletteHTTPException)
 
     # An oversized body is rejected at the transport layer, before the request is part of the
-    # REST API surface at all, so R4 leaves it plain text and outside the envelope. Starlette's
+    # REST API surface at all, so I4 leaves it plain text and outside the envelope. Starlette's
     # RequestBodyLimitMiddleware (installed in app.py) already answers exactly this way when a
     # Content-Length is present -- which is every request in production, since the reverse proxy
     # buffers. Without one it cannot pre-empt the response and the rejection arrives here
@@ -153,7 +153,7 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     if exc.status_code == 413:
         return PlainTextResponse("Content Too Large", status_code=413)
 
-    # Starlette raises a bare 405 when a path matches but the method does not. R4 has no 405, so
+    # Starlette raises a bare 405 when a path matches but the method does not. I4 has no 405, so
     # it collapses to "nothing here".
     if exc.status_code == 405:
         return error_response(ErrorCode.NOT_FOUND, no_route(request.method, request.url.path))
@@ -165,7 +165,7 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     # Nothing else raises HTTPException today. An endpoint that needs to report a specific code
     # should gain an exception type carrying one, rather than a status this would have to guess a
     # code from -- guessing cannot tell `duplicate` from `ordinal_conflict`, which is the whole
-    # reason R4 splits them. Until then, answer inside R4's surface and say so in the log.
+    # reason I4 splits them. Until then, answer inside I4's surface and say so in the log.
     logger.warning("Unexpected HTTPException with status %d; answering 500", exc.status_code)
     return error_response(ErrorCode.INTERNAL_ERROR, "The server failed to answer this request")
 

@@ -1,4 +1,4 @@
-"""Regressions and their indicators (endpoints.md, Regressions).
+"""Regressions and their indicators (E8).
 
 Driven over the real application and a real database. Four things get most of the attention here,
 because they are the four the specification is most specific about and an implementation is most
@@ -82,7 +82,7 @@ def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTable
 def data(api_client: TestClient, submitter: dict[str, str], suite: SuiteTables) -> None:
     """The machines, tests and commits an indicator can name.
 
-    Through a run submission, because that is the only thing that creates a test (D6), and because
+    Through a run submission, because that is the only thing that creates a test (O1), and because
     it creates the machine and the commit in the same breath.
     """
     for machine in ("linux", "darwin"):
@@ -185,7 +185,7 @@ class TestCreate:
     def test_mints_a_uuid_the_client_cannot_choose(
         self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
     ) -> None:
-        # R1: a run's UUID may be client-provided; every other UUID in the API is the server's.
+        # I1: a run's UUID may be client-provided; every other UUID in the API is the server's.
         response = api_client.post(
             REGRESSIONS, json={"uuid": "e6c9ba0a-0000-4000-8000-000000000000"}, headers=triage
         )
@@ -251,7 +251,7 @@ class TestCreate:
     def test_is_400_for_a_metric_the_schema_does_not_declare(
         self, api_client: TestClient, triage: dict[str, str], data: None
     ) -> None:
-        # R3: a metric names a column the schema declares rather than a row the suite holds, so an
+        # I3: a metric names a column the schema declares rather than a row the suite holds, so an
         # unknown one is a bad request rather than a missing entity.
         body = {"indicators": [{**LINUX_ONE, "metric": "nope"}]}
 
@@ -388,7 +388,7 @@ class TestStoredRows:
     @pytest.fixture
     def stored(self, db_engine: Engine, suite: SuiteTables) -> str:
         # An empty title and bug, which the API has refused since they became a second spelling
-        # of "none" (endpoints.md), but which an earlier build accepted.
+        # of "none" (E8), but which an earlier build accepted.
         uuid = "5b0c3e1e-0000-4000-8000-000000000000"
         with db_engine.begin() as connection:
             connection.execute(
@@ -550,7 +550,7 @@ class TestIndicatorFilters:
     def test_a_test_name_with_a_slash_survives_the_query_parameter(
         self, api_client: TestClient, regressions: dict[str, str]
     ) -> None:
-        # R1: no path carries a test name, so this filter is where a name containing '/' has to
+        # I1: no path carries a test name, so this filter is where a name containing '/' has to
         # work -- and every test name here has one.
         assert uuids_in(listed(api_client, "test=suite/one")) == [
             regressions["linux"],
@@ -595,7 +595,7 @@ class TestIndicatorFilters:
     def test_metric_is_400_for_one_the_schema_does_not_declare(
         self, api_client: TestClient
     ) -> None:
-        # R3's third answer: a metric is a column rather than a row.
+        # I3's third answer: a metric is a column rather than a row.
         response = listed(api_client, "metric=nope")
 
         assert response.status_code == 400
@@ -615,7 +615,7 @@ class TestCommitFilters:
     def test_an_unknown_commit_is_an_empty_page_rather_than_an_error(
         self, api_client: TestClient
     ) -> None:
-        # R3 draws this asymmetry deliberately: an unknown `machine=` is a 404, an unknown
+        # I3 draws this asymmetry deliberately: an unknown `machine=` is a 404, an unknown
         # `commit=` is an ordinary empty answer.
         response = listed(api_client, "commit=nope")
 
@@ -658,7 +658,7 @@ class TestSearch:
         ]
 
     def test_matches_the_title_alone(self, api_client: TestClient) -> None:
-        # D9 gives this list the title column and nothing else, so a regression whose *notes* say
+        # O4 gives this list the title column and nothing else, so a regression whose *notes* say
         # `find_if` does not match.
         assert len(uuids_in(listed(api_client, "search=find_if"))) == 1
 
@@ -1331,7 +1331,7 @@ class TestCascades:
         create: Callable[..., Any],
         data: None,
     ) -> None:
-        # endpoints.md answers R4's `in_use`, which tells the caller to detach the regression
+        # endpoints.md answers I4's `in_use`, which tells the caller to detach the regression
         # rather than to retry.
         create(commit="abc123")
 
@@ -1406,12 +1406,12 @@ class TestPagination:
         assert code_of(response) == "invalid_request"
 
     def test_takes_no_offset(self, api_client: TestClient) -> None:
-        # R2 pairs `offset` with `total`, and a cursor-paginated list has neither.
+        # I2 pairs `offset` with `total`, and a cursor-paginated list has neither.
         assert "total" not in listed(api_client).json()
 
 
 class TestAuthorization:
-    """R5: `read` for the GETs, `triage` for everything else."""
+    """I5: `read` for the GETs, `triage` for everything else."""
 
     @pytest.fixture
     def regression(self, create: Callable[..., Any]) -> str:
@@ -1454,5 +1454,5 @@ class TestAuthorization:
     def test_a_manage_key_may_triage(
         self, api_client: TestClient, manage: dict[str, str], suite: SuiteTables
     ) -> None:
-        # R5's hierarchy: a key grants its own scope and every lower one.
+        # I5's hierarchy: a key grants its own scope and every lower one.
         assert api_client.post(REGRESSIONS, json={}, headers=manage).status_code == 201

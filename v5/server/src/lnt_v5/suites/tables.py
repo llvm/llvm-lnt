@@ -1,14 +1,14 @@
 """A suite's own tables (D5), built from its schema, and the DDL that puts them in the database.
 
 Per-suite tables are the half of the model defined by *data* rather than by code: which columns
-exist follows from a suite's schema, so no migration written in advance could describe them (D14).
+exist follows from a suite's schema, so no migration written in advance could describe them (D6).
 They are created here, at runtime, by the suite endpoints.
 
 Each suite's tables live in a PostgreSQL namespace of their own, named after the suite, so a table
 is addressed as `{suite}.commit`. That is what lets every suite carry *identical* constraint names:
 the naming convention composes a name from a table and its columns, neither of which mentions the
 suite, so `uq_commit_ordinal` is the name in every suite and the code that attributes a
-unique-constraint violation (D13) can write it out rather than compose it per request.
+unique-constraint violation (O8) can write it out rather than compose it per request.
 """
 
 from __future__ import annotations
@@ -51,14 +51,14 @@ from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, NAMING_CONVENTION
 
-# D5's widths for the built-in string columns. A UUID is the 36-character hyphenated form (R1).
+# D5's widths for the built-in string columns. A UUID is the 36-character hyphenated form (O1).
 # Deliberately not shared with `api_key.name`'s identical width in tables.py: D5 states these per
 # column, and the two would then have to change together for no reason.
 NAME_LENGTH = 256
 UUID_LENGTH = 36
 
 # What NAMING_CONVENTION names the constraints the endpoints have to name: to attribute a violation
-# after the fact, and so answer the specific 409 R4 gives it rather than a 500, or to point an
+# after the fact, and so answer the specific 409 I4 gives it rather than a 500, or to point an
 # `ON CONFLICT` at. Written out because they are fixed -- the convention composes a name from a
 # table and its columns, neither of which mentions the suite -- and checked against what PostgreSQL
 # reports by `test_suite_tables.py`, so a convention change fails a test rather than silently
@@ -68,7 +68,7 @@ COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
 # Not a unique constraint but a foreign key, violated from either side. Deleting a commit that a
-# regression references is refused, since D5 makes that commit undeletable (R4's `in_use`).
+# regression references is refused, since D5 makes that commit undeletable (I4's `in_use`).
 # Storing a reference to a commit deleted after the request resolved it is a 404: it is no longer
 # there.
 REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
@@ -130,7 +130,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
     """The columns a schema's `metrics`, `commit_fields` or `machine_fields` become.
 
     All nullable: a schema change may add an entry at any time, which leaves every existing row
-    with no value for it (D2), and a submission need not carry every declared field (D7).
+    with no value for it (D2), and a submission need not carry every declared field (O2).
     """
     return [Column(entry.name, _COLUMN_TYPES[entry.type], nullable=True) for entry in entries]
 
@@ -181,7 +181,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         metadata,
         Column("id", Integer, Identity(), primary_key=True),
         Column("commit", String(NAME_LENGTH), nullable=False, unique=True),
-        # D11: a regular, non-deferred unique constraint. Ordinals are assigned once and rarely
+        # O6: a regular, non-deferred unique constraint. Ordinals are assigned once and rarely
         # reassigned, so a write that would give two commits the same one is simply rejected (409).
         Column("ordinal", Integer, nullable=True, unique=True),
         Column("tag", String(NAME_LENGTH), nullable=True),
@@ -224,7 +224,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
             index=True,
         ),
         # The database's clock rather than the application's, so that concurrent workers agree on
-        # ordering. A submission cannot supply this (D6).
+        # ordering. A submission cannot supply this (O1).
         Column("submitted_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Column("run_parameters", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )
@@ -286,7 +286,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("state", Integer, nullable=False, index=True),
         # No cascade, and deliberately not nullable-on-delete either: D5 makes a commit referenced
         # by a regression undeletable, and this constraint is what produces that refusal -- which
-        # the API reports as `in_use` (R4).
+        # the API reports as `in_use` (I4).
         Column("commit_id", ForeignKey("commit.id"), nullable=True, index=True),
         # D5 has the database layer validate the state. Restating it as a constraint costs nothing
         # -- the five values are fixed for v5 -- and in exchange a bug that writes an unknown state
@@ -333,14 +333,14 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("test_id", ForeignKey("test.id"), nullable=False, index=True),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Column("disassembly_format", Text, nullable=False),
-        # D12's top-level counters, by name. JSONB rather than a column per counter: which counters
+        # O7's top-level counters, by name. JSONB rather than a column per counter: which counters
         # a profile measured is up to its producer, not the suite's schema.
         Column("counters", JSONB, nullable=False),
         UniqueConstraint("run_id", "test_id"),
     )
 
     # One row per function of a profile (D5). The key leads with the profile, which is how every
-    # query reaches these rows, and D12's cap on a function name
+    # query reaches these rows, and O7's cap on a function name
     # (`profile_document.MAX_FUNCTION_NAME_BYTES`) keeps it within a btree entry, about 2.7 kB.
     profile_function = Table(
         "profile_function",
@@ -356,7 +356,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("instructions", LargeBinary, nullable=False),
     )
 
-    # D15: statistics summarizing a run's samples, one row per numeric metric and sample
+    # O9: statistics summarizing a run's samples, one row per numeric metric and sample
     # aggregation, which is what `GET /trends` reads instead of the samples. One column per
     # statistic, of which the geomean is the only one so far. Written once, at submission, and
     # deleted with the run or the metric it is derived from. `run_id` leads the key because trends

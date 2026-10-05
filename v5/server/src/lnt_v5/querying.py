@@ -1,10 +1,10 @@
-"""R3's shared list conventions: how a page is asked for, ordered and searched.
+"""I3's shared list conventions: how a page is asked for, ordered and searched.
 
 The parameters themselves rather than any one endpoint's set of them. What a given endpoint filters
-and sorts on is its own -- and is declared there, so that R8's document enumerates it and an
+and sorts on is its own -- and is declared there, so that I8's document enumerates it and an
 unknown value is a 400 before the endpoint runs.
 
-Cursor pagination (R2, D10) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
+Cursor pagination (I2, O5) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
 private to any endpoint family: the commit, run, test and sample lists, `POST /query` and
 `GET /machines/{name}/runs` all page this way, and a second implementation of a keyset predicate
 would be a second chance to get the boundary conditions wrong.
@@ -42,14 +42,14 @@ from lnt_v5.strings import storable
 from lnt_v5.suites.schema import CommitField, MachineField
 from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
-# R2's page size: 25 by default, never more than 10 000, and never zero -- an endpoint has no reason
+# I2's page size: 25 by default, never more than 10 000, and never zero -- an endpoint has no reason
 # to serve a page of nothing, and `total` is available from any page.
 DEFAULT_LIMIT = 25
 MAX_LIMIT = 10_000
 
-# The wording of R2's two paging parameters, stated once because they travel by two carriers: as
+# The wording of I2's two paging parameters, stated once because they travel by two carriers: as
 # query parameters on the GET lists, and as keys of the request body on `POST /query`, which is
-# asked for with a body because its test list does not fit a query string. R2 is explicit that
+# asked for with a body because its test list does not fit a query string. I2 is explicit that
 # nothing else about the contract differs between the two.
 _LIMIT = "How many items to return, at most."
 _CURSOR = (
@@ -74,12 +74,12 @@ BodyLimit = Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT, description=_LIMI
 
 BodyCursor = Annotated[str | None, Field(description=_CURSOR)]
 
-# R3 spells a descending sort by prefixing the field name.
+# I3 spells a descending sort by prefixing the field name.
 DESCENDING = "-"
 
 
 def sort_order(sort: str) -> tuple[str, bool]:
-    """R3's `sort=<field>`, split into the field and whether it is descending."""
+    """I3's `sort=<field>`, split into the field and whether it is descending."""
     return (sort.removeprefix(DESCENDING), True) if sort.startswith(DESCENDING) else (sort, False)
 
 
@@ -88,7 +88,7 @@ def exclusive_range(
 ) -> list[ColumnElement[bool]]:
     """A range over one ordered column, strictly after and strictly before, either bound optional.
 
-    R3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
+    I3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
     run lists' `after=`/`before=` over `submitted_at`, and `POST /query`'s two pairs over the commit
     ordinal and the submission time. One spelling, so that a bound cannot become inclusive in one
     place and stay exclusive in another.
@@ -107,12 +107,12 @@ def search_condition(
     identity: Sequence[str],
     entries: Sequence[CommitField | MachineField] = (),
 ) -> ColumnElement[bool]:
-    """D9's `?search=`: a case-insensitive substring match with OR semantics.
+    """O4's `?search=`: a case-insensitive substring match with OR semantics.
 
-    One function for all five of D9's cases, because they differ only in which columns they cover:
+    One function for all five of O4's cases, because they differ only in which columns they cover:
     an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's `commit`
     and `tag`, a test's `name`, a regression's `title`) plus every declared entry marked
-    `searchable`. Stating that rule once is what keeps the machine list and the run list, which D9
+    `searchable`. Stating that rule once is what keeps the machine list and the run list, which O4
     requires to share a predicate, from drifting apart.
 
     `autoescape` is doing real work: without it the `%` and `_` in the caller's term would be LIKE
@@ -124,7 +124,7 @@ def search_condition(
 
 
 # --------------------------------------------------------------------------------------------
-# Cursor pagination (R2, D10)
+# Cursor pagination (I2, O5)
 # --------------------------------------------------------------------------------------------
 
 
@@ -140,9 +140,9 @@ class SortKey:
 
 
 class Keyset:
-    """A total row order, and the opaque cursor that resumes it (R2, D10).
+    """A total row order, and the opaque cursor that resumes it (I2, O5).
 
-    D10's rule: cursor pagination needs a deterministic, non-repeating row ordering, so the
+    O5's rule: cursor pagination needs a deterministic, non-repeating row ordering, so the
     caller's sort specification is followed by an internal unique tiebreaker. Without one, two rows
     sharing a sort value have no fixed relative position, and a page boundary falling between them
     would drop one and repeat the other on the next page.
@@ -153,9 +153,9 @@ class Keyset:
     sort values would have nothing left to read. Rows inserted before that position are missed and
     rows inserted after it are served, which is what forward-only pagination means. A row in the
     list throughout is served exactly once unless its sort values change mid-traversal, which can
-    move it back ahead of the cursor (D10).
+    move it back ahead of the cursor (O5).
 
-    The cursor is opaque by contract (R2): base64 over a compact JSON payload, carrying a
+    The cursor is opaque by contract (I2): base64 over a compact JSON payload, carrying a
     fingerprint of the list it was issued for, ordering included (see `cursor_page`). The
     fingerprint is what turns feeding a `sort=ordinal` cursor to `sort=-ordinal`, a commit cursor
     to the run list, or a `search=foo` cursor to `search=bar`, into a 400 instead of a
@@ -186,7 +186,7 @@ class Keyset:
         """What a row must satisfy to have a position in this order at all.
 
         A null sort value compares as unknown against a cursor's, so a row carrying one would fall
-        on neither side of the boundary and vanish from every page after the first. D10 answers
+        on neither side of the boundary and vanish from every page after the first. O5 answers
         this by excluding those rows outright -- which is also what endpoints.md asks for by name,
         where `sort=ordinal` excludes the commits that have none. Derived from the columns rather
         than left to each endpoint, so the four lists that page this way cannot each forget it.
@@ -249,7 +249,7 @@ def cursor_page[T](
     cursor: str | None,
     read: Callable[[Row[Any]], T],
 ) -> CursorPage[T]:
-    """One page of `statement` in `keyset`'s order, in R2's envelope.
+    """One page of `statement` in `keyset`'s order, in I2's envelope.
 
     The envelope rather than the rows and a cursor, because the two are never useful apart: every
     caller pairs this with `CursorPage.of`, and a caller that forgot to would be returning a page
@@ -267,7 +267,7 @@ def cursor_page[T](
     suite's tables, so a cursor from one suite is not accepted by another's either. The flip side is
     that anything changing the statement -- a schema change to a column it selects or searches, an
     entity a filter names resolving to another id or ordinal, or a deploy that alters the query --
-    invalidates the cursors already issued for it, as R2 allows.
+    invalidates the cursors already issued for it, as I2 allows.
 
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
@@ -296,7 +296,7 @@ def _integer(value: Any) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise ValueError("expected an integer")
     # `after` binds a cursor's value as its column's type, so one outside INTEGER's range -- which
-    # only a hand-made cursor can carry -- would fail in the database, a 500 where R2 wants a 400.
+    # only a hand-made cursor can carry -- would fail in the database, a 500 where I2 wants a 400.
     # INTEGER is the only integer type a sort key may have (`_reader`); tables.py owns its range.
     if not INT32_MIN <= value <= INT32_MAX:
         raise ValueError("out of range for an INTEGER column")
@@ -317,7 +317,7 @@ def _real(value: Any) -> float:
 def _text(value: Any) -> str:
     if not isinstance(value, str):
         raise ValueError("expected a string")
-    # A cursor is opaque to clients but need not be unforgeable (R2), so what comes out of one is
+    # A cursor is opaque to clients but need not be unforgeable (I2), so what comes out of one is
     # caller-supplied: D5's rule applies to it like any other string, and without this a hand-made
     # cursor carrying a NUL would reach a text sort key as a bind parameter and be a 500.
     return storable(value)

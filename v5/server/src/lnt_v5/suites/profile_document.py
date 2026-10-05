@@ -1,6 +1,6 @@
-"""D12's profile document: what a submission carries for a profile, and how it is stored.
+"""O7's profile document: what a submission carries for a profile, and how it is stored.
 
-A test entry's `profile` is a JSON document, gzip-compressed and base64-encoded (D6, D12). This
+A test entry's `profile` is a JSON document, gzip-compressed and base64-encoded (O1, O7). This
 module validates it in full and hands back the rows `{suite}.profile` and `{suite}.profile_function`
 store (D5), with each function's instructions compressed in a layout of its own choosing, which only
 `instructions` below reads back.
@@ -30,8 +30,8 @@ from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.strings import NUL
 from lnt_v5.suites.tables import INTEGER_MAX
 
-# D12's caps on one profile, each several times the largest seen on lnt.llvm.org. These are limits
-# on a profile, not on the request body, which is refused with R4's 413 instead. The decompressed
+# O7's caps on one profile, each several times the largest seen on lnt.llvm.org. These are limits
+# on a profile, not on the request body, which is refused with I4's 413 instead. The decompressed
 # cap is the one that bounds memory, since the whole document is parsed before anything is stored.
 MAX_COMPRESSED_SIZE = 4 * 1024 * 1024
 MAX_DOCUMENT_SIZE = 32 * 1024 * 1024
@@ -43,7 +43,7 @@ MAX_FUNCTIONS = 10_000
 # the decoded length catches.
 MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 
-# D12's cap on a function name, in UTF-8 bytes. A name travels in `?function=` (R1), and at this
+# O7's cap on a function name, in UTF-8 bytes. A name travels in `?function=` (I1), and at this
 # length it fits the 8 KiB request line common proxies allow even fully percent-encoded. It also
 # keeps `{suite}.profile_function`'s key within a btree entry (see `tables.py`).
 MAX_FUNCTION_NAME_BYTES = 2048
@@ -51,7 +51,7 @@ MAX_FUNCTION_NAME_BYTES = 2048
 # About as compact as v4's binary format was, at a fraction of the highest levels' encoding time.
 _ZSTD_LEVEL = 9
 
-# Exactly the ASCII whitespace D12 makes insignificant in the base64. `str.split()`'s set would also
+# Exactly the ASCII whitespace O7 makes insignificant in the base64. `str.split()`'s set would also
 # drop U+00A0 and friends, which are outside the alphabet and must be refused.
 _WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
 
@@ -136,7 +136,7 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
 
 
 class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
-    """The document a submission's `profile` decodes to (D12).
+    """The document a submission's `profile` decodes to (O7).
 
     Its functions are checked before this is: msgspec builds the children first.
     """
@@ -152,9 +152,9 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
             self.counters[counter] = _integer(value, f"the top-level counter '{counter}'")
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("two functions have the same name")
-        # The client shows a function's counters as shares of the top-level ones (`client/
-        # profiles.md`). The first instruction speaks for its function, whose hook has checked that
-        # every instruction carries the same counters.
+        # The client shows a function's counters as shares of the top-level ones (PF4). The first
+        # instruction speaks for its function, whose hook has checked that every instruction
+        # carries the same counters.
         for function in self.functions:
             if function.instructions:
                 unknown = function.instructions[0].counters.keys() - self.counters.keys()
@@ -188,7 +188,7 @@ _COLUMNS_DECODER = msgspec.json.Decoder(_Columns)
 class StoredFunction:
     """One `{suite}.profile_function` row: a function's index entry and its compressed instructions.
 
-    `counters` are the function's own, each the sum of that counter over its instructions (D12).
+    `counters` are the function's own, each the sum of that counter over its instructions (O7).
     """
 
     name: str
@@ -207,7 +207,7 @@ class StoredProfile:
 
 
 def stored_profile(encoded: str) -> StoredProfile:
-    """The rows a submitted profile is stored as, or a 400 (D12)."""
+    """The rows a submitted profile is stored as, or a 400 (O7)."""
     document = _parsed(_decompressed(_decoded(encoded)))
     return StoredProfile(
         disassembly_format=document.disassembly_format,
@@ -234,7 +234,7 @@ def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
 
 
 def _stored(function: FunctionDocument) -> StoredFunction:
-    """A function's row: its counters, the sums of its columns (D12), and its instructions in the
+    """A function's row: its counters, the sums of its columns (O7), and its instructions in the
     layout `instructions` reads.
     """
     rows = function.instructions
@@ -266,7 +266,7 @@ def _stored(function: FunctionDocument) -> StoredFunction:
 def _decoded(encoded: str) -> bytes:
     """The compressed document a base64 string stands for.
 
-    The whitespace D12 allows is removed and the rest decoded strictly: Python's lenient mode
+    The whitespace O7 allows is removed and the rest decoded strictly: Python's lenient mode
     discards *every* character outside the alphabet, so a string that is not base64 at all would
     decode to whatever happened to remain. Line breaks are not payload, so the size gate measures
     the string without them.
@@ -290,7 +290,7 @@ def _decompressed(compressed: bytes) -> bytes:
 
     Incremental, with a ceiling one byte past the cap, rather than `gzip.decompress`: that would
     expand a compression bomb in full before anything could measure it. Exactly one gzip member,
-    since D12 compresses one document.
+    since O7 compresses one document.
     """
     decompressor = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
     try:

@@ -1,4 +1,4 @@
-"""The authorization scopes (R5)."""
+"""The authorization scopes (I5)."""
 
 from __future__ import annotations
 
@@ -26,12 +26,12 @@ class Scope(StrEnum):
     def grants(self, required: Scope) -> bool:
         """Whether a key holding this scope satisfies an endpoint requiring `required`.
 
-        A key grants its own scope plus every lower one (R5). That is a comparison of position in
+        A key grants its own scope plus every lower one (I5). That is a comparison of position in
         the declaration order, deliberately not the `<` that `StrEnum` inherits from `str`, which
         compares alphabetically and would decide that `read` outranks `manage`.
         """
         return _RANK[self] >= _RANK[required]
 
 
-# Built once, since every authenticated request consults it (R5).
+# Built once, since every authenticated request consults it (I5).
 _RANK = {scope: rank for rank, scope in enumerate(Scope)}

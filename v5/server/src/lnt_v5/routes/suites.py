@@ -1,4 +1,4 @@
-"""Test suite creation, inspection, evolution and deletion (endpoints.md, Test Suites).
+"""Test suite creation, inspection, evolution and deletion (E10).
 
 A suite's schema is the whole document here: the body `POST /api/suites` accepts, the body a `GET`
 returns, and what the `schema` table stores (D4). So one suite fetched from an instance can be
@@ -40,7 +40,7 @@ SUITES_PATH = "/api/suites"
 router = APIRouter(prefix=SUITES_PATH, tags=["Test Suites"])
 
 # endpoints.md requires this on any operation that destroys data. A `bool` rather than a literal
-# "true", so R8 documents it as one and a value that is not a boolean is a 400; that also accepts
+# "true", so I8 documents it as one and a value that is not a boolean is a 400; that also accepts
 # `1`, `yes` and `on`, which is a deliberate widening.
 Confirm = Annotated[
     bool,
@@ -62,7 +62,7 @@ def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
     """Every suite on this instance, with its full schema, ordered by name.
 
     Schemas rather than names alone: suites are limited in number, and parts of the client need
-    every suite's metric list up front (endpoints.md).
+    every suite's metric list up front (E10).
     """
     with engine.connect() as connection:
         suites = registry.fresh(connection)

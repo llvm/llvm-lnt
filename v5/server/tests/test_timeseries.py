@@ -1,4 +1,4 @@
-"""The time-series endpoints (endpoints.md, Time Series), over a real database: the join, the
+"""The time-series endpoints (E9), over a real database: the join, the
 keyset that pages it and the geomean are all PostgreSQL's work."""
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ NTS: dict[str, Any] = {
     ],
 }
 
-# A test name with a slash in it: the reason R1 keeps test names out of every path, and the reason
+# A test name with a slash in it: the reason I1 keeps test names out of every path, and the reason
 # this endpoint takes them in a body.
 SLASHED = "suite/one"
 
@@ -51,7 +51,7 @@ def submit(
 ) -> Callable[..., dict[str, Any]]:
     """Submit one run and hand back its detail body.
 
-    A submission is the only thing that creates a test (D6), and it creates the machine and the
+    A submission is the only thing that creates a test (O1), and it creates the machine and the
     commit in the same breath, so every fixture below is built out of these.
     """
 
@@ -66,7 +66,7 @@ def submit(
 
 @pytest.fixture
 def place(api_client: TestClient, manage: dict[str, str]) -> Callable[..., None]:
-    """Give a commit an ordinal, and optionally a tag. PATCH is the only path to either (D11)."""
+    """Give a commit an ordinal, and optionally a tag. PATCH is the only path to either (O6)."""
 
     def patch(commit: str, ordinal: int | None = None, tag: str | None = None) -> None:
         body: dict[str, Any] = {}
@@ -109,7 +109,7 @@ def points(api_client: TestClient, **body: Any) -> list[dict[str, Any]]:
 
 
 def walk(api_client: TestClient, **body: Any) -> list[dict[str, Any]]:
-    """Every point the query serves, following `cursor.next` to the end (R2).
+    """Every point the query serves, following `cursor.next` to the end (I2).
 
     Through the shared walker, which takes a fetch callable for exactly this reason: the token has
     two carriers and one contract, and this is the list that carries it in a body.
@@ -164,7 +164,7 @@ class TestQueryPoint:
     def test_denormalizes_the_commits_ordinal_and_tag_as_null_when_unset(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # R4 grants this endpoint the denormalization by name, and R4's general rule makes a
+        # I4 grants this endpoint the denormalization by name, and I4's general rule makes a
         # documented key present-and-null rather than absent.
         submit("linux", "abc", {"name": "t", "execution_time": 1.0})
 
@@ -189,7 +189,7 @@ class TestQueryPoint:
     def test_the_value_keeps_the_type_the_schema_declares(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]], metric: str, value: Any
     ) -> None:
-        # D3 and R4: a value uses the JSON representation of its declared type and is never
+        # D3 and I4: a value uses the JSON representation of its declared type and is never
         # stringified. A metric need not be numeric to be queried -- only to be averaged.
         submit("linux", "abc", {"name": "t", metric: value})
 
@@ -217,7 +217,7 @@ class TestQueryPoint:
     def test_serves_one_point_per_repetition(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # D6: an array value is one sample per element, and each is its own point.
+        # O1: an array value is one sample per element, and each is its own point.
         submit("linux", "abc", {"name": "t", "execution_time": [1.0, 2.0, 3.0]})
 
         values = [point["value"] for point in points(api_client, metric="execution_time")]
@@ -260,7 +260,7 @@ class TestQueryFilters:
     def test_the_test_list_addresses_a_name_containing_a_slash(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # R1: no path could carry this name, which is why the filter lives in the body.
+        # I1: no path could carry this name, which is why the filter lives in the body.
         submit("linux", "abc", {"name": SLASHED, "execution_time": 1.0}, {"name": "other"})
 
         assert [p["test"] for p in points(api_client, metric="execution_time", test=[SLASHED])] == [
@@ -270,7 +270,7 @@ class TestQueryFilters:
     def test_an_unknown_test_is_404(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # R3, the same answer a `test=` query parameter gets elsewhere.
+        # I3, the same answer a `test=` query parameter gets elsewhere.
         submit("linux", "abc", {"name": "t", "execution_time": 1.0})
 
         response = query(api_client, metric="execution_time", test=["t", "nope"])
@@ -297,7 +297,7 @@ class TestQueryFilters:
     def test_an_unknown_commit_is_an_empty_page_rather_than_an_error(
         self, api_client: TestClient, series: list[dict[str, Any]]
     ) -> None:
-        # R3 draws this asymmetry deliberately: a commit the suite has never seen is an ordinary
+        # I3 draws this asymmetry deliberately: a commit the suite has never seen is an ordinary
         # answer to "what was measured here", where a misspelled machine is not.
         response = query(api_client, metric="execution_time", commit="never-seen")
 
@@ -318,7 +318,7 @@ class TestQueryFilters:
         submit: Callable[..., dict[str, Any]],
     ) -> None:
         # endpoints.md: a commit with no ordinal is in no range of ordinals. Distinct from the
-        # exclusion `sort=commit` causes -- `sort` is omitted here, and R2's "no data is excluded"
+        # exclusion `sort=commit` causes -- `sort` is omitted here, and O5's "no data is excluded"
         # is about the ordering rather than about the filters beside it.
         submit("linux", "unordered", {"name": "t", "execution_time": 9.0})
 
@@ -331,7 +331,7 @@ class TestQueryFilters:
         self, api_client: TestClient, series: list[dict[str, Any]], bound: str
     ) -> None:
         # Unlike the `commit` filter above: this one names a position rather than a set of rows,
-        # and R4 gives an entity named by a request body a 404.
+        # and I4 gives an entity named by a request body a 404.
         response = query(api_client, metric="execution_time", **{bound: "never-seen"})
 
         assert response.status_code == 404
@@ -385,7 +385,7 @@ class TestQueryFilters:
     def test_answers_the_baseline_call_the_graph_page_makes(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # client/graph.md: a baseline is fetched with `{machine, metric, commit, test}` in one
+        # GR8: a baseline is fetched with `{machine, metric, commit, test}` in one
         # body, which is the only request any client doc combines four filters in.
         baseline = submit("linux", "base", {"name": "a", "execution_time": 1.0}, {"name": "b"})
         submit("darwin", "base", {"name": "a", "execution_time": 2.0})
@@ -420,7 +420,7 @@ class TestQueryMetric:
     def test_an_undeclared_metric_is_400_rather_than_404(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
-        # R3: a metric names a column the schema declares rather than a row the suite holds, so a
+        # I3: a metric names a column the schema declares rather than a row the suite holds, so a
         # request naming one that is not there could never be answered.
         response = query(api_client, metric="nope")
 
@@ -445,7 +445,7 @@ class TestQueryMetric:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    def test_refuses_a_test_list_longer_than_r2s_page_ceiling(
+    def test_refuses_a_test_list_longer_than_the_page_ceiling(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
         # The list expands into one statement, and an unbounded one would carry more bind
@@ -472,7 +472,7 @@ class TestQuerySort:
         series: list[dict[str, Any]],
         submit: Callable[..., dict[str, Any]],
     ) -> None:
-        # D10: a commit with no ordinal has no position in that order, and a null sort key would
+        # O5: a commit with no ordinal has no position in that order, and a null sort key would
         # compare as unknown against a cursor and vanish from every page anyway.
         submit("linux", "unordered", {"name": "t", "execution_time": 9.0})
 
@@ -545,10 +545,10 @@ class TestQueryPagination:
         assert len(body["items"]) == 3
         assert body["cursor"]["next"] is not None
 
-    def test_serves_r2s_default_page_size_when_the_body_names_none(
+    def test_serves_the_default_page_size_when_the_body_names_none(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # R2's 25, observed on a response rather than only in R8's document: `limit` is a key of
+        # I2's 25, observed on a response rather than only in I8's document: `limit` is a key of
         # the body here, so the default is the model's rather than a query parameter's.
         submit(
             "linux",
@@ -599,7 +599,7 @@ class TestQueryPagination:
     def test_refuses_a_cursor_issued_for_the_other_direction(
         self, api_client: TestClient, many: None
     ) -> None:
-        # R2: a cursor names a position in an *ordering*, and the fingerprint is what turns feeding
+        # I2: a cursor names a position in an *ordering*, and the fingerprint is what turns feeding
         # it to the reverse of that ordering into a 400 instead of a plausible page of wrong rows.
         cursor = query(api_client, metric="execution_time", sort="commit", limit=2).json()[
             "cursor"
@@ -653,7 +653,7 @@ class TestQueryPagination:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    # Out of R2's bounds, or not a JSON integer.
+    # Out of I2's bounds, or not a JSON integer.
     @pytest.mark.parametrize("limit", [0, 10001, True, "5", 2.5])
     def test_refuses_an_invalid_page_size(
         self, api_client: TestClient, suite: SuiteTables, limit: int
@@ -738,7 +738,7 @@ class TestTrends:
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
-        # Several runs per machine and commit are legal (endpoints.md, Runs), and a trend point
+        # Several runs per machine and commit are legal (E4), and a trend point
         # covers all of them rather than one.
         submit("linux", "abc", {"name": "t", "execution_time": 1.0})
         latest = submit("linux", "abc", {"name": "t", "execution_time": 9.0})
@@ -1035,7 +1035,7 @@ class TestTrendsMetric:
 
 @pytest.mark.parametrize("path", [QUERY, TRENDS])
 class TestAccess:
-    """R5: both are `read`-scoped, so both allow an anonymous caller."""
+    """I5: both are `read`-scoped, so both allow an anonymous caller."""
 
     @pytest.fixture
     def call(
@@ -1059,7 +1059,7 @@ class TestAccess:
     def test_a_bad_token_is_401_even_though_the_endpoint_is_read_scoped(
         self, call: Callable[..., Any], bearer: Callable[[str], dict[str, str]]
     ) -> None:
-        # R5: a bad credential is never silently downgraded to anonymous access.
+        # I5: a bad credential is never silently downgraded to anonymous access.
         response = call(headers=bearer("f" * 64))
 
         assert response.status_code == 401

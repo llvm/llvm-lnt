@@ -1,11 +1,11 @@
-"""Authentication and authorization (R5).
+"""Authentication and authorization (I5).
 
 `GET /api/` and the API key endpoints are the two surfaces these drive: one `read`-scoped, which
 anonymous callers reach, and one `admin`-scoped, which they never do. Between them they cover
-every outcome R5 specifies.
+every outcome I5 specifies.
 
 The scope hierarchy itself is `Scope.grants`, tested in `test_keys.py`; what is checked here is
-that endpoints enforce it, and that they do so in the order R5 requires.
+that endpoints enforce it, and that they do so in the order I5 requires.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from lnt_v5.scopes import Scope
 READABLE = "/api"
 ADMIN_ONLY = "/api/admin/api-keys"
 
-# R5 exempts four routes from the scope system. Two of them live under `/api/`; the other two,
+# I5 exempts four routes from the scope system. Two of them live under `/api/`; the other two,
 # `/healthz` and `/llms.txt`, do not and are covered by `TestExemptRoutes` below.
 EXEMPT_API_PATHS = {"/api/openapi.json", "/api/docs"}
 
@@ -34,7 +34,7 @@ UNKNOWN_TOKEN = "f" * 64
 
 class TestHeaderParsing:
     def test_no_header_reaches_a_read_endpoint(self, api_client: TestClient) -> None:
-        # R5: read-scoped endpoints allow unauthenticated access.
+        # I5: read-scoped endpoints allow unauthenticated access.
         assert api_client.get(READABLE).status_code == 200
 
     def test_no_header_is_refused_above_read(self, api_client: TestClient) -> None:
@@ -47,7 +47,7 @@ class TestHeaderParsing:
     def test_the_scheme_is_matched_case_insensitively(
         self, api_client: TestClient, make_key: Callable[..., str], scheme: str
     ) -> None:
-        # RFC 9110 makes the scheme name case-insensitive, and R5 defers to it.
+        # RFC 9110 makes the scheme name case-insensitive, and I5 defers to it.
         token = make_key(Scope.ADMIN)
 
         response = api_client.get(ADMIN_ONLY, headers={"Authorization": f"{scheme} {token}"})
@@ -68,7 +68,7 @@ class TestHeaderParsing:
     def test_an_unreadable_header_is_a_400(
         self, api_client: TestClient, header: str, why: str
     ) -> None:
-        # R5: this is a malformed request rather than a rejected credential, and deliberately not
+        # I5: this is a malformed request rather than a rejected credential, and deliberately not
         # treated as an absent header -- falling through to anonymous access would silently ignore
         # a credential the caller believes it sent.
         response = api_client.get(READABLE, headers={"Authorization": header})
@@ -81,7 +81,7 @@ class TestHeaderParsing:
         [
             UNKNOWN_TOKEN,
             "not-hex-" + "0" * 56,
-            "ABCDEF" + "0" * 58,  # uppercase hex is not the shape R5 fixes
+            "ABCDEF" + "0" * 58,  # uppercase hex is not the shape I5 fixes
             "0" * 63,
             "0" * 65,
             "short",
@@ -90,7 +90,7 @@ class TestHeaderParsing:
     def test_a_token_that_resolves_to_nothing_is_a_401(
         self, api_client: TestClient, bearer: Callable[[str], dict[str, str]], token: str
     ) -> None:
-        # R5 folds malformed and unknown together: both are `invalid_token`.
+        # I5 folds malformed and unknown together: both are `invalid_token`.
         response = api_client.get(ADMIN_ONLY, headers=bearer(token))
 
         assert response.status_code == 401
@@ -99,7 +99,7 @@ class TestHeaderParsing:
     def test_a_bad_token_is_not_downgraded_to_anonymous(
         self, api_client: TestClient, bearer: Callable[[str], dict[str, str]]
     ) -> None:
-        # The same request without a header would have succeeded. R5 refuses it anyway, so that a
+        # The same request without a header would have succeeded. I5 refuses it anyway, so that a
         # broken or revoked token cannot return results the caller misreads as authoritative.
         assert api_client.get(READABLE).status_code == 200
 
@@ -140,7 +140,7 @@ class TestScopeEnforcement:
         make_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
-        # R5 puts authorization before resolving the addressed resource, so that an unauthorized
+        # I5 puts authorization before resolving the addressed resource, so that an unauthorized
         # caller cannot enumerate which resources do exist by reading a 404.
         headers = bearer(make_key(Scope.MANAGE))
 
@@ -160,7 +160,7 @@ class TestRevocation:
         prefix = token[:8]
         assert api_client.delete(f"{ADMIN_ONLY}/{prefix}", headers=bearer(token)).status_code == 204
 
-        # R5 resolves every request against the database rather than caching the decision, so this
+        # I5 resolves every request against the database rather than caching the decision, so this
         # takes effect on the very next request.
         assert api_client.get(ADMIN_ONLY, headers=bearer(token)).status_code == 401
 
@@ -180,7 +180,7 @@ class TestRevocation:
 class TestExemptRoutes:
     @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt"])
     def test_an_authorization_header_has_no_effect(self, api_client: TestClient, path: str) -> None:
-        # R5: no authentication happens on their path at all -- not even for a header that would
+        # I5: no authentication happens on their path at all -- not even for a header that would
         # be a 400 or a 401 anywhere else under /api/.
         unauthenticated = api_client.get(path)
 
@@ -242,7 +242,7 @@ class TestLastUsed:
 
 class TestRouteCoverage:
     def test_every_api_route_declares_a_scope(self, api_app: FastAPI) -> None:
-        """R5: every endpoint under `/api/` declares the scope it requires.
+        """I5: every endpoint under `/api/` declares the scope it requires.
 
         The guard that keeps a future endpoint from shipping unprotected -- which would otherwise
         be invisible, since an endpoint with no scope simply works for everyone.
@@ -258,7 +258,7 @@ class TestRouteCoverage:
 
         assert unscoped == set()
 
-    def test_the_exempt_routes_are_the_ones_r5_names(self, api_app: FastAPI) -> None:
+    def test_the_exempt_routes_are_the_specified_ones(self, api_app: FastAPI) -> None:
         # The exemption is an explicit list rather than a consequence of living outside `/api/`,
         # so it is worth failing when something joins it by accident.
         exempt = {

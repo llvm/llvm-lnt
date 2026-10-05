@@ -3,7 +3,7 @@
 Page specifications for the Test Suites page (suite picker + tabs).
 
 
-## Test Suites -- `/suites` and `/suites/{ts}`
+## TS1: Test Suites -- `/suites` and `/suites/{ts}`
 
 The primary entry point for browsing test suite data. `/suites` shows the suite
 picker alone; `/suites/{ts}` shows the picker with `{ts}` selected, plus the
@@ -29,7 +29,7 @@ path and params to restore state. On changes, updates the URL.
 | Commits | Commit list with cursor pagination | `GET commits?search=...&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
 
-## Recent Activity tab
+## TS2: Recent Activity tab
 
 This tab shows the last 25 runs sorted by time. It shows a table like this:
 
@@ -46,7 +46,7 @@ that object. At the bottom of the page, a "Load more" button that allows loading
 the next page. The value in the `Commit` column is the `display` field for that
 commit, if any.
 
-## Machine tab
+## TS3: Machine tab
 
 This tab shows the machines defined in the test suite. It shows a table like this:
 
@@ -70,7 +70,7 @@ matching on their name and searchable fields.
 
 Below the table, `[<- Previous] 1-2 of 2 [Next ->]` allows navigating through pages.
 
-## Runs tab
+## TS4: Runs tab
 
 This tab shows the runs submitted to that test suite. It shows a table like this:
 
@@ -92,7 +92,7 @@ matching on machine name and searchable machine fields.
 
 Below the table, `[<- Previous] [Next ->]` allows navigating through pages.
 
-## Commits tab
+## TS5: Commits tab
 
 This tab shows the commits present in the test suite. It shows a table like:
 
@@ -113,7 +113,7 @@ on the commit's value and any tags and searchable fields. Substring matching is 
 
 Below the table, `[<- Previous] [Next ->]` allows navigating through pages.
 
-## Regressions tab
+## TS6: Regressions tab
 
 The Regressions tab embeds the full regression triage UI directly in the Test
 Suites page.

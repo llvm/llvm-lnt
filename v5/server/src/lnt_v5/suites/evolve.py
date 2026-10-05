@@ -46,7 +46,7 @@ class _EntryUpdate(BaseModel):
     @classmethod
     def _reject_type_change(cls, data: Any) -> Any:
         # Before validation, so this wins over `extra="forbid"` and can say why. `type` is
-        # deliberately not a field: declaring one only to reject it would put a property in R8's
+        # deliberately not a field: declaring one only to reject it would put a property in I8's
         # document that the API refuses every time.
         if isinstance(data, dict) and "type" in data:
             raise ValueError(
@@ -76,7 +76,7 @@ class _Changes[E: Entry, U: _EntryUpdate](BaseModel):
 
     Generic over its two entry models, with a named subclass per list below rather than the
     parameters spelled out at each use: an inline `_Changes[Metric, MetricUpdate]` names the OpenAPI
-    component `_Changes_Metric_MetricUpdate_`, a mangled private name in R8's public document.
+    component `_Changes_Metric_MetricUpdate_`, a mangled private name in I8's public document.
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -1,8 +1,8 @@
-"""Time series (endpoints.md, Time Series).
+"""Time series (E9).
 
-`POST /query` pages through D10's `Sample JOIN Run JOIN Commit`. It is a `read`-scoped POST because
-its test list does not fit a query string, so its cursor and page size travel in the body (R2).
-`GET /trends` combines the runs' geomeans (D15) into one per (machine, commit).
+`POST /query` pages through O5's `Sample JOIN Run JOIN Commit`. It is a `read`-scoped POST because
+its test list does not fit a query string, so its cursor and page size travel in the body (I2).
+`GET /trends` combines the runs' geomeans (O9) into one per (machine, commit).
 """
 
 from __future__ import annotations
@@ -54,8 +54,8 @@ TRENDS_PATH = f"{SUITES_PATH}/{{testsuite}}/trends"
 
 router = APIRouter(prefix=f"{SUITES_PATH}/{{testsuite}}", tags=["Time Series"])
 
-# endpoints.md names these three fields and no others, and R3's `-` prefix spells each of them
-# backwards. A literal rather than a free string, so R8's document enumerates them and an unknown
+# endpoints.md names these three fields and no others, and I3's `-` prefix spells each of them
+# backwards. A literal rather than a free string, so I8's document enumerates them and an unknown
 # one is a 400 before the endpoint runs -- the same treatment the run and commit lists get.
 QuerySort = Literal["test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"]
 
@@ -73,7 +73,7 @@ _NO_TREND_ENTITY = f"{SUITE_NOT_FOUND} Or a machine the request names is not in 
 class DataPoint(BaseModel):
     """One measured value, placed in the time series.
 
-    Carries the commit's `ordinal` and `tag`, the denormalization R4 grants this endpoint, and
+    Carries the commit's `ordinal` and `tag`, the denormalization I4 grants this endpoint, and
     echoes `metric` so that each point is self-descriptive.
     """
 
@@ -121,7 +121,7 @@ class TrendPoint(BaseModel):
     value: float = Field(
         description=(
             "The geometric mean of the geomeans of the runs at this machine and commit, for the "
-            "metric and sample aggregation the request names (D15). Always a real, even where the "
+            "metric and sample aggregation the request names (O9). Always a real, even where the "
             "metric is declared 'integer' (D3)."
         )
     )
@@ -139,7 +139,7 @@ class QueryRequest(BaseModel):
         default=None,
         description="Keep only values measured on this machine. 404 if there is no such machine.",
     )
-    # Bounded at R2's page ceiling, for the same reason `POST /commits/resolve` is: the list
+    # Bounded at I2's page ceiling, for the same reason `POST /commits/resolve` is: the list
     # expands into one statement, and an unbounded one would expand into a statement with more
     # bind parameters than the protocol carries.
     test: list[Named] | None = Field(
@@ -201,7 +201,7 @@ class QueryRequest(BaseModel):
 
 
 class Points:
-    """D10's join as rows: one data point per sample that has a value for the metric."""
+    """O5's join as rows: one data point per sample that has a value for the metric."""
 
     def __init__(self, suite: Suite, metric: Metric) -> None:
         self.table: Table = suite.tables.sample
@@ -246,10 +246,10 @@ class Points:
         )
 
     def keyset(self, sort: QuerySort | None) -> Keyset:
-        """D10's ordering: the caller's sort, then the sample's id as the unique tiebreaker.
+        """O5's ordering: the caller's sort, then the sample's id as the unique tiebreaker.
 
         `Keyset.defined` drops the rows whose sort key is null, which is what excludes unordered
-        commits under `sort=commit` (D10). The sort key and the tiebreaker live on different tables,
+        commits under `sort=commit` (O5). The sort key and the tiebreaker live on different tables,
         so the cursor comparison is not a pure index condition; PostgreSQL still drives the join
         from the sort column's index and finishes with an incremental sort, so a page stops early.
         """
@@ -259,7 +259,7 @@ class Points:
         return Keyset(SortKey(self._sortable[field], descending), tiebreaker=self.table.c.id)
 
     def measured_on(self, machine: int) -> ColumnElement[bool]:
-        """R3's `machine=`, by id so that it uses D5's `(machine_id, submitted_at)` index."""
+        """I3's `machine=`, by id so that it uses D5's `(machine_id, submitted_at)` index."""
         return self._run.c.machine_id == machine
 
     def measured_for(self, tests: Collection[int]) -> ColumnElement[bool]:
@@ -272,7 +272,7 @@ class Points:
         return self.table.c.test_id.in_(sorted(tests))
 
     def at_commit(self, value: str) -> ColumnElement[bool]:
-        """R3's `commit=`, by value so that an unknown commit is an empty page rather than 404."""
+        """I3's `commit=`, by value so that an unknown commit is an empty page rather than 404."""
         return self._commit.c.commit == value
 
     def read(self, row: Row[Any]) -> DataPoint:
@@ -294,7 +294,7 @@ class Points:
 
 
 class Trends:
-    """One metric's run geomeans under one sample aggregation (D15), combined per (machine, commit)
+    """One metric's run geomeans under one sample aggregation (O9), combined per (machine, commit)
     by a second geomean."""
 
     def __init__(self, suite: Suite, metric: Metric, aggregation: SampleAggregation) -> None:
@@ -401,7 +401,7 @@ def query_points(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> CursorPage[DataPoint]:
-    """One metric's measured values, filtered, ordered and cursor-paginated (R2, R3, D10).
+    """One metric's measured values, filtered, ordered and cursor-paginated (I2, I3, O5).
 
     The metric is resolved first, so an undeclared one is a 400 even if the body also names an
     absent machine or test. The spec leaves that order open.
@@ -463,7 +463,7 @@ def query_trends(
     ],
     sample_agg: Annotated[
         SampleAggregation,
-        Query(description="How each test's samples within a run are reduced to one value (D15)."),
+        Query(description="How each test's samples within a run are reduced to one value (O9)."),
     ] = SampleAggregation.MEDIAN,
     last_n: Annotated[
         int,
@@ -472,13 +472,13 @@ def query_trends(
             le=MAX_LIMIT,
             description=(
                 "Keep only the N most recent commits, by ordinal, at which any of the named "
-                "machines has a run geomean (D15) for the metric under the sample aggregation. "
+                "machines has a run geomean (O9) for the metric under the sample aggregation. "
                 f"Defaults to {DEFAULT_LAST_N}, so that the response is always bounded."
             ),
         ),
     ] = DEFAULT_LAST_N,
 ) -> Items[TrendPoint]:
-    """One geomean per machine and commit, for the Dashboard's sparklines (R2, R3, D15).
+    """One geomean per machine and commit, for the Dashboard's sparklines (I2, I3, O9).
 
     No `tracked` filter: that flag governs automatic machine selection (D5), which the Dashboard
     applies when it picks the machines it names here.

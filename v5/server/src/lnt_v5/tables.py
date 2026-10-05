@@ -1,7 +1,7 @@
 """The global tables (D5), and the naming convention every table in an instance shares.
 
 Global tables exist once per instance. They are defined here, in code, and brought into being by
-a migration (D14). Per-suite tables are the other half of the model: defined by data rather than
+a migration (D6). Per-suite tables are the other half of the model: defined by data rather than
 by code -- a suite's schema -- and created and altered at runtime by the suite endpoints. They
 are not defined here, but they must adopt the naming convention below.
 """
@@ -27,9 +27,9 @@ from .scopes import Scope
 
 # Deterministic names for every constraint and index, rather than whatever Postgres would invent.
 # Two things rest on this. Alembic needs stable names to emit migrations that can be reversed.
-# More importantly, D13 recovers from a unique-constraint violation by *attributing* it: a run
+# More importantly, O8 recovers from a unique-constraint violation by *attributing* it: a run
 # submission that trips one has to answer `duplicate` for a repeated run UUID but
-# `ordinal_conflict` for a taken ordinal (R4), and at the point the error surfaces the
+# `ordinal_conflict` for a taken ordinal (I4), and at the point the error surfaces the
 # constraint's name is the only thing that tells those apart.
 #
 # Because per-suite tables live in a schema of their own (D5), a name composed from a table and its
@@ -37,7 +37,7 @@ from .scopes import Scope
 # table definitions -- which is why the code that attributes a violation can name a constraint
 # outright. Two obligations come with that. A composed name must fit inside Postgres' 63-byte
 # identifier limit, since Postgres truncates a longer one with a warning rather than an error and
-# the stored name would then not be the one attribution compares (D14); anything that would
+# the stored name would then not be the one attribution compares (D4); anything that would
 # overflow takes a shorter explicit `name=`. And a name written down elsewhere must match the one
 # this convention produces.
 #
@@ -63,7 +63,7 @@ metadata = MetaData(naming_convention=NAMING_CONVENTION)
 # interchangeable here because D4 also restricts these names to ASCII.
 IDENTIFIER_MAX_LENGTH = 63
 
-# R5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
+# I5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
 # the stored hash is a hex SHA-256. These widths are the authority; keys.py reads them from here.
 TOKEN_PREFIX_LENGTH = 8
 TOKEN_HASH_LENGTH = 64
@@ -118,7 +118,7 @@ api_key = Table(
     Column("last_used_at", DateTime(timezone=True), nullable=True),
     Column("is_active", Boolean, nullable=False, server_default=true()),
     # D5 has the database layer validate the scope on create. Restating it as a constraint costs
-    # a migration if R5's five ever change -- they are fixed for v5 -- and in exchange a bug that
+    # a migration if I5's five ever change -- they are fixed for v5 -- and in exchange a bug that
     # writes an unknown scope fails at the boundary instead of minting a key that authenticates
     # as something nobody intended. Built from the enum so the two cannot drift.
     CheckConstraint(
@@ -126,4 +126,4 @@ api_key = Table(
         name="scope",
     ),
 )
-"""One row per API key (D5). The token itself is never stored; see R5 and keys.py."""
+"""One row per API key (D5). The token itself is never stored; see I5 and keys.py."""

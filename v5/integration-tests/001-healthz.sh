@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# R7: /healthz answers {"ok": true} when the server can reach the database. It is an
+# I7: /healthz answers {"ok": true} when the server can reach the database. It is an
 # infrastructure probe, deliberately outside the REST API surface, so it must not come back
-# wrapped in the R4 error envelope.
+# wrapped in the I4 error envelope.
 
 source "$(dirname "$0")/lib.sh"
 

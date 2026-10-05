@@ -1,4 +1,4 @@
-"""API keys and the scope hierarchy (R5)."""
+"""API keys and the scope hierarchy (I5)."""
 
 from __future__ import annotations
 
@@ -23,14 +23,14 @@ def stub_tokens(monkeypatch: pytest.MonkeyPatch, *tokens: str) -> None:
 
 class TestToken:
     def test_is_64_lowercase_hex_characters(self) -> None:
-        # R5 fixes both the length and the alphabet: 256 bits rendered as hex.
+        # I5 fixes both the length and the alphabet: 256 bits rendered as hex.
         assert TOKEN_PATTERN.match(keys.generate_token())
 
     def test_differs_every_time(self) -> None:
         assert len({keys.generate_token() for _ in range(100)}) == 100
 
     def test_is_hashed_with_a_bare_sha256_of_its_ascii_bytes(self) -> None:
-        # R5 rules out a password KDF deliberately, so this is pinned rather than left to
+        # I5 rules out a password KDF deliberately, so this is pinned rather than left to
         # whatever a future refactor finds convenient: auth has to compute the same hash.
         token = "ab" * 32
 
@@ -79,7 +79,7 @@ class TestCreateKey:
         assert created.token == free
         assert created.prefix == "99999999"
         # The retry runs inside a savepoint, so the attempt that collided neither persists nor
-        # poisons the caller's transaction (D13's pattern).
+        # poisons the caller's transaction (O8's pattern).
         assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 2
 
     def test_gives_up_rather_than_spinning_when_every_prefix_collides(
@@ -134,7 +134,7 @@ class TestScopeHierarchy:
         assert all(scope.grants(scope) for scope in Scope)
 
     def test_is_not_the_alphabetical_order_str_comparison_would_give(self) -> None:
-        # Compared as plain strings, "admin" sorts below "read" -- the exact inversion of R5's
+        # Compared as plain strings, "admin" sorts below "read" -- the exact inversion of I5's
         # ladder. A `<` between two members would hand the highest-privilege scope the fewest
         # rights, so `grants` reads declaration order instead.
         assert Scope.ADMIN < Scope.READ
@@ -153,7 +153,9 @@ class TestScopeHierarchy:
             (Scope.ADMIN, Scope.MANAGE, True),
         ],
     )
-    def test_grants_along_r5s_ladder(self, holder: Scope, required: Scope, granted: bool) -> None:
+    def test_grants_along_the_scope_ladder(
+        self, holder: Scope, required: Scope, granted: bool
+    ) -> None:
         assert holder.grants(required) is granted
 
     def test_serializes_as_the_wire_spelling(self) -> None:

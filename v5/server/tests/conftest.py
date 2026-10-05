@@ -44,7 +44,7 @@ LNT_ENV_VARS = [name.upper() for name in Settings.model_fields]
 # Anyone who needs a different server can change this line.
 TEST_DATABASE_URL = "postgresql+psycopg://lnt:lnt@127.0.0.1:5432/lnt"
 
-# R5's token shape. Written out from the specification rather than derived from the constants the
+# I5's token shape. Written out from the specification rather than derived from the constants the
 # generator uses, so that changing those has to be a deliberate change here too.
 TOKEN_PATTERN = re.compile(r"\A[0-9a-f]{64}\Z")
 
@@ -95,7 +95,7 @@ def client(app: FastAPI) -> TestClient:
 # Database
 #
 # These tests run against a real PostgreSQL server rather than a stand-in, because essentially
-# everything they cover is Postgres-specific: savepoint retry (D13), partial and compound
+# everything they cover is Postgres-specific: savepoint retry (O8), partial and compound
 # indexes, cascades, and geomean in SQL. An unreachable server is a hard failure rather than a
 # skip -- a suite that quietly stops testing the database is worse than one that stops.
 # --------------------------------------------------------------------------------------------
@@ -171,7 +171,7 @@ def db_engine(_session_engine: Engine) -> Iterator[Engine]:
     """The migrated database, emptied again after the test.
 
     Emptying rather than rolling back, so that code under test is free to manage its own
-    transactions and savepoints -- which D13's get-or-create does, and which an outer
+    transactions and savepoints -- which O8's get-or-create does, and which an outer
     rollback-everything transaction would quietly interfere with.
     """
     yield _session_engine
@@ -302,7 +302,7 @@ def bearer() -> Callable[[str], dict[str, str]]:
 
 @pytest.fixture
 def manage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]) -> dict[str, str]:
-    """The header for a `manage` key -- what every write outside `/api/admin` needs (R5)."""
+    """The header for a `manage` key -- what every write outside `/api/admin` needs (I5)."""
     return bearer(make_key(Scope.MANAGE))
 
 
@@ -310,18 +310,18 @@ def manage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
 def submitter(
     make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
 ) -> dict[str, str]:
-    """The header for a `submit` key -- what endpoints.md gives `POST /runs` (R5)."""
+    """The header for a `submit` key -- what endpoints.md gives `POST /runs` (I5)."""
     return bearer(make_key(Scope.SUBMIT))
 
 
 @pytest.fixture
 def triage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]) -> dict[str, str]:
-    """The header for a `triage` key -- what endpoints.md gives the regression writes (R5)."""
+    """The header for a `triage` key -- what endpoints.md gives the regression writes (I5)."""
     return bearer(make_key(Scope.TRIAGE))
 
 
 def walk_cursor(fetch: Callable[[str | None], Any]) -> list[Any]:
-    """Every item a cursor-paginated list serves, following `cursor.next` to the end (R2).
+    """Every item a cursor-paginated list serves, following `cursor.next` to the end (I2).
 
     Shared because six lists page this way and the contract they page by is one contract: pass the
     previous page's `cursor.next` back unchanged, stop when it is null. A copy per endpoint module
@@ -329,7 +329,7 @@ def walk_cursor(fetch: Callable[[str | None], Any]) -> list[Any]:
     loop forever. The guard is what turns a cursor that fails to advance into a failed test rather
     than a hung suite.
 
-    Takes a callable rather than a path, because R2 gives the token two carriers: five of these
+    Takes a callable rather than a path, because I2 gives the token two carriers: five of these
     lists are GETs that take it as `cursor=`, and `POST /query` takes it as a key of its body. The
     loop is the contract and does not differ between them; only the request does.
     """
@@ -379,7 +379,7 @@ def uuids_in(response: Any) -> list[str]:
 
 
 def code_of(response: Any) -> str:
-    """The R4 error code a failing response carries, having checked it is the whole body.
+    """The I4 error code a failing response carries, having checked it is the whole body.
 
     A plain function rather than a fixture so that it can be imported; the envelope's shape is
     asserted here rather than at each call site, so that one test module cannot quietly start
@@ -391,10 +391,10 @@ def code_of(response: Any) -> str:
 
 
 def run_payload(**overrides: Any) -> dict[str, Any]:
-    """The smallest run submission D6 accepts, with whichever keys a test cares about replaced.
+    """The smallest run submission O1 accepts, with whichever keys a test cares about replaced.
 
     Here rather than in one of the test modules because both the endpoint tests and the pure
-    validation tests build on it, and D6's shape should not have to be edited in two places. The
+    validation tests build on it, and O1's shape should not have to be edited in two places. The
     default `tests` is empty: a test that cares about what an entry expands into says so.
     """
     return {
@@ -405,7 +405,7 @@ def run_payload(**overrides: Any) -> dict[str, Any]:
     } | overrides
 
 
-# A small, valid D12 profile document, for the tests that need a profile without caring which.
+# A small, valid O7 profile document, for the tests that need a profile without caring which.
 PROFILE_DOCUMENT: dict[str, Any] = {
     "disassembly_format": "raw",
     "counters": {"cycles": 100},
@@ -423,7 +423,7 @@ PROFILE_COLUMNS: dict[str, Any] = {"disassembly_format": "raw", "counters": {}}
 
 
 def encoded_profile(document: dict[str, Any] | bytes = PROFILE_DOCUMENT) -> str:
-    """A profile document, gzip-compressed and base64-encoded the way a submission carries it (D12).
+    """A profile document, gzip-compressed and base64-encoded the way a submission carries it (O7).
 
     Raw bytes are compressed as they are, for the tests that need a document that is not JSON.
     """

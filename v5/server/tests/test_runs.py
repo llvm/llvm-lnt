@@ -1,8 +1,8 @@
-"""The run endpoints (endpoints.md, Runs).
+"""The run endpoints (E4).
 
 Driven over the real application and a real database, because almost everything worth checking here
-is what PostgreSQL ends up holding: the rows a submission expands into (D6), the machine, commit and
-tests it creates on the way (D7, D13), the cascade a delete reaches, and the atomicity that has to
+is what PostgreSQL ends up holding: the rows a submission expands into (O1), the machine, commit and
+tests it creates on the way (O2, O8), the cascade a delete reaches, and the atomicity that has to
 hold across all of it.
 
 The payload's own validation lives in `test_submission.py`, which drives `validate_submission`
@@ -42,7 +42,7 @@ MACHINES = MACHINES_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 
 # Two reals and an integer, so that a sample row can be checked for the columns a submission did
-# *not* mention as well as the ones it did, and fields on both entities for D7's reconciliation.
+# *not* mention as well as the ones it did, and fields on both entities for O2's reconciliation.
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
@@ -51,7 +51,7 @@ NTS: dict[str, Any] = {
         {"name": "compile_status", "type": "integer"},
     ],
     "machine_fields": [
-        # `hardware` is searchable so that the run list's `?search=`, which D9 makes the machine
+        # `hardware` is searchable so that the run list's `?search=`, which O4 makes the machine
         # list's predicate applied through the run's machine, has a field to reach.
         {"name": "hardware", "type": "text", "searchable": True},
         {"name": "core_count", "type": "integer"},
@@ -65,7 +65,7 @@ NTS: dict[str, Any] = {
 METRICS = [metric["name"] for metric in NTS["metrics"]]
 
 # What a submission measures when the test does not care what it measured. `conftest.run_payload`
-# defaults to no tests at all, which is the minimal D6 body; most of these tests want a run that
+# defaults to no tests at all, which is the minimal O1 body; most of these tests want a run that
 # produced a row, so they start from one entry instead.
 MEASURED = [{"name": "suite/one", "execution_time": 1.5}]
 
@@ -77,7 +77,7 @@ WRITES = [
 
 
 def payload(**overrides: Any) -> dict[str, Any]:
-    """D6's body with one test entry, and whichever keys a test cares about replaced.
+    """O1's body with one test entry, and whichever keys a test cares about replaced.
 
     The body's shape is `conftest.run_payload`'s, shared with `test_submission.py`; all this adds
     is the default these endpoint tests want.
@@ -172,7 +172,7 @@ class TestSubmit:
     def test_carries_exactly_the_keys_endpoints_md_names(
         self, submitted: Callable[..., Any]
     ) -> None:
-        # R4: `machine` and `commit` are the referenced entity's identifier rather than a nested
+        # I4: `machine` and `commit` are the referenced entity's identifier rather than a nested
         # object, and every documented key is present.
         body = submitted(run_parameters={"build_config": "Release"})
 
@@ -222,9 +222,9 @@ class TestSubmit:
         suite: SuiteTables,
         parameters: dict[str, Any],
     ) -> None:
-        # D6: JSON has no literal for any of these, but Python's parser accepts all three and JSONB
+        # O1: JSON has no literal for any of these, but Python's parser accepts all three and JSONB
         # does not, so one would otherwise fail in the database -- a 500 for a value the caller
-        # supplied, which R4 makes an `invalid_request`. Serialized here with `json.dumps`, which
+        # supplied, which I4 makes an `invalid_request`. Serialized here with `json.dumps`, which
         # emits them, rather than through the client, which may refuse to.
         response = api_client.post(
             RUNS,
@@ -238,7 +238,7 @@ class TestSubmit:
     def test_accepts_a_run_that_measured_nothing(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # D6: a run that measured nothing is still a run.
+        # O1: a run that measured nothing is still a run.
         submitted(tests=[])
 
         assert counted(db_engine, suite, "run") == 1
@@ -284,7 +284,7 @@ class TestUuid:
         assert submitted(uuid=given)["uuid"] == given
 
     def test_normalizes_it_to_lowercase(self, submitted: Callable[..., Any]) -> None:
-        # D6: stored lowercased, which is also the form the `Location` header and every later
+        # O1: stored lowercased, which is also the form the `Location` header and every later
         # lookup use.
         assert submitted(uuid="550E8400-E29B-41D4-A716-446655440000")["uuid"] == (
             "550e8400-e29b-41d4-a716-446655440000"
@@ -306,8 +306,8 @@ class TestUuid:
     def test_refuses_one_that_is_not_in_the_hyphenated_form(
         self, submit: Callable[..., Any]
     ) -> None:
-        # One case rather than the matrix: what the endpoint owes is that a UUID D6 refuses comes
-        # back as R4's 400 in the error envelope. Which spellings are refused -- braced, prefixed,
+        # One case rather than the matrix: what the endpoint owes is that a UUID O1 refuses comes
+        # back as I4's 400 in the error envelope. Which spellings are refused -- braced, prefixed,
         # a digit short, a trailing newline -- is `test_submission.py`'s, which settles it without
         # a CREATE SCHEMA per case.
         response = submit(uuid="550e8400e29b41d4a716446655440000")
@@ -316,7 +316,7 @@ class TestUuid:
         assert code_of(response) == "invalid_request"
 
     def test_refuses_a_uuid_a_run_already_has(self, submit: Callable[..., Any]) -> None:
-        # R4 gives this `duplicate` rather than the generic conflict: a submitting bot recovers by
+        # I4 gives this `duplicate` rather than the generic conflict: a submitting bot recovers by
         # retrying with a fresh UUID.
         given = "550e8400-e29b-41d4-a716-446655440000"
         assert submit(uuid=given).status_code == 201
@@ -351,7 +351,7 @@ class TestSubmittedAt:
     def test_is_the_value_the_database_recorded(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # D5 and D6: the column's `now()` default rather than anything this process computed, so
+        # D5 and O1: the column's `now()` default rather than anything this process computed, so
         # that concurrent workers agree on the ordering it defines. The response is that value read
         # back, not a second opinion.
         body = submitted()
@@ -368,7 +368,7 @@ class TestSubmittedAt:
         assert recent(datetime.fromisoformat(submitted()["submitted_at"]))
 
     def test_the_submission_cannot_supply_it(self, submit: Callable[..., Any]) -> None:
-        # D6 has no such key, and `extra="forbid"` is what turns sending one into a 400 rather than
+        # O1 has no such key, and `extra="forbid"` is what turns sending one into a 400 rather than
         # a value silently ignored.
         response = submit(submitted_at="2020-01-01T00:00:00Z")
 
@@ -377,7 +377,7 @@ class TestSubmittedAt:
 
 
 class TestImplicitCreation:
-    """D7: the machine, the commit and the tests a run names are created if they are not there."""
+    """O2: the machine, the commit and the tests a run names are created if they are not there."""
 
     def test_creates_the_machine_with_what_the_submission_sent(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -424,7 +424,7 @@ class TestImplicitCreation:
     def test_the_created_machine_is_addressable_by_the_name_that_was_submitted(
         self, api_client: TestClient, submitted: Callable[..., Any]
     ) -> None:
-        # R1: the response binds `machine` to the machine's own identifier, so the value a client
+        # I1: the response binds `machine` to the machine's own identifier, so the value a client
         # reads off a run is the one it addresses the machine with.
         body = submitted(machine={"name": "linux-x86_64"})
 
@@ -441,7 +441,7 @@ class TestImplicitCreation:
     def test_refuses_a_machine_name_no_url_could_address(
         self, submit: Callable[..., Any], name: str
     ) -> None:
-        # R1: implicit creation is bound by the same rule as explicit creation, since the machine
+        # I1: implicit creation is bound by the same rule as explicit creation, since the machine
         # would otherwise exist at an address nothing can reach.
         response = submit(machine={"name": name})
 
@@ -459,7 +459,7 @@ class TestImplicitCreation:
 
 
 class TestMetadataReconciliation:
-    """D7 end to end: a submission never overwrites metadata, and only fills in what is missing."""
+    """O2 end to end: a submission never overwrites metadata, and only fills in what is missing."""
 
     def test_a_matching_value_is_accepted(self, submit: Callable[..., Any]) -> None:
         machine = {"name": "linux", "fields": {"hardware": "x86_64"}}
@@ -488,7 +488,7 @@ class TestMetadataReconciliation:
 
         response = submit(machine={"name": "linux", "fields": {"hardware": "aarch64"}})
 
-        # R4's generic `conflict`: none of the more specific 409s describes machine metadata.
+        # I4's generic `conflict`: none of the more specific 409s describes machine metadata.
         assert response.status_code == 409
         assert code_of(response) == "conflict"
         assert api_client.get(f"{MACHINES}/linux").json()["fields"]["hardware"] == "x86_64"
@@ -506,7 +506,7 @@ class TestMetadataReconciliation:
     def test_tracked_is_first_write_wins(
         self, api_client: TestClient, submitted: Callable[..., Any]
     ) -> None:
-        # D6 and D7 exclude `tracked` from the match: it is a policy flag operators change, so a
+        # O1 and O2 exclude `tracked` from the match: it is a policy flag operators change, so a
         # later submission disagreeing about it is ignored rather than refused.
         submitted(machine={"name": "linux", "tracked": False})
 
@@ -517,7 +517,7 @@ class TestMetadataReconciliation:
     def test_two_submitters_sending_different_subsets_coexist(
         self, api_client: TestClient, submit: Callable[..., Any]
     ) -> None:
-        # The property D7 is really after: a key a submission omits is not compared at all, so a
+        # The property O2 is really after: a key a submission omits is not compared at all, so a
         # producer that knows the hardware and one that knows the core count both succeed, and
         # neither is broken by the other having filled in a field it does not send.
         hardware = {"name": "linux", "fields": {"hardware": "x86_64"}}
@@ -540,7 +540,7 @@ class TestMetadataReconciliation:
 
 
 class TestOrdinal:
-    """D11, inline: a submission may place a commit in the order but may never move it."""
+    """O6, inline: a submission may place a commit in the order but may never move it."""
 
     def test_sets_the_ordinal_of_a_commit_that_has_none(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -587,7 +587,7 @@ class TestOrdinal:
 
 
 class TestTag:
-    """D7, inline: a submission may tag a commit that has no tag, but never re-tag one."""
+    """O2, inline: a submission may tag a commit that has no tag, but never re-tag one."""
 
     def test_tags_the_commit_it_creates(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -614,7 +614,7 @@ class TestTag:
     def test_refuses_a_tag_that_contradicts_the_stored_one(
         self, api_client: TestClient, submit: Callable[..., Any]
     ) -> None:
-        # R4's generic `conflict`, as for a field: unlike an ordinal, a tag is not unique, so a
+        # I4's generic `conflict`, as for a field: unlike an ordinal, a tag is not unique, so a
         # mismatch says nothing about the client's view of the commit order.
         submit(commit={"value": "abc123", "tag": "release-18.1-rc1"})
 
@@ -635,14 +635,14 @@ class TestTag:
 
 
 class TestSamples:
-    """D6: what a test entry expands into, as the rows PostgreSQL ends up holding."""
+    """O1: what a test entry expands into, as the rows PostgreSQL ends up holding."""
 
     def test_stores_the_scalars_an_entry_carries(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
         submitted(tests=[{"name": "suite/one", "execution_time": 1.5, "compile_status": 0}])
 
-        # The metric the entry did not mention is NULL, which is what "no value" means (D6).
+        # The metric the entry did not mention is NULL, which is what "no value" means (O1).
         assert samples(db_engine, suite) == [
             {
                 "test": "suite/one",
@@ -694,7 +694,7 @@ class TestSamples:
     def test_an_entry_with_no_metrics_still_records_that_the_test_ran(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # D6: an entry yields max(1, array length) rows, so this one is a row of nothing but the
+        # O1: an entry yields max(1, array length) rows, so this one is a row of nothing but the
         # run and test it belongs to.
         submitted(tests=[{"name": "suite/one"}])
 
@@ -782,7 +782,7 @@ class TestSamples:
     def test_costs_one_insert_however_many_samples_there_are(
         self, submitted: Callable[..., Any]
     ) -> None:
-        """D13's cost guarantee for the sample set, which the rows alone cannot show.
+        """O8's cost guarantee for the sample set, which the rows alone cannot show.
 
         A statement per row stores exactly the same 1 000 samples as one executemany does, and
         passes every other test here while making a submission's cost linear in round trips. So
@@ -803,7 +803,7 @@ class TestSamples:
 
 
 class TestProfiles:
-    """D12: one profile row per run+test, holding the document the submission carried."""
+    """O7: one profile row per run+test, holding the document the submission carried."""
 
     def test_stores_the_submitted_document(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
@@ -831,7 +831,7 @@ class TestProfiles:
     def test_gives_each_profile_a_server_generated_uuid(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # R1: a run's UUID may be the client's, and every other UUID in the API is the server's --
+        # I1: a run's UUID may be the client's, and every other UUID in the API is the server's --
         # the submission format has nowhere to put one for a profile.
         submitted(
             tests=[
@@ -898,8 +898,8 @@ class TestProfiles:
         assert stored == {"suite/one": {"cycles": 1}, "suite/three": {"cycles": 3}}
 
     def test_refuses_a_profile_it_cannot_decode(self, submit: Callable[..., Any]) -> None:
-        # One case rather than the matrix: what the endpoint owes is that a profile D12 refuses
-        # comes back as R4's 400 in the error envelope. Which profiles are refused is
+        # One case rather than the matrix: what the endpoint owes is that a profile O7 refuses
+        # comes back as I4's 400 in the error envelope. Which profiles are refused is
         # `test_profile_document.py`'s, which settles it without a CREATE SCHEMA per case.
         response = submit(tests=[{"name": "suite/one", "profile": "not base64!"}])
 
@@ -909,7 +909,7 @@ class TestProfiles:
     def test_nothing_is_written_when_a_profile_is_refused(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., Any]
     ) -> None:
-        # Validation is pure and runs in front of the write (D6), so a bad profile on the second
+        # Validation is pure and runs in front of the write (O8), so a bad profile on the second
         # entry costs the first one nothing.
         submit(
             tests=[
@@ -927,9 +927,9 @@ class TestOversizedBody:
     def test_a_body_larger_than_the_deployment_accepts_is_413(
         self, api_settings: Settings, submitter: dict[str, str], suite: SuiteTables
     ) -> None:
-        # R4 puts this at the transport layer, outside the REST API surface and outside the error
+        # I4 puts this at the transport layer, outside the REST API surface and outside the error
         # envelope -- and distinct from the 400 an oversized *profile* gets, which is a limit on one
-        # profile rather than on the request carrying it (D12).
+        # profile rather than on the request carrying it (O7).
         client = TestClient(create_app(api_settings.model_copy(update={"body_limit": 64})))
 
         with client:
@@ -942,7 +942,7 @@ class TestOversizedBody:
 
 
 class TestAtomicity:
-    """D13: a submission either fully succeeds or leaves nothing at all behind."""
+    """O8: a submission either fully succeeds or leaves nothing at all behind."""
 
     @pytest.fixture
     def failed_halfway(
@@ -985,7 +985,7 @@ class TestAtomicity:
 
 
 class TestConcurrentSubmission:
-    """D13, over the endpoint: concurrent submissions naming the same new entities all succeed.
+    """O8, over the endpoint: concurrent submissions naming the same new entities all succeed.
 
     `test_concurrency.py` covers the get-or-create underneath this, deterministically. What this
     adds is that the endpoint composes those calls into one transaction that neither deadlocks nor
@@ -1035,7 +1035,7 @@ def run_at(
     """Submit a run and move its `submitted_at` where the test needs it.
 
     Submitted through the API rather than inserted, so the machine and the commit are created the
-    way D7 creates them; only the clock is forced, because a submission cannot supply it (D6) and
+    way O2 creates them; only the clock is forced, because a submission cannot supply it (O1) and
     the `after=`/`before=` filters have nothing to bite on otherwise.
     """
 
@@ -1089,7 +1089,7 @@ class TestList:
     def test_is_ordered_deterministically_by_default(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        # R2: no `sort` is an arbitrary order, so only its determinism is promised -- two walks,
+        # I2: no `sort` is an arbitrary order, so only its determinism is promised -- two walks,
         # paging at different boundaries, see the same runs in the same order.
         created = {run_at(datetime(year, 1, 1, tzinfo=UTC)) for year in (2020, 2026, 2023)}
 
@@ -1113,7 +1113,7 @@ class TestList:
     def test_serves_runs_sharing_an_instant_exactly_once(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        # D10: `submitted_at` is not unique, so the keyset needs its internal tiebreaker. Without
+        # O5: `submitted_at` is not unique, so the keyset needs its internal tiebreaker. Without
         # one, a page boundary falling between two runs of the same instant drops one and repeats
         # the other.
         moment = datetime(2026, 3, 4, 5, 6, tzinfo=UTC)
@@ -1152,7 +1152,7 @@ class TestListFilters:
     def test_is_404_for_a_machine_that_is_not_there(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
-        # R3: an unknown `machine=` is an error, unlike an unknown `commit=`.
+        # I3: an unknown `machine=` is an error, unlike an unknown `commit=`.
         response = listed(api_client, "machine=nope")
 
         assert response.status_code == 404
@@ -1169,7 +1169,7 @@ class TestListFilters:
     def test_an_unknown_commit_is_an_empty_page_rather_than_an_error(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        # R3 draws this asymmetry with `machine=` deliberately.
+        # I3 draws this asymmetry with `machine=` deliberately.
         run_at()
 
         response = listed(api_client, "commit=never-seen")
@@ -1255,7 +1255,7 @@ class TestListFilters:
 
 
 class TestListSearch:
-    """D9: the same predicate as `GET /machines?search=`, applied through the run's machine."""
+    """O4: the same predicate as `GET /machines?search=`, applied through the run's machine."""
 
     @pytest.fixture(autouse=True)
     def runs(self, submitted: Callable[..., Any]) -> None:
@@ -1269,7 +1269,7 @@ class TestListSearch:
         assert len(uuids_in(listed(api_client, "search=skylake"))) == 1
 
     def test_is_the_machine_lists_predicate(self, api_client: TestClient) -> None:
-        # D9 requires the two to agree, so the machines the run list matches must be exactly the
+        # O4 requires the two to agree, so the machines the run list matches must be exactly the
         # machines the machine list matches for the same term.
         machines = api_client.get(f"{MACHINES}?search=ar").json()["items"]
         runs = listed(api_client, "search=ar").json()["items"]
@@ -1336,7 +1336,7 @@ class TestListPagination:
 
 
 class TestMachineRuns:
-    """`GET /machines/{name}/runs` (endpoints.md, Machines)."""
+    """`GET /machines/{name}/runs` (E2)."""
 
     def path(self, machine: str = "linux") -> str:
         return f"{MACHINES}/{machine}/runs"
@@ -1427,7 +1427,7 @@ class TestDetail:
     def test_accepts_the_uuid_in_either_case(
         self, api_client: TestClient, submitted: Callable[..., Any]
     ) -> None:
-        # D6 stores the lowercased form, and the path segment is matched against it.
+        # O1 stores the lowercased form, and the path segment is matched against it.
         body = submitted(uuid="550e8400-e29b-41d4-a716-446655440000")
 
         assert api_client.get(f"{RUNS}/550E8400-E29B-41D4-A716-446655440000").json() == body
@@ -1558,7 +1558,7 @@ class TestSchemaChangedUnderneath:
         Dropping the column without going through `PATCH /schema` leaves D2's version counter
         alone, so the freshness check passes and the submission gets all the way to the statement
         that names the column. That makes this the one failure that lands *after* the run row is
-        already in -- and so the interesting one for D13's atomicity.
+        already in -- and so the interesting one for O8's atomicity.
         """
         with db_engine.begin() as connection:
             connection.execute(text("ALTER TABLE nts.sample DROP COLUMN execution_time"))
@@ -1574,7 +1574,7 @@ class TestSchemaChangedUnderneath:
     def test_nothing_the_submission_wrote_survives(
         self, db_engine: Engine, suite: SuiteTables, table: str
     ) -> None:
-        # D13's atomicity where it is hardest: the run row, and the machine and commit created to
+        # O8's atomicity where it is hardest: the run row, and the machine and commit created to
         # point it at, were all written before the failure, and all of them go with it.
         assert counted(db_engine, suite, table) == 0
 

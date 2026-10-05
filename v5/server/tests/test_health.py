@@ -39,7 +39,7 @@ def test_returns_500_when_the_database_is_unreachable(settings: Settings) -> Non
         response = client.get("/healthz")
 
     assert response.status_code == 500
-    # R7 specifies this exact body. It must not be rewritten into the R4 error envelope: /healthz
+    # I7 specifies this exact body. It must not be rewritten into the I4 error envelope: /healthz
     # is an infrastructure probe, deliberately outside the REST API surface.
     assert response.json() == {"ok": False}
     assert "error" not in response.json()

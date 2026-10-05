@@ -79,7 +79,7 @@ the suite is a query parameter, not a path segment.
     (median/mean/min/max)
 
 
-### Lazy Loading with Progressive Rendering
+### GR1: Lazy Loading with Progressive Rendering
 
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
 For each selected test, data is fetched via `POST /query` with OR'd test names
@@ -89,7 +89,7 @@ pages arrive via cursor-based pagination. This avoids blocking the UI on large
 datasets.
 
 
-### X-axis Scaffolding
+### GR2: X-axis Scaffolding
 
 To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the
 graph page pre-fetches the complete list of commit values for each selected
@@ -104,13 +104,13 @@ added or removed. If a scaffold fetch fails for one machine, that machine's
 commits are simply not included in the union -- the chart still works.
 
 
-### Incremental Chart Updates
+### GR3: Incremental Chart Updates
 
 The chart is updated in-place as new pages of data arrive, rather than being
 destroyed and re-created.
 
 
-### Zoom Preservation During Progressive Loading
+### GR4: Zoom Preservation During Progressive Loading
 
 If the user zooms into the chart while data is still loading, the zoom is
 preserved across incremental updates. The x-axis range is always preserved (it
@@ -120,7 +120,7 @@ accommodate new data as it arrives. Double-clicking the chart resets the zoom to
 the full range as usual.
 
 
-### Test Selection Table
+### GR5: Test Selection Table
 
 Below the chart, a table lists ALL tests matching the current filter, sorted
 alphabetically by test name. One row per test name (not per test x machine
@@ -138,7 +138,7 @@ thousands of tests. Non-matching rows are hidden immediately; the chart updates
 asynchronously.
 
 
-### Selection Interactions
+### GR6: Selection Interactions
 
 A header "check all" checkbox in the table header selects or deselects all
 visible tests (tri-state: unchecked, indeterminate when some selected, checked
@@ -155,7 +155,7 @@ very long); the filter, suite, machine, metric, aggregation, regression
 annotation mode, and baselines remain in the URL.
 
 
-### Client-Side Caching and State Persistence
+### GR7: Client-Side Caching and State Persistence
 
 Test names, data points, scaffolds, and baseline data are cached locally. Test
 names are fetched once per machine/metric combination (all names, no server-side
@@ -168,18 +168,18 @@ browser back renders the previous selection and chart instantly from cache. All
 caches and selections are cleared on suite change.
 
 
-### Baselines
+### GR8: Baselines
 
 Users can overlay one or more baselines as horizontal dashed lines on the chart.
 Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
 comparisons. The selector is an expandable panel with cascading dropdowns: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint) -> Commit (populated from the selected machine's
-commits via `GET commits?machine={name}`, ordered newest-first; see
-architecture.md). Added baselines appear as removable chips labeled
-`{suite}/{machine}/{display_value}`, where `display_value` is the commit's
-display value (e.g. short SHA with tag) when a `commit_field` with
-`display: true` is defined, otherwise the raw commit string. Display values for
+commits via `GET commits?machine={name}`, ordered newest-first; see AR2). Added
+baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
+where `display_value` is the commit's display value (e.g. short SHA with tag)
+when a `commit_field` with `display: true` is defined, otherwise the raw commit
+string. Display values for
 baseline commits are resolved via `POST /commits/resolve` so they display
 correctly when baselines are loaded from the URL. The "+" button uses
 `align-self: flex-start` so it does not stretch to the width of the chips.
@@ -197,14 +197,14 @@ Baseline data is fetched asynchronously after the first render, so it does not
 block initial chart display.
 
 
-### Concurrent Background Fetches
+### GR9: Concurrent Background Fetches
 
 Each machine x metric fetch uses its own AbortController, so navigating away or
 removing a machine cancels its in-flight requests cleanly without affecting
 other machines' fetches.
 
 
-### Hover Behavior
+### GR10: Hover Behavior
 
 Hover a data point: tooltip showing test name, machine name, commit value,
 aggregated metric value, run count. Hover distance is reduced
@@ -216,14 +216,14 @@ scatter of markers at the same x-position, in the same trace color but faded
 temporary Plotly trace that is added on hover and removed on unhover.
 
 
-### Empty State
+### GR11: Empty State
 
 When no traces match the current filter/settings, the chart displays an overlay
 "No data to plot" centered on the chart area, preserving the x-axis scaffold so
 the user can see the commit range.
 
 
-### API Calls
+### GR12: API Calls
 
 - `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}`
   (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`)
@@ -234,7 +234,7 @@ the user can see the commit range.
 - `GET suites/{ts}` (fields/metrics)
 
 
-### URL State
+### GR13: URL State
 
 `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}::{machine}::{commit}&baseline={suite2}::{machine2}::{commit2}`
 
@@ -244,7 +244,7 @@ URL (names can be very long); they are ephemeral page state preserved across SPA
 navigation but lost on page reload.
 
 
-### Regression Annotations
+### GR14: Regression Annotations
 
 A dropdown toggle "Regressions: Off | Active | All" (default Off) in the
 controls panel. When enabled, vertical dashed lines are drawn at the

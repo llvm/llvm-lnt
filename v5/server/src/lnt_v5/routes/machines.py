@@ -1,6 +1,6 @@
-"""Machines: the hosts runs are measured on (endpoints.md, Machines).
+"""Machines: the hosts runs are measured on (E2).
 
-A machine is one of the two entities carrying schema-declared metadata (D7), so the object these
+A machine is one of the two entities carrying schema-declared metadata (O2), so the object these
 endpoints accept and return is the same one a run submission nests under `machine`: the identity
 attribute `name`, the built-in `tracked`, and a `fields` dict of declared `machine_fields`. That
 object, and the validation of `fields`, live in `suites/entities.py`, shared with everything else
@@ -68,7 +68,7 @@ MACHINES_PATH = f"{SUITES_PATH}/{{testsuite}}/machines"
 
 router = APIRouter(prefix=MACHINES_PATH, tags=["Machines"])
 
-# endpoints.md names these four and no others. A literal rather than a free string, so R8's document
+# endpoints.md names these four and no others. A literal rather than a free string, so I8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
 MachineSort = Literal["name", "-name", "last_run_at", "-last_run_at"]
 
@@ -82,7 +82,7 @@ _NAME_TAKEN = f"A machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
 class Machine(MachineObject):
     """A machine as every response carries it: the entity object plus what D5 derives.
 
-    `tracked` and `fields` are redeclared without their defaults. R4 requires every documented key
+    `tracked` and `fields` are redeclared without their defaults. I4 requires every documented key
     to be present in a response, and inheriting the request model's optionality would instead tell
     a generated client both may be absent.
     """
@@ -113,7 +113,7 @@ class MachineUpdate(EntityObject):
 class Machines:
     """The query every machine response is built from, and how to read one of its rows back.
 
-    Public because a run submission creates machines too (D7), and the table and the 409 wording it
+    Public because a run submission creates machines too (O2), and the table and the 409 wording it
     needs are already here; `routes/runs.py` reaches `get_or_create` below rather than restating
     either.
 
@@ -185,13 +185,13 @@ class Machines:
         return f"A machine named '{name}' already exists in test suite '{self.schema.name}'"
 
     def get_or_create(self, connection: Connection, submitted: SubmittedMachine) -> int:
-        """The id of the machine a run submission names, creating it if it is not there (D7, D13).
+        """The id of the machine a run submission names, creating it if it is not there (O2, O8).
 
         Not an endpoint of its own: `POST /machines` creates a machine and answers 409 for one that
         already exists, whereas a submission is expected to name the same machine on every run. The
         two share this reader for the table and the wording, and nothing else.
 
-        `tracked` is written at creation and never compared afterwards -- D6 and D7 make it
+        `tracked` is written at creation and never compared afterwards -- O1 and O2 make it
         first-write-wins, so re-submitting it for an existing machine is ignored rather than being a
         mismatch. The declared fields are reconciled instead: a stored NULL is filled in, a stored
         value that agrees is left alone, and one that disagrees is refused.
@@ -206,9 +206,9 @@ class Machines:
         )
 
     def _contradicted(self, name: str) -> Contradiction:
-        """R4's `conflict` for a submitted field that disagrees with the stored one (D7).
+        """I4's `conflict` for a submitted field that disagrees with the stored one (O2).
 
-        `conflict` rather than any of the other 409s: R4 gives it to a request that contradicts
+        `conflict` rather than any of the other 409s: I4 gives it to a request that contradicts
         existing state in a way the more specific codes do not describe, and none of them describes
         machine metadata. The stored and submitted values are both in the message so that a
         submitter can fix its configuration without reading the database.
@@ -231,9 +231,9 @@ def _missing(testsuite: str, name: str) -> ApiError:
 
 
 def machine_search(suite: Suite, term: str) -> ColumnElement[bool]:
-    """D9's machine predicate: the machine's name, or any searchable machine field.
+    """O4's machine predicate: the machine's name, or any searchable machine field.
 
-    Here rather than inlined in `Machines.search` because D9 requires `GET /runs?search=` to be
+    Here rather than inlined in `Machines.search` because O4 requires `GET /runs?search=` to be
     *the same* predicate, applied through the run's machine. Takes the suite rather than the table
     and the field list, so that the two callers cannot pass a matching pair of the wrong ones --
     sharing `search_condition` alone would still leave each list naming the columns it covers.
@@ -242,9 +242,9 @@ def machine_search(suite: Suite, term: str) -> ColumnElement[bool]:
 
 
 def machine_id(connection: Connection, suite: Suite, name: str) -> int:
-    """The id of the machine a `machine=` filter names, or R3's 404 for one that is not there.
+    """The id of the machine a `machine=` filter names, or I3's 404 for one that is not there.
 
-    R3 makes an unknown `machine=` an error, unlike an unknown `commit=`, so every endpoint that
+    I3 makes an unknown `machine=` an error, unlike an unknown `commit=`, so every endpoint that
     offers the filter owes the same lookup and the same wording -- which is why this lives beside
     the 404 the machine routes themselves raise rather than being written out per endpoint.
     """
@@ -294,7 +294,7 @@ def list_machines(
     limit: Limit = DEFAULT_LIMIT,
     offset: Offset = 0,
 ) -> OffsetPage[Machine]:
-    """Every machine in the suite, filtered, ordered and offset-paginated (R2, R3, D9)."""
+    """Every machine in the suite, filtered, ordered and offset-paginated (I2, I3, O4)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         machines = Machines(suite)
         conditions: list[ColumnElement[bool]] = []
@@ -303,7 +303,7 @@ def list_machines(
         if tracked is not None:
             conditions.append(machines.table.c.tracked.is_(tracked))
 
-        # R2: the count ignores `limit` and `offset`, and needs no `last_run_at`, so it is a count
+        # I2: the count ignores `limit` and `offset`, and needs no `last_run_at`, so it is a count
         # over the machine table alone rather than over the join.
         total = connection.execute(
             select(func.count()).select_from(machines.table).where(*conditions)
@@ -332,7 +332,7 @@ def create_machine(
     registry: RegistryDep,
     response: Response,
 ) -> Machine:
-    """Create a machine without a run (D7).
+    """Create a machine without a run (O2).
 
     Machines are also created implicitly by run submission; this is the path for declaring one
     ahead of any data, or for one that will never carry any.
@@ -379,7 +379,7 @@ def update_machine(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> Machine:
-    """Rename a machine, flip `tracked`, and/or set declared fields (D7).
+    """Rename a machine, flip `tracked`, and/or set declared fields (O2).
 
     A key the request omits is left unchanged, inside `fields` as well as beside it, so a caller
     that knows one field can send that field alone.

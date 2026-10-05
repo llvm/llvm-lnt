@@ -1,7 +1,7 @@
 """Reading back what PostgreSQL actually stored, and what was sent to make it store it.
 
 Shared by the global tables' tests and the per-suite ones, which owe the same check: that every name
-the naming convention composes survives PostgreSQL's 63-byte identifier limit (D14). Plain helpers
+the naming convention composes survives PostgreSQL's 63-byte identifier limit (D4). Plain helpers
 rather than fixtures, so they live here instead of in `conftest.py`.
 """
 
@@ -70,10 +70,10 @@ def stored_names(inspector: Inspector, schema: str | None = None) -> dict[str, s
 
 
 def assert_names_survived(inspector: Inspector, metadata: MetaData, schema: str | None) -> None:
-    """No composed name was long enough to be truncated on the way into the database (D14).
+    """No composed name was long enough to be truncated on the way into the database (D4).
 
     PostgreSQL truncates an identifier over 63 bytes with a warning rather than an error, so a name
-    that overflows is not the name a violation is reported under: attribution (D13) would still find
+    that overflows is not the name a violation is reported under: attribution (O8) would still find
     a constraint, still read a name, and silently never match. Comparing every name against what
     PostgreSQL stored is what rules that out -- and it is the reason the names written out elsewhere
     in the codebase are safe to write out.
@@ -157,7 +157,7 @@ def counted(engine: Engine, tables: SuiteTables, name: str) -> int:
 def counting_statements(mentioning: str) -> Iterator[list[str]]:
     """Every statement naming `mentioning` that was sent to PostgreSQL while the block ran.
 
-    What pins D13's cost guarantees, which no assertion about the rows that ended up stored can
+    What pins O8's cost guarantees, which no assertion about the rows that ended up stored can
     see: resolving test names one at a time, or a sample insert issued per row, produces exactly
     the same database contents as the statements the design requires and would pass every other
     test. Counting is the only way to tell them apart, so the requirement is asserted by counting.

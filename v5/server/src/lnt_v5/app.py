@@ -13,7 +13,7 @@ from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 from .config import Settings, get_settings
 from .db import make_engine
 from .errors import register_error_handlers
-from .openapi import use_r4_error_responses
+from .openapi import use_i4_error_responses
 from .routes.admin import router as admin_router
 from .routes.commits import router as commits_router
 from .routes.health import router as health_router
@@ -75,19 +75,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="LNT v5",
-        # The API's version, not the server build's. Fixed by R8.
+        # The API's version, not the server build's. Fixed by I8.
         version="5",
         lifespan=lifespan,
-        # R8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
+        # I8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
         # SPA's namespace, where the catch-all serves index.html and `.json` already reads as a
-        # static asset. ReDoc is off because R8 specifies one viewer. The paths come from the
-        # index route, which publishes them (R1).
+        # static asset. ReDoc is off because I8 specifies one viewer. The paths come from the
+        # index route, which publishes them (I1).
         docs_url=DOCS_PATH,
         openapi_url=OPENAPI_PATH,
         redoc_url=None,
         # The viewer's OAuth2 redirect helper, which FastAPI otherwise registers at
         # /docs/oauth2-redirect -- a path inside the SPA's namespace, for a flow this API does not
-        # have: R5 authenticates with a bearer token and nothing else.
+        # have: I5 authenticates with a bearer token and nothing else.
         swagger_ui_oauth2_redirect_url=None,
     )
 
@@ -97,7 +97,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.suites = SuiteRegistry()
 
     register_error_handlers(app)
-    use_r4_error_responses(app)
+    use_i4_error_responses(app)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
     app.add_middleware(RedirectTrailingSlash)
     app.add_middleware(RejectNulInUrl)

@@ -53,7 +53,7 @@ class TestDatabaseSslCa:
 
 class TestBodyLimit:
     def test_default_admits_a_maximum_profile(self) -> None:
-        # Stated as the invariant rather than the literal: D12 caps a profile's encoding, which D6
+        # Stated as the invariant rather than the literal: O7 caps a profile's encoding, which O1
         # carries inline.
         assert Settings(database_url="postgres://x/y").body_limit > MAX_ENCODED_SIZE
 

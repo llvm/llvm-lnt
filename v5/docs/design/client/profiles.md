@@ -16,7 +16,7 @@ resolves profile UUIDs from the run+test coordinates by calling the listing
 endpoint (`GET /runs/{uuid}/profiles`).
 
 
-### Entry Points
+### PF1: Entry Points
 
 1. **Nav bar**: `[Profiles]` link navigates to `/profiles` with no params.
 2. **Compare page**: "Profile" link in the comparison table for tests that have
@@ -26,7 +26,7 @@ endpoint (`GET /runs/{uuid}/profiles`).
    table, navigating to `/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.
 
 
-### A/B Picker
+### PF2: A/B Picker
 
 Each side (A and B) has its own cascading selectors. The two sides may select
 different test suites. Changing an upstream selector clears downstream
@@ -38,7 +38,7 @@ selections:
 3. **Commit**: combobox over commits filtered to those with profile-bearing runs
    on the selected machine. Populated by
    `GET /commits?machine={name}&has_profiles=true` when a machine is selected.
-   Ordered newest-first (see architecture.md); unordered commits remain
+   Ordered newest-first (see AR2); unordered commits remain
    selectable.
    Disabled until machine is selected.
 4. **Run**: dropdown of runs for the selected machine+commit that contain
@@ -48,7 +48,7 @@ selections:
    (populated from `GET /runs/{uuid}/profiles`). Disabled until run is selected.
 
 
-### Top-Level Counter Comparison (Stats Bar)
+### PF3: Top-Level Counter Comparison (Stats Bar)
 
 When both sides are selected:
 - Table showing counter names, value A, value B, and % difference
@@ -59,7 +59,7 @@ When only side A is selected:
 - Simple table of counter names and values (no comparison)
 
 
-### Function Selector
+### PF4: Function Selector
 
 A combobox for each side, populated from the profile's function list.
 - Sorted by hottest-first (highest counter value for the selected counter)
@@ -68,7 +68,7 @@ A combobox for each side, populated from the profile's function list.
 - A counter dropdown controls which counter is used for sorting and display
 
 
-### Disassembly View
+### PF5: Disassembly View
 
 Two display modes, selectable via dropdown:
 
@@ -99,7 +99,7 @@ implementation in `lnt_profile.js` provides the reference regex patterns per ISA
 display mode is currently implemented.
 
 
-### Counter Display Modes
+### PF6: Counter Display Modes
 
 The API serves raw counts only, so every percentage below is computed
 client-side. A dropdown controls how counter values are displayed:
@@ -108,7 +108,7 @@ client-side. A dropdown controls how counter values are displayed:
 - **Cumulative**: running sum through instructions
 
 
-### Side-by-Side Layout
+### PF7: Side-by-Side Layout
 
 When both sides are filled:
 - Stats bar across the top (full width)
@@ -121,7 +121,7 @@ When only one side:
 - Single disassembly column (full width)
 
 
-### Data Flow
+### PF8: Data Flow
 
 **Normal cascade (user interaction):**
 1. On page load, read URL params.
@@ -149,7 +149,7 @@ When only one side:
    match the test name, and load the profile.
 
 
-### URL State
+### PF9: URL State
 
 All selection state is encoded as query parameters for shareability:
 - `suite_a`, `suite_b`, `run_a`, `test_a`, `run_b`, `test_b`

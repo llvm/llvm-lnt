@@ -1,4 +1,4 @@
-"""D15's `{suite}.run_summary`: statistics of each run per numeric metric and sample aggregation.
+"""O9's `{suite}.run_summary`: statistics of each run per numeric metric and sample aggregation.
 
 `GET /trends` plots a geomean per machine and commit, and computing it from `{suite}.sample` would
 read every sample of every run in the window -- millions of rows for one Dashboard card. A run's
@@ -27,7 +27,7 @@ Summary = tuple[str, SampleAggregation, float]
 
 
 def summarize(metrics: Sequence[Metric], tests: Sequence[SubmittedTest]) -> list[Summary]:
-    """The run's summary of every numeric metric under every aggregation it has a geomean for (D15).
+    """The run's summary of every numeric metric under every aggregation it has a geomean for (O9).
     A metric with no positive aggregate under some aggregation has none."""
     summaries: list[Summary] = []
     for metric in metrics:

@@ -1,4 +1,4 @@
-"""The envelopes list endpoints return (R2).
+"""The envelopes list endpoints return (I2).
 
 Every list endpoint returns an object carrying its results under `items`, never a bare array, and
 `items` is present and empty rather than absent when nothing matches. Wrapping even the
@@ -13,13 +13,13 @@ from pydantic import BaseModel, Field
 
 
 class Items[T](BaseModel):
-    """R2's unpaginated envelope: `{"items": [...]}`."""
+    """I2's unpaginated envelope: `{"items": [...]}`."""
 
     items: list[T]
 
 
 class OffsetPage[T](BaseModel):
-    """R2's offset envelope: `{"items": [...], "total": N}`.
+    """I2's offset envelope: `{"items": [...], "total": N}`.
 
     `total` counts everything matching the request's filters, ignoring `limit` and `offset`, so that
     a client can render "1-25 of 240". That exact count costs a scan of everything matching, which
@@ -32,12 +32,12 @@ class OffsetPage[T](BaseModel):
 
 
 class PageCursor(BaseModel):
-    """Where a cursor-paginated list continues (R2).
+    """Where a cursor-paginated list continues (I2).
 
-    `previous` is typed as null rather than as an optional string because R8 requires the document
+    `previous` is typed as null rather than as an optional string because I8 requires the document
     to describe only what the API can produce, and forward-only pagination can never produce a
     backward cursor. It is declared rather than defaulted so that the document marks it required:
-    R4 promises a documented key is always present, and a defaulted field would be described as
+    I4 promises a documented key is always present, and a defaulted field would be described as
     one a response may omit.
     """
 
@@ -55,7 +55,7 @@ class PageCursor(BaseModel):
 
 
 class CursorPage[T](BaseModel):
-    """R2's cursor envelope: `{"items": [...], "cursor": {"next": ..., "previous": null}}`.
+    """I2's cursor envelope: `{"items": [...], "cursor": {"next": ..., "previous": null}}`.
 
     Carries no `total`, deliberately: an exact count costs a scan of everything matching, which is
     why an unbounded list is cursor-paginated in the first place.
@@ -68,7 +68,7 @@ class CursorPage[T](BaseModel):
     def of(cls, items: list[T], next_cursor: str | None) -> CursorPage[T]:
         """The envelope around one page. `previous` is named here and nowhere else.
 
-        R2 fixes it at null, and five endpoints will return this envelope; writing the constant out
+        I2 fixes it at null, and five endpoints will return this envelope; writing the constant out
         at each of them is five chances for one to say something different.
         """
         return cls(items=items, cursor=PageCursor(next=next_cursor, previous=None))

@@ -1,11 +1,11 @@
-"""The run submission payload and its validation (D6, D12).
+"""The run submission payload and its validation (O1, O7).
 
 Pure unit tests: `validate_submission` reaches no database, so the suite's schema is built here
 rather than through the API. What is interesting is almost all in the edges -- which shapes of
 metric value produce which rows, and which are refused.
 
 Two layers reject a bad submission, and the tests say which one they mean. The payload model
-answers a malformed *format* with a pydantic `ValidationError`, which the framework renders as R4's
+answers a malformed *format* with a pydantic `ValidationError`, which the framework renders as I4's
 400 (see `errors.py`); `validate_submission` answers a payload that contradicts the suite's schema
 with an `ApiError` carrying that code itself.
 """
@@ -80,7 +80,7 @@ def row(**measured: Any) -> dict[str, Any]:
     """One sample row as validation produces it: every declared metric, null where none was sent.
 
     A test states the values it cares about and this fills in the rest, because every row carries
-    the whole declared set (D6) -- which is the uniformity the write layer's one executemany binds
+    the whole declared set (O1) -- which is the uniformity the write layer's one executemany binds
     to. Written out in full by the two tests that are *about* that, so the fact is stated somewhere
     other than in this helper.
     """
@@ -112,7 +112,7 @@ class TestUuid:
 
     @pytest.mark.parametrize(
         "version_nibble",
-        # D6 accepts any UUID version, so the nibble that names one is not looked at -- v1, v4, v7
+        # O1 accepts any UUID version, so the nibble that names one is not looked at -- v1, v4, v7
         # and the nil UUID's 0 are all submittable.
         ["1", "4", "7", "0", "f"],
     )
@@ -163,7 +163,7 @@ class TestPayloadShape:
             RunSubmission.model_validate(body)
 
     def test_accepts_a_run_that_measured_nothing(self) -> None:
-        # D6: `tests` is required, but a run with an empty one is a run.
+        # O1: `tests` is required, but a run with an empty one is a run.
         assert validated(tests=[]).tests == []
 
     def test_defaults_run_parameters_to_an_empty_object(self) -> None:
@@ -181,7 +181,7 @@ class TestPayloadShape:
         assert "JSON has no literal" in refused(run_parameters={"x": value})
 
     def test_carries_a_commit_tag(self) -> None:
-        # D6: a submission may tag the commit it names, like it may place it in the order.
+        # O1: a submission may tag the commit it names, like it may place it in the order.
         assert validated(commit={"value": "abc123", "tag": "release-18.1"}).commit.tag == (
             "release-18.1"
         )
@@ -288,7 +288,7 @@ class TestMachineAndCommit:
         assert "'hardwear' is not declared" in message
 
     def test_drops_an_explicit_null_field(self) -> None:
-        # D6: in a submission a null means "no value submitted", not "clear the stored value" --
+        # O1: in a submission a null means "no value submitted", not "clear the stored value" --
         # which is what it means in a PATCH. It is neither written nor compared.
         result = validated(
             machine={"name": "linux", "fields": {"hardware": None, "core_count": 8}},
@@ -298,7 +298,7 @@ class TestMachineAndCommit:
         assert result.commit.fields == {}
 
     def test_rejects_a_name_no_url_could_address(self) -> None:
-        # R1, enforced by the entity objects these nest (see suites/entities.py).
+        # I1, enforced by the entity objects these nest (see suites/entities.py).
         with pytest.raises(ValidationError):
             parsed(machine={"name": "a/b"})
         with pytest.raises(ValidationError):
@@ -317,7 +317,7 @@ class TestTestNames:
 
     @pytest.mark.parametrize("name", ["a", "a" * NAME_LENGTH, "test.suite/benchmark", ".", ".."])
     def test_does_not_require_the_name_to_be_addressable(self, name: str) -> None:
-        # R1 exempts test names deliberately: they legitimately contain '/', and there is no
+        # I1 exempts test names deliberately: they legitimately contain '/', and there is no
         # endpoint that could refuse one, since tests are created implicitly.
         assert validated(tests=[{"name": name}]).tests[0].name == name
 
@@ -392,7 +392,7 @@ class TestMetricValues:
         assert "execution_time" in message  # the message lists what is declared
 
     def test_rejects_a_null_metric(self) -> None:
-        # D6: a metric with no value is omitted, not sent as null.
+        # O1: a metric with no value is omitted, not sent as null.
         assert "'execution_time' is null" in refused_test(execution_time=None)
 
     def test_names_the_test_the_failure_is_about(self) -> None:
@@ -407,7 +407,7 @@ class TestSampleRows:
         assert one_test(execution_time=1.5).samples == [row(execution_time=1.5)]
 
     def test_an_entry_with_no_metrics_yields_one_row_of_nulls(self) -> None:
-        # D6: the row records that the test ran in this run even when it measured nothing, and
+        # O1: the row records that the test ran in this run even when it measured nothing, and
         # every declared metric is present and null -- which is what "no value" means.
         assert one_test().samples == [
             {
@@ -472,7 +472,7 @@ class TestSampleRows:
         assert "must be the same length" in message
 
     def test_rejects_an_empty_array(self) -> None:
-        # D6: it would produce no rows at all, silently discarding the scalar metrics beside it.
+        # O1: it would produce no rows at all, silently discarding the scalar metrics beside it.
         message = refused_test(execution_time=[], notes="clean")
         assert "'execution_time' is an empty array" in message
 

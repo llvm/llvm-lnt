@@ -86,7 +86,7 @@ def _serve(settings: Settings) -> int:
     """Serve the API and the built client (`server run`).
 
     Migrating first, in this process, is what keeps the workers uvicorn is about to start from
-    racing each other to apply the same DDL (D14).
+    racing each other to apply the same DDL (D6).
 
     Binds all interfaces because the process runs in a container whose published ports are what
     actually decide reachability; in production only Nginx can reach it.
@@ -131,7 +131,7 @@ def _serve_dev(settings: Settings) -> int:
 def _create_key(settings: Settings, name: str, scope: Scope) -> int:
     """Create an API key (`server create-key`).
 
-    R5 requires an out-of-band way to create a key, because every key-management endpoint needs
+    I5 requires an out-of-band way to create a key, because every key-management endpoint needs
     an `admin` key that a fresh instance does not have, and because revoking the last one is
     otherwise unrecoverable.
 

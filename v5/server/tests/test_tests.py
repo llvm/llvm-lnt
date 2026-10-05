@@ -1,8 +1,8 @@
-"""The test list (endpoints.md, Tests).
+"""The test list (E5).
 
 Driven over the real application and a real database. A test is a name and nothing else, so what is
 worth checking here is the three filters -- and in particular that two of them ask a question about
-samples (`machine=`, `metric=`) rather than about tests, and that R3's three different answers to a
+samples (`machine=`, `metric=`) rather than about tests, and that I3's three different answers to a
 filter naming something absent all come out right: 404 for a machine, 400 for a metric, and an empty
 page for a combination nothing matches.
 """
@@ -46,7 +46,7 @@ def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTable
 def submit(
     api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
 ) -> Callable[..., str]:
-    """Submit a run, which is the only thing that creates a test (D6), and hand back its UUID."""
+    """Submit a run, which is the only thing that creates a test (O1), and hand back its UUID."""
 
     def post(*tests: dict[str, Any], machine: str = "linux") -> str:
         body = run_payload(machine={"name": machine}, tests=list(tests))
@@ -197,7 +197,7 @@ class TestMetricFilter:
     def test_drops_a_test_that_ran_without_that_metric(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # D6: an entry with no metric values still produces a sample row, and every metric on it
+        # O1: an entry with no metric values still produces a sample row, and every metric on it
         # is NULL. The filter asks for non-NULL, so such a test does not match.
         submit({"name": "a"})
 
@@ -222,7 +222,7 @@ class TestMetricFilter:
     def test_is_400_for_a_metric_the_schema_does_not_declare(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
-        # R3: an unknown metric is 400, not the 404 an unknown machine or test gets -- a metric is
+        # I3: an unknown metric is 400, not the 404 an unknown machine or test gets -- a metric is
         # a column the schema declares rather than a row the suite holds.
         response = listed(api_client, "metric=nope")
 

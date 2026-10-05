@@ -103,7 +103,7 @@ class TestSpaServing:
     def test_does_not_serve_the_spa_for_non_get_requests(
         self, client: TestClient, method: str
     ) -> None:
-        # Starlette's StaticFiles answers these with 405, which R4 does not permit.
+        # Starlette's StaticFiles answers these with 405, which I4 does not permit.
         response = getattr(client, method)("/suites/nts")
 
         assert response.status_code == 404
@@ -122,7 +122,7 @@ class TestSpaServing:
 
     def test_a_miss_names_what_was_requested(self, client: TestClient) -> None:
         # StaticFiles raises its own 404 with a bare "Not Found" detail, which says nothing about
-        # the request. The exact wording is R4-unstable, so this pins the content, not the prose.
+        # the request. The exact wording is I4-unstable, so this pins the content, not the prose.
         message = client.get("/favicon.ico").json()["error"]["message"]
 
         assert "GET" in message
@@ -259,9 +259,9 @@ class TestRejectNulInUrl:
 
     def test_refuses_it_before_authentication(self, client: TestClient) -> None:
         # The one thing here that is not simply "a 400 instead of a 500": this sits with the
-        # oversized body and the trailing-slash redirect, ahead of R5's order of checks, so an
+        # oversized body and the trailing-slash redirect, ahead of I5's order of checks, so an
         # admin-scoped route answers it without a credential. It names no resource, so the reason
-        # R5 puts authorization first does not apply.
+        # I5 puts authorization first does not apply.
         response = client.delete("/api/admin/api-keys/a%00b")
 
         assert response.status_code == 400

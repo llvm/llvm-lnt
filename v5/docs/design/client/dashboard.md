@@ -5,7 +5,7 @@ Page specification for the Dashboard at `/`.
 This is the suite-agnostic landing page providing an at-a-glance visual overview of
 performance trends across all test suites.
 
-## Layout
+## DA1: Layout
 
 - Page header "Dashboard" with a commit range preset selector (`Last 100` / `Last 500`
   / `Last 1000` buttons, default `Last 500`) at the top-right, persisted in URL as
@@ -15,7 +15,7 @@ performance trends across all test suites.
   per numeric metric defined in the suite schema (see D3). Non-numeric metric
   fields have no meaningful geomean and are skipped.
 
-## Sparkline cards
+## DA2: Sparkline cards
 
 - Each card shows a small time-series chart (~300x160px) with the metric name
   and unit (if any) as the card title.
@@ -40,13 +40,13 @@ performance trends across all test suites.
 - Loading state: placeholder skeleton with "Loading..." while data is being fetched.
 - Error state: "Failed to load" message if fetching fails.
 
-## Why per-machine traces (not a single aggregate)
+## DA3: Why per-machine traces (not a single aggregate)
 
 Per-machine traces surface machine-specific trends that a single aggregate
 line would hide. With only 5 traces, readability is fine. The dashboard's
 purpose is trend visualization.
 
-## Geomean calculation
+## DA4: Geomean calculation
 
-Computed server-side by the trends endpoint, from the run geomeans (see D15)
+Computed server-side by the trends endpoint, from the run geomeans (see O9)
 under the median sample aggregation.

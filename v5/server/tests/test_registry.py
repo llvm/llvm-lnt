@@ -374,7 +374,7 @@ class TestConstraintNames:
 class TestUnmigratedDatabase:
     def test_fails_rather_than_reporting_no_suites(self, empty_engine: Engine) -> None:
         # Answering "no suites" would be a lie a caller could not tell from the truth. The server
-        # migrates before it serves (D14), so this is only reachable out of band.
+        # migrates before it serves (D6), so this is only reachable out of band.
         with empty_engine.connect() as connection, pytest.raises(ProgrammingError):
             SuiteRegistry().fresh(connection)
 

@@ -1,4 +1,4 @@
-"""The two stages of a run's geomean (D15): a test's samples to one value, then the tests to their
+"""The two stages of a run's geomean (O9): a test's samples to one value, then the tests to their
 geometric mean.
 
 In a module of its own because both the per-suite DDL, which constrains the stored aggregation, and
@@ -59,7 +59,7 @@ _AGGREGATE: dict[SampleAggregation, Callable[[Sequence[float]], float]] = {
 
 
 def geomean(values: Iterable[float]) -> float | None:
-    """The geometric mean of the positive values, or None if there are none (D15).
+    """The geometric mean of the positive values, or None if there are none (O9).
 
     Finite whenever the values are: it never exceeds the largest of them.
     """

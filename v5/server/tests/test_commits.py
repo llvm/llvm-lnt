@@ -1,7 +1,7 @@
-"""The commit endpoints (endpoints.md, Commits).
+"""The commit endpoints (E3).
 
 Driven over the real application and a real database. What is interesting here is mostly what
-PostgreSQL ends up doing: the unique ordinal that produces R4's `ordinal_conflict` (D11), the
+PostgreSQL ends up doing: the unique ordinal that produces I4's `ordinal_conflict` (O6), the
 neighbour lookups that replace a linked list, a cascade that reaches runs and their samples and
 profiles, and the foreign key that refuses to let a regression's commit go.
 
@@ -38,7 +38,7 @@ NTS: dict[str, Any] = {
     "commit_fields": [
         {"name": "git_sha", "type": "text", "searchable": True, "display": True},
         {"name": "author", "type": "text", "searchable": True},
-        # Deliberately not searchable, and deliberately not text: D9 covers neither.
+        # Deliberately not searchable, and deliberately not text: O4 covers neither.
         {"name": "commit_message", "type": "text"},
         {"name": "commit_timestamp", "type": "datetime"},
     ],
@@ -152,7 +152,7 @@ class TestList:
         response = page(api_client)
 
         assert response.status_code == 200
-        # R2: `items` present and empty, and a `cursor` rather than a `total` -- this list is
+        # I2: `items` present and empty, and a `cursor` rather than a `total` -- this list is
         # unbounded, so it is cursor-paginated and carries no count.
         assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
 
@@ -245,7 +245,7 @@ class TestListSearch:
         assert values_in(page(api_client, "search=abc")) == ["abc123"]
 
     def test_matches_the_tag(self, api_client: TestClient) -> None:
-        # D9 always covers the tag, alongside the commit value and the searchable fields.
+        # O4 always covers the tag, alongside the commit value and the searchable fields.
         assert values_in(page(api_client, "search=release")) == ["def456"]
 
     def test_matches_a_searchable_field(self, api_client: TestClient) -> None:
@@ -283,7 +283,7 @@ class TestListMachineFilter:
         assert values_in(page(api_client, "machine=linux")) == ["on-linux"]
 
     def test_is_404_for_a_machine_that_is_not_there(self, api_client: TestClient) -> None:
-        # R3 makes an unknown `machine=` an error, unlike an unknown `commit=`.
+        # I3 makes an unknown `machine=` an error, unlike an unknown `commit=`.
         response = page(api_client, "machine=nope")
 
         assert response.status_code == 404
@@ -340,7 +340,7 @@ class TestListPagination:
 
         assert values_in(response) == ["c0", "c1"]
         assert response.json()["cursor"]["next"] is not None
-        # R2: forward-only, so `previous` is always null.
+        # I2: forward-only, so `previous` is always null.
         assert response.json()["cursor"]["previous"] is None
 
     @pytest.mark.parametrize("limit", [1, 2, 3, 5])
@@ -380,7 +380,7 @@ class TestListPagination:
         assert values_in(page(api_client, f"limit=4&cursor={cursor}")) == ["c4", "c5"]
 
     def test_the_cursor_is_opaque_and_survives_a_query_string(self, api_client: TestClient) -> None:
-        # R2: clients must not parse a cursor, and it travels as a query parameter, so it must
+        # I2: clients must not parse a cursor, and it travels as a query parameter, so it must
         # need no escaping. What it is *made* of is `test_querying.py`'s business.
         cursor = page(api_client, "limit=2").json()["cursor"]["next"]
 
@@ -506,7 +506,7 @@ class TestCreate:
         assert code_of(response) == "duplicate"
 
     def test_refuses_an_ordinal_another_commit_holds(self, create: Callable[..., Any]) -> None:
-        # R4 splits this from `duplicate` deliberately: a submitting bot retries a duplicate with a
+        # I4 splits this from `duplicate` deliberately: a submitting bot retries a duplicate with a
         # fresh value, whereas this means its view of the commit order is wrong.
         create("abc", ordinal=7)
 
@@ -528,7 +528,7 @@ class TestCreate:
     def test_refuses_an_ordinal_that_is_not_one(
         self, create: Callable[..., Any], ordinal: Any, reason: str
     ) -> None:
-        # D11 types an ordinal as D3 types a declared `integer`. The out-of-range cases matter
+        # O6 types an ordinal as D3 types a declared `integer`. The out-of-range cases matter
         # twice over: unchecked, the column's own range error is a `DataError` rather than an
         # integrity failure, so nothing would attribute it and the caller would get a 500 for a
         # value it supplied.
@@ -543,7 +543,7 @@ class TestCreate:
         assert create("abc", ordinal=42.0).json()["ordinal"] == 42
 
     def test_accepts_a_tag(self, create: Callable[..., Any]) -> None:
-        # D7: a tag is settable on every write path, creation included.
+        # O2: a tag is settable on every write path, creation included.
         assert create("abc", tag="release-18.1").json()["tag"] == "release-18.1"
 
     def test_a_null_tag_leaves_the_commit_untagged(self, create: Callable[..., Any]) -> None:
@@ -581,7 +581,7 @@ class TestCreate:
     def test_refuses_a_value_no_url_could_address(
         self, create: Callable[..., Any], value: str
     ) -> None:
-        # R1: accepting one would create a commit no URL can reach, and hand back a `Location`
+        # I1: accepting one would create a commit no URL can reach, and hand back a `Location`
         # header that answers 404.
         response = create(value)
 
@@ -620,7 +620,7 @@ class TestCreate:
 
 
 class TestNeighbours:
-    """`previous` and `next`, which D11 computes by asking for the nearest ordinal."""
+    """`previous` and `next`, which O6 computes by asking for the nearest ordinal."""
 
     @pytest.fixture(autouse=True)
     def commits(self, create: Callable[..., Any]) -> None:
@@ -675,7 +675,7 @@ class TestNeighbours:
     def test_follows_an_ordinal_change_with_no_relinking(
         self, api_client: TestClient, patch: Callable[..., Any]
     ) -> None:
-        # D11 computes neighbours by query rather than by a linked list, so moving a commit needs
+        # O6 computes neighbours by query rather than by a linked list, so moving a commit needs
         # nothing else updated.
         patch("last", {"ordinal": 5})
 
@@ -715,7 +715,7 @@ class TestUpdate:
     def test_changes_an_ordinal_that_is_already_set(
         self, create: Callable[..., Any], patch: Callable[..., Any]
     ) -> None:
-        # D11: PATCH is the only way to change one once set.
+        # O6: PATCH is the only way to change one once set.
         create("abc", ordinal=1)
 
         assert patch("abc", {"ordinal": 2}).json()["ordinal"] == 2
@@ -906,7 +906,7 @@ class TestDelete:
         suite: SuiteTables,
         create: Callable[..., Any],
     ) -> None:
-        # D5 and R4: `in_use` rather than the generic conflict, because the caller has to detach
+        # D5 and I4: `in_use` rather than the generic conflict, because the caller has to detach
         # the regression rather than retry.
         create("abc")
         with db_engine.begin() as connection:
@@ -950,7 +950,7 @@ class TestResolve:
     def test_returns_a_table_keyed_by_commit_value(
         self, create: Callable[..., Any], resolve: Callable[..., Any]
     ) -> None:
-        # R2: not one of the list envelopes -- a lookup table, which is what makes it useful.
+        # I2: not one of the list envelopes -- a lookup table, which is what makes it useful.
         create("abc", ordinal=42, fields={"git_sha": "abc123"})
 
         body = resolve(["abc", "unknown"]).json()
@@ -1028,7 +1028,7 @@ class TestResolve:
     def test_refuses_more_values_than_a_page_may_hold(
         self, suite: SuiteTables, resolve: Callable[..., Any]
     ) -> None:
-        # R2's page ceiling, so that a response is never larger than a page of any other list.
+        # I2's page ceiling, so that a response is never larger than a page of any other list.
         response = resolve([f"c{index}" for index in range(MAX_LIMIT + 1)])
 
         assert response.status_code == 400
@@ -1121,7 +1121,7 @@ class TestAuthorization:
     def test_resolving_needs_no_credential(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # R5: a read-only POST, scoped `read` despite the method.
+        # I5: a read-only POST, scoped `read` despite the method.
         create("abc")
 
         assert api_client.post(f"{COMMITS}/resolve", json={"commits": ["abc"]}).status_code == 200

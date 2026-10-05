@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Check authentication end to end against the running image (R5).
+# Check authentication end to end against the running image (I5).
 
 source "$(dirname "$0")/lib.sh"
 
 readonly INDEX="${BASE_URL}/api"
 readonly KEYS="${BASE_URL}/api/admin/api-keys"
 
-# Pull the token out of a create response. Narrow on purpose: it matches the 64 hex characters R5
+# Pull the token out of a create response. Narrow on purpose: it matches the 64 hex characters I5
 # fixes, so a response that stopped carrying one fails here rather than silently yielding "".
 extract_token() {
     printf '%s' "$BODY" | sed -n 's/.*"token":"\([0-9a-f]\{64\}\)".*/\1/p'
@@ -22,7 +22,7 @@ request "$KEYS"
 expect_status 401
 expect_body '"code":"unauthorized"'
 
-# R5: a 401 says which scheme the caller should have used. Read off a GET rather than a HEAD --
+# I5: a 401 says which scheme the caller should have used. Read off a GET rather than a HEAD --
 # FastAPI routes only the methods an endpoint declares, so HEAD is a miss like any other.
 expect_header WWW-Authenticate 'Bearer'
 

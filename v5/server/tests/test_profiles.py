@@ -1,7 +1,7 @@
-"""The profile endpoints (endpoints.md, Profiles).
+"""The profile endpoints (E7).
 
 Driven over the real application and a real database, with profiles submitted the way a client
-submits them (D12). What is interesting here is mostly what the endpoints serve -- raw counts, a
+submits them (O7). What is interesting here is mostly what the endpoints serve -- raw counts, a
 function's counters derived from its instructions, an order the client can rely on -- and what they
 refuse to do: only the disassembly touches a function's stored instructions (D5).
 """
@@ -58,7 +58,7 @@ PROFILE = encoded_profile(
 )
 
 # A demangled `operator/` overload, which is why a function is named in a query parameter rather
-# than in the path (R1): v4's importer runs `objdump -C`, so what is stored is demangled.
+# than in the path (I1): v4's importer runs `objdump -C`, so what is stored is demangled.
 SLASHED = "std::operator/(std::filesystem::path const&, std::filesystem::path const&)"
 # Spaces, angle brackets, an ampersand and a comma, all of which a query string has to escape.
 PUNCTUATED = "Matrix<double, 3>::operator*(Matrix<double, 3> const&) &"
@@ -68,7 +68,7 @@ MANGLED = "_ZNSt3__16vectorIiNS_9allocatorIiEEE9push_backERKi"
 PLUS = "Big::operator+(Big const&) const"
 # Dot segments, which a URL path would normalize away.
 DOTTED = "a/../b/./c"
-# A trailing `/`, which R1's redirect would strip from a path.
+# A trailing `/`, which I1's redirect would strip from a path.
 TRAILING = "std::operator/"
 EXOTIC_CYCLES = {SLASHED: 3.0, PUNCTUATED: 2.0, MANGLED: 1.0, PLUS: 4.0, DOTTED: 5.0, TRAILING: 6.0}
 
@@ -138,7 +138,7 @@ def stored(api_client: TestClient, submit: Callable[..., str]) -> Callable[..., 
 class TestRunListing:
     """`GET /runs/{uuid}/profiles`: the bridge from run+test coordinates to UUIDs."""
 
-    def test_carries_the_test_name_and_the_uuid_in_r2s_unpaginated_envelope(
+    def test_carries_the_test_name_and_the_uuid_in_the_unpaginated_envelope(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         run = submit(("bench", PROFILE))
@@ -283,7 +283,7 @@ class TestFunctionList:
         body: dict[str, Any] = api_client.get(f"{PROFILES}/{stored()}/functions").json()
         return body
 
-    def test_is_r2s_unpaginated_envelope_over_name_counters_and_length(
+    def test_is_the_unpaginated_envelope_over_name_counters_and_length(
         self, listed: dict[str, Any]
     ) -> None:
         assert list(listed) == ["items"]
@@ -306,7 +306,7 @@ class TestFunctionList:
     def test_the_counters_are_the_raw_aggregate_rather_than_a_percentage(
         self, listed: dict[str, Any]
     ) -> None:
-        # D12: every counter the API serves is raw; the client computes shares from it.
+        # O7: every counter the API serves is raw; the client computes shares from it.
         functions = {item["name"]: item["counters"] for item in listed["items"]}
 
         assert functions["Zebra"] == {"cycles": 100.0, "branch-misses": 5.0}
@@ -405,7 +405,7 @@ class TestDisassembly:
     def test_is_404_for_an_empty_function_name(
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
-        # No function can have one (D12), so it names nothing rather than being malformed.
+        # No function can have one (O7), so it names nothing rather than being malformed.
         response = api_client.get(disassembly(stored()), params={"function": ""})
 
         assert response.status_code == 404
@@ -413,7 +413,7 @@ class TestDisassembly:
 
 
 class TestFunctionNames:
-    """R1: a function is named in a query parameter, so any name the profile holds is reachable."""
+    """I1: a function is named in a query parameter, so any name the profile holds is reachable."""
 
     @pytest.fixture
     def exotic(self, stored: Callable[..., str]) -> str:
@@ -438,7 +438,7 @@ class TestFunctionNames:
         assert response.json()["name"] == name
         assert response.json()["counters"] == {"cycles": EXOTIC_CYCLES[name]}
 
-    def test_a_name_as_long_as_d12_allows_is_stored_and_reachable(
+    def test_a_name_as_long_as_allowed_is_stored_and_reachable(
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
         # The name is part of `{suite}.profile_function`'s key, whose btree entries have a size
@@ -482,7 +482,7 @@ PROFILE_DATA = ["", "/functions", "/disassembly?function=main"]
 
 
 class TestAddressingSomethingThatIsNotThere:
-    """The 404s the three profile data endpoints share (R1, endpoints.md).
+    """The 404s the three profile data endpoints share (I1, E7).
 
     One class over all three rather than a copy in each, so that a fourth data endpoint inherits
     the coverage instead of quietly going without it.
@@ -509,7 +509,7 @@ class TestAddressingSomethingThatIsNotThere:
 
     @pytest.mark.parametrize("suffix", PROFILE_DATA)
     def test_a_suite_that_does_not_exist_is_404(self, api_client: TestClient, suffix: str) -> None:
-        # Before the profile is looked for at all: R1 scopes every one of these to a suite.
+        # Before the profile is looked for at all: I1 scopes every one of these to a suite.
         response = api_client.get(f"{SUITES_PATH}/nope/profiles/{uuid4()}{suffix}")
 
         assert response.status_code == 404
@@ -581,7 +581,7 @@ class TestInstructionsAreReadOnlyByTheDisassembly:
 
 
 class TestAuthorization:
-    """R5: `read` on all four, which every valid key grants and anonymous access satisfies."""
+    """I5: `read` on all four, which every valid key grants and anonymous access satisfies."""
 
     @pytest.fixture
     def paths(self, api_client: TestClient, submit: Callable[..., str]) -> list[str]:
@@ -611,7 +611,7 @@ class TestAuthorization:
     def test_an_unknown_token_is_401_even_though_read_allows_anonymous_access(
         self, api_client: TestClient, paths: list[str], bearer: Callable[[str], dict[str, str]]
     ) -> None:
-        # R5: a bad credential is never silently downgraded to anonymous access.
+        # I5: a bad credential is never silently downgraded to anonymous access.
         headers = bearer("0" * 64)
 
         assert [api_client.get(path, headers=headers).status_code for path in paths] == [401] * 4

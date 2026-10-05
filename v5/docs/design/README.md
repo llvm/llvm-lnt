@@ -49,24 +49,28 @@ v5/
 
 ## Document Map
 
+Each document numbers its sections in order, with a prefix of its own (the
+Prefix column below), so that a section can be referred to by its ID alone,
+e.g. `D5`, `I4` or `GR8`.
+
 ### Server Side
 
-| Document | Contents |
-|----------|----------|
-| [Data Model](server/data-model.md) | Architecture, Commit concept, schema storage and format, all table definitions, database initialization |
-| [Operations](server/operations.md) | Run submission, machine and commit metadata, search, time-series queries, ordinal management, run summaries |
-| [Infrastructure](server/infrastructure.md) | URL structure, pagination, filtering, response format, authentication, AI orientation, health check, API documentation |
-| [Endpoints](server/endpoints.md) | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin |
+| Document | Prefix | Contents |
+|----------|----------|----------|
+| [Data Model](server/data-model.md) | D | Architecture, Commit concept, schema storage and format, all table definitions, database initialization |
+| [Operations](server/operations.md) | O | Run submission, machine and commit metadata, search, time-series queries, ordinal management, run summaries |
+| [Infrastructure](server/infrastructure.md) | I | URL structure, pagination, filtering, response format, authentication, AI orientation, health check, API documentation |
+| [Endpoints](server/endpoints.md) | E | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin |
 
 ### Web UI
 
-| Document | Contents |
-|----------|----------|
-| [Architecture](client/architecture.md) | SPA design, client-side routing, navigation bar |
-| [Dashboard](client/dashboard.md) | Landing page with sparkline trend overview across test suites |
-| [Test Suites](client/test-suites.md) | Test Suites page (suite picker + tabs): Recent Activity, Machines, Runs, Commits, Regressions |
-| [Detail Pages](client/details.md) | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |
-| [Graph](client/graph.md) | Time-series visualization: multi-machine, lazy loading, test selection, baselines, regression annotations |
-| [Compare](client/compare.md) | Side-by-side comparison of two commits: selection panel, ratio chart, geomean summary, bidirectional sync |
-| [Profiles](client/profiles.md) | A/B profile viewer: cascading pickers, counter stats bar, function selector, disassembly view |
-| [Admin](client/admin.md) | API key management, test suite management |
+| Document | Prefix | Contents |
+|----------|----------|----------|
+| [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar |
+| [Dashboard](client/dashboard.md) | DA | Landing page with sparkline trend overview across test suites |
+| [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker + tabs): Recent Activity, Machines, Runs, Commits, Regressions |
+| [Detail Pages](client/details.md) | DT | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |
+| [Graph](client/graph.md) | GR | Time-series visualization: multi-machine, lazy loading, test selection, baselines, regression annotations |
+| [Compare](client/compare.md) | CP | Side-by-side comparison of two commits: selection panel, ratio chart, geomean summary, bidirectional sync |
+| [Profiles](client/profiles.md) | PF | A/B profile viewer: cascading pickers, counter stats bar, function selector, disassembly view |
+| [Admin](client/admin.md) | AD | API key management, test suite management |

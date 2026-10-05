@@ -1,8 +1,8 @@
-"""D12's profile document (`suites.profile_document`): decoding, validation, what is stored.
+"""O7's profile document (`suites.profile_document`): decoding, validation, what is stored.
 
 Pure unit tests: nothing here touches a database. A function's stored instructions are checked by
 reading them back with `instructions`, since their encoding is the server's own business -- what
-D12 promises is that the profile is served as the document described it.
+O7 promises is that the profile is served as the document described it.
 """
 
 from __future__ import annotations
@@ -154,7 +154,7 @@ class TestWhatIsStored:
         assert read_back(value, "f") == listed
         assert function(stored(value), "f").counters == {}
 
-    def test_reads_numbers_as_d3_does(self) -> None:
+    def test_reads_numbers_as_attribute_types_do(self) -> None:
         # An integer is accepted where a count is a real, and `8.0` where an integer is expected.
         value = document(
             counters={"cycles": 8.0},
@@ -178,7 +178,7 @@ class TestWhatIsStored:
 
 
 class TestEncoding:
-    """Base64 around exactly one gzip member (D12)."""
+    """Base64 around exactly one gzip member (O7)."""
 
     @pytest.mark.parametrize("value", ["not base64!", "AAA", "====", "é"])
     def test_refuses_anything_that_is_not_base64(self, value: str) -> None:
@@ -187,7 +187,7 @@ class TestEncoding:
         assert "not valid base64" in refused(value)
 
     def test_accepts_line_wrapped_base64(self) -> None:
-        # D12 makes whitespace insignificant, which is what it takes to accept `base64(1)` and every
+        # O7 makes whitespace insignificant, which is what it takes to accept `base64(1)` and every
         # MIME encoder, which wrap at 76 columns.
         encoded = encoded_profile(document())
         wrapped = "\n".join(encoded[index : index + 76] for index in range(0, len(encoded), 76))

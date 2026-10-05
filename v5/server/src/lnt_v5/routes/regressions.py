@@ -1,6 +1,6 @@
-"""Regressions: the triage records an external detector keeps (endpoints.md, Regressions).
+"""Regressions: the triage records an external detector keeps (E8).
 
-D8 settles what this is: v5 detects nothing on its own, so every regression and every indicator
+O3 settles what this is: v5 detects nothing on its own, so every regression and every indicator
 arrives from a process that analysed the time series elsewhere and decided something changed. These
 endpoints are CRUD over what it decided, and nothing more.
 
@@ -97,7 +97,7 @@ INDICATORS_PATH = f"{REGRESSIONS_PATH}/{{uuid}}/indicators"
 
 router = APIRouter(prefix=REGRESSIONS_PATH, tags=["Regressions"])
 
-# The largest batch of indicators one request may carry, which is R2's page ceiling for the same
+# The largest batch of indicators one request may carry, which is I2's page ceiling for the same
 # reason `POST /commits/resolve` takes it: a batch expands into one statement, and an unbounded one
 # would expand into a statement with more bind parameters than the protocol carries.
 MAX_INDICATORS = MAX_LIMIT
@@ -148,7 +148,7 @@ Notes = Annotated[
 class Indicator(BaseModel):
     """One (machine, test, metric) combination a regression affects (D5).
 
-    R4's reference rule throughout: each part is the other entity's identifier under a key named
+    I4's reference rule throughout: each part is the other entity's identifier under a key named
     after it, rather than a nested object. A metric is declared by the suite's schema rather than
     created like a machine or a test, but is referenced the same way underneath (D5).
     """
@@ -163,7 +163,7 @@ class IndicatorObject(BaseModel):
     """One indicator as a request names it: by name, everywhere.
 
     The machine and the test must already exist -- nothing here creates either -- so a name that
-    is not there is a 404. The metric must be declared by the suite's schema, which R3 makes a 400
+    is not there is a 404. The metric must be declared by the suite's schema, which I3 makes a 400
     instead: a metric is a column the schema declares rather than a row the suite holds.
     """
 
@@ -195,7 +195,7 @@ class _Regression(BaseModel):
 
 
 class Regression(_Regression):
-    """A regression as the list carries it (endpoints.md, Regressions).
+    """A regression as the list carries it (E8).
 
     The two counts describe the regression rather than the request: they count the distinct
     machines and tests across *every* indicator it has, whatever `machine=` or `test=` narrowed the
@@ -338,8 +338,8 @@ class Regressions:
     apart on the columns they name or the way they read one -- the same arrangement as `Machines`,
     `Commits` and `Runs`.
 
-    The internal `id` rides along with the rest. It is never rendered -- R1 keeps auto-increment ids
-    out of the API entirely -- but it is the unique tiebreaker D10 requires under the cursor, and
+    The internal `id` rides along with the rest. It is never rendered -- I1 keeps auto-increment ids
+    out of the API entirely -- but it is the unique tiebreaker O5 requires under the cursor, and
     this list takes no `sort`, so it is the whole of the order.
     """
 
@@ -391,18 +391,18 @@ class Regressions:
         )
 
     def keyset(self) -> Keyset:
-        """D10's ordering: arbitrary but deterministic, which for this list is the internal id."""
+        """O5's ordering: arbitrary but deterministic, which for this list is the internal id."""
         return Keyset(tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
-        """D9's `?search=` for regressions: the title, and nothing else."""
+        """O4's `?search=` for regressions: the title, and nothing else."""
         return search_condition(term, self.table, ["title"])
 
     def commit_is(self, value: str) -> ColumnElement[bool]:
-        """R3's `commit=`, over the outer join `select` already makes.
+        """I3's `commit=`, over the outer join `select` already makes.
 
         A value no commit has matches nothing rather than being an error, which is the asymmetry
-        R3 draws between this filter and `machine=`.
+        I3 draws between this filter and `machine=`.
         """
         return self._commit.c.commit == value
 
@@ -520,10 +520,10 @@ class Regressions:
     def resolved_indicators(
         self, connection: Connection, submitted: Sequence[IndicatorObject]
     ) -> list[dict[str, Any]]:
-        """The rows a batch of submitted indicators stands for, deduplicated (endpoints.md).
+        """The rows a batch of submitted indicators stands for, deduplicated (E8).
 
         The metrics go first, because they are checked against the schema already in memory: a
-        batch naming a metric the suite does not declare is R3's 400 without a statement having
+        batch naming a metric the suite does not declare is I3's 400 without a statement having
         run.
 
         Every machine, test and metric is then resolved in one statement each rather than one per
@@ -537,7 +537,7 @@ class Regressions:
         The rows come back sorted, whatever order the request named them in. `add_indicators`
         inserts under `ON CONFLICT DO NOTHING`, which waits on a row another transaction has
         inserted but not committed, so two batches overlapping in opposite orders would each hold a
-        row the other waits on. In one fixed order, D13's rule for test names, they cannot.
+        row the other waits on. In one fixed order, O8's rule for test names, they cannot.
         """
         # The declared list is turned into a lookup once rather than once per metric, which is what
         # `declared_entry` would do -- the batch may name thousands.
@@ -642,9 +642,9 @@ class Regressions:
 
 
 def _requested_states(requested: str) -> list[int]:
-    """R3's `?state=active,detected`, as the integers D5 stores, or the 400 for an unknown name.
+    """I3's `?state=active,detected`, as the integers D5 stores, or the 400 for an unknown name.
 
-    A comma-separated list because R3 spells this one filter that way; the framework's own list
+    A comma-separated list because I3 spells this one filter that way; the framework's own list
     handling would spell it `?state=active&state=detected` instead.
     """
     states = []
@@ -731,9 +731,9 @@ def list_regressions(
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Regression]:
-    """Every regression in the suite, filtered and cursor-paginated (R2, R3, D9, D10).
+    """Every regression in the suite, filtered and cursor-paginated (I2, I3, O4, O5).
 
-    R3's three answers to a filter naming something absent are all visible here: an unknown
+    I3's three answers to a filter naming something absent are all visible here: an unknown
     `machine=` or `test=` is a 404, an unknown `metric=` is a 400 -- it names a column the schema
     declares rather than a row the suite holds -- and an unknown `commit=` is an empty page, because
     a commit no regression was ever attributed to is an ordinary answer.
@@ -788,7 +788,7 @@ def create_regression(
     registry: RegistryDep,
     response: Response,
 ) -> RegressionDetail:
-    """Open a regression, with as much or as little as the detector knows (D8).
+    """Open a regression, with as much or as little as the detector knows (O3).
 
     Every key is optional: a regression with no title, no commit and no indicators is legal, and
     `PATCH` and the indicator routes fill it in as triage proceeds.

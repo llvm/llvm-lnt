@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# `/llms.txt` is served by the image (R6).
+# `/llms.txt` is served by the image (I6).
 #
 # The point of checking it here rather than only in pytest: the document is a data file inside the
 # package, not a Python string, so the in-process suite reads it straight out of the source tree

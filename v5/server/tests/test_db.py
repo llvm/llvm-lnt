@@ -84,7 +84,7 @@ class TestUnitOfWork:
         assert suites(db_engine) == ["nts"]
 
     def test_rolls_back_everything_when_the_endpoint_raises(self, db_engine: Engine) -> None:
-        # What D13 requires of a run submission: it either fully succeeds or leaves no trace,
+        # What O8 requires of a run submission: it either fully succeeds or leaves no trace,
         # including rows written before whatever went wrong.
         app = make_app(db_engine)
 
@@ -154,7 +154,7 @@ class TestReadingErrors:
     def test_names_the_unique_constraint_that_was_violated(
         self, db: Connection, insert_key: Callable[..., None]
     ) -> None:
-        # The distinction R4 turns into `duplicate` versus `ordinal_conflict`, and the one
+        # The distinction I4 turns into `duplicate` versus `ordinal_conflict`, and the one
         # create_key reads to decide whether to retry.
         insert_key()
 

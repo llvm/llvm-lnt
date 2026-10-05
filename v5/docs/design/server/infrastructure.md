@@ -4,10 +4,10 @@ This document covers the framework, URL structure, pagination, filtering,
 response format, and authentication for the v5 REST API.
 
 API documentation is generated using the OpenAPI 3.x format, and served
-alongside an interactive viewer (see R8).
+alongside an interactive viewer (see I8).
 
 
-## R1: URL Structure and Identifiers
+## I1: URL Structure and Identifiers
 
 - Base path: `/api/suites/{testsuite}/`
 - No path carries a trailing slash. A request that adds one is answered with a
@@ -19,17 +19,17 @@ alongside an interactive viewer (see R8).
 - Entities addressed by natural keys (suite name, machine name, test name, commit value) or
   UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
   auto-increment database IDs. API keys are the one exception to both: they are addressed by
-  their `prefix`, which is neither a natural key nor a UUID (see R5). Run UUIDs may be
+  their `prefix`, which is neither a natural key nor a UUID (see I5). Run UUIDs may be
   client-provided or server-generated; all other UUIDs are server-generated.
 - An entity carries its own identifier in responses under the key it is addressed by: `name`
-  (suite, machine, test), `value` (commit), `uuid`, `prefix`. R4 covers how one entity refers
+  (suite, machine, test), `value` (commit), `uuid`, `prefix`. I4 covers how one entity refers
   to another.
 - A natural key that appears in a path has to survive being one segment of it. A server decodes
   `%2F` back to a path separator before routing, and normalizes `.` and `..` away, so a key
   containing `/`, or equal to `.` or `..`, would name an entity that no URL can reach -- and the
   `Location` header handed back at creation would answer 404. A machine name or a commit value
   that is not addressable in this sense is therefore rejected with 400 wherever the entity is
-  created, including implicit creation during run submission (see D6), rather than accepted and
+  created, including implicit creation during run submission (see O1), rather than accepted and
   then unreachable.
 - Test names, and the function names inside a profile, are exempt: both legitimately contain `/`
   (a demangled `operator/` overload, for a function) and arrive implicitly with a run submission,
@@ -45,7 +45,7 @@ alongside an interactive viewer (see R8).
   with routing; see D4.
 
 
-## R2: Pagination
+## I2: Pagination
 
 Every list endpoint returns a JSON object carrying its results under `items`,
 never a bare array. Cursor-paginated lists add a `cursor`:
@@ -90,14 +90,14 @@ paginated lists. `limit` is at least 1 and an offset-paginated list's `total` is
 available from any page.
 
 
-## R3: Filtering and Sorting
+## I3: Filtering and Sorting
 
 - Filters and sorting are named query parameters, or keys of the request body
   for an endpoint that takes its filters in one. The endpoints spec is
   authoritative for which ones each endpoint takes; the OpenAPI document
-  describes them (see R8).
+  describes them (see I8).
 - Common filter types (examples):
-  - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see D9)
+  - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see O4)
   - `after=`, `before=`: exclusive bounds on submission time. An endpoint that
     bounds more than one dimension names its bounds after each of them instead
     (e.g. `after_commit`/`after_time` on `POST /api/suites/{testsuite}/query`).
@@ -122,26 +122,26 @@ available from any page.
     empty result.
 
 
-## R4: Response Format
+## I4: Response Format
 
 All REST API responses are JSON. A list endpoint returns one of the envelopes in
-R2; every other endpoint returns the entity object itself, except where its own
+I2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
-401, 403, 404, 409, 500. The four routes exempt from the scope system (see R5)
+401, 403, 404, 409, 500. The four routes exempt from the scope system (see I5)
 are not part of this surface and follow their own sections: they serve plain
 text or HTML as well as JSON. Three things are settled before a request reaches
 an endpoint at all, and are likewise outside this surface: an oversized request
 body, which is refused (see Errors, below); a trailing slash, which is
-redirected (see R1); and a URL carrying a NUL character, which is refused with
+redirected (see I1); and a URL carrying a NUL character, which is refused with
 400 `invalid_request` because no value the API can act on contains one (see D5).
 Being settled first, all three are answered whatever credential accompanied
-them; none of the three names a resource, so R5's reason for authorizing before
+them; none of the three names a resource, so I5's reason for authorizing before
 resolving does not reach them.
 
 **Object conventions.** These hold for every response body, so each endpoint's
 spec need only name its keys.
 
-- A reference to another entity carries that entity's identifier (see R1) under
+- A reference to another entity carries that entity's identifier (see I1) under
   a key named after the entity -- `machine`, `commit`, `test` -- rather than a
   nested object, so that an item stays flat and a page of them stays small. When
   the identifier is a UUID the key says so: `run_uuid`. Two cases nest or
@@ -170,12 +170,12 @@ time, so clients must branch on `code` alone and never parse `message`.
 
 | Code | Status | Meaning |
 |------|--------|---------|
-| `invalid_request` | 400 | Malformed or invalid request: bad syntax, an unreadable `Authorization` header (see R5), a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
-| `unauthorized` | 401 | A credential was required and none was usable (see R5) |
-| `forbidden` | 403 | Valid token, insufficient scope (see R5) |
-| `not_found` | 404 | An entity named by the path, by a filter, or by the request body does not exist, except where R3 answers it with an empty result |
+| `invalid_request` | 400 | Malformed or invalid request: bad syntax, an unreadable `Authorization` header (see I5), a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
+| `unauthorized` | 401 | A credential was required and none was usable (see I5) |
+| `forbidden` | 403 | Valid token, insufficient scope (see I5) |
+| `not_found` | 404 | An entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
 | `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added twice |
-| `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see D11) |
+| `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see O6) |
 | `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
 | `conflict` | 409 | The request contradicts existing state in a way the more specific 409 codes do not describe, or could not complete because the suite's schema changed underneath it (see D2) |
 | `internal_error` | 500 | The server failed to answer |
@@ -191,7 +191,7 @@ at the transport layer instead. However, they must be rejected with `413`. This 
 deployment rather than of any endpoint, so no endpoint documents it.
 
 
-## R5: Authentication and Authorization
+## I5: Authentication and Authorization
 
 **Scopes**. Every endpoint under `/api/` declares the scope it requires. The
 scopes form a strict hierarchy -- `read` < `submit` < `triage` < `manage` <
@@ -218,9 +218,9 @@ access. Endpoints requiring any higher scope require a valid Bearer token.
 
 Four routes fall outside this section altogether, because they are documentation
 and infrastructure probes rather than part of the REST API surface: `GET
-/llms.txt` (R6), `GET /healthz` (R7), `GET /api/openapi.json` (R8), and the
-documentation viewer at `GET /api/docs` (R8). None of them participates in the
-scope system and none returns the R4 error envelope, so no authentication
+/llms.txt` (I6), `GET /healthz` (I7), `GET /api/openapi.json` (I8), and the
+documentation viewer at `GET /api/docs` (I8). None of them participates in the
+scope system and none returns the I4 error envelope, so no authentication
 happens on their path and an `Authorization` header has no effect on them -- not
 even a malformed or revoked one, which anywhere else under `/api/` would be a
 400 or a 401.
@@ -255,7 +255,7 @@ the scheme name is matched case-insensitively, per RFC 9110.
   RFC 6750's `insufficient_scope`.
 
 A 401 carries a `WWW-Authenticate: Bearer` header. All three responses use the
-R4 error envelope, with `code` set to `invalid_request`, `unauthorized` and
+I4 error envelope, with `code` set to `invalid_request`, `unauthorized` and
 `forbidden` respectively.
 
 **Order of checks**. Authentication precedes authorization, which precedes
@@ -296,18 +296,18 @@ creating keys, for example a command-line tool that can be used from the
 instance. The exact mechanism is implementation-specific.
 
 
-## R6: AI Agent Orientation
+## I6: AI Agent Orientation
 
 - Serve a plain-text orientation document at `GET /llms.txt` (following the
   llms.txt convention, analogous to robots.txt)
 - Content: what LNT is, key domain concepts, API structure, common workflows,
-  and links to `/api/docs` and `/api/openapi.json` (see R8)
+  and links to `/api/docs` and `/api/openapi.json` (see I8)
 - Static content, outside the REST API surface: always public, and an
-  `Authorization` header has no effect on it (see R5)
+  `Authorization` header has no effect on it (see I5)
 - Served as `text/plain` with UTF-8 charset
 
 
-## R7: Health Check
+## I7: Health Check
 
 - `GET /healthz` reports whether the server is able to serve traffic. It
   verifies database connectivity by issuing a trivial query, so a 200 means the
@@ -315,20 +315,20 @@ instance. The exact mechanism is implementation-specific.
 - Returns `200 {"ok": true}` on success, `500 {"ok": false}` if the database
   cannot be reached.
 - No authentication, always public; an `Authorization` header has no effect
-  (see R5).
-- Deliberately outside `/api/`, and deliberately not using the R4 error
+  (see I5).
+- Deliberately outside `/api/`, and deliberately not using the I4 error
   envelope: this is an infrastructure probe rather than part of the REST API
   surface.
 
 
-## R8: API Documentation
+## I8: API Documentation
 
 - `GET /api/openapi.json` serves the OpenAPI 3.x specification describing this
   instance's API, as `application/json`. Its `info.title` is `LNT v5` and its
   `info.version` is `5` -- the version of the API, which is fixed for the
   lifetime of v5, and not of the server build serving it.
 - The specification describes only responses the API can actually produce. In
-  particular it must not advertise a status outside the set R4 permits: a
+  particular it must not advertise a status outside the set I4 permits: a
   generator that documents its framework's native validation failure (commonly
   422) has to be corrected to the 400 the error envelope specifies.
 - `GET /api/docs` serves an interactive documentation viewer rendering that
@@ -338,9 +338,9 @@ instance. The exact mechanism is implementation-specific.
   serving them from this instance (in which case the API viewer may only be
   available when the instance is online).
 - Both are linked from the API index (`GET /api`) under the `openapi` and
-  `docs` keys, and from `/llms.txt` (R6).
+  `docs` keys, and from `/llms.txt` (I6).
 - Neither requires authentication, and an `Authorization` header has no effect
-  on either, even though both live under `/api/` (see R5).
+  on either, even though both live under `/api/` (see I5).
 - The viewer is named for what it is rather than for what renders it. Swapping
   the viewer implementation must not change the URL, so the path deliberately
   does not name a particular tool.

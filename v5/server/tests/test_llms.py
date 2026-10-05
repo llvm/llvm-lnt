@@ -1,4 +1,4 @@
-"""The AI agent orientation document (R6).
+"""The AI agent orientation document (I6).
 
 Beyond how it is served, the tests here are about the *content*: its endpoint index has to list
 exactly the operations this server has, with the scopes they enforce, and every other path and
@@ -7,7 +7,7 @@ cannot check, so a path that stopped existing would send every reader at a 404, 
 the suite would notice.
 
 Two of its properties are covered where they belong with their siblings rather than here: its
-trailing-slash handling with the other server paths in `test_spa.py`, and its absence from R8's
+trailing-slash handling with the other server paths in `test_spa.py`, and its absence from I8's
 document with the other exempt route in `test_docs.py`.
 
 Nothing here needs a database: the document is static and the route table is built without one.
@@ -36,21 +36,21 @@ class TestServing:
         response = client.get("/llms.txt")
 
         assert response.status_code == 200
-        # R6 fixes both halves: `text/plain`, and a charset saying how to read the bytes.
+        # I6 fixes both halves: `text/plain`, and a charset saying how to read the bytes.
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
         assert response.text.startswith("# LNT v5")
 
 
 class TestContent:
     def test_links_to_both_documentation_routes(self, client: TestClient) -> None:
-        # R6 requires both links: they are how a reader gets from this document to the details.
+        # I6 requires both links: they are how a reader gets from this document to the details.
         document = _document(client)
 
         assert "/api/openapi.json" in document
         assert "/api/docs" in document
 
     def test_names_every_error_code(self, client: TestClient) -> None:
-        # R4's codes are what the document tells a reader to branch on, so a code it does not
+        # I4's codes are what the document tells a reader to branch on, so a code it does not
         # mention is one a reader will not handle. Matched in backticks, as the document writes
         # them, because a bare `conflict` would be found inside `ordinal_conflict`.
         document = _document(client)
@@ -61,7 +61,7 @@ class TestContent:
         """The endpoint index lists exactly the operations that declare a scope, with that scope.
 
         Both directions: an operation added to the server and not to the index is as misleading as
-        one the index names and the server no longer has. The scope is checked too, because R5 makes
+        one the index names and the server no longer has. The scope is checked too, because I5 makes
         the method imply nothing, so it is the one thing a reader cannot guess.
         """
         declared = {

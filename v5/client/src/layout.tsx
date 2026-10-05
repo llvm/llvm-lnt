@@ -13,7 +13,7 @@ export function Layout() {
           <NavLink to="/graph">Graph</NavLink>
           <NavLink to="/compare">Compare</NavLink>
           <NavLink to="/profiles">Profiles</NavLink>
-          {/* Opens the OpenAPI viewer in a new tab once the API exists (see design/client/architecture.md). */}
+          {/* Opens the OpenAPI viewer in a new tab once the API exists (see AR4). */}
           <span className="navbar-disabled" title="The API documentation viewer is not available yet">
             API
           </span>

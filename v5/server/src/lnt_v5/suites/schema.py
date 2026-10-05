@@ -3,10 +3,10 @@
 A schema is a JSON document and nothing else -- it is the body of `POST /api/suites`, the body
 `GET /api/suites/{name}` returns, and what the `schema` table stores. That is why these are
 pydantic models rather than plain dataclasses: one definition validates the request, renders the
-response, describes both in R8's document, and produces the normalized form that gets stored.
+response, describes both in I8's document, and produces the normalized form that gets stored.
 
 "Normalized" means every optional key is present and explicit. A schema fetched from one instance
-can be posted verbatim to another (see endpoints.md, Test Suites), which only holds if the
+can be posted verbatim to another (see E10), which only holds if the
 document that comes back is a complete one.
 
 What a schema *does* is create columns; see `tables.py` for the tables these entries become.
@@ -42,8 +42,8 @@ NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 RESERVED_SUITE_NAMES = frozenset({"public", "information_schema"})
 RESERVED_SUITE_PREFIX = "pg_"
 
-# D6: a test entry in a submission is `name` plus metric values, with `profile` carrying the test's
-# profile document (D12). A metric called either could never be given a value, so a schema
+# O1: a test entry in a submission is `name` plus metric values, with `profile` carrying the test's
+# profile document (O7). A metric called either could never be given a value, so a schema
 # declaring one is rejected rather than accepted into a state where one of its metrics is
 # unreachable. This is a property of the submission format, not of any table's columns.
 RESERVED_TEST_ENTRY_KEYS = frozenset({"name", "profile"})
@@ -109,7 +109,7 @@ class Entry(BaseModel):
 
 
 class _SearchableEntry(Entry):
-    """An entry on an entity that `?search=` covers (D9).
+    """An entry on an entity that `?search=` covers (O4).
 
     Substring matching only makes sense over text, so the flag is confined to `text` entries
     rather than quietly ignored on the others (D3).

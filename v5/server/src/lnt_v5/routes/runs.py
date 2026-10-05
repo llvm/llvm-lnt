@@ -1,7 +1,7 @@
-"""Runs: one measurement of one commit on one machine (endpoints.md, Runs).
+"""Runs: one measurement of one commit on one machine (E4).
 
 Submission is the one write in the API that creates five kinds of row at once -- the machine, the
-commit, the tests, the run and its samples and profiles -- and D13 makes all of it one transaction:
+commit, the tests, the run and its samples and profiles -- and O8 makes all of it one transaction:
 either 201 or nothing at all. So this module is mostly about order and about statement count. The
 order is validate, then resolve the entities a run points at, then write the run and everything that
 points at the run. The statement count is what keeps a submission carrying tens of thousands of
@@ -85,15 +85,15 @@ MACHINE_RUNS_PATH = f"{MACHINES_PATH}/{{machine_name}}/runs"
 router = APIRouter(prefix=RUNS_PATH, tags=["Runs"])
 
 # The one route that hangs off a machine rather than off `/runs`. A router of its own because its
-# prefix is the machines', and it is tagged with them so that R8's document groups it where
+# prefix is the machines', and it is tagged with them so that I8's document groups it where
 # endpoints.md specifies it.
 machine_runs_router = APIRouter(prefix=MACHINE_RUNS_PATH, tags=["Machines"])
 
-# endpoints.md names these two and no others. A literal rather than a free string, so R8's document
+# endpoints.md names these two and no others. A literal rather than a free string, so I8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
 RunSort = Literal["submitted_at", "-submitted_at"]
 
-# The three parameters both run lists share, spelled once. R3's `after=`/`before=` bound the
+# The three parameters both run lists share, spelled once. I3's `after=`/`before=` bound the
 # submission time and are exclusive; `sort=` orders by it.
 _TIMESTAMP = (
     "An ISO 8601 timestamp. One without an offset is read as UTC; a '+' in an offset must be "
@@ -126,10 +126,10 @@ NO_RUN = f"{SUITE_NOT_FOUND} Or no run in it has that UUID."
 
 
 class Run(BaseModel):
-    """A run as a list carries it (R4).
+    """A run as a list carries it (I4).
 
     `machine` and `commit` are the referenced entity's identifier rather than a nested object, which
-    is R4's rule for one entity referring to another: a run list is long, and a client that wants
+    is I4's rule for one entity referring to another: a run list is long, and a client that wants
     more than the identity resolves a page of commits in one call to `POST /commits/resolve`.
     """
 
@@ -144,7 +144,7 @@ class Run(BaseModel):
     submitted_at: datetime = Field(
         description=(
             "When the server accepted this run. Recorded by the server from the database's clock; "
-            "a submission cannot supply it (D6)."
+            "a submission cannot supply it (D5)."
         )
     )
 
@@ -167,13 +167,13 @@ class RunDetail(Run):
 class Runs:
     """The query every run response is built from, and how to read one of its rows back.
 
-    The join is what makes a run renderable on its own: D5 stores a machine and a commit id, and R4
+    The join is what makes a run renderable on its own: D5 stores a machine and a commit id, and I4
     wants the machine's name and the commit's value, so every read of a run pays for both. Held here
     rather than written per endpoint so that the detail and the lists built on it cannot drift apart
     on the columns they name -- the same arrangement as `Machines` and `Commits`.
 
-    The internal `id` rides along with the rest. It is never rendered -- R1 keeps auto-increment ids
-    out of the API entirely -- but it is the unique tiebreaker D10 requires under every cursor, and
+    The internal `id` rides along with the rest. It is never rendered -- I1 keeps auto-increment ids
+    out of the API entirely -- but it is the unique tiebreaker O5 requires under every cursor, and
     the whole of the order these lists take when the caller asks for no sort.
     """
 
@@ -202,11 +202,11 @@ class Runs:
         )
 
     def keyset(self, sort: RunSort | None) -> Keyset:
-        """D10's ordering for a run list: the caller's sort, then the internal tiebreaker.
+        """O5's ordering for a run list: the caller's sort, then the internal tiebreaker.
 
         `submitted_at` is not unique -- nothing stops two runs being accepted in the same instant,
         and every list here pages -- so it cannot be the whole order on its own. With no `sort` the
-        tiebreaker is the whole order, which is the arbitrary but deterministic one R2 allows.
+        tiebreaker is the whole order, which is the arbitrary but deterministic one O5 allows.
         """
         if sort is None:
             return Keyset(tiebreaker=self.table.c.id)
@@ -214,9 +214,9 @@ class Runs:
         return Keyset(SortKey(self.table.c.submitted_at, descending), tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
-        """D9's `?search=` for a run list: the machine predicate, applied through the run's machine.
+        """O4's `?search=` for a run list: the machine predicate, applied through the run's machine.
 
-        Literally the same predicate as `GET /machines?search=`, which is what D9 asks for -- the
+        Literally the same predicate as `GET /machines?search=`, which is what O4 asks for -- the
         join `select` already makes is what puts the machine's columns in scope for it.
         """
         return machine_search(self.suite, term)
@@ -231,7 +231,7 @@ class Runs:
         )
 
     def commit_is(self, value: str) -> ColumnElement[bool]:
-        """R3's `commit=`, over the join `select` already makes."""
+        """I3's `commit=`, over the join `select` already makes."""
         return self._commit.c.commit == value
 
     def page(
@@ -291,7 +291,7 @@ class Runs:
         commit_id: int,
         parameters: dict[str, Any],
     ) -> int:
-        """Insert the run row, or answer R4's `duplicate` for a UUID already used (D6).
+        """Insert the run row, or answer I4's `duplicate` for a UUID already used (O1).
 
         `submitted_at` is deliberately not written: D5 gives the column a `now()` default, so the
         value comes from the database's clock rather than from this process, and concurrent workers
@@ -319,7 +319,7 @@ class Runs:
         tests: Sequence[SubmittedTest],
         ids: Mapping[str, int],
     ) -> None:
-        """Every sample row the submission stands for, in one statement (D6).
+        """Every sample row the submission stands for, in one statement (O1).
 
         One statement rather than one per row because a submission legitimately carries tens of
         thousands of samples. That is only safe because every mapping in `test.samples` already
@@ -343,9 +343,9 @@ class Runs:
         ids: Mapping[str, int],
     ) -> None:
         """The profile row of every run+test the submission carried one for, then their functions'
-        rows, in one statement each (D5, D12).
+        rows, in one statement each (D5, O7).
 
-        The UUID is minted here and never taken from the submission: R1 makes a run's UUID the one
+        The UUID is minted here and never taken from the submission: I1 makes a run's UUID the one
         a client may choose, and every other UUID in the API server-generated. `created_at` is left
         to D5's column default, for the same reason `submitted_at` is.
         """
@@ -447,9 +447,9 @@ def list_runs(
     sort: Sort = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Run]:
-    """Every run in the suite, filtered, ordered and cursor-paginated (R2, R3, D9, D10).
+    """Every run in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
 
-    R3's asymmetry between the two entity filters is deliberate and is visible here: an unknown
+    I3's asymmetry between the two entity filters is deliberate and is visible here: an unknown
     `machine=` is a 404, because a caller that misspells a machine name wants to hear about it,
     whereas an unknown `commit=` is an empty page, because a commit the suite has never seen is an
     ordinary answer to "what ran at this revision".
@@ -461,7 +461,7 @@ def list_runs(
             conditions.append(runs.search(search))
         if machine is not None:
             # By id rather than by the joined name, so the filter lands on the leading column of
-            # D5's `(machine_id, submitted_at)` index -- and so an unknown name is R3's 404.
+            # D5's `(machine_id, submitted_at)` index -- and so an unknown name is I3's 404.
             conditions.append(runs.table.c.machine_id == machine_id(connection, suite, machine))
         if commit is not None:
             conditions.append(runs.commit_is(commit))
@@ -488,7 +488,7 @@ def list_machine_runs(
     sort: Sort = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Run]:
-    """One machine's runs (endpoints.md, Machines).
+    """One machine's runs (E2).
 
     `GET /runs?machine=` answers the same question, and this is deliberately not a redirect to it:
     the machine is part of the resource's identity here rather than a filter over the suite, which
@@ -520,9 +520,9 @@ def submit_run(
     registry: RegistryDep,
     response: Response,
 ) -> RunDetail:
-    """Store a run, its samples, profiles and summaries, creating what it names (D6, D7, D12-D15).
+    """Store a run, its samples, profiles and summaries, creating what it names (O1, O2, O7-O9).
 
-    Everything it writes is one transaction, because D13 makes a submission atomic from the
+    Everything it writes is one transaction, because O8 makes a submission atomic from the
     caller's point of view: a machine created on the way to a contradicted ordinal must not survive
     the rejection. Reading the payload is deliberately not part of it; see below.
 
@@ -559,14 +559,14 @@ def submit_run(
         # opposite orders, and PostgreSQL would kill one of them with a 500 on a request that did
         # nothing wrong. Order alone is not enough, though: the run insert below takes key-share
         # locks on both rows again through its foreign keys, which is why a fill must never lock
-        # a row strongly enough to conflict with that (see `entities._locked_values`, and D13).
+        # a row strongly enough to conflict with that (see `entities._locked_values`, and O8).
         machine_id = Machines(suite).get_or_create(connection, validated.machine)
         commit_id = Commits(suite).get_or_create(connection, validated.commit)
         run_id = runs.create(
             connection, validated.uuid, machine_id, commit_id, validated.run_parameters
         )
 
-        # Every test name in one round trip rather than one each (D13), which is what keeps a
+        # Every test name in one round trip rather than one each (O8), which is what keeps a
         # submission naming tens of thousands of tests affordable.
         names = [test.name for test in validated.tests]
         tests = resolve_names(connection, suite.tables.test, names)

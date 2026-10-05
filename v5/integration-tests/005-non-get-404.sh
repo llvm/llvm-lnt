@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The client fallback only answers GET and HEAD. A POST to a client route is "nothing here"
-# rather than a method mismatch, because 405 is not one of the statuses R4 permits.
+# rather than a method mismatch, because 405 is not one of the statuses I4 permits.
 
 source "$(dirname "$0")/lib.sh"
 

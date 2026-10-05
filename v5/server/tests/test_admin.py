@@ -1,4 +1,4 @@
-"""The API key endpoints (endpoints.md, Admin).
+"""The API key endpoints (E11).
 
 Authentication itself is `test_auth.py`; what is checked here is what the three endpoints do once
 a caller is through it.
@@ -33,7 +33,7 @@ class TestList:
     def test_returns_an_envelope_even_when_there_is_nothing_but_the_caller(
         self, api_client: TestClient, admin: dict[str, str]
     ) -> None:
-        # R2: `items` is present and empty rather than absent, and never a bare array.
+        # I2: `items` is present and empty rather than absent, and never a bare array.
         body = api_client.get(KEYS, headers=admin).json()
 
         assert list(body) == ["items"]
@@ -85,7 +85,7 @@ class TestList:
         }
         assert token not in response.text
 
-    def test_serializes_timestamps_the_way_d5_specifies(
+    def test_serializes_timestamps_as_specified(
         self, api_client: TestClient, admin: dict[str, str]
     ) -> None:
         # The first request is what gives the caller's own key a `last_used_at` to serialize; the
@@ -157,7 +157,7 @@ class TestCreate:
             ({"name": "x" * (KEY_NAME_MAX_LENGTH + 1), "scope": "read"}, "an oversized name"),
             ({"name": "a\x00b", "scope": "read"}, "a name PostgreSQL cannot store (D5)"),
             ({"name": "bot"}, "no scope"),
-            ({"name": "bot", "scope": "root"}, "a scope outside R5's five"),
+            ({"name": "bot", "scope": "root"}, "a scope outside I5's five"),
             ({"name": "bot", "scope": "READ"}, "a scope in the wrong case"),
             ({"name": "bot", "scope": None}, "a null scope"),
         ],
