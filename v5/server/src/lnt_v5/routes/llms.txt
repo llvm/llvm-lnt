@@ -219,8 +219,7 @@ numeric.
 `GET /runs/{uuid}/samples?test=bench/foo`, and `GET /runs/{uuid}/profiles`. A
 profile is then read through its own UUID; every counter is a raw count.
 `GET /profiles/{uuid}/document` returns it whole: gzip-compressed and
-base64-encoded, that document is a `profile` another submission accepts, which
-is how a profile is copied to another instance.
+base64-encoded.
 
 **Record a regression** with `POST /regressions`:
 
