@@ -217,11 +217,9 @@ Notes:
   and the field has a non-null value, the UI shows that value instead of the
   raw commit string (e.g., a shortened SHA, a version tag). Since it stands in
   for the commit string, it is only valid on a `text`-typed field. This is
-  purely a UI concern -- the DB layer does not treat display fields specially;
-  in particular, `?search=` covers a display field only if it is also
-  `searchable` (see O4). A schema with more than one `commit_field` marked
-  `display: true`, or with one that is not `text`, is rejected at
-  schema-creation time (400).
+  purely a UI concern -- the DB layer does not treat display fields specially.
+  A schema with more than one `commit_field` marked `display: true`, or with
+  one that is not `text`, is rejected at schema-creation time (400).
 - There is no `format_version` in the schema (only one format exists for v5).
 
 **Presentation keys**: beyond `name` and `type`, each list accepts only the
