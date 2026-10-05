@@ -1,7 +1,7 @@
 # Real-world `nts` runs
 
 Nine runs of the `nts` suite from [lnt.llvm.org](https://lnt.llvm.org), which runs LNT v4,
-converted to the v5 submission format (O1). `012-real-world-nts.sh` submits them and reads them
+converted to the v5 submission format (O1). `tests/test_real_world.py` submits them and reads them
 back.
 
 ## Source

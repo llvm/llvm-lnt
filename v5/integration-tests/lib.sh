@@ -12,16 +12,10 @@ STATUS=""
 BODY=""
 HEADERS=""
 
-# _show_body [lines] -- the status, and the start of the body.
-#
-# A JSON body is pretty-printed first: compact JSON is a single line, which cutting at 200
-# characters would reduce to its first few keys.
 _show_body() {
-    local body
-    body="$(printf '%s' "$BODY" | jq . 2>/dev/null)" || body="$BODY"
     echo "  actual status: ${STATUS}" >&2
     echo "  actual body:" >&2
-    printf '%s\n' "$body" | head -"${1:-10}" | cut -c1-200 | sed 's/^/    /' >&2
+    printf '%s\n' "$BODY" | head -10 | cut -c1-200 | sed 's/^/    /' >&2
 }
 
 # mint_key <name> <scope> -- create an API key through the CLI and echo its token.
@@ -81,26 +75,6 @@ expect_body() {
     if ! printf '%s' "$BODY" | grep -Eq -- "$1"; then
         echo "  expected body to match: $1" >&2
         _show_body
-        exit 1
-    fi
-}
-
-# expect_json <jq filter> [jq options...] -- the body is JSON, and the filter yields true for it.
-#
-# For checks that compare structured data, which a regex over the body cannot do reliably. The
-# options go to jq, so that a check can hand the filter its expectations with --argjson. Compute
-# an expectation into a variable first rather than substituting it into the call: `set -e` does
-# not see a substitution fail inside another command's arguments, so a broken expectation would
-# be reported as the server's body failing to match.
-expect_json() {
-    local filter="$1"
-    shift
-    if ! printf '%s' "$BODY" | jq --exit-status "$@" "$filter" >/dev/null; then
-        echo "  expected body to satisfy: ${filter}" >&2
-        if [ $# -gt 0 ]; then
-            printf '  with jq options: %s\n' "$*" | head -20 | cut -c1-200 >&2
-        fi
-        _show_body 40
         exit 1
     fi
 }
