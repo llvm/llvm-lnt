@@ -1,7 +1,7 @@
 """The commit endpoints (E3).
 
 Driven over the real application and a real database. What is interesting here is mostly what
-PostgreSQL ends up doing: the unique ordinal that produces I4's `ordinal_conflict` (O6), the
+PostgreSQL ends up doing: the unique ordinal that produces I4's `conflict` (O6), the
 neighbour lookups that replace a linked list, a cascade that reaches runs and their samples and
 profiles, and the foreign key that refuses to let a regression's commit go.
 
@@ -506,14 +506,14 @@ class TestCreate:
         assert code_of(response) == "duplicate"
 
     def test_refuses_an_ordinal_another_commit_holds(self, create: Callable[..., Any]) -> None:
-        # I4 splits this from `duplicate` deliberately: a submitting bot retries a duplicate with a
-        # fresh value, whereas this means its view of the commit order is wrong.
+        # `conflict` rather than `duplicate`: the commit being created does not exist yet, but its
+        # position in the order is held by another one.
         create("abc", ordinal=7)
 
         response = create("def", ordinal=7)
 
         assert response.status_code == 409
-        assert code_of(response) == "ordinal_conflict"
+        assert code_of(response) == "conflict"
 
     @pytest.mark.parametrize(
         ("ordinal", "reason"),
@@ -823,7 +823,7 @@ class TestUpdate:
         response = patch("def", {"ordinal": 7})
 
         assert response.status_code == 409
-        assert code_of(response) == "ordinal_conflict"
+        assert code_of(response) == "conflict"
 
     def test_keeping_a_commits_own_ordinal_is_not_a_conflict(
         self, create: Callable[..., Any], patch: Callable[..., Any]

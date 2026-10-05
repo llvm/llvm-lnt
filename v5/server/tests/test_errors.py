@@ -54,11 +54,9 @@ class TestErrorCodes:
     def test_every_code_is_served_with_a_permitted_status(self, code: ErrorCode) -> None:
         assert error_response(code, "message").status_code in I4_STATUSES
 
-    @pytest.mark.parametrize(
-        "code", [ErrorCode.DUPLICATE, ErrorCode.ORDINAL_CONFLICT, ErrorCode.RETRY]
-    )
+    @pytest.mark.parametrize("code", [ErrorCode.DUPLICATE, ErrorCode.RETRY])
     def test_the_409_family_stays_distinguishable(self, code: ErrorCode) -> None:
-        # The point of the code/status split: I4 serves four codes as 409, and choosing 409 must
+        # The point of the code/status split: I4 serves three codes as 409, and choosing 409 must
         # not flatten them to `conflict`.
         response = error_response(code, "nope")
 

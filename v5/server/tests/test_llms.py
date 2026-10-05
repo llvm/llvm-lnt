@@ -52,7 +52,7 @@ class TestContent:
     def test_names_every_error_code(self, client: TestClient) -> None:
         # I4's codes are what the document tells a reader to branch on, so a code it does not
         # mention is one a reader will not handle. Matched in backticks, as the document writes
-        # them, because a bare `conflict` would be found inside `ordinal_conflict`.
+        # them, so that a code is not found inside a longer word.
         document = _document(client)
 
         assert {code for code in ErrorCode if f"`{code.value}`" in document} == set(ErrorCode)

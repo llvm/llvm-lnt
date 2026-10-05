@@ -350,9 +350,9 @@ def validate_fields(
 
 # The 409 an entity answers when a submitted value contradicts the one it already holds, built from
 # the key, the stored value and the submitted one. A callback rather than a return value because the
-# code and the wording are the entity's -- I4 gives a contradicted field `conflict` and a
-# contradicted ordinal `ordinal_conflict` -- while the rule that decides *whether* there is a
-# contradiction is O2's and is the same for both.
+# wording is the entity's -- it names the machine or the commit, and a commit words a contradicted
+# ordinal differently -- while the rule that decides *whether* there is a contradiction is O2's and
+# is the same for both.
 Contradiction = Callable[[str, Any, Any], ApiError]
 
 

@@ -565,7 +565,7 @@ class TestOrdinal:
         response = submit(commit={"value": "abc123", "ordinal": 43})
 
         assert response.status_code == 409
-        assert code_of(response) == "ordinal_conflict"
+        assert code_of(response) == "conflict"
         assert api_client.get(f"{COMMITS}/abc123").json()["ordinal"] == 42
 
     def test_refuses_an_ordinal_another_commit_holds(self, submit: Callable[..., Any]) -> None:
@@ -574,7 +574,7 @@ class TestOrdinal:
         response = submit(commit={"value": "def456", "ordinal": 42})
 
         assert response.status_code == 409
-        assert code_of(response) == "ordinal_conflict"
+        assert code_of(response) == "conflict"
 
     def test_an_omitted_ordinal_never_contradicts(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -965,7 +965,7 @@ class TestAtomicity:
 
     def test_the_submission_is_refused(self, failed_halfway: Any) -> None:
         assert failed_halfway.status_code == 409
-        assert code_of(failed_halfway) == "ordinal_conflict"
+        assert code_of(failed_halfway) == "conflict"
 
     @pytest.mark.usefixtures("failed_halfway")
     @pytest.mark.parametrize("table", ["machine", "run", "test", "sample", "profile"])

@@ -83,7 +83,7 @@ def get_or_create(
     winner is this very commit, since PostgreSQL checks indexes in creation order, which
     `REINDEX CONCURRENTLY` or re-creating a constraint changes. Anything else is re-raised: a
     commit whose ordinal *another* commit holds is not there on the re-read, and the caller owes
-    `ordinal_conflict` for it (I4).
+    `conflict` for it (I4).
 
     The caller owns the transaction. Only the INSERT is wrapped in a savepoint, so a submission
     that has already created its machine keeps it when it loses the race for its commit.

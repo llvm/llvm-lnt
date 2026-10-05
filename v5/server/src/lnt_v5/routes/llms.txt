@@ -123,17 +123,16 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
   never on `message`. The codes are `invalid_request` (400), `unauthorized`
   (401), `forbidden` (403), `not_found` (404), `method_not_allowed` (405, with
-  an `Allow` header), `duplicate`, `ordinal_conflict`, `conflict` and `retry`
-  (409), and `internal_error` (500). A request body too large for the
-  deployment is a plain-text 413 instead. Among the 409s:
+  an `Allow` header), `duplicate`, `conflict` and `retry` (409), and
+  `internal_error` (500). A request body too large for the deployment is a
+  plain-text 413 instead. Among the 409s:
   - `duplicate`: the entity exists. For a run whose UUID you chose, an earlier
     attempt most likely succeeded: do not resubmit under a fresh UUID, which
     would store the run twice.
-  - `ordinal_conflict`: the ordinal is taken, or contradicts the commit's own.
-    Your view of the commit order is wrong; retrying cannot help.
   - `conflict`: the request contradicts stored state -- metadata a submission
-    disagrees with, or a commit a regression still references. Do not retry as
-    sent; change the request or the state first.
+    disagrees with, an ordinal another commit holds, or a commit a regression
+    still references. Do not retry as sent; change the request or the state
+    first.
   - `retry`: a concurrent change to the suite's schema got in the way. Nothing
     was written; send the same request again.
 - **Names that match nothing**: a run submission creates the machine, commit

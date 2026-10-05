@@ -181,22 +181,21 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `not_found` | 404 | No route matches the path, or an entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method; the `Allow` header lists the methods it serves |
 | `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added to a list that already has one of that name |
-| `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see O6) |
-| `conflict` | 409 | The request contradicts existing state in a way the more specific codes above do not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), deleting a commit a regression references, a suite name already taken by a database namespace |
+| `conflict` | 409 | The request contradicts existing state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), deleting a commit a regression references, a suite name already taken by a database namespace |
 | `retry` | 409 | A concurrent change to the suite's schema kept the request from completing, and nothing was written: the schema changed while it ran, or a schema change could not take its locks in time (see D2) |
 | `internal_error` | 500 | The server failed to answer |
 
-409 carries more than one code because its cases call for different client behaviour: a
-`duplicate` run UUID means the run is already stored -- for a submitting bot that chose the UUID
+409 carries more than one code because its cases call for different client behaviour, one per code.
+A `duplicate` run UUID means the run is already stored -- for a submitting bot that chose the UUID
 itself, most likely by an earlier attempt whose response was lost, so it is done and must not
-resubmit under a fresh UUID, which would store the run twice -- whereas an `ordinal_conflict`
-means its view of the commit order is wrong and retrying cannot help. `conflict` and `retry` split
-along the line that matters most to an automated client: a `conflict` fails again until the request
-or the stored state changes, so it must not be retried as sent, whereas a `retry` changed nothing
-and failed through no fault of the request, so a client may send it again unchanged. A resend is
-answered on its own merits rather than guaranteed to succeed: the concurrent change may have made
-the request invalid -- a metric it names removed, its suite dropped -- and then it gets that
-definitive answer instead.
+resubmit under a fresh UUID, which would store the run twice. A `conflict` fails again until the
+request or the stored state changes, so it must not be retried as sent: typically, the client's view
+of what is stored -- a machine's metadata, the commit order -- is out of date. A `retry` changed
+nothing and failed through no fault of the request, so a client may send it again unchanged. A
+resend is answered on its own merits rather than guaranteed to succeed: the concurrent change may
+have made the request invalid -- a metric it names removed, its suite dropped -- and then it gets
+that definitive answer instead. The `message` says what a `conflict` is about; the `code` does not,
+because the client's reaction does not depend on it.
 
 A method mismatch is answered with 405 only under `/api/`. Elsewhere -- a client route, `/healthz`,
 `/llms.txt` -- it is a 404 like any other miss. HEAD is a 404 under `/api/` too: no API endpoint

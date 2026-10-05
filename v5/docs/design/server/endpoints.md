@@ -120,7 +120,7 @@ are `null` at either end of the ordered range, and on a commit whose own
 pointing at `GET /api/suites/{testsuite}/commits/{value}`; `PATCH` returns 200
 with the same body; `DELETE` returns 204. `POST` returns 409 `duplicate` if a
 commit with that value already exists, and both `POST` and `PATCH` return 409
-`ordinal_conflict` if the ordinal they set is already held by another commit
+`conflict` if the ordinal they set is already held by another commit
 (see O6 and I4). `DELETE` returns 409 `conflict` if a regression references the
 commit; otherwise it removes the commit, its runs, and their samples and
 profiles (see D5). Every route in this section returns 404 if the suite does not
@@ -222,9 +222,9 @@ a run returns 404 if no run in the suite has that UUID, including when the path
 segment is not a well-formed UUID. `DELETE` requires no `?confirm=true`.
 
 The machine and the commit a submission names are created if they do not exist,
-and otherwise reconciled with the submission (see O2): contradicted metadata is
-rejected with 409 `conflict`, and a contradicted or already-taken `ordinal` with
-409 `ordinal_conflict` (see O6). Undeclared keys in `machine.fields` or
+and otherwise reconciled with the submission (see O2): contradicted metadata,
+including a contradicted `ordinal`, is rejected with 409 `conflict`, and so is an
+`ordinal` already held by another commit (see O6). Undeclared keys in `machine.fields` or
 `commit.fields` are rejected with 400, and so is a profile that O7 refuses.
 
 `has_profiles=` (boolean): `true` returns only runs that have at least one

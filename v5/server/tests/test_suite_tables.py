@@ -495,7 +495,7 @@ class TestNamingConvention:
         ("table", "constraint"),
         [
             # Each of these is written out so that an endpoint can attribute a violation to it and
-            # answer the specific 409 I4 gives it: `duplicate`, `ordinal_conflict`, `conflict`.
+            # answer the specific 409 I4 gives it: `duplicate` or `conflict`.
             ("commit", COMMIT_VALUE_CONSTRAINT),
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
@@ -605,7 +605,7 @@ class TestUniqueness:
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # O6: a regular, non-deferred constraint. A write that would give two commits the same
-        # ordinal is rejected, which the API reports as `ordinal_conflict` (I4).
+        # ordinal is rejected, which the API reports as `conflict` (I4).
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:

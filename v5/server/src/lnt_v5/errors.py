@@ -29,7 +29,7 @@ class ErrorCode(StrEnum):
     """I4's machine-readable error codes; see infrastructure.md for what each one means.
 
     Callers name a code and the status follows from it, never the other way round: the relation
-    is not invertible, since I4 serves four distinct codes as 409.
+    is not invertible, since I4 serves three distinct codes as 409.
     """
 
     INVALID_REQUEST = "invalid_request"
@@ -38,7 +38,6 @@ class ErrorCode(StrEnum):
     NOT_FOUND = "not_found"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     DUPLICATE = "duplicate"
-    ORDINAL_CONFLICT = "ordinal_conflict"
     CONFLICT = "conflict"
     RETRY = "retry"
     INTERNAL_ERROR = "internal_error"
@@ -52,7 +51,6 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.METHOD_NOT_ALLOWED: 405,
     ErrorCode.DUPLICATE: 409,
-    ErrorCode.ORDINAL_CONFLICT: 409,
     ErrorCode.CONFLICT: 409,
     ErrorCode.RETRY: 409,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -169,7 +167,7 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
 
     # Nothing else is expected. An endpoint that needs a specific code raises `ApiError` rather than
     # a status this would have to guess a code from -- guessing cannot tell `duplicate` from
-    # `ordinal_conflict`. Answer inside I4's surface and log.
+    # `conflict`. Answer inside I4's surface and log.
     logger.warning("Unexpected HTTPException with status %d; answering 500", exc.status_code)
     return error_response(ErrorCode.INTERNAL_ERROR, "The server failed to answer this request")
 
