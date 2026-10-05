@@ -178,10 +178,10 @@ DELETE /api/suites/{testsuite}/runs/{uuid}                  -- Delete run
 ```
 
 **Run object**: `uuid`, `machine` (the machine's name), `commit` (the commit's
-identity string), `submitted_at`, and `run_parameters`. `run_parameters` is the
-free-form blob the submission supplied, `{}` when it supplied none, and appears
-in the detail response only -- it is unbounded and no list view renders it, the
-same reason a regression's `notes` is detail-only.
+identity string), `submitted_at` (see O1), and `run_parameters`.
+`run_parameters` is the free-form blob the submission supplied, `{}` when it
+supplied none, and appears in the detail response only -- it is unbounded and no
+list view renders it, the same reason a regression's `notes` is detail-only.
 
 ```json
 {
@@ -542,7 +542,7 @@ Returns one item per (machine, commit), in I2's unpaginated envelope -- the resu
 set is bounded by (machines x last_n). Items are ordered by machine name, then by
 ordinal. Each item carries: `machine` (the machine's name), `commit` (the commit's
 identity string), `ordinal` (always present, never null), `submitted_at` (the
-latest submission among the runs the value covers), `tag` (the commit's tag, or
+latest `submitted_at` among the runs the value covers), `tag` (the commit's tag, or
 null if unset), and `value`, which is a real even for an `integer` metric.
 `metric` is not echoed per item, unlike a query point.
 

@@ -699,7 +699,7 @@ class TestConcurrentFill:
             commit = commits.get_or_create(a, submitted_commit())
             filling = background(fill)
             until_blocked(db_engine)
-            Runs(suite).create(a, str(uuid4()), machine, commit, {})
+            Runs(suite).create(a, str(uuid4()), machine, commit, {}, submitted_at=None)
 
         assert filling.result(timeout=BLOCK_TIMEOUT) == commit
         assert stored(db_engine, suite, "machine", "name", "linux").hardware == "x86_64"

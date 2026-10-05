@@ -184,7 +184,12 @@ one sample per repetition. Every array in one test must have the same length,
 and a scalar beside them is repeated in each of those samples: above,
 `bench/bar` yields three samples, each with `compile_time` 0.40, so
 aggregating per sample counts that value three times. `uuid` is optional and
-generated when omitted. The submission is atomic, and answers 201 with the run.
+generated when omitted. `submitted_at` is optional too, and defaults to when
+the server accepts the run: when importing history from elsewhere, supply each
+run's original time, or every run will appear to have happened at the import.
+Since it can be any time, `after=` on `GET /runs` cannot tell you which runs
+were added since you last looked. The submission is atomic, and answers 201 with
+the run.
 It never overwrites what is stored: a field, tag or ordinal that differs from
 the stored one is 409, and `PATCH` is the only way to change it. The machine's
 `tracked` flag is the exception: it is set only when the submission creates the

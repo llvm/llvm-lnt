@@ -21,7 +21,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, select, text, update
+from sqlalchemy import Engine, select, text
 
 from conftest import PROFILE_DOCUMENT, code_of, encoded_profile, run_payload, uuids_in, walk_pages
 from introspection import counted, counting_statements
@@ -348,6 +348,13 @@ class TestUuid:
         assert [row["test"] for row in samples(db_engine, suite)] == ["suite/one"]
 
 
+def stored_submitted_at(db_engine: Engine, suite: SuiteTables) -> datetime:
+    """The one run's `submitted_at`, as the database holds it."""
+    with db_engine.connect() as connection:
+        stored: datetime = connection.execute(select(suite.run.c.submitted_at)).scalar_one()
+    return stored
+
+
 class TestSubmittedAt:
     def test_is_the_value_the_database_recorded(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
@@ -357,9 +364,7 @@ class TestSubmittedAt:
         # back, not a second opinion.
         body = submitted()
 
-        with db_engine.connect() as connection:
-            stored = connection.execute(select(suite.run.c.submitted_at)).scalar_one()
-        assert datetime.fromisoformat(body["submitted_at"]) == stored
+        assert datetime.fromisoformat(body["submitted_at"]) == stored_submitted_at(db_engine, suite)
 
     def test_is_serialized_as_utc(self, submitted: Callable[..., Any]) -> None:
         # D5: always rendered in UTC with a `Z` suffix.
@@ -368,10 +373,24 @@ class TestSubmittedAt:
     def test_is_roughly_now(self, submitted: Callable[..., Any]) -> None:
         assert recent(datetime.fromisoformat(submitted()["submitted_at"]))
 
-    def test_the_submission_cannot_supply_it(self, submit: Callable[..., Any]) -> None:
-        # O1 has no such key, and `extra="forbid"` is what turns sending one into a 400 rather than
-        # a value silently ignored.
-        response = submit(submitted_at="2020-01-01T00:00:00Z")
+    def test_null_is_the_same_as_omitting_it(self, submitted: Callable[..., Any]) -> None:
+        # O1: null means "omitted", so the server's clock again.
+        assert recent(datetime.fromisoformat(submitted(submitted_at=None)["submitted_at"]))
+
+    def test_keeps_the_time_the_submission_supplied(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        # Sent with an offset, so that the response also shows it converted to UTC (D3). The
+        # parsing rules themselves are `test_submission.py`'s.
+        body = submitted(submitted_at="2020-01-02T05:04:05+02:00")
+
+        assert body["submitted_at"] == "2020-01-02T03:04:05Z"
+        assert stored_submitted_at(db_engine, suite) == datetime(2020, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+    def test_refuses_a_time_that_is_not_an_iso_8601_string(
+        self, submit: Callable[..., Any]
+    ) -> None:
+        response = submit(submitted_at="yesterday")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -1030,15 +1049,8 @@ class TestConcurrentSubmission:
 
 
 @pytest.fixture
-def run_at(
-    db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
-) -> Callable[..., str]:
-    """Submit a run and move its `submitted_at` where the test needs it.
-
-    Submitted through the API rather than inserted, so the machine and the commit are created the
-    way O2 creates them; only the clock is forced, because a submission cannot supply it (O1) and
-    the `after=`/`before=` filters have nothing to bite on otherwise.
-    """
+def run_at(submitted: Callable[..., Any]) -> Callable[..., str]:
+    """Submit a run, at `moment` if one is given, and hand back its UUID."""
 
     def make(
         moment: datetime | None = None,
@@ -1046,14 +1058,12 @@ def run_at(
         commit: str = "abc123",
         **overrides: Any,
     ) -> str:
-        body = submitted(machine={"name": machine}, commit={"value": commit}, **overrides)
-        if moment is not None:
-            with db_engine.begin() as connection:
-                connection.execute(
-                    update(suite.run)
-                    .where(suite.run.c.uuid == body["uuid"])
-                    .values(submitted_at=moment)
-                )
+        body = submitted(
+            machine={"name": machine},
+            commit={"value": commit},
+            submitted_at=None if moment is None else moment.isoformat(),
+            **overrides,
+        )
         return str(body["uuid"])
 
     return make
@@ -1100,14 +1110,15 @@ class TestList:
         assert walk(api_client, "limit=2") == first
 
     def test_sorts_newest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
-        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
+        # Submitted in the opposite order, so that only the supplied times can explain the result.
         new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
 
         assert uuids_in(listed(api_client, "sort=-submitted_at")) == [new, old]
 
     def test_sorts_oldest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
-        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
         new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
 
         assert uuids_in(listed(api_client, "sort=submitted_at")) == [old, new]
 

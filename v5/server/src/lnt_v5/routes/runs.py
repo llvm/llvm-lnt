@@ -103,8 +103,8 @@ class Run(BaseModel):
     commit: str = Field(description="The identity string of the commit this run belongs to.")
     submitted_at: datetime = Field(
         description=(
-            "When the server accepted this run. Recorded by the server from the database's clock; "
-            "a submission cannot supply it (D5)."
+            "When this run was submitted: the time its submission supplied, or else the time the "
+            "server accepted it (D5)."
         )
     )
 
@@ -232,25 +232,29 @@ class Runs:
         machine_id: int,
         commit_id: int,
         parameters: dict[str, Any],
+        *,
+        submitted_at: datetime | None,
     ) -> int:
         """Insert the run row, or answer I4's `duplicate` for a UUID already used (O1).
 
-        `submitted_at` is deliberately not written: D5 gives the column a `now()` default, so the
-        value comes from the database's clock rather than from this process, and concurrent workers
-        agree on the ordering it defines. It is read back through `select` afterwards.
+        `submitted_at` is written only when the submission supplied one. Otherwise D5's `now()`
+        default fills it in, so the value comes from the database's clock rather than from this
+        process, and concurrent workers agree on the ordering it defines. Either way it is read
+        back through `select` afterwards.
         """
+        values: dict[str, Any] = {
+            "uuid": uuid,
+            "machine_id": machine_id,
+            "commit_id": commit_id,
+            "run_parameters": parameters,
+        }
+        if submitted_at is not None:
+            values["submitted_at"] = submitted_at
         taken = f"A run '{uuid}' already exists in test suite '{self.schema.name}'"
         with reporting_violation(RUN_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken):
             return int(
                 connection.execute(
-                    insert(self.table)
-                    .values(
-                        uuid=uuid,
-                        machine_id=machine_id,
-                        commit_id=commit_id,
-                        run_parameters=parameters,
-                    )
-                    .returning(self.table.c.id)
+                    insert(self.table).values(values).returning(self.table.c.id)
                 ).scalar_one()
             )
 
@@ -497,7 +501,12 @@ def submit_run(
         machine_id = Machines(suite).get_or_create(connection, validated.machine)
         commit_id = Commits(suite).get_or_create(connection, validated.commit)
         run_id = runs.create(
-            connection, validated.uuid, machine_id, commit_id, validated.run_parameters
+            connection,
+            validated.uuid,
+            machine_id,
+            commit_id,
+            validated.run_parameters,
+            submitted_at=validated.submitted_at,
         )
 
         # Every test name in one round trip rather than one each (O8), which is what keeps a
@@ -511,8 +520,9 @@ def submit_run(
         # held for as short a time as the transaction allows.
         coverage.add(connection, suite, machine_id, validated.tests, tests)
 
-        # Read back rather than assembled from the submission: `submitted_at` is the database's,
-        # and this is the same reader the detail endpoint uses, so the two cannot disagree.
+        # Read back rather than assembled from the submission: `submitted_at` may be the
+        # database's, and this is the same reader the detail endpoint uses, so the two cannot
+        # disagree.
         created = runs.one(connection, validated.uuid)
 
     response.headers["Location"] = location_of(RUNS_PATH, testsuite, validated.uuid)

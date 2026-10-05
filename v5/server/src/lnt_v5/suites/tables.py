@@ -224,8 +224,8 @@ def build(schema: SuiteSchema) -> SuiteTables:
             nullable=False,
             index=True,
         ),
-        # The database's clock rather than the application's, so that concurrent workers agree on
-        # ordering. A submission cannot supply this (O1).
+        # Supplied by the submission, or else the database's clock rather than the application's,
+        # so that concurrent workers agree on ordering (O1).
         Column("submitted_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Column("run_parameters", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )

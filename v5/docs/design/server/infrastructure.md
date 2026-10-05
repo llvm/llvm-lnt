@@ -106,9 +106,11 @@ paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
   describes them (see I8).
 - Common filter types (examples):
   - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see O4)
-  - `after=`, `before=`: exclusive bounds on submission time. An endpoint that
+  - `after=`, `before=`: exclusive bounds on `submitted_at`. An endpoint that
     bounds more than one dimension names its bounds after each of them instead
     (e.g. `after_commit`/`after_time` on `POST /api/suites/{testsuite}/query`).
+    `submitted_at` does not reflect the order in which runs became visible (see
+    D5), so these bounds cannot find the runs added since a given point.
   - `state=` (for regressions, supports multiple values via a comma-separated
     list: `?state=active,detected`)
   - `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)

@@ -95,7 +95,7 @@ class DataPoint(BaseModel):
         )
     )
     run_uuid: str = Field(description="The UUID of the run this value came from.")
-    submitted_at: datetime = Field(description="When the server accepted that run.")
+    submitted_at: datetime = Field(description="That run's `submitted_at` (E4).")
     tag: str | None = Field(
         description="That commit's human-readable label, or null if it has none."
     )
@@ -113,7 +113,7 @@ class TrendPoint(BaseModel):
         )
     )
     submitted_at: datetime = Field(
-        description="When the server accepted the most recent of the runs behind this value."
+        description="The latest `submitted_at` among the runs behind this value (E4)."
     )
     tag: str | None = Field(
         description="That commit's human-readable label, or null if it has none."

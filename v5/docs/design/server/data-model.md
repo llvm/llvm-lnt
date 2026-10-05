@@ -465,10 +465,12 @@ are given in that form.
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
-- `submitted_at` is recorded by the server when the run is accepted; a
-  submission cannot supply it. It comes from the database's clock at the start
-  of the storing transaction, so it is comparable across workers but does not
-  reflect the order in which runs became visible.
+- `submitted_at` is the time the submission supplied (see O1) or, when it
+  supplied none, the time the server accepted the run. The latter comes from the
+  database's clock at the start of the storing transaction, so that it is
+  comparable across workers. Neither reflects the order in which runs became
+  visible: a supplied time can lie anywhere in the past or the future, and two
+  transactions can commit in the opposite order to the one they began in.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
   `GET /api/suites/{testsuite}/runs?machine={name}&sort=-submitted_at` and the

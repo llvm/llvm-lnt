@@ -18,6 +18,7 @@ object identical to the one the entity's own creation endpoint accepts (see O2).
 {
   "format_version": "5",
   "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "submitted_at": "2026-04-15T14:30:00Z",
   "machine": {
     "name": "my-machine",
     "tracked": true,
@@ -57,6 +58,11 @@ object identical to the one the entity's own creation endpoint accepts (see O2).
   v7, etc.) -- only the format is validated. If a run with the same UUID
   already exists in the test suite, the server returns 409 `duplicate` (see I4).
   If omitted, the server generates a random UUID v4.
+- `submitted_at`: Optional. When the run was submitted, read as D3 reads a
+  `datetime`; defaults to the time the server accepts the run (see D5). Any
+  instant is accepted, including one in the future. It lets runs imported from
+  elsewhere -- a mirror, a backfill -- keep their original times rather than
+  take the time of the import.
 - `machine`: Required object identifying the machine this run was measured on.
   - `name`: Required string. The machine's identity.
   - `fields`: Optional. Every key must be declared in the schema's
@@ -112,11 +118,12 @@ object identical to the one the entity's own creation endpoint accepts (see O2).
     at submission (see D5), so a suite can never hold a metric that no submission
     could populate.
 
-An explicit `null` means "omitted" on `uuid`, `commit.ordinal`, `commit.tag`, a
-test entry's `profile`, and each entry of `machine.fields` and `commit.fields`;
-anywhere else it is rejected with 400. Unlike with `PATCH`, a `null` in `fields`
-never clears a stored value (see O2), so a client can submit the `fields` dict a
-response gave it, which carries a `null` for every unset field (see I4).
+An explicit `null` means "omitted" on `uuid`, `submitted_at`, `commit.ordinal`,
+`commit.tag`, a test entry's `profile`, and each entry of `machine.fields` and
+`commit.fields`; anywhere else it is rejected with 400. Unlike with `PATCH`, a
+`null` in `fields` never clears a stored value (see O2), so a client can submit
+the `fields` dict a response gave it, which carries a `null` for every unset
+field (see I4).
 
 
 ## O2: Machine and Commit Metadata Population

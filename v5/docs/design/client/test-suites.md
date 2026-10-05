@@ -85,7 +85,7 @@ etc...
 - `Run` is a link to the run detail page. UUID is abbreviated.
 - `Machine` is a link to the machine detail page.
 - `Commit` is a link to the commit detail page. `display` commit field is used if any.
-- `Submitted` is the submission timestamp for that run
+- `Submitted` is the run's `submitted_at`
 
 Above the table, a search box showing "Filter by machine name...". It allows substring
 matching on machine name and searchable machine fields.

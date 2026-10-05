@@ -90,7 +90,7 @@ class Machine(MachineObject):
     tracked: Tracked
     fields: dict[str, FieldValue]
     last_run_at: datetime | None = Field(
-        description="When the machine's most recent run was submitted, or null if it has none."
+        description="The latest `submitted_at` among the machine's runs, or null if it has none."
     )
 
 

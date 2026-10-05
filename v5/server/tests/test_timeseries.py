@@ -55,8 +55,15 @@ def submit(
     commit in the same breath, so every fixture below is built out of these.
     """
 
-    def post(machine: str, commit: str, *tests: dict[str, Any]) -> dict[str, Any]:
-        body = run_payload(machine={"name": machine}, commit={"value": commit}, tests=list(tests))
+    def post(
+        machine: str, commit: str, *tests: dict[str, Any], submitted_at: str | None = None
+    ) -> dict[str, Any]:
+        body = run_payload(
+            machine={"name": machine},
+            commit={"value": commit},
+            tests=list(tests),
+            submitted_at=submitted_at,
+        )
         response = api_client.post(RUNS, json=body, headers=submitter)
         assert response.status_code == 201, response.text
         return dict(response.json())
@@ -96,6 +103,22 @@ def series(
     for index in range(1, 4):
         place(f"c{index}", ordinal=index * 10)
     return runs
+
+
+@pytest.fixture
+def backfilled(submit: Callable[..., dict[str, Any]]) -> None:
+    """Three runs on one machine, each supplying a `submitted_at`, submitted newest first.
+
+    An import of history may well submit in any order, and the reverse one means that only the
+    supplied times, never the order of arrival, can explain an ordering a test sees.
+    """
+    for commit, month in (("late", 3), ("mid", 2), ("early", 1)):
+        submit(
+            "linux",
+            commit,
+            {"name": "t", "execution_time": 1.0},
+            submitted_at=f"2026-0{month}-01T00:00:00Z",
+        )
 
 
 def query(api_client: TestClient, **body: Any) -> Any:
@@ -361,6 +384,19 @@ class TestQueryFilters:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.usefixtures("backfilled")
+    def test_the_time_ranges_bound_the_supplied_time(self, api_client: TestClient) -> None:
+        served = points(
+            api_client,
+            metric="execution_time",
+            after_time="2026-01-15T00:00:00Z",
+            before_time="2026-02-15T00:00:00Z",
+        )
+
+        assert [(point["commit"], point["submitted_at"]) for point in served] == [
+            ("mid", "2026-02-01T00:00:00Z")
+        ]
+
     def test_the_time_ranges_are_exclusive_at_both_ends(
         self, api_client: TestClient, series: list[dict[str, Any]]
     ) -> None:
@@ -514,14 +550,13 @@ class TestQuerySort:
             "a",
         ]
 
-    def test_orders_by_submission_time_in_both_directions(
-        self, api_client: TestClient, series: list[dict[str, Any]]
-    ) -> None:
+    @pytest.mark.usefixtures("backfilled")
+    def test_orders_by_submission_time_in_both_directions(self, api_client: TestClient) -> None:
         oldest = points(api_client, metric="execution_time", sort="submitted_at")
         newest = points(api_client, metric="execution_time", sort="-submitted_at")
 
-        assert [point["commit"] for point in oldest] == ["c1", "c2", "c3"]
-        assert [point["commit"] for point in newest] == ["c3", "c2", "c1"]
+        assert [point["commit"] for point in oldest] == ["early", "mid", "late"]
+        assert [point["commit"] for point in newest] == ["late", "mid", "early"]
 
     def test_a_sort_field_endpoints_md_does_not_name_is_400(
         self, api_client: TestClient, suite: SuiteTables
@@ -748,6 +783,25 @@ class TestTrends:
 
         assert item["value"] == pytest.approx(3.0)
         assert item["submitted_at"] == latest["submitted_at"]
+
+    def test_carries_the_latest_submitted_time_rather_than_the_last_arrival(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+    ) -> None:
+        for month in (3, 1):
+            submit(
+                "linux",
+                "abc",
+                {"name": "t", "execution_time": 1.0},
+                submitted_at=f"2026-0{month}-01T00:00:00Z",
+            )
+        place("abc", ordinal=1)
+
+        item = trends(api_client, metric="execution_time", machine=["linux"])[0]
+
+        assert item["submitted_at"] == "2026-03-01T00:00:00Z"
 
     def test_skips_the_zero_and_negative_values(
         self,

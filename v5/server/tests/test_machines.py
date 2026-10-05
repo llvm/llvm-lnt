@@ -16,9 +16,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
-from conftest import PROFILE_COLUMNS, code_of
+from conftest import PROFILE_COLUMNS, code_of, run_payload
 from introspection import row_count, sql_type_of
 from lnt_v5.routes.machines import Machines
+from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import _ADAPTERS
@@ -27,6 +28,7 @@ from lnt_v5.suites.schema import AttributeType, SuiteSchema
 from lnt_v5.suites.tables import SuiteTables, build
 
 MACHINES = f"{SUITES_PATH}/nts/machines"
+RUNS = RUNS_PATH.format(testsuite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -71,31 +73,20 @@ def create(
 
 
 @pytest.fixture
-def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
-    """Attach a run to an existing machine, submitted at a given time."""
+def add_run(
+    api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
+) -> Callable[..., str]:
+    """Submit a run for a machine, at a given time, and hand back its UUID."""
 
     def add(machine: str, submitted_at: datetime, commit: str = "abc") -> str:
-        with db_engine.begin() as connection:
-            machine_id = connection.execute(
-                select(suite.machine.c.id).where(suite.machine.c.name == machine)
-            ).scalar_one()
-            commit_id = connection.execute(
-                select(suite.commit.c.id).where(suite.commit.c.commit == commit)
-            ).scalar_one_or_none()
-            if commit_id is None:
-                commit_id = connection.execute(
-                    insert(suite.commit).values(commit=commit).returning(suite.commit.c.id)
-                ).scalar_one()
-            run = str(uuid4())
-            connection.execute(
-                insert(suite.run).values(
-                    uuid=run,
-                    machine_id=machine_id,
-                    commit_id=commit_id,
-                    submitted_at=submitted_at,
-                )
-            )
-        return run
+        body = run_payload(
+            machine={"name": machine},
+            commit={"value": commit},
+            submitted_at=submitted_at.isoformat(),
+        )
+        response = api_client.post(RUNS, json=body, headers=submitter)
+        assert response.status_code == 201, response.text
+        return str(response.json()["uuid"])
 
     return add
 
@@ -267,7 +258,7 @@ class TestLastRunAt:
         create("never")
         add_run("older", at(1))
         add_run("newer", at(2))
-        # The most recent run is what counts, not the last one inserted.
+        # The latest `submitted_at` is what counts, not the last run submitted.
         add_run("older", at(3), commit="def")
         add_run("newer", at(2), commit="def")
 

@@ -13,6 +13,7 @@ with an `ApiError` carrying that code itself.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -150,10 +151,50 @@ class TestUuid:
             parsed(uuid=value)
 
 
+class TestSubmittedAt:
+    def test_is_left_to_the_database_when_omitted(self) -> None:
+        assert validated().submitted_at is None
+
+    def test_null_is_the_same_as_omitting_it(self) -> None:
+        assert validated(submitted_at=None).submitted_at is None
+
+    @pytest.mark.parametrize(
+        "value", ["2020-01-02T03:04:05Z", "2020-01-02T05:04:05+02:00", "2020-01-02T03:04:05"]
+    )
+    def test_is_read_as_utc(self, value: str) -> None:
+        # D3: an offset is converted to UTC, and a timestamp without one is read as UTC.
+        submitted_at = validated(submitted_at=value).submitted_at
+        # Compared for its zone as well: aware datetimes compare equal across zones.
+        assert submitted_at == datetime(2020, 1, 2, 3, 4, 5, tzinfo=UTC)
+        assert submitted_at is not None and submitted_at.tzinfo is UTC
+
+    def test_accepts_the_future(self) -> None:
+        assert validated(submitted_at="2999-01-01T00:00:00Z").submitted_at == datetime(
+            2999, 1, 1, tzinfo=UTC
+        )
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "yesterday",
+            "",
+            # D3 has no epoch form, and a string holding a number is not one either.
+            1700000000,
+            "1700000000",
+            # Valid ISO 8601, but outside the representable range once converted to UTC.
+            "0001-01-01T00:00:00+01:00",
+        ],
+    )
+    def test_rejects_anything_but_an_iso_8601_string(self, value: Any) -> None:
+        with pytest.raises(ValidationError):
+            parsed(submitted_at=value)
+
+
 class TestPayloadShape:
     def test_rejects_an_unknown_top_level_key(self) -> None:
+        # v4's `on_existing_run`, which E4 deliberately does not carry over.
         with pytest.raises(ValidationError):
-            parsed(submitted_at="2026-01-01T00:00:00Z")
+            parsed(on_existing_run="replace")
 
     @pytest.mark.parametrize("key", ["machine", "commit", "tests"])
     def test_requires_the_keys_a_run_cannot_do_without(self, key: str) -> None:

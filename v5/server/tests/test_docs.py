@@ -556,6 +556,7 @@ class TestRunOperations:
         assert set(schemas["RunSubmission"]["properties"]) == {
             "format_version",
             "uuid",
+            "submitted_at",
             "machine",
             "commit",
             "run_parameters",

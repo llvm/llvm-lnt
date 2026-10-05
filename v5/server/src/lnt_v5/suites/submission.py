@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from math import isfinite
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -37,6 +38,7 @@ from lnt_v5.suites.entities import (
     CLIENT_UUID_FORMAT,
     ClientUuid,
     CommitObject,
+    DatetimeValue,
     FieldValue,
     MachineObject,
     declared_by_name,
@@ -99,6 +101,15 @@ class RunSubmission(BaseModel):
         description="The submission format. Only '5' exists; v4's formats are not accepted."
     )
     uuid: RunUuid | None = None
+    submitted_at: DatetimeValue | None = Field(
+        default=None,
+        description=(
+            "When the run was submitted, as an ISO 8601 timestamp; one without an offset is read "
+            "as UTC. Omit it, or send null, for the time the server accepts the run. Any instant "
+            "is accepted, including one in the future. Meant for importing runs recorded "
+            "elsewhere, so that they keep their original time rather than the import's."
+        ),
+    )
     machine: MachineObject = Field(description="The machine this run was measured on (O2).")
     commit: CommitObject = Field(description="The commit this run belongs to (O2).")
     run_parameters: dict[str, Any] = Field(
@@ -164,9 +175,12 @@ class ValidatedSubmission:
     Every value here is already typed per D3 and named by the column that stores it, so the write
     layer composes statements and never reinterprets the payload. `uuid` is the client's when it
     supplied one and a fresh v4 otherwise, so the write path has no "maybe" to handle.
+    `submitted_at` is the one exception: `None` leaves it to the database's clock (D5), which
+    validation has no access to.
     """
 
     uuid: str
+    submitted_at: datetime | None
     machine: SubmittedMachine
     commit: SubmittedCommit
     run_parameters: dict[str, Any]
@@ -226,6 +240,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     return ValidatedSubmission(
         # O1: the client's UUID when it sent one, and a v4 the server mints otherwise.
         uuid=body.uuid or str(uuid4()),
+        submitted_at=body.submitted_at,
         machine=machine,
         commit=commit,
         run_parameters=body.run_parameters,
