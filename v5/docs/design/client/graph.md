@@ -70,7 +70,7 @@ the suite is a query parameter, not a path segment.
   no display field is defined or a commit's display field is not populated, the
   raw commit string is shown.
 
-- Plotly line chart: metric value vs commit, one trace per matching test
+- Line chart: metric value vs commit, one trace per selected test and machine
 
 - **Aggregation controls** (consistent with Compare page):
   - Run aggregation: how to combine multiple runs at the same commit
@@ -147,8 +147,8 @@ fetch if selecting). Shift-clicking selects a contiguous range from the
 last-clicked row (additive -- adds to existing selection). Double-clicking
 isolates that test (deselects all others); double-clicking the sole selected
 test restores all (selects every visible test). Selected tests with data still
-loading show a loading indicator. Plotly's built-in legend is disabled; the
-table replaces it. Bidirectional hover highlighting: hovering a table row
+loading show a loading indicator. The chart has no legend of its own; the
+table serves as one. Bidirectional hover highlighting: hovering a table row
 highlights the corresponding chart trace(s); hovering a chart trace highlights
 the table row. Selected tests are NOT persisted in the URL (test names can be
 very long); the filter, suite, machine, metric, aggregation, regression
@@ -181,8 +181,8 @@ where `display_value` is the commit's display value (e.g. short SHA with tag)
 when a `commit_field` with `display: true` is defined, otherwise the raw commit
 string. Display values for
 baseline commits are resolved via `POST /commits/resolve` so they display
-correctly when baselines are loaded from the URL. The "+" button uses
-`align-self: flex-start` so it does not stretch to the width of the chips.
+correctly when baselines are loaded from the URL. The "+" button keeps its
+own size rather than stretching to the width of the chips.
 Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
 with `{machine, metric, commit, test}` in the JSON body. Each baseline renders
 as a horizontal dashed line per test trace, spanning the full chart width,
@@ -199,7 +199,7 @@ block initial chart display.
 
 ### GR9: Concurrent Background Fetches
 
-Each machine x metric fetch uses its own AbortController, so navigating away or
+Each machine x metric fetch is cancellable on its own, so navigating away or
 removing a machine cancels its in-flight requests cleanly without affecting
 other machines' fetches.
 
@@ -207,13 +207,12 @@ other machines' fetches.
 ### GR10: Hover Behavior
 
 Hover a data point: tooltip showing test name, machine name, commit value,
-aggregated metric value, run count. Hover distance is reduced
-(`hoverdistance: 5`, less sticky tooltips) so the tooltip only appears when the
-cursor is close to a data point. When hovering over an aggregated point that
-represents multiple runs, the individual pre-aggregation values are shown as a
-scatter of markers at the same x-position, in the same trace color but faded
-(opacity 0.3). This scatter is computed lazily via a callback and displayed as a
-temporary Plotly trace that is added on hover and removed on unhover.
+aggregated metric value, run count. The tooltip only appears when the cursor
+is within a few pixels of a data point, so that tooltips are not sticky. When
+hovering over an aggregated point that represents multiple runs, the individual
+pre-aggregation values are shown as a scatter of markers at the same x-position,
+in the same trace color but faded (opacity 0.3). This scatter is computed lazily
+on hover and removed on unhover.
 
 
 ### GR11: Empty State
