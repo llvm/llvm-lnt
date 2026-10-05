@@ -64,8 +64,8 @@ searchable machine_field; see O4), `tracked=` (boolean; omitting it returns
 both tracked and untracked machines).
 
 Sort: `sort=name` (the default, ascending), `-name`, `last_run_at`, and
-`-last_run_at`. `last_run_at` is the `submitted_at` of the machine's most recent
-run, or null for a machine with no runs; it is derived rather than stored (see
+`-last_run_at`. `last_run_at` is the latest `submitted_at` among the machine's
+runs, or null for a machine with no runs; it is derived rather than stored (see
 D5). Machines with no runs sort after every machine that has one, in both
 directions, and ties are broken by `name` ascending regardless of the primary
 direction, so that a page boundary is reproducible.

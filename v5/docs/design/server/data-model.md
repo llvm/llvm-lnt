@@ -426,10 +426,10 @@ are given in that form.
   as `machine_fields` are rejected (see O1).
 - Schema-defined `machine_fields` names must not collide with built-in column
   names (`id`, `name`, `tracked`). The schema parser rejects these.
-- `last_run_at` is not a column. It is the `submitted_at` of the machine's most
-  recent run, or null when the machine has no runs, derived on read; the machine
-  endpoints expose it and can sort on it. It is deliberately not stored: a stored
-  copy would have to be recomputed whenever a run is deleted and would entail
+- `last_run_at` is not a column. It is the latest `submitted_at` among the
+  machine's runs, or null when the machine has no runs, derived on read; the
+  machine endpoints expose it and can sort on it. It is deliberately not stored: a
+  stored copy would have to be recomputed whenever a run is deleted and would entail
   additional synchronization on submission. Deriving it is cheap because a suite
   has few machines and the compound index on `{suite}.run(machine_id, submitted_at)`
   reduces it to one index probe each; an implementation must not compute it by
@@ -465,12 +465,14 @@ are given in that form.
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
-- `submitted_at` is the time the submission supplied (see O1) or, when it
-  supplied none, the time the server accepted the run. The latter comes from the
-  database's clock at the start of the storing transaction, so that it is
-  comparable across workers. Neither reflects the order in which runs became
-  visible: a supplied time can lie anywhere in the past or the future, and two
-  transactions can commit in the opposite order to the one they began in.
+- `submitted_at` is when the run was originally submitted: to this instance, or,
+  for a run imported from elsewhere, to the one it came from. It is the time the
+  submission supplied (see O1) or, when it supplied none, the time the server
+  accepted the run. The latter comes from the database's clock at the start of
+  the storing transaction, so that it is comparable across workers. Neither
+  reflects the order in which runs became visible: a supplied time can lie
+  anywhere in the past or the future, and two transactions can commit in the
+  opposite order to the one they began in.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
   `GET /api/suites/{testsuite}/runs?machine={name}&sort=-submitted_at` and the

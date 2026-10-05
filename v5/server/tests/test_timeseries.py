@@ -58,12 +58,9 @@ def submit(
     def post(
         machine: str, commit: str, *tests: dict[str, Any], submitted_at: str | None = None
     ) -> dict[str, Any]:
-        body = run_payload(
-            machine={"name": machine},
-            commit={"value": commit},
-            tests=list(tests),
-            submitted_at=submitted_at,
-        )
+        body = run_payload(machine={"name": machine}, commit={"value": commit}, tests=list(tests))
+        if submitted_at is not None:
+            body["submitted_at"] = submitted_at
         response = api_client.post(RUNS, json=body, headers=submitter)
         assert response.status_code == 201, response.text
         return dict(response.json())

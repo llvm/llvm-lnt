@@ -170,7 +170,9 @@ class QueryRequest(BaseModel):
     )
     after_time: DatetimeValue | None = Field(
         default=None,
-        description="Keep only values from runs submitted strictly after this instant.",
+        description=(
+            "Keep only values from runs whose `submitted_at` is strictly after this instant."
+        ),
     )
     before_time: DatetimeValue | None = Field(
         default=None, description="The same, strictly before this instant."
@@ -178,9 +180,9 @@ class QueryRequest(BaseModel):
     sort: QuerySort | None = Field(
         default=None,
         description=(
-            "Order by test name, by commit (meaning by ordinal) or by submission time, ascending "
-            "or descending. Sorting by commit excludes the commits that have no ordinal, since "
-            "they have no place in that order. Omit for an arbitrary but stable order, which "
+            "Order by test name, by commit (meaning by ordinal) or by the run's `submitted_at`, "
+            "ascending or descending. Sorting by commit excludes the commits that have no ordinal, "
+            "since they have no place in that order. Omit for an arbitrary but stable order, which "
             "excludes nothing and is the cheapest way to walk the whole series."
         ),
     )

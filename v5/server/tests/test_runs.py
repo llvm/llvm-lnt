@@ -1058,12 +1058,9 @@ def run_at(submitted: Callable[..., Any]) -> Callable[..., str]:
         commit: str = "abc123",
         **overrides: Any,
     ) -> str:
-        body = submitted(
-            machine={"name": machine},
-            commit={"value": commit},
-            submitted_at=None if moment is None else moment.isoformat(),
-            **overrides,
-        )
+        if moment is not None:
+            overrides["submitted_at"] = moment.isoformat()
+        body = submitted(machine={"name": machine}, commit={"value": commit}, **overrides)
         return str(body["uuid"])
 
     return make

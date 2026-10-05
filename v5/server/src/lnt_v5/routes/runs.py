@@ -381,11 +381,21 @@ def list_runs(
     ] = None,
     after: Annotated[
         DatetimeValue | None,
-        Query(description=f"Keep only runs submitted strictly after this instant. {_TIMESTAMP}"),
+        Query(
+            description=(
+                "Keep only runs whose `submitted_at` is strictly after this instant. A submission "
+                "may supply any `submitted_at`, so this cannot find the runs added since a given "
+                f"point. {_TIMESTAMP}"
+            )
+        ),
     ] = None,
     before: Annotated[
         DatetimeValue | None,
-        Query(description=f"Keep only runs submitted strictly before this instant. {_TIMESTAMP}"),
+        Query(
+            description=(
+                f"Keep only runs whose `submitted_at` is strictly before this instant. {_TIMESTAMP}"
+            )
+        ),
     ] = None,
     has_profiles: Annotated[
         bool | None,
@@ -400,7 +410,7 @@ def list_runs(
         RunSort | None,
         Query(
             description=(
-                "Order by submission time, ascending (oldest first) or descending. Omit for an "
+                "Order by `submitted_at`, ascending (oldest first) or descending. Omit for an "
                 "arbitrary but stable order, which is the cheapest way to page through every run."
             )
         ),
