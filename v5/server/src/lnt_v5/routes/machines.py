@@ -361,7 +361,7 @@ def create_machine(
 def get_machine(
     testsuite: str, machine_name: str, engine: EngineDep, registry: RegistryDep
 ) -> Machine:
-    """One machine, in the same shape the list returns."""
+    """One machine, in the same shape the list endpoint returns."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Machines(suite).one(connection, machine_name)
 

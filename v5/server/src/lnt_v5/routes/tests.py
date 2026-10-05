@@ -41,10 +41,10 @@ router = APIRouter(prefix=TESTS_PATH, tags=["Tests"])
 
 
 class Test(BaseModel):
-    """A test as the list carries it.
+    """A test as the list endpoint returns it.
 
     An object around a single key rather than a bare string, which is what endpoints.md asks for:
-    the list can gain a key later without every client having to be changed at once.
+    the object can gain a key later without every client having to be changed at once.
     """
 
     name: str = Field(description="Identifies the test within its test suite.")

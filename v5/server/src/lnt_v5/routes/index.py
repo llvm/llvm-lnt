@@ -25,7 +25,7 @@ class ApiLinks(BaseModel):
 
 
 class ApiIndex(BaseModel):
-    """Links to the test suite list and to the API documentation."""
+    """Links to the test suite list endpoint and to the API documentation."""
 
     links: ApiLinks
 

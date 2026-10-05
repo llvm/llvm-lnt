@@ -6,15 +6,15 @@ This document specifies all entity endpoints in the v5 REST API.
 ## E1: Discovery
 
 ```
-GET    /api                       -- API index: links to the suite list and API documentation
+GET    /api                       -- API index: links to the suite list endpoint and API documentation
 GET    /api/openapi.json          -- OpenAPI 3.x specification for this instance
 GET    /api/docs                  -- Interactive API documentation viewer
 ```
 
 Response is `{"links": {...}}`, where `links` holds `suites` (path to the test
-suite list), `openapi` (path to the OpenAPI JSON spec) and `docs` (path to the
-interactive API documentation viewer). The index does not enumerate suites
-itself -- `GET /api/suites` is the canonical suite list.
+suite list endpoint), `openapi` (path to the OpenAPI JSON spec) and `docs` (path
+to the interactive API documentation viewer). The index does not enumerate
+suites itself -- `GET /api/suites` is the canonical way to enumerate them.
 
 Auth scope: `read` for the index. The two documentation routes sit outside the
 scope system entirely and never authenticate (see I5 and I8).
@@ -37,10 +37,11 @@ Machines are also created implicitly if a run is submitted for a nonexistent mac
 **Machine object**: `POST` and `PATCH` take the same entity object that a run
 submission nests under `machine` (see O1): `name` (identity), `tracked`
 (built-in attribute), and `fields` (declared `machine_fields`). Responses use
-the same shape, in the list and the detail alike, plus a read-only `last_run_at`
-(see Sort below). On `PATCH`, supplying `name` renames the machine, and omitting
-any key leaves it unchanged. An explicit `null` inside `fields` clears a stored
-value, the same convention as `PATCH /api/suites/{testsuite}/commits/{value}`.
+the same shape, in list and detail responses alike, plus a read-only
+`last_run_at` (see Sort below). On `PATCH`, supplying `name` renames the
+machine, and omitting any key leaves it unchanged. An explicit `null` inside
+`fields` clears a stored value, the same convention as
+`PATCH /api/suites/{testsuite}/commits/{value}`.
 `name` and `tracked` are not nullable, so sending either as `null` is rejected
 with 400. Keys in `fields` must be declared in the suite's schema; an undeclared
 key is rejected with 400 (see O2).
@@ -201,10 +202,10 @@ A client that wants a commit's display value for a column of runs resolves the
 page's commits in one batch through `POST /commits/resolve`, rather than the
 server embedding a field whose meaning is purely a UI concern (see D4).
 
-Run lists and the detail return the same object, minus `run_parameters` in
-lists. `POST` returns 201 with the created run in its detail form and a
-`Location` header pointing at `GET /api/suites/{testsuite}/runs/{uuid}`.
-`DELETE` returns 204.
+The run list endpoints and the detail return the same object, minus
+`run_parameters` in list responses. `POST` returns 201 with the created run in
+its detail form and a `Location` header pointing at
+`GET /api/suites/{testsuite}/runs/{uuid}`. `DELETE` returns 204.
 
 The UUID is either provided by the client in the submission body or generated
 server-side (UUID v4) when omitted. Client-provided UUIDs must be in standard
@@ -249,7 +250,7 @@ GET    /api/suites/{testsuite}/tests                        -- List (cursor-pagi
 
 Read-only. Tests are created implicitly via run submission.
 
-**Test object**: `name` -- an object rather than a bare string, so the list can
+**Test object**: `name` -- an object rather than a bare string, so that it can
 gain a key later.
 
 Auth scope: `read`.
@@ -300,7 +301,7 @@ Auth scope: `read`.
 Profiles store hardware performance counter data at the instruction level.
 Each profile is identified by a server-generated UUID. The UUID-based approach
 enables stable bookmarkable identifiers for profile data endpoints, while the
-listing endpoint provides the bridge from human-readable run+test coordinates
+per-run list endpoint provides the bridge from human-readable run+test coordinates
 to UUIDs.
 
 ### Listing (per run)
@@ -424,10 +425,10 @@ endpoints below.
 
 **List response items** carry exactly: `uuid`, `title`, `bug`, `state`,
 `commit`, `machine_count`, `test_count`. The `notes` field is included in detail
-responses only, not in list. `machine_count` and `test_count` count the distinct
-machines and tests across the regression's indicators, independent of any
-`machine=` or `test=` filter on the request -- they describe the regression, not
-the query.
+responses only, not in list responses. `machine_count` and `test_count` count
+the distinct machines and tests across the regression's indicators, independent
+of any `machine=` or `test=` filter on the request -- they describe the
+regression, not the query.
 
 `POST` returns 201 with the created regression's detail body and a `Location`
 header pointing at its detail route; `PATCH` returns 200 with the same body;
@@ -644,7 +645,7 @@ mutable, nullable, and only approximate (see D5). Revoked keys are included, wit
 `admin`). Returns 201 with the key's fields plus a `token` field carrying the
 raw token, which is shown only this once and cannot be retrieved afterwards
 (see I5). No `Location` header is set: there is deliberately no per-key detail
-route, so the list is the only way to read a key back.
+route, so the list endpoint is the only way to read a key back.
 
 Returns 400 if `name` is missing, empty, or longer than 256 characters (see D5),
 or if `scope` is missing or is not one of the five values. `name` is a

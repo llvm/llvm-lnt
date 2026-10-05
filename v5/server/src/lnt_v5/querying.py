@@ -53,11 +53,12 @@ MAX_LIMIT = 10_000
 # nothing else about the contract differs between the two.
 _LIMIT = "How many items to return, at most."
 _CURSOR = (
-    "Continue the list where a previous page ended: pass back the `cursor.next` that page "
-    "returned, with the same filters and sort. Cursors are opaque -- they must not be parsed, "
-    "constructed or stored, and one issued for a different list, different filters or a different "
-    "sort order is rejected. So is one whose list changed between pages, e.g. by a schema change; "
-    "start again from the first page. `limit` may change between pages."
+    "Continue from where a previous page ended: pass back the `cursor.next` that page returned, "
+    "with the same filters and sort. Only `limit` may change between pages. Cursors are opaque -- "
+    "they must not be parsed, constructed or stored, and one presented with a request asking for "
+    "other results -- other path parameters, filters or sort -- is rejected. One may also be "
+    "rejected after a change between pages, e.g. to the suite's schema; start again from the first "
+    "page."
 )
 
 Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
@@ -153,8 +154,8 @@ class Keyset:
     not the row itself. That is what keeps a resumption correct when the page's last row is deleted
     before the next request arrives: an implementation that stored the row's id and re-read its
     sort values would have nothing left to read. Rows inserted before that position are missed and
-    rows inserted after it are served, which is what forward-only pagination means. A row in the
-    list throughout is served exactly once unless its sort values change mid-traversal, which can
+    rows inserted after it are served, which is what forward-only pagination means. A row that
+    matches throughout is served exactly once unless its sort values change mid-traversal, which can
     move it back ahead of the cursor (O5).
 
     The cursor is opaque by contract (I2): base64 over a compact JSON payload, carrying a
@@ -237,9 +238,9 @@ class Keyset:
         except (ValueError, TypeError, RecursionError) as error:
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
-                "This cursor was not issued for this list, filters and sort order, or the list has "
-                "changed since it was. Pass back the 'cursor.next' from a page of this same "
-                "request, unmodified, or start again from the first page.",
+                "This cursor was not issued for these path parameters, filters and sort order, or "
+                "is no longer valid. Pass back the 'cursor.next' from a page of this same request, "
+                "unmodified, or start again from the first page.",
             ) from error
 
 

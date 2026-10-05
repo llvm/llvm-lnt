@@ -12,7 +12,7 @@ filled, a single profile is displayed.
 
 URL uses suffix convention (`suite_a`, `run_a`, `test_a`) consistent with the
 Compare page's `suite_a`, `commit_a`, etc. All parameters optional. The page
-resolves profile UUIDs from the run+test coordinates by calling the listing
+resolves profile UUIDs from the run+test coordinates by calling the list
 endpoint (`GET /runs/{uuid}/profiles`).
 
 
@@ -133,7 +133,7 @@ When only one side:
    run dropdown with only profile-bearing runs.
 4. When user selects a run, call `GET /runs/{uuid}/profiles` to get the test
    list.
-5. When user selects a test, resolve the profile UUID from the list and call
+5. When user selects a test, resolve the profile UUID from that response and call
    `GET /profiles/{uuid}` for metadata + counters, and
    `GET /profiles/{uuid}/functions` for the function list.
 6. When user selects a function, call

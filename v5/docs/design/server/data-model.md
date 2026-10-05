@@ -210,7 +210,7 @@ Notes:
 - `commit_fields` and `machine_fields` define optional metadata columns on
   the Commit and Machine tables, respectively.
 - `searchable: true` on a commit_fields or machine_fields entry enables
-  `?search=` substring matching on the corresponding list API endpoint (see
+  `?search=` substring matching on the corresponding list endpoint (see
   O4). Only valid on `text`-typed fields (see D3).
 - `display: true` on at most one `commit_field` is a hint for the UI: when set
   and the field has a non-null value, the UI shows that value instead of the
@@ -604,8 +604,9 @@ The DB layer validates state values on create and update.
 | length | INTEGER | not null |
 | instructions | BYTEA | not null |
 
-- One row per function of a profile, so that a profile's function list is read
-  without its instructions, and one function's instructions without any other's.
+- One row per function of a profile, so that a profile's functions can be listed
+  without their instructions, and one function's instructions read without any
+  other's.
 - `counters` is the function's counters, each the sum over its instructions (see
   O7), and `length` its number of instructions.
 - `instructions` holds the function's instructions, in an encoding the

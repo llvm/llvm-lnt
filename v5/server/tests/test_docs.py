@@ -427,7 +427,7 @@ class TestCommitOperations:
         assert name in {parameter["name"] for parameter in operation["parameters"]}
 
     def test_the_list_takes_no_offset(self, client: TestClient) -> None:
-        # I2 pairs `offset` with `total`, and a cursor-paginated list has neither.
+        # I2 pairs `offset` with `total`, and a cursor-paginated endpoint has neither.
         operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
 
         assert "offset" not in {parameter["name"] for parameter in operation["parameters"]}
@@ -533,7 +533,7 @@ class TestRunOperations:
 
     def test_only_the_detail_carries_the_unbounded_blob(self, client: TestClient) -> None:
         # endpoints.md: `run_parameters` appears in the detail response only, because no list view
-        # renders it. The detail is otherwise the list's object exactly.
+        # renders it. The detail is otherwise a list item exactly.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
         detail = schemas["RunDetail"]
 
@@ -621,8 +621,8 @@ class TestReadOperations:
 
     @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
     def test_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient, path: str) -> None:
-        # I2: an unbounded list is cursor-paginated and carries no `total`, which is what a client
-        # generated from this document has to be told.
+        # I2: an endpoint with unbounded results is cursor-paginated and carries no `total`, which
+        # is what a client generated from this document has to be told.
         document = client.get("/api/openapi.json").json()
         operation = document["paths"][path]["get"]
         body = operation["responses"]["200"]["content"]["application/json"]["schema"]
