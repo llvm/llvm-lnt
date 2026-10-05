@@ -21,14 +21,15 @@ Each side (A and B) has independent controls:
   defines a commit_field with `display: true`, the dropdown items show the
   display value (e.g. short SHA) while the internal selection uses the raw
   commit string; when no display field is defined or not populated, the raw
-  commit string is shown. The text filter matches against both the raw commit
-  string and the display value. Filters suggestions to only show commits where
-  the selected machine has runs. Suggestions are ordered newest-first (see AR2).
-  When a machine is pre-selected from URL state, its commits are fetched on
-  creation so the dropdown is correctly filtered from the start. **Disabled
-  until a machine is selected** -- shows "Select a machine
-  first" placeholder. Re-disabled if the machine is cleared. Clearing the commit
-  also clears the runs for that side.
+  commit string is shown. Suggestions are only commits where the selected
+  machine has runs, ordered and narrowed by typing as AR2 describes for every
+  commit picker. When a machine is pre-selected from URL state, its commits are
+  fetched on creation so the dropdown is correctly filtered from the start, and
+  a commit pre-selected from it shows its display value, resolved as AR2
+  describes.
+  **Disabled until a machine is selected** -- shows "Select a machine first"
+  placeholder. Re-disabled if the machine is cleared. Clearing the commit also
+  clears the runs for that side.
 - **Machine**: combobox over machine names. The full machine list for the
   selected suite is fetched once and filtered locally by case-insensitive
   substring as the user types (instant, no per-keystroke API calls). **Disabled
@@ -369,10 +370,10 @@ The chart and table always represent the same dataset:
 
 ### CP6: Data Flow
 
-1. Page loads: fetch metric metadata via `GET suites/{ts}`. Commits are
-   fetched per-machine via `GET commits?machine={name}` (cursor-paginated) when
-   a machine is selected, to populate the commit combobox with only the commits
-   relevant to that machine. Commits are ordered newest-first for display, see AR2.
+1. Page loads: fetch metric metadata via `GET suites/{ts}`. When a machine is
+   selected, the first page of `GET commits?machine={name}&sort=-first_seen`
+   populates the commit combobox with the commits relevant to that machine,
+   most recently seen first; typing re-queries it with `search=` (see AR2).
 2. User selects commit and machine on each side. On each change, fetch
    `GET runs?machine=M&commit=C` to populate the runs checkbox list. If no runs
    exist, show an empty list.

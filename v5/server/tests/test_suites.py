@@ -414,16 +414,18 @@ class TestEvolve:
         assert response.status_code == 200
         assert [f["display"] for f in response.json()["commit_fields"]] == [False, True]
 
+    @pytest.mark.parametrize("key", ["searchable", "display"])
     def test_refuses_an_update_that_would_break_the_whole_schema(
-        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str], key: str
     ) -> None:
-        # Only full revalidation catches this: the update model cannot see the entry's type.
+        # Only full revalidation catches this: the update model cannot see the entry's type, and
+        # D4 allows either key only on a `text` field.
         create(commit_fields=[{"name": "when", "type": "datetime"}])
 
         response = patch_request(
             api_client,
             manage,
-            {"commit_fields": {"update": [{"name": "when", "searchable": True}]}},
+            {"commit_fields": {"update": [{"name": "when", key: True}]}},
         )
 
         assert response.status_code == 400

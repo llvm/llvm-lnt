@@ -82,7 +82,7 @@ DESCENDING = "-"
 
 
 def sort_order(sort: str) -> tuple[str, bool]:
-    """I3's `sort=<field>`, split into the field and whether it is descending."""
+    """I3's `sort=<name>`, split into the ordering's name and whether it is descending."""
     return (sort.removeprefix(DESCENDING), True) if sort.startswith(DESCENDING) else (sort, False)
 
 
@@ -115,8 +115,8 @@ def search_condition(
     One function for all five of O4's cases, because they differ only in which columns they cover:
     an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's `commit`
     and `tag`, a test's `name`, a regression's `title`) plus every declared entry marked
-    `searchable`. Stating that rule once is what keeps the machine list and the run list, which O4
-    requires to share a predicate, from drifting apart.
+    `searchable`. Stating that rule once is what keeps the machine and run list endpoints,
+    which O4 requires to share a predicate, from drifting apart.
 
     `autoescape` is doing real work: without it the `%` and `_` in the caller's term would be LIKE
     wildcards, so a search for `100%` would match every row and one for `a_b` would match `axb`.
@@ -168,14 +168,18 @@ class Keyset:
     """
 
     def __init__(self, *keys: SortKey, tiebreaker: Column[Any]) -> None:
-        # The tiebreaker takes the direction of the last key it breaks ties for. Its own direction
-        # is unobservable -- it only orders rows the caller's sort leaves equal -- and having every
-        # term agree is what lets `after` be a row comparison, which is the whole difference
-        # between a bounded index scan and a scan of every row already paged past.
+        # The tiebreaker takes the direction of the last key it breaks ties for: having every term
+        # agree is what lets `after` be a row comparison, which is the whole difference between a
+        # bounded index scan and a scan of every row already paged past. With no keys it is the
+        # whole order, ascending. An endpoint that wants that order in a chosen direction sorts by
+        # the tiebreaker itself, which is already total, so it is not appended again after itself.
         descending = keys[-1].descending if keys else False
         if any(key.descending != descending for key in keys):
             raise ValueError("every sort key of a keyset must run in the same direction")
-        self._keys = (*keys, SortKey(tiebreaker, descending))
+        if keys and keys[-1].column is tiebreaker:
+            self._keys = keys
+        else:
+            self._keys = (*keys, SortKey(tiebreaker, descending))
         self._descending = descending
         # Resolved up front, so that a key column of a type no cursor can carry is a failure before
         # any SQL runs rather than a 500 handed to whichever caller first passes a cursor.

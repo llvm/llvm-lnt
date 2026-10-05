@@ -53,18 +53,37 @@ convention applies uniformly to all text filter inputs across the UI: test name
 filters, machine name filters, regression title searches, indicator filters,
 combobox suggestion filters, and function name filters. The `re:` prefix is not
 consumed or hidden -- the user sees it in the input and it is included in URL
-state.
+state. Commit pickers are the exception: their typeahead is a server-side
+`search=`, which matches plain substrings only (see O4 and "Commit pickers"
+below).
 
 **Text filtering performance**: All pages with large tables (Compare, Graph)
 must keep filter typing responsive even with thousands of rows. Typing in a
 filter input must produce a visible table update within a single animation
 frame. Chart updates may be deferred to avoid blocking the input.
 
-**Commit ordering in comboboxes**: All commit pickers (Compare, Profiles, Graph
-baselines) order suggestions newest-first: commits with an ordinal by ordinal
-descending, and commits without one (ad-hoc A/B experiment commits; see D1)
-above those. The sort is applied client-side, not via `sort=-ordinal`, which
-would drop the unordered commits -- pickers must keep them selectable.
+**Commit pickers**: Every combobox that selects a commit -- on the Compare and
+Profiles pages, for Graph baselines, and for a regression's commit -- lists its
+suggestions most recently seen first, as `GET commits?sort=-first_seen` returns
+them with the picker's filters (see E3). That order keeps commits without an
+ordinal (ad-hoc A/B experiment commits; see D1) selectable, placed by recency
+among the ordered ones, whereas `sort=-ordinal` would drop them. A picker loads
+only the first page when it opens, and narrows it as the user types by asking
+the server again with `search=` (debounced), rather than fetching every commit
+and filtering locally: a machine can have tens of thousands of commits. The
+suggestions always reflect the text currently in the input; a response for text
+the user has since changed is discarded. The search covers the display value
+the suggestions show only if the schema marks the display field `searchable`
+(see O4).
+
+A page of matches need not hold every matching commit, so a typed value is
+accepted only if it is exactly a commit the picker offers, which the picker
+checks by looking that commit up under its filters (e.g.
+`GET runs?machine={name}&commit={value}&limit=1`) rather than by finding it
+among the suggestions: a short value can be a substring of more commits than
+fit on a page. Likewise, a commit the picker is given rather than chosen --
+restored from the URL, for instance -- need not be on the first page, so its
+display value is resolved through `POST commits/resolve`.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for
 the API key endpoints, which require `admin` scope even to read (see I5). No

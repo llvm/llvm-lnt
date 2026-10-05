@@ -165,6 +165,17 @@ class TestOrdering:
 
         assert [row.label for row in page] == ["e", "b", "i", "a", "f", "g", "c", "d", "h"]
 
+    @pytest.mark.parametrize("descending", [False, True])
+    def test_sorting_by_the_tiebreaker_itself_does_not_repeat_it(
+        self, walk: Callable[..., list[str]], rows: list[str], descending: bool
+    ) -> None:
+        # How a list offers the tiebreaker's own order in either direction: the key is already
+        # unique, so the order is that one term, and it pages like any other.
+        keyset = Keyset(SortKey(events.c.id, descending), tiebreaker=events.c.id)
+
+        assert len(keyset.order()) == 1
+        assert walk(keyset, 2) == (rows[::-1] if descending else rows)
+
     def test_orders_rows_sharing_a_sort_value_by_the_tiebreaker(self, db_engine: Engine) -> None:
         # The three rows at day 1 were inserted as e, a, c, so insertion order -- the tiebreaker --
         # is what decides, not the label.

@@ -32,7 +32,9 @@
   built-ins: `ordinal`, an integer placing the commit in the suite's total order,
   and `tag`, a label such as `release-18.1`. An ordinal is never inferred, not
   even from a numeric commit string. A commit without one has no position, so it
-  is absent from every result ordered by ordinal.
+  is absent from every result ordered by ordinal. Listing commits orders them
+  by when the server first saw each one by default (`sort=first_seen`), keeping
+  every commit; `sort=-first_seen` puts the most recently seen first.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names
@@ -120,7 +122,7 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **Cursors**: send `cursor.next` back unchanged -- as `cursor=`, or as the
   `cursor` key of a request body -- with the same filters and `sort`; only
   `limit` may change. Stop when it is null. Never parse or build one.
-- **Sorting**: `sort=<field>`, prefixed with `-` for descending.
+- **Sorting**: `sort=<name>`, prefixed with `-` for descending.
 - **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
   never on `message`. The codes are `invalid_request` (400), `unauthorized`
   (401), `forbidden` (403), `not_found` (404), `method_not_allowed` (405, with

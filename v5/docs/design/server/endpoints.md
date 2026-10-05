@@ -132,11 +132,17 @@ searchable commit fields; see O4), `machine=` (only commits with at least one
 run on this machine; 404 if machine not found), `has_profiles=` (boolean;
 `true` returns only commits where at least one run has profile data, `false`
 returns only commits where no run has profile data; when combined with
-`machine=`, only considers runs on that machine). Sort: `sort=ordinal` sorts
-by ordinal ascending (oldest first) and `sort=-ordinal` sorts by ordinal
-descending (newest first); both exclude commits with NULL ordinals. Default
-sort is by internal ID ascending, which reflects the order in which commits
-were first seen by the server, not their ordinal order.
+`machine=`, only considers runs on that machine).
+
+Sort: `sort=first_seen` (the default) orders commits by when the server first
+saw each one -- the order in which they were created, explicitly or by a run
+submission -- oldest first, and `sort=-first_seen` most recently seen first.
+A commit's place in this order is fixed at creation: neither a later run nor a
+change to its ordinal moves it. Both directions keep every commit, including
+those with no ordinal, which makes `-first_seen` the order for a commit picker
+(see AR2). `sort=ordinal` sorts by ordinal ascending (oldest first) and
+`sort=-ordinal` by ordinal descending (newest first); both exclude commits
+with NULL ordinals.
 
 ### Batch Resolve
 
@@ -503,8 +509,8 @@ Returns cursor-paginated time-series data for graphing, in I2's cursor envelope;
 `tag` (the commit's tag, or null if unset). `metric` is echoed on every point even
 though the request names exactly one, making each data point self-descriptive.
 
-`sort` names one field, optionally prefixed with `-` for descending (I3): `test`,
-`commit` (by ordinal), or `submitted_at`. When `sort` is omitted, results are
+`sort` names one ordering, optionally prefixed with `-` for descending (I3):
+`test`, `commit` (by ordinal), or `submitted_at`. When `sort` is omitted, results are
 returned in an arbitrary but stable order suitable for cursor pagination; no data
 is excluded. When `sort` names `commit`, samples for commits without ordinals are
 excluded (they have no meaningful position in ordinal order).
