@@ -140,11 +140,9 @@ submission -- oldest first, and `sort=-first_seen` most recently seen first.
 A commit's place in this order is fixed at creation: neither a later run nor a
 change to its ordinal moves it. Both directions keep every commit, including
 those with no ordinal, which makes `-first_seen` the order for a commit picker
-(see AR2). It is the server's order rather than the project's history: a
-backfill of older commits places them after every commit already stored, and
-commits created concurrently may become visible out of this order.
-`sort=ordinal` sorts by ordinal ascending (oldest first) and `sort=-ordinal` by
-ordinal descending (newest first); both exclude commits with NULL ordinals.
+(see AR2). `sort=ordinal` sorts by ordinal ascending (oldest first) and
+`sort=-ordinal` by ordinal descending (newest first); both exclude commits
+with NULL ordinals.
 
 ### Batch Resolve
 
