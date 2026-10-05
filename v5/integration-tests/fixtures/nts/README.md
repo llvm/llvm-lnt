@@ -18,7 +18,7 @@ The runs were started between 2026-09-19 and 2026-09-22; each file's `run_parame
 identifies it among its machine's runs at
 `https://lnt.llvm.org/db_default/v4/nts/machine/<v4 machine id>`. They were fetched from the v4 REST
 API (`/api/db_default/v4/nts/runs/<id>`) into a local mirror on 2026-09-25, without recording the
-v4 run ids, and converted from that mirror on 2026-10-05, when lnt.llvm.org was unreachable.
+v4 run ids, and converted from that mirror on 2026-10-05.
 
 ## Conversion
 
@@ -26,6 +26,9 @@ v4 run ids, and converted from that mirror on 2026-10-05, when lnt.llvm.org was 
   ones `integer` and `Hash` ones `text`, with the same display names, units and
   `bigger_is_better`. `ignore_same_hash` has no v5 equivalent and is dropped. v4's order field,
   `llvm_project_revision`, describes the commit rather than the run, so it is a commit field.
+  v4 has no notion of `searchable` or `display`, so those are new: `hardware`, `os` and
+  `llvm_project_revision` are searchable, and `llvm_project_revision` is the commit's display
+  value, so that the UI shows `r598181` rather than a SHA.
 - `machine`: the v4 name. lnt.llvm.org has no `hardware` or `os` for these machines, so `fields`
   is omitted.
 - `commit`: `value` is the LLVM commit the compiler was built from (v4's `cc_src_revision`),

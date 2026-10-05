@@ -29,7 +29,7 @@ readonly SAMPLES='def samples:
     del(.name) as $metrics
     | ([$metrics[] | arrays | length] | max // 1) as $count
     | range($count) as $i
-    | {test: .name, metrics: ($metrics | map_values(if type == "array" then .[$i] end))};'
+    | {test: .name, metrics: ($metrics | map_values(if type == "array" then .[$i] else . end))};'
 
 # fixture [jq options...] <filter> -- evaluate the filter over the array of every fixture run.
 fixture() {
@@ -51,13 +51,13 @@ for run in "${RUNS[@]}"; do
     # Read back rather than taken from the 201, so that it may well be another worker answering.
     request "${SUITE}/runs/${uuid}"
     expect_status 200
-    expect_json '{uuid, machine, commit, run_parameters} == $sent' --argjson sent \
-        "$(jq '{uuid, machine: .machine.name, commit: .commit.value, run_parameters}' "$run")"
+    sent="$(jq '{uuid, machine: .machine.name, commit: .commit.value, run_parameters}' "$run")"
+    expect_json '{uuid, machine, commit, run_parameters} == $sent' --argjson sent "$sent"
 
     request "${SUITE}/runs/${uuid}/samples?limit=10000"
     expect_status 200
-    expect_json '.cursor.next == null and (.items | sort) == $samples' \
-        --argjson samples "$(jq "${SAMPLES}"' [.tests[] | samples] | sort' "$run")"
+    samples="$(jq "${SAMPLES}"' [.tests[] | samples] | sort' "$run")"
+    expect_json '.cursor.next == null and (.items | sort) == $samples' --argjson samples "$samples"
 done
 
 echo "  resubmitting a run is refused as a duplicate, and stores nothing"
@@ -72,18 +72,20 @@ expect_json '.items | length == $count' --argjson count "${#RUNS[@]}"
 echo "  the submissions created the machines"
 request "${SUITE}/machines"
 expect_status 200
+names="$(fixture '[.[].machine.name] | unique')"
 expect_json '.total == ($names | length) and [.items[].name] == $names
-    and all(.items[]; .tracked and .last_run_at != null)' \
-    --argjson names "$(fixture '[.[].machine.name] | unique')"
+    and all(.items[]; .tracked and .last_run_at != null)' --argjson names "$names"
 
 echo "  and the commits, in ordinal order, with their revision"
 request "${SUITE}/commits?sort=ordinal"
 expect_status 200
-expect_json '.items == $commits' --argjson commits \
-    "$(fixture '[.[].commit | {value, ordinal, tag: null, fields}] | unique | sort_by(.ordinal)')"
+ordered="$(fixture '[.[].commit | {value, ordinal, tag: null, fields}] | unique
+    | sort_by(.ordinal)')"
+expect_json '.items == $ordered' --argjson ordered "$ordered"
 
-read -r -a commits <<< "$(fixture --raw-output '[.[].commit] | unique | sort_by(.ordinal)
+values="$(fixture --raw-output '[.[].commit] | unique | sort_by(.ordinal)
     | map(.value) | join(" ")')"
+read -r -a commits <<< "$values"
 request "${SUITE}/commits/${commits[1]}"
 expect_status 200
 expect_json '.previous.value == $previous and .next.value == $next' \
@@ -109,23 +111,24 @@ request "${SUITE}/commits/dc0abebc8e834bceea9a467f07e124ab944e9be9"
 expect_status 200
 expect_json '.ordinal == 598181 and .fields.llvm_project_revision == "r598181"'
 
-read -r -a machines <<< "$(fixture --raw-output '[.[].machine.name] | unique | join(" ")')"
+names="$(fixture --raw-output '[.[].machine.name] | unique | join(" ")')"
+read -r -a machines <<< "$names"
 readonly MACHINE="${machines[0]}"
 
 echo "  a time series reads back across commits, in ordinal order"
-request -X POST -H "$JSON" --data "$(jq --null-input --compact-output \
-    --arg machine "$MACHINE" --arg test "$NAMD" \
-    '{metric: "execution_time", machine: $machine, test: [$test], sort: "commit", limit: 1000}')" \
-    "${SUITE}/query"
+query="$(jq --null-input --compact-output --arg machine "$MACHINE" --arg test "$NAMD" \
+    '{metric: "execution_time", machine: $machine, test: [$test], sort: "commit", limit: 1000}')"
+request -X POST -H "$JSON" --data "$query" "${SUITE}/query"
 expect_status 200
+points="$(fixture --arg machine "$MACHINE" --arg test "$NAMD" "${SAMPLES}"'
+    [.[] | select(.machine.name == $machine) | . as $run
+     | .tests[] | select(.name == $test) | samples
+     | {machine: $machine, commit: $run.commit.value, ordinal: $run.commit.ordinal,
+        value: .metrics.execution_time}]
+    | sort')"
 expect_json '[.items[].ordinal] == ([.items[].ordinal] | sort)
-    and ([.items[] | {machine, commit, ordinal, value}] | sort) == $points' --argjson points \
-    "$(fixture --arg machine "$MACHINE" --arg test "$NAMD" "${SAMPLES}"'
-        [.[] | select(.machine.name == $machine) | . as $run
-         | .tests[] | select(.name == $test) | samples
-         | {machine: $machine, commit: $run.commit.value, ordinal: $run.commit.ordinal,
-            value: .metrics.execution_time}]
-        | sort')"
+    and ([.items[] | {machine, commit, ordinal, value}] | sort) == $points' \
+    --argjson points "$points"
 
 echo "  trends are the geomean of each run's per-test medians"
 # O9: a test's repetitions reduce to their median, and a run's value is the geomean of those,
@@ -137,32 +140,33 @@ for machine in "${machines[@]}"; do
 done
 request --get "${SUITE}/trends" --data metric=execution_time "${machine_args[@]}"
 expect_status 200
+trends="$(fixture "${SAMPLES}"'
+    def median: sort | if length % 2 == 1 then .[length / 2 | floor]
+                       else (.[length / 2 - 1] + .[length / 2]) / 2 end;
+    [.[] | {machine: .machine.name, commit: .commit.value, ordinal: .commit.ordinal,
+            value: ([.tests[] | [samples | .metrics.execution_time // empty]
+                     | select(length > 0) | median | select(. > 0) | log]
+                    | add / length | exp)}]
+    | sort_by(.machine, .ordinal)')"
 expect_json '[.items[] | {machine, commit, ordinal}] == [$trends[] | {machine, commit, ordinal}]
     and ([.items, $trends] | transpose
          | all((.[0].value - .[1].value | fabs) <= 1e-9 * .[1].value))' \
-    --argjson trends "$(fixture "${SAMPLES}"'
-        def median: sort | if length % 2 == 1 then .[length / 2 | floor]
-                           else (.[length / 2 - 1] + .[length / 2]) / 2 end;
-        [.[] | {machine: .machine.name, commit: .commit.value, ordinal: .commit.ordinal,
-                value: ([.tests[] | [samples | .metrics.execution_time // empty]
-                         | select(length > 0) | median | select(. > 0) | log]
-                        | add / length | exp)}]
-        | sort_by(.machine, .ordinal)')"
+    --argjson trends "$trends"
 
 echo "  tests are listed, and filtered by machine and by metric"
 request "${SUITE}/tests?limit=10000"
 expect_status 200
-expect_json '[.items[].name] | sort == $names' \
-    --argjson names "$(fixture '[.[].tests[].name] | unique')"
+names="$(fixture '[.[].tests[].name] | unique')"
+expect_json '[.items[].name] | sort == $names' --argjson names "$names"
 
 for metric in execution_time code_size hash; do
     request --get "${SUITE}/tests" --data limit=10000 --data "metric=${metric}" \
         --data-urlencode "machine=${MACHINE}"
     expect_status 200
-    expect_json '[.items[].name] | sort == $names' --argjson names "$(fixture \
-        --arg machine "$MACHINE" --arg metric "$metric" \
+    names="$(fixture --arg machine "$MACHINE" --arg metric "$metric" \
         '[.[] | select(.machine.name == $machine) | .tests[] | select(has($metric)) | .name]
          | unique')"
+    expect_json '[.items[].name] | sort == $names' --argjson names "$names"
 done
 
 # Declared by the schema, but never reported by lnt.llvm.org's bots.
