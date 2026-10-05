@@ -24,7 +24,9 @@ Each side (A and B) has independent controls:
   commit string is shown. Suggestions are only commits where the selected
   machine has runs, ordered and narrowed by typing as AR2 describes for every
   commit picker. When a machine is pre-selected from URL state, its commits are
-  fetched on creation so the dropdown is correctly filtered from the start.
+  fetched on creation so the dropdown is correctly filtered from the start, and
+  a commit pre-selected from it shows its display value, resolved as AR2
+  describes.
   **Disabled until a machine is selected** -- shows "Select a machine first"
   placeholder. Re-disabled if the machine is cleared. Clearing the commit also
   clears the runs for that side.

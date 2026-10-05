@@ -220,7 +220,17 @@ class Commits:
         return Keyset(SortKey(column, descending), tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
-        return search_condition(term, self.table, ["commit", "tag"], self.schema.commit_fields)
+        """O4's commit predicate: the commit value, the tag, the display field, and every searchable
+        field.
+
+        The display field is covered whether or not it is marked searchable, because it is what a
+        commit picker shows in place of the commit value, and its typeahead is this search (AR2).
+        """
+        always = ["commit", "tag"]
+        display = self.schema.display_field
+        if display is not None and not display.searchable:
+            always.append(display.name)
+        return search_condition(term, self.table, always, self.schema.commit_fields)
 
     def has_run(self, machine: int | None, *, profiled: bool = False) -> ColumnElement[bool]:
         """Whether this commit has a run -- on that machine if one is named, carrying a profile if
@@ -434,8 +444,8 @@ def list_commits(
         str | None,
         Query(
             description=(
-                "Case-insensitive substring match against the commit value, the tag, or any "
-                "searchable commit field."
+                "Case-insensitive substring match against the commit value, the tag, the display "
+                "field, or any searchable commit field."
             )
         ),
     ] = None,

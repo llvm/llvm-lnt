@@ -127,12 +127,12 @@ no `?confirm=true`.
 Auth scopes: `read` for GET (including `/commits/resolve`), `submit` for
 `POST /commits`, `manage` for PATCH/DELETE.
 
-Filters: `search=` (case-insensitive substring match on commit string, tag, and
-searchable commit fields; see O4), `machine=` (only commits with at least one
-run on this machine; 404 if machine not found), `has_profiles=` (boolean;
-`true` returns only commits where at least one run has profile data, `false`
-returns only commits where no run has profile data; when combined with
-`machine=`, only considers runs on that machine).
+Filters: `search=` (case-insensitive substring match on commit string, tag,
+the display field, and searchable commit fields; see O4), `machine=` (only
+commits with at least one run on this machine; 404 if machine not found),
+`has_profiles=` (boolean; `true` returns only commits where at least one run
+has profile data, `false` returns only commits where no run has profile data;
+when combined with `machine=`, only considers runs on that machine).
 
 Sort: `sort=first_seen` (the default) orders commits by when the server first
 saw each one -- the order in which they were created, explicitly or by a run
@@ -140,9 +140,11 @@ submission -- oldest first, and `sort=-first_seen` most recently seen first.
 A commit's place in this order is fixed at creation: neither a later run nor a
 change to its ordinal moves it. Both directions keep every commit, including
 those with no ordinal, which makes `-first_seen` the order for a commit picker
-(see AR2). `sort=ordinal` sorts by ordinal ascending (oldest first) and
-`sort=-ordinal` by ordinal descending (newest first); both exclude commits
-with NULL ordinals.
+(see AR2). It is the server's order rather than the project's history: a
+backfill of older commits places them after every commit already stored, and
+commits created concurrently may become visible out of this order.
+`sort=ordinal` sorts by ordinal ascending (oldest first) and `sort=-ordinal` by
+ordinal descending (newest first); both exclude commits with NULL ordinals.
 
 ### Batch Resolve
 

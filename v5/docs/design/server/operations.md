@@ -195,9 +195,9 @@ the API when it detects significant changes.
 List endpoints for commits, machines, tests, runs, and regressions support a
 unified `?search=` parameter.
 
-- `GET /api/suites/{testsuite}/commits?search=abc` matches `commit` column, `tag` column, OR any
-  `searchable` commit_field via case-insensitive substring matching (OR
-  semantics).
+- `GET /api/suites/{testsuite}/commits?search=abc` matches `commit` column, `tag` column, the
+  display field (see D4), OR any `searchable` commit_field via case-insensitive substring
+  matching (OR semantics). The display field is covered even when it is not `searchable`.
 - `GET /api/suites/{testsuite}/machines?search=x86` matches `name` column OR any `searchable`
   machine_field via case-insensitive substring matching (OR semantics).
 - `GET /api/suites/{testsuite}/tests?search=bench` matches the `name` column via case-insensitive

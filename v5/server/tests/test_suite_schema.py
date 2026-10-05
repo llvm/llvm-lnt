@@ -255,6 +255,21 @@ class TestDisplayField:
         # D4: without one, the UI falls back to the raw commit string.
         assert SuiteSchema.model_validate(EXAMPLE).display_field is None
 
+    @pytest.mark.parametrize("attribute", ["real", "integer", "datetime"])
+    def test_only_a_text_field_can_be(self, attribute: str) -> None:
+        # D4: the commit list's `search=` always covers the display field, and substring matching
+        # only means something over text.
+        entry = {"name": "entry", "type": attribute, "display": True}
+        with pytest.raises(ValidationError, match="display field"):
+            SuiteSchema.model_validate(schema(commit_fields=[entry]))
+
+    @pytest.mark.parametrize("attribute", ["real", "integer", "datetime"])
+    def test_a_non_text_field_may_still_say_it_is_not(self, attribute: str) -> None:
+        # The normalized form carries `display: false` on every commit field (D4), so it has to be
+        # accepted back on one of any type.
+        entry = {"name": "entry", "type": attribute, "display": False}
+        SuiteSchema.model_validate(schema(commit_fields=[entry]))
+
 
 class TestNormalization:
     """D4's stored and returned form: every optional key present and explicit.

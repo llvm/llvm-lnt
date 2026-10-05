@@ -113,10 +113,10 @@ def search_condition(
     """O4's `?search=`: a case-insensitive substring match with OR semantics.
 
     One function for all five of O4's cases, because they differ only in which columns they cover:
-    an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's `commit`
-    and `tag`, a test's `name`, a regression's `title`) plus every declared entry marked
-    `searchable`. Stating that rule once is what keeps the machine list and the run list, which O4
-    requires to share a predicate, from drifting apart.
+    an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's `commit`,
+    `tag` and display field, a test's `name`, a regression's `title`) plus every declared entry
+    marked `searchable`. Stating that rule once is what keeps the machine list and the run list,
+    which O4 requires to share a predicate, from drifting apart.
 
     `autoescape` is doing real work: without it the `%` and `_` in the caller's term would be LIKE
     wildcards, so a search for `100%` would match every row and one for `a_b` would match `axb`.

@@ -29,14 +29,16 @@ the suite is a query parameter, not a path segment.
   (red border + box-shadow) whenever the suggestion
   dropdown is empty, meaning no machine or commit matches the typed text.
   Acceptance (Enter key, blur/change) is blocked while the halo is showing. The
-  halo updates in real-time on every keystroke. Clicking a dropdown suggestion
-  always clears the halo and accepts the value. For commit comboboxes,
-  acceptance via Enter or blur additionally requires an exact match against
-  the commit values the server's search returned for the typed text (see AR2)
-  -- a partial substring match (e.g. typing "789" when the commit is "566789")
-  is rejected with the red halo even though suggestions are visible. All
-  comboboxes support ArrowDown/ArrowUp keyboard navigation through
-  suggestions, with Enter to select the focused item.
+  halo updates in real-time on every keystroke -- for a commit combobox, as
+  soon as the server has answered the search for the current text (see AR2).
+  Clicking a dropdown suggestion always clears the halo and accepts the value.
+  For commit comboboxes, acceptance via Enter or blur additionally requires the
+  typed text to be exactly one of the commits the picker offers, checked as AR2
+  describes rather than against the visible suggestions -- a partial substring
+  match (e.g. typing "789" when the commit is "566789") is rejected with the
+  red halo even though suggestions are visible. All comboboxes support
+  ArrowDown/ArrowUp keyboard navigation through suggestions, with Enter to
+  select the focused item.
 
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at
   least one machine and a metric are selected, the test table is populated with

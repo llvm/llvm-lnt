@@ -210,8 +210,9 @@ edited.
 - State: dropdown selector (detected, active, not_to_be_fixed, fixed,
   false_positive)
 - Bug: URL input (opens in new tab when set). Enter key saves.
-- Commit: display value shown (linked to commit detail page). Combobox with API
-  search for editing (shows display values in dropdown). Nullable.
+- Commit: display value shown (linked to commit detail page). A commit picker
+  over every commit of the suite for editing (shows display values in dropdown;
+  see AR2). Nullable.
 - Notes: text display with Edit button. Edit mode shows textarea + Save/Cancel.
   Ctrl/Cmd+Enter saves. Display preserves line breaks (pre-wrap).
 
