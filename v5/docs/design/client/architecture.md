@@ -50,12 +50,12 @@ input starts with `re:`), a small inline "regex" badge appears at the right edge
 of the input. The badge is blue for valid regex and red for invalid regex
 syntax. Invalid regex patterns also show a red halo on the input border. This
 convention applies uniformly to all text filter inputs across the UI: test name
-filters, machine name filters, regression title searches, indicator filters,
-combobox suggestion filters, and function name filters. The `re:` prefix is not
-consumed or hidden -- the user sees it in the input and it is included in URL
-state. Commit pickers are the exception: their typeahead is a server-side
-`search=`, which matches plain substrings only (see O4 and "Commit pickers"
-below).
+filters, machine name filters, indicator filters, combobox suggestion filters,
+and function name filters. The `re:` prefix is not consumed or hidden -- the
+user sees it in the input and it is included in URL state. Inputs that search
+the server rather than filter data already loaded -- commit pickers, for
+instance (see "Commit pickers" below) -- are the exception: a server-side
+`search=` matches plain substrings only (see O4).
 
 **Text filtering performance**: All pages with large tables (Compare, Graph)
 must keep filter typing responsive even with thousands of rows. Typing in a

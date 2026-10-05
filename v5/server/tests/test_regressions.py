@@ -21,14 +21,15 @@ one that is not there are both successes, so a client that retries either is not
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, insert, select
+from sqlalchemy import Engine, func, insert, select, update
 
-from conftest import code_of, run_payload, uuids_in, walk_pages
+from conftest import code_of, recent, run_payload, uuids_in, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.regressions import MAX_INDICATORS, REGRESSIONS_PATH
@@ -112,8 +113,36 @@ def create(
     return post
 
 
+@pytest.fixture
+def regression_at(
+    db_engine: Engine, suite: SuiteTables, create: Callable[..., Any]
+) -> Callable[..., str]:
+    """Create a regression and move its `created_at` where the test needs it.
+
+    Created through the API, and only the clock forced afterwards: a request cannot supply it (E8),
+    and every regression a test creates would otherwise fall within the same second or so.
+    """
+
+    def make(moment: datetime, **body: Any) -> str:
+        uuid: str = create(**body)["uuid"]
+        with db_engine.begin() as connection:
+            connection.execute(
+                update(suite.regression)
+                .where(suite.regression.c.uuid == uuid)
+                .values(created_at=moment)
+            )
+        return uuid
+
+    return make
+
+
 def listed(api_client: TestClient, query: str = "") -> Any:
     return api_client.get(f"{REGRESSIONS}?{query}")
+
+
+def walk(api_client: TestClient, query: str = "") -> list[str]:
+    """Every regression the list serves, following cursors to the end."""
+    return [item["uuid"] for item in walk_pages(api_client, REGRESSIONS, query)]
 
 
 def remove_metric(api_client: TestClient, manage: dict[str, str], metric: str) -> Any:
@@ -161,7 +190,16 @@ class TestCreate:
             indicators=[LINUX_ONE],
         )
 
-        assert set(created) == {"uuid", "title", "bug", "notes", "state", "commit", "indicators"}
+        assert set(created) == {
+            "uuid",
+            "title",
+            "bug",
+            "notes",
+            "state",
+            "commit",
+            "created_at",
+            "indicators",
+        }
         assert created["title"] == "find_if slowdown"
         assert created["bug"] == "https://github.com/llvm/llvm-project/issues/1"
         assert created["notes"] == "bisected to abc123"
@@ -401,6 +439,157 @@ class TestUuid:
         assert code_of(response) == "invalid_request"
 
 
+class TestCreatedAt:
+    def test_is_the_value_the_database_recorded(
+        self, db_engine: Engine, suite: SuiteTables, create: Callable[..., Any]
+    ) -> None:
+        # D5: the column's `now()` default rather than anything this process computed, as for a
+        # run's `submitted_at`. The response is that value read back.
+        created = create()
+
+        with db_engine.connect() as connection:
+            stored = connection.execute(select(suite.regression.c.created_at)).scalar_one()
+        assert datetime.fromisoformat(created["created_at"]) == stored
+
+    def test_is_serialized_as_utc(self, create: Callable[..., Any]) -> None:
+        # D5: always rendered in UTC with a `Z` suffix.
+        assert create()["created_at"].endswith("Z")
+
+    def test_is_roughly_now(self, create: Callable[..., Any]) -> None:
+        assert recent(datetime.fromisoformat(create()["created_at"]))
+
+    def test_the_list_and_the_detail_agree(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        created = create()
+
+        detail = api_client.get(f"{REGRESSIONS}/{created['uuid']}").json()
+        [item] = listed(api_client).json()["items"]
+
+        assert detail["created_at"] == item["created_at"] == created["created_at"]
+
+    def test_creation_cannot_supply_it(
+        self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
+    ) -> None:
+        response = api_client.post(
+            REGRESSIONS, json={"created_at": "2020-01-01T00:00:00Z"}, headers=triage
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_an_update_cannot_change_it(
+        self, api_client: TestClient, triage: dict[str, str], create: Callable[..., Any]
+    ) -> None:
+        created = create()
+
+        response = api_client.patch(
+            f"{REGRESSIONS}/{created['uuid']}",
+            json={"created_at": "2020-01-01T00:00:00Z"},
+            headers=triage,
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_an_update_leaves_it_alone(
+        self, api_client: TestClient, triage: dict[str, str], create: Callable[..., Any]
+    ) -> None:
+        created = create()
+
+        response = api_client.patch(
+            f"{REGRESSIONS}/{created['uuid']}", json={"state": "active"}, headers=triage
+        )
+
+        assert response.json()["created_at"] == created["created_at"]
+
+
+class TestSort:
+    def test_is_ordered_deterministically_by_default(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # E8: no `sort` is an arbitrary order (O5), so only its determinism is promised -- two
+        # walks, paging at different boundaries, see the same regressions in the same order.
+        created = {create()["uuid"] for _ in range(3)}
+
+        first = walk(api_client, "limit=1")
+
+        assert set(first) == created
+        assert walk(api_client, "limit=2") == first
+
+    def test_sorts_newest_first(
+        self, api_client: TestClient, regression_at: Callable[..., str]
+    ) -> None:
+        # Created newest first, so that the id order -- which an implementation sorting by the id
+        # would follow -- is the opposite of the one asked for.
+        new = regression_at(datetime(2026, 1, 1, tzinfo=UTC))
+        old = regression_at(datetime(2020, 1, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "sort=-created_at")) == [new, old]
+
+    def test_sorts_oldest_first(
+        self, api_client: TestClient, regression_at: Callable[..., str]
+    ) -> None:
+        new = regression_at(datetime(2026, 1, 1, tzinfo=UTC))
+        old = regression_at(datetime(2020, 1, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "sort=created_at")) == [old, new]
+
+    def test_serves_regressions_sharing_an_instant_exactly_once(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        suite: SuiteTables,
+        create: Callable[..., Any],
+    ) -> None:
+        # O5: `created_at` is not unique -- every regression created in one transaction shares it
+        # -- so the keyset needs its internal tiebreaker. Without one, a page boundary falling
+        # between two of them drops one and repeats the other.
+        created = [create()["uuid"] for _ in range(3)]
+        with db_engine.begin() as connection:
+            connection.execute(
+                update(suite.regression).values(created_at=datetime(2026, 3, 4, tzinfo=UTC))
+            )
+
+        assert sorted(walk(api_client, "sort=-created_at&limit=2")) == sorted(created)
+
+    def test_pages_the_sorted_order(
+        self, api_client: TestClient, regression_at: Callable[..., str]
+    ) -> None:
+        created = [regression_at(datetime(2026, 1, day, tzinfo=UTC)) for day in range(1, 6)]
+
+        assert walk(api_client, "sort=-created_at&limit=2") == list(reversed(created))
+
+    def test_applies_to_the_filtered_list(
+        self, api_client: TestClient, regression_at: Callable[..., str]
+    ) -> None:
+        new = regression_at(datetime(2026, 1, 1, tzinfo=UTC), state="active")
+        regression_at(datetime(2025, 1, 1, tzinfo=UTC), state="fixed")
+        old = regression_at(datetime(2020, 1, 1, tzinfo=UTC), state="active")
+
+        assert uuids_in(listed(api_client, "state=active&sort=-created_at")) == [new, old]
+
+    def test_refuses_a_cursor_issued_for_another_ordering(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        for _ in range(2):
+            create()
+        cursor = listed(api_client, "limit=1").json()["cursor"]["next"]
+
+        response = listed(api_client, f"sort=-created_at&limit=1&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_sort_field_it_does_not_offer(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        response = listed(api_client, "sort=title")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+
 class TestDetail:
     def test_carries_exactly_the_keys_endpoints_md_names(
         self, api_client: TestClient, create: Callable[..., Any], data: None
@@ -409,7 +598,16 @@ class TestDetail:
 
         body = api_client.get(f"{REGRESSIONS}/{uuid}").json()
 
-        assert set(body) == {"uuid", "title", "bug", "notes", "state", "commit", "indicators"}
+        assert set(body) == {
+            "uuid",
+            "title",
+            "bug",
+            "notes",
+            "state",
+            "commit",
+            "created_at",
+            "indicators",
+        }
 
     def test_an_indicator_carries_exactly_four_keys(
         self, api_client: TestClient, create: Callable[..., Any], data: None
@@ -506,6 +704,7 @@ class TestList:
             "bug",
             "state",
             "commit",
+            "created_at",
             "machine_count",
             "test_count",
         }
@@ -1444,9 +1643,7 @@ class TestPagination:
     def test_pages_cover_every_regression_exactly_once(
         self, api_client: TestClient, regressions: list[str]
     ) -> None:
-        walked = [item["uuid"] for item in walk_pages(api_client, REGRESSIONS, "limit=2")]
-
-        assert sorted(walked) == sorted(regressions)
+        assert sorted(walk(api_client, "limit=2")) == sorted(regressions)
 
     def test_the_counts_survive_a_page_boundary(self, api_client: TestClient) -> None:
         for item in walk_pages(api_client, REGRESSIONS, "limit=2"):
@@ -1458,9 +1655,7 @@ class TestPagination:
         for _ in range(4):
             create(indicators=[DARWIN_ONE])
 
-        walked = walk_pages(api_client, REGRESSIONS, "machine=linux&limit=2")
-
-        assert sorted(item["uuid"] for item in walked) == sorted(regressions)
+        assert sorted(walk(api_client, "machine=linux&limit=2")) == sorted(regressions)
 
     def test_refuses_a_cursor_issued_for_another_entitys_list(self, api_client: TestClient) -> None:
         cursor = listed(api_client, "limit=2").json()["cursor"]["next"]

@@ -23,7 +23,15 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select, text, update
 
-from conftest import PROFILE_DOCUMENT, code_of, encoded_profile, run_payload, uuids_in, walk_pages
+from conftest import (
+    PROFILE_DOCUMENT,
+    code_of,
+    encoded_profile,
+    recent,
+    run_payload,
+    uuids_in,
+    walk_pages,
+)
 from introspection import counted, counting_statements
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
@@ -83,15 +91,6 @@ def payload(**overrides: Any) -> dict[str, Any]:
     is the default these endpoint tests want.
     """
     return run_payload(**{"tests": MEASURED, **overrides})
-
-
-def recent(moment: datetime) -> bool:
-    """Whether a timestamp the database produced plausibly belongs to this test run.
-
-    A tolerance rather than a bracket around `datetime.now()`: the clock is PostgreSQL's, which is
-    a container's here, and a few seconds of skew against this process is not a defect.
-    """
-    return abs((datetime.now(UTC) - moment).total_seconds()) < 600
 
 
 @pytest.fixture

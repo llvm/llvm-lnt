@@ -375,7 +375,7 @@ There is no separate upload endpoint.
 ## E8: Regressions
 
 ```
-GET    /api/suites/{testsuite}/regressions                              -- List (cursor-paginated, searchable, filterable by state=, machine=, test=, metric=, commit=, has_commit=)
+GET    /api/suites/{testsuite}/regressions                              -- List (cursor-paginated, searchable, filterable by state=, machine=, test=, metric=, commit=, has_commit=; sortable by sort=)
 POST   /api/suites/{testsuite}/regressions                              -- Create (accepts uuid, title, bug, notes, state, commit, indicators)
 GET    /api/suites/{testsuite}/regressions/{uuid}                       -- Detail (indicators embedded)
 PATCH  /api/suites/{testsuite}/regressions/{uuid}                       -- Update title, bug, notes, state, commit
@@ -399,7 +399,10 @@ Filters: `search=` (case-insensitive substring match on `title`; see O4),
 indicator naming it), `commit=` and `has_commit=`. Filters naming something
 absent are answered as I3 says. `machine=`, `test=` and `metric=` given together
 must match the *same* indicator, as with `GET /api/suites/{testsuite}/tests`.
-There is no `sort`; the order is arbitrary but deterministic (I2, O5).
+
+`sort=created_at` returns oldest-first and `sort=-created_at` newest-first;
+omitting `sort` returns results in an arbitrary but deterministic order suitable
+for pagination (I2, O5).
 
 **Regression states** (string enum):
 `detected`, `active`, `not_to_be_fixed`, `fixed`, `false_positive`
@@ -438,12 +441,13 @@ endpoints below.
 **Detail response** (`GET /api/suites/{testsuite}/regressions/{uuid}`):
 - `uuid`, `title`, `bug`, `notes`, `state`
 - `commit` (commit identity string, or null)
+- `created_at` (when the regression was created; see D5)
 - `indicators`: list of `{uuid, machine, test, metric}`, oldest first. It may be
   empty (see D5).
 
 **List response items** carry exactly: `uuid`, `title`, `bug`, `state`,
-`commit`, `machine_count`, `test_count`. The `notes` field is included in detail
-responses only, not in list responses. `machine_count` and `test_count` count
+`commit`, `created_at`, `machine_count`, `test_count`. The `notes` field is
+included in detail responses only, not in list responses. `machine_count` and `test_count` count
 the distinct machines and tests across the regression's indicators, independent
 of any `machine=` or `test=` filter on the request -- they describe the
 regression, not the query.

@@ -13,6 +13,7 @@ import gzip
 import json
 import re
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -371,6 +372,15 @@ def make_api_suite(
         return build(SuiteSchema.model_validate(response.json()))
 
     return make
+
+
+def recent(moment: datetime) -> bool:
+    """Whether a timestamp the database produced plausibly belongs to this test run.
+
+    A tolerance rather than a bracket around `datetime.now()`: the clock is PostgreSQL's, which is
+    a container's here, and a few seconds of skew against this process is not a defect.
+    """
+    return abs((datetime.now(UTC) - moment).total_seconds()) < 600
 
 
 def uuids_in(response: Any) -> list[str]:

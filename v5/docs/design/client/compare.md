@@ -514,14 +514,14 @@ expanded, offers:
 - "Create new regression" -- pre-fills commit, machines, tests, and metrics from
   the current comparison into a new regression
 - "Add to existing" -- a regression search combobox; adds the comparison's
-  indicators to the selected regression. The regression search combobox follows
-  the same pattern as the machine combobox: it fetches the regression list once
-  on creation (limit 500), filters locally on each keystroke, and uses the
-  standard combobox ARIA and keyboard behavior (collapse on select,
-  ArrowDown/ArrowUp/Enter/Escape, close on blur and outside click). On
-  selection, the input shows the selected regression's title. Enter on the input
-  is a no-op (the user must select from the dropdown list, since regressions are
-  identified by UUID).
+  indicators to the selected regression. The regression search combobox works
+  like a commit picker (see AR2), since a suite can hold more regressions than
+  one page: its suggestions are `GET regressions?sort=-created_at`, narrowed with
+  `search=` on the title. It uses the standard combobox ARIA and keyboard
+  behavior (collapse on select, ArrowDown/ArrowUp/Enter/Escape, close on blur and
+  outside click). On selection, the input shows the selected regression's title.
+  Enter on the input is a no-op (the user must select from the dropdown list,
+  since regressions are identified by UUID).
 
 Only tests currently visible in the comparison table are included as indicators
 (tests that are noise-hidden, manually-hidden, or excluded by the text filter
