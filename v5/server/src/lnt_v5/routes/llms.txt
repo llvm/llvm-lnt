@@ -127,9 +127,9 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   an `Allow` header), `duplicate`, `conflict` and `retry` (409), and
   `internal_error` (500). A request body too large for the deployment is a
   plain-text 413 instead. Among the 409s:
-  - `duplicate`: the entity exists. For a run whose UUID you chose, an earlier
-    attempt most likely succeeded: do not resubmit under a fresh UUID, which
-    would store the run twice.
+  - `duplicate`: the entity exists. For a run or a regression whose UUID you
+    chose, an earlier attempt most likely succeeded: do not resend under a fresh
+    UUID, which would store it twice.
   - `conflict`: the request contradicts stored state -- metadata a submission
     disagrees with, an ordinal another commit holds, or a commit a regression
     still references. Do not retry as sent; change the request or the state
@@ -227,4 +227,6 @@ profile is then read through its own UUID; every counter is a raw count.
 
 Every key is optional; `bug`, `notes` and `state` are accepted too. The state
 defaults to `detected`, and moves freely between `detected`, `active`,
-`not_to_be_fixed`, `fixed` and `false_positive` through `PATCH`.
+`not_to_be_fixed`, `fixed` and `false_positive` through `PATCH`. As for a run,
+`uuid` is optional and generated when omitted; choose your own to make the
+request safe to retry.

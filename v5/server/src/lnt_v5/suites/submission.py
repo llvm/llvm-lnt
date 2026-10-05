@@ -29,11 +29,13 @@ from math import isfinite
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.strings import NUL, Storable
 from lnt_v5.suites.entities import (
+    CLIENT_UUID_FORMAT,
+    ClientUuid,
     CommitObject,
     FieldValue,
     MachineObject,
@@ -44,35 +46,14 @@ from lnt_v5.suites.entities import (
 )
 from lnt_v5.suites.profile_document import StoredProfile, stored_profile
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
-from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
-
-# O1: the standard 8-4-4-4-12 hyphenated hex form, of any UUID version. Deliberately matched with a
-# pattern rather than parsed by a UUID library: those also accept braces, a `urn:uuid:` prefix and
-# the unhyphenated form, none of which O1 offers, and accepting one would mean the value the server
-# stores and addresses the run by is not the value the client sent.
-#
-# Anchored because pydantic's pattern is a search rather than a full match. The exact length beside
-# it is not redundant: `$` matches before a trailing newline in some regex engines, and pinning the
-# length to D5's column width closes that whichever engine pydantic is built on.
-UUID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+from lnt_v5.suites.tables import NAME_LENGTH
 
 # One wording for every NUL the `run_parameters` walk finds, in a key or in a value.
 _NO_NUL = (
     "contains a NUL character (U+0000), which cannot be stored; run parameters are stored as JSON"
 )
 
-RunUuid = Annotated[
-    str,
-    StringConstraints(pattern=UUID_PATTERN, min_length=UUID_LENGTH, max_length=UUID_LENGTH),
-    AfterValidator(str.lower),
-    Field(
-        description=(
-            "Identifies the run, in the standard 8-4-4-4-12 hyphenated hex form. Any UUID version "
-            "is accepted; only the format is validated. Case-insensitive, and normalized to "
-            "lowercase. Omit it to have the server generate one."
-        )
-    ),
-]
+RunUuid = Annotated[ClientUuid, Field(description=f"Identifies the run. {CLIENT_UUID_FORMAT}")]
 
 TestName = Annotated[
     str,

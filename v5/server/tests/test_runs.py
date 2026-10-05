@@ -316,8 +316,9 @@ class TestUuid:
         assert code_of(response) == "invalid_request"
 
     def test_refuses_a_uuid_a_run_already_has(self, submit: Callable[..., Any]) -> None:
-        # I4 gives this `duplicate` rather than the generic conflict: a submitting bot recovers by
-        # retrying with a fresh UUID.
+        # I4 gives this `duplicate` rather than the generic conflict: the run is already stored,
+        # most likely by an earlier attempt whose response was lost, so the bot is done and must not
+        # resubmit under a fresh UUID.
         given = "550e8400-e29b-41d4-a716-446655440000"
         assert submit(uuid=given).status_code == 201
 

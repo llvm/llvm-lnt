@@ -67,6 +67,7 @@ MACHINE_NAME_CONSTRAINT = "uq_machine_name"
 COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
+REGRESSION_UUID_CONSTRAINT = "uq_regression_uuid"
 # Not a unique constraint but a foreign key, violated from either side. Deleting a commit that a
 # regression references is refused, since D5 makes that commit undeletable (I4's `conflict`).
 # Storing a reference to a commit deleted after the request resolved it is a 404: it is no longer

@@ -345,9 +345,9 @@ class Runs:
         """The profile row of every run+test the submission carried one for, then their functions'
         rows, in one statement each (D5, O7).
 
-        The UUID is minted here and never taken from the submission: I1 makes a run's UUID the one
-        a client may choose, and every other UUID in the API server-generated. `created_at` is left
-        to D5's column default, for the same reason `submitted_at` is.
+        The UUID is minted here and never taken from the submission: I1 lets a client choose a
+        run's UUID and a regression's, and no other. `created_at` is left to D5's column default,
+        for the same reason `submitted_at` is.
         """
         profiles = {ids[test.name]: test.profile for test in tests if test.profile is not None}
         if not profiles:

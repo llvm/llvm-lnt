@@ -589,9 +589,8 @@ The DB layer validates state values on create and update.
   keyed by counter name.
 - Unique constraint on `(run_id, test_id)` -- at most one profile per
   run+test pair.
-- `uuid` is server-generated, used by the API for profile data endpoints.
-  (Unlike Run UUIDs, which may be client-provided, Profile and Regression
-  UUIDs are always server-generated.)
+- `uuid` is always server-generated (see I1), used by the API for profile data
+  endpoints.
 - Cascade: deleting a run cascades to its profiles.
 
 #### `{suite}.profile_function`

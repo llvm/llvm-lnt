@@ -19,8 +19,9 @@ alongside an interactive viewer (see I8).
 - Entities addressed by natural keys (suite name, machine name, test name, commit value) or
   UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
   auto-increment database IDs. API keys are the one exception to both: they are addressed by
-  their `prefix`, which is neither a natural key nor a UUID (see I5). Run UUIDs may be
-  client-provided or server-generated; all other UUIDs are server-generated.
+  their `prefix`, which is neither a natural key nor a UUID (see I5). Run and regression UUIDs
+  may be client-provided or server-generated (see O1 and E8); all other UUIDs are
+  server-generated.
 - An entity carries its own identifier in responses under the key it is addressed by: `name`
   (suite, machine, test), `value` (commit), `uuid`, `prefix`. I4 covers how one entity refers
   to another.
@@ -187,15 +188,15 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `forbidden` | 403 | Valid token, insufficient scope (see I5) |
 | `not_found` | 404 | No route matches the path, or an entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method; the `Allow` header lists the methods it serves |
-| `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added to a list that already has one of that name |
+| `duplicate` | 409 | The entity already exists: a run or regression UUID, a suite name, a schema entry added to a list that already has one of that name |
 | `conflict` | 409 | The request contradicts existing state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), deleting a commit a regression references, a suite name already taken by a database namespace |
 | `retry` | 409 | A concurrent change to the suite's schema kept the request from completing, and nothing was written: the schema changed while it ran, or a schema change could not take its locks in time (see D2) |
 | `internal_error` | 500 | The server failed to answer |
 
 409 carries more than one code because its cases call for different client behaviour, one per code.
-A `duplicate` run UUID means the run is already stored -- for a submitting bot that chose the UUID
-itself, most likely by an earlier attempt whose response was lost, so it is done and must not
-resubmit under a fresh UUID, which would store the run twice. A `conflict` fails again until the
+A `duplicate` run or regression UUID means the entity is already stored -- for a client that chose
+the UUID itself, most likely by an earlier attempt whose response was lost, so it is done and must
+not resend under a fresh UUID, which would store it twice. A `conflict` fails again until the
 request or the stored state changes, so it must not be retried as sent: typically, the client's view
 of what is stored -- a machine's metadata, the commit order -- is out of date. A `retry` changed
 nothing and failed through no fault of the request, so a client may send it again unchanged. A

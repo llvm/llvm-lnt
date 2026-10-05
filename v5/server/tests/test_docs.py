@@ -61,6 +61,7 @@ class TestOpenApiDocument:
             (f"{COMMITS_PATH}/{{value}}", "patch"): {"conflict"},
             (f"{COMMITS_PATH}/{{value}}", "delete"): {"conflict"},
             (RUNS_PATH, "post"): {"duplicate", "conflict"},
+            (REGRESSIONS_PATH, "post"): {"duplicate"},
         }
 
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():
