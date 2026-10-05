@@ -32,7 +32,9 @@
   built-ins: `ordinal`, an integer placing the commit in the suite's total order,
   and `tag`, a label such as `release-18.1`. An ordinal is never inferred, not
   even from a numeric commit string. A commit without one has no position, so it
-  is absent from every result ordered by ordinal.
+  is absent from every result ordered by ordinal. The commit list's default
+  order, `sort=first_seen`, is by when the server first saw each commit and
+  keeps every one; `sort=-first_seen` lists the most recently seen first.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names

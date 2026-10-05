@@ -159,13 +159,48 @@ class TestList:
     def test_is_ordered_by_first_sighting_by_default(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # endpoints.md: the default is the internal id, which is the order the server first saw
-        # each commit -- deliberately not the ordinal order.
+        # endpoints.md: the default is `first_seen`, the order the server first saw each commit
+        # in -- deliberately not the ordinal order.
         create("zebra", ordinal=30)
         create("alpha", ordinal=10)
         create("middle", ordinal=20)
 
         assert values_in(page(api_client)) == ["zebra", "alpha", "middle"]
+        assert values_in(page(api_client, "sort=first_seen")) == ["zebra", "alpha", "middle"]
+
+    @pytest.mark.parametrize(
+        ("sort", "expected"),
+        [
+            ("first_seen", ["old", "experiment", "new"]),
+            ("-first_seen", ["new", "experiment", "old"]),
+        ],
+    )
+    def test_sorts_by_first_sighting_keeping_the_commits_with_no_ordinal_in_place(
+        self, api_client: TestClient, create: Callable[..., Any], sort: str, expected: list[str]
+    ) -> None:
+        # Unlike the ordinal order, which has no position to give them: here an unordered commit
+        # sits wherever its sighting puts it, among the ordered ones rather than grouped apart.
+        create("old", ordinal=1)
+        create("experiment")
+        create("new", ordinal=2)
+
+        assert values_in(page(api_client, f"sort={sort}")) == expected
+
+    def test_a_commit_is_seen_first_when_it_is_created_and_never_again(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        patch: Callable[..., Any],
+        add_run: Callable[..., str],
+    ) -> None:
+        # Neither a later run nor a later ordinal moves a commit: the order is the commits'
+        # creation, not their latest activity.
+        create("first")
+        create("second")
+        add_run("first")
+        patch("first", {"ordinal": 1})
+
+        assert values_in(page(api_client, "sort=-first_seen")) == ["second", "first"]
 
     def test_sorts_by_ordinal(self, api_client: TestClient, create: Callable[..., Any]) -> None:
         create("zebra", ordinal=30)
@@ -183,14 +218,6 @@ class TestList:
         create("unordered")
 
         assert values_in(page(api_client, f"sort={sort}")) == ["ordered"]
-
-    def test_keeps_the_commits_with_no_ordinal_when_not_sorting_by_one(
-        self, api_client: TestClient, create: Callable[..., Any]
-    ) -> None:
-        create("ordered", ordinal=1)
-        create("unordered")
-
-        assert values_in(page(api_client)) == ["ordered", "unordered"]
 
     def test_refuses_a_sort_field_it_does_not_offer(
         self, api_client: TestClient, suite: SuiteTables
@@ -261,6 +288,14 @@ class TestListSearch:
         # `commit_message` is declared but not searchable, and `Xeon` is only in it.
         assert values_in(page(api_client, "search=Xeon")) == []
 
+    def test_combines_with_the_most_recently_seen_first_order(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # A commit picker's typeahead (AR2).
+        create("zzz")
+
+        assert values_in(page(api_client, "search=e&sort=-first_seen")) == ["def456", "abc123"]
+
     def test_treats_a_wildcard_in_the_term_literally(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
@@ -281,6 +316,19 @@ class TestListMachineFilter:
 
     def test_keeps_only_commits_with_a_run_on_that_machine(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "machine=linux")) == ["on-linux"]
+
+    def test_lists_a_machines_commits_most_recently_seen_first(
+        self, api_client: TestClient, create: Callable[..., Any], add_run: Callable[..., str]
+    ) -> None:
+        # What a commit picker asks for (AR2).
+        create("later")
+        add_run("later", "linux")
+        add_run("on-linux", "linux")
+
+        assert values_in(page(api_client, "machine=linux&sort=-first_seen")) == [
+            "later",
+            "on-linux",
+        ]
 
     def test_is_404_for_a_machine_that_is_not_there(self, api_client: TestClient) -> None:
         # I3 makes an unknown `machine=` an error, unlike an unknown `commit=`.
@@ -325,6 +373,20 @@ class TestListHasProfilesFilter:
         ]
         assert values_in(page(api_client, "machine=darwin&has_profiles=false")) == ["mixed"]
 
+    def test_combines_with_a_machine_and_the_most_recently_seen_first_order(
+        self, api_client: TestClient, create: Callable[..., Any], add_run: Callable[..., str]
+    ) -> None:
+        # The Profiles page's commit picker (PF2), across a page boundary.
+        create("experiment")
+        add_run("experiment", "linux", profile=True)
+        add_run("bare", "linux", profile=True)
+
+        assert walk(api_client, "machine=linux&has_profiles=true&sort=-first_seen&limit=1") == [
+            "experiment",
+            "bare",
+            "profiled",
+        ]
+
     def test_refuses_a_value_that_is_not_a_boolean(self, api_client: TestClient) -> None:
         assert page(api_client, "has_profiles=maybe").status_code == 400
 
@@ -353,6 +415,20 @@ class TestListPagination:
         assert walk(api_client, "limit=2&sort=ordinal") == ["c4", "c3", "c2", "c1", "c0"]
         assert walk(api_client, "limit=2&sort=-ordinal") == ["c0", "c1", "c2", "c3", "c4"]
 
+    def test_pages_the_most_recently_seen_first_order(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        create("unordered")
+
+        assert walk(api_client, "limit=2&sort=-first_seen") == [
+            "unordered",
+            "c4",
+            "c3",
+            "c2",
+            "c1",
+            "c0",
+        ]
+
     def test_the_filters_survive_a_page_boundary(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
@@ -362,6 +438,19 @@ class TestListPagination:
             create(f"other{index}")
 
         assert walk(api_client, "limit=2&search=c") == ["c0", "c1", "c2", "c3", "c4"]
+
+    def test_serves_nothing_newer_than_the_cursor_most_recently_seen_first(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # Forward-only (I2, O5): a commit seen after the walk began sorts before the position the
+        # cursor names, so the walk resumes past it rather than doubling back.
+        cursor = page(api_client, "limit=2&sort=-first_seen").json()["cursor"]["next"]
+        create("c5")
+
+        assert values_in(page(api_client, f"limit=2&sort=-first_seen&cursor={cursor}")) == [
+            "c2",
+            "c1",
+        ]
 
     def test_resumes_after_a_deleted_row(
         self, api_client: TestClient, manage: dict[str, str]
@@ -392,6 +481,7 @@ class TestListPagination:
         [
             ("limit=2&cursor=nonsense", "not a cursor at all"),
             ("limit=2&sort=ordinal&cursor={cursor}", "issued for a different sort order"),
+            ("limit=2&sort=-first_seen&cursor={cursor}", "issued for the opposite direction"),
             ("limit=2&search=c&cursor={cursor}", "issued without that filter"),
             ("limit=2&has_profiles=false&cursor={cursor}", "issued without that filter either"),
         ],
@@ -420,6 +510,7 @@ class TestListPagination:
         ("issued", "resumed", "reason"),
         [
             ("has_profiles=1", "has_profiles=true", "another spelling of the same filter"),
+            ("", "sort=first_seen", "the default order, spelled out"),
             ("_=1", "_=2", "a parameter the endpoint does not read, such as a cache-buster"),
         ],
     )

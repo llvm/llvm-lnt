@@ -32,10 +32,11 @@ the suite is a query parameter, not a path segment.
   halo updates in real-time on every keystroke. Clicking a dropdown suggestion
   always clears the halo and accepts the value. For commit comboboxes,
   acceptance via Enter or blur additionally requires an exact match against
-  available commit values -- a partial substring match (e.g. typing "789" when
-  the commit is "566789") is rejected with the red halo even though suggestions
-  are visible. All comboboxes support ArrowDown/ArrowUp keyboard navigation
-  through suggestions, with Enter to select the focused item.
+  the commit values the server's search returned for the typed text (see AR2)
+  -- a partial substring match (e.g. typing "789" when the commit is "566789")
+  is rejected with the red halo even though suggestions are visible. All
+  comboboxes support ArrowDown/ArrowUp keyboard navigation through
+  suggestions, with Enter to select the focused item.
 
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at
   least one machine and a metric are selected, the test table is populated with
@@ -175,7 +176,7 @@ Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
 comparisons. The selector is an expandable panel with cascading dropdowns: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint) -> Commit (populated from the selected machine's
-commits via `GET commits?machine={name}`, ordered newest-first; see AR2). Added
+commits via `GET commits?machine={name}&sort=-first_seen`; see AR2). Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
 where `display_value` is the commit's display value (e.g. short SHA with tag)
 when a `commit_field` with `display: true` is defined, otherwise the raw commit
@@ -229,7 +230,7 @@ the user can see the commit range.
   (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`)
 - `GET tests?machine=...&metric=...` (test name discovery)
 - `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
-- `GET commits?machine={name}` (baseline commit dropdown)
+- `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit dropdown)
 - `GET machines` (machine combobox)
 - `GET suites/{ts}` (fields/metrics)
 

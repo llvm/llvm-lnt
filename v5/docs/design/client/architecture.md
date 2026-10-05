@@ -51,7 +51,9 @@ of the input. The badge is blue for valid regex and red for invalid regex
 syntax. Invalid regex patterns also show a red halo on the input border. This
 convention applies uniformly to all text filter inputs across the UI: test name
 filters, machine name filters, regression title searches, indicator filters,
-combobox suggestion filters, and function name filters. The `re:` prefix is not
+combobox suggestion filters, and function name filters. Commit pickers are the
+exception: their typeahead is a server-side `search=`, which matches plain
+substrings only (see O4 and "Commit pickers" below). The `re:` prefix is not
 consumed or hidden -- the user sees it in the input and it is included in URL
 state.
 
@@ -60,11 +62,15 @@ must keep filter typing responsive even with thousands of rows. Typing in a
 filter input must produce a visible table update within a single animation
 frame. Chart updates may be deferred to avoid blocking the input.
 
-**Commit ordering in comboboxes**: All commit pickers (Compare, Profiles, Graph
-baselines) order suggestions newest-first: commits with an ordinal by ordinal
-descending, and commits without one (ad-hoc A/B experiment commits; see D1)
-above those. The sort is applied client-side, not via `sort=-ordinal`, which
-would drop the unordered commits -- pickers must keep them selectable.
+**Commit pickers**: All commit pickers (Compare, Profiles, Graph baselines)
+list their suggestions most recently seen first, as
+`GET commits?sort=-first_seen` returns them with the picker's filters (see E3).
+That order keeps commits without an ordinal (ad-hoc A/B experiment commits; see
+D1) selectable, placed by recency among the ordered ones, whereas
+`sort=-ordinal` would drop them. A picker loads only the first page when it
+opens, and narrows it as the user types by asking the server again with
+`search=` (debounced), rather than fetching every commit and filtering locally:
+a machine can have tens of thousands of commits.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for
 the API key endpoints, which require `admin` scope even to read (see I5). No

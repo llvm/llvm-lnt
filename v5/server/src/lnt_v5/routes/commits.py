@@ -85,9 +85,9 @@ COMMITS_PATH = f"{SUITES_PATH}/{{testsuite}}/commits"
 router = APIRouter(prefix=COMMITS_PATH, tags=["Commits"])
 
 
-# endpoints.md names these two and no others. A literal rather than a free string, so I8's document
+# endpoints.md names these four and no others. A literal rather than a free string, so I8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
-CommitSort = Literal["ordinal", "-ordinal"]
+CommitSort = Literal["first_seen", "-first_seen", "ordinal", "-ordinal"]
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
@@ -190,7 +190,7 @@ class Commits:
 
     Holds the internal `id` alongside the commit's own columns: it is never rendered -- I1 keeps
     auto-increment ids out of the API entirely -- but it is the unique tiebreaker O5 requires under
-    every cursor, and the default order endpoints.md gives this list.
+    every cursor, and it is what `sort=first_seen` orders by.
     """
 
     def __init__(self, suite: Suite) -> None:
@@ -208,16 +208,16 @@ class Commits:
             *(self.table.c[field.name] for field in self.schema.commit_fields),
         )
 
-    def keyset(self, sort: CommitSort | None) -> Keyset:
+    def keyset(self, sort: CommitSort) -> Keyset:
         """O5's ordering for this list: the caller's sort, then the internal tiebreaker.
 
-        With no `sort`, the tiebreaker is the whole order -- endpoints.md makes that the order in
-        which the server first saw each commit, which is deliberately not the ordinal order.
+        `first_seen` is the order in which the server first saw each commit, which is the order the
+        ids were handed out in, so the tiebreaker alone is that whole order. It is never null, so
+        unlike `ordinal` it keeps every commit.
         """
-        if sort is None:
-            return Keyset(tiebreaker=self.table.c.id)
-        _, descending = sort_order(sort)
-        return Keyset(SortKey(self.table.c.ordinal, descending), tiebreaker=self.table.c.id)
+        field, descending = sort_order(sort)
+        column = self.table.c.ordinal if field == "ordinal" else self.table.c.id
+        return Keyset(SortKey(column, descending), tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
         return search_condition(term, self.table, ["commit", "tag"], self.schema.commit_fields)
@@ -453,23 +453,22 @@ def list_commits(
         ),
     ] = None,
     sort: Annotated[
-        CommitSort | None,
+        CommitSort,
         Query(
             description=(
-                "Order by ordinal, ascending (oldest first) or descending; either way, commits "
-                "with no ordinal are excluded. Omit to order by the sequence in which the server "
-                "first saw each commit, which keeps every commit."
+                "`first_seen` orders by when the server first saw each commit, oldest first, and "
+                "`-first_seen` most recently seen first; both keep every commit. `ordinal` and "
+                "`-ordinal` order by ordinal (oldest first, or newest first) and exclude the "
+                "commits that have none."
             )
         ),
-    ] = None,
+    ] = "first_seen",
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Commit]:
     """Every commit in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
 
-    Omitting `sort` orders by the internal id, which is the order the server first saw each commit
-    in; `sort=ordinal` orders by the ordinal instead and excludes the commits that have none, since
-    they have no position in that order. That exclusion comes from the keyset rather than from here
-    (O5, `querying.Keyset.defined`).
+    `sort=ordinal` excludes the commits that have no ordinal, since they have no position in that
+    order. That exclusion comes from the keyset rather than from here (O5, `Keyset.defined`).
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)

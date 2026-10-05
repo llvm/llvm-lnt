@@ -436,12 +436,12 @@ class TestCommitOperations:
     def test_the_list_enumerates_the_sort_fields_rather_than_taking_any_string(
         self, client: TestClient
     ) -> None:
-        # endpoints.md names two and no others, and omitting it is the third, distinct, option.
+        # endpoints.md names four and no others, and makes the first of them the default.
         operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
         sort = next(p for p in operation["parameters"] if p["name"] == "sort")
-        allowed = [option for option in sort["schema"]["anyOf"] if "enum" in option]
 
-        assert [set(option["enum"]) for option in allowed] == [{"ordinal", "-ordinal"}]
+        assert set(sort["schema"]["enum"]) == {"first_seen", "-first_seen", "ordinal", "-ordinal"}
+        assert sort["schema"]["default"] == "first_seen"
 
     def test_the_list_returns_the_cursor_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()

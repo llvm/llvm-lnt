@@ -26,7 +26,7 @@ path and params to restore state. On changes, updates the URL.
 | Recent Activity | Last 25 runs sorted by time | `GET runs?sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
 | Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine searchable fields |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
-| Commits | Commit list with cursor pagination | `GET commits?search=...&limit=25` | Substring match on commit, tag and searchable commit fields |
+| Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
 
 ## TS2: Recent Activity tab
@@ -94,13 +94,15 @@ Below the table, `[<- Previous] [Next ->]` allows navigating through pages.
 
 ## TS5: Commits tab
 
-This tab shows the commits present in the test suite. It shows a table like:
+This tab shows the commits present in the test suite, most recently seen first
+(see E3), so that the commits that just arrived are on the first page whether or
+not they have an ordinal. It shows a table like:
 
 ```
 Commit            Ordinal                 Tag
 ----------------------------------------------------
-0f69d2804b9b      588009                  llvm-22.0
 0f985af790f8      591886                  --
+0f69d2804b9b      588009                  llvm-22.0
 etc...
 ```
 
