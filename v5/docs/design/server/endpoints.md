@@ -197,7 +197,7 @@ A client that wants a commit's display value for a column of runs resolves the
 page's commits in one batch through `POST /commits/resolve`, rather than the
 server embedding a field whose meaning is purely a UI concern (see D4).
 
-The run list and the detail return the same object, minus
+The run list endpoint and the detail return the same object, minus
 `run_parameters` in list responses. `POST` returns 201 with the created run in
 its detail form and a `Location` header pointing at
 `GET /api/suites/{testsuite}/runs/{uuid}`. `DELETE` returns 204.

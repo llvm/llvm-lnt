@@ -5,7 +5,7 @@ and sorts on is its own -- and is declared there, so that I8's document enumerat
 unknown value is a 400 before the endpoint runs.
 
 Cursor pagination (I2, O5) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
-private to any endpoint family: the commit, run, test, sample and regression lists and
+private to any endpoint family: the commit, run, test, sample and regression list endpoints and
 `POST /query` all page this way, and a second implementation of a keyset predicate would be a second
 chance to get the boundary conditions wrong.
 """
