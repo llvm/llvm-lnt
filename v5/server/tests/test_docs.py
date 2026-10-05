@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -43,6 +44,33 @@ class TestOpenApiDocument:
             for method, operation in operations.items():
                 extra = set(operation.get("responses", {})) - i4_statuses
                 assert not extra, f"{method.upper()} {path} documents {sorted(extra)}"
+
+    def test_every_409_names_the_codes_it_carries(self, client: TestClient) -> None:
+        """Each operation's 409 names, in backticks, exactly the I4 codes endpoints.md gives it.
+
+        OpenAPI keys responses by status alone, so an operation's 409 cases share one description,
+        and the code is the only thing a client can branch on. Every suite-scoped operation can
+        answer `retry` (D2); the writes listed here add cases of their own.
+        """
+        beyond_retry = {
+            ("/api/suites", "post"): {"duplicate", "conflict"},
+            ("/api/suites/{name}/schema", "patch"): {"duplicate"},
+            (MACHINES_PATH, "post"): {"duplicate"},
+            (f"{MACHINES_PATH}/{{machine_name}}", "patch"): {"duplicate"},
+            (COMMITS_PATH, "post"): {"duplicate", "conflict"},
+            (f"{COMMITS_PATH}/{{value}}", "patch"): {"conflict"},
+            (f"{COMMITS_PATH}/{{value}}", "delete"): {"conflict"},
+            (RUNS_PATH, "post"): {"duplicate", "conflict"},
+        }
+
+        for path, operations in client.get("/api/openapi.json").json()["paths"].items():
+            for method, operation in operations.items():
+                response = operation["responses"].get("409")
+                if response is None:
+                    continue
+                named = set(re.findall(r"`([a-z_]+)`", response["description"]))
+                expected = {"retry"} | beyond_retry.get((path, method), set())
+                assert named == expected, f"{method.upper()} {path}"
 
     @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
     def test_excludes_the_routes_outside_the_rest_api(self, client: TestClient, path: str) -> None:

@@ -21,8 +21,11 @@ from lnt_v5.suites.registry import Suite, SuiteRegistry
 # The two failures every suite-scoped operation can answer, worded once for I8's document. They come
 # from `suite_scope` rather than from any endpoint, so restating them per endpoint would be dozens
 # of copies of one sentence, each free to drift from what the code actually does.
+#
+# OpenAPI keys responses by status alone, so every case an operation answers with 409 shares one
+# description. Each case is therefore introduced by its I4 code, which is what a client branches on.
 SUITE_NOT_FOUND = "No test suite has that name."
-SUITE_SCHEMA_CHANGED = "The suite's schema changed while the request was running; retry."
+SUITE_SCHEMA_CHANGED = "`retry`: the suite's schema changed while the request was running."
 
 
 @contextmanager

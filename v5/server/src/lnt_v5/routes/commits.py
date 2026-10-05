@@ -92,7 +92,9 @@ CommitSort = Literal["ordinal", "-ordinal"]
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
 _NO_COMMIT = f"{SUITE_NOT_FOUND} Or no commit in it has that value."
-_ORDINAL_TAKEN = f"The ordinal is already held by another commit. {SUITE_SCHEMA_CHANGED}"
+_ORDINAL_TAKEN = (
+    f"`conflict`: the ordinal is already held by another commit. {SUITE_SCHEMA_CHANGED}"
+)
 
 
 class Commit(CommitObject):
@@ -501,7 +503,7 @@ def list_commits(
     dependencies=[require_scope(Scope.SUBMIT)],
     summary="Create a commit",
     responses=suite_responses(
-        conflict=f"A commit with that value already exists. {_ORDINAL_TAKEN}"
+        conflict=f"`duplicate`: a commit with that value already exists. {_ORDINAL_TAKEN}"
     ),
 )
 def create_commit(
@@ -635,7 +637,7 @@ def update_commit(
     summary="Delete a commit",
     responses=suite_responses(
         not_found=_NO_COMMIT,
-        conflict=f"A regression references this commit. {SUITE_SCHEMA_CHANGED}",
+        conflict=f"`conflict`: a regression references this commit. {SUITE_SCHEMA_CHANGED}",
     ),
 )
 def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: RegistryDep) -> None:

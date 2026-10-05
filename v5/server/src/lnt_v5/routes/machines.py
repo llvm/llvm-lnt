@@ -76,7 +76,7 @@ MachineSort = Literal["name", "-name", "last_run_at", "-last_run_at"]
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
 NO_MACHINE = f"{SUITE_NOT_FOUND} Or no machine in it has that name."
 NO_MACHINE_FILTERED = f"{SUITE_NOT_FOUND} Or the machine the `machine=` filter names is not in it."
-_NAME_TAKEN = f"A machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
+_NAME_TAKEN = f"`duplicate`: a machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
 
 
 class Machine(MachineObject):
