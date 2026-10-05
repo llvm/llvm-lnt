@@ -82,7 +82,7 @@ DESCENDING = "-"
 
 
 def sort_order(sort: str) -> tuple[str, bool]:
-    """I3's `sort=<field>`, split into the field and whether it is descending."""
+    """I3's `sort=<name>`, split into the ordering's name and whether it is descending."""
     return (sort.removeprefix(DESCENDING), True) if sort.startswith(DESCENDING) else (sort, False)
 
 

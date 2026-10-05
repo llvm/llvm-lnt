@@ -509,8 +509,8 @@ Returns cursor-paginated time-series data for graphing, in I2's cursor envelope;
 `tag` (the commit's tag, or null if unset). `metric` is echoed on every point even
 though the request names exactly one, making each data point self-descriptive.
 
-`sort` names one field, optionally prefixed with `-` for descending (I3): `test`,
-`commit` (by ordinal), or `submitted_at`. When `sort` is omitted, results are
+`sort` names one ordering, optionally prefixed with `-` for descending (I3):
+`test`, `commit` (by ordinal), or `submitted_at`. When `sort` is omitted, results are
 returned in an arbitrary but stable order suitable for cursor pagination; no data
 is excluded. When `sort` names `commit`, samples for commits without ordinals are
 excluded (they have no meaningful position in ordinal order).
