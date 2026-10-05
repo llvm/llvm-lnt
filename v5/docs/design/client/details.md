@@ -74,7 +74,8 @@ of the Test Suites page, pre-filtered for this machine.
 
 ### Run History table
 
-Shows the 25 runs most recently submitted to this machine. Entities (runs, commits) are clickable and
+Shows the 25 runs most recently submitted to this machine
+(`GET /runs?machine={name}&sort=-submitted_at&limit=25`). Entities (runs, commits) are clickable and
 lead to the details page for that object.
 
 

@@ -69,7 +69,6 @@ POST   /api/suites/{testsuite}/machines                       manage  Create a m
 GET    /api/suites/{testsuite}/machines/{machine_name}        read    One machine
 PATCH  /api/suites/{testsuite}/machines/{machine_name}        manage  Update or rename a machine
 DELETE /api/suites/{testsuite}/machines/{machine_name}        manage  Delete a machine and its runs
-GET    /api/suites/{testsuite}/machines/{machine_name}/runs   read    A machine's runs (after=, before=, sort=)
 
 GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, has_profiles=, sort=)
 POST   /api/suites/{testsuite}/commits                        submit  Create a commit

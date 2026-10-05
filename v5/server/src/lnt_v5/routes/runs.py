@@ -8,12 +8,6 @@ points at the run. The statement count is what keeps a submission carrying tens 
 samples from costing tens of thousands of statements: the samples go in one executemany, the
 profiles in another, and the test names through `concurrency.resolve_names`.
 
-Two lists read runs back, and they differ only in how a machine reaches the query: the suite-wide
-`GET /runs`, which takes `machine=` as a filter, and `GET /machines/{name}/runs`, which takes it
-from the path. Both live here rather than one of them living with the machines, because what they
-share is the run reader, the keyset and the time filters -- and because `routes/machines.py` cannot
-import this module, which already imports it.
-
 What this module deliberately does not own: reading the payload, which is `suites/submission.py`'s
 (pure, and finished before anything is written), and creating a machine or a commit, which belongs
 with those entities -- `routes/machines.py` and `routes/commits.py` already hold their tables, their
@@ -55,14 +49,7 @@ from lnt_v5.querying import (
 )
 from lnt_v5.responses import CursorPage
 from lnt_v5.routes.commits import Commits
-from lnt_v5.routes.machines import (
-    MACHINES_PATH,
-    NO_MACHINE,
-    NO_MACHINE_FILTERED,
-    Machines,
-    machine_id,
-    machine_search,
-)
+from lnt_v5.routes.machines import NO_MACHINE_FILTERED, Machines, machine_id, machine_search
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import coverage, summaries
@@ -80,45 +67,18 @@ from lnt_v5.suites.submission import RunSubmission, SubmittedTest, validate_subm
 from lnt_v5.suites.tables import RUN_UUID_CONSTRAINT
 
 RUNS_PATH = f"{SUITES_PATH}/{{testsuite}}/runs"
-MACHINE_RUNS_PATH = f"{MACHINES_PATH}/{{machine_name}}/runs"
 
 router = APIRouter(prefix=RUNS_PATH, tags=["Runs"])
-
-# The one route that hangs off a machine rather than off `/runs`. A router of its own because its
-# prefix is the machines', and it is tagged with them so that I8's document groups it where
-# endpoints.md specifies it.
-machine_runs_router = APIRouter(prefix=MACHINE_RUNS_PATH, tags=["Machines"])
 
 # endpoints.md names these two and no others. A literal rather than a free string, so I8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
 RunSort = Literal["submitted_at", "-submitted_at"]
 
-# The three parameters both run lists share, spelled once. I3's `after=`/`before=` bound the
-# submission time and are exclusive; `sort=` orders by it.
+# What `after=` and `before=` both tell a client about the timestamp they take.
 _TIMESTAMP = (
     "An ISO 8601 timestamp. One without an offset is read as UTC; a '+' in an offset must be "
     "sent as %2B, since a query string decodes a bare '+' to a space."
 )
-
-After = Annotated[
-    DatetimeValue | None,
-    Query(description=f"Keep only runs submitted strictly after this instant. {_TIMESTAMP}"),
-]
-
-Before = Annotated[
-    DatetimeValue | None,
-    Query(description=f"Keep only runs submitted strictly before this instant. {_TIMESTAMP}"),
-]
-
-Sort = Annotated[
-    RunSort | None,
-    Query(
-        description=(
-            "Order by submission time, ascending (oldest first) or descending. Omit for an "
-            "arbitrary but stable order, which is the cheapest way to page through every run."
-        )
-    ),
-]
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
@@ -153,7 +113,7 @@ class RunDetail(Run):
     """A run as the detail and create responses carry it: a list item, plus the blob.
 
     `run_parameters` is detail-only because it is unbounded and no list view renders it -- the same
-    reason a regression's `notes` is, and the reason the list endpoints do not even select it.
+    reason a regression's `notes` is, and the reason the list endpoint does not even select it.
     """
 
     run_parameters: dict[str, Any] = Field(
@@ -169,12 +129,12 @@ class Runs:
 
     The join is what makes a run renderable on its own: D5 stores a machine and a commit id, and I4
     wants the machine's name and the commit's value, so every read of a run pays for both. Held here
-    rather than written per endpoint so that the detail and the lists built on it cannot drift apart
+    rather than written per endpoint so that the detail and the list built on it cannot drift apart
     on the columns they name -- the same arrangement as `Machines` and `Commits`.
 
     The internal `id` rides along with the rest. It is never rendered -- I1 keeps auto-increment ids
     out of the API entirely -- but it is the unique tiebreaker O5 requires under every cursor, and
-    the whole of the order these lists take when the caller asks for no sort.
+    the whole of the order the list takes when the caller asks for no sort.
     """
 
     def __init__(self, suite: Suite) -> None:
@@ -205,7 +165,7 @@ class Runs:
         """O5's ordering for a run list: the caller's sort, then the internal tiebreaker.
 
         `submitted_at` is not unique -- nothing stops two runs being accepted in the same instant,
-        and every list here pages -- so it cannot be the whole order on its own. With no `sort` the
+        and the list pages -- so it cannot be the whole order on its own. With no `sort` the
         tiebreaker is the whole order, which is the arbitrary but deterministic one O5 allows.
         """
         if sort is None:
@@ -233,24 +193,6 @@ class Runs:
     def commit_is(self, value: str) -> ColumnElement[bool]:
         """I3's `commit=`, over the join `select` already makes."""
         return self._commit.c.commit == value
-
-    def page(
-        self,
-        connection: Connection,
-        conditions: Sequence[ColumnElement[bool]],
-        sort: RunSort | None,
-        limit: int,
-        cursor: str | None,
-    ) -> CursorPage[Run]:
-        """One page of runs, shared by the two lists that differ only in how they name a machine."""
-        return cursor_page(
-            connection,
-            self.select().where(*conditions),
-            self.keyset(sort),
-            limit,
-            cursor,
-            self.read,
-        )
 
     def read(self, row: Row[Any]) -> Run:
         # Not validated, like `Commits.read`: the model's validators are the rules for what a
@@ -433,8 +375,14 @@ def list_runs(
             )
         ),
     ] = None,
-    after: After = None,
-    before: Before = None,
+    after: Annotated[
+        DatetimeValue | None,
+        Query(description=f"Keep only runs submitted strictly after this instant. {_TIMESTAMP}"),
+    ] = None,
+    before: Annotated[
+        DatetimeValue | None,
+        Query(description=f"Keep only runs submitted strictly before this instant. {_TIMESTAMP}"),
+    ] = None,
     has_profiles: Annotated[
         bool | None,
         Query(
@@ -444,7 +392,15 @@ def list_runs(
             )
         ),
     ] = None,
-    sort: Sort = None,
+    sort: Annotated[
+        RunSort | None,
+        Query(
+            description=(
+                "Order by submission time, ascending (oldest first) or descending. Omit for an "
+                "arbitrary but stable order, which is the cheapest way to page through every run."
+            )
+        ),
+    ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Run]:
     """Every run in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
@@ -468,37 +424,14 @@ def list_runs(
         if has_profiles is not None:
             profiled = runs.has_profile()
             conditions.append(profiled if has_profiles else ~profiled)
-        return runs.page(connection, conditions, sort, limit, cursor)
-
-
-@machine_runs_router.get(
-    "",
-    dependencies=[require_scope(Scope.READ)],
-    summary="List a machine's runs",
-    responses=suite_responses(not_found=NO_MACHINE),
-)
-def list_machine_runs(
-    testsuite: str,
-    machine_name: str,
-    engine: EngineDep,
-    registry: RegistryDep,
-    cursor: Cursor = None,
-    after: After = None,
-    before: Before = None,
-    sort: Sort = None,
-    limit: Limit = DEFAULT_LIMIT,
-) -> CursorPage[Run]:
-    """One machine's runs (E2).
-
-    `GET /runs?machine=` answers the same question, and this is deliberately not a redirect to it:
-    the machine is part of the resource's identity here rather than a filter over the suite, which
-    is what lets the machine detail page link to it without building a query string.
-    """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        runs = Runs(suite)
-        conditions = exclusive_range(runs.table.c.submitted_at, after, before)
-        conditions.append(runs.table.c.machine_id == machine_id(connection, suite, machine_name))
-        return runs.page(connection, conditions, sort, limit, cursor)
+        return cursor_page(
+            connection,
+            runs.select().where(*conditions),
+            runs.keyset(sort),
+            limit,
+            cursor,
+            runs.read,
+        )
 
 
 @router.post(

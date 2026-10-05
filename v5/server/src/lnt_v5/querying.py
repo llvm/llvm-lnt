@@ -5,9 +5,9 @@ and sorts on is its own -- and is declared there, so that I8's document enumerat
 unknown value is a 400 before the endpoint runs.
 
 Cursor pagination (I2, O5) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
-private to any endpoint family: the commit, run, test and sample lists, `POST /query` and
-`GET /machines/{name}/runs` all page this way, and a second implementation of a keyset predicate
-would be a second chance to get the boundary conditions wrong.
+private to any endpoint family: the commit, run, test, sample and regression lists and
+`POST /query` all page this way, and a second implementation of a keyset predicate would be a second
+chance to get the boundary conditions wrong.
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def exclusive_range(
     """A range over one ordered column, strictly after and strictly before, either bound optional.
 
     I3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
-    run lists' `after=`/`before=` over `submitted_at`, and `POST /query`'s two pairs over the commit
+    run list's `after=`/`before=` over `submitted_at`, and `POST /query`'s two pairs over the commit
     ordinal and the submission time. One spelling, so that a bound cannot become inclusive in one
     place and stay exclusive in another.
     """

@@ -1058,13 +1058,13 @@ def run_at(
     return make
 
 
-def listed(api_client: TestClient, query: str = "", path: str = RUNS) -> Any:
-    return api_client.get(f"{path}?{query}")
+def listed(api_client: TestClient, query: str = "") -> Any:
+    return api_client.get(f"{RUNS}?{query}")
 
 
-def walk(api_client: TestClient, query: str = "", path: str = RUNS) -> list[str]:
+def walk(api_client: TestClient, query: str = "") -> list[str]:
     """Every run the list serves, following cursors to the end."""
-    return [item["uuid"] for item in walk_pages(api_client, path, query)]
+    return [item["uuid"] for item in walk_pages(api_client, RUNS, query)]
 
 
 class TestList:
@@ -1345,85 +1345,18 @@ class TestListPagination:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-
-class TestMachineRuns:
-    """`GET /machines/{name}/runs` (E2)."""
-
-    def path(self, machine: str = "linux") -> str:
-        return f"{MACHINES}/{machine}/runs"
-
-    def test_serves_only_that_machines_runs(
-        self, api_client: TestClient, run_at: Callable[..., str]
-    ) -> None:
-        wanted = run_at(machine="linux")
-        run_at(machine="darwin")
-
-        assert uuids_in(listed(api_client, path=self.path())) == [wanted]
-
-    def test_carries_the_same_run_object_the_suite_wide_list_does(
-        self, api_client: TestClient, run_at: Callable[..., str]
-    ) -> None:
-        run_at()
-
-        assert (
-            listed(api_client, path=self.path()).json()["items"]
-            == listed(api_client).json()["items"]
-        )
-
-    def test_sorts_and_bounds_by_submission_time(
-        self, api_client: TestClient, run_at: Callable[..., str]
-    ) -> None:
-        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
-        new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
-
-        assert uuids_in(listed(api_client, "sort=-submitted_at", self.path())) == [new, old]
-        assert uuids_in(listed(api_client, "sort=submitted_at", self.path())) == [old, new]
-        assert uuids_in(listed(api_client, "after=2023-01-01T00:00:00Z", self.path())) == [new]
-        assert uuids_in(listed(api_client, "before=2023-01-01T00:00:00Z", self.path())) == [old]
-
-    def test_pages_with_a_cursor(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
-        created = [run_at(datetime(2026, 1, day, tzinfo=UTC)) for day in range(1, 6)]
-
-        assert walk(api_client, "sort=submitted_at&limit=2", self.path()) == created
-
     def test_refuses_a_cursor_issued_for_another_machine(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        # The same table and the same order for every machine, so only the path tells the two
-        # lists apart -- through the machine id it resolves to, which the statement a cursor is
-        # scoped to binds.
-        for machine in ("linux", "linux", "linux", "darwin"):
-            run_at(machine=machine)
-        cursor = listed(api_client, "limit=2", path=self.path()).json()["cursor"]["next"]
+        # Only the machine id bound into the statement differs, and a cursor is scoped to that
+        # statement.
+        run_at(machine="darwin")
+        cursor = listed(api_client, "machine=linux&limit=2").json()["cursor"]["next"]
 
-        response = listed(api_client, f"limit=2&cursor={cursor}", path=self.path("darwin"))
+        response = listed(api_client, f"machine=darwin&limit=2&cursor={cursor}")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
-
-    def test_is_404_for_a_machine_that_is_not_there(
-        self, api_client: TestClient, suite: SuiteTables
-    ) -> None:
-        response = listed(api_client, path=self.path("nope"))
-
-        assert response.status_code == 404
-        assert code_of(response) == "not_found"
-
-    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/machines/linux/runs").status_code == 404
-
-    def test_needs_no_credential(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
-        run_at()
-
-        assert listed(api_client, path=self.path()).status_code == 200
-
-    def test_is_not_shadowed_by_the_machine_detail_route(
-        self, api_client: TestClient, run_at: Callable[..., str]
-    ) -> None:
-        # `/machines/{machine_name}` is registered first and must not swallow the sub-resource.
-        run_at()
-
-        assert "items" in listed(api_client, path=self.path()).json()
 
 
 class TestDetail:

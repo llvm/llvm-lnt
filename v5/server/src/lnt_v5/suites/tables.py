@@ -228,9 +228,9 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("submitted_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Column("run_parameters", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )
-    # D5: the leading column serves "every run for this machine", and the pair keeps both
-    # `?sort=-submitted_at` and the derived `last_run_at` to a bounded index scan rather than a
-    # scan of this table.
+    # D5: the leading column serves `GET /runs?machine=`, and the pair keeps both its
+    # `sort=-submitted_at` and the derived `last_run_at` to a bounded index scan rather than a scan
+    # of this table.
     Index(None, run.c.machine_id, run.c.submitted_at)
     # D5: the same ordering with no machine to narrow it -- the suite-wide run list's
     # `?sort=-submitted_at`, which the one above cannot serve because its leading column is absent

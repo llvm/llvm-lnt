@@ -13,7 +13,7 @@ from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.regressions import INDICATORS_PATH, REGRESSIONS_PATH
-from lnt_v5.routes.runs import MACHINE_RUNS_PATH, RUNS_PATH
+from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import DEFAULT_LAST_N, QUERY_PATH, TRENDS_PATH
@@ -577,19 +577,19 @@ class TestRunOperations:
 class TestReadOperations:
     """I8: the lists that read runs, tests and samples back."""
 
-    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
+    @pytest.mark.parametrize("path", [RUNS, TESTS_PATH, SAMPLES_PATH])
     def test_is_documented(self, client: TestClient, path: str) -> None:
         paths = client.get("/api/openapi.json").json()["paths"]
 
         assert "get" in paths[path], f"GET {path} is not in the document"
 
-    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
+    @pytest.mark.parametrize("path", [RUNS, TESTS_PATH, SAMPLES_PATH])
     @pytest.mark.parametrize("status", ["404", "409"])
     def test_documents_the_failures_endpoints_md_specifies(
         self, client: TestClient, path: str, status: str
     ) -> None:
-        # An unknown suite on every one of them (I1) -- and on three of the four, an unknown entity
-        # named by the path or by a filter as well. D2's stale reader accounts for the 409.
+        # An unknown suite on every one of them (I1), and an unknown entity named by the path or by
+        # a filter as well. D2's stale reader accounts for the 409.
         operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
 
         assert status in operation["responses"]
@@ -598,7 +598,6 @@ class TestReadOperations:
         ("path", "expected"),
         [
             (RUNS, {"search", "machine", "commit", "after", "before", "has_profiles", "sort"}),
-            (MACHINE_RUNS_PATH, {"after", "before", "sort"}),
             (TESTS_PATH, {"search", "machine", "metric"}),
             (SAMPLES_PATH, {"test"}),
         ],
@@ -619,7 +618,7 @@ class TestReadOperations:
 
         assert names == expected | templated | {"limit", "cursor"}
 
-    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
+    @pytest.mark.parametrize("path", [RUNS, TESTS_PATH, SAMPLES_PATH])
     def test_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient, path: str) -> None:
         # I2: an endpoint with unbounded results is cursor-paginated and carries no `total`, which
         # is what a client generated from this document has to be told.
@@ -633,11 +632,10 @@ class TestReadOperations:
         assert "offset" not in names
         assert set(envelope["properties"]) == {"items", "cursor"}
 
-    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH])
-    def test_the_run_lists_enumerate_their_sort_fields(self, client: TestClient, path: str) -> None:
+    def test_the_run_list_enumerates_its_sort_fields(self, client: TestClient) -> None:
         # endpoints.md names one field and both directions, so a generated client should not be
         # able to ask for a third spelling.
-        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+        operation = client.get("/api/openapi.json").json()["paths"][RUNS]["get"]
         sort = next(p for p in operation["parameters"] if p["name"] == "sort")
 
         assert set(sort["schema"]["anyOf"][0]["enum"]) == {"submitted_at", "-submitted_at"}

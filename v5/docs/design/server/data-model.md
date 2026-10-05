@@ -471,7 +471,7 @@ are given in that form.
   reflect the order in which runs became visible.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
-  `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
+  `GET /api/suites/{testsuite}/runs?machine={name}&sort=-submitted_at` and the
   `last_run_at` aggregate described under `{suite}.machine` to a bounded index
   scan rather than a scan of this table.
 - Compound index on `(submitted_at, id)`: serves
