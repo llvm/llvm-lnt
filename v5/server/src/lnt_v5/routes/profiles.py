@@ -122,11 +122,9 @@ class DocumentFunction(BaseModel):
     instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
 
 
+# Describes the response for I8 only: the endpoint encodes the document itself.
 class ProfileDocument(BaseModel):
-    """A whole profile, as the document a submission carries it in (O7), but uncompressed.
-
-    Describes the response for I8 only: the endpoint encodes the document itself.
-    """
+    """A whole profile, as the document a submission carries it in (O7), but uncompressed."""
 
     disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
     counters: dict[str, int] = Field(
@@ -344,16 +342,14 @@ def get_profile_disassembly(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> FunctionDisassembly:
-    """One function's disassembly and the counters measured along it (E7).
-
-    The connection is released before the instructions are decompressed, so that a pooled
-    connection and its open transaction are not held across the expensive part.
-    """
+    """One function's disassembly and the counters measured along it (E7)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         disassembly_format, counters, stored = Profiles(suite).disassembly(
             connection, uuid, function
         )
 
+    # The connection is released before the instructions are decompressed, so that a pooled
+    # connection and its open transaction are not held across the expensive part.
     return FunctionDisassembly(
         name=function,
         counters=counters,
@@ -375,16 +371,13 @@ def get_profile_disassembly(
 def get_profile_document(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> Response:
-    """The whole profile in one response, as the profile document a submission carries (E7).
-
-    Encoded with msgspec rather than through the response model, for the reason
-    `suites.profile_document` parses with it: a profile can hold hundreds of thousands of
-    instructions. As for the disassembly, the connection is released before anything is
-    decompressed.
-    """
+    """The whole profile in one response, as the profile document a submission carries (E7)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         disassembly_format, counters, functions = Profiles(suite).document(connection, uuid)
 
-    # A memoryview is sent as it is, where `bytes` would copy a document of up to O7's 32 MiB.
+    # As for the disassembly, the connection is released before anything is decompressed. Encoded
+    # with msgspec rather than through the response model, for the reason `suites.profile_document`
+    # parses with it: a profile can hold hundreds of thousands of instructions. A memoryview is sent
+    # as it is, where `bytes` would copy a document of up to O7's 32 MiB.
     document = memoryview(document_json(disassembly_format, counters, functions))
     return Response(document, media_type="application/json")
