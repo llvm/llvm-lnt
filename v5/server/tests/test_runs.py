@@ -782,7 +782,7 @@ class TestSamples:
     def test_costs_one_insert_however_many_samples_there_are(
         self, submitted: Callable[..., Any]
     ) -> None:
-        """O8's cost guarantee for the sample set, which the rows alone cannot show.
+        """The sample set's counterpart to O8's fixed round trips, which the rows alone cannot show.
 
         A statement per row stores exactly the same 1 000 samples as one executemany does, and
         passes every other test here while making a submission's cost linear in round trips. So
@@ -1089,8 +1089,8 @@ class TestList:
     def test_is_ordered_deterministically_by_default(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        # I2: no `sort` is an arbitrary order, so only its determinism is promised -- two walks,
-        # paging at different boundaries, see the same runs in the same order.
+        # E4: no `sort` is an arbitrary order (O5), so only its determinism is promised -- two
+        # walks, paging at different boundaries, see the same runs in the same order.
         created = {run_at(datetime(year, 1, 1, tzinfo=UTC)) for year in (2020, 2026, 2023)}
 
         first = walk(api_client, "limit=1")

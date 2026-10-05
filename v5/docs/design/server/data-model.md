@@ -82,7 +82,7 @@ report a conflict (409) rather than a 500.
 lists can be changed after creation via `PATCH /api/suites/{name}/schema`, which
 adds, updates, and/or removes entries in any of the three. This is the only way a
 suite comes to accept metadata it did not declare at creation: undeclared keys are
-rejected on submission for both machines and commits (see O1).
+rejected on submission for both machines and commits (see O2).
 
 - **Adding** an entry leaves existing rows with no value for it.
 - Only presentation metadata can be **updated**: whichever of
@@ -580,7 +580,7 @@ The DB layer validates state values on create and update.
 | uuid | VARCHAR(36) | unique, not null |
 | run_id | INTEGER FK -> Run | not null |
 | test_id | INTEGER FK -> Test | not null, indexed |
-| created_at | TIMESTAMP WITH TIME ZONE | not null |
+| created_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | disassembly_format | TEXT | not null |
 | counters | JSONB | not null |
 

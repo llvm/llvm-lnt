@@ -595,7 +595,7 @@ class TestIndicatorFilters:
     def test_metric_is_400_for_one_the_schema_does_not_declare(
         self, api_client: TestClient
     ) -> None:
-        # I3's third answer: a metric is a column rather than a row.
+        # I3's first answer: a metric is a column rather than a row.
         response = listed(api_client, "metric=nope")
 
         assert response.status_code == 400

@@ -48,8 +48,8 @@ class TestUpgrade:
         with empty_engine.connect() as connection:
             rows = connection.execute(text("SELECT id, version FROM schema_version")).all()
 
-        # D5 lets every reader address this row directly, which is only safe because it exists
-        # from the moment the database does.
+        # D5 lets every reader address this row directly, which is only safe because D6 has it
+        # exist from the moment the database does.
         assert [tuple(row) for row in rows] == [(SCHEMA_VERSION_ID, 0)]
 
     def test_reports_the_revision_it_moved_to(self, empty_engine: Engine) -> None:

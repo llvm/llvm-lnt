@@ -319,7 +319,7 @@ class TestBatchResolution:
     def test_costs_the_same_statements_for_ten_names_as_for_ten_thousand(
         self, db_engine: Engine, suite: Suite
     ) -> None:
-        """O8: a fixed number of round trips, "not a statement per name, nor one per chunk".
+        """O8: a fixed number of round trips, however many names a submission carries.
 
         The guarantee no assertion about stored rows can see. A loop over names, or a chunked
         insert, produces exactly the same `{suite}.test` table and passes every other test in this
