@@ -28,9 +28,9 @@ from .scopes import Scope
 # Deterministic names for every constraint and index, rather than whatever Postgres would invent.
 # Two things rest on this. Alembic needs stable names to emit migrations that can be reversed.
 # More importantly, O8 recovers from a unique-constraint violation by *attributing* it: a run
-# submission that trips one has to answer `duplicate` for a repeated run UUID but
-# `ordinal_conflict` for a taken ordinal (I4), and at the point the error surfaces the
-# constraint's name is the only thing that tells those apart.
+# submission that trips one has to answer `duplicate` for a repeated run UUID but `conflict` for a
+# taken ordinal (I4), and at the point the error surfaces the constraint's name is the only thing
+# that tells those apart.
 #
 # Because per-suite tables live in a schema of their own (D5), a name composed from a table and its
 # columns never contains a suite name, so every name in the instance is fixed by this file and the

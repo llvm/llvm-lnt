@@ -1331,14 +1331,14 @@ class TestCascades:
         create: Callable[..., Any],
         data: None,
     ) -> None:
-        # endpoints.md answers I4's `in_use`, which tells the caller to detach the regression
+        # endpoints.md answers I4's `conflict`, which tells the caller to detach the regression
         # rather than to retry.
         create(commit="abc123")
 
         response = api_client.delete(f"{COMMITS}/abc123", headers=manage)
 
         assert response.status_code == 409
-        assert code_of(response) == "in_use"
+        assert code_of(response) == "conflict"
 
     def test_the_commit_goes_once_the_regression_lets_go_of_it(
         self,

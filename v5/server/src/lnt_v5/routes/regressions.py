@@ -529,7 +529,7 @@ class Regressions:
         Every machine, test and metric is then resolved in one statement each rather than one per
         indicator, which is what keeps a batch of a thousand from costing three thousand round
         trips. A metric the schema declares but `{suite}.metric` does not hold was removed by
-        another worker since this one last loaded the schema, which is D2's retryable conflict.
+        another worker since this one last loaded the schema, which is D2's retryable 409.
 
         Duplicates within the batch are collapsed here, before the insert: D5's unique constraint
         would ignore them anyway, but only after they had been counted as added.
@@ -570,7 +570,7 @@ class Regressions:
         that true under two triagers adding the same indicator at once.
 
         A metric removed after `resolved_indicators` found it fails the foreign key rather than
-        leaving an indicator naming a metric that is gone (D5), and is D2's retryable conflict. A
+        leaving an indicator naming a metric that is gone (D5), and is D2's retryable 409. A
         machine deleted in that window fails its own foreign key, and is the 404 an absent machine
         always is: the request names a machine that is no longer there. Nothing deletes a test, so
         its foreign key cannot fail this way.
@@ -589,7 +589,7 @@ class Regressions:
         with (
             reporting_violation(
                 REGRESSION_INDICATOR_METRIC_CONSTRAINT,
-                ErrorCode.CONFLICT,
+                ErrorCode.RETRY,
                 schema_changed(self.schema.name).message,
             ),
             reporting_violation(

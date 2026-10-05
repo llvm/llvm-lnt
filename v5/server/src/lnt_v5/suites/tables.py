@@ -68,7 +68,7 @@ COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
 # Not a unique constraint but a foreign key, violated from either side. Deleting a commit that a
-# regression references is refused, since D5 makes that commit undeletable (I4's `in_use`).
+# regression references is refused, since D5 makes that commit undeletable (I4's `conflict`).
 # Storing a reference to a commit deleted after the request resolved it is a 404: it is no longer
 # there.
 REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
@@ -77,7 +77,7 @@ REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
 # because the convention would compose it from all four columns, past PostgreSQL's 63-byte limit.
 REGRESSION_INDICATOR_CONSTRAINT = "uq_regression_indicator_combination"
 # An indicator's reference to its metric. A violation means the metric was removed while the request
-# was running, which D2 answers with a retryable conflict.
+# was running, which D2 answers with I4's `retry`.
 REGRESSION_INDICATOR_METRIC_CONSTRAINT = "fk_regression_indicator_metric_id_metric"
 # An indicator's reference to its machine. A violation means the machine was deleted after the
 # request resolved it, which leaves the request naming a machine that is not there: a 404.
@@ -286,7 +286,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("state", Integer, nullable=False, index=True),
         # No cascade, and deliberately not nullable-on-delete either: D5 makes a commit referenced
         # by a regression undeletable, and this constraint is what produces that refusal -- which
-        # the API reports as `in_use` (I4).
+        # the API reports as `conflict` (I4).
         Column("commit_id", ForeignKey("commit.id"), nullable=True, index=True),
         # D5 has the database layer validate the state. Restating it as a constraint costs nothing
         # -- the five values are fixed for v5 -- and in exchange a bug that writes an unknown state

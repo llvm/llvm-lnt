@@ -33,10 +33,12 @@ def _error(description: str) -> dict[str, Any]:
     }
 
 
-# Worded from I5. The 400 covers both of the ways an operation reaches it: an unreadable
-# Authorization header, and a body or parameter that fails validation.
-_BAD_REQUEST = _error("The request, or its Authorization header, is malformed.")
-_UNAUTHORIZED = _error("No API key was presented, or the one presented is unknown or revoked.")
+_BAD_REQUEST = _error("The request is malformed, or fails validation.")
+# Worded from I5.
+_UNAUTHORIZED = _error(
+    "No API key was presented, the Authorization header carries no usable Bearer credential, or "
+    "the key presented is unknown or revoked."
+)
 _FORBIDDEN = _error("The API key is valid but does not grant the scope this endpoint requires.")
 
 
@@ -89,17 +91,15 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
     for path, operations in document.get("paths", {}).items():
         for method, operation in operations.items():
             responses = operation.setdefault("responses", {})
-            validation_failure = responses.pop("422", None)
+            if responses.pop("422", None) is not None:
+                responses.setdefault("400", _BAD_REQUEST)
 
             scope = scopes.get((path, method))
             if scope is not None:
-                responses.setdefault("400", _BAD_REQUEST)
                 responses.setdefault("401", _UNAUTHORIZED)
                 # A read-scoped operation can never answer 403: every valid key grants `read`.
                 if scope is not Scope.READ:
                     responses.setdefault("403", _FORBIDDEN)
-            elif validation_failure is not None:
-                responses.setdefault("400", _BAD_REQUEST)
 
     _drop_unreferenced_validation_schemas(document)
 

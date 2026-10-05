@@ -49,7 +49,7 @@ Confirm = Annotated[
 
 _NOT_FOUND = {"model": ErrorEnvelope, "description": SUITE_NOT_FOUND}
 # Every write can answer this: the suite was busy and the change could not take its locks (D2).
-_BUSY = "The suite is busy and the change should be retried."
+_BUSY = "`retry`: the suite is busy, and the change could not take the locks it needs."
 
 
 def _confirmed(confirm: bool, what: str) -> None:
@@ -75,7 +75,11 @@ def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Create a test suite",
     responses={
-        409: {"model": ErrorEnvelope, "description": f"A suite with that name exists. {_BUSY}"}
+        409: {
+            "model": ErrorEnvelope,
+            "description": "`duplicate`: a suite with that name exists. `conflict`: a database "
+            f"namespace with that name exists although no suite does. {_BUSY}",
+        }
     },
 )
 def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> SuiteSchema:
@@ -131,7 +135,7 @@ def get_suite(name: str, engine: EngineDep, registry: RegistryDep) -> SuiteSchem
         },
         409: {
             "model": ErrorEnvelope,
-            "description": f"An entry to add is already there. {_BUSY}",
+            "description": f"`duplicate`: an entry to add is already in its list. {_BUSY}",
         },
     },
 )

@@ -508,8 +508,9 @@ def list_machine_runs(
     summary="Submit a run",
     responses=suite_responses(
         conflict=(
-            "A run with that UUID already exists, the submission contradicts stored machine or "
-            f"commit metadata, or the ordinal it supplies is taken. {SUITE_SCHEMA_CHANGED}"
+            "`duplicate`: a run with that UUID already exists. `conflict`: the submission "
+            "contradicts stored machine or commit metadata, or the ordinal it supplies is held by "
+            f"another commit. {SUITE_SCHEMA_CHANGED}"
         )
     ),
 )

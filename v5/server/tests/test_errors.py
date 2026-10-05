@@ -12,7 +12,7 @@ from lnt_v5.config import Settings
 from lnt_v5.errors import ErrorCode, error_response, register_error_handlers
 
 # The statuses I4 permits a REST API response to carry.
-I4_STATUSES = {200, 201, 204, 400, 401, 403, 404, 409, 500}
+I4_STATUSES = {200, 201, 204, 400, 401, 403, 404, 405, 409, 500}
 
 
 class Body(BaseModel):
@@ -54,11 +54,9 @@ class TestErrorCodes:
     def test_every_code_is_served_with_a_permitted_status(self, code: ErrorCode) -> None:
         assert error_response(code, "message").status_code in I4_STATUSES
 
-    @pytest.mark.parametrize(
-        "code", [ErrorCode.DUPLICATE, ErrorCode.ORDINAL_CONFLICT, ErrorCode.IN_USE]
-    )
+    @pytest.mark.parametrize("code", [ErrorCode.DUPLICATE, ErrorCode.RETRY])
     def test_the_409_family_stays_distinguishable(self, code: ErrorCode) -> None:
-        # The point of the code/status split: I4 serves four codes as 409, and choosing 409 must
+        # The point of the code/status split: I4 serves three codes as 409, and choosing 409 must
         # not flatten them to `conflict`.
         response = error_response(code, "nope")
 
@@ -74,13 +72,16 @@ def test_http_exceptions_use_the_error_envelope(handlers_client: TestClient) -> 
     assert response.json()["error"]["message"] == "Machine 'foo' not found"
 
 
-def test_a_method_mismatch_becomes_404_rather_than_405(handlers_client: TestClient) -> None:
-    # I4 permits 200, 201, 204, 400, 401, 403, 404, 409 and 500. Starlette's default 405 is not
-    # in that set.
-    response = handlers_client.post("/missing")
+def test_a_body_that_is_not_utf8_is_400_rather_than_500(handlers_client: TestClient) -> None:
+    # FastAPI answers this itself, with an HTTPException(400) the handler once turned into a 500.
+    response = handlers_client.post(
+        "/validated",
+        content=b'{"count": "\xff"}',
+        headers={"content-type": "application/json"},
+    )
 
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "not_found"
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
 
 
 def test_request_validation_becomes_400_rather_than_422(handlers_client: TestClient) -> None:
@@ -88,6 +89,17 @@ def test_request_validation_becomes_400_rather_than_422(handlers_client: TestCli
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_starlettes_own_405_becomes_the_envelope_rather_than_500(
+    handlers_client: TestClient,
+) -> None:
+    # The SPA mount hides Starlette's 405 in the assembled app; without it, it reaches the handler.
+    response = handlers_client.post("/boom")
+
+    assert response.status_code == 405
+    assert response.json()["error"]["code"] == "method_not_allowed"
+    assert response.headers["allow"] == "GET"
 
 
 def test_an_unhandled_exception_becomes_500_without_leaking_a_traceback(
@@ -144,3 +156,55 @@ class TestApplicationWiring:
             assert response.status_code == 404
         else:
             assert "<title>LNT</title>" in response.text
+
+    @pytest.mark.parametrize(
+        ("method", "path", "allowed"),
+        [
+            # Two routes serve this path; RFC 9110 has `Allow` name both, where Starlette's own 405
+            # would name only whichever matched first.
+            ("put", "/api/suites", "GET, POST"),
+            ("delete", "/api/suites/nts/runs", "GET, POST"),
+        ],
+    )
+    def test_a_method_mismatch_on_the_api_is_405_naming_every_allowed_method(
+        self, client: TestClient, method: str, path: str, allowed: str
+    ) -> None:
+        response = client.request(method.upper(), path)
+
+        assert response.status_code == 405
+        assert response.json()["error"]["code"] == "method_not_allowed"
+        assert response.headers["allow"] == allowed
+
+    @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
+    def test_a_method_mismatch_outside_the_api_stays_404(
+        self, client: TestClient, path: str
+    ) -> None:
+        # I4's 405 is for the API alone; elsewhere a mismatch is a miss like any other.
+        response = client.post(path)
+
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+        assert "allow" not in response.headers
+
+    def test_an_api_path_that_misses_only_once_normalized_stays_404(
+        self, client: TestClient
+    ) -> None:
+        # StaticFiles normalizes the path it is handed; matched against that, GET would get a 405
+        # whose `Allow` names GET.
+        response = client.get("/api//suites")
+
+        assert response.status_code == 404
+        assert "allow" not in response.headers
+
+    def test_head_on_an_api_path_stays_404(self, client: TestClient) -> None:
+        # No API endpoint serves HEAD; a 405 would refuse it on a path that serves GET.
+        response = client.head("/api/suites")
+
+        assert response.status_code == 404
+        assert "allow" not in response.headers
+
+    def test_an_api_path_no_route_serves_stays_404(self, client: TestClient) -> None:
+        response = client.put("/api/nothing-here")
+
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"

@@ -153,9 +153,8 @@ schema change does not break producers that do not send it yet.
 
 A key the submission sends fills in the value if the record has none, and is
 accepted if it equals the stored value. Any other value rejects the submission
-with 409 (`ordinal_conflict` for a commit's `ordinal`, `conflict` otherwise; see
-I4): stored metadata is never overwritten, and `PATCH` is the only way to change
-it.
+with 409 `conflict` (see I4): stored metadata is never overwritten, and `PATCH`
+is the only way to change it.
 
 Per-entity specifics:
 
@@ -358,7 +357,7 @@ implementation must guarantee that:
 
 The payload should be validated outside the write transaction, so that reading
 a large submission does not hold a connection and an open transaction. A schema
-change between validation and the write is then answered with D2's 409.
+change between validation and the write is then answered with D2's retryable 409 (`retry`).
 
 With PostgreSQL, this is achieved as follows:
 

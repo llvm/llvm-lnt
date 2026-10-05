@@ -23,13 +23,14 @@ expect_status 401
 expect_body '"code":"unauthorized"'
 
 # I5: a 401 says which scheme the caller should have used. Read off a GET rather than a HEAD --
-# FastAPI routes only the methods an endpoint declares, so HEAD is a miss like any other.
+# no API endpoint serves HEAD, which I4 answers with 404.
 expect_header WWW-Authenticate 'Bearer'
 
-echo "  a malformed credential is told apart from a rejected one"
+echo "  an unusable credential is refused rather than ignored, even on a read"
 request -H 'Authorization: Basic zzz' "$INDEX"
-expect_status 400
-expect_body '"code":"invalid_request"'
+expect_status 401
+expect_body '"code":"unauthorized"'
+expect_header WWW-Authenticate 'Bearer'
 
 request -H "Authorization: Bearer $(printf 'f%.0s' {1..64})" "$INDEX"
 expect_status 401

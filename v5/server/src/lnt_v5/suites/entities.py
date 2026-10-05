@@ -100,8 +100,17 @@ def utc(value: datetime) -> datetime:
 
     Shared with the `after=`/`before=` filters (I3), which compare against a `timestamptz` column
     and so must not hand PostgreSQL a naive value for the session's time zone to interpret.
+
+    A timestamp at the very edge of the representable range can fall outside it once moved to UTC,
+    and `astimezone` reports that as an `OverflowError`. Turned into a `ValueError` so that it is a
+    validation failure -- a 400 -- rather than an exception that escapes validation as a 500.
     """
-    return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    try:
+        return value.astimezone(UTC)
+    except OverflowError:
+        raise ValueError("timestamp is out of range once converted to UTC") from None
 
 
 # D3's `integer`, as a reusable annotation: strict, so `"5"` and `true` are not integers, but
@@ -341,9 +350,9 @@ def validate_fields(
 
 # The 409 an entity answers when a submitted value contradicts the one it already holds, built from
 # the key, the stored value and the submitted one. A callback rather than a return value because the
-# code and the wording are the entity's -- I4 gives a contradicted field `conflict` and a
-# contradicted ordinal `ordinal_conflict` -- while the rule that decides *whether* there is a
-# contradiction is O2's and is the same for both.
+# wording is the entity's -- it names the machine or the commit, and a commit words a contradicted
+# ordinal differently -- while the rule that decides *whether* there is a contradiction is O2's and
+# is the same for both.
 Contradiction = Callable[[str, Any, Any], ApiError]
 
 

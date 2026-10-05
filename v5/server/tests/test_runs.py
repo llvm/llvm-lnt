@@ -565,7 +565,7 @@ class TestOrdinal:
         response = submit(commit={"value": "abc123", "ordinal": 43})
 
         assert response.status_code == 409
-        assert code_of(response) == "ordinal_conflict"
+        assert code_of(response) == "conflict"
         assert api_client.get(f"{COMMITS}/abc123").json()["ordinal"] == 42
 
     def test_refuses_an_ordinal_another_commit_holds(self, submit: Callable[..., Any]) -> None:
@@ -574,7 +574,7 @@ class TestOrdinal:
         response = submit(commit={"value": "def456", "ordinal": 42})
 
         assert response.status_code == 409
-        assert code_of(response) == "ordinal_conflict"
+        assert code_of(response) == "conflict"
 
     def test_an_omitted_ordinal_never_contradicts(
         self, api_client: TestClient, submitted: Callable[..., Any]
@@ -965,7 +965,7 @@ class TestAtomicity:
 
     def test_the_submission_is_refused(self, failed_halfway: Any) -> None:
         assert failed_halfway.status_code == 409
-        assert code_of(failed_halfway) == "ordinal_conflict"
+        assert code_of(failed_halfway) == "conflict"
 
     @pytest.mark.usefixtures("failed_halfway")
     @pytest.mark.parametrize("table", ["machine", "run", "test", "sample", "profile"])
@@ -1222,6 +1222,17 @@ class TestListFilters:
     ) -> None:
         # D3 gives a timestamp one wire form and is explicit that a string holding a number is not
         # it: read as a Unix epoch, `after=0` would silently mean 1970 rather than being refused.
+        response = listed(api_client, f"after={bound}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize("bound", ["0001-01-01T00:00:00%2B01:00", "9999-12-31T23:59:59-01:00"])
+    def test_refuses_a_bound_out_of_range_in_utc(
+        self, api_client: TestClient, suite: SuiteTables, bound: str
+    ) -> None:
+        # Valid ISO 8601, but outside the representable range once converted to UTC, which once
+        # escaped validation as a 500.
         response = listed(api_client, f"after={bound}")
 
         assert response.status_code == 400
@@ -1567,7 +1578,7 @@ class TestSchemaChangedUnderneath:
 
     def test_a_submission_is_a_retryable_conflict(self, after_the_column_vanished: Any) -> None:
         assert after_the_column_vanished.status_code == 409
-        assert code_of(after_the_column_vanished) == "conflict"
+        assert code_of(after_the_column_vanished) == "retry"
 
     @pytest.mark.usefixtures("after_the_column_vanished")
     @pytest.mark.parametrize("table", ["run", "machine", "commit", "sample"])
@@ -1618,7 +1629,7 @@ class TestSchemaChangedUnderneath:
         )
 
         assert response.status_code == 409, response.text
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
 
 class TestAuthorization:

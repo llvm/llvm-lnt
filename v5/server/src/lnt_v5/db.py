@@ -113,11 +113,11 @@ def violated_constraint(error: DBAPIError) -> str | None:
     """The name of the constraint an integrity error tripped, or None if that is not what it was.
 
     Attributing a violation is how a caller decides what to do about it, and I4 gives different
-    answers to different constraints: a repeated machine name is `duplicate`, a taken ordinal is
-    `ordinal_conflict`, and a commit a regression still references is `in_use` -- that last one a
-    foreign key rather than a unique constraint, which is why this is not limited to unique
-    violations. The name is only dependable because every constraint has one we chose; see
-    NAMING_CONVENTION in tables.py.
+    answers to different constraints: a repeated machine name is `duplicate`, whereas a taken
+    ordinal and a commit a regression still references are `conflict` -- that last one a foreign key
+    rather than a unique constraint, which is why this is not limited to unique violations. The name
+    is only dependable because every constraint has one we chose; see NAMING_CONVENTION in
+    tables.py.
     """
     if not isinstance(error.orig, IntegrityViolation):
         return None
@@ -144,7 +144,7 @@ def reporting_violation(constraint: str, code: ErrorCode, message: str) -> Itera
     constraint's 409 and the caller would retry forever against a different problem.
 
     The code is the caller's because I4 gives different 409s to different constraints -- a repeated
-    machine name is `duplicate`, a taken ordinal is `ordinal_conflict`.
+    machine name is `duplicate`, a taken ordinal is `conflict`.
     """
     try:
         yield

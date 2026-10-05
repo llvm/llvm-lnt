@@ -154,7 +154,7 @@ class TestReadingErrors:
     def test_names_the_unique_constraint_that_was_violated(
         self, db: Connection, insert_key: Callable[..., None]
     ) -> None:
-        # The distinction I4 turns into `duplicate` versus `ordinal_conflict`, and the one
+        # The distinction I4 turns into `duplicate` versus `conflict`, and the one
         # create_key reads to decide whether to retry.
         insert_key()
 

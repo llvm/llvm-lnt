@@ -48,7 +48,7 @@ def summarize(metrics: Sequence[Metric], tests: Sequence[SubmittedTest]) -> list
 def add(connection: Connection, suite: Suite, run_id: int, summaries: Sequence[Summary]) -> None:
     """Store a newly submitted run's summaries, as `summarize` computed them.
 
-    A metric removed since the payload was validated is D2's retryable conflict, which the sample
+    A metric removed since the payload was validated is D2's retryable 409, which the sample
     insert before this already reports.
     """
     if not summaries:

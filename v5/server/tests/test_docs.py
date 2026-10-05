@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -35,13 +36,41 @@ class TestOpenApiDocument:
     def test_describes_only_permitted_statuses(self, client: TestClient) -> None:
         # I8: the document must not advertise a response the API cannot produce. FastAPI adds a
         # 422 to every operation taking a body or parameters, which I4 does not permit and which
-        # the error handlers turn into a 400.
+        # the error handlers turn into a 400. I4 also permits 405, but I8 lists it on no operation:
+        # it answers a method for which no operation exists.
         i4_statuses = {"200", "201", "204", "400", "401", "403", "404", "409", "500"}
 
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():
             for method, operation in operations.items():
                 extra = set(operation.get("responses", {})) - i4_statuses
                 assert not extra, f"{method.upper()} {path} documents {sorted(extra)}"
+
+    def test_every_409_names_the_codes_it_carries(self, client: TestClient) -> None:
+        """Each operation's 409 names, in backticks, exactly the I4 codes endpoints.md gives it.
+
+        OpenAPI keys responses by status alone, so an operation's 409 cases share one description,
+        and the code is the only thing a client can branch on. Every suite-scoped operation can
+        answer `retry` (D2); the writes listed here add cases of their own.
+        """
+        beyond_retry = {
+            ("/api/suites", "post"): {"duplicate", "conflict"},
+            ("/api/suites/{name}/schema", "patch"): {"duplicate"},
+            (MACHINES_PATH, "post"): {"duplicate"},
+            (f"{MACHINES_PATH}/{{machine_name}}", "patch"): {"duplicate"},
+            (COMMITS_PATH, "post"): {"duplicate", "conflict"},
+            (f"{COMMITS_PATH}/{{value}}", "patch"): {"conflict"},
+            (f"{COMMITS_PATH}/{{value}}", "delete"): {"conflict"},
+            (RUNS_PATH, "post"): {"duplicate", "conflict"},
+        }
+
+        for path, operations in client.get("/api/openapi.json").json()["paths"].items():
+            for method, operation in operations.items():
+                response = operation["responses"].get("409")
+                if response is None:
+                    continue
+                named = set(re.findall(r"`([a-z_]+)`", response["description"]))
+                expected = {"retry"} | beyond_retry.get((path, method), set())
+                assert named == expected, f"{method.upper()} {path}"
 
     @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
     def test_excludes_the_routes_outside_the_rest_api(self, client: TestClient, path: str) -> None:
@@ -122,16 +151,22 @@ class TestDocumentedAuthentication:
                 assert operation.get("security") == [{"ApiKey": []}], f"{method.upper()} {path}"
 
     def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
-        # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.
+        # Every valid key grants `read`, so a read-scoped operation has no way to answer 403. Nor
+        # can this one answer 400: it takes nothing to validate, and I5 answers an unusable
+        # Authorization header with 401.
         index = client.get("/api/openapi.json").json()["paths"]["/api"]["get"]
 
-        assert {"400", "401"} <= set(index["responses"])
+        assert "401" in index["responses"]
+        assert "400" not in index["responses"]
         assert "403" not in index["responses"]
 
     def test_an_operation_above_read_can_be_forbidden(self, client: TestClient) -> None:
-        keys = client.get("/api/openapi.json").json()["paths"]["/api/admin/api-keys"]["get"]
+        keys = client.get("/api/openapi.json").json()["paths"]["/api/admin/api-keys"]
 
-        assert {"400", "401", "403"} <= set(keys["responses"])
+        assert {"401", "403"} <= set(keys["get"]["responses"])
+        # Only an operation with something to validate documents the 400 its validation answers.
+        assert "400" not in keys["get"]["responses"]
+        assert "400" in keys["post"]["responses"]
 
 
 class TestSuiteOperations:

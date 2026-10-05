@@ -50,6 +50,8 @@ class ApiKeyCreated(ApiKey):
 
 
 class ApiKeyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: Annotated[str, Storable] = Field(
         min_length=1,
         max_length=KEY_NAME_MAX_LENGTH,

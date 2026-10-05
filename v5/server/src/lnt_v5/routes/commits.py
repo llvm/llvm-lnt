@@ -7,9 +7,9 @@ attribute `value`, the built-in `ordinal` and `tag`, and a `fields` dict of decl
 with everything else that writes one; only the response models are here.
 
 Three things here are specific to commits. `ordinal` is unique within the suite (O6), so a write
-that would give two commits the same one answers I4's `ordinal_conflict` rather than the generic
-`conflict` -- a distinction I4 draws deliberately, because a caller cannot recover from it by
-retrying. `previous`/`next` on the detail response are computed by asking for the nearest ordinal in
+that would give two commits the same one is refused with I4's `conflict` rather than failing in the
+database -- every write path that can set an ordinal attributes `uq_commit_ordinal` for that.
+`previous`/`next` on the detail response are computed by asking for the nearest ordinal in
 each direction, never by following a stored link (O6). And this list is the first cursor-paginated
 one: see `querying.Keyset` for the mechanism, which the run, test and time-series lists will share.
 """
@@ -92,7 +92,9 @@ CommitSort = Literal["ordinal", "-ordinal"]
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
 _NO_COMMIT = f"{SUITE_NOT_FOUND} Or no commit in it has that value."
-_ORDINAL_TAKEN = f"The ordinal is already held by another commit. {SUITE_SCHEMA_CHANGED}"
+_ORDINAL_TAKEN = (
+    f"`conflict`: the ordinal is already held by another commit. {SUITE_SCHEMA_CHANGED}"
+)
 
 
 class Commit(CommitObject):
@@ -299,7 +301,7 @@ class Commits:
             f"'{self.schema.name}'"
         )
 
-    def in_use(self, value: str) -> str:
+    def referenced(self, value: str) -> str:
         return (
             f"Commit '{value}' is referenced by a regression in test suite "
             f"'{self.schema.name}' and cannot be deleted until that reference is removed"
@@ -310,16 +312,14 @@ class Commits:
 
         `ordinal` and `tag` are reconciled exactly as a declared field is -- O2 says so, because
         both are nullable and describe the commit rather than being a policy flag: each is set when
-        the commit has none, left alone when it already equals the submitted one, and refused when
-        it differs. What the ordinal does not share is the code: I4 answers a contradicted ordinal
-        with `ordinal_conflict`, which it splits out because a client cannot recover from it by
-        retrying. A contradicted tag is the generic `conflict`, like a field.
+        the commit has none, left alone when it already equals the submitted one, and refused with
+        I4's `conflict` when it differs.
 
         `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
         and that placement is load-bearing. The INSERT can trip it -- another commit already holds
         the ordinal -- in which case the get-or-create re-raises rather than treating it as a lost
-        race, and this is what turns the re-raise into I4's 409 instead of a 500. The UPDATE that
-        fills in a NULL ordinal can equally lose that race to a commit created since.
+        race, and this is what turns the re-raise into I4's `conflict` instead of a 500. The UPDATE
+        that fills in a NULL ordinal can equally lose that race to a commit created since.
         """
         # O2: only what the submission sends is matched, so the ordinal and the tag join the fields
         # exactly when each was sent. An omitted one is neither compared nor written, and can never
@@ -330,7 +330,7 @@ class Commits:
 
         with reporting_violation(
             COMMIT_ORDINAL_CONSTRAINT,
-            ErrorCode.ORDINAL_CONFLICT,
+            ErrorCode.CONFLICT,
             self.ordinal_taken(submitted.ordinal),
         ):
             return create_or_reconcile(
@@ -343,13 +343,11 @@ class Commits:
             )
 
     def _contradicted(self, value: str) -> Contradiction:
-        """The 409 for a submitted value that disagrees with the stored one (O2, O6).
+        """I4's `conflict` for a submitted value that disagrees with the stored one (O2, O6).
 
-        Two codes from one rule, which is why this branches on the key rather than being two
-        functions: I4 gives a contradicted field the generic `conflict`, and a contradicted ordinal
-        `ordinal_conflict`, because the second tells the client its view of the commit order is
-        wrong and that retrying cannot help. Both name the stored value and the submitted one, so
-        that a submitter can fix its configuration without reading the database.
+        Both messages name the stored value and the submitted one, so that a submitter can fix its
+        configuration without reading the database. The ordinal gets wording of its own, because
+        moving a commit in the order is the change a submitter most needs telling how to make.
 
         The branch is unambiguous because D5 forbids a `commit_field` from taking a built-in
         column's name, so `ordinal` here is always the built-in attribute and never a declared one.
@@ -357,18 +355,18 @@ class Commits:
 
         def error(key: str, stored: Any, submitted: Any) -> ApiError:
             if key == "ordinal":
-                return ApiError(
-                    ErrorCode.ORDINAL_CONFLICT,
+                message = (
                     f"Commit '{value}' in test suite '{self.schema.name}' is already at ordinal "
                     f"{stored}, but this submission places it at {submitted}. Use PATCH to move a "
-                    f"commit once its ordinal is set.",
+                    f"commit once its ordinal is set."
                 )
-            return ApiError(
-                ErrorCode.CONFLICT,
-                f"Commit '{value}' in test suite '{self.schema.name}' already has "
-                f"{key}={stored!r}, but this submission says {submitted!r}. A submission never "
-                f"overwrites stored metadata; use PATCH to change it.",
-            )
+            else:
+                message = (
+                    f"Commit '{value}' in test suite '{self.schema.name}' already has "
+                    f"{key}={stored!r}, but this submission says {submitted!r}. A submission never "
+                    f"overwrites stored metadata; use PATCH to change it."
+                )
+            return ApiError(ErrorCode.CONFLICT, message)
 
         return error
 
@@ -505,7 +503,7 @@ def list_commits(
     dependencies=[require_scope(Scope.SUBMIT)],
     summary="Create a commit",
     responses=suite_responses(
-        conflict=f"A commit with that value already exists. {_ORDINAL_TAKEN}"
+        conflict=f"`duplicate`: a commit with that value already exists. {_ORDINAL_TAKEN}"
     ),
 )
 def create_commit(
@@ -529,7 +527,7 @@ def create_commit(
             ),
             reporting_violation(
                 COMMIT_ORDINAL_CONSTRAINT,
-                ErrorCode.ORDINAL_CONFLICT,
+                ErrorCode.CONFLICT,
                 commits.ordinal_taken(body.ordinal),
             ),
         ):
@@ -621,7 +619,7 @@ def update_commit(
         if values:
             with reporting_violation(
                 COMMIT_ORDINAL_CONSTRAINT,
-                ErrorCode.ORDINAL_CONFLICT,
+                ErrorCode.CONFLICT,
                 commits.ordinal_taken(values.get("ordinal")),
             ):
                 changed = connection.execute(
@@ -639,7 +637,7 @@ def update_commit(
     summary="Delete a commit",
     responses=suite_responses(
         not_found=_NO_COMMIT,
-        conflict=f"A regression references this commit. {SUITE_SCHEMA_CHANGED}",
+        conflict=f"`conflict`: a regression references this commit. {SUITE_SCHEMA_CHANGED}",
     ),
 )
 def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: RegistryDep) -> None:
@@ -647,13 +645,13 @@ def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: Regis
 
     One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their
     samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has no
-    cascade, so a commit a regression still names refuses to go -- reported as I4's `in_use`, which
-    tells the caller to detach the regression rather than to retry.
+    cascade, so a commit a regression still names refuses to go -- reported as I4's `conflict`:
+    the caller has to detach the regression, and retrying as sent cannot help.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         with reporting_violation(
-            REGRESSION_COMMIT_CONSTRAINT, ErrorCode.IN_USE, commits.in_use(value)
+            REGRESSION_COMMIT_CONSTRAINT, ErrorCode.CONFLICT, commits.referenced(value)
         ):
             removed = connection.execute(
                 delete(commits.table).where(commits.table.c.commit == value)

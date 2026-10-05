@@ -577,7 +577,7 @@ class TestInstructionsAreReadOnlyByTheDisassembly:
         response = api_client.get(disassembly(uuid), params={"function": "main"})
 
         assert response.status_code == 409
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
 
 class TestAuthorization:

@@ -85,7 +85,6 @@ class TestSpaServing:
 
     @pytest.mark.parametrize("url", ["/", "/suites/nts", "/real.css"])
     def test_head_is_answered_like_get(self, client: TestClient, url: str) -> None:
-        # A literal port of the TypeScript `method !== 'GET'` check would 404 every HEAD.
         response = client.head(url)
 
         assert response.status_code == 200
@@ -103,7 +102,7 @@ class TestSpaServing:
     def test_does_not_serve_the_spa_for_non_get_requests(
         self, client: TestClient, method: str
     ) -> None:
-        # Starlette's StaticFiles answers these with 405, which I4 does not permit.
+        # Starlette's StaticFiles answers these with 405, which I4 gives to the API alone.
         response = getattr(client, method)("/suites/nts")
 
         assert response.status_code == 404

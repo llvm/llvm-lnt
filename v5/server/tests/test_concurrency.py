@@ -273,26 +273,26 @@ class TestLostRace:
         self, db_engine: Engine, commits: Commits
     ) -> None:
         # The other side of the recovery: here the ordinal is held by a *different* commit, so the
-        # re-read finds no "second" and the violation must surface as `ordinal_conflict`.
+        # re-read finds no "second" and the violation must surface as `conflict`.
         with db_engine.begin() as connection:
             commits.get_or_create(connection, submitted_commit("first", ordinal=5))
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             commits.get_or_create(connection, submitted_commit("second", ordinal=5))
 
-        assert failure.value.code is ErrorCode.ORDINAL_CONFLICT
+        assert failure.value.code is ErrorCode.CONFLICT
 
     def test_an_unrelated_integrity_failure_is_not_swallowed(
         self, db_engine: Engine, commits: Commits, suite: Suite
     ) -> None:
         # The same rule from the other side: filling in a NULL ordinal is an UPDATE, and it can lose
-        # the ordinal to a commit created since. That is `ordinal_conflict` too, not a 500.
+        # the ordinal to a commit created since. That is `conflict` too, not a 500.
         with db_engine.begin() as connection:
             commits.get_or_create(connection, submitted_commit("abc"))
             commits.get_or_create(connection, submitted_commit("other", ordinal=7))
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             commits.get_or_create(connection, submitted_commit("abc", ordinal=7))
 
-        assert failure.value.code is ErrorCode.ORDINAL_CONFLICT
+        assert failure.value.code is ErrorCode.CONFLICT
         assert stored(db_engine, suite, "commit", "commit", "abc").ordinal is None
 
 
@@ -530,7 +530,7 @@ class TestCommitReconciliation:
         assert first == second
         assert stored(db_engine, suite, "commit", "commit", "abc").ordinal == 3
 
-    def test_a_contradicted_ordinal_is_an_ordinal_conflict(
+    def test_a_contradicted_ordinal_is_a_conflict(
         self, db_engine: Engine, commits: Commits, suite: Suite
     ) -> None:
         with db_engine.begin() as connection:
@@ -538,9 +538,7 @@ class TestCommitReconciliation:
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             commits.get_or_create(connection, submitted_commit(ordinal=4))
 
-        # I4 splits this out from `conflict` deliberately: the client's view of the commit order is
-        # wrong, and retrying cannot help.
-        assert failure.value.code is ErrorCode.ORDINAL_CONFLICT
+        assert failure.value.code is ErrorCode.CONFLICT
         assert "3" in failure.value.message
         assert "4" in failure.value.message
         assert stored(db_engine, suite, "commit", "commit", "abc").ordinal == 3
@@ -651,7 +649,7 @@ class TestConcurrentFill:
         with pytest.raises(ApiError) as failure:
             running.result(timeout=BLOCK_TIMEOUT)
 
-        assert failure.value.code is ErrorCode.ORDINAL_CONFLICT
+        assert failure.value.code is ErrorCode.CONFLICT
         assert stored(db_engine, suite, "commit", "commit", "abc").ordinal == 3
 
     @pytest.mark.usefixtures("existing_machine")
@@ -799,7 +797,7 @@ class TestIndicatorMetricRemoval:
             ).scalar_one()
         return regression
 
-    def test_a_metric_already_removed_is_a_conflict(
+    def test_a_metric_already_removed_is_retryable(
         self, db_engine: Engine, suite: Suite, regression: int
     ) -> None:
         # `suite` is this worker's copy, which still declares the metric: the write passes the
@@ -810,9 +808,9 @@ class TestIndicatorMetricRemoval:
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             Regressions(suite).resolved_indicators(connection, [self.INDICATOR])
 
-        assert failure.value.code is ErrorCode.CONFLICT
+        assert failure.value.code is ErrorCode.RETRY
 
-    def test_a_metric_removed_while_the_write_is_in_flight_is_a_conflict(
+    def test_a_metric_removed_while_the_write_is_in_flight_is_retryable(
         self,
         db_engine: Engine,
         suite: Suite,
@@ -839,7 +837,7 @@ class TestIndicatorMetricRemoval:
         with pytest.raises(ApiError) as failure:
             running.result(timeout=BLOCK_TIMEOUT)
 
-        assert failure.value.code is ErrorCode.CONFLICT
+        assert failure.value.code is ErrorCode.RETRY
         assert counted(db_engine, suite.tables, "regression_indicator") == 0
 
 

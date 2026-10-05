@@ -120,8 +120,8 @@ are `null` at either end of the ordered range, and on a commit whose own
 pointing at `GET /api/suites/{testsuite}/commits/{value}`; `PATCH` returns 200
 with the same body; `DELETE` returns 204. `POST` returns 409 `duplicate` if a
 commit with that value already exists, and both `POST` and `PATCH` return 409
-`ordinal_conflict` if the ordinal they set is already held by another commit
-(see O6 and I4). `DELETE` returns 409 `in_use` if a regression references the
+`conflict` if the ordinal they set is already held by another commit
+(see O6 and I4). `DELETE` returns 409 `conflict` if a regression references the
 commit; otherwise it removes the commit, its runs, and their samples and
 profiles (see D5). Every route in this section returns 404 if the suite does not
 exist, and every route that addresses a commit returns 404 if no commit in the
@@ -222,9 +222,9 @@ a run returns 404 if no run in the suite has that UUID, including when the path
 segment is not a well-formed UUID. `DELETE` requires no `?confirm=true`.
 
 The machine and the commit a submission names are created if they do not exist,
-and otherwise reconciled with the submission (see O2): contradicted metadata is
-rejected with 409 `conflict`, and a contradicted or already-taken `ordinal` with
-409 `ordinal_conflict` (see O6). Undeclared keys in `machine.fields` or
+and otherwise reconciled with the submission (see O2): contradicted metadata,
+including a contradicted `ordinal`, is rejected with 409 `conflict`, and so is an
+`ordinal` already held by another commit (see O6). Undeclared keys in `machine.fields` or
 `commit.fields` are rejected with 400, and so is a profile that O7 refuses.
 
 `has_profiles=` (boolean): `true` returns only runs that have at least one
@@ -563,8 +563,9 @@ itself -- `name`, `metrics`, `commit_fields`, `machine_fields` (see D4 in
 data-model.md for the schema format). On success, returns 201 with the
 created suite's detail body and a `Location` header pointing at
 `GET /api/suites/{name}`. Returns 409 `duplicate` if a suite with that name already
-exists, 400 if the schema definition fails validation (see D4), or 409 `conflict` if
-suite creation otherwise fails after passing schema validation.
+exists, 400 if the schema definition fails validation (see D4), 409 `conflict` if a
+database namespace of that name already exists although no suite does, or 409 `retry` if
+the creation could not take the locks it needs.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
 `commit_fields`, and/or `machine_fields` after creation. See D2 for the semantics;
@@ -596,7 +597,7 @@ On success, returns 200 with the suite's detail body; a request that asks for no
 is a successful no-op. Returns 404 if the suite
 does not exist, or if `update` or `remove` names an entry that is not in that
 list. Returns 409 `duplicate` if `add` names an entry that already exists in that list,
-and 409 `conflict` if the change could not take the locks it needs and should be retried.
+and 409 `retry` if the change could not take the locks it needs.
 Returns 400 if `update` attempts to change a `type`, if `confirm=true` is
 required but missing, or if the resulting schema fails validation (see D3, D4,
 and D5) -- validation runs against the whole resulting schema, not just the
@@ -605,8 +606,8 @@ entries the request touched.
 **Delete** (`DELETE /api/suites/{name}`): permanently deletes the suite and
 all of its data (machines, runs, commits, samples, regressions). Requires a
 `?confirm=true` query parameter; omitting it -- or sending it as false -- returns 400.
-Returns 404 if the suite does not exist, 409 `conflict` if the deletion could not take
-the locks it needs and should be retried, and 204 on success.
+Returns 404 if the suite does not exist, 409 `retry` if the deletion could not take
+the locks it needs, and 204 on success.
 
 Both this and `PATCH .../schema` resolve the suite before checking `confirm`, so an
 unknown name is 404 whether or not `confirm=true` was supplied.
