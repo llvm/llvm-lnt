@@ -9,7 +9,7 @@ Side-by-side comparison of two commits (or runs). This page is suite-agnostic --
 side can independently select its suite.
 
 
-### Selection Panel
+### CP1: Selection Panel
 
 Each side (A and B) has independent controls:
 - **Suite**: dropdown selector populated from the existing test suites. Changing the
@@ -23,10 +23,10 @@ Each side (A and B) has independent controls:
   commit string; when no display field is defined or not populated, the raw
   commit string is shown. The text filter matches against both the raw commit
   string and the display value. Filters suggestions to only show commits where
-  the selected machine has runs. Suggestions are ordered newest-first (see
-  architecture.md). When a machine is pre-selected from URL state,
-  its commits are fetched on creation so the dropdown is correctly filtered from
-  the start. **Disabled until a machine is selected** -- shows "Select a machine
+  the selected machine has runs. Suggestions are ordered newest-first (see AR2).
+  When a machine is pre-selected from URL state, its commits are fetched on
+  creation so the dropdown is correctly filtered from the start. **Disabled
+  until a machine is selected** -- shows "Select a machine
   first" placeholder. Re-disabled if the machine is cleared. Clearing the commit
   also clears the runs for that side.
 - **Machine**: combobox over machine names. The full machine list for the
@@ -114,7 +114,7 @@ Graph page's auto-plot. Changing the machine, commit, metric, or aggregation
 settings re-triggers the comparison. Previous in-flight fetches are aborted.
 
 
-### Comparison Table
+### CP2: Comparison Table
 
 | Column   | Description                                              |
 |----------|----------------------------------------------------------|
@@ -280,7 +280,7 @@ falls inside the band has `|Delta %| < threshold`.
   input.
 
 
-### Chart
+### CP3: Chart
 
 Sorted ratio chart (relative performance chart):
 - **X-axis**: tests, sorted by B/A ratio
@@ -312,7 +312,7 @@ Interactivity:
   with the Graph page's empty-state pattern.
 
 
-### Comparison Summary Bar
+### CP4: Comparison Summary Bar
 
 A horizontal summary bar between the chart and the comparison table shows the
 count of tests in each status category, with percentages for comparable
@@ -356,7 +356,7 @@ When `total > 0` but all tests are non-comparable, all categories render with ba
 counts and no percentages.
 
 
-### Bidirectional Chart-Table Sync
+### CP5: Bidirectional Chart-Table Sync
 
 The chart and table always represent the same dataset:
 - **Chart -> Table**: zooming or drag-selecting on the chart filters the table
@@ -367,13 +367,12 @@ The chart and table always represent the same dataset:
   into view); hovering on a table row highlights the chart point
 
 
-### Data Flow
+### CP6: Data Flow
 
 1. Page loads: fetch metric metadata via `GET suites/{ts}`. Commits are
    fetched per-machine via `GET commits?machine={name}` (cursor-paginated) when
    a machine is selected, to populate the commit combobox with only the commits
-   relevant to that machine. Commits are ordered newest-first for display, see
-   architecture.md.
+   relevant to that machine. Commits are ordered newest-first for display, see AR2.
 2. User selects commit and machine on each side. On each change, fetch
    `GET runs?machine=M&commit=C` to populate the runs checkbox list. If no runs
    exist, show an empty list.
@@ -399,7 +398,7 @@ new commit or machine (which produces different run UUIDs) triggers new fetches,
 and only for runs not already in the cache.
 
 
-### URL State
+### CP7: URL State
 
 All selection state is encoded as query parameters for shareability:
 - `suite_a`, `commit_a`, `machine_a`, `runs_a` (comma-separated UUIDs),
@@ -418,7 +417,7 @@ browser's back button navigates between pages, not between individual setting
 changes.
 
 
-### Shadow Trace (Comparison Overlay)
+### CP8: Shadow Trace (Comparison Overlay)
 
 A shadow trace overlays a pinned comparison on the chart, allowing the user to
 visually compare how a ratio profile changed between two versions of side B
@@ -507,7 +506,7 @@ is frozen at pin time.
   shadow's commit and machine at render time.
 
 
-### Add to Regression
+### CP9: Add to Regression
 
 A collapsible panel (button: "Add to regression" in the controls area). When
 expanded, offers:

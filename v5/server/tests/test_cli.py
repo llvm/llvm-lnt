@@ -161,7 +161,7 @@ class TestServerRun:
         self, configured: None, migrations: list[str], uvicorn_run: list[dict[str, Any]]
     ) -> None:
         # In this process, before uvicorn starts any workers, so that they cannot race each
-        # other to apply the same DDL (D14).
+        # other to apply the same DDL (D6).
         assert cli.main(["server", "run"]) == 0
         assert len(migrations) == 1
 
@@ -280,7 +280,7 @@ class TestCreateKey:
     @pytest.mark.parametrize("scope", [scope.value for scope in Scope])
     def test_accepts_every_scope(self, configured_database: Engine, scope: str) -> None:
         # Spelled out from Scope rather than a literal list so a renamed member fails here, but
-        # R5 fixes the set at these five.
+        # I5 fixes the set at these five.
         assert cli.main(["server", "create-key", "--name", "k", "--scope", scope]) == 0
 
     def test_refuses_an_uninitialized_database_rather_than_migrating_it(

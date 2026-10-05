@@ -18,7 +18,7 @@ from lnt_v5.db import is_missing_relation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.suites.registry import Suite, SuiteRegistry
 
-# The two failures every suite-scoped operation can answer, worded once for R8's document. They come
+# The two failures every suite-scoped operation can answer, worded once for I8's document. They come
 # from `suite_scope` rather than from any endpoint, so restating them per endpoint would be dozens
 # of copies of one sentence, each free to drift from what the code actually does.
 SUITE_NOT_FOUND = "No test suite has that name."
@@ -65,7 +65,7 @@ def schema_changed(name: str) -> ApiError:
 def suite_responses(
     *, not_found: str = SUITE_NOT_FOUND, conflict: str = SUITE_SCHEMA_CHANGED
 ) -> dict[int | str, dict[str, Any]]:
-    """The two failures `suite_scope` can answer, as R8 response declarations.
+    """The two failures `suite_scope` can answer, as I8 response declarations.
 
     Every suite-scoped operation owes both, because both come from the scope rather than from
     anything the endpoint does. Declared beside the mechanism that produces them so the obligation

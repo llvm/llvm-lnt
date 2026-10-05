@@ -35,7 +35,7 @@ class TestNamingConvention:
         assert PREFIX_CONSTRAINT in stored_names(inspect(db_engine))["api_key"]
 
     def test_every_composed_name_reaches_the_database_intact(self, db_engine: Engine) -> None:
-        """The global tables' half of D14's check; see `assert_names_survived`.
+        """The global tables' half of the identifier-limit check (D4); see `assert_names_survived`.
 
         Per-suite tables adopt the same convention but are built at runtime from a suite's schema,
         so they are checked separately, in `test_suite_tables.py`.
@@ -70,9 +70,7 @@ class TestApiKey:
             insert_key(prefix="ffffffff")
 
     @pytest.mark.parametrize("scope", list(Scope))
-    def test_accepts_every_scope_r5_defines(
-        self, insert_key: Callable[..., None], scope: Scope
-    ) -> None:
+    def test_accepts_every_scope(self, insert_key: Callable[..., None], scope: Scope) -> None:
         insert_key(
             scope=scope.value,
             prefix=scope.value[:8].ljust(8, "0"),

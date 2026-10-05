@@ -1,8 +1,8 @@
-"""The machine endpoints (endpoints.md, Machines).
+"""The machine endpoints (E2).
 
 Driven over the real application and a real database. Most of what is interesting here is what
 PostgreSQL ends up doing: a `last_run_at` that is an index probe rather than a column, cascades that
-reach three tables through two foreign keys, and the case-insensitive substring match D9 specifies.
+reach three tables through two foreign keys, and the case-insensitive substring match O4 specifies.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ NTS: dict[str, Any] = {
     "machine_fields": [
         {"name": "hardware", "type": "text", "searchable": True},
         {"name": "os", "type": "text", "searchable": True},
-        # Deliberately not searchable, and deliberately not text: D9 covers neither.
+        # Deliberately not searchable, and deliberately not text: O4 covers neither.
         {"name": "notes", "type": "text"},
         {"name": "core_count", "type": "integer"},
         {"name": "clock_ghz", "type": "real"},
@@ -115,7 +115,7 @@ class TestList:
         response = api_client.get(MACHINES)
 
         assert response.status_code == 200
-        # R2: `items` present and empty, and a `total` rather than a `cursor` -- this list is
+        # I2: `items` present and empty, and a `total` rather than a `cursor` -- this list is
         # bounded, so it is offset-paginated.
         assert sorted(response.json()) == ["items", "total"]
         assert response.json() == {"items": [], "total": 0}
@@ -181,7 +181,7 @@ class TestListPagination:
         assert names_in(api_client.get(f"{MACHINES}?limit=2&offset=1")) == ["m1", "m2"]
 
     def test_total_ignores_limit_and_offset(self, api_client: TestClient) -> None:
-        # R2: `total` is what matches the filters, so a client can render "1-2 of 5".
+        # I2: `total` is what matches the filters, so a client can render "1-2 of 5".
         assert api_client.get(f"{MACHINES}?limit=2&offset=1").json()["total"] == 5
 
     def test_total_respects_the_filters(self, api_client: TestClient) -> None:
@@ -214,7 +214,7 @@ class TestListSearch:
         assert names_in(api_client.get(f"{MACHINES}?search=arm")) == ["darwin-arm"]
 
     def test_ors_the_name_and_every_searchable_field(self, api_client: TestClient) -> None:
-        # D9's OR semantics: `linux` is one machine's name and the other's... nothing, but it is
+        # O4's OR semantics: `linux` is one machine's name and the other's... nothing, but it is
         # the first machine's `os` too, so the match must not require both to agree.
         assert names_in(api_client.get(f"{MACHINES}?search=linux")) == ["linux-x86"]
         assert names_in(api_client.get(f"{MACHINES}?search=darwin")) == ["darwin-arm"]
@@ -349,7 +349,7 @@ class TestCreate:
     def test_accepts_an_untracked_machine(self, create: Callable[..., Any]) -> None:
         assert create("retired", tracked=False).json()["tracked"] is False
 
-    def test_stores_declared_fields_with_the_types_d3_gives_them(
+    def test_stores_declared_fields_with_their_declared_types(
         self, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
         response = create(
@@ -362,7 +362,7 @@ class TestCreate:
             },
         )
 
-        # R4: typed per D3 and never stringified, on the way back out as well as in.
+        # I4: typed per D3 and never stringified, on the way back out as well as in.
         assert response.json()["fields"] == {
             "hardware": "x86_64",
             "os": None,
@@ -381,7 +381,7 @@ class TestCreate:
         assert response.json()["fields"]["commissioned_at"] == "2026-04-15T14:30:00Z"
 
     def test_reports_every_declared_field_even_when_unset(self, create: Callable[..., Any]) -> None:
-        # R4: a documented key is present and null when it has no value, so a client rendering one
+        # I4: a documented key is present and null when it has no value, so a client rendering one
         # column per declared field does not have to discover which keys a row happens to carry.
         assert create("linux").json()["fields"] == EVERY_FIELD
 
@@ -394,7 +394,7 @@ class TestCreate:
         assert code_of(response) == "duplicate"
 
     def test_refuses_an_undeclared_field(self, create: Callable[..., Any]) -> None:
-        # D7: neither entity has a catch-all blob, so declaring a field is a schema change.
+        # O2: neither entity has a catch-all blob, so declaring a field is a schema change.
         response = create("linux", fields={"kernel": "6.8"})
 
         assert response.status_code == 400
@@ -466,7 +466,7 @@ class TestCreate:
         assert create("linux", fields={"core_count": value}).json()["fields"]["core_count"] == value
 
     def test_says_which_field_was_wrong_and_why(self, create: Callable[..., Any]) -> None:
-        # R4 leaves `message` to humans, but a validation failure at the root of a bare value has
+        # I4 leaves `message` to humans, but a validation failure at the root of a bare value has
         # no location, so the reason must not arrive after an empty prefix and a stray colon.
         message = create("linux", fields={"core_count": "8"}).json()["error"]["message"]
 
@@ -503,7 +503,7 @@ class TestCreate:
     def test_refuses_a_name_no_url_could_address(
         self, create: Callable[..., Any], name: str, reason: str
     ) -> None:
-        # R1: accepting one would create a machine no URL can reach, and hand back a `Location`
+        # I1: accepting one would create a machine no URL can reach, and hand back a `Location`
         # header that answers 404.
         response = create(name)
 
@@ -539,7 +539,7 @@ class TestCreate:
     def test_the_location_it_reports_is_encoded_and_resolves(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # R1: the machine is addressed by its name, so a name needing encoding has to be encoded
+        # I1: the machine is addressed by its name, so a name needing encoding has to be encoded
         # in the `Location` -- and the encoded form has to route back to the same machine.
         response = create("linux x86")
 
@@ -962,7 +962,7 @@ class TestAuthorization:
         bearer: Callable[[str], dict[str, str]],
         path: str,
     ) -> None:
-        # R5: resolving first and answering 404 would let an under-scoped caller enumerate which
+        # I5: resolving first and answering 404 would let an under-scoped caller enumerate which
         # suites and machines exist.
         response = api_client.delete(path, headers=bearer(make_key(Scope.READ)))
 

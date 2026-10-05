@@ -1,4 +1,4 @@
-"""The API index (R1).
+"""The API index (I1).
 
 The paths the index points at are defined here, and `app.py` reads the documentation ones back
 when it configures FastAPI, so there is one place that decides where they live.

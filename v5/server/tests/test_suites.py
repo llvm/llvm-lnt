@@ -1,4 +1,4 @@
-"""The test suite endpoints (endpoints.md, Test Suites).
+"""The test suite endpoints (E10).
 
 Driven over the real application and a real database, because most of what matters here is what
 PostgreSQL ends up holding: the namespace, its columns, and the stored normalized schema.
@@ -84,7 +84,7 @@ class TestList:
         response = api_client.get(SUITES)
 
         assert response.status_code == 200
-        # R2: `items` present and empty rather than absent, and nothing else -- no `total`, which
+        # I2: `items` present and empty rather than absent, and nothing else -- no `total`, which
         # would claim this list is offset-paginated.
         assert list(response.json()) == ["items"]
         assert response.json()["items"] == []
@@ -178,7 +178,7 @@ class TestCreate:
         ("body", "reason"),
         [
             # One case per class of rule; the rules themselves are exercised at the model level in
-            # `test_suite_schema.py`. What this proves is that a model failure surfaces as R4's 400
+            # `test_suite_schema.py`. What this proves is that a model failure surfaces as I4's 400
             # rather than as the framework's own 422.
             ({"name": "NTS"}, "a name rule"),
             ({"name": "nts", "metrics": [{"name": "m", "type": "status"}]}, "a type rule"),
@@ -200,7 +200,7 @@ class TestCreate:
     def test_reserves_no_name_for_routing(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # R1: suite-scoped resources live one level below the suite collection, so routing reserves
+        # I1: suite-scoped resources live one level below the suite collection, so routing reserves
         # nothing -- a suite may legally be named `admin` or `suites`.
         for name in ("admin", "suites"):
             assert create(name=name).status_code == 201
@@ -243,7 +243,7 @@ class TestDetail:
     def test_the_schema_sub_path_is_not_a_readable_route(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # `/{name}/schema` exists for PATCH alone. R4 has no 405, so a GET of it collapses to
+        # `/{name}/schema` exists for PATCH alone. I4 has no 405, so a GET of it collapses to
         # "nothing here" (see errors.py).
         create()
 
@@ -263,7 +263,7 @@ class TestDetail:
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
         # Not a route, and it must not fall through to index.html: an unmatched `/api/...` is a
-        # genuine 404 carrying the error envelope (client/architecture.md).
+        # genuine 404 carrying the error envelope (AR2).
         create()
 
         response = api_client.get(f"{SUITES}/nts/no-such-resource")
@@ -878,7 +878,7 @@ class TestConcurrentWrites:
         Both changes emit DDL, so if the second computed its new schema from a stale base it would
         still add its column while writing a `schema_json` that never mentions the first. The column
         would then be orphaned: invisible to every GET, unwritable because submissions reject
-        undeclared keys (D6), and impossible to re-add. The row lock is what prevents it.
+        undeclared keys (O1), and impossible to re-add. The row lock is what prevents it.
         """
         create()
         barrier = threading.Barrier(2)
@@ -1013,7 +1013,7 @@ class TestWriteAuthorization:
         bearer: Callable[[str], dict[str, str]],
         method: str,
     ) -> None:
-        # R5: resolving first and answering 404 would let an under-scoped caller enumerate which
+        # I5: resolving first and answering 404 would let an under-scoped caller enumerate which
         # suites exist.
         path = f"{SUITES}/nope/schema" if method == "patch" else f"{SUITES}/nope"
 
@@ -1037,7 +1037,7 @@ class TestWriteAuthorization:
         make_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
-        # R5's hierarchy: a key grants its own scope plus every lower one.
+        # I5's hierarchy: a key grants its own scope plus every lower one.
         response = api_client.post(SUITES, json=NTS, headers=bearer(make_key(Scope.ADMIN)))
 
         assert response.status_code == 201

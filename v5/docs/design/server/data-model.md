@@ -82,7 +82,7 @@ report a conflict (409) rather than a 500.
 lists can be changed after creation via `PATCH /api/suites/{name}/schema`, which
 adds, updates, and/or removes entries in any of the three. This is the only way a
 suite comes to accept metadata it did not declare at creation: undeclared keys are
-rejected on submission for both machines and commits (see D6).
+rejected on submission for both machines and commits (see O2).
 
 - **Adding** an entry leaves existing rows with no value for it.
 - Only presentation metadata can be **updated**: whichever of
@@ -125,7 +125,7 @@ rejected (400) if `type` is missing or is not one of the values below.
 | `text`     | Free-form string       | TEXT                         | string                       |
 | `datetime` | Timestamp              | TIMESTAMP WITH TIME ZONE     | ISO 8601 string, `Z` suffix  |
 
-Note that `searchable: true` (D4, D9) is only valid on `text`-typed entries. Setting
+Note that `searchable: true` (D4, O4) is only valid on `text`-typed entries. Setting
 `searchable: true` on a `real`, `integer`, or `datetime` field is rejected (400) at
 schema-creation time.
 
@@ -211,7 +211,7 @@ Notes:
   the Commit and Machine tables, respectively.
 - `searchable: true` on a commit_fields or machine_fields entry enables
   `?search=` substring matching on the corresponding list API endpoint (see
-  D9). Only valid on `text`-typed fields (see D3).
+  O4). Only valid on `text`-typed fields (see D3).
 - `display: true` on at most one `commit_field` is a hint for the UI: when set
   and the field has a non-null value, the UI shows that value instead of the
   raw commit string (e.g., a shortened SHA, a version tag). This is purely a
@@ -284,7 +284,7 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 **String convention**: PostgreSQL stores the NUL character (U+0000) in neither a
 string column nor a `jsonb` value, although JSON can carry one. See D3 for how a
 request containing one is answered. A URL carrying one -- in a path segment or
-a filter such as `search=` -- is refused whole with 400 before routing (see R4),
+a filter such as `search=` -- is refused whole with 400 before routing (see I4),
 which covers every segment and every filter, including ones added later.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
@@ -322,7 +322,7 @@ of its own named after its suite (see below).
 | version | INTEGER | not null |
 
 - Exactly one row, created with `version = 0` when the database is initialized
-  (see D14) and never deleted. Readers may rely on its presence; `id` is fixed
+  (see D6) and never deleted. Readers may rely on its presence; `id` is fixed
   at `1` so that the row is addressable without a search.
 - Bumped whenever a suite is created, modified, or deleted, so that other
   workers can detect that their cached schemas are stale (see D2).
@@ -340,18 +340,18 @@ of its own named after its suite (see below).
 | last_used_at | TIMESTAMP WITH TIME ZONE | nullable |
 | is_active | BOOLEAN | not null, default `true` |
 
-- `prefix` is the leading 8 characters of the token (see R5). Because the token
+- `prefix` is the leading 8 characters of the token (see I5). Because the token
   itself is unrecoverable once hashed, the prefix is the only stable handle to
   a key, and it is what the API uses to address one. It is unique, so a prefix
   is never reused. Since it is derived from the token rather than chosen
   independently, a freshly generated token whose prefix collides with an
   existing key's is discarded and a new token generated, rather than the
   request failing.
-- `key_hash` is the token's hash (see R5). No part of the token beyond
+- `key_hash` is the token's hash (see I5). No part of the token beyond
   `prefix` is stored in recoverable form.
 - `name` is a human-readable label and is deliberately not unique: two keys may
   share a name.
-- `scope` is one of `read`, `submit`, `triage`, `manage`, `admin` (see R5). The
+- `scope` is one of `read`, `submit`, `triage`, `manage`, `admin` (see I5). The
   DB layer validates it on create. It is stored as text rather than as an
   integer code (unlike `{suite}.regression.state`, below) because it is read
   once per authenticated request and never filtered or sorted on, so
@@ -365,7 +365,7 @@ of its own named after its suite (see below).
   update would serialize every request using that key behind a single row lock held
   for the length of each request.
 - `is_active` is false once the key has been revoked. Revocation does not
-  delete the row (see the Admin section of the endpoints spec).
+  delete the row (see E11).
 
 ### Per-Suite Tables
 
@@ -386,13 +386,13 @@ are given in that form.
 | tag | VARCHAR(256) | nullable, indexed (partial: WHERE tag IS NOT NULL) |
 | _(dynamic)_ | per commit_fields | nullable |
 
-- `commit` is the identity string, submitted as `commit.value` (see D6). Used
+- `commit` is the identity string, submitted as `commit.value` (see O1). Used
   as the default display value in the UI unless a `commit_field` with
   `display: true` is defined and populated.
 - `ordinal` has a regular unique constraint.
 - `tag` is an optional human-readable label (e.g., `release-18.1`), settable
-  on every commit write path (see D7). Multiple commits may share the same tag. The tag is always included in
-  `?search=` substring matching (see D9). When set, the UI appends it to the
+  on every commit write path (see O2). Multiple commits may share the same tag. The tag is always included in
+  `?search=` substring matching (see O4). When set, the UI appends it to the
   display value as `<display_value> (tag)`.
 - Dynamic columns are created from `commit_fields` in the schema (see D3 for
   the type-to-column mapping).
@@ -416,14 +416,14 @@ are given in that form.
 - `tracked` marks whether the machine is part of the set LNT monitors over
   time. It governs *automatic* machine selection only -- untracked machines are
   excluded when the server or UI picks machines on the user's behalf (like the
-  Dashboard's trend overview; see the client docs), but remain fully addressable
-  everywhere a machine is chosen deliberately. It carries no lifetime policy:
+  Dashboard's trend overview; see DA2), but remain fully addressable everywhere a
+  machine is chosen deliberately. It carries no lifetime policy:
   untracked machines are permanent and are not cleaned up. Typical uses are
   one-off comparison configurations (e.g. the same hardware built at `-O2`
   and `-O3`) and retired hardware whose history is worth keeping.
 - Dynamic columns are created from `machine_fields` in the schema (see D3 for
   the type-to-column mapping). Keys submitted for a machine that are not declared
-  as `machine_fields` are rejected (see D6).
+  as `machine_fields` are rejected (see O1).
 - Schema-defined `machine_fields` names must not collide with built-in column
   names (`id`, `name`, `tracked`). The schema parser rejects these.
 - `last_run_at` is not a column. It is the `submitted_at` of the machine's most
@@ -476,7 +476,7 @@ are given in that form.
   scan rather than a scan of this table.
 - Compound index on `(submitted_at, id)`: serves
   `GET /api/suites/{testsuite}/runs?sort=-submitted_at` with no `machine=`,
-  which the index above cannot. `id` is the cursor's tiebreaker (D10).
+  which the index above cannot. `id` is the cursor's tiebreaker (O5).
 - Cascade: deleting a run cascades to its samples, profiles and run summaries.
 
 #### `{suite}.test`
@@ -505,7 +505,7 @@ are given in that form.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
 - Metric names must not collide with built-in column names (`id`, `run_id`,
   `test_id`) or with those of `{suite}.test_coverage`, nor with the keys the
-  submission format reserves inside a test entry (see D6).
+  submission format reserves inside a test entry (see O1).
 
 #### `{suite}.test_coverage`
 
@@ -520,7 +520,7 @@ are given in that form.
   than a scan of `{suite}.sample`. Each metric's column records whether any of
   those samples had a value for the metric.
 - It only accumulates. Run submission adds rows and sets flags in the same
-  transaction as its samples (see D13); deleting a run or a commit leaves the
+  transaction as its samples (see O8); deleting a run or a commit leaves the
   table unchanged, so those filters can still return a test whose samples on
   that machine are gone. Deleting a machine cascades to its rows. Keeping the
   table exact would make every deletion coordinate with concurrent submissions,
@@ -580,11 +580,11 @@ The DB layer validates state values on create and update.
 | uuid | VARCHAR(36) | unique, not null |
 | run_id | INTEGER FK -> Run | not null |
 | test_id | INTEGER FK -> Test | not null, indexed |
-| created_at | TIMESTAMP WITH TIME ZONE | not null |
+| created_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | disassembly_format | TEXT | not null |
 | counters | JSONB | not null |
 
-- One row per profile submitted for a run+test (see D12), holding everything
+- One row per profile submitted for a run+test (see O7), holding everything
   about it but its functions. `counters` is the profile's top-level counters,
   keyed by counter name.
 - Unique constraint on `(run_id, test_id)` -- at most one profile per
@@ -607,7 +607,7 @@ The DB layer validates state values on create and update.
 - One row per function of a profile, so that a profile's function list is read
   without its instructions, and one function's instructions without any other's.
 - `counters` is the function's counters, each the sum over its instructions (see
-  D12), and `length` its number of instructions.
+  O7), and `length` its number of instructions.
 - `instructions` holds the function's instructions, in an encoding the
   implementation chooses; nothing outside the server reads it. It must be
   excluded from the default result set when querying this table; it may only be
@@ -624,7 +624,7 @@ The DB layer validates state values on create and update.
 | geomean | DOUBLE PRECISION | not null |
 
 - Statistics summarizing a run's samples for one numeric metric under one sample
-  aggregation, derived at submission (see D15), one column per statistic. It is
+  aggregation, derived at submission (see O9), one column per statistic. It is
   what `GET /api/suites/{testsuite}/trends` reads, so that a trend does not read
   every sample in its window.
 - Never updated: a run's samples do not change after submission.
@@ -641,7 +641,7 @@ The DB layer validates state values on create and update.
 - **Order**: Replaced by Commit.
 
 
-## D14: Database Initialization and Evolution
+## D6: Database Initialization and Evolution
 
 The two groups of tables in D5 come into being by two different mechanisms,
 because they are defined by different things.

@@ -1,20 +1,20 @@
-"""D13's get-or-create: the row a submission needs, whether or not it is already there.
+"""O8's get-or-create: the row a submission needs, whether or not it is already there.
 
 A run submission names a machine, a commit and a set of tests, and each of them is created on
 demand. Two submissions naming the same one race, and the loser's INSERT hits a unique constraint.
-D13's answer is neither a lock taken up front nor a retry the client has to make: the INSERT runs
+O8's answer is neither a lock taken up front nor a retry the client has to make: the INSERT runs
 inside a SAVEPOINT, so the loser rolls back that one statement -- keeping everything it wrote
 earlier in the same transaction -- and re-reads the row the winner created. That is the whole
 protocol, and it is the only thing this module knows.
 
-Two entry points, because D13 asks for two shapes. `get_or_create` resolves one row by its natural
+Two entry points, because O8 asks for two shapes. `get_or_create` resolves one row by its natural
 key, and is what `entities.create_or_reconcile` -- and through it the machine and commit readers --
 builds on. `resolve_names` resolves a whole set of test names in a fixed number of round trips,
 which is what keeps a submission carrying tens of thousands of tests from costing tens of thousands
 of statements.
 
 Deliberately ignorant of what a machine or a commit is: which table and the wording of each 409
-live with the entity (see `routes/machines.py` and `routes/commits.py`), and D7's reconciliation on
+live with the entity (see `routes/machines.py` and `routes/commits.py`), and O2's reconciliation on
 top of this lives in `entities.py` -- so that each is stated once rather than once per write path.
 What lives here is what those two -- and the tests -- would otherwise each get subtly wrong.
 """
@@ -47,7 +47,7 @@ from sqlalchemy.sql.elements import BindParameter
 class Resolved:
     """What a get-or-create settled on: the row's id, the columns asked for, and who created it.
 
-    `created` is the half D7 needs. A row this transaction just wrote holds exactly what was
+    `created` is the half O2 needs. A row this transaction just wrote holds exactly what was
     submitted and has nothing to reconcile; one that was already there may contradict it, and only
     then does the submitted metadata have to be matched against what is stored.
 
@@ -69,7 +69,7 @@ def get_or_create(
     values: Mapping[str, Any],
     read: Collection[str],
 ) -> Resolved:
-    """The row a natural key names, created from `values` if it is not there yet (D13).
+    """The row a natural key names, created from `values` if it is not there yet (O8).
 
     `key` and `value` are both the row's identity and the way it is read back, so the row this
     looks up and the row it inserts cannot drift apart; `values` is everything else the new row
@@ -83,7 +83,7 @@ def get_or_create(
     winner is this very commit, since PostgreSQL checks indexes in creation order, which
     `REINDEX CONCURRENTLY` or re-creating a constraint changes. Anything else is re-raised: a
     commit whose ordinal *another* commit holds is not there on the re-read, and the caller owes
-    `ordinal_conflict` for it (R4).
+    `ordinal_conflict` for it (I4).
 
     The caller owns the transaction. Only the INSERT is wrapped in a savepoint, so a submission
     that has already created its machine keeps it when it loses the race for its commit.
@@ -123,9 +123,9 @@ def get_or_create(
 
 
 def resolve_names(connection: Connection, table: Table, names: Collection[str]) -> dict[str, int]:
-    """The id of every named row, creating the ones that are not there yet (D13).
+    """The id of every named row, creating the ones that are not there yet (O8).
 
-    For a table shaped like `{suite}.test` (see D5): a surrogate `id` and a unique `name`. D13
+    For a table shaped like `{suite}.test` (see D5): a surrogate `id` and a unique `name`. O8
     requires every test name in a submission to be resolved in O(1) database round trips whatever
     the count, with the same concurrency guarantee as the single-row path above, and that is what
     this is -- three statements at worst, one when every name is already there, and never a number

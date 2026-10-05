@@ -36,7 +36,7 @@ def add(
     where it has no value (see `suites/submission.py`).
 
     Rows go in `(machine_id, test_id)` order, so that submissions for the same machine lock them in
-    the same order and cannot deadlock (D13). An existing row is rewritten only when a flag turns
+    the same order and cannot deadlock (O8). An existing row is rewritten only when a flag turns
     true; a machine normally reports the same tests and metrics on every run, and rewriting its rows
     each time would only churn the table.
     """

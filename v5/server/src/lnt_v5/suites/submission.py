@@ -1,4 +1,4 @@
-"""D6's submission payload, and the pure validation that turns it into what a run write stores.
+"""O1's submission payload, and the pure validation that turns it into what a run write stores.
 
 Two things live here: the shape of the body `POST /api/suites/{testsuite}/runs` accepts, and the
 step that resolves it against a suite's schema. Neither touches a database. A submission is the one
@@ -17,7 +17,7 @@ what they mean. Everything else here is declared, and `extra="forbid"` makes a m
 rather than a value silently dropped.
 
 A test entry's profile is decoded, validated and encoded for storage by `profile_document`, which
-owns D12's document; this module only routes each entry's string to it.
+owns O7's document; this module only routes each entry's string to it.
 """
 
 from __future__ import annotations
@@ -46,9 +46,9 @@ from lnt_v5.suites.profile_document import StoredProfile, stored_profile
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
 
-# D6: the standard 8-4-4-4-12 hyphenated hex form, of any UUID version. Deliberately matched with a
+# O1: the standard 8-4-4-4-12 hyphenated hex form, of any UUID version. Deliberately matched with a
 # pattern rather than parsed by a UUID library: those also accept braces, a `urn:uuid:` prefix and
-# the unhyphenated form, none of which D6 offers, and accepting one would mean the value the server
+# the unhyphenated form, none of which O1 offers, and accepting one would mean the value the server
 # stores and addresses the run by is not the value the client sent.
 #
 # Anchored because pydantic's pattern is a search rather than a full match. The exact length beside
@@ -88,7 +88,7 @@ TestName = Annotated[
 
 
 class TestEntry(BaseModel):
-    """One test's results within a submission (D6).
+    """One test's results within a submission (O1).
 
     `extra="allow"`, alone among the models here, because the keys beside the two reserved ones are
     the suite's metric names -- data rather than format, which no static model can enumerate. They
@@ -103,14 +103,14 @@ class TestEntry(BaseModel):
         default=None,
         description=(
             "The profile of this test in this run: a JSON profile document, gzip-compressed and "
-            "base64-encoded (D12). Null means the entry carries no profile, exactly as omitting "
+            "base64-encoded (O7). Null means the entry carries no profile, exactly as omitting "
             "the key does."
         ),
     )
 
 
 class RunSubmission(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/runs` (D6)."""
+    """The body of `POST /api/suites/{testsuite}/runs` (O1)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -118,8 +118,8 @@ class RunSubmission(BaseModel):
         description="The submission format. Only '5' exists; v4's formats are not accepted."
     )
     uuid: RunUuid | None = None
-    machine: MachineObject = Field(description="The machine this run was measured on (D7).")
-    commit: CommitObject = Field(description="The commit this run belongs to (D7).")
+    machine: MachineObject = Field(description="The machine this run was measured on (O2).")
+    commit: CommitObject = Field(description="The commit this run belongs to (O2).")
     run_parameters: dict[str, Any] = Field(
         default_factory=dict,
         description=(
@@ -141,7 +141,7 @@ class RunSubmission(BaseModel):
 
 @dataclass(frozen=True)
 class SubmittedMachine:
-    """The machine a submission names, with `fields` already resolved to column values (D7)."""
+    """The machine a submission names, with `fields` already resolved to column values (O2)."""
 
     name: str
     tracked: bool
@@ -150,7 +150,7 @@ class SubmittedMachine:
 
 @dataclass(frozen=True)
 class SubmittedCommit:
-    """The commit a submission names, with `fields` already resolved to column values (D7)."""
+    """The commit a submission names, with `fields` already resolved to column values (O2)."""
 
     value: str
     ordinal: int | None
@@ -163,11 +163,11 @@ class SubmittedTest:
     """One test entry, resolved into the rows it stands for.
 
     `samples` holds one mapping of metric column values per `{suite}.sample` row, and is never
-    empty: D6 gives an entry `max(1, array length)` rows, so an entry carrying no metric values at
+    empty: O1 gives an entry `max(1, array length)` rows, so an entry carrying no metric values at
     all still records that the test ran in this run.
 
     Every mapping carries every metric the suite declares, with `None` where the entry had no value
-    -- which is what an omitted metric means anyway (D6). Uniform key sets are a promise the write
+    -- which is what an omitted metric means anyway (O1). Uniform key sets are a promise the write
     layer relies on; see `_samples`, which establishes it.
     """
 
@@ -178,7 +178,7 @@ class SubmittedTest:
 
 @dataclass(frozen=True)
 class ValidatedSubmission:
-    """Everything a run write needs, with nothing left to decide (D6).
+    """Everything a run write needs, with nothing left to decide (O1).
 
     Every value here is already typed per D3 and named by the column that stores it, so the write
     layer composes statements and never reinterprets the payload. `uuid` is the client's when it
@@ -193,12 +193,12 @@ class ValidatedSubmission:
 
 
 def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSubmission:
-    """What a submission stands for against this suite's schema, or a 400 (D6, D12).
+    """What a submission stands for against this suite's schema, or a 400 (O1, O7).
 
     Pure, and complete: it reaches no database and leaves nothing for the write path to validate,
     so a submission that is going to be refused is refused before a single row is written. The
     checks it cannot make are exactly the ones that need stored state -- a duplicate run UUID, a
-    contradicted ordinal, machine metadata that disagrees with what is already there (D7).
+    contradicted ordinal, machine metadata that disagrees with what is already there (O2).
     """
     _reject_unstorable(body.run_parameters, "run_parameters")
     machine = SubmittedMachine(
@@ -221,7 +221,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     declared = declared_by_name(schema, Metric)
     for entry in body.tests:
         if entry.name in seen:
-            # D6: one entry per test. The format already expresses a test measured several times
+            # O1: one entry per test. The format already expresses a test measured several times
             # with an array value, and D5 allows at most one profile per run+test pair, so two
             # entries for one test could not both be stored. Refused here rather than discovered as
             # an integrity failure halfway through writing the run.
@@ -243,7 +243,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
         tests.append(SubmittedTest(name=entry.name, samples=rows, profile=profile))
 
     return ValidatedSubmission(
-        # D6: the client's UUID when it sent one, and a v4 the server mints otherwise.
+        # O1: the client's UUID when it sent one, and a v4 the server mints otherwise.
         uuid=body.uuid or str(uuid4()),
         machine=machine,
         commit=commit,
@@ -262,7 +262,7 @@ def _naming(entry: TestEntry) -> Iterator[None]:
 
 
 def _reject_unstorable(value: Any, where: str) -> None:
-    """Refuse anything inside `run_parameters` that the stored representation cannot hold (D3, D6).
+    """Refuse anything inside `run_parameters` that the stored representation cannot hold (D3, O1).
 
     D3 states the rule once and gives it two instances: `NaN`/`Infinity`/`-Infinity`, which JSON
     has no literal for, and the NUL character, which PostgreSQL stores in neither `text` nor
@@ -271,7 +271,7 @@ def _reject_unstorable(value: Any, where: str) -> None:
     so the same rule is applied by walking it. Both instances have the same consequence if they get
     through: the value reaches the INSERT and fails there as a `DataError`, which is neither an
     integrity failure nor a missing relation, so nothing attributes it and the caller reads a 500
-    for a value it supplied -- where R4 wants `invalid_request`.
+    for a value it supplied -- where I4 wants `invalid_request`.
 
     Keys as well as values: JSONB holds an object key no more willingly than it holds a string, and
     a key is just as much something the caller sent.
@@ -297,7 +297,7 @@ def _reject_unstorable(value: Any, where: str) -> None:
 def _submitted_fields(
     schema: SuiteSchema, entry: type[Entry], submitted: Mapping[str, FieldValue]
 ) -> dict[str, Any]:
-    """A submission's `fields` dict as column values, with the explicit nulls dropped (D6, D7).
+    """A submission's `fields` dict as column values, with the explicit nulls dropped (O1, O2).
 
     `validate_fields` keeps a null, because that is how a PATCH clears a stored value. A submission
     has nothing to clear -- it never overwrites metadata -- so a null here means "no value
@@ -310,7 +310,7 @@ def _submitted_fields(
 
 
 def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str, Any]]:
-    """The sample rows one test entry stands for (D6).
+    """The sample rows one test entry stands for (O1).
 
     Array values are what make this more than a rename: a test measured several times in one run
     sends an array per metric, and the entry expands into one row per element, with the scalar
@@ -323,7 +323,7 @@ def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str,
     arrays: dict[str, list[Any]] = {}
     repetitions: int | None = None
 
-    # `model_extra` is everything that is not `name` or `profile`, which D6 reserves; the schema
+    # `model_extra` is everything that is not `name` or `profile`, which O1 reserves; the schema
     # refuses a metric named either, so a suite can never hold one this loop would hide (D5).
     for key, value in (entry.model_extra or {}).items():
         metric = declared.get(key)
@@ -333,7 +333,7 @@ def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str,
             scalars[key] = _measured(metric, value)
             continue
         if not value:
-            # D6: an empty array would produce no rows at all, silently discarding every scalar
+            # O1: an empty array would produce no rows at all, silently discarding every scalar
             # metric in the same entry -- which is never what a producer meant.
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
@@ -351,14 +351,14 @@ def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str,
         arrays[key] = [_measured(metric, element) for element in value]
 
     # Every row carries every declared metric, `None` where the entry sent no value -- which is
-    # what a metric the submission omits means anyway (D6). That uniformity is what lets the write
+    # what a metric the submission omits means anyway (O1). That uniformity is what lets the write
     # layer put the whole submission in one statement: SQLAlchemy Core compiles an executemany from
     # the *first* mapping it is given and binds every later one to those same columns, so rows that
     # disagree on which keys they carry silently write the wrong columns, or drop values entirely.
     # Established here, where the rows are made, rather than repaired by whoever writes them.
     measured = {name: scalars.get(name) for name in declared}
 
-    # D6: an entry yields max(1, array length) rows. With no arrays that is the single row which
+    # O1: an entry yields max(1, array length) rows. With no arrays that is the single row which
     # records that the test ran in this run, whether or not it carries any metric value.
     count = 1 if repetitions is None else repetitions
     return [
@@ -369,7 +369,7 @@ def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str,
 def _measured(metric: Metric, value: Any) -> Any:
     """One metric value, typed per D3, or a 400.
 
-    A null is refused rather than stored. D6 makes an absent measurement an absent key, so a null
+    A null is refused rather than stored. O1 makes an absent measurement an absent key, so a null
     is a producer emitting a fixed row of metrics without saying which of them it actually has --
     and every `{suite}.sample` column is nullable anyway, so accepting it would buy nothing and
     lose the one signal that the producer is confused.

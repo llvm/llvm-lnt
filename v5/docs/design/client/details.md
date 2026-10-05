@@ -5,7 +5,7 @@ detailed information about various entities. They are accessible by clicking
 on these entities from other pages (e.g. the `Test Suite / Runs` page).
 
 
-## Machine Detail -- `/suites/{ts}/machines/{name}`
+## DT1: Machine Detail -- `/suites/{ts}/machines/{name}`
 
 Deep dive into a single machine. Machine names are guaranteed unique. Layout:
 
@@ -78,7 +78,7 @@ Shows the 25 runs most recently submitted to this machine. Entities (runs, commi
 lead to the details page for that object.
 
 
-## Run Detail -- `/suites/{ts}/runs/{uuid}`
+## DT2: Run Detail -- `/suites/{ts}/runs/{uuid}`
 
 All data from a single run. Layout:
 
@@ -136,7 +136,7 @@ Tests with profiles show a "Profile" link/icon in the samples table. The link na
 to `/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.
 
 
-## Commit Detail -- `/suites/{ts}/commits/{value}`
+## DT3: Commit Detail -- `/suites/{ts}/commits/{value}`
 
 The "what happened at this commit?" page. Key investigation page for developers.
 Layout:
@@ -196,7 +196,7 @@ on machine names, filters the runs table. The summary updates to reflect filtere
 (e.g. "5 of 12 runs across 2 of 8 machines").
 
 
-## Regression Detail -- `/suites/{ts}/regressions/{uuid}`
+## DT4: Regression Detail -- `/suites/{ts}/regressions/{uuid}`
 
 Investigation and management page for a single regression.
 

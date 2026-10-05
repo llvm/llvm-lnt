@@ -1,4 +1,4 @@
-"""What a default means on a `PATCH` body, and keeping R8's document from saying otherwise.
+"""What a default means on a `PATCH` body, and keeping I8's document from saying otherwise.
 
 Every `PATCH` body is read with `exclude_unset`: a key the request omits leaves the stored value
 unchanged, and only a key it sends changes anything. Its models still give each optional key a

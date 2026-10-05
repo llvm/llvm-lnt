@@ -2,11 +2,11 @@
 
 Deep links and hard refreshes must resolve to a client route rather than 404, so anything that is
 not the API, not an infrastructure route, and not a request for a file falls through to
-index.html. See docs/design/client/architecture.md.
+index.html. See AR2.
 
 Two things are settled before the route table is consulted at all, and both live here because both
 are statements about the raw path rather than about any endpoint: a URL carrying a NUL is refused
-(R4, D5), and a server path carrying a trailing slash is redirected (R1).
+(I4, D5), and a server path carrying a trailing slash is redirected (I1).
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ class RejectNulInUrl:
     filter remembered it. Refusing the URL whole is the same rule applied where the URL is still
     one thing.
 
-    Before authentication, unlike everything in R5's order of checks, and R4 says so: this belongs
+    Before authentication, unlike everything in I5's order of checks, and I4 says so: this belongs
     with the oversized body and the trailing-slash redirect, which are likewise settled before a
     request reaches an endpoint. It reveals nothing -- the answer is a fact about the bytes sent,
     not about what this instance holds. A reverse proxy commonly refuses such a URL before the

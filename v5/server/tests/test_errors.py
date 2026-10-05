@@ -11,8 +11,8 @@ from lnt_v5.app import create_app
 from lnt_v5.config import Settings
 from lnt_v5.errors import ErrorCode, error_response, register_error_handlers
 
-# The statuses R4 permits a REST API response to carry.
-R4_STATUSES = {200, 201, 204, 400, 401, 403, 404, 409, 500}
+# The statuses I4 permits a REST API response to carry.
+I4_STATUSES = {200, 201, 204, 400, 401, 403, 404, 409, 500}
 
 
 class Body(BaseModel):
@@ -51,14 +51,14 @@ def handlers_client() -> TestClient:
 
 class TestErrorCodes:
     @pytest.mark.parametrize("code", list(ErrorCode))
-    def test_every_code_is_served_with_a_status_r4_permits(self, code: ErrorCode) -> None:
-        assert error_response(code, "message").status_code in R4_STATUSES
+    def test_every_code_is_served_with_a_permitted_status(self, code: ErrorCode) -> None:
+        assert error_response(code, "message").status_code in I4_STATUSES
 
     @pytest.mark.parametrize(
         "code", [ErrorCode.DUPLICATE, ErrorCode.ORDINAL_CONFLICT, ErrorCode.IN_USE]
     )
     def test_the_409_family_stays_distinguishable(self, code: ErrorCode) -> None:
-        # The point of the code/status split: R4 serves four codes as 409, and choosing 409 must
+        # The point of the code/status split: I4 serves four codes as 409, and choosing 409 must
         # not flatten them to `conflict`.
         response = error_response(code, "nope")
 
@@ -75,7 +75,7 @@ def test_http_exceptions_use_the_error_envelope(handlers_client: TestClient) -> 
 
 
 def test_a_method_mismatch_becomes_404_rather_than_405(handlers_client: TestClient) -> None:
-    # R4 permits 200, 201, 204, 400, 401, 403, 404, 409 and 500. Starlette's default 405 is not
+    # I4 permits 200, 201, 204, 400, 401, 403, 404, 409 and 500. Starlette's default 405 is not
     # in that set.
     response = handlers_client.post("/missing")
 
@@ -104,7 +104,7 @@ def test_an_unhandled_exception_becomes_500_without_leaking_a_traceback(
 def test_an_oversized_body_stays_plain_text_outside_the_envelope(
     handlers_client: TestClient,
 ) -> None:
-    # R4 places an oversized body at the transport layer, outside the REST API surface, so this
+    # I4 places an oversized body at the transport layer, outside the REST API surface, so this
     # is deliberately not the error envelope. It has to match what starlette itself emits on the
     # Content-Length path (asserted in TestApplicationWiring below), since a client cannot tell
     # which of the two rejected it.
@@ -136,7 +136,7 @@ class TestApplicationWiring:
     def test_fastapis_default_documentation_paths_are_not_used(
         self, client: TestClient, path: str
     ) -> None:
-        # R8 puts these under /api. Left at the defaults they would sit in the SPA's namespace:
+        # I8 puts these under /api. Left at the defaults they would sit in the SPA's namespace:
         # the two HTML ones fall through to the client, and .json reads as a missing asset.
         response = client.get(path)
 

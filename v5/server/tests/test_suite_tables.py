@@ -297,7 +297,7 @@ class TestBuiltInColumns:
             ("run_summary", ["run_id", "metric_id", "sample_agg", "geomean"]),
         ],
     )
-    def test_each_table_carries_what_d5_specifies(
+    def test_each_table_carries_the_specified_columns(
         self,
         db_engine: Engine,
         make_suite: Callable[..., SuiteTables],
@@ -317,7 +317,7 @@ class TestBuiltInColumns:
             ("commit", "tag", True),
             ("machine", "name", False),
             ("machine", "tracked", False),
-            # D6: every run has a commit, and the submission cannot supply the timestamp.
+            # O1: every run has a commit, and the submission cannot supply the timestamp.
             ("run", "commit_id", False),
             ("run", "submitted_at", False),
             # D5: a regression need not name a commit, but must have a state.
@@ -333,7 +333,7 @@ class TestBuiltInColumns:
             ("test_coverage", "build_id", False),
         ],
     )
-    def test_each_built_in_column_is_nullable_where_d5_says(
+    def test_each_built_in_column_is_nullable_where_specified(
         self,
         db_engine: Engine,
         make_suite: Callable[..., SuiteTables],
@@ -348,7 +348,7 @@ class TestBuiltInColumns:
     def test_a_machine_is_tracked_unless_told_otherwise(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D6: `tracked` defaults to true when a submission omits it.
+        # O1: `tracked` defaults to true when a submission omits it.
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
@@ -358,7 +358,7 @@ class TestBuiltInColumns:
     def test_a_run_without_parameters_stores_an_empty_object(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # The Run object reports `{}` when the submission supplied none (endpoints.md, Runs).
+        # The Run object reports `{}` when the submission supplied none (E4).
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
@@ -388,7 +388,7 @@ class TestBuiltInColumns:
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables], table: str, column: str
     ) -> None:
         # D5's convention for every timestamp column in the instance. A naive column would be read
-        # back in whatever zone the session happens to be in, and R4 serializes these with a `Z`.
+        # back in whatever zone the session happens to be in, and I4 serializes these with a `Z`.
         make_suite("nts")
 
         assert sql_type_of(db_engine, "nts", table, column) == "TIMESTAMP WITH TIME ZONE"
@@ -405,7 +405,7 @@ class TestDynamicColumns:
             ("datetime", "TIMESTAMP WITH TIME ZONE"),
         ],
     )
-    def test_each_declared_type_becomes_the_column_d3_names(
+    def test_each_declared_type_becomes_its_column_type(
         self,
         db_engine: Engine,
         make_suite: Callable[..., SuiteTables],
@@ -427,7 +427,7 @@ class TestDynamicColumns:
         list_name: str,
         table: str,
     ) -> None:
-        # D2: adding an entry leaves existing rows with no value for it, and D7 lets a submission
+        # D2: adding an entry leaves existing rows with no value for it, and O2 lets a submission
         # send any subset of a record's metadata.
         make_suite("nts", **{list_name: [{"name": "added", "type": "text"}]})
 
@@ -458,10 +458,10 @@ class TestNamingConvention:
     def test_every_composed_name_reaches_the_database_intact(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        """The check `tables.py` says per-suite tables owe (D14).
+        """The check `tables.py` says per-suite tables owe (D4).
 
         PostgreSQL truncates an identifier over 63 bytes with a warning rather than an error, so a
-        name that overflows is not the name a violation is reported under -- attribution (D13)
+        name that overflows is not the name a violation is reported under -- attribution (O8)
         would read a name and silently never match.
         """
         tables = make_suite("nts", **FULL)
@@ -471,7 +471,7 @@ class TestNamingConvention:
     def test_two_suites_carry_identical_names(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # What lets D13's violation attribution write a constraint name out rather than compose it
+        # What lets O8's violation attribution write a constraint name out rather than compose it
         # per suite: the convention names a constraint after its table and columns, neither of
         # which mentions the suite.
         make_suite("nts", **FULL)
@@ -495,7 +495,7 @@ class TestNamingConvention:
         ("table", "constraint"),
         [
             # Each of these is written out so that an endpoint can attribute a violation to it and
-            # answer the specific 409 R4 gives it: `duplicate`, `ordinal_conflict`, `in_use`.
+            # answer the specific 409 I4 gives it: `duplicate`, `ordinal_conflict`, `in_use`.
             ("commit", COMMIT_VALUE_CONSTRAINT),
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
@@ -556,7 +556,7 @@ class TestIndexes:
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # D5 names both deliberately: (run_id, test_id) covers "all samples for a run", and
-        # (test_id, run_id) covers the time-series query (D10).
+        # (test_id, run_id) covers the time-series query (O5).
         make_suite("nts")
 
         indexes = indexes_of(inspect(db_engine), "nts", "sample")
@@ -604,8 +604,8 @@ class TestUniqueness:
     def test_an_ordinal_is_held_by_one_commit(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D11: a regular, non-deferred constraint. A write that would give two commits the same
-        # ordinal is rejected, which the API reports as `ordinal_conflict` (R4).
+        # O6: a regular, non-deferred constraint. A write that would give two commits the same
+        # ordinal is rejected, which the API reports as `ordinal_conflict` (I4).
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
@@ -629,7 +629,7 @@ class TestUniqueness:
     def test_a_run_uuid_names_one_run(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D6: a repeated UUID is a 409, which is why attribution has to tell this constraint from
+        # O1: a repeated UUID is a 409, which is why attribution has to tell this constraint from
         # the ordinal one.
         tables = make_suite("nts")
 
@@ -664,8 +664,7 @@ class TestUniqueness:
     def test_an_indicator_names_one_machine_test_and_metric_per_regression(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # What makes a repeated indicator silently ignored rather than a duplicate row
-        # (endpoints.md, Regressions).
+        # What makes a repeated indicator silently ignored rather than a duplicate row (E8).
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
@@ -703,7 +702,7 @@ class TestUniqueness:
 
 class TestRegressionState:
     @pytest.mark.parametrize("state", list(RegressionState))
-    def test_accepts_every_state_d5_defines(
+    def test_accepts_every_state(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables], state: RegressionState
     ) -> None:
         tables = make_suite("nts")
@@ -729,7 +728,7 @@ class TestRegressionState:
                 )
             )
 
-    def test_the_stored_values_are_the_ones_d5_tabulates(self) -> None:
+    def test_the_stored_values_are_the_specified_ones(self) -> None:
         assert [(state.value, state.name.lower()) for state in RegressionState] == [
             (0, "detected"),
             (1, "active"),
@@ -740,7 +739,7 @@ class TestRegressionState:
 
 
 class TestRunSummaryAggregation:
-    def test_accepts_every_aggregation_d15_defines(
+    def test_accepts_every_aggregation(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         tables = make_suite("nts")
@@ -775,7 +774,7 @@ class TestRunSummaryAggregation:
                     )
                 )
 
-    def test_the_stored_names_are_the_ones_d15_lists(self) -> None:
+    def test_the_stored_names_are_the_specified_ones(self) -> None:
         assert list(SampleAggregation) == ["median", "mean", "min", "max"]
 
 
@@ -802,7 +801,7 @@ class TestCascades:
     def test_a_commit_a_regression_points_at_cannot_be_deleted(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5, and the source of R4's `in_use` 409.
+        # D5, and the source of I4's `in_use` 409.
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
@@ -932,7 +931,7 @@ class TestEvolution:
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # That `add_column` reaches every declared type. Which SQL type each becomes is
-        # `test_each_declared_type_becomes_the_column_d3_names`' job.
+        # `test_each_declared_type_becomes_its_column_type`' job.
         make_suite("nts")
         added = ("execution_time", "compile_status", "build_id", "measured_at")
         grown = suite_tables.build(SuiteSchema.model_validate({"name": "nts", **FULL}))

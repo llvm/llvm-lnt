@@ -1,4 +1,4 @@
-"""The API index (R1)."""
+"""The API index (I1)."""
 
 from __future__ import annotations
 

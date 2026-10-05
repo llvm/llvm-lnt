@@ -1,4 +1,4 @@
-"""Tests: the named things a run measures (endpoints.md, Tests).
+"""Tests: the named things a run measures (E5).
 
 Read-only, and the shortest entity in the API: a test is a name and nothing else. What is worth
 attention here is the two filters, both of which ask a question about samples rather than about
@@ -8,7 +8,7 @@ second cheaply: proving that a test has no value for a metric would cost a read 
 That table only accumulates, so a test stays in both filters after the runs that put it there are
 deleted, until its machine is (D5).
 
-A test name is also the one natural key R1 keeps out of every path, so a request that names one
+A test name is also the one natural key I1 keeps out of every path, so a request that names one
 carries it in a query parameter. `test_id` below is what resolves it, here rather than in
 `routes/samples.py` because it is the test entity's lookup rather than that endpoint's.
 """
@@ -54,7 +54,7 @@ class Tests:
     """The query the test list is built from, and how to read one of its rows back.
 
     Holds the internal `id` for the same reason `Commits` does: it is never rendered, but it is the
-    unique tiebreaker D10 requires under the cursor, and this list takes no `sort`, so it is the
+    unique tiebreaker O5 requires under the cursor, and this list takes no `sort`, so it is the
     whole of the order.
     """
 
@@ -66,7 +66,7 @@ class Tests:
         return select(self.table.c.id, self.table.c.name)
 
     def keyset(self) -> Keyset:
-        """D10's ordering: arbitrary but deterministic, which for this list is the internal id."""
+        """O5's ordering: arbitrary but deterministic, which for this list is the internal id."""
         return Keyset(tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
@@ -98,9 +98,9 @@ def _missing(testsuite: str, name: str) -> ApiError:
 
 
 def test_id(connection: Connection, suite: Suite, name: str) -> int:
-    """The id of the test a `test=` filter names, or R3's 404 for one that is not there.
+    """The id of the test a `test=` filter names, or I3's 404 for one that is not there.
 
-    R3 makes an unknown `test=` an error, exactly as an unknown `machine=` is, so this is
+    I3 makes an unknown `test=` an error, exactly as an unknown `machine=` is, so this is
     `machines.machine_id`'s counterpart and lives here for the same reason: every endpoint offering
     the filter owes the same lookup and the same wording.
     """
@@ -158,7 +158,7 @@ def list_tests(
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Test]:
-    """Every test in the suite, filtered and cursor-paginated (R2, R3, D9, D10)."""
+    """Every test in the suite, filtered and cursor-paginated (I2, I3, O4, O5)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         tests = Tests(suite)
         conditions: list[ColumnElement[bool]] = []

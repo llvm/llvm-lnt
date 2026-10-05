@@ -1,4 +1,4 @@
-"""Bringing a database up to the structure the code expects (D14)."""
+"""Bringing a database up to the structure the code expects (D6)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def assert_no_pending_revision(engine: Engine) -> None:
 
     Driven through `command.check`, which runs the project's own `env.py`, rather than by
     assembling a MigrationContext here. That configuration is the thing under test -- `compare_type`
-    and, above all, the *absence* of `include_schemas` (D14) -- so a context built in the test would
+    and, above all, the *absence* of `include_schemas` (D6) -- so a context built in the test would
     only compare against a copy of it and would pass whatever env.py actually said.
 
     Raises rather than returning a list, because Alembic's own error enumerates the operations it
@@ -48,8 +48,8 @@ class TestUpgrade:
         with empty_engine.connect() as connection:
             rows = connection.execute(text("SELECT id, version FROM schema_version")).all()
 
-        # D5 lets every reader address this row directly, which is only safe because it exists
-        # from the moment the database does.
+        # D5 lets every reader address this row directly, which is only safe because D6 has it
+        # exist from the moment the database does.
         assert [tuple(row) for row in rows] == [(SCHEMA_VERSION_ID, 0)]
 
     def test_reports_the_revision_it_moved_to(self, empty_engine: Engine) -> None:
@@ -76,7 +76,7 @@ class TestUpgrade:
         assert_no_pending_revision(empty_engine)
 
     def test_would_not_propose_dropping_a_per_suite_table(self, empty_engine: Engine) -> None:
-        """Autogenerate must never touch a suite's namespace (D14).
+        """Autogenerate must never touch a suite's namespace (D6).
 
         Per-suite tables are defined by data, so nothing written in advance describes them; seen by
         autogenerate they would be reflected, matched against nothing, and proposed for deletion --
@@ -122,7 +122,7 @@ class TestConcurrentUpgrade:
     def test_waits_for_whoever_holds_the_migration_lock(
         self, empty_engine: Engine, empty_database_url: str
     ) -> None:
-        """Two servers starting at once must not run the same DDL concurrently (D14).
+        """Two servers starting at once must not run the same DDL concurrently (D6).
 
         Not hypothetical: a deploy replaces the EC2 instance, so the outgoing and incoming ones
         overlap. Rather than racing two migrations and hoping the timing lines up, this holds the

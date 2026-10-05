@@ -1,17 +1,17 @@
-"""Samples: the measured values one run produced (endpoints.md, Samples).
+"""Samples: the measured values one run produced (E6).
 
 Read-only, and reached only through the run that holds them -- a sample has no identifier of its
 own, because nothing about it is addressable: a test measured several times in one run yields
-several identical-looking objects, and D6 makes those repetitions indistinguishable by design.
+several identical-looking objects, and O1 makes those repetitions indistinguishable by design.
 
 Two things here follow from the design docs rather than from convenience.
 
-`metrics` carries only the metrics that have a value. That is R4's one stated exception to the rule
+`metrics` carries only the metrics that have a value. That is I4's one stated exception to the rule
 that a declared dict carries every declared key, and the reason is the shape of the data: a suite
 declares a long metric list that any given test populates sparsely, so a full dict would be mostly
 nulls repeated on every row of a page.
 
-A test is named by `?test=` rather than by a path segment, because R1 keeps a test name out of every
+A test is named by `?test=` rather than by a path segment, because I1 keeps a test name out of every
 path. Folding it into this list rather than giving it a route of its own also keeps one pagination
 contract for a run's samples: a caller asking for one test gets its handful of repetitions in a
 single page.
@@ -44,7 +44,7 @@ _NOT_FOUND = f"{NO_RUN} Or the suite has no test of the name `test=` gives."
 
 
 class Sample(BaseModel):
-    """One measurement of one test within one run (R4)."""
+    """One measurement of one test within one run (I4)."""
 
     test: str = Field(description="The name of the test this sample measured.")
     metrics: dict[str, DeclaredValue] = Field(
@@ -78,7 +78,7 @@ class Samples:
         ).select_from(self.table.join(self._test, self._test.c.id == self.table.c.test_id))
 
     def keyset(self) -> Keyset:
-        """D10's ordering: arbitrary but deterministic, and chosen so an index can produce it.
+        """O5's ordering: arbitrary but deterministic, and chosen so an index can produce it.
 
         `test_id` before the `id` tiebreaker rather than `id` alone, and that is about cost rather
         than about what a caller sees. Every query here fixes `run_id`, so D5's `(run_id, test_id)`
@@ -126,7 +126,7 @@ def list_samples(
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Sample]:
-    """Every sample one run produced, optionally narrowed to one test (R2, R3, D10).
+    """Every sample one run produced, optionally narrowed to one test (I2, I3, O5).
 
     The run is resolved to its id rather than read whole: this query filters on `run_id`, and the
     404 for an unknown UUID has to come from somewhere regardless.

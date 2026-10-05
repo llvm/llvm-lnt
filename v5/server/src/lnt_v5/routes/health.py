@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# include_in_schema=False: R5 places /healthz outside the REST API surface, and R8's document
+# include_in_schema=False: I5 places /healthz outside the REST API surface, and I8's document
 # describes that surface. It is specified in the design docs, not in the OpenAPI spec.
 @router.get("/healthz", include_in_schema=False)
 def healthz(request: Request) -> JSONResponse:
-    """Report whether the server can serve traffic (R7).
+    """Report whether the server can serve traffic (I7).
 
     Connecting is the whole check: the engine sets `pool_pre_ping`, so checkout issues a trivial
     statement of its own and reconnects if the pooled connection has gone stale. Running a second

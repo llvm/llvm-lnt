@@ -1,4 +1,4 @@
-"""Instance-level API key management (endpoints.md, Admin).
+"""Instance-level API key management (E11).
 
 These are the only endpoints in the API that require `admin`, and the only GETs that
 unauthenticated access never reaches.

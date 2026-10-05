@@ -5,14 +5,14 @@ and navigation bar. For individual page specifications, see the other documents
 in this directory.
 
 
-## Context
+## AR1: Context
 
 LNT v4's web UI is built on Flask/Jinja2 server-rendered pages. It is dated and
 difficult to use. The v5 REST API provides full access to the underlying data
 contained in a LNT v5 instance. This SPA uses it to provide a more dynamic experience.
 
 
-## Single-Page Application
+## AR2: Single-Page Application
 
 One SPA with client-side routing. Every route in the page hierarchy below is
 served by the same application; there is no point at which navigating within
@@ -27,7 +27,7 @@ the UI causes a full page reload.
   what makes deep links and hard refreshes work -- pasting
   `/suites/nts/runs/{uuid}` or reloading on it must resolve to that route rather
   than 404. Unmatched `/api/...` paths are a genuine 404 and must answer with
-  the API's JSON error envelope (see R4) rather than falling through to the
+  the API's JSON error envelope (see I4) rather than falling through to the
   SPA.
 - **Code splitting**: Routes are lazy-loaded so the initial bundle stays small
   (external dependencies are fetched on demand).
@@ -67,14 +67,14 @@ above those. The sort is applied client-side, not via `sort=-ordinal`, which
 would drop the unordered commits -- pickers must keep them selectable.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for
-the API key endpoints, which require `admin` scope even to read (see R5). No
+the API key endpoints, which require `admin` scope even to read (see I5). No
 configuration can gate reads, so the SPA never needs a token merely to browse.
 The SPA navigation bar includes a Settings panel with a Bearer token input
 (stored in local storage) for the Admin page and other write-capable pages
 (regression triage, etc.).
 
 
-## Page Hierarchy
+## AR3: Page Hierarchy
 
 ```
 /                                     Dashboard (landing page -- sparkline trend overview)
@@ -91,7 +91,7 @@ The SPA navigation bar includes a Settings panel with a Bearer token input
 ```
 
 
-## Navigation Bar
+## AR4: Navigation Bar
 
 ```
 [LNT] [Test Suites] [Graph] [Compare] [Profiles] [API]  <---->  [Admin] [Settings]
@@ -101,7 +101,7 @@ All navbar links use SPA navigation. There is no full page reload anywhere in
 the app: every route in the page hierarchy above belongs to the same
 application, so navigating between a suite-scoped page and a suite-agnostic
 one is an ordinary client-side transition. The single exception is [API],
-which opens the interactive API documentation viewer at `/api/docs` (see R8) in
+which opens the interactive API documentation viewer at `/api/docs` (see I8) in
 a new tab -- that is a separate document, not an SPA route.
 
 Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when

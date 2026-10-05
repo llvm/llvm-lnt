@@ -120,7 +120,7 @@ class TestSubmission:
     def test_records_each_metric_that_has_a_value(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
-        # Scalars repeat across the rows an array expands into (D6); one value is enough either way.
+        # Scalars repeat across the rows an array expands into (O1); one value is enough either way.
         submit(
             {"name": "a", "execution_time": [1.0, 2.0, 3.0], "compile_time": 0.5},
             {"name": "b", "execution_time": 1.0},
@@ -134,7 +134,7 @@ class TestSubmission:
     def test_records_a_test_that_ran_without_any_metric(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
-        # D6: such an entry is still a sample, and `machine=` alone has to find it.
+        # O1: such an entry is still a sample, and `machine=` alone has to find it.
         submit({"name": "a"})
 
         assert assert_derivable(db_engine, suite) == {("linux", "a"): (False, False)}
@@ -181,7 +181,7 @@ class TestSubmission:
     def test_costs_one_statement_however_many_tests_there_are(
         self, submit: Callable[..., str]
     ) -> None:
-        # D13: the coverage rows are written in one statement, like the samples.
+        # O8: the coverage rows are written in one statement, like the samples.
         with counting_statements("nts.test_coverage") as one_test:
             submit({"name": "a", "execution_time": 1.0})
         with counting_statements("nts.test_coverage") as many_tests:

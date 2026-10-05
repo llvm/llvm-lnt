@@ -1,12 +1,12 @@
-"""Keeping R8's document inside the surface R4 permits.
+"""Keeping I8's document inside the surface I4 permits.
 
 Two corrections to what FastAPI generates on its own.
 
-It documents a `422` on every operation that takes a body or any parameter. R4 does not permit
+It documents a `422` on every operation that takes a body or any parameter. I4 does not permit
 422, and `errors.py` already turns the validation failure behind it into a `400`, so the document
 has to say 400.
 
-And it knows nothing about R5, so nothing would say that a scoped operation can answer 401 or 403.
+And it knows nothing about I5, so nothing would say that a scoped operation can answer 401 or 403.
 Those are derived from each route's declared scope rather than restated on every endpoint: there
 will eventually be dozens of them, all with identical auth failures, and a derived answer cannot
 drift from the scope the route actually enforces.
@@ -33,7 +33,7 @@ def _error(description: str) -> dict[str, Any]:
     }
 
 
-# Worded from R5. The 400 covers both of the ways an operation reaches it: an unreadable
+# Worded from I5. The 400 covers both of the ways an operation reaches it: an unreadable
 # Authorization header, and a body or parameter that fails validation.
 _BAD_REQUEST = _error("The request, or its Authorization header, is malformed.")
 _UNAUTHORIZED = _error("No API key was presented, or the one presented is unknown or revoked.")
@@ -104,7 +104,7 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
     _drop_unreferenced_validation_schemas(document)
 
 
-def use_r4_error_responses(app: FastAPI) -> None:
+def use_i4_error_responses(app: FastAPI) -> None:
     """Make `app.openapi()` describe the errors the API actually produces."""
     generate = app.openapi
 

@@ -19,7 +19,7 @@ from enum import IntEnum, StrEnum, auto
 class RegressionState(IntEnum):
     """The states D5 stores in `{suite}.regression.state`, by their stored value.
 
-    Stored as an integer and exposed as a string (endpoints.md, Regressions). Unlike an API key's
+    Stored as an integer and exposed as a string (E8). Unlike an API key's
     scope, which D5 keeps as text because it is read once per request and never filtered on, this
     column is indexed and filtered on by `?state=`.
     """
@@ -35,9 +35,9 @@ class RegressionStateName(StrEnum):
     """The same five states, as endpoints.md has the API speak them.
 
     A second enum rather than a property on the first, because this is the type a request body and
-    a response field are validated against: pydantic renders it as one named string enum in R8's
+    a response field are validated against: pydantic renders it as one named string enum in I8's
     document, so every endpoint that carries a state refers to the same component, and a value that
-    is not one of the five is R4's 400 naming those that are.
+    is not one of the five is I4's 400 naming those that are.
 
     `auto()` gives each member the lowercase of its own name, so only the names are written twice,
     and the two enums are paired *by name* below -- which is what makes a member added to one and

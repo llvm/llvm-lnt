@@ -1,16 +1,16 @@
-"""Commits: the named points that group runs (endpoints.md, Commits).
+"""Commits: the named points that group runs (E3).
 
-A commit is one of the two entities carrying schema-declared metadata (D7), so the object these
+A commit is one of the two entities carrying schema-declared metadata (O2), so the object these
 endpoints accept and return is the same one a run submission nests under `commit`: the identity
 attribute `value`, the built-in `ordinal` and `tag`, and a `fields` dict of declared
 `commit_fields`. That object, and the validation of `fields`, live in `suites/entities.py`, shared
 with everything else that writes one; only the response models are here.
 
-Three things here are specific to commits. `ordinal` is unique within the suite (D11), so a write
-that would give two commits the same one answers R4's `ordinal_conflict` rather than the generic
-`conflict` -- a distinction R4 draws deliberately, because a caller cannot recover from it by
+Three things here are specific to commits. `ordinal` is unique within the suite (O6), so a write
+that would give two commits the same one answers I4's `ordinal_conflict` rather than the generic
+`conflict` -- a distinction I4 draws deliberately, because a caller cannot recover from it by
 retrying. `previous`/`next` on the detail response are computed by asking for the nearest ordinal in
-each direction, never by following a stored link (D11). And this list is the first cursor-paginated
+each direction, never by following a stored link (O6). And this list is the first cursor-paginated
 one: see `querying.Keyset` for the mechanism, which the run, test and time-series lists will share.
 """
 
@@ -85,7 +85,7 @@ COMMITS_PATH = f"{SUITES_PATH}/{{testsuite}}/commits"
 router = APIRouter(prefix=COMMITS_PATH, tags=["Commits"])
 
 
-# endpoints.md names these two and no others. A literal rather than a free string, so R8's document
+# endpoints.md names these two and no others. A literal rather than a free string, so I8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
 CommitSort = Literal["ordinal", "-ordinal"]
 
@@ -98,7 +98,7 @@ _ORDINAL_TAKEN = f"The ordinal is already held by another commit. {SUITE_SCHEMA_
 class Commit(CommitObject):
     """A commit as every response carries it.
 
-    `ordinal`, `tag` and `fields` are redeclared without their defaults. R4 requires
+    `ordinal`, `tag` and `fields` are redeclared without their defaults. I4 requires
     every documented key to be present in a response, and inheriting the request model's
     optionality would instead tell a generated client they may be absent.
     """
@@ -150,7 +150,7 @@ class ResolveRequest(BaseModel):
     # shaped like nothing that could be one, is still a value this suite does not hold, and the
     # endpoint's contract is to report that under `not_found` rather than fail the whole lookup.
     # The exception is a NUL (D5), which cannot even be compared against a stored value and so is
-    # refused like one anywhere else. The count is capped at R2's page ceiling, so that a response
+    # refused like one anywhere else. The count is capped at I2's page ceiling, so that a response
     # is never larger than a page of any other list.
     commits: list[Annotated[str, Storable]] = Field(
         min_length=1,
@@ -164,9 +164,9 @@ class ResolveRequest(BaseModel):
 
 
 class ResolvedCommits(BaseModel):
-    """The body of `POST /commits/resolve`: a lookup table, not one of R2's list envelopes.
+    """The body of `POST /commits/resolve`: a lookup table, not one of I2's list envelopes.
 
-    R2's `items` rule governs a list endpoint's top-level body; this is a table keyed by commit
+    I2's `items` rule governs a list endpoint's top-level body; this is a table keyed by commit
     value, which is what makes it useful -- a client resolving a page of runs looks each one up by
     the value it already holds.
     """
@@ -182,12 +182,12 @@ class ResolvedCommits(BaseModel):
 class Commits:
     """The query every commit response is built from, and how to read one of its rows back.
 
-    Public because a run submission creates commits too (D7), and the table, the two 409 wordings
+    Public because a run submission creates commits too (O2), and the table, the two 409 wordings
     and the ordinal constraint it needs are all already here; `routes/runs.py` reaches
     `get_or_create` below rather than restating any of them.
 
-    Holds the internal `id` alongside the commit's own columns: it is never rendered -- R1 keeps
-    auto-increment ids out of the API entirely -- but it is the unique tiebreaker D10 requires under
+    Holds the internal `id` alongside the commit's own columns: it is never rendered -- I1 keeps
+    auto-increment ids out of the API entirely -- but it is the unique tiebreaker O5 requires under
     every cursor, and the default order endpoints.md gives this list.
     """
 
@@ -207,7 +207,7 @@ class Commits:
         )
 
     def keyset(self, sort: CommitSort | None) -> Keyset:
-        """D10's ordering for this list: the caller's sort, then the internal tiebreaker.
+        """O5's ordering for this list: the caller's sort, then the internal tiebreaker.
 
         With no `sort`, the tiebreaker is the whole order -- endpoints.md makes that the order in
         which the server first saw each commit, which is deliberately not the ordinal order.
@@ -259,7 +259,7 @@ class Commits:
         """One commit with its ordinal neighbours, as the detail, create and update responses go.
 
         One statement, each part of it an index probe: the commit by its value, and the nearest
-        ordinal either side of the commit's own (D11). A query for the nearest ordinal rather than a
+        ordinal either side of the commit's own (O6). A query for the nearest ordinal rather than a
         stored link, so nothing has to be maintained when an ordinal is assigned, changed or
         cleared. A commit with no ordinal has no neighbours, and is never anyone else's: comparing
         against a null ordinal is unknown, so those rows drop out without being filtered for.
@@ -306,22 +306,22 @@ class Commits:
         )
 
     def get_or_create(self, connection: Connection, submitted: SubmittedCommit) -> int:
-        """The id of the commit a run submission names, creating it if it is not there (D7, D13).
+        """The id of the commit a run submission names, creating it if it is not there (O2, O8).
 
-        `ordinal` and `tag` are reconciled exactly as a declared field is -- D7 says so, because
+        `ordinal` and `tag` are reconciled exactly as a declared field is -- O2 says so, because
         both are nullable and describe the commit rather than being a policy flag: each is set when
         the commit has none, left alone when it already equals the submitted one, and refused when
-        it differs. What the ordinal does not share is the code: R4 answers a contradicted ordinal
+        it differs. What the ordinal does not share is the code: I4 answers a contradicted ordinal
         with `ordinal_conflict`, which it splits out because a client cannot recover from it by
         retrying. A contradicted tag is the generic `conflict`, like a field.
 
         `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
         and that placement is load-bearing. The INSERT can trip it -- another commit already holds
         the ordinal -- in which case the get-or-create re-raises rather than treating it as a lost
-        race, and this is what turns the re-raise into R4's 409 instead of a 500. The UPDATE that
+        race, and this is what turns the re-raise into I4's 409 instead of a 500. The UPDATE that
         fills in a NULL ordinal can equally lose that race to a commit created since.
         """
-        # D7: only what the submission sends is matched, so the ordinal and the tag join the fields
+        # O2: only what the submission sends is matched, so the ordinal and the tag join the fields
         # exactly when each was sent. An omitted one is neither compared nor written, and can never
         # be the reason a submission is refused.
         built_in = {"ordinal": submitted.ordinal, "tag": submitted.tag}
@@ -343,10 +343,10 @@ class Commits:
             )
 
     def _contradicted(self, value: str) -> Contradiction:
-        """The 409 for a submitted value that disagrees with the stored one (D7, D11).
+        """The 409 for a submitted value that disagrees with the stored one (O2, O6).
 
         Two codes from one rule, which is why this branches on the key rather than being two
-        functions: R4 gives a contradicted field the generic `conflict`, and a contradicted ordinal
+        functions: I4 gives a contradicted field the generic `conflict`, and a contradicted ordinal
         `ordinal_conflict`, because the second tells the client its view of the commit order is
         wrong and that retrying cannot help. Both name the stored value and the submitted one, so
         that a submitter can fix its configuration without reading the database.
@@ -383,7 +383,7 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
     """The id of the commit a request body names, or the 404 for a value no commit has.
 
     `machines.machine_id`'s counterpart, and here for the same reason: the lookup and the wording
-    of its 404 belong with the entity. Deliberately unlike the `commit=` *filter*, which R3 answers
+    of its 404 belong with the entity. Deliberately unlike the `commit=` *filter*, which I3 answers
     with an empty page -- this one resolves a value the request asked to store, and storing a
     reference to a commit that is not there is not something the caller meant.
     """
@@ -394,12 +394,12 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
 
 
 def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
-    """The ordinal of a commit a request body names as a range boundary (D11).
+    """The ordinal of a commit a request body names as a range boundary (O6).
 
     `POST /query`'s `after_commit`/`before_commit` name a commit and mean its *position*, so both
     ways of failing to have one are the caller's mistake and neither is an empty page. A value no
-    commit has is the 404 R4 gives an entity named by a request body -- deliberately unlike the
-    `commit=` filter beside it, which R3 answers with an empty result, because that one asks which
+    commit has is the 404 I4 gives an entity named by a request body -- deliberately unlike the
+    `commit=` filter beside it, which I3 answers with an empty result, because that one asks which
     rows belong to a commit whereas this one asks where a commit sits. And a commit that exists but
     has no ordinal sits nowhere (D1), so there is no comparison to make: that is a 400, since no
     data would answer it either.
@@ -466,12 +466,12 @@ def list_commits(
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Commit]:
-    """Every commit in the suite, filtered, ordered and cursor-paginated (R2, R3, D9, D10).
+    """Every commit in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
 
     Omitting `sort` orders by the internal id, which is the order the server first saw each commit
     in; `sort=ordinal` orders by the ordinal instead and excludes the commits that have none, since
     they have no position in that order. That exclusion comes from the keyset rather than from here
-    (D10, `querying.Keyset.defined`).
+    (O5, `querying.Keyset.defined`).
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
@@ -515,7 +515,7 @@ def create_commit(
     registry: RegistryDep,
     response: Response,
 ) -> CommitDetail:
-    """Create a commit without a run, optionally ordered and tagged (D7, D11).
+    """Create a commit without a run, optionally ordered and tagged (O2, O6).
 
     Commits are also created implicitly by run submission; this is the path for declaring one ahead
     of any data, or for giving an ordinal to a commit that will never carry any.
@@ -557,7 +557,7 @@ def resolve_commits(
     metadata.
 
     `read`-scoped despite being a POST: the body is a lookup key too long for a query string, not a
-    change (R5). Unpaginated, because the response is bounded by the request.
+    change (I5). Unpaginated, because the response is bounded by the request.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
@@ -590,7 +590,7 @@ def resolve_commits(
 def get_commit(
     testsuite: str, value: str, engine: EngineDep, registry: RegistryDep
 ) -> CommitDetail:
-    """One commit, plus the commits either side of it in ordinal order (D11)."""
+    """One commit, plus the commits either side of it in ordinal order (O6)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Commits(suite).detail(connection, value)
 
@@ -604,7 +604,7 @@ def get_commit(
 def update_commit(
     testsuite: str, value: str, body: CommitUpdate, engine: EngineDep, registry: RegistryDep
 ) -> CommitDetail:
-    """Set or clear the ordinal and tag, and/or set declared fields (D7, D11).
+    """Set or clear the ordinal and tag, and/or set declared fields (O2, O6).
 
     This is the only way to change an ordinal or a tag once set, and the only way to clear one. A
     key the request omits is left unchanged, inside `fields` as well as beside it.
@@ -647,7 +647,7 @@ def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: Regis
 
     One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their
     samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has no
-    cascade, so a commit a regression still names refuses to go -- reported as R4's `in_use`, which
+    cascade, so a commit a regression still names refuses to go -- reported as I4's `in_use`, which
     tells the caller to detach the regression rather than to retry.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:

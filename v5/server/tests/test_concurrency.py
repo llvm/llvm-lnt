@@ -1,4 +1,4 @@
-"""D13's get-or-create under actual concurrency, and D7's reconciliation on top of it.
+"""O8's get-or-create under actual concurrency, and O2's reconciliation on top of it.
 
 The interesting failures here are the ones a single-threaded test cannot see: a savepoint that
 rolls back more than the statement that failed, an insert that re-queries after the wrong kind of
@@ -187,7 +187,7 @@ def lost_race(
     commits: Commits,
     background: Callable[..., Future[Any]],
 ) -> LostRace:
-    """Stage D13's race so that one side is guaranteed to lose, and report what it got.
+    """Stage O8's race so that one side is guaranteed to lose, and report what it got.
 
     The shape is the one that is reliable: the winner inserts the machine and holds its transaction
     open, so the loser's SELECT misses and its INSERT blocks on the unique index rather than failing
@@ -222,7 +222,7 @@ def lost_race(
 
 class TestLostRace:
     def test_the_loser_returns_the_row_the_winner_created(self, lost_race: LostRace) -> None:
-        # D13: no error, no second row, and no client-side retry -- the loser re-queries and comes
+        # O8: no error, no second row, and no client-side retry -- the loser re-queries and comes
         # back with the winner's machine.
         assert lost_race.loser_id == lost_race.winner_id
 
@@ -319,7 +319,7 @@ class TestBatchResolution:
     def test_costs_the_same_statements_for_ten_names_as_for_ten_thousand(
         self, db_engine: Engine, suite: Suite
     ) -> None:
-        """D13: a fixed number of round trips, "not a statement per name, nor one per chunk".
+        """O8: a fixed number of round trips, however many names a submission carries.
 
         The guarantee no assertion about stored rows can see. A loop over names, or a chunked
         insert, produces exactly the same `{suite}.test` table and passes every other test in this
@@ -453,7 +453,7 @@ class TestMachineReconciliation:
     def test_a_stored_null_is_filled_in(
         self, db_engine: Engine, machines: Machines, suite: Suite
     ) -> None:
-        # D7: a key the record has no value for is set rather than being a contradiction. This is
+        # O2: a key the record has no value for is set rather than being a contradiction. This is
         # how a producer that starts sending a newly declared field populates the existing rows.
         with db_engine.begin() as connection:
             machines.get_or_create(connection, submitted_machine(hardware="x86_64"))
@@ -470,7 +470,7 @@ class TestMachineReconciliation:
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             machines.get_or_create(connection, submitted_machine(hardware="aarch64"))
 
-        # R4's generic `conflict`: the request contradicts existing state in a way none of the more
+        # I4's generic `conflict`: the request contradicts existing state in a way none of the more
         # specific 409 codes describes.
         assert failure.value.code is ErrorCode.CONFLICT
         # The message names the field and both values, so a submitter can fix its configuration
@@ -492,7 +492,7 @@ class TestMachineReconciliation:
     def test_tracked_is_first_write_wins(
         self, db_engine: Engine, machines: Machines, suite: Suite
     ) -> None:
-        # D6 and D7 exclude `tracked` from the match entirely: it is a policy flag operators are
+        # O1 and O2 exclude `tracked` from the match entirely: it is a policy flag operators are
         # expected to change, so a submission that disagrees is ignored rather than refused.
         with db_engine.begin() as connection:
             machines.get_or_create(connection, submitted_machine(tracked=False))
@@ -538,7 +538,7 @@ class TestCommitReconciliation:
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             commits.get_or_create(connection, submitted_commit(ordinal=4))
 
-        # R4 splits this out from `conflict` deliberately: the client's view of the commit order is
+        # I4 splits this out from `conflict` deliberately: the client's view of the commit order is
         # wrong, and retrying cannot help.
         assert failure.value.code is ErrorCode.ORDINAL_CONFLICT
         assert "3" in failure.value.message
@@ -578,12 +578,12 @@ class TestCommitReconciliation:
 
 
 class TestConcurrentFill:
-    """D7's "never overwritten", under the race that is the only way to violate it.
+    """O2's "never overwritten", under the race that is the only way to violate it.
 
     Filling in a stored NULL is the one thing a submission does to a row it did not create, and
     under READ COMMITTED two submissions can both read that NULL before either of them writes. If
     the fill trusts that read, the second one waits on the first's row lock and then overwrites a
-    value it never compared against -- D7's rule holding *usually* rather than always, silently,
+    value it never compared against -- O2's rule holding *usually* rather than always, silently,
     and with no constraint to catch it: the unique index on `ordinal` sees a *different* commit
     taking an ordinal, not two submissions handing *this* commit two of them.
 
@@ -627,7 +627,7 @@ class TestConcurrentFill:
             running.result(timeout=BLOCK_TIMEOUT)
 
         # One value stored, and the submission that disagrees with it told so -- which is the same
-        # answer D7 gives when the value was stored an hour earlier rather than a millisecond.
+        # answer O2 gives when the value was stored an hour earlier rather than a millisecond.
         assert failure.value.code is ErrorCode.CONFLICT
         assert stored(db_engine, suite, "machine", "name", "linux").hardware == "x86_64"
 
@@ -639,7 +639,7 @@ class TestConcurrentFill:
         suite: Suite,
         background: Callable[..., Future[Any]],
     ) -> None:
-        # D11: PATCH is the only way to move a commit once its ordinal is set, and "set" includes
+        # O6: PATCH is the only way to move a commit once its ordinal is set, and "set" includes
         # set a millisecond ago by a submission that has only just committed.
         running = raced(
             db_engine,
@@ -688,7 +688,7 @@ class TestConcurrentFill:
         suite: Suite,
         background: Callable[..., Future[Any]],
     ) -> None:
-        # D13. Staged as the cycle `FOR UPDATE` would close: A creates a commit and holds it, B
+        # O8. Staged as the cycle `FOR UPDATE` would close: A creates a commit and holds it, B
         # fills the machine's field and then waits on A's commit, and A inserts its run -- which
         # needs a key-share lock on the machine B has just locked.
         def fill() -> int:
@@ -732,7 +732,7 @@ class TestTransactionBoundaries:
         self, db_engine: Engine, machines: Machines, suite: Suite
     ) -> None:
         # Nothing here commits on its own: a run submission is atomic from the API user's
-        # perspective (D13), so a machine created on the way to a failure must not survive it.
+        # perspective (O8), so a machine created on the way to a failure must not survive it.
         with db_engine.connect() as connection, connection.begin():
             machines.get_or_create(connection, submitted_machine())
             connection.rollback()

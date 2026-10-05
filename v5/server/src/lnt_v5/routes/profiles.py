@@ -1,9 +1,9 @@
-"""Profiles: instruction-level counter data for one test in one run (endpoints.md, Profiles).
+"""Profiles: instruction-level counter data for one test in one run (E7).
 
 Read-only: a profile is submitted inside a run, and stored as a `{suite}.profile` row and a
-`{suite}.profile_function` row per function (D5, D12). Three endpoints address a profile by its
+`{suite}.profile_function` row per function (D5, O7). Three endpoints address a profile by its
 UUID, and the run's listing is how a client that knows a run and a test finds that UUID. A function
-is named in `function=` rather than in the path, since its name can contain `/` (R1).
+is named in `function=` rather than in the path, since its name can contain `/` (I1).
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ RUN_PROFILES_PATH = f"{RUNS_PATH}/{{uuid}}/profiles"
 
 router = APIRouter(prefix=PROFILES_PATH, tags=["Profiles"])
 
-# The one route under a run rather than under `/profiles`, tagged so that R8's document groups it
+# The one route under a run rather than under `/profiles`, tagged so that I8's document groups it
 # with the profiles, as `runs.machine_runs_router` is with the machines.
 run_profiles_router = APIRouter(prefix=RUNS_PATH, tags=["Profiles"])
 
@@ -49,7 +49,7 @@ class RunProfile(BaseModel):
 
     test: str = Field(description=_TEST)
     uuid: str = Field(
-        description="Identifies the profile. Server-generated (R1); the profile data endpoints "
+        description="Identifies the profile. Server-generated (I1); the profile data endpoints "
         "take it."
     )
 
@@ -131,7 +131,7 @@ class Profiles:
         self._run: Table = suite.tables.run
 
     def of_run(self, run: int) -> Select[Any]:
-        """Every profile attached to one run, by test name (endpoints.md)."""
+        """Every profile attached to one run, by test name (E7)."""
         return (
             select(self._test.c.name, self.table.c.uuid)
             .select_from(self.table.join(self._test, self._test.c.id == self.table.c.test_id))
@@ -239,7 +239,7 @@ class Profiles:
 def list_run_profiles(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[RunProfile]:
-    """Which tests of one run have a profile, and the UUID of each (R2).
+    """Which tests of one run have a profile, and the UUID of each (I2).
 
     Unpaginated: a run holds at most one profile per test it measured, so the list is bounded by
     the run itself.
@@ -259,7 +259,7 @@ def list_run_profiles(
 def get_profile(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> ProfileMetadata:
-    """What a profile is of, and its top-level counters (endpoints.md)."""
+    """What a profile is of, and its top-level counters (E7)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Profiles(suite).metadata(connection, uuid)
 
@@ -273,9 +273,9 @@ def get_profile(
 def list_profile_functions(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[ProfileFunction]:
-    """Every function the profile measured, by name (R2, endpoints.md).
+    """Every function the profile measured, by name (I2, E7).
 
-    Unpaginated, since D12 caps a profile's functions.
+    Unpaginated, since O7 caps a profile's functions.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Items(items=Profiles(suite).functions(connection, uuid))
@@ -302,7 +302,7 @@ def get_profile_disassembly(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> FunctionDisassembly:
-    """One function's disassembly and the counters measured along it (endpoints.md).
+    """One function's disassembly and the counters measured along it (E7).
 
     The connection is released before the instructions are decompressed, so that a pooled
     connection and its open transaction are not held across the expensive part.

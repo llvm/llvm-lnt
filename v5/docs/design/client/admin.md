@@ -13,7 +13,7 @@ This page provides various tabs with different tools.
 | Test Suites | Suite selector, schema viewer, delete suite | `GET/DELETE suites` |
 | Create Suite | Name input + JSON schema definition text area | `POST suites` |
 
-### API Keys tab detail
+### AD1: API Keys tab detail
 
 This tab requires an API key with `admin` scope set in the navigation bar -- listing
 keys needs `admin` just as creating and revoking them do. Otherwise, a red banner saying
@@ -60,7 +60,7 @@ UI for actions that destroy data, a plain confirmation suffices here: revoking a
 withdraws access but destroys nothing. On success the row's `Active` flips to `No` in
 place and its Revoke button disappears -- the row is not removed.
 
-### Test Suites tab detail
+### AD2: Test Suites tab detail
 
 A dropdown to switch between test suites. Selecting a suite loads and displays its schema.
 The schema is displayed as follows:
@@ -105,7 +105,7 @@ exact suite name to confirm. On confirmation, calls the API to delete the test s
 Deleting requires an API key with `manage` scope set in the navigation bar; without
 it, the delete fails with a permission error. Viewing schemas requires no key.
 
-### Create Suite tab detail
+### AD3: Create Suite tab detail
 
 This tab requires an API key with `manage` scope set in the navigation bar. Otherwise, a
 red banner saying `Permission denied. Set an API token with the required scope in Settings.`

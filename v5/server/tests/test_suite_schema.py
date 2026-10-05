@@ -77,7 +77,7 @@ class TestSuiteName:
 
     @pytest.mark.parametrize("name", ["admin", "suites", "api"])
     def test_reserves_nothing_for_routing(self, name: str) -> None:
-        # R1: suite-scoped resources live below /api/suites/, so routing reserves no suite name at
+        # I1: suite-scoped resources live below /api/suites/, so routing reserves no suite name at
         # all. Only the namespace collisions above are refused.
         SuiteSchema.model_validate(schema(name=name))
 
@@ -136,7 +136,7 @@ class TestEntryNames:
 
     @pytest.mark.parametrize("name", ["name", "profile"])
     def test_a_metric_cannot_take_a_reserved_submission_key(self, name: str) -> None:
-        # D6: a test entry is `name` plus metric values, with `profile` carrying base64 profile
+        # O1: a test entry is `name` plus metric values, with `profile` carrying base64 profile
         # data. A metric called either could never be given a value, so the suite is refused
         # rather than created in a state where one of its metrics is unreachable. This is not a
         # column collision -- `profile` is a table of its own -- so the message must not say it is.
@@ -157,7 +157,7 @@ class TestTypes:
 
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
     def test_is_required_on_every_entry(self, list_name: str) -> None:
-        # D4: there is no default type.
+        # D3: there is no default type.
         with pytest.raises(ValidationError):
             SuiteSchema.model_validate(schema(**{list_name: [{"name": "entry"}]}))
 
@@ -181,7 +181,7 @@ class TestPresentationKeys:
             ("machine_fields", "bigger_is_better", True),
             ("commit_fields", "unit", "s"),
             ("machine_fields", "unit_abbrev", "s"),
-            # Only a commit or machine field is searchable (D9), and only a commit field is the
+            # Only a commit or machine field is searchable (O4), and only a commit field is the
             # UI's display value (D4).
             ("metrics", "searchable", True),
             ("metrics", "display", True),

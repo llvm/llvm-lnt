@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.CheckConstraint("id = 1", name=op.f("ck_schema_version_single_row")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_schema_version")),
     )
-    # D5: the row exists from the moment the database does, so every reader can address it
+    # D6: the row exists from the moment the database does, so every reader can address it
     # directly instead of coping with its absence.
     op.execute("INSERT INTO schema_version (id, version) VALUES (1, 0)")
 

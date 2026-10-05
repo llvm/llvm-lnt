@@ -20,13 +20,13 @@ _show_body() {
 
 # mint_key <name> <scope> -- create an API key through the CLI and echo its token.
 #
-# R5 requires an out-of-band way to create a key, and this is it. `create-key` prints the token
+# I5 requires an out-of-band way to create a key, and this is it. `create-key` prints the token
 # alone on stdout and everything a human reads on stderr, which is what makes this capture yield
 # just the token. Checks are independent, so each one that needs a key mints its own.
 mint_key() {
     local token
     token="$(docker exec "$CONTAINER" lnt-v5 server create-key --name "$1" --scope "$2" 2>/dev/null)"
-    # Narrow on purpose: it matches the 64 hex characters R5 fixes, so a create-key that stopped
+    # Narrow on purpose: it matches the 64 hex characters I5 fixes, so a create-key that stopped
     # printing one fails here rather than silently yielding "".
     if ! printf '%s' "$token" | grep -Eq '^[0-9a-f]{64}$'; then
         echo "  expected a 64-character hex token from create-key, got: ${token}" >&2

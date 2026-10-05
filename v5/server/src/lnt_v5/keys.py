@@ -1,7 +1,7 @@
-"""API keys: the tokens that authenticate a caller, and how one is created (R5, D5).
+"""API keys: the tokens that authenticate a caller, and how one is created (I5, D5).
 
 This is the `api_key` table's access layer, shared by the CLI (which mints the first key
-out of band), the admin endpoints, and the authentication path. R5's HTTP semantics -- which
+out of band), the admin endpoints, and the authentication path. I5's HTTP semantics -- which
 failure is a 400 and which a 401 -- live in `auth.py` instead.
 """
 
@@ -23,10 +23,10 @@ from .tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key
 
 logger = logging.getLogger(__name__)
 
-# R5: 256 bits from a cryptographically secure source, rendered as lowercase hex.
+# I5: 256 bits from a cryptographically secure source, rendered as lowercase hex.
 TOKEN_BYTES = 32
 
-# The shape R5 fixes for a token, and so the shape anything else cannot be. Checking it before
+# The shape I5 fixes for a token, and so the shape anything else cannot be. Checking it before
 # hashing keeps a garbage credential from costing a database round trip.
 TOKEN_PATTERN = re.compile(r"\A[0-9a-f]{64}\Z")
 
@@ -57,7 +57,7 @@ class ApiKeyInfo:
 
 @dataclass(frozen=True)
 class CreatedKey(ApiKeyInfo):
-    """A newly created key, carrying the only copy of its token there will ever be (R5)."""
+    """A newly created key, carrying the only copy of its token there will ever be (I5)."""
 
     token: str
 
@@ -67,7 +67,7 @@ class ResolvedKey:
     """What a presented token resolved to. Internal: carries the row id, which no response does.
 
     `is_active` is read rather than filtered on, so the caller can log whether a rejected key was
-    unknown or revoked. Both are a 401 either way (R5).
+    unknown or revoked. Both are a 401 either way (I5).
     """
 
     id: int
@@ -81,7 +81,7 @@ def generate_token() -> str:
 
 
 def hash_token(token: str) -> str:
-    """R5's single SHA-256 over the token's ASCII bytes.
+    """I5's single SHA-256 over the token's ASCII bytes.
 
     Deliberately not a password KDF: these tokens carry 256 bits of entropy from the server, so
     there is nothing to slow an attacker down against, and slow hashing would instead hand any
@@ -140,11 +140,11 @@ def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
 def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
     """The key a presented token belongs to, or None if it belongs to none.
 
-    R5 resolves every authenticated request against the database rather than caching the decision,
+    I5 resolves every authenticated request against the database rather than caching the decision,
     so that revoking a key takes effect immediately. That is affordable because this is a single
     indexed match on a table holding one row per key.
 
-    A token that is not the shape R5 fixes cannot be one we issued, so it is rejected without a
+    A token that is not the shape I5 fixes cannot be one we issued, so it is rejected without a
     round trip -- which also means an unauthenticated caller cannot make the server query on its
     behalf just by presenting garbage.
     """

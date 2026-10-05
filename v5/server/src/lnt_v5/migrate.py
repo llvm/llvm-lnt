@@ -1,4 +1,4 @@
-"""Bringing a database up to the structure the code expects (D14).
+"""Bringing a database up to the structure the code expects (D6).
 
 Only the global tables are managed here. Per-suite tables are created and altered at runtime from
 a suite's schema, which is a different mechanism for a different reason: those tables are defined

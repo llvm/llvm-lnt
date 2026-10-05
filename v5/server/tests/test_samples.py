@@ -1,8 +1,8 @@
-"""The sample list (endpoints.md, Samples).
+"""The sample list (E6).
 
 Driven over the real application and a real database. Most of what is interesting here is the shape
-of one object -- R4's exception that `metrics` carries only the metrics that have a value -- and the
-`test=` filter, which exists because a test name cannot be a path segment (R1): it legitimately
+of one object -- I4's exception that `metrics` carries only the metrics that have a value -- and the
+`test=` filter, which exists because a test name cannot be a path segment (I1): it legitimately
 contains `/`, and a server decodes `%2F` back to a separator before routing. The test named
 `suite/one` below is not incidental; addressing it is the thing the filter has to make possible.
 """
@@ -27,7 +27,7 @@ RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 
 # One metric of every declared type (D3), so that `metrics` can be checked for the JSON
-# representation R4 gives each rather than only for the two numeric ones.
+# representation I4 gives each rather than only for the two numeric ones.
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
@@ -39,7 +39,7 @@ NTS: dict[str, Any] = {
     ],
 }
 
-# A name with a slash in it, which is what D6 and R1 use as the example throughout, and what no
+# A name with a slash in it, which is what O1 and I1 use as the example throughout, and what no
 # path segment could ever carry.
 SLASHED = "suite/one"
 
@@ -99,7 +99,7 @@ class TestList:
     def test_omits_the_metrics_with_no_value(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # R4's stated exception: unlike a `fields` dict, `metrics` does not carry a null per
+        # I4's stated exception: unlike a `fields` dict, `metrics` does not carry a null per
         # declared key. A suite's metric list is long and any one test populates little of it.
         run = submit({"name": "t", "execution_time": 1.25})
 
@@ -110,7 +110,7 @@ class TestList:
     def test_a_run_that_measured_a_test_and_no_metric_is_still_a_sample(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # D6: an entry carrying nothing but a name still records that the test ran.
+        # O1: an entry carrying nothing but a name still records that the test ran.
         run = submit({"name": "t"})
 
         assert listed(api_client, run).json()["items"] == [{"test": "t", "metrics": {}}]
@@ -118,7 +118,7 @@ class TestList:
     def test_repetitions_are_separate_and_indistinguishable(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # D6: an array value is one sample per element, and endpoints.md makes those repetitions
+        # O1: an array value is one sample per element, and endpoints.md makes those repetitions
         # indistinguishable by design -- nothing in the object tells them apart, so a test may only
         # ask what the set of them is.
         run = submit({"name": "t", "execution_time": [1.0, 2.0], "compile_time": 0.5})
@@ -151,7 +151,7 @@ class TestList:
     def test_values_keep_the_type_the_schema_declares(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # D3 and R4: a value uses the JSON representation of its declared type and is never
+        # D3 and I4: a value uses the JSON representation of its declared type and is never
         # stringified, so an integer comes back an integer rather than "3".
         run = submit(
             {
@@ -202,7 +202,7 @@ class TestList:
 
 
 class TestTestFilter:
-    """The filter that replaces the path segment a test name cannot occupy (R1)."""
+    """The filter that replaces the path segment a test name cannot occupy (I1)."""
 
     def test_keeps_only_that_tests_samples(
         self, api_client: TestClient, submit: Callable[..., str]
@@ -247,7 +247,7 @@ class TestTestFilter:
     def test_is_404_for_a_test_the_suite_has_never_seen(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # R3: filtering by a nonexistent test name is 404, exactly as a nonexistent machine is.
+        # I3: filtering by a nonexistent test name is 404, exactly as a nonexistent machine is.
         run = submit({"name": "t"})
 
         response = listed(api_client, run, "test=nope")

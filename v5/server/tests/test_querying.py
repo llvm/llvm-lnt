@@ -1,11 +1,11 @@
-"""R3's shared list conventions, and R2's cursor pagination (`querying.py`).
+"""I3's shared list conventions, and I2's cursor pagination (`querying.py`).
 
 The commit list is the first endpoint to page with a cursor, but the mechanism is shared -- the run,
 test and time-series lists will all use it -- so it is covered here, against a table of its own,
 rather than only through the endpoint that happens to reach it first. That table deliberately has a
-*non-unique* sort column, which no suite table offers: D10's tiebreaker only does anything when two
+*non-unique* sort column, which no suite table offers: O5's tiebreaker only does anything when two
 rows share a sort value, and a test over unique values could not tell whether it was there at all.
-It also has a nullable one, for the rows D10 excludes from an order they have no position in.
+It also has a nullable one, for the rows O5 excludes from an order they have no position in.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ events = Table(
     Column("id", Integer, Identity(), primary_key=True),
     Column("label", String(64), nullable=False),
     Column("at", DateTime(timezone=True), nullable=False),
-    # Nullable on purpose: D10 excludes rows with no value for a sort key, and only a nullable
+    # Nullable on purpose: O5 excludes rows with no value for a sort key, and only a nullable
     # column can show that.
     Column("rank", Integer, nullable=True),
     # A real, for the cursor reader that reads one back. Only the tests that sort by it fill it.
@@ -120,7 +120,7 @@ def by_rank() -> Keyset:
 def forged(cursor: str, *values: Any) -> str:
     """A cursor for the same ordering as `cursor`, carrying other key values.
 
-    What a client that ignored R2's opacity could send. Cursors need not be unforgeable, so a forged
+    What a client that ignored I2's opacity could send. Cursors need not be unforgeable, so a forged
     one is ordinary input, and whatever it carries must be answered with a 400 rather than reach the
     database.
     """
@@ -151,7 +151,7 @@ def one_page(
 @pytest.mark.usefixtures("rows")
 class TestOrdering:
     def test_appends_an_internal_tiebreaker_to_the_callers_sort(self) -> None:
-        # D10: the caller's sort specification plus one unique column, so that the row order is
+        # O5: the caller's sort specification plus one unique column, so that the row order is
         # deterministic and non-repeating.
         keyset = by_time()
 
@@ -173,7 +173,7 @@ class TestOrdering:
         assert [row.label for row in page] == ["e", "a", "c"]
 
     def test_excludes_rows_with_no_value_for_a_sort_key(self, db_engine: Engine) -> None:
-        """D10: a row with no position in the order is left out rather than left to vanish.
+        """O5: a row with no position in the order is left out rather than left to vanish.
 
         A null compares as unknown against a cursor's value, so such a row would be served on the
         first page and skipped by every page after it. The keyset derives the exclusion from the
@@ -291,7 +291,7 @@ class TestConcurrentChange:
 @pytest.mark.usefixtures("rows")
 class TestCursorOpacity:
     def test_is_not_the_row_id_dressed_up(self, db_engine: Engine) -> None:
-        """R2: a cursor is opaque, so it must not be a client-guessable encoding of one column.
+        """I2: a cursor is opaque, so it must not be a client-guessable encoding of one column.
 
         A cursor that was just the last row's id would pass every paging test above and let a
         client mint one for any row it liked -- and, worse, would be wrong the moment two rows
@@ -361,7 +361,7 @@ class TestCursorOpacity:
         assert len(one_page(db_engine, by_time(), 3, cursor, events.c.label != "a")[0]) == 3
 
     def test_refuses_a_text_value_carrying_a_nul(self, db_engine: Engine) -> None:
-        # D5 reaches what comes out of a cursor too, because a cursor need not be unforgeable (R2):
+        # D5 reaches what comes out of a cursor too, because a cursor need not be unforgeable (I2):
         # a hand-made one is a way to hand the database a string no column can hold.
         keyset = Keyset(SortKey(events.c.label), tiebreaker=events.c.id)
         _, cursor = one_page(db_engine, keyset, 3)

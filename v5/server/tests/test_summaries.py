@@ -1,4 +1,4 @@
-"""D15's run summaries: the two-stage geomean, and what a submission stores."""
+"""O9's run summaries: the two-stage geomean, and what a submission stores."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ LABEL = Metric.model_validate({"name": "label", "type": "text"})
 
 
 def entry(name: str, *samples: dict[str, Any]) -> SubmittedTest:
-    """A test entry as validation produces it: every sample carries every metric (see D6)."""
+    """A test entry as validation produces it: every sample carries every metric (see O1)."""
     every = {"time": None, "count": None, "label": None}
     return SubmittedTest(name=name, samples=[every | sample for sample in samples], profile=None)
 

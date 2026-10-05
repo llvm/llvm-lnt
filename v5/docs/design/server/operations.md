@@ -4,7 +4,7 @@ This document covers how data flows through the v5 database: submission, metadat
 management, search, time-series queries, and ordinal management.
 
 
-## D6: Submission Format
+## O1: Submission Format
 
 Runs are submitted as JSON via `POST /api/suites/{testsuite}/runs`.
 
@@ -12,7 +12,7 @@ Machine and Commit are each submitted as an entity object of the same shape:
 the identity attribute, any built-in attributes, and a `fields` dict holding
 the schema-declared metadata. Keeping declared metadata in its own namespace
 means a field can never collide with an identity or built-in key, and makes the
-object identical to the one the entity's own creation endpoint accepts (see D7).
+object identical to the one the entity's own creation endpoint accepts (see O2).
 
 ```json
 {
@@ -55,12 +55,12 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   hyphenated hex format (e.g., output of `uuidgen`). Case-insensitive on input;
   normalized to lowercase for storage. Any UUID version is accepted (v4, v5,
   v7, etc.) -- only the format is validated. If a run with the same UUID
-  already exists in the test suite, the server returns 409 `duplicate` (see R4).
+  already exists in the test suite, the server returns 409 `duplicate` (see I4).
   If omitted, the server generates a random UUID v4.
 - `machine`: Required object identifying the machine this run was measured on.
   - `name`: Required string. The machine's identity.
   - `fields`: Optional. Every key must be declared in the schema's
-    `machine_fields`. See D7 for undeclared keys and for how metadata is
+    `machine_fields`. See O2 for undeclared keys and for how metadata is
     reconciled when the machine already exists.
   - `tracked`: Optional boolean, a built-in attribute rather than a
     `machine_field`. Controls whether the machine participates in automatic
@@ -71,20 +71,20 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
 - `commit`: Required object identifying the commit this run belongs to.
   - `value`: Required string. The commit's identity.
   - `fields`: Optional. Every key must be declared in the schema's
-    `commit_fields`. See D7 for undeclared keys and for how metadata is
+    `commit_fields`. See O2 for undeclared keys and for how metadata is
     reconciled when the commit already exists.
   - `ordinal`: Optional integer, a built-in attribute rather than a
     `commit_field`. Places the commit in the suite's total order. It is set
     when the commit has no ordinal yet; when the commit already has a
-    different one, the submission is rejected with 409 (see D7). Use
+    different one, the submission is rejected with 409 (see O2). Use
     `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal once
     set. Ordinals are unique within a suite, so a value already held by a
-    different commit is also rejected with 409 (see D11).
+    different commit is also rejected with 409 (see O6).
   - `tag`: Optional string, a built-in attribute rather than a `commit_field`.
     A human-readable label such as a release name; several commits may share
     one (see D5). It is set when the commit has no tag yet; when the commit
     already has a different one, the submission is rejected with 409 (see
-    D7). Use `PATCH /api/suites/{testsuite}/commits/{value}` to change or
+    O2). Use `PATCH /api/suites/{testsuite}/commits/{value}` to change or
     clear a tag once set.
 - `run_parameters`: Optional. Stored as JSONB on the Run. Run has no declared
   field list, so this is a free-form blob rather than a `fields` dict, validated
@@ -106,7 +106,7 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   - Metrics with null values must be omitted from the test entry (not sent as
     `"metric": null`), and a null element inside an array is rejected.
   - An optional `profile` field carries the test's profile: a JSON profile
-    document, gzip-compressed and base64-encoded (see D12).
+    document, gzip-compressed and base64-encoded (see O7).
   - `name` and `profile` are reserved keys within a test entry, so neither may
     be a metric name -- this is enforced when the schema is created rather than
     at submission (see D5), so a suite can never hold a metric that no submission
@@ -115,11 +115,11 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
 An explicit `null` means "omitted" on `uuid`, `commit.ordinal`, `commit.tag`, a
 test entry's `profile`, and each entry of `machine.fields` and `commit.fields`;
 anywhere else it is rejected with 400. Unlike with `PATCH`, a `null` in `fields`
-never clears a stored value (see D7), so a client can submit the `fields` dict a
-response gave it, which carries a `null` for every unset field (see R4).
+never clears a stored value (see O2), so a client can submit the `fields` dict a
+response gave it, which carries a `null` for every unset field (see I4).
 
 
-## D7: Machine and Commit Metadata Population
+## O2: Machine and Commit Metadata Population
 
 Machine and Commit are the two entities that carry schema-declared metadata
 (`machine_fields` and `commit_fields`, see D4) and that a run submission may
@@ -146,7 +146,7 @@ see D2), not something a submission can do implicitly.
 
 **Matching on re-submission**: the match in path 1 considers only the keys
 present in the submission, and a key present with an explicit `null` counts as
-absent (see D6). A key the submission omits is not compared, so its stored value
+absent (see O1). A key the submission omits is not compared, so its stored value
 is left alone and can never cause a rejection. Submitters that send different
 subsets of a record's metadata therefore coexist, and a field introduced by a
 schema change does not break producers that do not send it yet.
@@ -154,7 +154,7 @@ schema change does not break producers that do not send it yet.
 A key the submission sends fills in the value if the record has none, and is
 accepted if it equals the stored value. Any other value rejects the submission
 with 409 (`ordinal_conflict` for a commit's `ordinal`, `conflict` otherwise; see
-R4): stored metadata is never overwritten, and `PATCH` is the only way to change
+I4): stored metadata is never overwritten, and `PATCH` is the only way to change
 it.
 
 Per-entity specifics:
@@ -175,13 +175,13 @@ re-submitting it for an existing machine is never a mismatch. `ordinal` and
 `tag` are nullable and describe the commit, so they match like `fields` do --
 set when unset, rejected when they contradict. As with `fields`, changing one
 through PATCH means a submitter still sending the old value is rejected until it
-is updated. See D5 for their columns and D11 for ordinal assignment.
+is updated. See D5 for their columns and O6 for ordinal assignment.
 
 Run metadata is deliberately not covered here: `run_parameters` is written once
 at submission and never updated, so there is no reconciliation to specify.
 
 
-## D8: No Regression Auto-Detection
+## O3: No Regression Auto-Detection
 
 All Regressions and their indicators are created, updated, and deleted via the
 API. There is no auto-detection in LNT v5 -- it provides CRUD only.
@@ -191,7 +191,7 @@ tool or AI agent) that analyzes time-series data and creates Regressions via
 the API when it detects significant changes.
 
 
-## D9: Search
+## O4: Search
 
 List endpoints for commits, machines, tests, runs, and regressions support a
 unified `?search=` parameter.
@@ -211,13 +211,12 @@ unified `?search=` parameter.
   column via case-insensitive substring matching.
 
 Server-side `search=` always performs plain substring matching. It does not
-interpret the client's `re:` regex-mode convention (see client
-architecture.md) -- that convention is a client-side-only affordance for text
-filters that operate over data already loaded in the browser, not for any
-`search=` value sent to the API.
+interpret the client's `re:` regex-mode convention (see AR2) -- that convention
+is a client-side-only affordance for text filters that operate over data
+already loaded in the browser, not for any `search=` value sent to the API.
 
 
-## D10: Time-Series Queries
+## O5: Time-Series Queries
 
 The primary query pattern is: "give me metric values for (machine, test, metric)
 ordered by commit ordinal."
@@ -239,11 +238,11 @@ no data is excluded.
 A cursor names a *position* in that ordering -- the sort key values of the last
 row served -- rather than the row itself, so a resumption survives that row's
 deletion, which re-reading a stored row's sort values could not. Each page reads
-the database as of its own request, and pagination is forward-only (R2): a row
+the database as of its own request, and pagination is forward-only (I2): a row
 that joins the list mid-traversal, by insertion or by newly matching its
 filters, is served only if it falls after the cursor. A row in the list
 throughout is served exactly once, unless its sort values change: reassigning an
-ordinal (D11) while a client pages by ordinal can move a commit from behind the
+ordinal (O6) while a client pages by ordinal can move a commit from behind the
 cursor to ahead of it, and the client sees it twice. No cursor scheme prevents
 that.
 
@@ -254,7 +253,7 @@ carrying one would fall on neither side of the position and vanish from every
 page.
 
 
-## D11: Ordinal Management
+## O6: Ordinal Management
 
 - Ordinals can be set on three paths: inline as `commit.ordinal` during run
   submission, at creation via `POST /api/suites/{testsuite}/commits`, or
@@ -277,10 +276,10 @@ page.
   column (D5) is rejected with 400 rather than failing in the database.
 
 
-## D12: Profile Submission and Storage
+## O7: Profile Submission and Storage
 
 A profile records hardware performance counters per instruction for one test in
-one run. It is submitted inline, as the `profile` of a test entry (D6): a JSON
+one run. It is submitted inline, as the `profile` of a test entry (O1): a JSON
 **profile document**, compressed with gzip and base64-encoded.
 
 ```json
@@ -338,7 +337,7 @@ validated at submission, a stored profile is always one the read endpoints can
 serve. Profiles are read-only after creation, and deleting a run deletes them.
 
 
-## D13: Concurrent Submission
+## O8: Concurrent Submission
 
 Run submission (`POST /api/suites/{testsuite}/runs`) is atomic from the API user's perspective: it
 either fully succeeds (201) or fully fails with no partial side effects.
@@ -350,8 +349,8 @@ implementation must guarantee that:
 - **A lost race resolves to the winner's row.** The submission that loses the
   race for a machine, a commit, or a test name uses the row the winner created,
   and does not fail. Any other integrity failure is reported as its own error
-  (e.g. a taken `ordinal`, see D11).
-- **D7 holds under concurrency.** Two submissions filling the same unset value
+  (e.g. a taken `ordinal`, see O6).
+- **O2 holds under concurrency.** Two submissions filling the same unset value
   cannot both succeed with different values.
 - **Concurrent submissions cannot deadlock against each other.**
 - **Test-name resolution costs a fixed number of round trips**, however many
@@ -368,7 +367,7 @@ With PostgreSQL, this is achieved as follows:
   and the row is re-read by its identity. If it is there now, the race was lost
   and the winner's row is used, whichever unique index reported the failure;
   otherwise the failure (e.g. a taken `ordinal`) fails the submission.
-- An existing row is reconciled against the submission (see D7). If a NULL must
+- An existing row is reconciled against the submission (see O2). If a NULL must
   be filled in, the row is re-read `FOR NO KEY UPDATE` and reconciled again, and
   that second reconciliation decides the write. A submission with nothing to
   fill takes no lock.
@@ -385,7 +384,7 @@ With PostgreSQL, this is achieved as follows:
   them in the same order.
 
 
-## D15: Run Summaries
+## O9: Run Summaries
 
 Run submission stores, in the same transaction, a summary of the run for every
 numeric metric (see D3) and every sample aggregation: `median`, `mean`, `min`

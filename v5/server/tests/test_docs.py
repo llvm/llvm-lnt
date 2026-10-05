@@ -1,4 +1,4 @@
-"""The API documentation routes (R8): the OpenAPI document and the viewer over it."""
+"""The API documentation routes (I8): the OpenAPI document and the viewer over it."""
 
 from __future__ import annotations
 
@@ -27,25 +27,25 @@ class TestOpenApiDocument:
         assert response.json()["openapi"].startswith("3.")
 
     def test_identifies_the_api_rather_than_the_build(self, client: TestClient) -> None:
-        # R8 fixes info.version at the API's major version.
+        # I8 fixes info.version at the API's major version.
         info = client.get("/api/openapi.json").json()["info"]
 
         assert info == {"title": "LNT v5", "version": "5"}
 
-    def test_describes_only_statuses_r4_permits(self, client: TestClient) -> None:
-        # R8: the document must not advertise a response the API cannot produce. FastAPI adds a
-        # 422 to every operation taking a body or parameters, which R4 does not permit and which
+    def test_describes_only_permitted_statuses(self, client: TestClient) -> None:
+        # I8: the document must not advertise a response the API cannot produce. FastAPI adds a
+        # 422 to every operation taking a body or parameters, which I4 does not permit and which
         # the error handlers turn into a 400.
-        r4_statuses = {"200", "201", "204", "400", "401", "403", "404", "409", "500"}
+        i4_statuses = {"200", "201", "204", "400", "401", "403", "404", "409", "500"}
 
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():
             for method, operation in operations.items():
-                extra = set(operation.get("responses", {})) - r4_statuses
+                extra = set(operation.get("responses", {})) - i4_statuses
                 assert not extra, f"{method.upper()} {path} documents {sorted(extra)}"
 
     @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
     def test_excludes_the_routes_outside_the_rest_api(self, client: TestClient, path: str) -> None:
-        # R5 places both of these outside the REST API surface, so neither is part of what R8
+        # I5 places both of these outside the REST API surface, so neither is part of what I8
         # describes. The other two exempt routes are the document and its viewer.
         assert path not in client.get("/api/openapi.json").json()["paths"]
 
@@ -104,7 +104,7 @@ class TestOpenApiDocument:
 
 
 class TestDocumentedAuthentication:
-    """R5's failures, as R8's document reports them.
+    """I5's failures, as I8's document reports them.
 
     They are derived from each route's declared scope rather than restated per endpoint, so what
     matters is that the derivation lands on the right operations.
@@ -135,7 +135,7 @@ class TestDocumentedAuthentication:
 
 
 class TestSuiteOperations:
-    """R8: the document describes what the API can actually do, including these five."""
+    """I8: the document describes what the API can actually do, including these five."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
@@ -215,7 +215,7 @@ MACHINE = f"{MACHINES_PATH}/{{machine_name}}"
 
 
 class TestMachineOperations:
-    """R8: the document describes what the API can actually do, including these five."""
+    """I8: the document describes what the API can actually do, including these five."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
@@ -235,7 +235,7 @@ class TestMachineOperations:
     @pytest.mark.parametrize(
         ("path", "method", "status"),
         [
-            # An unknown suite on every one of them (R1), an unknown machine on the three that
+            # An unknown suite on every one of them (I1), an unknown machine on the three that
             # address one, a duplicate name on the two that can write one, and D2's stale reader
             # everywhere the suite's own columns are queried.
             (MACHINES, "get", "404"),
@@ -265,7 +265,7 @@ class TestMachineOperations:
 
         assert name in {parameter["name"] for parameter in operation["parameters"]}
 
-    def test_the_list_documents_r2s_page_size(self, client: TestClient) -> None:
+    def test_the_list_documents_the_page_size(self, client: TestClient) -> None:
         operation = client.get("/api/openapi.json").json()["paths"][MACHINES]["get"]
         limit = next(p for p in operation["parameters"] if p["name"] == "limit")
 
@@ -282,7 +282,7 @@ class TestMachineOperations:
 
         assert set(sort["schema"]["enum"]) == {"name", "-name", "last_run_at", "-last_run_at"}
 
-    def test_the_list_returns_r2s_offset_envelope(self, client: TestClient) -> None:
+    def test_the_list_returns_the_offset_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
         body = document["paths"][MACHINES]["get"]["responses"]["200"]["content"][
             "application/json"
@@ -294,7 +294,7 @@ class TestMachineOperations:
     def test_creating_and_reading_a_machine_share_the_entity_object(
         self, client: TestClient
     ) -> None:
-        # D7: `POST` takes the same object a run submission nests, and the response is that object
+        # O2: `POST` takes the same object a run submission nests, and the response is that object
         # plus the derived `last_run_at`. A generated client must be able to feed one to the other.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
@@ -304,7 +304,7 @@ class TestMachineOperations:
         }
 
     def test_the_response_promises_every_key_it_documents(self, client: TestClient) -> None:
-        # R4: a key an endpoint documents is always present, and null when it has no value. The
+        # I4: a key an endpoint documents is always present, and null when it has no value. The
         # response model shares the request model's properties, so it must not also inherit the
         # request model's optional-with-a-default treatment of them.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
@@ -335,7 +335,7 @@ RESOLVE = f"{COMMITS_PATH}/resolve"
 
 
 class TestCommitOperations:
-    """R8: the document describes what the API can actually do, including these six."""
+    """I8: the document describes what the API can actually do, including these six."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
@@ -356,9 +356,9 @@ class TestCommitOperations:
     @pytest.mark.parametrize(
         ("path", "method", "status"),
         [
-            # An unknown suite on every one of them (R1), an unknown commit on the three that
+            # An unknown suite on every one of them (I1), an unknown commit on the three that
             # address one, and D2's stale reader everywhere the suite's own columns are queried.
-            # The list's 404 covers an unknown `machine=` too (R3), and the writes' 409 covers a
+            # The list's 404 covers an unknown `machine=` too (I3), and the writes' 409 covers a
             # duplicate value, a taken ordinal and a commit a regression still references.
             (COMMITS, "get", "404"),
             (COMMITS, "get", "409"),
@@ -392,7 +392,7 @@ class TestCommitOperations:
         assert name in {parameter["name"] for parameter in operation["parameters"]}
 
     def test_the_list_takes_no_offset(self, client: TestClient) -> None:
-        # R2 pairs `offset` with `total`, and a cursor-paginated list has neither.
+        # I2 pairs `offset` with `total`, and a cursor-paginated list has neither.
         operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
 
         assert "offset" not in {parameter["name"] for parameter in operation["parameters"]}
@@ -407,7 +407,7 @@ class TestCommitOperations:
 
         assert [set(option["enum"]) for option in allowed] == [{"ordinal", "-ordinal"}]
 
-    def test_the_list_returns_r2s_cursor_envelope(self, client: TestClient) -> None:
+    def test_the_list_returns_the_cursor_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
         body = document["paths"][COMMITS]["get"]["responses"]["200"]["content"]["application/json"][
             "schema"
@@ -417,8 +417,8 @@ class TestCommitOperations:
         assert set(envelope["properties"]) == {"items", "cursor"}
 
     def test_the_cursor_promises_a_null_previous(self, client: TestClient) -> None:
-        # R2: pagination is forward-only, so the document must not advertise a backward cursor the
-        # API can never produce (R8).
+        # I2: pagination is forward-only, so the document must not advertise a backward cursor the
+        # API can never produce (I8).
         cursor = client.get("/api/openapi.json").json()["components"]["schemas"]["PageCursor"]
 
         assert cursor["properties"]["previous"]["type"] == "null"
@@ -427,7 +427,7 @@ class TestCommitOperations:
     def test_creating_and_reading_a_commit_share_the_entity_object(
         self, client: TestClient
     ) -> None:
-        # D7: `POST` takes the same object a run submission nests, and the response is that same
+        # O2: `POST` takes the same object a run submission nests, and the response is that same
         # object, with the detail adding what only a stored commit has.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
@@ -448,7 +448,7 @@ class TestCommitOperations:
     def test_the_response_promises_every_key_it_documents(
         self, client: TestClient, model: str
     ) -> None:
-        # R4: a key an endpoint documents is always present, and null when it has no value.
+        # I4: a key an endpoint documents is always present, and null when it has no value.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
         assert set(schemas[model]["required"]) == set(schemas[model]["properties"])
@@ -459,7 +459,7 @@ RUN = f"{RUNS_PATH}/{{uuid}}"
 
 
 class TestRunOperations:
-    """R8: the document describes what the API can actually do, including these three."""
+    """I8: the document describes what the API can actually do, including these three."""
 
     @pytest.mark.parametrize(("path", "method"), [(RUNS, "post"), (RUN, "get"), (RUN, "delete")])
     def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
@@ -470,7 +470,7 @@ class TestRunOperations:
     @pytest.mark.parametrize(
         ("path", "method", "status"),
         [
-            # An unknown suite on every one of them (R1), an unknown run on the two that address
+            # An unknown suite on every one of them (I1), an unknown run on the two that address
             # one, and D2's stale reader everywhere the suite's own tables are written or read. The
             # submission's 409 covers a repeated UUID, contradicted metadata and a taken ordinal.
             (RUNS, "post", "404"),
@@ -489,7 +489,7 @@ class TestRunOperations:
         assert status in operation["responses"]
 
     def test_the_response_promises_every_key_it_documents(self, client: TestClient) -> None:
-        # R4: a key an endpoint documents is always present, and null when it has no value.
+        # I4: a key an endpoint documents is always present, and null when it has no value.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
         run = schemas["Run"]
 
@@ -508,13 +508,13 @@ class TestRunOperations:
     def test_a_run_names_the_entities_it_references_rather_than_nesting_them(
         self, client: TestClient
     ) -> None:
-        # R4: a reference carries the other entity's identifier under a key named after it.
+        # I4: a reference carries the other entity's identifier under a key named after it.
         run = client.get("/api/openapi.json").json()["components"]["schemas"]["Run"]
 
         assert run["properties"]["machine"]["type"] == "string"
         assert run["properties"]["commit"]["type"] == "string"
 
-    def test_the_submission_body_is_the_one_d6_specifies(self, client: TestClient) -> None:
+    def test_the_submission_body_is_the_specified_one(self, client: TestClient) -> None:
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
         assert set(schemas["RunSubmission"]["properties"]) == {
@@ -529,7 +529,7 @@ class TestRunOperations:
     def test_the_submission_nests_the_entity_objects_the_creation_endpoints_take(
         self, client: TestClient
     ) -> None:
-        # D6 and D7: one object per entity, shared with `POST /machines` and `POST /commits`, so a
+        # O1 and O2: one object per entity, shared with `POST /machines` and `POST /commits`, so a
         # generated client can feed one to the other.
         submission = client.get("/api/openapi.json").json()["components"]["schemas"][
             "RunSubmission"
@@ -540,7 +540,7 @@ class TestRunOperations:
 
 
 class TestReadOperations:
-    """R8: the lists that read runs, tests and samples back."""
+    """I8: the lists that read runs, tests and samples back."""
 
     @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
     def test_is_documented(self, client: TestClient, path: str) -> None:
@@ -553,7 +553,7 @@ class TestReadOperations:
     def test_documents_the_failures_endpoints_md_specifies(
         self, client: TestClient, path: str, status: str
     ) -> None:
-        # An unknown suite on every one of them (R1) -- and on three of the four, an unknown entity
+        # An unknown suite on every one of them (I1) -- and on three of the four, an unknown entity
         # named by the path or by a filter as well. D2's stale reader accounts for the 409.
         operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
 
@@ -574,8 +574,8 @@ class TestReadOperations:
         """Exactly, not merely at least: a filter the spec does not give a list is as wrong as a
         missing one.
 
-        R3 is explicit that `GET /tests` supports no time range, for instance, and a subset
-        assertion would let one appear unnoticed. The path's own templated segments and R2's two
+        E5 is explicit that `GET /tests` supports no time range, for instance, and a subset
+        assertion would let one appear unnoticed. The path's own templated segments and I2's two
         paging parameters are the rest of what every one of these declares.
         """
         templated = {segment[1:-1] for segment in path.split("/") if segment.startswith("{")}
@@ -586,7 +586,7 @@ class TestReadOperations:
 
     @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
     def test_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient, path: str) -> None:
-        # R2: an unbounded list is cursor-paginated and carries no `total`, which is what a client
+        # I2: an unbounded list is cursor-paginated and carries no `total`, which is what a client
         # generated from this document has to be told.
         document = client.get("/api/openapi.json").json()
         operation = document["paths"][path]["get"]
@@ -616,7 +616,7 @@ class TestReadOperations:
         assert "sort" not in {parameter["name"] for parameter in operation["parameters"]}
 
     def test_no_path_carries_a_test_name(self, client: TestClient) -> None:
-        """R1: a test name legitimately contains `/`, so no path segment can hold one.
+        """I1: a test name legitimately contains `/`, so no path segment can hold one.
 
         The machine-checkable form of the rule. A route templated on a test name would be
         unreachable for the names the design docs use as examples, so the document must not have
@@ -633,7 +633,7 @@ class TestReadOperations:
         assert not named_after_a_test, sorted(paths)
 
     def test_a_sample_carries_only_the_metrics_that_have_a_value(self, client: TestClient) -> None:
-        # R4's stated exception: `metrics` is not a `fields` dict, so nothing in it is ever null.
+        # I4's stated exception: `metrics` is not a `fields` dict, so nothing in it is ever null.
         sample = client.get("/api/openapi.json").json()["components"]["schemas"]["Sample"]
         values = sample["properties"]["metrics"]["additionalProperties"]
 
@@ -651,7 +651,7 @@ PROFILE_DATA = [PROFILE, FUNCTIONS, DISASSEMBLY]
 
 
 class TestProfileOperations:
-    """R8: the four reads endpoints.md specifies under Profiles."""
+    """I8: the four reads E7 specifies."""
 
     @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
     def test_is_documented(self, client: TestClient, path: str) -> None:
@@ -664,7 +664,7 @@ class TestProfileOperations:
     def test_documents_the_failures_endpoints_md_specifies(
         self, client: TestClient, path: str, status: str
     ) -> None:
-        # An unknown suite on every one of them (R1), plus the run, the profile or the function the
+        # An unknown suite on every one of them (I1), plus the run, the profile or the function the
         # path names. D2's stale reader accounts for the 409.
         operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
 
@@ -672,7 +672,7 @@ class TestProfileOperations:
 
     @pytest.mark.parametrize("path", [RUN_PROFILES, FUNCTIONS])
     def test_the_lists_are_unpaginated(self, client: TestClient, path: str) -> None:
-        # R2: both are bounded -- by the tests of one run, and by the functions of one binary -- so
+        # I2: both are bounded -- by the tests of one run, and by the functions of one binary -- so
         # they carry `items` alone, with neither a cursor nor a total to page by.
         document = client.get("/api/openapi.json").json()
         operation = document["paths"][path]["get"]
@@ -699,7 +699,7 @@ class TestProfileOperations:
     def test_a_response_carries_exactly_the_keys_endpoints_md_gives_it(
         self, client: TestClient, schema: str, keys: set[str]
     ) -> None:
-        # R4: a documented key is always present, so `properties` and `required` agree.
+        # I4: a documented key is always present, so `properties` and `required` agree.
         described = client.get("/api/openapi.json").json()["components"]["schemas"][schema]
 
         assert set(described["properties"]) == keys
@@ -720,7 +720,7 @@ class TestProfileOperations:
             assert counters["additionalProperties"] == {"type": "number"}, schema
 
     def test_the_function_is_a_required_query_parameter(self, client: TestClient) -> None:
-        # R1: a function name can contain `/`, so it travels in the query string, never the path.
+        # I1: a function name can contain `/`, so it travels in the query string, never the path.
         operation = client.get("/api/openapi.json").json()["paths"][DISASSEMBLY]["get"]
         parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
 
@@ -730,7 +730,7 @@ class TestProfileOperations:
 
     @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
     def test_can_be_refused_but_never_forbidden(self, client: TestClient, path: str) -> None:
-        # R5: all four are `read`-scoped, and every valid key grants `read`.
+        # I5: all four are `read`-scoped, and every valid key grants `read`.
         operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
 
         assert "403" not in operation["responses"]
@@ -742,7 +742,7 @@ INDICATORS = INDICATORS_PATH
 
 
 class TestRegressionOperations:
-    """R8: the document describes what the API can actually do, including these seven."""
+    """I8: the document describes what the API can actually do, including these seven."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
@@ -764,7 +764,7 @@ class TestRegressionOperations:
     @pytest.mark.parametrize(
         ("path", "method"),
         [
-            # An unknown suite on every one of them (R1); on the list, an unknown `machine=` or
+            # An unknown suite on every one of them (I1); on the list, an unknown `machine=` or
             # `test=`; on the writes, an unknown regression, commit, machine or test named by the
             # path or the body. D2's stale reader accounts for the 409 everywhere.
             (REGRESSIONS, "get"),
@@ -787,7 +787,7 @@ class TestRegressionOperations:
     def test_the_list_documents_exactly_the_filters_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
-        # Exactly, not merely at least: R3 gives this list no time range and no `sort`, and a
+        # Exactly, not merely at least: E8 gives this list no time range and no `sort`, and a
         # subset assertion would let one appear unnoticed.
         operation = client.get("/api/openapi.json").json()["paths"][REGRESSIONS]["get"]
         names = {parameter["name"] for parameter in operation["parameters"]}
@@ -848,7 +848,7 @@ class TestRegressionOperations:
     def test_the_response_promises_every_key_it_documents(
         self, client: TestClient, model: str
     ) -> None:
-        # R4: a key an endpoint documents is always present, and null when it has no value.
+        # I4: a key an endpoint documents is always present, and null when it has no value.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
         assert set(schemas[model]["required"]) == set(schemas[model]["properties"])
@@ -880,7 +880,7 @@ class TestRegressionOperations:
     def test_an_indicator_names_the_entities_it_references_rather_than_nesting_them(
         self, client: TestClient
     ) -> None:
-        # R4: a reference carries the other entity's identifier under a key named after it.
+        # I4: a reference carries the other entity's identifier under a key named after it.
         indicator = client.get("/api/openapi.json").json()["components"]["schemas"]["Indicator"]
 
         for key in ("machine", "test", "metric"):
@@ -908,7 +908,7 @@ class TestRegressionOperations:
 
 
 class TestTimeSeriesOperations:
-    """R8: the two operations endpoints.md specifies under Time Series."""
+    """I8: the two operations E9 specifies."""
 
     @pytest.mark.parametrize(("path", "method"), [(QUERY_PATH, "post"), (TRENDS_PATH, "get")])
     def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
@@ -921,7 +921,7 @@ class TestTimeSeriesOperations:
     def test_documents_the_failures_endpoints_md_specifies(
         self, client: TestClient, path: str, method: str, status: str
     ) -> None:
-        # An unknown suite on both (R1), plus an unknown machine, test or bounding commit the
+        # An unknown suite on both (I1), plus an unknown machine, test or bounding commit the
         # request names; D2's stale reader accounts for the 409.
         operation = client.get("/api/openapi.json").json()["paths"][path][method]
 
@@ -940,7 +940,7 @@ class TestTimeSeriesOperations:
     def test_the_query_body_carries_exactly_the_keys_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
-        # Exactly, not merely at least: R2's `limit` and `cursor` are keys here rather than query
+        # Exactly, not merely at least: I2's `limit` and `cursor` are keys here rather than query
         # parameters, and a filter the spec does not give this endpoint is as wrong as a missing
         # one.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
@@ -960,7 +960,7 @@ class TestTimeSeriesOperations:
         }
         assert schemas["QueryRequest"]["required"] == ["metric"]
 
-    def test_the_query_body_documents_r2s_page_size(self, client: TestClient) -> None:
+    def test_the_query_body_documents_the_page_size(self, client: TestClient) -> None:
         limit = client.get("/api/openapi.json").json()["components"]["schemas"]["QueryRequest"][
             "properties"
         ]["limit"]
@@ -971,7 +971,7 @@ class TestTimeSeriesOperations:
     def test_the_query_enumerates_its_sort_fields_rather_than_taking_any_string(
         self, client: TestClient
     ) -> None:
-        # endpoints.md names three fields, and R3's `-` prefix spells each of them backwards; a
+        # endpoints.md names three fields, and I3's `-` prefix spells each of them backwards; a
         # generated client should not be able to ask for a fourth.
         sort = client.get("/api/openapi.json").json()["components"]["schemas"]["QueryRequest"][
             "properties"
@@ -1002,7 +1002,7 @@ class TestTimeSeriesOperations:
         assert last_n["default"] == DEFAULT_LAST_N == 500
         assert (last_n["minimum"], last_n["maximum"]) == (1, MAX_LIMIT)
 
-    def test_the_trends_sample_aggregation_enumerates_d15s_and_defaults_to_the_median(
+    def test_the_trends_sample_aggregation_enumerates_every_aggregation_and_defaults_to_the_median(
         self, client: TestClient
     ) -> None:
         document = client.get("/api/openapi.json").json()
@@ -1027,7 +1027,7 @@ class TestTimeSeriesOperations:
     def test_the_query_pages_with_a_cursor_and_trends_does_not_page_at_all(
         self, client: TestClient
     ) -> None:
-        # R2: one is unbounded and carries a cursor, the other is bounded by (machines x last_n)
+        # I2: one is unbounded and carries a cursor, the other is bounded by (machines x last_n)
         # and carries `items` alone.
         document = client.get("/api/openapi.json").json()
         envelopes = {
@@ -1045,7 +1045,7 @@ class TestTimeSeriesOperations:
     def test_a_data_point_carries_exactly_what_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
-        # R4: a documented key is always present, and null when it has no value.
+        # I4: a documented key is always present, and null when it has no value.
         point = client.get("/api/openapi.json").json()["components"]["schemas"]["DataPoint"]
 
         assert set(point["properties"]) == {

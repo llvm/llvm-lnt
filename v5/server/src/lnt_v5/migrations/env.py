@@ -18,7 +18,7 @@ from lnt_v5.tables import metadata
 def _run_migrations(connection: Connection) -> None:
     # `include_schemas` is deliberately left at its default of False, which confines
     # autogenerate to the default namespace. That is what keeps it away from the per-suite tables
-    # (D14): they live in a schema per suite, are defined by data rather than by code, and would
+    # (D6): they live in a schema per suite, are defined by data rather than by code, and would
     # otherwise be reflected, found in no metadata, and proposed for deletion. No filter of our own
     # is needed for that; `test_migrations.py` asserts the property rather than the mechanism.
     context.configure(
@@ -33,7 +33,7 @@ def _run_migrations(connection: Connection) -> None:
 def run() -> None:
     if context.is_offline_mode():
         # `--sql` would be a reasonable thing to support, but nothing uses it: migrations are
-        # applied by the server against a live database (D14). Refusing plainly beats emitting a
+        # applied by the server against a live database (D6). Refusing plainly beats emitting a
         # script from a code path no test covers.
         raise RuntimeError("Offline migrations are not supported; run against a live database.")
 

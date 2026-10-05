@@ -3,7 +3,7 @@
 This document specifies all entity endpoints in the v5 REST API.
 
 
-## Discovery
+## E1: Discovery
 
 ```
 GET    /api                       -- API index: links to the suite list and API documentation
@@ -17,10 +17,10 @@ interactive API documentation viewer). The index does not enumerate suites
 itself -- `GET /api/suites` is the canonical suite list.
 
 Auth scope: `read` for the index. The two documentation routes sit outside the
-scope system entirely and never authenticate (see R5 and R8).
+scope system entirely and never authenticate (see I5 and I8).
 
 
-## Machines
+## E2: Machines
 
 ```
 GET    /api/suites/{testsuite}/machines                     -- List (searchable, offset-paginated)
@@ -32,10 +32,10 @@ GET    /api/suites/{testsuite}/machines/{machine_name}/runs -- List runs for thi
 ```
 
 Machines are also created implicitly if a run is submitted for a nonexistent machine
-(see D7).
+(see O2).
 
 **Machine object**: `POST` and `PATCH` take the same entity object that a run
-submission nests under `machine` (see D6): `name` (identity), `tracked`
+submission nests under `machine` (see O1): `name` (identity), `tracked`
 (built-in attribute), and `fields` (declared `machine_fields`). Responses use
 the same shape, in the list and the detail alike, plus a read-only `last_run_at`
 (see Sort below). On `PATCH`, supplying `name` renames the machine, and omitting
@@ -43,7 +43,7 @@ any key leaves it unchanged. An explicit `null` inside `fields` clears a stored
 value, the same convention as `PATCH /api/suites/{testsuite}/commits/{value}`.
 `name` and `tracked` are not nullable, so sending either as `null` is rejected
 with 400. Keys in `fields` must be declared in the suite's schema; an undeclared
-key is rejected with 400 (see D7).
+key is rejected with 400 (see O2).
 
 `POST` returns 201 with the created machine and a `Location` header pointing at
 `GET /api/suites/{testsuite}/machines/{machine_name}`; `PATCH` returns 200 with the
@@ -60,7 +60,7 @@ indicators are kept.
 Auth scopes: `read` for GET, `manage` for POST/PATCH/DELETE.
 
 Filters: `search=` (case-insensitive substring match on `name` or any
-searchable machine_field; see D9), `tracked=` (boolean; omitting it returns
+searchable machine_field; see O4), `tracked=` (boolean; omitting it returns
 both tracked and untracked machines).
 
 Sort: `sort=name` (the default, ascending), `-name`, `last_run_at`, and
@@ -72,19 +72,19 @@ direction, so that a page boundary is reproducible.
 
 **`tracked`** (boolean, see D5) appears in machine list and detail responses.
 `POST` accepts it at creation and `PATCH` can flip it at any time; it defaults
-to `true` when omitted. Run submission may also set it at creation time (see D6).
+to `true` when omitted. Run submission may also set it at creation time (see O1).
 Untracked machines are excluded only from *automatic* machine selection and are
 otherwise returned by every endpoint like any other machine.
 
 `GET /api/suites/{testsuite}/machines/{machine_name}/runs` returns run objects
-(see Runs). Filters: `after=`/`before=`
-(submitted_at; exclusive), same convention as `GET /api/suites/{testsuite}/runs`.
+(see E4). Filters: `after=`/`before=` (submitted_at; exclusive), same convention
+as `GET /api/suites/{testsuite}/runs`.
 Sort: `sort=submitted_at` returns oldest-first and `sort=-submitted_at`
 newest-first; omitting `sort` returns results in an arbitrary but deterministic
-order suitable for pagination (see R2).
+order suitable for pagination (see I2).
 
 
-## Commits
+## E3: Commits
 
 ```
 GET    /api/suites/{testsuite}/commits                      -- List (cursor-paginated, searchable)
@@ -97,18 +97,18 @@ POST   /api/suites/{testsuite}/commits/resolve              -- Batch resolve com
 
 The `{value}` in the path is the commit identity string. Commits are also
 created implicitly during run submission, which may set an `ordinal` and a
-`tag` inline (see D6). Both may also be set at creation via
+`tag` inline (see O1). Both may also be set at creation via
 `POST /api/suites/{testsuite}/commits`, or at any time via
-`PATCH /api/suites/{testsuite}/commits/{value}` (see D7 and D11). On `PATCH`,
+`PATCH /api/suites/{testsuite}/commits/{value}` (see O2 and O6). On `PATCH`,
 sending `ordinal: null` or `tag: null` explicitly clears a previously-set value;
 omitting the field instead leaves it unchanged.
 
 **Commit object**: `POST` and `PATCH` take the same entity object that a run
-submission nests under `commit` (see D6): `value` (identity), `ordinal` and
+submission nests under `commit` (see O1): `value` (identity), `ordinal` and
 `tag` (built-in attributes), and `fields` (declared `commit_fields`). Responses
 use the same shape. `value` is immutable (commits cannot be renamed), and sending
 it to `PATCH` is rejected with 400. Keys in `fields` must be declared in the
-suite's schema; an undeclared key is rejected with 400 (see D7).
+suite's schema; an undeclared key is rejected with 400 (see O2).
 
 The detail response adds `previous` and `next`: the commit objects with the
 nearest lower and nearest higher `ordinal`, each without its own
@@ -121,7 +121,7 @@ pointing at `GET /api/suites/{testsuite}/commits/{value}`; `PATCH` returns 200
 with the same body; `DELETE` returns 204. `POST` returns 409 `duplicate` if a
 commit with that value already exists, and both `POST` and `PATCH` return 409
 `ordinal_conflict` if the ordinal they set is already held by another commit
-(see D11 and R4). `DELETE` returns 409 `in_use` if a regression references the
+(see O6 and I4). `DELETE` returns 409 `in_use` if a regression references the
 commit; otherwise it removes the commit, its runs, and their samples and
 profiles (see D5). Every route in this section returns 404 if the suite does not
 exist, and every route that addresses a commit returns 404 if no commit in the
@@ -132,7 +132,7 @@ Auth scopes: `read` for GET (including `/commits/resolve`), `submit` for
 `POST /commits`, `manage` for PATCH/DELETE.
 
 Filters: `search=` (case-insensitive substring match on commit string, tag, and
-searchable commit fields; see D9), `machine=` (only commits with at least one
+searchable commit fields; see O4), `machine=` (only commits with at least one
 run on this machine; 404 if machine not found), `has_profiles=` (boolean;
 `true` returns only commits where at least one run has profile data, `false`
 returns only commits where no run has profile data; when combined with
@@ -146,7 +146,7 @@ were first seen by the server, not their ordinal order.
 
 `POST /api/suites/{testsuite}/commits/resolve` accepts a JSON body
 `{"commits": ["abc", "def", ...]}` (at least one commit string, and no more than
-R2's maximum page size) and returns each found commit's summary in a dict keyed
+I2's maximum page size) and returns each found commit's summary in a dict keyed
 by commit string:
 
 ```json
@@ -172,7 +172,7 @@ the response.
 Auth scope: `read`. Not paginated (response is bounded by request size).
 
 
-## Runs
+## E4: Runs
 
 ```
 GET    /api/suites/{testsuite}/runs                         -- List (cursor-paginated, searchable, filterable by machine=, commit=, after=, before=, has_profiles=; sortable by sort=)
@@ -222,26 +222,26 @@ a run returns 404 if no run in the suite has that UUID, including when the path
 segment is not a well-formed UUID. `DELETE` requires no `?confirm=true`.
 
 The machine and the commit a submission names are created if they do not exist,
-and otherwise reconciled with the submission (see D7): contradicted metadata is
+and otherwise reconciled with the submission (see O2): contradicted metadata is
 rejected with 409 `conflict`, and a contradicted or already-taken `ordinal` with
-409 `ordinal_conflict` (see D11). Undeclared keys in `machine.fields` or
-`commit.fields` are rejected with 400, and so is a profile that D12 refuses.
+409 `ordinal_conflict` (see O6). Undeclared keys in `machine.fields` or
+`commit.fields` are rejected with 400, and so is a profile that O7 refuses.
 
 `has_profiles=` (boolean): `true` returns only runs that have at least one
 profile attached; `false` returns only runs without profiles.
 
 `search=` (case-insensitive substring match against the run's machine `name`
-or any searchable machine_field; see D9) -- the same predicate as
+or any searchable machine_field; see O4) -- the same predicate as
 `GET /api/suites/{testsuite}/machines?search=`, applied through the run's machine.
 
 `sort=submitted_at` returns oldest-first and `sort=-submitted_at` newest-first;
 omitting `sort` returns results in an arbitrary but deterministic order suitable
-for pagination (see R2).
+for pagination (see I2).
 
 Auth scopes: `read` for GET, `submit` for POST, `manage` for DELETE.
 
 
-## Tests
+## E5: Tests
 
 ```
 GET    /api/suites/{testsuite}/tests                        -- List (cursor-paginated, filterable)
@@ -254,7 +254,7 @@ gain a key later.
 
 Auth scope: `read`.
 
-Filters: `search=` (case-insensitive substring match on test name; see D9), `machine=` (only tests with data
+Filters: `search=` (case-insensitive substring match on test name; see O4), `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
 Given together, `?machine=m&metric=execution_time` returns the tests that have
 an `execution_time` value *on that machine*. Both filters consider every sample
@@ -262,10 +262,10 @@ ever submitted: deleting runs or commits does not remove a test from them,
 while deleting a machine does (see `{suite}.test_coverage` in D5).
 
 Sort: none; results come back in an arbitrary but deterministic order suitable
-for pagination (R2, D10).
+for pagination (I2, O5).
 
 
-## Samples
+## E6: Samples
 
 Samples are always accessed through their parent run -- they have no external
 identifier of their own.
@@ -277,25 +277,25 @@ GET    /api/suites/{testsuite}/runs/{uuid}/samples   -- Samples for a run (curso
 Read-only. Samples are created as part of run submission.
 
 **Sample object**: `test` (the test's name) and `metrics`, a dict of metric name
-to value holding only the metrics that have a value, typed per D3 (see R4):
+to value holding only the metrics that have a value, typed per D3 (see I4):
 
 ```json
 {"test": "test.suite/benchmark", "metrics": {"execution_time": 1.23, "compile_status": 0}}
 ```
 
 A test measured repeatedly within one run yields one object per repetition (see
-D6), and those repetitions are indistinguishable by design.
+O1), and those repetitions are indistinguishable by design.
 
 Filters: `test=` (only the samples for this test). A test that exists but that
 this run did not measure is an empty page rather than an error.
 
 Sort: none; results come back in an arbitrary but deterministic order suitable
-for pagination (R2, D10).
+for pagination (I2, O5).
 
 Auth scope: `read`.
 
 
-## Profiles
+## E7: Profiles
 
 Profiles store hardware performance counter data at the instruction level.
 Each profile is identified by a server-generated UUID. The UUID-based approach
@@ -310,7 +310,7 @@ GET  /api/suites/{testsuite}/runs/{uuid}/profiles              -- List profiles 
 ```
 
 Returns `{test, uuid}` objects for all profiles attached to the given run, ordered
-by test name, in R2's unpaginated envelope (bounded by the tests of one run). 404
+by test name, in I2's unpaginated envelope (bounded by the tests of one run). 404
 if the suite does not exist, or if no run in it has that UUID (matched as for
 runs).
 
@@ -330,19 +330,18 @@ As for runs, the `{uuid}` in a path is matched case-insensitively, and one namin
 no profile -- including a segment that is not a well-formed UUID -- is 404. Every
 route in this section returns 404 if the suite does not exist.
 
-Every counter these endpoints return is a raw count (see D12).
+Every counter these endpoints return is a raw count (see O7).
 
 **Metadata response** (`GET /api/suites/{testsuite}/profiles/{uuid}`):
 - `uuid`, `test` (test name), `run_uuid`, `counters` (dict of counter
   name -> integer; the top-level counters), `disassembly_format` (string)
 
 **Functions response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`):
-- R2's unpaginated envelope over `{name, counters, length}` objects, where
+- I2's unpaginated envelope over `{name, counters, length}` objects, where
   `counters` is a dict of counter name -> number (the function's counters, each
   the sum over its instructions) and `length` is its instruction count. Sorted
   by name in ascending code-point order. Ordering by how hot a function is
-  depends on the counter the user picks, so the client sorts by that itself (see
-  the Function Selector in the client docs).
+  depends on the counter the user picks, so the client sorts by that itself (see PF4).
 
 **Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 - `name`, `counters` (the function's counters, as in the functions response),
@@ -350,14 +349,14 @@ Every counter these endpoints return is a raw count (see D12).
   per instruction, in the order the profile document listed them, where
   `address` is an integer and `counters` is a dict of counter name -> number.
 - `function` is required, and names the function by its name in the functions
-  response; it is a query parameter because a name can contain `/` (see R1). A
+  response; it is a query parameter because a name can contain `/` (see I1). A
   name the profile does not hold is 404.
 
-Profiles are submitted within the run submission payload (see D6 and D12).
+Profiles are submitted within the run submission payload (see O1 and O7).
 There is no separate upload endpoint.
 
 
-## Regressions
+## E8: Regressions
 
 ```
 GET    /api/suites/{testsuite}/regressions                              -- List (cursor-paginated, searchable, filterable by state=, machine=, test=, metric=, commit=, has_commit=)
@@ -377,13 +376,13 @@ regression -- including a segment that is not a well-formed UUID -- is 404. Ever
 route in this section returns 404 if the suite does not exist. `DELETE` requires
 no `?confirm=true`.
 
-Filters: `search=` (case-insensitive substring match on `title`; see D9),
+Filters: `search=` (case-insensitive substring match on `title`; see O4),
 `state=` (comma-separated state names, e.g. `?state=active,detected`; an unknown
 name is 400), `machine=`, `test=` and `metric=` (keep only regressions with an
 indicator naming it), `commit=` and `has_commit=`. Filters naming something
-absent are answered as R3 says. `machine=`, `test=` and `metric=` given together
+absent are answered as I3 says. `machine=`, `test=` and `metric=` given together
 must match the *same* indicator, as with `GET /api/suites/{testsuite}/tests`.
-There is no `sort`; the order is arbitrary but deterministic (R2, D10).
+There is no `sort`; the order is arbitrary but deterministic (I2, O5).
 
 **Regression states** (string enum):
 `detected`, `active`, `not_to_be_fixed`, `fixed`, `false_positive`
@@ -436,7 +435,7 @@ header pointing at its detail route; `PATCH` returns 200 with the same body;
 
 **Indicator add request** (`POST /api/suites/{testsuite}/regressions/{uuid}/indicators`):
 - Body: `{"indicators": [{machine, test, metric}, ...]}` -- at least one, and no
-  more than R2's maximum page size, like `POST /commits/resolve`. Each object is one
+  more than I2's maximum page size, like `POST /commits/resolve`. Each object is one
   indicator, resolved the same way as `indicators` on create (404 if the
   machine or test does not exist, 400 for an invalid metric name).
   Duplicates (same regression+machine+test+metric) are silently ignored,
@@ -455,7 +454,7 @@ header pointing at its detail route; `PATCH` returns 200 with the same body;
   is never removed.
 
 
-## Time Series
+## E9: Time Series
 
 The query is a `read`-scoped POST because its list of test names, which may be
 long and whose names may contain any character, does not fit a query string.
@@ -472,7 +471,7 @@ Body (JSON): `{metric, machine, test, commit, after_commit, before_commit,
 The `metric` field is required; all other fields are optional. Only samples that
 have a value for that metric are returned, so every point has a non-null `value`.
 
-The `test` field accepts a list of names for disjunction queries, at most R2's
+The `test` field accepts a list of names for disjunction queries, at most I2's
 maximum page size. An empty `test` list matches nothing, unlike an omitted one.
 
 The `commit` field filters for an exact commit match and cannot be combined with
@@ -481,16 +480,16 @@ filters use exclusive bounds (strictly after / strictly before the given value).
 When either commit bound is given, samples on unordered commits are excluded,
 whatever the `sort`.
 
-Names that refer to nothing are answered as R3 says, for `commit` as a filter and
+Names that refer to nothing are answered as I3 says, for `commit` as a filter and
 for `after_commit`/`before_commit` as range bounds.
 
-Returns cursor-paginated time-series data for graphing, in R2's cursor envelope;
+Returns cursor-paginated time-series data for graphing, in I2's cursor envelope;
 `limit` and `cursor` are keys of the body. Each data point carries: `test`,
 `machine`, `metric`, `value`, `commit`, `ordinal`, `run_uuid`, `submitted_at`,
 `tag` (the commit's tag, or null if unset). `metric` is echoed on every point even
 though the request names exactly one, making each data point self-descriptive.
 
-`sort` names one field, optionally prefixed with `-` for descending (R3): `test`,
+`sort` names one field, optionally prefixed with `-` for descending (I3): `test`,
 `commit` (by ordinal), or `submitted_at`. When `sort` is omitted, results are
 returned in an arbitrary but stable order suitable for cursor pagination; no data
 is excluded. When `sort` names `commit`, samples for commits without ordinals are
@@ -513,7 +512,7 @@ once per machine (`?machine=a&machine=b`) so that the data for multiple machines
 can be retrieved in one call. An unknown name in it is 404. `sample_agg` is one
 of `median` (the default), `mean`, `min` and `max`. `last_n` (integer, min 1,
 max 10000, default 500) limits the result to the N most recent commits, by
-ordinal, at which any of the named machines has a run geomean (see D15) for
+ordinal, at which any of the named machines has a run geomean (see O9) for
 `metric` under `sample_agg`. The window is shared by all the named machines, so
 one that stopped reporting inside it yields a trendline that stops early. Only
 commits with a non-null ordinal are included.
@@ -521,11 +520,11 @@ commits with a non-null ordinal are included.
 This endpoint does not filter on `tracked`: an explicitly named machine is
 returned whether or not it is tracked.
 
-Each item's `value` is the geomean of the run geomeans (see D15) of the runs at
+Each item's `value` is the geomean of the run geomeans (see O9) of the runs at
 that machine and commit, for `metric` under `sample_agg`. A (machine, commit)
 with no run geomean is absent from the response.
 
-Returns one item per (machine, commit), in R2's unpaginated envelope -- the result
+Returns one item per (machine, commit), in I2's unpaginated envelope -- the result
 set is bounded by (machines x last_n). Items are ordered by machine name, then by
 ordinal. Each item carries: `machine` (the machine's name), `commit` (the commit's
 identity string), `ordinal` (always present, never null), `submitted_at` (the
@@ -536,7 +535,7 @@ null if unset), and `value`, which is a real even for an `integer` metric.
 Auth scope: `read`.
 
 
-## Test Suites
+## E10: Test Suites
 
 ```
 GET    /api/suites               -- List test suites defined on this instance
@@ -554,7 +553,7 @@ format and its normalization). Request and response are therefore the same
 document, and a suite fetched from one instance can be posted verbatim to
 another. There are no standalone schema or metric-metadata endpoints.
 
-`GET /api/suites` returns those same objects in R2's unpaginated envelope,
+`GET /api/suites` returns those same objects in I2's unpaginated envelope,
 schemas included rather than names alone: suites are limited in number and
 parts of the client need every suite's metric list up front. Suites are ordered by
 `name` ascending, which is stable across requests because a suite cannot be renamed.
@@ -613,7 +612,7 @@ Both this and `PATCH .../schema` resolve the suite before checking `confirm`, so
 unknown name is 404 whether or not `confirm=true` was supplied.
 
 
-## Admin
+## E11: Admin
 
 Instance-level API key management, outside any test suite.
 
@@ -625,14 +624,14 @@ DELETE /api/admin/api-keys/{prefix}  -- Revoke key
 
 Auth scope: `admin` for all three, including the GET -- the only GET endpoints
 in the API requiring more than `read`, and so the only ones unauthenticated
-access never reaches (see R5).
+access never reaches (see I5).
 
 **Key fields**: `prefix`, `name`, `scope`, `created_at`, `last_used_at`,
 `is_active`. `last_used_at` is null until the key is first used and approximate
 thereafter (see D5). Neither the raw token nor its hash ever appears, except
 for the raw token in the create response below.
 
-**List** (`GET /api/admin/api-keys`): returns key objects in R2's unpaginated
+**List** (`GET /api/admin/api-keys`): returns key objects in I2's unpaginated
 envelope, ordered by `created_at` descending -- newest first -- with `prefix` as
 a tiebreaker. `created_at` is immutable, so this order is stable across
 requests. Ordering by `last_used_at` is deliberately avoided: that column is
@@ -643,7 +642,7 @@ mutable, nullable, and only approximate (see D5). Revoked keys are included, wit
 `scope` (string, required -- one of `read`, `submit`, `triage`, `manage`,
 `admin`). Returns 201 with the key's fields plus a `token` field carrying the
 raw token, which is shown only this once and cannot be retrieved afterwards
-(see R5). No `Location` header is set: there is deliberately no per-key detail
+(see I5). No `Location` header is set: there is deliberately no per-key detail
 route, so the list is the only way to read a key back.
 
 Returns 400 if `name` is missing, empty, or longer than 256 characters (see D5),
@@ -655,7 +654,7 @@ rather than deleting the row, so that the revocation stays visible and the
 prefix is never reused by a later key. Returns 204 on success, 204 again if the
 key was already revoked (revocation is idempotent), and 404 if no key has that
 prefix -- including when a caller passes a whole token instead of its prefix.
-Revocation takes effect immediately (see R5) and cannot be undone; restoring
+Revocation takes effect immediately (see I5) and cannot be undone; restoring
 access means creating a new key. No `?confirm=true` is required, unlike the
 destructive suite operations above: revoking a key destroys no data.
 
@@ -667,5 +666,5 @@ Any `admin` key may revoke any key, including the one authenticating the
 request and the last remaining active `admin` key. There is deliberately no
 special case for either, because an operator's ability to revoke a leaked key
 must not depend on which key leaked. Recovering from revoking the last `admin`
-key means creating one through the out-of-band interface described in R5, which
+key means creating one through the out-of-band interface described in I5, which
 is also how an instance gets its first key.
