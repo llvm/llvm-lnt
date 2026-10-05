@@ -143,10 +143,12 @@ def reject_unknown_query_parameters(request: Request) -> None:
     """
     # Each parameter the endpoint takes, by the name it is sent under, with its type.
     declared: dict[str, Any] = {}
+    takes_body = False
     pending: list[Dependant] = [request.scope["route"].dependant]
     while pending:
         dependant = pending.pop()
         declared |= {field.alias: field.field_info.annotation for field in dependant.query_params}
+        takes_body = takes_body or bool(dependant.body_params)
         pending.extend(dependant.dependencies)
 
     def quoted(names: Iterable[str]) -> str:
@@ -155,13 +157,20 @@ def reject_unknown_query_parameters(request: Request) -> None:
     query = request.query_params
     unknown = set(query) - declared.keys()
     if unknown:
+        takes = (
+            f"This endpoint takes: {quoted(declared)}."
+            if declared
+            else "This endpoint takes no query parameters."
+        )
+        # On an endpoint that takes a body, a stray parameter is most likely one of its keys sent in
+        # the wrong place -- `limit` given to `POST /query` in the query string, say (I2).
+        if takes_body:
+            takes += " Its other inputs go in the request body."
         raise ApiError(
-            ErrorCode.INVALID_REQUEST,
-            f"Unknown query parameter(s): {quoted(unknown)}. "
-            f"This endpoint takes: {quoted(declared) or 'none'}.",
+            ErrorCode.INVALID_REQUEST, f"Unknown query parameter(s): {quoted(unknown)}. {takes}"
         )
 
-    # FastAPI reads every value of a parameter of a list type, and only the last of any other.
+    # FastAPI reads every value of a parameter that takes several, and only the last of any other.
     repeated = [
         name
         for name, annotation in declared.items()
@@ -175,7 +184,12 @@ def reject_unknown_query_parameters(request: Request) -> None:
 
 
 def _takes_several(annotation: Any) -> bool:
-    """Whether a query parameter of this type takes several values, i.e. is a list of them.
+    """Whether a query parameter of this type takes several values.
+
+    It has to agree with FastAPI, which reads every value of a parameter typed as a sequence or a
+    set other than a string, and only the last of any other: a type this missed would have its
+    repeated values refused, and one it wrongly included would be answered with only the last of
+    them.
 
     Looks through `| None` and `Annotated`, the two wrappers a query parameter's type carries here.
     """
@@ -184,7 +198,12 @@ def _takes_several(annotation: Any) -> bool:
         return any(_takes_several(argument) for argument in get_args(annotation))
     if origin is Annotated:
         return _takes_several(get_args(annotation)[0])
-    return origin in (list, set, frozenset, tuple)
+    collection = origin or annotation
+    return (
+        isinstance(collection, type)
+        and issubclass(collection, (Sequence, set, frozenset))
+        and not issubclass(collection, (str, bytes))
+    )
 
 
 # --------------------------------------------------------------------------------------------

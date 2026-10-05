@@ -123,8 +123,7 @@ paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
   (`?machnie=linux`) would otherwise silently widen the result. So is a
   single-valued parameter given more than once (`?limit=1&limit=2`), rather
   than answered with one of its values. This holds on every endpoint of the
-  REST API surface, and not on the four routes I5 exempts from the scope system
-  (see I4).
+  REST API surface, but not on the four routes I5 exempts from the scope system.
 - A name in a filter or a request body that refers to nothing is answered
   according to what it names:
   - A metric is part of the suite's schema, so an unknown one makes the request
@@ -300,10 +299,10 @@ This matters for the API keys, the only resources whose existence is not
 already public; the rule is stated uniformly rather than per endpoint so that
 there is one order to implement and to reason about. A body whose syntax cannot
 be read at all -- JSON that does not parse -- may be refused with 400 before
-authentication, and so may a query parameter that I3 rejects: like the cases I4
-settles before an endpoint, neither names anything, and which parameters an
-endpoint takes is public in the API document (I8), so answering them first
-reveals nothing.
+authentication, and so may a query parameter that I3 rejects. Like the cases I4
+settles before an endpoint, neither answer depends on whether anything exists --
+which parameters an endpoint takes is public in the API document (I8) -- so
+giving it first reveals nothing.
 
 **Authorization is not cached**. Every authenticated request resolves its token
 against the database, so revoking a key takes effect immediately rather than
