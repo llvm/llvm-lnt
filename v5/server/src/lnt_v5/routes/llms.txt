@@ -45,7 +45,7 @@
 - **Profile** -- optional instruction-level counter data for one test in one
   run. It is submitted inline with the run, as a test entry's `profile`: a JSON
   document, gzip-compressed and base64-encoded. It is read back through its own
-  UUID.
+  UUID, piecemeal or as that same document in plain JSON.
 - **Regression** -- a performance change someone is tracking: a state, and
   optionally a title, a `bug` URL in an external tracker, a suspected commit and
   free-form notes, plus *indicators*, each naming one `(machine, test, metric)`
@@ -93,6 +93,7 @@ GET    /api/suites/{testsuite}/trends                         read    Per-commit
 GET    /api/suites/{testsuite}/profiles/{uuid}                read    A profile's top-level counters
 GET    /api/suites/{testsuite}/profiles/{uuid}/functions      read    Its functions, with their counters
 GET    /api/suites/{testsuite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
+GET    /api/suites/{testsuite}/profiles/{uuid}/document       read    The whole profile, as the document a submission carries
 
 GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=a,b, machine=, test=, metric=, ...)
 POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
@@ -217,6 +218,9 @@ numeric.
 **Follow up on a data point** through its `run_uuid`: `GET /runs/{uuid}`,
 `GET /runs/{uuid}/samples?test=bench/foo`, and `GET /runs/{uuid}/profiles`. A
 profile is then read through its own UUID; every counter is a raw count.
+`GET /profiles/{uuid}/document` returns it whole: gzip-compressed and
+base64-encoded, that document is a `profile` another submission accepts, which
+is how a profile is copied to another instance.
 
 **Record a regression** with `POST /regressions`:
 

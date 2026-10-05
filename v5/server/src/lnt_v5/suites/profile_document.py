@@ -3,7 +3,7 @@
 A test entry's `profile` is a JSON document, gzip-compressed and base64-encoded (O1, O7). This
 module validates it in full and hands back the rows `{suite}.profile` and `{suite}.profile_function`
 store (D5), with each function's instructions compressed in a layout of its own choosing, which only
-`instructions` below reads back.
+`instructions` below reads back. `document_json` turns those rows back into a document (E7).
 
 The document is parsed with msgspec rather than pydantic, which reads every other request body: a
 profile carries hundreds of thousands of instructions, and pydantic's models take about three times
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import base64
 import zlib
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from compression import zstd
 from dataclasses import dataclass
 from itertools import accumulate, pairwise, repeat
@@ -183,6 +183,8 @@ class _Columns(Struct, gc=False):
 
 _COLUMNS_DECODER = msgspec.json.Decoder(_Columns)
 
+_ENCODER = msgspec.json.Encoder()
+
 
 @dataclass(frozen=True, slots=True)
 class StoredFunction:
@@ -231,6 +233,38 @@ def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
         accumulate(columns.address_deltas), values, columns.text, strict=bool(names)
     ):
         yield address, dict(zip(names, row, strict=True)), text
+
+
+def document_json(
+    disassembly_format: str, counters: dict[str, int], functions: Iterable[tuple[str, bytes]]
+) -> bytearray:
+    """A stored profile as the JSON profile document it was submitted as, uncompressed (E7).
+
+    `functions` are the name and stored instructions of each function, in the order the document is
+    to list them. The document is written into one buffer a function at a time, so that only one
+    function's instructions are ever held as Python objects -- a whole profile's would take several
+    times the memory of the document -- and no part of the document is copied to assemble it.
+    """
+    document = bytearray(b'{"disassembly_format":')
+    _ENCODER.encode_into(disassembly_format, document, -1)
+    document += b',"counters":'
+    _ENCODER.encode_into(counters, document, -1)
+    document += b',"functions":['
+    for index, (name, stored) in enumerate(functions):
+        document += b'{"name":' if index == 0 else b',{"name":'
+        _ENCODER.encode_into(name, document, -1)
+        document += b',"instructions":'
+        _ENCODER.encode_into(
+            [
+                InstructionDocument(address=address, counters=values, text=text)
+                for address, values, text in instructions(stored)
+            ],
+            document,
+            -1,
+        )
+        document += b"}"
+    document += b"]}"
+    return document
 
 
 def _stored(function: FunctionDocument) -> StoredFunction:

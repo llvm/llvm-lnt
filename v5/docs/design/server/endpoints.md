@@ -323,9 +323,10 @@ Auth scope: `read`.
 GET  /api/suites/{testsuite}/profiles/{uuid}                       -- Metadata + top-level counters
 GET  /api/suites/{testsuite}/profiles/{uuid}/functions             -- Function list with counters
 GET  /api/suites/{testsuite}/profiles/{uuid}/disassembly           -- Disassembly + per-instruction counters
+GET  /api/suites/{testsuite}/profiles/{uuid}/document              -- The whole profile, as one profile document
 ```
 
-Auth scope: `read` for all three endpoints.
+Auth scope: `read` for each of them.
 
 As for runs, the `{uuid}` in a path is matched case-insensitively, and one naming
 no profile -- including a segment that is not a well-formed UUID -- is 404. Every
@@ -352,6 +353,21 @@ Every counter these endpoints return is a raw count (see O7).
 - `function` is required, and names the function by its name in the functions
   response; it is a query parameter because a name can contain `/` (see I1). A
   name the profile does not hold is 404.
+
+**Document response** (`GET /api/suites/{testsuite}/profiles/{uuid}/document`):
+- The whole profile in one response, as the profile document O7 defines --
+  `disassembly_format`, the top-level `counters`, and `functions`, each with its
+  `name` and `instructions` -- as plain JSON rather than the compressed, encoded
+  string a submission carries. It holds only what a document holds, so the
+  functions' derived counters and lengths are absent.
+- `functions` are in the functions response's order, not necessarily the one
+  they were submitted in; each function's `instructions` are in the order the
+  disassembly response gives them.
+- Gzip-compressed and base64-encoded, the document is a test entry's `profile`
+  that stores an equivalent profile, so a profile can be copied to another run
+  or instance without one request per function. The server's encoding of it
+  may be larger than the submitted one, so a profile submitted close to O7's
+  size limits may exceed them when read back.
 
 Profiles are submitted within the run submission payload (see O1 and O7).
 There is no separate upload endpoint.

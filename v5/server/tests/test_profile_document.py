@@ -25,6 +25,7 @@ from lnt_v5.suites.profile_document import (
     MAX_INSTRUCTIONS,
     StoredFunction,
     StoredProfile,
+    document_json,
     instructions,
     stored_profile,
 )
@@ -175,6 +176,29 @@ class TestWhatIsStored:
         listed = [instruction(text=""), instruction(text="a\nb\tc")]
 
         assert read_back(document({"name": name, "instructions": listed}), name) == listed
+
+
+class TestReadBackWhole:
+    """`document_json`: the rows a profile is stored as, turned back into its document (E7)."""
+
+    @staticmethod
+    def served(profile: StoredProfile) -> bytearray:
+        functions = [(function.name, function.instructions) for function in profile.functions]
+        return document_json(profile.disassembly_format, profile.counters, functions)
+
+    def test_is_the_document_the_rows_were_stored_from(self) -> None:
+        value = document(
+            {"name": "main", "instructions": [instruction(8, "push", cycles=1.5), instruction(4)]},
+            {"name": "empty", "instructions": []},
+            {"name": "bare", "instructions": [{"address": 0, "counters": {}, "text": "nop"}]},
+        )
+
+        assert json.loads(self.served(stored(value))) == value
+
+    def test_stores_exactly_the_same_rows_again(self) -> None:
+        profile = stored(document(counters={"cycles": 8.0}))
+
+        assert stored(bytes(self.served(profile))) == profile
 
 
 class TestEncoding:

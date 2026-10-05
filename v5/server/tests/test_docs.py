@@ -680,13 +680,14 @@ RUN_PROFILES = RUN_PROFILES_PATH
 PROFILE = f"{PROFILES_PATH}/{{uuid}}"
 FUNCTIONS = f"{PROFILE}/functions"
 DISASSEMBLY = f"{PROFILE}/disassembly"
+DOCUMENT = f"{PROFILE}/document"
 
-# The three that serve what is inside a blob, as opposed to the listing, which never opens one.
-PROFILE_DATA = [PROFILE, FUNCTIONS, DISASSEMBLY]
+# The four that serve what is inside a blob, as opposed to the listing, which never opens one.
+PROFILE_DATA = [PROFILE, FUNCTIONS, DISASSEMBLY, DOCUMENT]
 
 
 class TestProfileOperations:
-    """I8: the four reads E7 specifies."""
+    """I8: the five reads E7 specifies."""
 
     @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
     def test_is_documented(self, client: TestClient, path: str) -> None:
@@ -729,6 +730,8 @@ class TestProfileOperations:
                 "FunctionDisassembly",
                 {"name", "counters", "disassembly_format", "instructions"},
             ),
+            ("ProfileDocument", {"disassembly_format", "counters", "functions"}),
+            ("DocumentFunction", {"name", "instructions"}),
         ],
     )
     def test_a_response_carries_exactly_the_keys_endpoints_md_gives_it(
@@ -747,9 +750,9 @@ class TestProfileOperations:
         # instruction counters are floats. Both are raw values rather than percentages.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
-        assert schemas["ProfileMetadata"]["properties"]["counters"]["additionalProperties"] == {
-            "type": "integer"
-        }
+        for schema in ("ProfileMetadata", "ProfileDocument"):
+            counters = schemas[schema]["properties"]["counters"]
+            assert counters["additionalProperties"] == {"type": "integer"}, schema
         for schema in ("ProfileFunction", "Instruction", "FunctionDisassembly"):
             counters = schemas[schema]["properties"]["counters"]
             assert counters["additionalProperties"] == {"type": "number"}, schema
@@ -763,9 +766,19 @@ class TestProfileOperations:
         assert parameters["function"]["in"] == "query"
         assert parameters["function"]["required"] is True
 
+    def test_the_document_is_described_although_the_endpoint_encodes_it_itself(
+        self, client: TestClient
+    ) -> None:
+        # The route returns its body ready-made, so the model the document describes is declared
+        # beside it rather than read from the return annotation.
+        operation = client.get("/api/openapi.json").json()["paths"][DOCUMENT]["get"]
+        body = operation["responses"]["200"]["content"]["application/json"]["schema"]
+
+        assert body == {"$ref": "#/components/schemas/ProfileDocument"}
+
     @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
     def test_can_be_refused_but_never_forbidden(self, client: TestClient, path: str) -> None:
-        # I5: all four are `read`-scoped, and every valid key grants `read`.
+        # I5: all five are `read`-scoped, and every valid key grants `read`.
         operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
 
         assert "403" not in operation["responses"]
