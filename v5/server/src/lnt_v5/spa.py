@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pathlib import PurePosixPath
 
+from starlette._utils import get_route_path
 from starlette.datastructures import URL
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import RedirectResponse, Response
@@ -154,19 +155,30 @@ def _not_found(method: str | None, path: str) -> StarletteHTTPException:
     return StarletteHTTPException(404, f"No route for {method} {path}")
 
 
-def _api_miss(scope: Scope, method: str | None, path: str) -> Exception:
+def _api_miss(scope: Scope, method: str | None) -> Exception:
     """An API path no route served: I4's 405 if routes serve it with other methods, else a 404.
 
     Answered here rather than by Starlette, whose 405 never arrives: a route matching the path but
     not the method is only a partial match, and this mount -- which matches everything -- wins over
     it. Starlette's would be wrong anyway, naming in `Allow` the methods of the first route that
     matched rather than of every route serving the path, as RFC 9110 requires.
+
+    Matched against the path the router saw, not the one StaticFiles hands `get_response`: that one
+    is normalized, so `/api//suites` would match `/api/suites` and get a 405 allowing the very
+    method it refused.
+
+    HEAD stays a 404: FastAPI routes never serve it, so a 405 would refuse HEAD on a path that
+    serves GET, which RFC 9110 requires every server to answer.
     """
+    # ponytail: HEAD on a GET endpoint is a 404 rather than served like GET; answer it like GET
+    # (status and headers, no body) if a client or monitor ever needs it.
+    path = get_route_path(scope)
     allowed: set[str] = set()
-    for route in iter_routes(scope["app"].routes):
-        regex = getattr(route, "path_regex", None)
-        if regex is not None and regex.match(path):
-            allowed.update(route.methods or ())
+    if method != "HEAD":
+        for route in iter_routes(scope["app"].routes):
+            regex = getattr(route, "path_regex", None)
+            if regex is not None and regex.match(path):
+                allowed.update(route.methods or ())
     if not allowed:
         return _not_found(method, path)
     return ApiError(
@@ -194,7 +206,7 @@ class SpaStaticFiles(StaticFiles):
         # non-GET/HEAD with 405 -- which I4 gives to the API alone. The rest is "nothing here".
         method = scope.get("method")
         if is_api_path(request_path):
-            raise _api_miss(scope, method, request_path)
+            raise _api_miss(scope, method)
         if method not in ("GET", "HEAD"):
             raise _not_found(method, request_path)
 

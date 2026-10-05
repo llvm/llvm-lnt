@@ -157,9 +157,19 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     if exc.status_code == 400:
         return error_response(ErrorCode.INVALID_REQUEST, str(exc.detail))
 
-    # Nothing else is expected (a 405 is spa.py's, raised as an `ApiError`). An endpoint that needs
-    # a specific code raises `ApiError` rather than a status this would have to guess a code from --
-    # guessing cannot tell `duplicate` from `ordinal_conflict`. Answer inside I4's surface and log.
+    # Under the SPA mount a method mismatch is spa.py's, raised as an `ApiError`, and this never
+    # fires. Without that mount -- or under a future sub-mount -- Starlette raises its own 405,
+    # carrying `Allow`.
+    if exc.status_code == 405:
+        return error_response(
+            ErrorCode.METHOD_NOT_ALLOWED,
+            f"{request.method} is not allowed on {request.url.path}",
+            headers=exc.headers,
+        )
+
+    # Nothing else is expected. An endpoint that needs a specific code raises `ApiError` rather than
+    # a status this would have to guess a code from -- guessing cannot tell `duplicate` from
+    # `ordinal_conflict`. Answer inside I4's surface and log.
     logger.warning("Unexpected HTTPException with status %d; answering 500", exc.status_code)
     return error_response(ErrorCode.INTERNAL_ERROR, "The server failed to answer this request")
 

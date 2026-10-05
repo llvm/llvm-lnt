@@ -93,6 +93,17 @@ def test_request_validation_becomes_400_rather_than_422(handlers_client: TestCli
     assert response.json()["error"]["code"] == "invalid_request"
 
 
+def test_starlettes_own_405_becomes_the_envelope_rather_than_500(
+    handlers_client: TestClient,
+) -> None:
+    # The SPA mount hides Starlette's 405 in the assembled app; without it, it reaches the handler.
+    response = handlers_client.post("/boom")
+
+    assert response.status_code == 405
+    assert response.json()["error"]["code"] == "method_not_allowed"
+    assert response.headers["allow"] == "GET"
+
+
 def test_an_unhandled_exception_becomes_500_without_leaking_a_traceback(
     handlers_client: TestClient,
 ) -> None:
@@ -175,6 +186,23 @@ class TestApplicationWiring:
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
+        assert "allow" not in response.headers
+
+    def test_an_api_path_that_misses_only_once_normalized_stays_404(
+        self, client: TestClient
+    ) -> None:
+        # StaticFiles normalizes the path it is handed; matched against that, GET would get a 405
+        # whose `Allow` names GET.
+        response = client.get("/api//suites")
+
+        assert response.status_code == 404
+        assert "allow" not in response.headers
+
+    def test_head_on_an_api_path_stays_404(self, client: TestClient) -> None:
+        # No API endpoint serves HEAD; a 405 would refuse it on a path that serves GET.
+        response = client.head("/api/suites")
+
+        assert response.status_code == 404
         assert "allow" not in response.headers
 
     def test_an_api_path_no_route_serves_stays_404(self, client: TestClient) -> None:

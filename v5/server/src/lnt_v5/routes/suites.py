@@ -75,7 +75,11 @@ def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Create a test suite",
     responses={
-        409: {"model": ErrorEnvelope, "description": f"A suite with that name exists. {_BUSY}"}
+        409: {
+            "model": ErrorEnvelope,
+            "description": "A suite with that name exists (`duplicate`), or a database namespace "
+            f"with that name exists although no suite does (`conflict`). {_BUSY}",
+        }
     },
 )
 def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> SuiteSchema:

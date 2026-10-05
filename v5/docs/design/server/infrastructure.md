@@ -193,12 +193,16 @@ resubmit under a fresh UUID, which would store the run twice -- whereas an `ordi
 means its view of the commit order is wrong and retrying cannot help. `conflict` and `retry` split
 along the line that matters most to an automated client: a `conflict` fails again until the request
 or the stored state changes, so it must not be retried as sent, whereas a `retry` changed nothing
-and the identical request is expected to succeed, so a client may send it again unchanged.
+and failed through no fault of the request, so a client may send it again unchanged. A resend is
+answered on its own merits rather than guaranteed to succeed: the concurrent change may have made
+the request invalid -- a metric it names removed, its suite dropped -- and then it gets that
+definitive answer instead.
 
 A method mismatch is answered with 405 only under `/api/`. Elsewhere -- a client route, `/healthz`,
-`/llms.txt` -- it is a 404 like any other miss. Either way it is answered whatever credential
-accompanied the request: no endpoint is reached, and which methods a path serves is public in the
-API document (I8).
+`/llms.txt` -- it is a 404 like any other miss. HEAD is a 404 under `/api/` too: no API endpoint
+serves it, and a 405 would refuse HEAD on a path that serves GET. Either way it is answered
+whatever credential accompanied the request: no endpoint is reached, and which methods a path
+serves is public in the API document (I8).
 
 **Oversized request bodies** are rejected but do not have to use the envelope: they can be rejected
 at the transport layer instead. However, they must be rejected with `413`. This is a property of the
