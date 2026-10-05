@@ -127,7 +127,8 @@ rejected (400) if `type` is missing or is not one of the values below.
 
 Note that `searchable: true` (D4, O4) is only valid on `text`-typed entries. Setting
 `searchable: true` on a `real`, `integer`, or `datetime` field is rejected (400) at
-schema-creation time. The same holds for a commit field's `display: true` (D4).
+schema-creation time. Likewise, `display: true` (D4) is only valid on a `text`-typed
+commit field.
 
 **The JSON representation is the only one accepted.** A submitted value whose JSON
 type is not the one its declared type calls for is rejected with 400 rather than
