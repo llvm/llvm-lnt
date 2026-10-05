@@ -124,9 +124,8 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   `limit` may change. Stop when it is null. Never parse or build one.
 - **Sorting**: `sort=<name>`, prefixed with `-` for descending.
 - **Query parameters**: give several values by repeating the parameter
-  (`?state=active&state=detected`); a comma-separated list is not split. A
-  parameter the endpoint does not take is 400 rather than ignored, and so is
-  repeating one that takes a single value.
+  (`?state=active&state=detected`). A parameter the endpoint does not take is
+  400 rather than ignored, and so is repeating one that takes a single value.
 - **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
   never on `message`. The codes are `invalid_request` (400), `unauthorized`
   (401), `forbidden` (403), `not_found` (404), `method_not_allowed` (405, with

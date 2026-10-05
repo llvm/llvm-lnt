@@ -116,8 +116,7 @@ paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
   (`sort=-submitted_at`). The endpoints spec lists the orderings each endpoint
   offers.
 - A query parameter that takes several values is repeated, once per value
-  (`?state=active&state=detected`), and a value is never split on commas: a
-  machine name, for one, may contain a comma.
+  (`?state=active&state=detected`).
 - A query parameter the endpoint does not take is rejected with 400
   `invalid_request` naming it, rather than ignored: a misspelled filter
   (`?machnie=linux`) would otherwise silently widen the result. So is a

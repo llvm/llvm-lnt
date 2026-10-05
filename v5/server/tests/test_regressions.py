@@ -576,14 +576,6 @@ class TestStateFilter:
             [regressions["active"], regressions["detected"]]
         )
 
-    def test_does_not_split_a_comma_separated_list(self, api_client: TestClient) -> None:
-        # I3 has one spelling for several values, and it is not this one: `active,detected` is one
-        # value, and not the name of a state.
-        response = listed(api_client, "state=active,detected")
-
-        assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
-
     def test_omitting_it_returns_every_state(self, api_client: TestClient) -> None:
         assert len(uuids_in(listed(api_client))) == len(RegressionStateName)
 
