@@ -32,7 +32,7 @@ RUN_PROFILES_PATH = f"{RUNS_PATH}/{{uuid}}/profiles"
 router = APIRouter(prefix=PROFILES_PATH, tags=["Profiles"])
 
 # The one route under a run rather than under `/profiles`, tagged so that I8's document groups it
-# with the profiles, as `runs.machine_runs_router` is with the machines.
+# with the profiles.
 run_profiles_router = APIRouter(prefix=RUNS_PATH, tags=["Profiles"])
 
 # `suite_scope`'s 404, widened with the cases these endpoints add.

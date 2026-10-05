@@ -28,7 +28,6 @@ POST   /api/suites/{testsuite}/machines                     -- Create machine in
 GET    /api/suites/{testsuite}/machines/{machine_name}      -- Detail
 PATCH  /api/suites/{testsuite}/machines/{machine_name}      -- Update fields/tracked (including rename)
 DELETE /api/suites/{testsuite}/machines/{machine_name}      -- Delete machine, its runs, and its regression indicators
-GET    /api/suites/{testsuite}/machines/{machine_name}/runs -- List runs for this machine (cursor-paginated)
 ```
 
 Machines are also created implicitly if a run is submitted for a nonexistent machine
@@ -77,12 +76,8 @@ to `true` when omitted. Run submission may also set it at creation time (see O1)
 Untracked machines are excluded only from *automatic* machine selection and are
 otherwise returned by every endpoint like any other machine.
 
-`GET /api/suites/{testsuite}/machines/{machine_name}/runs` returns run objects
-(see E4). Filters: `after=`/`before=` (submitted_at; exclusive), same convention
-as `GET /api/suites/{testsuite}/runs`.
-Sort: `sort=submitted_at` returns oldest-first and `sort=-submitted_at`
-newest-first; omitting `sort` returns results in an arbitrary but deterministic
-order suitable for pagination (see I2).
+A machine's runs are listed by
+`GET /api/suites/{testsuite}/runs?machine={machine_name}` (see E4).
 
 
 ## E3: Commits
@@ -202,7 +197,7 @@ A client that wants a commit's display value for a column of runs resolves the
 page's commits in one batch through `POST /commits/resolve`, rather than the
 server embedding a field whose meaning is purely a UI concern (see D4).
 
-The run list endpoints and the detail return the same object, minus
+The run list endpoint and the detail return the same object, minus
 `run_parameters` in list responses. `POST` returns 201 with the created run in
 its detail form and a `Location` header pointing at
 `GET /api/suites/{testsuite}/runs/{uuid}`. `DELETE` returns 204.
