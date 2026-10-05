@@ -335,6 +335,10 @@ instructions in the order the document listed them. It is stored as D5's
 validated at submission, a stored profile is always one the read endpoints can
 serve. Profiles are read-only after creation, and deleting a run deletes them.
 
+The order of a profile's functions is not stored, so a profile read back
+whole, as a document (see E7), may list them in another order than the one
+submitted.
+
 
 ## O8: Concurrent Submission
 

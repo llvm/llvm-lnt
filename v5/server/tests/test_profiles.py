@@ -2,8 +2,9 @@
 
 Driven over the real application and a real database, with profiles submitted the way a client
 submits them (O7). What is interesting here is mostly what the endpoints serve -- raw counts, a
-function's counters derived from its instructions, an order the client can rely on -- and what they
-refuse to do: only the disassembly touches a function's stored instructions (D5).
+function's counters derived from its instructions, an order the client can rely on, a whole document
+that round-trips through a submission -- and what they refuse to do: only the disassembly and the
+document touch a function's stored instructions (D5).
 """
 
 from __future__ import annotations
@@ -33,29 +34,28 @@ def ret(address: int, **counters: float) -> dict[str, Any]:
 # The functions are listed out of name order, so that the function list has to sort them. `Zebra` is
 # capitalized so that code-point order, which endpoints.md specifies, puts it first, whereas a
 # locale's collation would put it last.
-PROFILE = encoded_profile(
-    {
-        "disassembly_format": "llvm-objdump",
-        "counters": {"cycles": 1234567, "branch-misses": 890},
-        "functions": [
-            {
-                "name": "main",
-                "instructions": [
-                    {
-                        "address": 0x1000,
-                        "counters": {"cycles": 30, "branch-misses": 40},
-                        "text": "push rbp",
-                    },
-                    ret(0x1004, cycles=20, **{"branch-misses": 20}),
-                ],
-            },
-            {"name": "Zebra", "instructions": [ret(0x2000, cycles=100, **{"branch-misses": 5})]},
-            {"name": "tie_b", "instructions": [ret(0x3000, cycles=10)]},
-            {"name": "tie_a", "instructions": [ret(0x4000, cycles=10)]},
-            {"name": "cold", "instructions": []},
-        ],
-    }
-)
+SUBMITTED: dict[str, Any] = {
+    "disassembly_format": "llvm-objdump",
+    "counters": {"cycles": 1234567, "branch-misses": 890},
+    "functions": [
+        {
+            "name": "main",
+            "instructions": [
+                {
+                    "address": 0x1000,
+                    "counters": {"cycles": 30, "branch-misses": 40},
+                    "text": "push rbp",
+                },
+                ret(0x1004, cycles=20, **{"branch-misses": 20}),
+            ],
+        },
+        {"name": "Zebra", "instructions": [ret(0x2000, cycles=100, **{"branch-misses": 5})]},
+        {"name": "tie_b", "instructions": [ret(0x3000, cycles=10)]},
+        {"name": "tie_a", "instructions": [ret(0x4000, cycles=10)]},
+        {"name": "cold", "instructions": []},
+    ],
+}
+PROFILE = encoded_profile(SUBMITTED)
 
 # A demangled `operator/` overload, which is why a function is named in a query parameter rather
 # than in the path (I1): v4's importer runs `objdump -C`, so what is stored is demangled.
@@ -96,6 +96,10 @@ def run_profiles(run: str) -> str:
 
 def disassembly(uuid: str) -> str:
     return f"{PROFILES}/{uuid}/disassembly"
+
+
+def document(uuid: str) -> str:
+    return f"{PROFILES}/{uuid}/document"
 
 
 @pytest.fixture
@@ -412,6 +416,73 @@ class TestDisassembly:
         assert code_of(response) == "not_found"
 
 
+class TestDocument:
+    """`GET /profiles/{uuid}/document`: the whole profile, as the document O7 submits."""
+
+    def test_is_the_submitted_document_with_its_functions_by_name(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        # Plain JSON rather than the compressed and encoded string a submission carries, and without
+        # the counters and lengths the server derives. Name order is the functions response's,
+        # `Zebra` first; Python's string order is code-point order.
+        response = api_client.get(document(stored()))
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/json"
+        assert response.json() == SUBMITTED | {
+            "functions": sorted(SUBMITTED["functions"], key=lambda function: function["name"])
+        }
+
+    def test_values_are_typed_as_o7_returns_them(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        # Integer top-level counters and addresses, and real instruction counters, even where the
+        # submission wrote them the other way round.
+        uuid = stored(
+            encoded_profile(
+                {
+                    "disassembly_format": "raw",
+                    "counters": {"cycles": 8.0},
+                    "functions": [
+                        {"name": "f", "instructions": [ret(4, cycles=3) | {"address": 4.0}]}
+                    ],
+                }
+            )
+        )
+
+        body = api_client.get(document(uuid)).json()
+        [instruction] = body["functions"][0]["instructions"]
+
+        assert isinstance(body["counters"]["cycles"], int)
+        assert isinstance(instruction["address"], int)
+        assert isinstance(instruction["counters"]["cycles"], float)
+
+    def test_a_profile_of_no_functions_lists_none(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        empty = {"disassembly_format": "raw", "counters": {}, "functions": []}
+
+        assert api_client.get(document(stored(encoded_profile(empty)))).json() == empty
+
+    @pytest.mark.parametrize("encoded", [PROFILE, EXOTIC], ids=["profile", "exotic names"])
+    def test_resubmitted_it_stores_an_equivalent_profile(
+        self, api_client: TestClient, stored: Callable[..., str], encoded: str
+    ) -> None:
+        # The property the endpoint exists for (E7). The bytes served are resubmitted as they are,
+        # without being parsed and written out again, and the copy is compared through the metadata
+        # and the function list as well, for the derived counters the document does not carry.
+        original = stored(encoded)
+        copy = stored(encoded_profile(api_client.get(document(original)).content))
+
+        def read(uuid: str, suffix: str) -> dict[str, Any]:
+            # Without the UUIDs of the profile and of its run, which a copy cannot share.
+            body: dict[str, Any] = api_client.get(f"{PROFILES}/{uuid}{suffix}").json()
+            return {key: value for key, value in body.items() if key not in {"uuid", "run_uuid"}}
+
+        for suffix in ("/document", "", "/functions"):
+            assert read(copy, suffix) == read(original, suffix), suffix
+
+
 class TestFunctionNames:
     """I1: a function is named in a query parameter, so any name the profile holds is reachable."""
 
@@ -476,15 +547,15 @@ class TestFunctionNames:
         assert code_of(response) == "invalid_request"
 
 
-# The three endpoints that address a profile by its UUID, as the suffix each adds to it. Several
-# things below hold for all three and are asserted once over this list rather than once per class.
-PROFILE_DATA = ["", "/functions", "/disassembly?function=main"]
+# The four endpoints that address a profile by its UUID, as the suffix each adds to it. Several
+# things below hold for all four and are asserted once over this list rather than once per class.
+PROFILE_DATA = ["", "/functions", "/disassembly?function=main", "/document"]
 
 
 class TestAddressingSomethingThatIsNotThere:
-    """The 404s the three profile data endpoints share (I1, E7).
+    """The 404s the four profile data endpoints share (I1, E7).
 
-    One class over all three rather than a copy in each, so that a fourth data endpoint inherits
+    One class over all four rather than a copy in each, so that a fifth data endpoint inherits
     the coverage instead of quietly going without it.
     """
 
@@ -516,7 +587,7 @@ class TestAddressingSomethingThatIsNotThere:
         assert code_of(response) == "not_found"
 
 
-class TestInstructionsAreReadOnlyByTheDisassembly:
+class TestInstructionsAreReadOnlyWhereServed:
     """D5: a function's `instructions` are excluded from the default result set.
 
     Core selects the columns it is asked for, so the rule is a property of each query rather than
@@ -562,11 +633,13 @@ class TestInstructionsAreReadOnlyByTheDisassembly:
 
         assert api_client.get(f"{PROFILES}/{uuid}{suffix}").status_code == 200
 
-    def test_the_disassembly_does(
+    @pytest.mark.parametrize("suffix", ["/disassembly?function=main", "/document"])
+    def test_the_disassembly_and_the_document_do(
         self,
         api_client: TestClient,
         stored: Callable[..., str],
         without_the_column: Callable[[], None],
+        suffix: str,
     ) -> None:
         # The other half of the check: without this the tests above would pass just as well against
         # a server that had stopped storing instructions at all. A column the server expects and
@@ -574,28 +647,23 @@ class TestInstructionsAreReadOnlyByTheDisassembly:
         uuid = stored()
         without_the_column()
 
-        response = api_client.get(disassembly(uuid), params={"function": "main"})
+        response = api_client.get(f"{PROFILES}/{uuid}{suffix}")
 
         assert response.status_code == 409
         assert code_of(response) == "retry"
 
 
 class TestAuthorization:
-    """I5: `read` on all four, which every valid key grants and anonymous access satisfies."""
+    """I5: `read` on every one, which every valid key grants and anonymous access satisfies."""
 
     @pytest.fixture
     def paths(self, api_client: TestClient, submit: Callable[..., str]) -> list[str]:
         run = submit(("bench", PROFILE))
         uuid = api_client.get(run_profiles(run)).json()["items"][0]["uuid"]
-        return [
-            run_profiles(run),
-            f"{PROFILES}/{uuid}",
-            f"{PROFILES}/{uuid}/functions",
-            f"{PROFILES}/{uuid}/disassembly?function=main",
-        ]
+        return [run_profiles(run), *(f"{PROFILES}/{uuid}{suffix}" for suffix in PROFILE_DATA)]
 
     def test_needs_no_credential(self, api_client: TestClient, paths: list[str]) -> None:
-        assert [api_client.get(path).status_code for path in paths] == [200] * 4
+        assert [api_client.get(path).status_code for path in paths] == [200] * len(paths)
 
     def test_a_read_key_is_enough(
         self,
@@ -606,7 +674,9 @@ class TestAuthorization:
     ) -> None:
         headers = bearer(make_key(Scope.READ))
 
-        assert [api_client.get(path, headers=headers).status_code for path in paths] == [200] * 4
+        assert [api_client.get(path, headers=headers).status_code for path in paths] == [200] * len(
+            paths
+        )
 
     def test_an_unknown_token_is_401_even_though_read_allows_anonymous_access(
         self, api_client: TestClient, paths: list[str], bearer: Callable[[str], dict[str, str]]
@@ -614,4 +684,6 @@ class TestAuthorization:
         # I5: a bad credential is never silently downgraded to anonymous access.
         headers = bearer("0" * 64)
 
-        assert [api_client.get(path, headers=headers).status_code for path in paths] == [401] * 4
+        assert [api_client.get(path, headers=headers).status_code for path in paths] == [401] * len(
+            paths
+        )

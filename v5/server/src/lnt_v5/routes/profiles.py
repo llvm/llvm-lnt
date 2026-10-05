@@ -1,7 +1,7 @@
 """Profiles: instruction-level counter data for one test in one run (E7).
 
 Read-only: a profile is submitted inside a run, and stored as a `{suite}.profile` row and a
-`{suite}.profile_function` row per function (D5, O7). Three endpoints address a profile by its
+`{suite}.profile_function` row per function (D5, O7). Four endpoints address a profile by its
 UUID, and the run's listing is how a client that knows a run and a test finds that UUID. A function
 is named in `function=` rather than in the path, since its name can contain `/` (I1).
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import Connection, Row, Select, Table, and_, select
 
@@ -22,7 +22,7 @@ from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import UuidKey, identifier
-from lnt_v5.suites.profile_document import instructions
+from lnt_v5.suites.profile_document import document_json, instructions
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
 
@@ -42,6 +42,7 @@ _NO_FUNCTION = f"{_NO_PROFILE} Or the profile holds no function of that name."
 # Field descriptions more than one response model carries.
 _TEST = "The name of the test this profile was measured for."
 _DISASSEMBLY_FORMAT = "How the instruction text was produced, for example `llvm-objdump`."
+_INSTRUCTIONS = "The function's instructions, in the order the profile records them."
 
 
 class RunProfile(BaseModel):
@@ -111,16 +112,36 @@ class FunctionDisassembly(BaseModel):
         )
     )
     disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
-    instructions: list[Instruction] = Field(
-        description="The function's instructions, in the order the profile records them."
+    instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
+
+
+class DocumentFunction(BaseModel):
+    """One function of a profile document: its instructions, and no counters of its own (O7)."""
+
+    name: str = Field(description="The function's name.")
+    instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
+
+
+# Describes the response for I8 only: the endpoint encodes the document itself.
+class ProfileDocument(BaseModel):
+    """A whole profile, as the document a submission carries it in (O7), but uncompressed."""
+
+    disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
+    counters: dict[str, int] = Field(
+        description="The profile's top-level counters, keyed by counter name, as in the metadata."
+    )
+    functions: list[DocumentFunction] = Field(
+        description=(
+            "Every function of the profile, in the order the functions response lists them -- not "
+            "necessarily the order they were submitted in."
+        )
     )
 
 
 class Profiles:
     """The queries the profile endpoints are built from, and how to read one of their rows back.
 
-    Only `disassembly` selects a function's `instructions`, and only for the function it serves
-    (D5).
+    Only `disassembly` and `document` select a function's `instructions` (D5).
     """
 
     def __init__(self, suite: Suite) -> None:
@@ -129,6 +150,9 @@ class Profiles:
         self._function: Table = suite.tables.profile_function
         self._test: Table = suite.tables.test
         self._run: Table = suite.tables.run
+        # The "C" collation gives endpoints.md's code-point order, whereas the database's default
+        # depends on its locale.
+        self._by_name = self._function.c.name.collate("C")
 
     def of_run(self, run: int) -> Select[Any]:
         """Every profile attached to one run, by test name (E7)."""
@@ -171,16 +195,12 @@ class Profiles:
         )
 
     def functions(self, connection: Connection, uuid: str) -> list[ProfileFunction]:
-        """Every function of one profile, by name, or the 404 for a missing UUID.
-
-        The "C" collation gives endpoints.md's code-point order, whereas the database's default
-        depends on its locale.
-        """
+        """Every function of one profile, by name, or the 404 for a missing UUID."""
         profile = identifier(connection, self.table.c.uuid, uuid, self.missing)
         rows = connection.execute(
             select(self._function.c.name, self._function.c.counters, self._function.c.length)
             .where(self._function.c.profile_id == profile)
-            .order_by(self._function.c.name.collate("C"))
+            .order_by(self._by_name)
         )
         return [
             ProfileFunction(name=name, counters=counters, length=length)
@@ -222,6 +242,26 @@ class Profiles:
                 f"'{name}'",
             )
         return row.disassembly_format, row.counters, row.instructions
+
+    def document(
+        self, connection: Connection, uuid: str
+    ) -> tuple[str, dict[str, int], list[tuple[str, bytes]]]:
+        """One profile's disassembly format, top-level counters, and the name and stored
+        instructions of every function, by name, or the 404 for a missing UUID.
+        """
+        profile = connection.execute(
+            select(self.table.c.id, self.table.c.disassembly_format, self.table.c.counters).where(
+                self.table.c.uuid == uuid
+            )
+        ).one_or_none()
+        if profile is None:
+            raise self.missing(uuid)
+        functions = connection.execute(
+            select(self._function.c.name, self._function.c.instructions)
+            .where(self._function.c.profile_id == profile.id)
+            .order_by(self._by_name)
+        )
+        return profile.disassembly_format, profile.counters, list(functions.tuples())
 
     def missing(self, uuid: str) -> ApiError:
         """The 404 for a profile that is not there, worded in one place for all its callers."""
@@ -302,16 +342,14 @@ def get_profile_disassembly(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> FunctionDisassembly:
-    """One function's disassembly and the counters measured along it (E7).
-
-    The connection is released before the instructions are decompressed, so that a pooled
-    connection and its open transaction are not held across the expensive part.
-    """
+    """One function's disassembly and the counters measured along it (E7)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         disassembly_format, counters, stored = Profiles(suite).disassembly(
             connection, uuid, function
         )
 
+    # The connection is released before the instructions are decompressed, so that a pooled
+    # connection and its open transaction are not held across the expensive part.
     return FunctionDisassembly(
         name=function,
         counters=counters,
@@ -321,3 +359,25 @@ def get_profile_disassembly(
             for address, values, text in instructions(stored)
         ],
     )
+
+
+@router.get(
+    "/{uuid}/document",
+    dependencies=[require_scope(Scope.READ)],
+    summary="Get a whole profile, as a document",
+    response_model=ProfileDocument,
+    responses=suite_responses(not_found=_NO_PROFILE),
+)
+def get_profile_document(
+    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+) -> Response:
+    """The whole profile in one response, as the profile document a submission carries (E7)."""
+    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+        disassembly_format, counters, functions = Profiles(suite).document(connection, uuid)
+
+    # As for the disassembly, the connection is released before anything is decompressed. Encoded
+    # with msgspec rather than through the response model, for the reason `suites.profile_document`
+    # parses with it: a profile can hold hundreds of thousands of instructions. A memoryview is sent
+    # as it is, where `bytes` would copy a document of up to O7's 32 MiB.
+    document = memoryview(document_json(disassembly_format, counters, functions))
+    return Response(document, media_type="application/json")
