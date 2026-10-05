@@ -26,7 +26,7 @@ path and params to restore state. On changes, updates the URL.
 | Recent Activity | Last 25 runs sorted by time | `GET runs?sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
 | Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine searchable fields |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
-| Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag, display field and searchable commit fields |
+| Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
 
 ## TS2: Recent Activity tab
@@ -111,8 +111,7 @@ etc...
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 
 Above the table, a text filter showing "Search commits..." allows filtering based
-on the commit's value, its tag, its display field and its searchable fields (see O4).
-Substring matching is used.
+on the commit's value and any tags and searchable fields. Substring matching is used.
 
 Below the table, `[<- Previous] [Next ->]` allows navigating through pages.
 

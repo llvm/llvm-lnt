@@ -73,7 +73,8 @@ the server again with `search=` (debounced), rather than fetching every commit
 and filtering locally: a machine can have tens of thousands of commits. The
 suggestions always reflect the text currently in the input; a response for text
 the user has since changed is discarded. The search covers the display value
-the suggestions show (see O4).
+the suggestions show only if the schema marks the display field `searchable`
+(see O4).
 
 A page of matches need not hold every matching commit, so a typed value is
 accepted only if it is exactly a commit the picker offers, which the picker

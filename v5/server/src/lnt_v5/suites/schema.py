@@ -165,16 +165,13 @@ class CommitField(_SearchableEntry):
         default=False,
         description=(
             "A hint for the UI: show this field's value in place of the raw commit string. "
-            "At most one commit field may set it, it must be 'text', and `search=` on the "
-            "commit list endpoint always covers it."
+            "At most one commit field may set it, and it must be 'text'."
         ),
     )
 
     @model_validator(mode="after")
     def _display_is_text_only(self) -> Self:
-        # D4: `search=` on the commit list endpoint always covers the display field, so that a
-        # commit picker's typeahead finds what its suggestions show -- and substring matching only
-        # makes sense over text, the same reason `searchable` is confined to it.
+        # D4: the display value stands in for the commit string, which is text.
         if self.display and self.type is not AttributeType.TEXT:
             raise ValueError(
                 f"'{self.name}' is '{self.type.value}', and only a 'text' commit field can be the "

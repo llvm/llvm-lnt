@@ -127,8 +127,7 @@ rejected (400) if `type` is missing or is not one of the values below.
 
 Note that `searchable: true` (D4, O4) is only valid on `text`-typed entries. Setting
 `searchable: true` on a `real`, `integer`, or `datetime` field is rejected (400) at
-schema-creation time. The same holds for a commit field's `display: true` (D4), which
-`?search=` also covers.
+schema-creation time. The same holds for a commit field's `display: true` (D4).
 
 **The JSON representation is the only one accepted.** A submitted value whose JSON
 type is not the one its declared type calls for is rejected with 400 rather than
@@ -215,13 +214,13 @@ Notes:
   O4). Only valid on `text`-typed fields (see D3).
 - `display: true` on at most one `commit_field` is a hint for the UI: when set
   and the field has a non-null value, the UI shows that value instead of the
-  raw commit string (e.g., a shortened SHA, a version tag). The server stores
-  and returns it like any other field, with one exception: `?search=` on the
-  commit list endpoint always covers the display field, whether or not it is
-  `searchable`, so that a commit picker's typeahead finds what its suggestions
-  show (see O4 and AR2). It is therefore only valid on a `text`-typed field. A
-  schema with more than one `commit_field` marked `display: true`, or with one
-  that is not `text`, is rejected at schema-creation time (400).
+  raw commit string (e.g., a shortened SHA, a version tag). Since it stands in
+  for the commit string, it is only valid on a `text`-typed field. This is
+  purely a UI concern -- the DB layer does not treat display fields specially;
+  in particular, `?search=` covers a display field only if it is also
+  `searchable` (see O4). A schema with more than one `commit_field` marked
+  `display: true`, or with one that is not `text`, is rejected at
+  schema-creation time (400).
 - There is no `format_version` in the schema (only one format exists for v5).
 
 **Presentation keys**: beyond `name` and `type`, each list accepts only the

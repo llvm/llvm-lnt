@@ -127,12 +127,12 @@ no `?confirm=true`.
 Auth scopes: `read` for GET (including `/commits/resolve`), `submit` for
 `POST /commits`, `manage` for PATCH/DELETE.
 
-Filters: `search=` (case-insensitive substring match on commit string, tag,
-the display field, and searchable commit fields; see O4), `machine=` (only
-commits with at least one run on this machine; 404 if machine not found),
-`has_profiles=` (boolean; `true` returns only commits where at least one run
-has profile data, `false` returns only commits where no run has profile data;
-when combined with `machine=`, only considers runs on that machine).
+Filters: `search=` (case-insensitive substring match on commit string, tag, and
+searchable commit fields; see O4), `machine=` (only commits with at least one
+run on this machine; 404 if machine not found), `has_profiles=` (boolean;
+`true` returns only commits where at least one run has profile data, `false`
+returns only commits where no run has profile data; when combined with
+`machine=`, only considers runs on that machine).
 
 Sort: `sort=first_seen` (the default) orders commits by when the server first
 saw each one -- the order in which they were created, explicitly or by a run

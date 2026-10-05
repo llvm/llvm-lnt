@@ -257,8 +257,7 @@ class TestDisplayField:
 
     @pytest.mark.parametrize("attribute", ["real", "integer", "datetime"])
     def test_only_a_text_field_can_be(self, attribute: str) -> None:
-        # D4: the commit list's `search=` always covers the display field, and substring matching
-        # only means something over text.
+        # D4: the display value stands in for the commit string, which is text.
         entry = {"name": "entry", "type": attribute, "display": True}
         with pytest.raises(ValidationError, match="display field"):
             SuiteSchema.model_validate(schema(commit_fields=[entry]))

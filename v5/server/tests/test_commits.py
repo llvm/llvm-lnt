@@ -288,10 +288,10 @@ class TestListSearch:
         # `commit_message` is declared but not searchable, and `Xeon` is only in it.
         assert values_in(page(api_client, "search=Xeon")) == []
 
-    def test_matches_the_display_field_even_when_it_is_not_searchable(
+    def test_ignores_the_display_field_when_it_is_not_searchable(
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:
-        # D4, O4: a commit picker shows the display value, and its typeahead is this search (AR2).
+        # D4: being the display field does not make a field searchable; the schema says so itself.
         response = api_client.patch(
             f"{SUITES_PATH}/nts/schema",
             json={"commit_fields": {"update": [{"name": "git_sha", "searchable": False}]}},
@@ -299,7 +299,7 @@ class TestListSearch:
         )
         assert response.status_code == 200
 
-        assert values_in(page(api_client, "search=deadbeef")) == ["abc123"]
+        assert values_in(page(api_client, "search=deadbeef")) == []
 
     def test_combines_with_the_most_recently_seen_first_order(
         self, api_client: TestClient, create: Callable[..., Any]
