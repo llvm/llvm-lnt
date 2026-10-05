@@ -96,7 +96,7 @@ GET    /api/suites/{testsuite}/profiles/{uuid}/functions      read    Its functi
 GET    /api/suites/{testsuite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
 GET    /api/suites/{testsuite}/profiles/{uuid}/document       read    The whole profile, as the document a submission carries
 
-GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=a,b, machine=, test=, metric=, ...)
+GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, test=, metric=, ...)
 POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
 GET    /api/suites/{testsuite}/regressions/{uuid}             read    One regression, with its indicators
 PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit
@@ -123,6 +123,9 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   `cursor` key of a request body -- with the same filters and `sort`; only
   `limit` may change. Stop when it is null. Never parse or build one.
 - **Sorting**: `sort=<name>`, prefixed with `-` for descending.
+- **Query parameters**: give several values by repeating the parameter
+  (`?state=active&state=detected`). A parameter the endpoint does not take is
+  400 rather than ignored, and so is repeating one that takes a single value.
 - **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
   never on `message`. The codes are `invalid_request` (400), `unauthorized`
   (401), `forbidden` (403), `not_found` (404), `method_not_allowed` (405, with

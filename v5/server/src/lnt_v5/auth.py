@@ -1,7 +1,9 @@
 """Authentication and authorization (I5).
 
 An endpoint declares the scope it requires, and everything else follows from that: whether an
-anonymous caller is allowed, and what I8's document says the operation can answer.
+anonymous caller is allowed, what I8's document says the operation can answer, and -- since the
+scope is what marks an endpoint as part of the REST API surface -- that it refuses a query parameter
+it does not take (I3).
 
 Order of checks matters and is guaranteed structurally. I5 requires authentication before
 authorization before resolving the addressed resource, so that an under-scoped caller cannot
@@ -28,6 +30,7 @@ from . import keys
 from .db import EngineDep
 from .errors import ApiError, ErrorCode
 from .keys import ResolvedKey
+from .querying import reject_unknown_query_parameters
 from .scopes import Scope
 
 logger = logging.getLogger(__name__)
@@ -92,7 +95,14 @@ class RequireScope:
     def __init__(self, scope: Scope) -> None:
         self.scope = scope
 
-    def __call__(self, engine: EngineDep, token: TokenDep) -> ResolvedKey | None:
+    # Declared before the token, since dependencies are solved in order: I5 lets I3's refusal of a
+    # query parameter come before authentication, and the header may itself be a 401.
+    def __call__(
+        self,
+        _query: Annotated[None, Depends(reject_unknown_query_parameters)],
+        engine: EngineDep,
+        token: TokenDep,
+    ) -> ResolvedKey | None:
         if token is None:
             # I5: read-scoped endpoints allow unauthenticated access, anything above does not.
             if self.scope is Scope.READ:

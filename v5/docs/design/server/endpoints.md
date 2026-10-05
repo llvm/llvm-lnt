@@ -394,8 +394,8 @@ not a well-formed UUID -- is 404. Every route in this section returns 404 if the
 suite does not exist. `DELETE` requires no `?confirm=true`.
 
 Filters: `search=` (case-insensitive substring match on `title`; see O4),
-`state=` (comma-separated state names, e.g. `?state=active,detected`; an unknown
-name is 400), `machine=`, `test=` and `metric=` (keep only regressions with an
+`state=` (any number of state names, repeated as I3 says; an unknown name is
+400), `machine=`, `test=` and `metric=` (keep only regressions with an
 indicator naming it), `commit=` and `has_commit=`. Filters naming something
 absent are answered as I3 says. `machine=`, `test=` and `metric=` given together
 must match the *same* indicator, as with `GET /api/suites/{testsuite}/tests`.
@@ -527,8 +527,8 @@ Query parameters: `metric`, `machine`, `sample_agg`, `last_n`.
 
 `metric` is required and must be numeric (see D3). Non-numeric metrics are
 rejected with 400. `machine` is required too, so that no request aggregates the
-whole suite at once. Unlike the query endpoint's single machine, it is repeated
-once per machine (`?machine=a&machine=b`) so that the data for multiple machines
+whole suite at once. Unlike the query endpoint's single machine, it takes
+several values (repeated, as I3 says), so that the data for multiple machines
 can be retrieved in one call. An unknown name in it is 404. `sample_agg` is one
 of `median` (the default), `mean`, `min` and `max`. `last_n` (integer, min 1,
 max 10000, default 500) limits the result to the N most recent commits, by

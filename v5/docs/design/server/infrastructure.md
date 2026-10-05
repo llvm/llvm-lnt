@@ -109,13 +109,20 @@ paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
   - `after=`, `before=`: exclusive bounds on submission time. An endpoint that
     bounds more than one dimension names its bounds after each of them instead
     (e.g. `after_commit`/`after_time` on `POST /api/suites/{testsuite}/query`).
-  - `state=` (for regressions, supports multiple values via a comma-separated
-    list: `?state=active,detected`)
+  - `state=` (for regressions; takes several values)
   - `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
   - `tracked=` (boolean, for machines; omitted returns both)
 - `sort=<name>` names one ordering, prefixed with `-` for descending
   (`sort=-submitted_at`). The endpoints spec lists the orderings each endpoint
   offers.
+- A query parameter that takes several values is repeated, once per value
+  (`?state=active&state=detected`).
+- A query parameter the endpoint does not take is rejected with 400
+  `invalid_request` naming it, rather than ignored: a misspelled filter
+  (`?machnie=linux`) would otherwise silently widen the result. So is a
+  single-valued parameter given more than once (`?limit=1&limit=2`), rather
+  than answered with one of its values. This holds on every endpoint of the
+  REST API surface, but not on the four routes I5 exempts from the scope system.
 - A name in a filter or a request body that refers to nothing is answered
   according to what it names:
   - A metric is part of the suite's schema, so an unknown one makes the request
@@ -184,7 +191,7 @@ time, so clients must branch on `code` alone and never parse `message`.
 
 | Code | Status | Meaning |
 |------|--------|---------|
-| `invalid_request` | 400 | Malformed or invalid request: bad syntax, a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
+| `invalid_request` | 400 | Malformed or invalid request: bad syntax, a failed validation, an unknown query parameter (see I3), an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
 | `unauthorized` | 401 | A credential was required and none was usable, or the `Authorization` header carries no usable one (see I5) |
 | `forbidden` | 403 | Valid token, insufficient scope (see I5) |
 | `not_found` | 404 | No route matches the path, or an entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
@@ -291,8 +298,10 @@ This matters for the API keys, the only resources whose existence is not
 already public; the rule is stated uniformly rather than per endpoint so that
 there is one order to implement and to reason about. A body whose syntax cannot
 be read at all -- JSON that does not parse -- may be refused with 400 before
-authentication: like the cases I4 settles before an endpoint, it names nothing,
-so answering it first reveals nothing.
+authentication, and so may a query parameter that I3 rejects. Like the cases I4
+settles before an endpoint, neither answer depends on whether anything exists --
+which parameters an endpoint takes is public in the API document (I8) -- so
+giving it first reveals nothing.
 
 **Authorization is not cached**. Every authenticated request resolves its token
 against the database, so revoking a key takes effect immediately rather than

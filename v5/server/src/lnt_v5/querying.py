@@ -2,7 +2,8 @@
 
 The parameters themselves rather than any one endpoint's set of them. What a given endpoint filters
 and sorts on is its own -- and is declared there, so that I8's document enumerates it and an
-unknown value is a 400 before the endpoint runs.
+unknown value is a 400 before the endpoint runs. A parameter the endpoint does not declare at all is
+a 400 too, refused by `reject_unknown_query_parameters`, which every scoped endpoint runs (I3).
 
 Cursor pagination (I2, O5) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
 private to any endpoint family: the commit, run, test, sample and regression list endpoints and
@@ -15,12 +16,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Union, get_args, get_origin
 
-from fastapi import Query
+from fastapi import Query, Request
+from fastapi.dependencies.models import Dependant
 from pydantic import Field, Strict
 from sqlalchemy import (
     Column,
@@ -124,6 +126,84 @@ def search_condition(
     columns: list[ColumnElement[Any]] = [table.c[name] for name in identity]
     columns += [table.c[entry.name] for entry in entries if entry.searchable]
     return or_(*(column.icontains(term, autoescape=True) for column in columns))
+
+
+def reject_unknown_query_parameters(request: Request) -> None:
+    """I3: a query parameter the endpoint does not take, or one repeated that takes one value: 400.
+
+    Both would otherwise be dropped silently -- FastAPI ignores an undeclared parameter and keeps
+    the last value of a repeated one -- so a misspelled `?machnie=linux` would widen a result and a
+    repeated `?machine=a&machine=b` would narrow it, with nothing telling the caller either way.
+
+    A dependency rather than something each endpoint calls, so that none can forget it: `auth.py`
+    runs it as part of every scoped endpoint's scope check. What the endpoint takes is read off the
+    route it matched, through its whole dependency tree. Each query parameter is declared on its
+    own; one grouped into a Pydantic model would appear here as a single field, and would need this
+    to look inside it.
+    """
+    # Each parameter the endpoint takes, by the name it is sent under, with its type.
+    declared: dict[str, Any] = {}
+    takes_body = False
+    pending: list[Dependant] = [request.scope["route"].dependant]
+    while pending:
+        dependant = pending.pop()
+        declared |= {field.alias: field.field_info.annotation for field in dependant.query_params}
+        takes_body = takes_body or bool(dependant.body_params)
+        pending.extend(dependant.dependencies)
+
+    def quoted(names: Iterable[str]) -> str:
+        return ", ".join(f"'{name}'" for name in sorted(names))
+
+    query = request.query_params
+    unknown = set(query) - declared.keys()
+    if unknown:
+        takes = (
+            f"This endpoint takes: {quoted(declared)}."
+            if declared
+            else "This endpoint takes no query parameters."
+        )
+        # On an endpoint that takes a body, a stray parameter is most likely one of its keys sent in
+        # the wrong place -- `limit` given to `POST /query` in the query string, say (I2).
+        if takes_body:
+            takes += " Its other inputs go in the request body."
+        raise ApiError(
+            ErrorCode.INVALID_REQUEST, f"Unknown query parameter(s): {quoted(unknown)}. {takes}"
+        )
+
+    # FastAPI reads every value of a parameter that takes several, and only the last of any other.
+    repeated = [
+        name
+        for name, annotation in declared.items()
+        if len(query.getlist(name)) > 1 and not _takes_several(annotation)
+    ]
+    if repeated:
+        raise ApiError(
+            ErrorCode.INVALID_REQUEST,
+            f"Query parameter(s) {quoted(repeated)} take a single value, but were given several.",
+        )
+
+
+def _takes_several(annotation: Any) -> bool:
+    """Whether a query parameter of this type takes several values.
+
+    It has to agree with FastAPI, which reads every value of a parameter typed as a sequence or a
+    set other than a string, and only the last of any other: a type this missed would have its
+    repeated values refused, and one it wrongly included would be answered with only the last of
+    them.
+
+    Looks through `| None` and `Annotated`, the two wrappers a query parameter's type carries here.
+    """
+    origin = get_origin(annotation)
+    if origin is Union:
+        return any(_takes_several(argument) for argument in get_args(annotation))
+    if origin is Annotated:
+        return _takes_several(get_args(annotation)[0])
+    collection = origin or annotation
+    return (
+        isinstance(collection, type)
+        and issubclass(collection, (Sequence, set, frozenset))
+        and not issubclass(collection, (str, bytes))
+    )
 
 
 # --------------------------------------------------------------------------------------------
@@ -269,11 +349,11 @@ def cursor_page[T](
     and compiled with its parameters, rather than the request that built it: that is exactly what
     decides which rows the list holds and in what order, so no filter can be left out of it --
     whether it came from the query string, the path or a body -- and nothing else is in it, so
-    neither an unrelated parameter nor another spelling of the same filter (`has_profiles=1` for
-    `true`, a default spelled out, one instant in two time zones) invalidates a cursor. It names the
-    suite's tables, so a cursor from one suite is not accepted by another's either. The flip side is
-    that anything changing the statement -- a schema change to a column it selects or searches, an
-    entity a filter names resolving to another id or ordinal, or a deploy that alters the query --
+    another spelling of the same filter (`has_profiles=1` for `true`, a default spelled out, one
+    instant in two time zones) does not invalidate a cursor. It names the suite's tables, so a
+    cursor from one suite is not accepted by another's either. The flip side is that anything
+    changing the statement -- a schema change to a column it selects or searches, an entity a
+    filter names resolving to another id or ordinal, or a deploy that alters the query --
     invalidates the cursors already issued for it, as I2 allows.
 
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the

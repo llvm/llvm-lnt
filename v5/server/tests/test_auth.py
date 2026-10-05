@@ -6,18 +6,25 @@ every outcome I5 specifies.
 
 The scope hierarchy itself is `Scope.grants`, tested in `test_keys.py`; what is checked here is
 that endpoints enforce it, and that they do so in the order I5 requires.
+
+Also here: I3's refusal of a query parameter an endpoint does not take, which every scoped endpoint
+runs before authenticating.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+import re
+from collections import deque
+from collections.abc import Callable, Sequence
+from typing import Annotated, Any
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
+from fastapi._compat import field_annotation_is_sequence
 from fastapi.testclient import TestClient
 
 from lnt_v5.auth import iter_routes, required_scope
+from lnt_v5.querying import _takes_several
 from lnt_v5.scopes import Scope
 
 # A read-scoped endpoint and an admin-scoped one.
@@ -189,6 +196,103 @@ class TestExemptRoutes:
             response = api_client.get(path, headers={"Authorization": header})
 
             assert response.status_code == unauthenticated.status_code == 200, header
+
+    @pytest.mark.parametrize(
+        "path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt", "/suites/nts"]
+    )
+    def test_a_query_parameter_has_no_effect(self, api_client: TestClient, path: str) -> None:
+        # I3's refusal is for the REST API surface, which these are outside of: a proxy busting a
+        # cache, or a probe tagging its requests, must not turn them into a 400. Nor must the web
+        # UI's own routes, whose query strings carry its state (AR2) -- not exempt from the scope
+        # system, but never part of it.
+        assert api_client.get(f"{path}?v=1&v=2").status_code == 200
+
+
+class TestUnknownQueryParameters:
+    """I3: a query parameter an endpoint does not take is a 400, as is repeating one it takes once.
+
+    Most of these need no database: the refusal comes before authentication, and so before anything
+    that reads one.
+    """
+
+    def test_every_scoped_operation_refuses_one_before_authenticating(
+        self, client: TestClient, app: FastAPI
+    ) -> None:
+        # Every operation rather than a sample, because the point is that no endpoint has to opt
+        # in. The Authorization header is one I5 answers with 401 everywhere under /api/, so a 400
+        # here also shows the order I5 states.
+        operations = [
+            (method, re.sub(r"\{[^}]*\}", "x", route.path_format))
+            for route in iter_routes(app.routes)
+            if required_scope(route) is not None and route.path_format is not None
+            for method in sorted(route.methods or ())
+        ]
+        assert operations
+
+        for method, path in operations:
+            response = client.request(
+                method, f"{path}?bogus=1", headers={"Authorization": "Basic zzz"}
+            )
+
+            assert response.status_code == 400, f"{method} {path}"
+            assert response.json()["error"]["code"] == "invalid_request"
+            assert "'bogus'" in response.json()["error"]["message"]
+
+    def test_names_every_one_and_what_the_endpoint_takes(self, client: TestClient) -> None:
+        response = client.get("/api/suites/nts/machines?machnie=linux&serch=x&search=y")
+
+        message = response.json()["error"]["message"]
+        assert "'machnie'" in message
+        assert "'serch'" in message
+        # Then what the caller may have meant.
+        assert "'search'" in message
+        assert "'tracked'" in message
+        assert "body" not in message
+
+    def test_points_an_endpoint_taking_a_body_at_it(self, client: TestClient) -> None:
+        # `POST /query` takes its filters in its body (I2), so a `limit` in the query string was
+        # almost certainly meant to be a key of it.
+        response = client.post("/api/suites/nts/query?limit=5", json={})
+
+        assert response.status_code == 400
+        assert "request body" in response.json()["error"]["message"]
+
+    def test_one_without_a_value_is_still_refused(self, client: TestClient) -> None:
+        assert client.get(f"{READABLE}?bogus").status_code == 400
+
+    def test_a_single_valued_parameter_given_twice_is_refused(self, client: TestClient) -> None:
+        # Rather than answered with the last value, which is what a client repeating `machine=`
+        # in the belief that it took several would otherwise silently get.
+        response = client.get("/api/suites/nts/runs?machine=a&machine=b")
+
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_request"
+        assert "'machine'" in response.json()["error"]["message"]
+
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            str,
+            bytes,
+            int | None,
+            Annotated[str, Query()],
+            list[str],
+            list[str] | None,
+            Annotated[list[str] | None, Query()],
+            Sequence[str],
+            tuple[str, ...],
+            set[str],
+            frozenset[str],
+            deque[str],
+        ],
+    )
+    def test_takes_several_values_exactly_where_fastapi_reads_them(self, annotation: Any) -> None:
+        # A parameter of a type the check thought single-valued would have its repeated values
+        # refused although the endpoint reads them all; the other way round, a repeated parameter
+        # would be accepted and silently answered with its last value. FastAPI's own classifier is
+        # private, which is why this compares against it rather than production code calling it:
+        # should FastAPI change it, this is what notices.
+        assert _takes_several(annotation) == field_annotation_is_sequence(annotation)
 
 
 class TestLastUsed:

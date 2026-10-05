@@ -567,10 +567,10 @@ class TestStateFilter:
     def regressions(self, create: Callable[..., Any]) -> dict[str, str]:
         return {state: create(state=state)["uuid"] for state in RegressionStateName}
 
-    def test_takes_a_comma_separated_list(
+    def test_takes_several_states_by_repeating_the_parameter(
         self, api_client: TestClient, regressions: dict[str, str]
     ) -> None:
-        response = listed(api_client, "state=active,detected")
+        response = listed(api_client, "state=active&state=detected")
 
         assert sorted(uuids_in(response)) == sorted(
             [regressions["active"], regressions["detected"]]
@@ -594,7 +594,7 @@ class TestStateFilter:
         assert code_of(response) == "invalid_request"
 
     def test_is_400_when_one_of_several_is_not_a_state(self, api_client: TestClient) -> None:
-        assert listed(api_client, "state=active,wontfix").status_code == 400
+        assert listed(api_client, "state=active&state=wontfix").status_code == 400
 
     def test_the_rejection_names_the_five_that_exist(self, api_client: TestClient) -> None:
         message = listed(api_client, "state=wontfix").json()["error"]["message"]

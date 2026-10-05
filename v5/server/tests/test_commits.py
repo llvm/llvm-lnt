@@ -524,7 +524,6 @@ class TestListPagination:
         [
             ("has_profiles=1", "has_profiles=true", "another spelling of the same filter"),
             ("", "sort=first_seen", "the default order, spelled out"),
-            ("_=1", "_=2", "a parameter the endpoint does not read, such as a cache-buster"),
         ],
     )
     def test_accepts_a_cursor_under_a_query_string_meaning_the_same_list(

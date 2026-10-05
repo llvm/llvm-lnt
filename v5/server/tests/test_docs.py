@@ -152,22 +152,23 @@ class TestDocumentedAuthentication:
                 assert operation.get("security") == [{"ApiKey": []}], f"{method.upper()} {path}"
 
     def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
-        # Every valid key grants `read`, so a read-scoped operation has no way to answer 403. Nor
-        # can this one answer 400: it takes nothing to validate, and I5 answers an unusable
-        # Authorization header with 401.
+        # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.
         index = client.get("/api/openapi.json").json()["paths"]["/api"]["get"]
 
         assert "401" in index["responses"]
-        assert "400" not in index["responses"]
         assert "403" not in index["responses"]
 
     def test_an_operation_above_read_can_be_forbidden(self, client: TestClient) -> None:
         keys = client.get("/api/openapi.json").json()["paths"]["/api/admin/api-keys"]
 
         assert {"401", "403"} <= set(keys["get"]["responses"])
-        # Only an operation with something to validate documents the 400 its validation answers.
-        assert "400" not in keys["get"]["responses"]
-        assert "400" in keys["post"]["responses"]
+
+    def test_every_operation_can_answer_400(self, client: TestClient) -> None:
+        # I3: any of them refuses a query parameter it does not take, so even one with nothing
+        # else to validate -- such as the index -- can answer 400.
+        for path, operations in client.get("/api/openapi.json").json()["paths"].items():
+            for method, operation in operations.items():
+                assert "400" in operation["responses"], f"{method.upper()} {path}"
 
 
 class TestSuiteOperations:
@@ -915,6 +916,17 @@ class TestRegressionOperations:
         for model in ("Regression", "RegressionDetail", "RegressionCreate", "RegressionUpdate"):
             state = schemas[model]["properties"]["state"]
             assert state.get("$ref", "").endswith("/RegressionStateName"), model
+
+    def test_the_list_takes_several_states_as_a_repeated_parameter(
+        self, client: TestClient
+    ) -> None:
+        # I3: several values are given by repeating the parameter, which the document says by
+        # making it an array -- of the same component the bodies use.
+        operation = client.get("/api/openapi.json").json()["paths"][REGRESSIONS]["get"]
+        state = next(p for p in operation["parameters"] if p["name"] == "state")["schema"]
+        array = next(option for option in state["anyOf"] if option.get("type") == "array")
+
+        assert array["items"]["$ref"].endswith("/RegressionStateName")
 
     def test_no_update_body_accepts_indicators(self, client: TestClient) -> None:
         # endpoints.md: `PATCH` does not touch them, so the document must not advertise a key the
