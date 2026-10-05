@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -182,20 +183,6 @@ class TestCreate:
 
         assert api_client.get(created.headers["Location"]).json() == created.json()
 
-    def test_mints_a_uuid_the_client_cannot_choose(
-        self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
-    ) -> None:
-        # I1: a run's UUID may be client-provided; every other UUID in the API is the server's.
-        response = api_client.post(
-            REGRESSIONS, json={"uuid": "e6c9ba0a-0000-4000-8000-000000000000"}, headers=triage
-        )
-
-        assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
-
-    def test_two_regressions_get_two_uuids(self, create: Callable[..., Any]) -> None:
-        assert create()["uuid"] != create()["uuid"]
-
     def test_stores_the_indicators_it_was_given(
         self, create: Callable[..., Any], data: None
     ) -> None:
@@ -324,6 +311,94 @@ class TestCreate:
         response = api_client.post(f"{SUITES_PATH}/nope/regressions", json={}, headers=triage)
 
         assert response.status_code == 404
+
+
+class TestUuid:
+    """E8 takes a client's UUID under O1's rules for a run's, so these mirror the run tests.
+
+    Which spellings the format refuses is `test_submission.py`'s matrix: the two share one type.
+    """
+
+    GIVEN = "e6c9ba0a-0000-4000-8000-000000000000"
+
+    @pytest.fixture
+    def post(
+        self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
+    ) -> Callable[..., Any]:
+        def send(**body: Any) -> Any:
+            return api_client.post(REGRESSIONS, json=body, headers=triage)
+
+        return send
+
+    def test_keeps_the_one_the_client_supplied(self, create: Callable[..., Any]) -> None:
+        assert create(uuid=self.GIVEN)["uuid"] == self.GIVEN
+
+    def test_normalizes_it_to_lowercase(self, post: Callable[..., Any]) -> None:
+        # Stored lowercased, which is also the form the `Location` header and every later lookup
+        # use.
+        response = post(uuid=self.GIVEN.upper())
+
+        assert response.json()["uuid"] == self.GIVEN
+        assert response.headers["Location"] == f"{REGRESSIONS}/{self.GIVEN}"
+
+    def test_generates_a_v4_when_the_request_omits_it(self, create: Callable[..., Any]) -> None:
+        assert UUID(create()["uuid"]).version == 4
+
+    def test_an_explicit_null_means_omitted(self, create: Callable[..., Any]) -> None:
+        # O1's convention for a run's `uuid`, which E8 adopts.
+        assert UUID(create(uuid=None)["uuid"]).version == 4
+
+    def test_two_regressions_get_two_uuids(self, create: Callable[..., Any]) -> None:
+        assert create()["uuid"] != create()["uuid"]
+
+    def test_refuses_one_that_is_not_in_the_hyphenated_form(self, post: Callable[..., Any]) -> None:
+        response = post(uuid=self.GIVEN.replace("-", ""))
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_uuid_a_regression_already_has(self, post: Callable[..., Any]) -> None:
+        # I4's `duplicate`: for a client retrying after a lost response, the first attempt is
+        # stored and the retry must not create a second regression.
+        assert post(uuid=self.GIVEN).status_code == 201
+
+        response = post(uuid=self.GIVEN)
+
+        assert response.status_code == 409
+        assert code_of(response) == "duplicate"
+
+    def test_the_duplicate_check_sees_through_the_case(self, post: Callable[..., Any]) -> None:
+        assert post(uuid=self.GIVEN).status_code == 201
+
+        response = post(uuid=self.GIVEN.upper())
+
+        assert response.status_code == 409
+        assert code_of(response) == "duplicate"
+
+    def test_a_refused_duplicate_leaves_the_first_regression_alone(
+        self, api_client: TestClient, post: Callable[..., Any], data: None
+    ) -> None:
+        # Indicators included: a duplicate is refused outright, not merged into the regression that
+        # already has the UUID.
+        post(uuid=self.GIVEN, title="first")
+
+        post(uuid=self.GIVEN, title="second", indicators=[LINUX_ONE])
+
+        items = listed(api_client).json()["items"]
+        assert [(item["title"], item["machine_count"]) for item in items] == [("first", 0)]
+
+    def test_patch_cannot_change_it(
+        self, api_client: TestClient, triage: dict[str, str], create: Callable[..., Any]
+    ) -> None:
+        # The UUID is the regression's identity, so it is settable at creation only.
+        uuid = create()["uuid"]
+
+        response = api_client.patch(
+            f"{REGRESSIONS}/{uuid}", json={"uuid": self.GIVEN}, headers=triage
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 class TestDetail:

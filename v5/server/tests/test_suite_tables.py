@@ -36,6 +36,7 @@ from lnt_v5.suites.tables import (
     REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
     REGRESSION_INDICATOR_METRIC_CONSTRAINT,
     REGRESSION_INDICATOR_REGRESSION_CONSTRAINT,
+    REGRESSION_UUID_CONSTRAINT,
     RUN_UUID_CONSTRAINT,
     SuiteTables,
 )
@@ -499,6 +500,7 @@ class TestNamingConvention:
             ("commit", COMMIT_VALUE_CONSTRAINT),
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
+            ("regression", REGRESSION_UUID_CONSTRAINT),
             ("regression", REGRESSION_COMMIT_CONSTRAINT),
             ("regression_indicator", REGRESSION_INDICATOR_CONSTRAINT),
             ("regression_indicator", REGRESSION_INDICATOR_METRIC_CONSTRAINT),

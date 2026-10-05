@@ -49,7 +49,14 @@ from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.strings import Storable
 from lnt_v5.suites import concurrency
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
-from lnt_v5.suites.tables import INT32_MAX, INT32_MIN, INTEGER_MAX, INTEGER_MIN, NAME_LENGTH
+from lnt_v5.suites.tables import (
+    INT32_MAX,
+    INT32_MIN,
+    INTEGER_MAX,
+    INTEGER_MIN,
+    NAME_LENGTH,
+    UUID_LENGTH,
+)
 
 # D3's JSON representation of each declared type, as the one type a declared value may have. Strict
 # on each member, so that the union cannot quietly reshape a value on its way in: `true` is not an
@@ -190,6 +197,32 @@ Addressable = AfterValidator(addressable)
 # `Storable` is for the body, which the URL-level NUL check does not reach; in a path segment it
 # can never fire.
 UuidKey = Annotated[str, AfterValidator(str.lower), Storable]
+
+# O1: the standard 8-4-4-4-12 hyphenated hex form, of any UUID version. Deliberately matched with a
+# pattern rather than parsed by a UUID library: those also accept braces, a `urn:uuid:` prefix and
+# the unhyphenated form, none of which O1 offers, and accepting one would mean the value the server
+# stores and addresses the entity by is not the value the client sent.
+#
+# Anchored because pydantic's pattern is a search rather than a full match. The exact length beside
+# it is not redundant: `$` matches before a trailing newline in some regex engines, and pinning the
+# length to D5's column width closes that whichever engine pydantic is built on.
+UUID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+
+# A UUID a client chooses for an entity it is creating: a run (O1) or a regression (E8), which take
+# it under the same rules. Unlike `UuidKey` the format is enforced, since this is the value the
+# entity will be addressed by, and lowercased, since every UUID is stored that way.
+ClientUuid = Annotated[
+    str,
+    StringConstraints(pattern=UUID_PATTERN, min_length=UUID_LENGTH, max_length=UUID_LENGTH),
+    AfterValidator(str.lower),
+]
+
+# How I8's document describes a `ClientUuid`, after a sentence saying what the field identifies.
+CLIENT_UUID_FORMAT = (
+    "In the standard 8-4-4-4-12 hyphenated hex form. Any UUID version is accepted; only the "
+    "format is validated. Case-insensitive, and normalized to lowercase. Omit it, or send null, "
+    "to have the server generate one."
+)
 
 
 def location_of(path: str, testsuite: str, key: str) -> str:

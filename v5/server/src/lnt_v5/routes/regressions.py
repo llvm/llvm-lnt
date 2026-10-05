@@ -70,6 +70,8 @@ from lnt_v5.routes.tests import test_id, test_ids
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
+    CLIENT_UUID_FORMAT,
+    ClientUuid,
     Named,
     UuidKey,
     declared_by_name,
@@ -81,7 +83,13 @@ from lnt_v5.suites.entities import (
 )
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, schema_changed, suite_responses, suite_scope
+from lnt_v5.suites.scope import (
+    SUITE_NOT_FOUND,
+    SUITE_SCHEMA_CHANGED,
+    schema_changed,
+    suite_responses,
+    suite_scope,
+)
 from lnt_v5.suites.states import RegressionStateName
 from lnt_v5.suites.tables import (
     NAME_LENGTH,
@@ -90,6 +98,7 @@ from lnt_v5.suites.tables import (
     REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
     REGRESSION_INDICATOR_METRIC_CONSTRAINT,
     REGRESSION_INDICATOR_REGRESSION_CONSTRAINT,
+    REGRESSION_UUID_CONSTRAINT,
 )
 
 REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
@@ -182,7 +191,12 @@ class _Regression(BaseModel):
     the five keys they do share are described once.
     """
 
-    uuid: str = Field(description="Identifies the regression. Always server-generated.")
+    uuid: str = Field(
+        description=(
+            "Identifies the regression: the UUID the creation request supplied, normalized to "
+            "lowercase, or one the server generated."
+        )
+    )
     title: Title | None
     bug: Bug | None
     state: RegressionStateName = Field(description="Where this regression stands in triage.")
@@ -262,6 +276,14 @@ class RegressionCreate(_RegressionBody):
     A regression with nothing but a state is legal, and is what a triager opens before it knows
     what it is looking at.
     """
+
+    uuid: ClientUuid | None = Field(
+        default=None,
+        description=(
+            f"Identifies the regression. {CLIENT_UUID_FORMAT} Supplying one makes creation safe to "
+            "retry: a regression that already has it is a 409 `duplicate`."
+        ),
+    )
 
     indicators: list[IndicatorObject] = Field(
         default_factory=list,
@@ -779,7 +801,10 @@ def list_regressions(
     status_code=201,
     dependencies=[require_scope(Scope.TRIAGE)],
     summary="Create a regression",
-    responses=suite_responses(not_found=_NO_NAMED_ENTITY),
+    responses=suite_responses(
+        not_found=_NO_NAMED_ENTITY,
+        conflict=f"`duplicate`: a regression with that UUID already exists. {SUITE_SCHEMA_CHANGED}",
+    ),
 )
 def create_regression(
     testsuite: str,
@@ -798,8 +823,13 @@ def create_regression(
         resolved = regressions.resolved_indicators(connection, body.indicators)
         commit = None if body.commit is None else commit_id(connection, suite, body.commit)
 
-        uuid = str(uuid4())
-        with regressions.commit_deleted(body.commit):
+        # E8: the client's UUID when it sent one, and a v4 the server mints otherwise.
+        uuid = body.uuid or str(uuid4())
+        taken = f"A regression '{uuid}' already exists in test suite '{suite.schema.name}'"
+        with (
+            reporting_violation(REGRESSION_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken),
+            regressions.commit_deleted(body.commit),
+        ):
             created = int(
                 connection.execute(
                     insert(regressions.table)
