@@ -92,8 +92,9 @@ etc...
 ```
 
 Each table shows exactly the presentation keys its list accepts (see D4), so the three
-tables deliberately differ in their columns. A `display_name` that was not set shows `--`
-rather than repeating the name, matching what the API returns.
+tables deliberately differ in their columns. Entries are shown by their `name`, with their
+`display_name` in a column of its own; one that was not set shows `--` rather than
+repeating the name, matching what the API returns.
 
 This is followed by a red "Delete This Suite" button. Clicking it shows an inline
 panel explaining that deleting a suite permanently destroys all machines, runs,

@@ -175,9 +175,10 @@ etc...
 
 ### Display and edit
 
-The various commit fields are displayed prominently. Inline edit buttons allow setting
-or clearing the tag and ordinal via `PATCH /commits/{value}`. Editing requires `manage`
-scope.
+The page header and the `Commit` row show the commit string itself rather than its
+display value. The various commit fields are displayed prominently. Inline edit buttons
+allow setting or clearing the tag and ordinal via `PATCH /commits/{value}`. Editing
+requires `manage` scope.
 
 ### Navigation
 

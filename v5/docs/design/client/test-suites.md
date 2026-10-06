@@ -86,7 +86,8 @@ Commit            Ordinal                 Tag
 etc...
 ```
 
-- `Commit` is a link to the commit detail page.
+- `Commit` is a link to the commit detail page, showing the display value without its
+  ` (tag)` suffix.
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 

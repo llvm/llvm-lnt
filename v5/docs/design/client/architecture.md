@@ -44,17 +44,16 @@ aggregation settings) wrap them in a shared controls panel -- a lightly shaded
 box with a border -- so the settings area is visually distinct from the page
 content.
 
-**Display conventions**: These hold on every page.
+**Display conventions**: These hold on every page, unless the page specifies
+otherwise.
 
 - A commit is shown by its *display value*: the value of the commit field the
   schema marks `display: true` (see D4) when the commit has one, and the commit
-  string otherwise, followed by ` (tag)` when the commit has a tag. A table
-  that gives the tag a column of its own leaves the suffix off, and the Commit
-  Detail page (DT3) shows the commit string itself. The display value is for
-  display only: links, URL state and API requests use the commit string.
+  string otherwise, followed by ` (tag)` when the commit has a tag. The display
+  value is for display only: links, URL state and API requests use the commit
+  string.
 - A metric, machine field or commit field is labelled with its `display_name`
-  when the schema sets one, and with its `name` otherwise. The Admin page's
-  schema viewer (AD2), which shows schemas as they are stored, is the exception.
+  when the schema sets one, and with its `name` otherwise.
 - Timestamps are shown in the browser's local time zone.
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
@@ -138,12 +137,11 @@ The navigation bar includes a Settings panel with a Bearer token input. The
 token is checked through `GET /api/auth` (see E12): the panel shows the name
 and scope of the key it belongs to, or that it is not valid.
 
-A control whose action needs a scope the token does not grant -- or any scope
-above `read`, when no valid token is set -- is disabled, and hovering it says
-which scope it needs. A tab whose whole content needs the scope (AD1, AD3)
-shows `Permission denied. Set an API token with the required scope in Settings.`
-in place of its content instead. A request the API nevertheless refuses with
-401 or 403 is reported with the same message.
+Unless a page specifies otherwise, a control whose action needs a scope the
+token does not grant -- or any scope above `read`, when no valid token is set --
+is disabled, and hovering it says which scope it needs. A request the API
+nevertheless refuses with 401 or 403 is reported as
+`Permission denied. Set an API token with the required scope in Settings.`
 
 
 ## AR3: Page Hierarchy
