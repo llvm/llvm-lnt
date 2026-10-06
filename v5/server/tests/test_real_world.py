@@ -308,22 +308,18 @@ class TestReadBack:
             assert (body["previous"] or {}).get("value") == previous
             assert (body["next"] or {}).get("value") == following
 
-    def test_commits_are_searched_by_their_revision(
+    def test_commits_are_searched_by_their_svn_revision(
         self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
         for commit in dataset.ordered_commits:
-            revision = commit["fields"]["llvm_project_revision"]
-            expected = [
-                c["value"]
-                for c in dataset.ordered_commits
-                if revision in c["value"] or revision in c["fields"]["llvm_project_revision"]
-            ]
+            # No SHA contains an `r`, so only the field can match.
+            revision = commit["fields"]["svn_revision"]
 
             served = walk_pages(
                 api_client, dataset.url(COMMITS_PATH), urlencode({"search": revision})
             )
 
-            assert sorted(c["value"] for c in served) == sorted(expected)
+            assert [c["value"] for c in served] == [commit["value"]]
 
     def test_the_runs_of_each_machine_at_each_commit_are_listed(
         self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
@@ -462,7 +458,7 @@ class TestNts:
             api_client.get(f"{dataset.url(COMMITS_PATH)}/dc0abebc8e834bceea9a467f07e124ab944e9be9")
         )
         assert commit["ordinal"] == 598181
-        assert commit["fields"] == {"llvm_project_revision": "r598181"}
+        assert commit["fields"] == {"svn_revision": "r598181"}
 
 
 @pytest.mark.parametrize("dataset", ["libcxx"], indirect=True)

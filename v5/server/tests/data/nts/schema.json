@@ -16,6 +16,6 @@
     {"name": "os", "type": "text", "searchable": true}
   ],
   "commit_fields": [
-    {"name": "llvm_project_revision", "type": "text", "searchable": true, "display": true}
+    {"name": "svn_revision", "type": "text", "searchable": true, "display": true}
   ]
 }

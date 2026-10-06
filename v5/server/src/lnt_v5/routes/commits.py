@@ -111,7 +111,7 @@ _CREATE_EXAMPLES = {
             "ordinal": examples.NEXT_ORDINAL,
             "tag": examples.TAG,
             "fields": {
-                "llvm_project_revision": str(examples.NEXT_ORDINAL),
+                "svn_revision": f"r{examples.NEXT_ORDINAL}",
                 "commit_info": "[libc++] Implement P2697R1: std::bitset interface for string_view",
             },
         },

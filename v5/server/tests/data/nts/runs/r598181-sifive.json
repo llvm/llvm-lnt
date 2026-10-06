@@ -8,7 +8,7 @@
     "value": "dc0abebc8e834bceea9a467f07e124ab944e9be9",
     "ordinal": 598181,
     "fields": {
-      "llvm_project_revision": "r598181"
+      "svn_revision": "r598181"
     }
   },
   "run_parameters": {
