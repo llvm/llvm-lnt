@@ -541,6 +541,14 @@ are given in that form.
 | notes | TEXT | nullable |
 | state | INTEGER | not null, indexed |
 | commit_id | INTEGER FK -> Commit | nullable, indexed |
+| created_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
+
+- `created_at` is recorded by the server when the regression is created; a
+  request cannot supply it. Like `{suite}.run.submitted_at`, it comes from the
+  database's clock at the start of the creating transaction.
+- Compound index on `(created_at, id)`: serves
+  `GET /api/suites/{testsuite}/regressions?sort=-created_at`. `id` is the
+  cursor's tiebreaker (O5).
 
 Regression state values:
 

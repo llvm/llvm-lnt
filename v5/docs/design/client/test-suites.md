@@ -27,7 +27,7 @@ path and params to restore state. On changes, updates the URL.
 | Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine searchable fields |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
-| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
+| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
 
 ## TS2: Recent Activity tab
 
@@ -126,7 +126,7 @@ Suites page.
 - Machine: combobox with typeahead
 - Metric: dropdown
 - Has commit: checkbox (surfaces regressions with unset commit)
-- Free-text search on title (client-side, debounced)
+- Free-text search on title: server-side `search=` (see AR2)
 
 **Actions**:
 - "New Regression" button (auth-gated) -> toggles an inline create form with
@@ -135,18 +135,20 @@ Suites page.
 - Row click -> navigates to regression detail page.
 - Delete: per-row button with confirmation prompt (auth-gated).
 
-The table displaying regressions is like this:
+The table lists regressions newest first (`sort=-created_at`), so that newly
+recorded regressions are on the first page. It looks like this:
 
 ```
-Title                 State       Commit        Machines      Tests         Bug
-------------------------------------------------------------------------------------------------------------
-find_if slowdown      detected    abc123        2             12            https://github.com/llvm/.../issues/1234
+Title                 State       Commit        Machines      Tests         Created                   Bug
+-----------------------------------------------------------------------------------------------------------------------------------------------
+find_if slowdown      detected    abc123        2             12            2026-08-31, 3:03:36 PM    https://github.com/llvm/.../issues/1234
 etc...
 ```
 
 Machines and Tests are the `machine_count` and `test_count` the list endpoint returns
 for each regression. They count the whole regression even when the table is filtered.
-The names are on the regression detail page.
+The names are on the regression detail page. Created is the regression's
+`created_at`.
 
 The elements are clickable and link to the details page for that entity.
 Below the table, `[<- Previous] [Next ->]` allows navigating through pages.

@@ -50,12 +50,17 @@ input starts with `re:`), a small inline "regex" badge appears at the right edge
 of the input. The badge is blue for valid regex and red for invalid regex
 syntax. Invalid regex patterns also show a red halo on the input border. This
 convention applies uniformly to all text filter inputs across the UI: test name
-filters, machine name filters, regression title searches, indicator filters,
-combobox suggestion filters, and function name filters. The `re:` prefix is not
-consumed or hidden -- the user sees it in the input and it is included in URL
-state. Commit pickers are the exception: their typeahead is a server-side
-`search=`, which matches plain substrings only (see O4 and "Commit pickers"
-below).
+filters, machine name filters, indicator filters, combobox suggestion filters,
+and function name filters. The `re:` prefix is not consumed or hidden -- the
+user sees it in the input and it is included in URL state.
+
+Inputs that search the server rather than filter data already loaded -- the
+Test Suites tabs' searches (TS1), commit pickers (see below) and the regression
+picker (CP9) -- are the exception, and have no regex mode: a server-side
+`search=` matches plain substrings only (see O4). Such an input asks the server
+again as the user types (debounced), from the first page, and discards a
+response for text the user has since changed, so that what it shows always
+reflects the text currently in the input.
 
 **Text filtering performance**: All pages with large tables (Compare, Graph)
 must keep filter typing responsive even with thousands of rows. Typing in a
@@ -67,14 +72,11 @@ Profiles pages, for Graph baselines, and for a regression's commit -- lists its
 suggestions most recently seen first, as `GET commits?sort=-first_seen` returns
 them with the picker's filters (see E3). That order keeps commits without an
 ordinal (ad-hoc A/B experiment commits; see D1) selectable, placed by recency
-among the ordered ones, whereas `sort=-ordinal` would drop them. A picker loads
-only the first page when it opens, and narrows it as the user types by asking
-the server again with `search=` (debounced), rather than fetching every commit
-and filtering locally: a machine can have tens of thousands of commits. The
-suggestions always reflect the text currently in the input; a response for text
-the user has since changed is discarded. The search covers the display value
-the suggestions show only if the schema marks the display field `searchable`
-(see O4).
+among the ordered ones, whereas `sort=-ordinal` would drop them. A picker
+searches the server as above rather than fetching every commit and filtering
+locally: a machine can have tens of thousands of commits. The search covers the
+display value the suggestions show only if the schema marks the display field
+`searchable` (see O4).
 
 A page of matches need not hold every matching commit, so a typed value is
 accepted only if it is exactly a commit the picker offers, which the picker

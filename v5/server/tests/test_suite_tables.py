@@ -285,7 +285,10 @@ class TestBuiltInColumns:
                     "measured_at",
                 ],
             ),
-            ("regression", ["id", "uuid", "title", "bug", "notes", "state", "commit_id"]),
+            (
+                "regression",
+                ["id", "uuid", "title", "bug", "notes", "state", "commit_id", "created_at"],
+            ),
             (
                 "regression_indicator",
                 ["id", "uuid", "regression_id", "machine_id", "test_id", "metric_id"],
@@ -321,9 +324,11 @@ class TestBuiltInColumns:
             # O1: every run has a commit, and the submission cannot supply the timestamp.
             ("run", "commit_id", False),
             ("run", "submitted_at", False),
-            # D5: a regression need not name a commit, but must have a state.
+            # D5: a regression need not name a commit, but must have a state, and the server always
+            # records when it was created.
             ("regression", "commit_id", True),
             ("regression", "state", False),
+            ("regression", "created_at", False),
             ("profile", "disassembly_format", False),
             ("profile", "counters", False),
             ("profile_function", "counters", False),
@@ -590,6 +595,16 @@ class TestIndexes:
         indexes = indexes_of(inspect(db_engine), "nts", "run")
 
         assert indexes["ix_run_submitted_at_id"]["column_names"] == ["submitted_at", "id"]
+
+    def test_regression_is_indexed_by_creation_time(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: `GET /regressions?sort=-created_at`, whose cursor orders by `(created_at, id)`.
+        make_suite("nts")
+
+        indexes = indexes_of(inspect(db_engine), "nts", "regression")
+
+        assert indexes["ix_regression_created_at_id"]["column_names"] == ["created_at", "id"]
 
 
 class TestUniqueness:

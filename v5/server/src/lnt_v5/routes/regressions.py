@@ -29,7 +29,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager, nullcontext
-from typing import Annotated, Any
+from datetime import datetime
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Query, Response
@@ -59,8 +60,10 @@ from lnt_v5.querying import (
     Cursor,
     Keyset,
     Limit,
+    SortKey,
     cursor_page,
     search_condition,
+    sort_order,
 )
 from lnt_v5.responses import CursorPage
 from lnt_v5.routes.commits import Commits, commit_id
@@ -105,6 +108,8 @@ REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
 INDICATORS_PATH = f"{REGRESSIONS_PATH}/{{uuid}}/indicators"
 
 router = APIRouter(prefix=REGRESSIONS_PATH, tags=["Regressions"])
+
+RegressionSort = Literal["created_at", "-created_at"]
 
 # The largest batch of indicators one request may carry, which is I2's page ceiling for the same
 # reason `POST /commits/resolve` takes it: a batch expands into one statement, and an unbounded one
@@ -188,7 +193,7 @@ class _Regression(BaseModel):
 
     Not published on its own: the two bodies genuinely differ -- the list has the counts, the detail
     has `notes` and the indicators -- so neither is the other plus a key, and this exists so that
-    the five keys they do share are described once.
+    the keys they do share are described once.
     """
 
     uuid: str = Field(
@@ -204,6 +209,12 @@ class _Regression(BaseModel):
         description=(
             "The identity string of the commit suspected of introducing the regression, or null "
             "if none has been identified."
+        )
+    )
+    created_at: datetime = Field(
+        description=(
+            "When the regression was created. Recorded by the server from the database's clock; "
+            "a request cannot supply it (D5)."
         )
     )
 
@@ -362,7 +373,7 @@ class Regressions:
 
     The internal `id` rides along with the rest. It is never rendered -- I1 keeps auto-increment ids
     out of the API entirely -- but it is the unique tiebreaker O5 requires under the cursor, and
-    this list takes no `sort`, so it is the whole of the order.
+    the whole of the order when the list is asked for no `sort`.
     """
 
     def __init__(self, suite: Suite) -> None:
@@ -399,6 +410,7 @@ class Regressions:
             self.table.c.title,
             self.table.c.bug,
             self.table.c.state,
+            self.table.c.created_at,
             self._commit.c.commit,
         ).select_from(
             self.table.outerjoin(self._commit, self._commit.c.id == self.table.c.commit_id)
@@ -412,9 +424,20 @@ class Regressions:
             .join(self._counts, true())
         )
 
-    def keyset(self) -> Keyset:
-        """O5's ordering: arbitrary but deterministic, which for this list is the internal id."""
-        return Keyset(tiebreaker=self.table.c.id)
+    def keyset(self, sort: RegressionSort | None) -> Keyset:
+        """O5's ordering for this list: the caller's sort, then the internal tiebreaker.
+
+        `created_at` is not unique -- nothing stops two regressions being created in the same
+        instant -- so it cannot be the whole order on its own. Nor can the id stand in for it, the
+        way it does for a commit's `first_seen`: `created_at` is when the creating transaction began
+        and the id is handed out when it inserts, so concurrent creations can order the two
+        differently. With no `sort` the tiebreaker is the whole order, which is the arbitrary but
+        deterministic one O5 allows.
+        """
+        if sort is None:
+            return Keyset(tiebreaker=self.table.c.id)
+        _, descending = sort_order(sort)
+        return Keyset(SortKey(self.table.c.created_at, descending), tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
         """O4's `?search=` for regressions: the title, and nothing else."""
@@ -459,6 +482,7 @@ class Regressions:
             "bug": row._mapping[self.table.c.bug],
             "state": RegressionStateName.of(row._mapping[self.table.c.state]),
             "commit": row._mapping[self._commit.c.commit],
+            "created_at": row._mapping[self.table.c.created_at],
         }
 
     def read(self, row: Row[Any]) -> Regression:
@@ -732,9 +756,18 @@ def list_regressions(
             )
         ),
     ] = None,
+    sort: Annotated[
+        RegressionSort | None,
+        Query(
+            description=(
+                "Order by creation time, ascending (oldest first) or descending (newest first). "
+                "Omit for an arbitrary but stable order."
+            )
+        ),
+    ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Regression]:
-    """Every regression in the suite, filtered and cursor-paginated (I2, I3, O4, O5).
+    """Every regression in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
 
     I3's three answers to a filter naming something absent are all visible here: an unknown
     `machine=` or `test=` is a 404, an unknown `metric=` is a 400 -- it names a column the schema
@@ -770,7 +803,7 @@ def list_regressions(
         return cursor_page(
             connection,
             regressions.listed().where(*conditions),
-            regressions.keyset(),
+            regressions.keyset(sort),
             limit,
             cursor,
             regressions.read,

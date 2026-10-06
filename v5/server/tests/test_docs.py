@@ -835,8 +835,8 @@ class TestRegressionOperations:
     def test_the_list_documents_exactly_the_filters_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
-        # Exactly, not merely at least: E8 gives this list no time range and no `sort`, and a
-        # subset assertion would let one appear unnoticed.
+        # Exactly, not merely at least: E8 gives this list no time range, and a subset assertion
+        # would let one appear unnoticed.
         operation = client.get("/api/openapi.json").json()["paths"][REGRESSIONS]["get"]
         names = {parameter["name"] for parameter in operation["parameters"]}
 
@@ -849,9 +849,18 @@ class TestRegressionOperations:
             "metric",
             "commit",
             "has_commit",
+            "sort",
             "limit",
             "cursor",
         }
+
+    def test_the_list_enumerates_its_sort_fields(self, client: TestClient) -> None:
+        # E8 names one field and both directions, so a generated client should not be able to ask
+        # for a third spelling.
+        operation = client.get("/api/openapi.json").json()["paths"][REGRESSIONS]["get"]
+        sort = next(p for p in operation["parameters"] if p["name"] == "sort")
+
+        assert set(sort["schema"]["anyOf"][0]["enum"]) == {"created_at", "-created_at"}
 
     def test_the_list_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
@@ -879,6 +888,7 @@ class TestRegressionOperations:
             "bug",
             "state",
             "commit",
+            "created_at",
             "machine_count",
             "test_count",
         }
@@ -889,6 +899,7 @@ class TestRegressionOperations:
             "notes",
             "state",
             "commit",
+            "created_at",
             "indicators",
         }
 
