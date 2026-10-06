@@ -27,7 +27,7 @@ retried removal names UUIDs that are already gone.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from datetime import datetime
 from typing import Annotated, Any, Literal
@@ -57,6 +57,8 @@ from lnt_v5.patching import omit_defaults
 from lnt_v5.querying import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
+    BodyCursor,
+    BodyLimit,
     Cursor,
     Keyset,
     Limit,
@@ -106,6 +108,7 @@ from lnt_v5.suites.tables import (
 
 REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
 INDICATORS_PATH = f"{REGRESSIONS_PATH}/{{uuid}}/indicators"
+INDICATOR_LOOKUP_PATH = f"{REGRESSIONS_PATH}/indicators/query"
 
 router = APIRouter(prefix=REGRESSIONS_PATH, tags=["Regressions"])
 
@@ -364,6 +367,69 @@ class IndicatorsRemoved(BaseModel):
     indicators: list[Indicator] = Field(description="Every indicator this regression still has.")
 
 
+class RegressionIndicator(Indicator):
+    """An indicator as the lookup across regressions returns it: with the regression it belongs to.
+
+    The regression is referenced by its UUID and nothing else (E8). A client that needs its title,
+    state or commit joins on that UUID with the regression list, which already carries them.
+    """
+
+    regression_uuid: str = Field(description="The UUID of the regression this indicator is on.")
+
+
+class IndicatorQuery(BaseModel):
+    """The body of `POST /api/suites/{testsuite}/regressions/indicators/query`.
+
+    A body rather than query parameters for the reason `POST /query` takes one. The lists are
+    bounded at I2's page ceiling for that endpoint's reason too: each expands into one statement,
+    and an unbounded one would carry more bind parameters than the protocol does.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    machine: list[Named] | None = Field(
+        default=None,
+        max_length=MAX_LIMIT,
+        description=(
+            f"Keep only indicators naming one of these machines, at most {MAX_LIMIT} of them. 404 "
+            "if any of them names no machine. An empty list keeps nothing, which is not the same "
+            "as omitting the key."
+        ),
+    )
+    test: list[Named] | None = Field(
+        default=None,
+        max_length=MAX_LIMIT,
+        description=(
+            f"Keep only indicators naming one of these tests, at most {MAX_LIMIT} of them. 404 if "
+            "any of them names no test. An empty list keeps nothing."
+        ),
+    )
+    metric: Named | None = Field(
+        default=None,
+        description=(
+            "Keep only indicators naming this metric. 400 if the suite's schema declares no such "
+            "metric."
+        ),
+    )
+    state: list[RegressionStateName] | None = Field(
+        default=None,
+        max_length=MAX_LIMIT,
+        description=(
+            "Keep only indicators of regressions in one of these states. An empty list keeps "
+            "nothing."
+        ),
+    )
+    commit: Named | None = Field(
+        default=None,
+        description=(
+            "Keep only indicators of regressions attributed to this commit. A value no commit has "
+            "matches nothing, rather than being an error."
+        ),
+    )
+    limit: BodyLimit = DEFAULT_LIMIT
+    cursor: BodyCursor = None
+
+
 class Regressions:
     """The queries every regression response is built from, and how to read their rows back.
 
@@ -443,6 +509,14 @@ class Regressions:
         """O4's `?search=` for regressions: the title, and nothing else."""
         return search_condition(term, self.table, ["title"])
 
+    def in_states(self, states: Collection[RegressionStateName]) -> ColumnElement[bool]:
+        """I3's `state=`, over the list and the indicator lookup alike.
+
+        Deduplicated and sorted, because the bound values are part of a cursor's scope
+        (`cursor_page`): naming the same states in another order asks for the same results.
+        """
+        return self.table.c.state.in_(sorted({name.stored for name in states}))
+
     def commit_is(self, value: str) -> ColumnElement[bool]:
         """I3's `commit=`, over the outer join `select` already makes.
 
@@ -469,11 +543,20 @@ class Regressions:
         if test is not None:
             conditions.append(self._indicator.c.test_id == test)
         if metric is not None:
-            conditions.append(
-                self._indicator.c.metric_id
-                == select(self._metric.c.id).where(self._metric.c.name == metric).scalar_subquery()
-            )
+            conditions.append(self.names_metric(metric))
         return select(1).select_from(self._indicator).where(*conditions).exists()
+
+    def names_metric(self, metric: str) -> ColumnElement[bool]:
+        """Whether an indicator names this metric, compared by id rather than through a join.
+
+        The subquery runs once, so the comparison is a constant on the indicator's own column, which
+        D5's index can use; the metric's name on a joined table is a condition the planner may only
+        apply after reading every indicator for the machine and test.
+        """
+        return (
+            self._indicator.c.metric_id
+            == select(self._metric.c.id).where(self._metric.c.name == metric).scalar_subquery()
+        )
 
     def _common(self, row: Row[Any]) -> dict[str, Any]:
         return {
@@ -521,33 +604,97 @@ class Regressions:
         which is what makes this an index scan of just this regression's rows.
         """
         rows = connection.execute(
-            select(
-                self._indicator.c.uuid,
-                self._machine.c.name,
-                self._test.c.name,
-                self._metric.c.name,
-            )
-            .select_from(
-                self._indicator.join(
-                    self._machine, self._machine.c.id == self._indicator.c.machine_id
-                )
-                .join(self._test, self._test.c.id == self._indicator.c.test_id)
-                .join(self._metric, self._metric.c.id == self._indicator.c.metric_id)
-            )
+            self._indicators()
             .where(self._indicator.c.regression_id == regression)
             .order_by(self._indicator.c.id)
         ).all()
-        # By column object rather than by name: the row spans four tables and three of them have a
-        # `name`.
-        return [
-            Indicator.model_construct(
-                uuid=row._mapping[self._indicator.c.uuid],
-                machine=row._mapping[self._machine.c.name],
-                test=row._mapping[self._test.c.name],
-                metric=row._mapping[self._metric.c.name],
+        return [Indicator.model_construct(**self._indicator_keys(row)) for row in rows]
+
+    def lookup(self) -> Select[Any]:
+        """E8's indicator lookup: every indicator, with the UUID of its regression.
+
+        Joined to the regression for that UUID and for the state the lookup filters on. The
+        keyset's four sort keys ride along, never rendered.
+        """
+        return (
+            self._indicators()
+            .add_columns(
+                self._indicator.c.machine_id,
+                self._indicator.c.test_id,
+                self._indicator.c.metric_id,
+                self._indicator.c.id,
+                self.table.c.uuid,
             )
-            for row in rows
-        ]
+            .join(self.table, self.table.c.id == self._indicator.c.regression_id)
+        )
+
+    def lookup_keyset(self) -> Keyset:
+        """The lookup's order, which E8 leaves arbitrary: that of D5's indicator index.
+
+        `(machine_id, test_id, metric_id, id)`, so that the filters and the cursor are both
+        conditions on that index and a page is a bounded scan of it. Ordered by the id alone, every
+        page would read every match.
+        """
+        return Keyset(
+            SortKey(self._indicator.c.machine_id),
+            SortKey(self._indicator.c.test_id),
+            SortKey(self._indicator.c.metric_id),
+            tiebreaker=self._indicator.c.id,
+        )
+
+    def on_machines(self, machines: Collection[int]) -> ColumnElement[bool]:
+        """The lookup's `machine` list.
+
+        Sorted because the bound values are part of the cursor's scope (`cursor_page`), and the ids
+        come from a lookup whose row order follows the plan PostgreSQL picks: an identical request
+        could otherwise have its cursor refused.
+        """
+        return self._indicator.c.machine_id.in_(sorted(machines))
+
+    def for_tests(self, tests: Collection[int]) -> ColumnElement[bool]:
+        """The lookup's `test` list, sorted for the same reason."""
+        return self._indicator.c.test_id.in_(sorted(tests))
+
+    def attributed_to(self, value: str) -> ColumnElement[bool]:
+        """The lookup's `commit`: regressions attributed to the commit with this value.
+
+        Compared through a subquery rather than a join, since the lookup reads nothing else from the
+        commit. A value no commit has makes the subquery null, which matches nothing -- I3's answer
+        for a commit used as a filter, as `commit=` on the list gives it.
+        """
+        return (
+            self.table.c.commit_id
+            == select(self._commit.c.id).where(self._commit.c.commit == value).scalar_subquery()
+        )
+
+    def read_lookup(self, row: Row[Any]) -> RegressionIndicator:
+        """One lookup row as E8 renders it: the indicator, and its regression's UUID."""
+        return RegressionIndicator.model_construct(
+            **self._indicator_keys(row), regression_uuid=row._mapping[self.table.c.uuid]
+        )
+
+    def _indicators(self) -> Select[Any]:
+        """An indicator's keys, read through the three tables its references point at."""
+        return select(
+            self._indicator.c.uuid,
+            self._machine.c.name,
+            self._test.c.name,
+            self._metric.c.name,
+        ).select_from(
+            self._indicator.join(self._machine, self._machine.c.id == self._indicator.c.machine_id)
+            .join(self._test, self._test.c.id == self._indicator.c.test_id)
+            .join(self._metric, self._metric.c.id == self._indicator.c.metric_id)
+        )
+
+    def _indicator_keys(self, row: Row[Any]) -> dict[str, Any]:
+        # By column object rather than by name: the row spans several tables and three of them have
+        # a `name`.
+        return {
+            "uuid": row._mapping[self._indicator.c.uuid],
+            "machine": row._mapping[self._machine.c.name],
+            "test": row._mapping[self._test.c.name],
+            "metric": row._mapping[self._metric.c.name],
+        }
 
     def resolve(self, connection: Connection, uuid: str) -> int:
         """The id of the regression a route addresses, or the 404 for one that is not there.
@@ -783,7 +930,7 @@ def list_regressions(
         if search is not None:
             conditions.append(regressions.search(search))
         if state is not None:
-            conditions.append(regressions.table.c.state.in_([name.stored for name in state]))
+            conditions.append(regressions.in_states(state))
         if commit is not None:
             conditions.append(regressions.commit_is(commit))
         if has_commit is not None:
@@ -1017,4 +1164,47 @@ def remove_indicators(
         removed = regressions.remove_indicators(connection, regression, body.indicator_uuids)
         return IndicatorsRemoved(
             removed=removed, indicators=regressions.indicators(connection, regression)
+        )
+
+
+@router.post(
+    "/indicators/query",
+    dependencies=[require_scope(Scope.READ)],
+    summary="Look up indicators across regressions",
+    responses=suite_responses(not_found=_NO_FILTERED_ENTITY),
+)
+def query_indicators(
+    testsuite: str,
+    body: IndicatorQuery,
+    engine: EngineDep,
+    registry: RegistryDep,
+) -> CursorPage[RegressionIndicator]:
+    """Every indicator matching the body, across all regressions, cursor-paginated (I2, I3, O5).
+
+    The metric is resolved first, so an undeclared one is a 400 even if the body also names an
+    absent machine or test -- the same order `POST /query` takes, which the spec leaves open.
+    """
+    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+        regressions = Regressions(suite)
+        conditions: list[ColumnElement[bool]] = []
+        if body.metric is not None:
+            declared_entry(suite.schema, Metric, body.metric)
+            conditions.append(regressions.names_metric(body.metric))
+        if body.machine is not None:
+            machines = machine_ids(connection, suite, body.machine)
+            conditions.append(regressions.on_machines(machines.values()))
+        if body.test is not None:
+            tests = test_ids(connection, suite, body.test)
+            conditions.append(regressions.for_tests(tests.values()))
+        if body.state is not None:
+            conditions.append(regressions.in_states(body.state))
+        if body.commit is not None:
+            conditions.append(regressions.attributed_to(body.commit))
+        return cursor_page(
+            connection,
+            regressions.lookup().where(*conditions),
+            regressions.lookup_keyset(),
+            body.limit,
+            body.cursor,
+            regressions.read_lookup,
         )

@@ -234,6 +234,8 @@ the user can see the commit range.
 - `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit dropdown)
 - `GET machines` (machine combobox)
 - `GET suites/{ts}` (fields/metrics)
+- `POST regressions/indicators/query` and `GET regressions` (regression
+  annotations; see GR14)
 
 
 ### GR13: URL State
@@ -249,9 +251,20 @@ navigation but lost on page reload.
 ### GR14: Regression Annotations
 
 A dropdown toggle "Regressions: Off | Active | All" (default Off) in the
-controls panel. When enabled, vertical dashed lines are drawn at the
-regression's commit position for regressions with indicators matching the
-current graph's test/machine/metric. Lines are color-coded by state (red=active,
-yellow=detected, gray=resolved). Hover shows the regression title and affected
-tests; click navigates to the regression detail page. The selected mode is
+controls panel. "Active" covers the regressions still being worked on
+(`detected` and `active`), and "All" covers every state. When enabled, a
+vertical dashed line is drawn at the commit of each regression with an
+indicator naming one of the plotted machines, the plotted metric, and one of
+the selected tests. Lines are color-coded by state: red for `active`, yellow
+for `detected`, and gray for the resolved states (`not_to_be_fixed`, `fixed`
+and `false_positive`). Hover shows the regression title and which of
+the selected tests it affects; click navigates to the regression detail page.
+A regression with no commit, or whose commit is not on the x-axis scaffold
+(GR2), has no position on the chart and is not drawn. The selected mode is
 persisted in the URL as `regressions={off|active|all}`; `off` is omitted.
+
+The matching indicators come from the indicator lookup
+(`POST /regressions/indicators/query`; see E8), given the plotted machines, the
+metric, the selected tests and the mode's states. That lookup names each
+regression by UUID only; their title, state and commit come from the regression
+list (`GET /regressions`), joined on the UUID.

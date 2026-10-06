@@ -29,16 +29,18 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, insert, select, update
 
-from conftest import code_of, recent, run_payload, uuids_in, walk_pages
+from conftest import code_of, recent, run_payload, uuids_in, walk_cursor, walk_pages
+from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
-from lnt_v5.routes.regressions import MAX_INDICATORS, REGRESSIONS_PATH
+from lnt_v5.routes.regressions import INDICATOR_LOOKUP_PATH, MAX_INDICATORS, REGRESSIONS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.states import RegressionState, RegressionStateName
 from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
 REGRESSIONS = REGRESSIONS_PATH.format(testsuite="nts")
+LOOKUP = INDICATOR_LOOKUP_PATH.format(testsuite="nts")
 RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 MACHINES = MACHINES_PATH.format(testsuite="nts")
@@ -143,6 +145,20 @@ def listed(api_client: TestClient, query: str = "") -> Any:
 def walk(api_client: TestClient, query: str = "") -> list[str]:
     """Every regression the list serves, following cursors to the end."""
     return [item["uuid"] for item in walk_pages(api_client, REGRESSIONS, query)]
+
+
+def lookup(api_client: TestClient, **body: Any) -> Any:
+    return api_client.post(LOOKUP, json=body)
+
+
+def found(api_client: TestClient, **body: Any) -> set[tuple[str, str, str, str]]:
+    """What the indicator lookup answers, as (regression, machine, test, metric) combinations."""
+    response = lookup(api_client, **body)
+    assert response.status_code == 200, response.text
+    return {
+        (item["regression_uuid"], item["machine"], item["test"], item["metric"])
+        for item in response.json()["items"]
+    }
 
 
 def remove_metric(api_client: TestClient, manage: dict[str, str], metric: str) -> Any:
@@ -1477,6 +1493,228 @@ class TestRemoveIndicators:
         assert code_of(response) == "invalid_request"
 
 
+class TestIndicatorLookup:
+    """E8's lookup of indicators across regressions, which answers per indicator rather than per
+    regression: a client holding many tests learns which of them each regression covers."""
+
+    @pytest.fixture(autouse=True)
+    def regressions(self, create: Callable[..., Any], data: None) -> dict[str, str]:
+        return {
+            "linux": create(state="active", indicators=[LINUX_ONE, LINUX_TWO])["uuid"],
+            "darwin": create(state="detected", indicators=[DARWIN_ONE])["uuid"],
+            "compile": create(state="fixed", indicators=[{**LINUX_ONE, "metric": "compile_time"}])[
+                "uuid"
+            ],
+            "none": create()["uuid"],
+        }
+
+    def test_an_item_is_the_indicator_plus_its_regressions_uuid(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        # Exactly these keys: no other regression field rides along (E8), so a client joins with
+        # the regression list for the title, state and commit.
+        detail = api_client.get(f"{REGRESSIONS}/{regressions['darwin']}").json()
+
+        items = lookup(api_client, machine=["darwin"]).json()["items"]
+
+        assert items == [{**detail["indicators"][0], "regression_uuid": regressions["darwin"]}]
+
+    def test_with_no_filter_lists_every_indicator_of_every_regression(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        # A regression with no indicators has nothing to list, so `none` never appears.
+        assert found(api_client) == {
+            (regressions["linux"], "linux", "suite/one", "execution_time"),
+            (regressions["linux"], "linux", "suite/two", "execution_time"),
+            (regressions["darwin"], "darwin", "suite/one", "execution_time"),
+            (regressions["compile"], "linux", "suite/one", "compile_time"),
+        }
+
+    def test_the_machine_list_is_a_disjunction(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        assert found(api_client, machine=["darwin", "linux"], metric="execution_time") == {
+            (regressions["linux"], "linux", "suite/one", "execution_time"),
+            (regressions["linux"], "linux", "suite/two", "execution_time"),
+            (regressions["darwin"], "darwin", "suite/one", "execution_time"),
+        }
+
+    def test_tells_which_of_the_named_tests_a_regression_covers(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        # The question the regression list cannot answer: `linux` covers two tests, and asking about
+        # one of them answers with that one alone.
+        assert found(api_client, test=["suite/two"]) == {
+            (regressions["linux"], "linux", "suite/two", "execution_time"),
+        }
+
+    def test_the_metric_keeps_only_indicators_naming_it(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        assert found(api_client, metric="compile_time") == {
+            (regressions["compile"], "linux", "suite/one", "compile_time"),
+        }
+
+    def test_the_states_keep_only_indicators_of_regressions_in_one_of_them(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        assert {uuid for uuid, *_ in found(api_client, state=["active", "detected"])} == {
+            regressions["linux"],
+            regressions["darwin"],
+        }
+
+    def test_the_commit_keeps_only_indicators_of_regressions_attributed_to_it(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        create: Callable[..., Any],
+    ) -> None:
+        # Left out: the regression attributed to another commit, and the fixture's, which are
+        # attributed to none.
+        response = api_client.post(COMMITS, json={"value": "def456"}, headers=submitter)
+        assert response.status_code == 201, response.text
+        at = create(commit="abc123", indicators=[LINUX_ONE])["uuid"]
+        create(commit="def456", indicators=[LINUX_ONE])
+
+        assert found(api_client, commit="abc123") == {(at, "linux", "suite/one", "execution_time")}
+
+    def test_an_unknown_commit_is_an_empty_result_rather_than_an_error(
+        self, api_client: TestClient
+    ) -> None:
+        # I3: a commit used as a filter selects what belongs to it, and one nothing has reached yet
+        # legitimately has nothing -- as with the list's `commit=`.
+        response = lookup(api_client, commit="nope")
+
+        assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
+
+    def test_the_filters_must_all_hold_for_the_same_indicator(
+        self, api_client: TestClient, regressions: dict[str, str]
+    ) -> None:
+        # `darwin` names suite/one and `compile` names linux, but only an indicator naming linux,
+        # suite/one and execution_time at once matches all three filters.
+        assert found(
+            api_client, machine=["linux"], test=["suite/one"], metric="execution_time"
+        ) == {(regressions["linux"], "linux", "suite/one", "execution_time")}
+
+    @pytest.mark.parametrize("key", ["machine", "test", "state"])
+    def test_an_empty_list_keeps_nothing(self, api_client: TestClient, key: str) -> None:
+        # As with `POST /query`'s `test`: an empty list is not the same as an omitted key.
+        response = lookup(api_client, **{key: []})
+
+        assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
+
+    @pytest.mark.parametrize(
+        "body",
+        [{"machine": ["linux", "nope"]}, {"test": ["suite/one", "nope"]}],
+    )
+    def test_a_machine_or_test_that_is_not_there_is_404(
+        self, api_client: TestClient, body: dict[str, Any]
+    ) -> None:
+        response = lookup(api_client, **body)
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    @pytest.mark.parametrize("body", [{"metric": "nope"}, {"state": ["active", "wontfix"]}])
+    def test_a_metric_or_state_that_does_not_exist_is_400(
+        self, api_client: TestClient, body: dict[str, Any]
+    ) -> None:
+        # I3: a metric is a column the schema declares rather than a row the suite holds.
+        response = lookup(api_client, **body)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_an_undeclared_metric_beats_an_absent_machine(self, api_client: TestClient) -> None:
+        assert lookup(api_client, metric="nope", machine=["nope"]).status_code == 400
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"machines": ["linux"]},
+            {"machine": "linux"},
+            {"metric": ["execution_time"]},
+        ],
+    )
+    def test_a_body_of_another_shape_is_400(
+        self, api_client: TestClient, body: dict[str, Any]
+    ) -> None:
+        # An undefined key, a single machine where a list is due, and a list of metrics where one
+        # name is.
+        response = lookup(api_client, **body)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize(
+        ("key", "value"), [("machine", "m"), ("test", "t"), ("state", "fixed")]
+    )
+    def test_refuses_a_list_longer_than_the_page_ceiling(
+        self, api_client: TestClient, key: str, value: str
+    ) -> None:
+        # Each list expands into one statement, which an unbounded one would overflow with bind
+        # parameters.
+        response = lookup(api_client, **{key: [value] * (MAX_LIMIT + 1)})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
+        response = api_client.post(INDICATOR_LOOKUP_PATH.format(testsuite="nope"), json={})
+
+        assert response.status_code == 404
+
+    def test_answers_only_post(self, api_client: TestClient) -> None:
+        # I4: a path the API serves under another method is 405, not a regression named `indicators`
+        # -- which could not be one anyway, since it is not a UUID.
+        response = api_client.get(LOOKUP)
+
+        assert response.status_code == 405
+        assert response.headers["allow"] == "POST"
+
+
+class TestIndicatorLookupPagination:
+    @pytest.fixture(autouse=True)
+    def regressions(self, create: Callable[..., Any], data: None) -> list[str]:
+        return [create(indicators=[LINUX_ONE, LINUX_TWO, DARWIN_ONE])["uuid"] for _ in range(3)]
+
+    def walk(self, api_client: TestClient, **body: Any) -> list[dict[str, Any]]:
+        return walk_cursor(
+            lambda cursor: lookup(
+                api_client, **body, **({} if cursor is None else {"cursor": cursor})
+            )
+        )
+
+    def test_pages_cover_every_indicator_exactly_once(self, api_client: TestClient) -> None:
+        served = [item["uuid"] for item in self.walk(api_client, limit=2)]
+
+        assert len(served) == len(set(served)) == 9
+
+    def test_the_filters_survive_a_page_boundary(self, api_client: TestClient) -> None:
+        served = self.walk(api_client, machine=["linux"], test=["suite/two"], limit=2)
+
+        assert [(item["machine"], item["test"]) for item in served] == [("linux", "suite/two")] * 3
+
+    def test_refuses_a_cursor_issued_under_other_filters(self, api_client: TestClient) -> None:
+        cursor = lookup(api_client, limit=2).json()["cursor"]["next"]
+
+        response = lookup(api_client, machine=["linux"], limit=2, cursor=cursor)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_accepts_its_cursor_whatever_order_the_states_are_named_in(
+        self, api_client: TestClient
+    ) -> None:
+        # The states are a set: naming them in another order asks for the same results, so the
+        # cursor, which is scoped to the statement, must not tell the two requests apart.
+        cursor = lookup(api_client, state=["detected", "active"], limit=2).json()["cursor"]["next"]
+
+        response = lookup(api_client, state=["active", "detected"], limit=2, cursor=cursor)
+
+        assert response.status_code == 200, response.text
+
+
 class TestCascades:
     """What happens to a regression when something it points at goes away (D5)."""
 
@@ -1673,6 +1911,16 @@ class TestPagination:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    def test_accepts_a_cursor_whatever_order_the_states_are_named_in(
+        self, api_client: TestClient
+    ) -> None:
+        # The states are a set: naming them in another order asks for the same regressions.
+        cursor = listed(api_client, "state=detected&state=active&limit=2").json()["cursor"]["next"]
+
+        response = listed(api_client, f"state=active&state=detected&limit=2&cursor={cursor}")
+
+        assert response.status_code == 200, response.text
+
     def test_takes_no_offset(self, api_client: TestClient) -> None:
         # I2 pairs `offset` with `total`, and a cursor-paginated list has neither.
         assert "total" not in listed(api_client).json()
@@ -1691,6 +1939,12 @@ class TestAuthorization:
         self, api_client: TestClient, regression: str, path: str
     ) -> None:
         assert api_client.get(f"{REGRESSIONS}{path.format(uuid=regression)}").status_code == 200
+
+    def test_the_indicator_lookup_needs_no_credential(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        # A POST, but a `read`-scoped one: it reads and changes nothing (E8, I5).
+        assert api_client.post(LOOKUP, json={}).status_code == 200
 
     @pytest.mark.parametrize(("method", "path", "body"), WRITES)
     def test_a_write_is_401_without_a_credential(
