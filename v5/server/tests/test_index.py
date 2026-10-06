@@ -30,7 +30,7 @@ class TestIndex:
         response = api_client.get("/api/", follow_redirects=False)
 
         assert response.status_code == 307
-        assert response.headers["location"].endswith("/api")
+        assert response.headers["location"] == "/api"
 
     def test_does_not_enumerate_the_suites_itself(self, api_client: TestClient) -> None:
         # `GET /api/suites` is the canonical list; the index only points at it.
