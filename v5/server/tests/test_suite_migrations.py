@@ -51,6 +51,29 @@ def adding_machine_column(column: str, calls: list[tuple[str, str]]) -> Step:
     return step
 
 
+def migration_lock_is_free(database_url: str) -> bool:
+    """Whether another session could take the migration lock right now.
+
+    From an engine of its own: the lock is a session-level one, which the session holding it can
+    take again, so asking on a pooled connection could find a stranded lock and report it free.
+    """
+    engine = create_engine(database_url, poolclass=NullPool)
+    try:
+        with engine.connect() as connection:
+            taken = bool(
+                connection.execute(
+                    text("SELECT pg_try_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY}
+                ).scalar_one()
+            )
+            if taken:
+                connection.execute(
+                    text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY}
+                )
+    finally:
+        engine.dispose()
+    return taken
+
+
 def fresh_structure(engine: Engine) -> dict[str, list[tuple[Any, ...]]]:
     """What this build creates the reference suite with, in place of whatever is there now.
 
@@ -130,7 +153,7 @@ class TestUpgrade:
         assert not result.applied
 
     def test_a_failing_suite_is_left_as_it_was_and_earlier_ones_stay_migrated(
-        self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+        self, db_engine: Engine, migrated_database_url: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         store_suite(db_engine, suite_named("a"), version=0)
         store_suite(db_engine, suite_named("b"), version=0)
@@ -150,6 +173,9 @@ class TestUpgrade:
         assert "added" in column_names(db_engine, "a", "machine")
         assert version_of(db_engine, "b") == 0
         assert "added" not in column_names(db_engine, "b", "machine")
+        # The failure came partway through a suite's transaction, which is what holding the lock
+        # across transactions has to survive.
+        assert migration_lock_is_free(migrated_database_url)
 
     def test_refuses_a_suite_a_newer_build_migrated_before_migrating_any(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -165,19 +191,25 @@ class TestUpgrade:
         assert calls == []
         assert version_of(db_engine, "a") == 0
 
-    def test_refuses_a_suite_whose_stored_schema_is_invalid(
+    def test_refuses_a_suite_whose_stored_schema_is_invalid_before_migrating_any(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # "a" sorts first, so it would be migrated before "bad" were the check made suite by suite.
+        store_suite(db_engine, suite_named("a"), version=0)
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
                     name="bad", schema_json='{"name": "bad", "nonsense": 1}', structure_version=0
                 )
             )
-        monkeypatch.setattr(migrations, "STEPS", (lambda op, suite: None,))
+        calls: list[tuple[str, str]] = []
+        monkeypatch.setattr(migrations, "STEPS", (adding_machine_column("first", calls),))
 
         with pytest.raises(MigrationError, match=r"'bad'.*stored schema is invalid"):
             upgrade_to_head(db_engine)
+
+        assert calls == []
+        assert version_of(db_engine, "a") == 0
 
     def test_releases_the_lock_when_it_fails(
         self, db_engine: Engine, migrated_database_url: str
@@ -189,18 +221,7 @@ class TestUpgrade:
         with pytest.raises(MigrationError):
             upgrade_to_head(db_engine)
 
-        other = create_engine(migrated_database_url, poolclass=NullPool)
-        try:
-            with other.connect() as connection:
-                taken = connection.execute(
-                    text("SELECT pg_try_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY}
-                ).scalar_one()
-                connection.execute(
-                    text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY}
-                )
-        finally:
-            other.dispose()
-        assert taken
+        assert migration_lock_is_free(migrated_database_url)
 
     def test_a_suite_is_created_at_the_latest_version(
         self,

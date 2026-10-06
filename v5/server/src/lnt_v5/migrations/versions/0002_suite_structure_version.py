@@ -1,10 +1,10 @@
-"""Record how far each suite's built-in structure has been brought forward.
+"""Record how far each suite's tables have been brought forward.
 
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-10-06
 
-D6 migrates the built-in structure of every existing suite, and `schema.structure_version` is where
+D6 migrates the tables of every existing suite, and `schema.structure_version` is where
 each suite's position in that sequence is recorded (D5). Frozen like 0001: nothing is imported from
 `lnt_v5.tables`.
 """

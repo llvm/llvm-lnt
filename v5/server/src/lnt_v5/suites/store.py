@@ -65,7 +65,7 @@ def add_suite(connection: Connection, suite: SuiteSchema) -> None:
     half-built namespace. It is also the order the other writes take their locks in.
 
     The tables are created as this build describes them, which is the end of the sequence that
-    brings a suite's built-in structure forward (D6), so that is the version recorded.
+    brings a suite's tables forward (D6), so that is the version recorded.
     """
     connection.execute(
         insert(schema).values(

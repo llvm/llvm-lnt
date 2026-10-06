@@ -1,11 +1,11 @@
 """Bringing a database up to the structure the code expects (D6).
 
 Two sequences of changes are applied here, in this order. The global tables are migrated by
-Alembic, from the revisions in `migrations/`. Then the built-in structure of every existing suite is
-brought forward by the steps in `suites/migrations.py`, each suite in a transaction of its own.
+Alembic, from the revisions in `migrations/`. Then the tables of every existing suite are brought
+forward by the steps in `suites/migrations.py`, each suite in a transaction of its own.
 
-Neither touches a suite's dynamic columns, which are defined by data -- the suite's schema -- and
-are created and altered at runtime by the suite endpoints instead.
+Neither adds or removes a suite's dynamic columns: which of those exist is decided by data -- the
+suite's schema -- so the suite endpoints create and drop them at runtime instead.
 """
 
 from __future__ import annotations
@@ -131,36 +131,51 @@ def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | No
 
 
 def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
-    """Bring every suite's built-in structure forward to this build's, and name the ones that moved.
+    """Bring every suite's tables forward to this build's, and name the suites that moved.
 
     Every suite is checked before any is migrated, so that a database this build must refuse is
     refused as it was found rather than after part of it has been migrated anyway.
     """
     head = migrations.head()
     with connection.begin():
-        positions = connection.execute(
-            select(schema.c.name, schema.c.structure_version).order_by(schema.c.name)
+        rows = connection.execute(
+            select(schema.c.name, schema.c.structure_version, schema.c.schema_json).order_by(
+                schema.c.name
+            )
         ).all()
 
-    for name, version in positions:
+    for name, version, schema_json in rows:
         if version > head:
             raise MigrationError(
                 f"test suite '{name}' is at structure version {version}, but this build only knows "
                 f"up to version {head}: it was migrated by a newer build, which is the one to run"
             )
+        if version < head:
+            try:
+                SuiteSchema.model_validate_json(schema_json)
+            except ValidationError as error:
+                # Unlike the registry, which skips a suite it cannot parse and serves the rest, this
+                # has to stop: the steps need the schema, and a suite left behind would be served
+                # unmigrated once its row was repaired.
+                raise MigrationError(
+                    f"test suite '{name}' cannot be migrated, because its stored schema is "
+                    f"invalid: {error}"
+                ) from error
+
     migrated: list[str] = []
-    for name, version in positions:
+    for name, version, _ in rows:
         if version < head and _upgrade_suite(connection, name, head):
             migrated.append(name)
     return tuple(migrated)
 
 
 def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
-    """Run one suite's outstanding steps in one transaction, and say whether it still existed.
+    """Run one suite's outstanding steps in one transaction, and say whether any were run.
 
     The suite's `schema` row is locked first, as every change to a suite does (see `store.py`), so
     that a server already running cannot change or drop the suite while its tables are rebuilt. It
     waits as long as that takes: unlike a request, nothing is waiting on this to free a connection.
+    The row is read again under that lock, which is what the steps are run from.
     """
     with connection.begin():
         row = connection.execute(
@@ -168,20 +183,12 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
             .where(schema.c.name == name)
             .with_for_update()
         ).one_or_none()
-        if row is None:
-            # Deleted since the versions were read, which only a running server can do.
+        if row is None or row.structure_version >= head:
+            # Dropped, or dropped and created again at the latest version, since the first pass --
+            # which only a running server can do.
             return False
 
-        try:
-            suite = SuiteSchema.model_validate_json(row.schema_json)
-        except ValidationError as error:
-            # Unlike the registry, which skips a suite it cannot parse and serves the rest, this
-            # has to stop: the steps need the schema, and a suite left behind would fail later.
-            raise MigrationError(
-                f"test suite '{name}' cannot be migrated, because its stored schema is invalid: "
-                f"{error}"
-            ) from error
-
+        suite = SuiteSchema.model_validate_json(row.schema_json)
         operations = Operations(MigrationContext.configure(connection))
         for step in migrations.STEPS[row.structure_version : head]:
             step(operations, suite)

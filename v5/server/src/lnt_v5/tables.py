@@ -1,10 +1,10 @@
 """The global tables (D5), and the naming convention every table in an instance shares.
 
 Global tables exist once per instance. They are defined here, in code, and brought into being by
-a migration (D6). Per-suite tables are the other half of the model: their built-in structure is
-defined in `suites/tables.py`, and their dynamic columns by data -- a suite's schema -- so they are
-created and altered at runtime by the suite endpoints. They are not defined here, but they must
-adopt the naming convention below.
+a migration (D6). Per-suite tables are the other half of the model: they are described in
+`suites/tables.py`, and which dynamic columns they carry is decided by data -- a suite's schema --
+so they are created and altered at runtime by the suite endpoints. They are not defined here, but
+they must adopt the naming convention below.
 """
 
 from __future__ import annotations

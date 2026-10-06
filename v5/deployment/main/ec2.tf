@@ -60,6 +60,11 @@ resource "aws_instance" "app" {
 
   # Deploying a new image tag rewrites user_data, which recreates the instance -- that replacement is
   # what actually rolls out a new version.
+  #
+  # The old instance is destroyed before the new one is created, and the app's database migrations
+  # rely on that: they do not keep the previous version working (see D6 in
+  # v5/docs/design/server/data-model.md). Adding `create_before_destroy` would have the old version
+  # serving against a database the new one has already migrated.
   user_data_replace_on_change = true
 
   # Make sure the secret has been created before proceeding with the EC2 instance. Otherwise, on

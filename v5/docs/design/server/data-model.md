@@ -315,8 +315,8 @@ of its own named after its suite (see below).
   rather than the request body as submitted. It is stored as text rather than
   JSONB because the server never queries into it: it is read whole, parsed
   into the in-memory model, and written whole.
-- `structure_version` records how far the suite's built-in structure has been
-  brought along its sequence of changes (see D6). It has nothing to do with
+- `structure_version` records how far the suite's tables have been brought
+  along their sequence of changes (see D6). It has nothing to do with
   `schema_version` below, which only announces that some suite changed.
 - See D4 for limits on the schema name.
 
@@ -332,8 +332,7 @@ of its own named after its suite (see below).
   at `1` so that the row is addressable without a search.
 - Bumped whenever a suite is created, modified, or deleted, so that other
   workers can detect that their cached schemas are stale (see D2). Bringing a
-  suite's built-in structure forward (D6) changes no schema, and does not bump
-  it.
+  suite's tables forward (D6) changes no schema, and does not bump it.
 
 #### `api_key`
 
@@ -667,25 +666,27 @@ The DB layer validates state values on create and update.
 The structure D5 describes is decided partly by data and partly by code, and
 the two parts evolve by different means.
 
-**Dynamic columns are defined by data.** A suite's schema decides which columns
-its tables carry beyond the built-in ones, so no description written in advance
-could cover them. They are created with the suite by `POST /api/suites`,
-altered by `PATCH /api/suites/{name}/schema`, and dropped with it by
-`DELETE /api/suites/{name}` (see D2). This is ordinary request handling, not
-initialization.
+**Which dynamic columns exist is decided by data.** A suite's schema decides
+which columns its tables carry beyond the built-in ones, so no description
+written in advance could cover them. They are created with the suite by
+`POST /api/suites`, altered by `PATCH /api/suites/{name}/schema`, and dropped
+with it by `DELETE /api/suites/{name}` (see D2). This is ordinary request
+handling, not initialization.
 
-**Everything else is defined by code.** The global tables (`schema`,
-`schema_version`, `api_key`), and the built-in columns, indexes and constraints
-of every per-suite table, are fixed by the server build rather than by anything
+**Everything else is decided by code.** The global tables (`schema`,
+`schema_version`, `api_key`), the built-in columns, indexes and constraints of
+every per-suite table, and how each dynamic column is represented -- its column
+type (D3), nullability and default, such as the per-metric flags of
+`{suite}.test_coverage` -- are fixed by the server build rather than by anything
 a user submits. A database must therefore be brought to the structure the
 running build expects before that build serves traffic, and must be brought
 forward again whenever a later build changes it -- including every suite that
 already exists, not only the ones created afterwards. This is what "when the
 database is initialized" in D5 refers to.
 
-Changes form two sequences: one for the global tables, and one for the built-in
-structure of a suite, which every suite goes through on its own. Requirements on
-the mechanism that applies them:
+Changes form two sequences: one for the global tables, and one for what code
+decides about a suite's tables, which every suite goes through on its own.
+Requirements on the mechanism that applies them:
 
 - **Ordered and recorded.** The database records how far along each sequence it
   is -- once for the global tables, and once per suite, in that suite's
@@ -701,14 +702,14 @@ the mechanism that applies them:
 - **All-or-nothing.** A global step that fails leaves the database as it was. A
   suite is brought forward as a whole: if any of its steps fails, the suite is
   left as it was, although suites already brought forward stay so.
-- **Equivalent to creation.** A suite brought forward has exactly the built-in
-  columns, indexes and constraints that the same build gives a suite it creates.
-  A step is given the suite's schema, since some built-in structure is
-  per-metric (`{suite}.test_coverage`), and may move data as well as change
+- **Equivalent to creation.** A suite brought forward has exactly the columns,
+  indexes and constraints that the same build gives a suite it creates from the
+  same schema. A step is given the suite's schema, since what it changes may
+  depend on which dynamic columns exist, and may move data as well as change
   structure.
-- **Never backwards.** The database, or a suite, that a newer build has brought
-  further than the running build knows is refused rather than served by code
-  that does not match it.
+- **Never backwards.** A build neither starts nor applies changes against a
+  database, or a suite, that a newer build has brought further than it knows:
+  its code does not match what that build left.
 - **Safe under concurrency.** At most one process may apply changes at a time,
   and the others wait rather than failing -- two servers starting against one
   database, say, or an operator applying changes by hand while a server starts.
