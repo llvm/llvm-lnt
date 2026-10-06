@@ -394,14 +394,11 @@ are given in that form.
 | tag | VARCHAR(256) | nullable, indexed (partial: WHERE tag IS NOT NULL) |
 | _(dynamic)_ | per commit_fields | nullable |
 
-- `commit` is the identity string, submitted as `commit.value` (see O1). Used
-  as the default display value in the UI unless a `commit_field` with
-  `display: true` is defined and populated.
+- `commit` is the identity string, submitted as `commit.value` (see O1).
 - `ordinal` has a regular unique constraint.
 - `tag` is an optional human-readable label (e.g., `release-18.1`), settable
   on every commit write path (see O2). Multiple commits may share the same tag. The tag is always included in
-  `?search=` substring matching (see O4). When set, the UI appends it to the
-  display value as `<display_value> (tag)`.
+  `?search=` substring matching (see O4).
 - Dynamic columns are created from `commit_fields` in the schema (see D3 for
   the type-to-column mapping).
 - Commits are deletable (regardless of whether `ordinal` is set). Deleting a

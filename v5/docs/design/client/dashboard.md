@@ -17,8 +17,8 @@ performance trends across all test suites.
 
 ## DA2: Sparkline cards
 
-- Each card shows a small time-series chart (~300x160px) with the metric name
-  and unit (if any) as the card title.
+- Each card shows a small time-series chart (~300x160px) with the metric's
+  label and unit (if any) as the card title.
 - Up to 5 traces per chart, one per most-recently-active machine. The set is
   chosen once per suite rather than per metric, via
   `GET /api/suites/{ts}/machines?tracked=true&sort=-last_run_at&limit=5`, and
@@ -28,12 +28,13 @@ performance trends across all test suites.
   machines with `tracked: true` are eligible -- untracked machines are ad-hoc or
   retired configurations not tracked in the overview. A machine with no data for
   a given metric simply has no trace on that card. Each trace is a colored line.
-- X-axis: sequential position (evenly spaced, no axis labels).
+- X-axis: sequential position (evenly spaced, no axis labels) among the
+  commits any of the card's traces has data at, in ordinal order.
 - Y-axis: the trend item's `value` at each commit for that machine+metric
   combination, a geometric mean across tests. See below for calculation.
-- Hover tooltip shows the machine name, commit (or `display` field), and value.
-  Trend items do not carry the `display` field, so a card resolves the display
-  values of its commits through `POST /api/suites/{ts}/commits/resolve`.
+- Hover tooltip shows the machine name, commit, and value. Trend items do not
+  carry the commit's fields, so a card resolves the display values of its
+  commits through `POST /api/suites/{ts}/commits/resolve`.
 - Clicking a sparkline navigates to the Graph page pre-populated with that
   suite, metric, and the displayed machines. Clicking directly on a specific
   trace navigates with just that machine.

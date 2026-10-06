@@ -30,15 +30,16 @@ are fully disjoint, have different DB schemas and concepts, etc.
 The physical organization of this repository is as follows:
 
 ```
-lnt/            # legacy v4 Python app
-tests/          # legacy v4 tests
-schemas/        # legacy v4 test-suite YAML schemas
+lnt/                    # legacy v4 Python app
+tests/                  # legacy v4 tests
+schemas/                # legacy v4 test-suite YAML schemas
 v5/
-    docs/       # NEW: v5 documentation
-    client/     # NEW: v5 SPA (client-side code)
-    server/     # NEW: v5 server-side code
-    Dockerfile  # NEW: v5 Dockerfile
-    deployment/ # NEW: Terraform infra to deploy the v5 instance
+    docs/               # NEW: v5 documentation
+    client/             # NEW: v5 SPA (client-side code)
+    server/             # NEW: v5 server-side code
+    integration-tests/  # NEW: end-to-end tests of the v5 Docker image
+    Dockerfile          # NEW: v5 Dockerfile
+    deployment/         # NEW: Terraform infra to deploy the v5 instance
 .github/
     workflows/
         v5-deploy.yml   # NEW: v5 deployment workflow
@@ -68,7 +69,7 @@ e.g. `D5`, `I4` or `GR8`.
 |----------|----------|----------|
 | [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar |
 | [Dashboard](client/dashboard.md) | DA | Landing page with sparkline trend overview across test suites |
-| [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker + tabs): Recent Activity, Machines, Runs, Commits, Regressions |
+| [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker + tabs): Runs, Machines, Commits, Regressions |
 | [Detail Pages](client/details.md) | DT | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |
 | [Graph](client/graph.md) | GR | Time-series visualization: multi-machine, lazy loading, test selection, baselines, regression annotations |
 | [Compare](client/compare.md) | CP | Side-by-side comparison of two commits: selection panel, ratio chart, geomean summary, bidirectional sync |

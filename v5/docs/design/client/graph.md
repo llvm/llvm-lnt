@@ -25,28 +25,14 @@ the suite is a query parameter, not a path segment.
   per-keystroke API calls). A "Loading machines..." hint is shown until the
   initial fetch completes.
 
-- **Input validation**: Machine and commit comboboxes show a red halo
-  (red border + box-shadow) whenever the suggestion
-  dropdown is empty, meaning no machine or commit matches the typed text.
-  Acceptance (Enter key, blur/change) is blocked while the halo is showing. The
-  halo updates in real-time on every keystroke -- for a commit combobox, as
-  soon as the server has answered the search for the current text (see AR2).
-  Clicking a dropdown suggestion always clears the halo and accepts the value.
-  For commit comboboxes, acceptance via Enter or blur additionally requires the
-  typed text to be exactly one of the commits the picker offers, checked as AR2
-  describes rather than against the visible suggestions -- a partial substring
-  match (e.g. typing "789" when the commit is "566789") is rejected with the
-  red halo even though suggestions are visible. All comboboxes support
-  ArrowDown/ArrowUp keyboard navigation through suggestions, with Enter to
-  select the focused item.
-
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at
   least one machine and a metric are selected, the test table is populated with
   ALL matching tests (no cap). **Nothing is plotted by default** -- the chart
   starts empty with the x-axis scaffold. The user explicitly selects which tests
-  to plot by clicking rows in the test table. Data is fetched on-demand when
-  tests are selected. The metric selector initially shows a "-- Select metric
-  --" placeholder (no metric pre-selected), consistent with the Compare page.
+  to plot by clicking rows in the test table, unless the URL already names some
+  (see GR13). Data is fetched on-demand when tests are selected. The metric
+  selector initially shows a "-- Select metric --" placeholder (no metric
+  pre-selected), consistent with the Compare page.
   It lists only numeric metrics (see D3), since non-numeric metrics cannot be
   plotted on a value axis.
 
@@ -67,11 +53,7 @@ the suite is a query parameter, not a path segment.
   tests remain selected if they match).
 
 - **X-axis is always commit** (not date -- commits are not necessarily
-  correlated to dates). When the schema defines a commit_field with
-  `display: true`, the X-axis labels, hover tooltips, and baseline chip labels
-  show the display value (e.g. short SHA) instead of the raw commit string. When
-  no display field is defined or a commit's display field is not populated, the
-  raw commit string is shown.
+  correlated to dates).
 
 - Line chart: metric value vs commit, one trace per selected test and machine
 
@@ -136,10 +118,6 @@ selected/plotted), a symbol cell (colored marker character
 name. The test filter narrows the table; tests that no longer match are pruned
 from the selection.
 
-**Filter performance**: Typing in the test filter must feel instant even with
-thousands of tests. Non-matching rows are hidden immediately; the chart updates
-asynchronously.
-
 
 ### GR6: Selection Interactions
 
@@ -153,9 +131,8 @@ test restores all (selects every visible test). Selected tests with data still
 loading show a loading indicator. The chart has no legend of its own; the
 table serves as one. Bidirectional hover highlighting: hovering a table row
 highlights the corresponding chart trace(s); hovering a chart trace highlights
-the table row. Selected tests are NOT persisted in the URL (test names can be
-very long); the filter, suite, machine, metric, aggregation, regression
-annotation mode, and baselines remain in the URL.
+the table row. A selection of up to 10 tests is kept in the URL, along with
+the rest of the page's state (see GR13).
 
 
 ### GR7: Client-Side Caching and State Persistence
@@ -165,10 +142,11 @@ names are fetched once per machine/metric combination (all names, no server-side
 filter) and filtered client-side. Changing the test filter or aggregation mode
 re-renders instantly from cache without any additional API calls. Adding a
 second machine starts its own fetch pipeline while the first machine's data is
-already displayed. The cache, the selected test set, and the matching test list
-are all preserved across page unmount/remount, so navigating away and pressing
-browser back renders the previous selection and chart instantly from cache. All
-caches and selections are cleared on suite change.
+already displayed. The cache and the matching test list are preserved across
+page unmount/remount, so navigating away and pressing browser back renders the
+previous chart instantly from cache. The previous selection is restored with
+them when the URL names no tests; tests the URL names replace it. All caches
+and selections are cleared on suite change.
 
 
 ### GR8: Baselines
@@ -180,10 +158,8 @@ comparisons. The selector is an expandable panel with cascading dropdowns: Suite
 suite's machines endpoint) -> Commit (populated from the selected machine's
 commits via `GET commits?machine={name}&sort=-first_seen`; see AR2). Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
-where `display_value` is the commit's display value (e.g. short SHA with tag)
-when a `commit_field` with `display: true` is defined, otherwise the raw commit
-string. Display values for
-baseline commits are resolved via `POST /commits/resolve` so they display
+where `display_value` is the commit's display value (see AR2). Display values
+for baseline commits are resolved via `POST /commits/resolve` so they display
 correctly when baselines are loaded from the URL. The "+" button keeps its
 own size rather than stretching to the width of the chips.
 Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
@@ -193,11 +169,13 @@ colored to match the corresponding test's main trace. The baseline's Y value for
 each test is computed using the same run aggregation function as the main trace
 (e.g., median of all runs at that commit), so the dashed line aligns exactly
 with the trace point at that commit. Hovering a dashed line shows a tooltip
-with: the baseline suite, machine, commit value, tag (if set), test name, and
-metric value. Baselines are encoded in the URL query string for shareability
-(e.g. `&baseline=nts::machine1::abc123&baseline=other_suite::machine2::def456`).
-Baseline data is fetched asynchronously after the first render, so it does not
-block initial chart display.
+with: the baseline suite, machine, commit, test name, and metric value.
+Baselines are encoded in the URL query string for shareability as
+`{suite}/{machine}/{commit}` (e.g.
+`&baseline=nts/machine1/abc123&baseline=other_suite/machine2/def456`). None of
+the three can contain a `/` (see D4 and I1). Baseline data is fetched
+asynchronously after the first render, so it does not block initial chart
+display.
 
 
 ### GR9: Concurrent Background Fetches
@@ -209,7 +187,7 @@ other machines' fetches.
 
 ### GR10: Hover Behavior
 
-Hover a data point: tooltip showing test name, machine name, commit value,
+Hover a data point: tooltip showing test name, machine name, commit,
 aggregated metric value, run count. The tooltip only appears when the cursor
 is within a few pixels of a data point, so that tooltips are not sticky. When
 hovering over an aggregated point that represents multiple runs, the individual
@@ -240,12 +218,14 @@ the user can see the commit range.
 
 ### GR13: URL State
 
-`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}::{machine}::{commit}&baseline={suite2}::{machine2}::{commit2}`
+`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}`
 
-The `machine` parameter is repeated for each selected machine; the `baseline`
-parameter is repeated for each baseline. Selected tests are NOT included in the
-URL (names can be very long); they are ephemeral page state preserved across SPA
-navigation but lost on page reload.
+The `machine`, `test` and `baseline` parameters are repeated for each selected
+machine, selected test and baseline respectively. `test` is present only while
+at most 10 tests are selected: with more, the URL holds no `test` at all, and
+the page warns that the selection is not part of the URL and so cannot be
+shared. On load, a `test` that the test list for the selected machines and
+metric does not hold, or that does not match the filter, is dropped.
 
 
 ### GR14: Regression Annotations

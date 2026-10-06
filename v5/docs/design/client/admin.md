@@ -11,19 +11,18 @@ This page provides various tabs with different tools.
 |-----|-------|-----------|
 | API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys` |
 | Test Suites | Suite selector, schema viewer, delete suite | `GET/DELETE suites` |
-| Create Suite | Name input + JSON schema definition text area | `POST suites` |
+| Create Suite | JSON schema definition text area | `POST suites` |
 
 ### AD1: API Keys tab detail
 
-This tab requires an API key with `admin` scope set in the navigation bar -- listing
-keys needs `admin` just as creating and revoking them do. Otherwise, a red banner saying
-`Permission denied. Set an API token with the required scope in Settings.` is shown. The
-same banner covers both failures the API distinguishes: a missing or invalid token (401)
-and a valid token whose scope is too low (403).
+This tab requires `admin` scope -- listing keys needs `admin` just as creating and
+revoking them do. Otherwise, a red banner saying
+`Permission denied. Set an API token with the required scope in Settings.` is shown in
+place of the tab's content.
 
-Provides a text input titled "Create API Key" with a text input for the key name,
-a dropdown to select the scope of the key, and a "Create key" button to create the
-new key with the specified name. On creation, a banner shows:
+A "Create API Key" form has a text input for the key name, a dropdown to select the
+scope of the key, and a "Create key" button to create the new key. On creation, a
+banner shows:
 
 ```
   Key created. Copy the token now -- it will not be shown again:
@@ -54,11 +53,9 @@ to surface the most- and least-recently-active keys; keys that have never been u
 after every key carrying a timestamp, in both directions. The default order is
 `Created` descending, which is also the order the API returns.
 
-Clicking Revoke shows a confirmation prompt before the request is sent, because
-revocation is irreversible. Unlike the type-to-confirm prompts used elsewhere in this
-UI for actions that destroy data, a plain confirmation suffices here: revoking a key
-withdraws access but destroys nothing. On success the row's `Active` flips to `No` in
-place and its Revoke button disappears -- the row is not removed.
+Clicking Revoke asks for a plain confirmation (see AR2) before the request is sent. On
+success the row's `Active` flips to `No` in place and its Revoke button disappears --
+the row is not removed.
 
 ### AD2: Test Suites tab detail
 
@@ -95,23 +92,23 @@ etc...
 ```
 
 Each table shows exactly the presentation keys its list accepts (see D4), so the three
-tables deliberately differ in their columns. A `display_name` that was not set shows `--`
-rather than repeating the name, matching what the API returns.
+tables deliberately differ in their columns. Entries are shown by their `name`, with their
+`display_name` in a column of its own; one that was not set shows `--` rather than
+repeating the name, matching what the API returns.
 
 This is followed by a red "Delete This Suite" button. Clicking it shows an inline
-confirmation panel explaining that deleting a suite permanently destroys all machines,
-runs, commits, samples, and regressions, and is irreversible. The user must type the
-exact suite name to confirm. On confirmation, calls the API to delete the test suite.
-Deleting requires an API key with `manage` scope set in the navigation bar; without
-it, the delete fails with a permission error. Viewing schemas requires no key.
+panel explaining that deleting a suite permanently destroys all machines, runs,
+commits, samples, and regressions, and is irreversible, with the confirmation prompt
+AR2 describes. On confirmation, calls the API to delete the test suite. Deleting
+requires `manage` scope. Viewing schemas requires no key.
 
 ### AD3: Create Suite tab detail
 
-This tab requires an API key with `manage` scope set in the navigation bar. Otherwise, a
-red banner saying `Permission denied. Set an API token with the required scope in Settings.`
-is shown.
+This tab requires `manage` scope. Otherwise, a red banner saying
+`Permission denied. Set an API token with the required scope in Settings.` is shown in
+place of the tab's content.
 
-This tab provides a name input and a JSON text area where the user pastes the full suite
-definition (name, metrics, commit fields, machine fields). The JSON format matches what
-the test-suite creation API endpoint expects. On success, switches to the "Test Suites"
-tab with the new suite auto-selected.
+This tab provides a JSON text area where the user pastes the full suite definition
+(name, metrics, commit fields, machine fields), in the format the test-suite creation
+API endpoint expects. On success, switches to the "Test Suites" tab with the new suite
+auto-selected.
