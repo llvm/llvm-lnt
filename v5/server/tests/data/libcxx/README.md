@@ -1,8 +1,7 @@
 # Real-world `libcxx` runs
 
-Thirty-two runs of the `libcxx` suite (libc++'s benchmarks) from [lnt.llvm.org](https://lnt.llvm.org),
-which runs LNT v4, converted to the v5 submission format (O1). `tests/test_real_world.py` submits
-them and reads them back.
+Runs of the `libcxx` suite (libc++'s benchmarks) from LLVM's LNT v4 instance, converted to the v5
+submission format (O1). `tests/test_real_world.py` submits them and reads them back.
 
 ## Source
 
@@ -18,11 +17,11 @@ The `hardenedfast` machine is the same hardware and compiler as the other macOS 
 libc++ with `_LIBCPP_HARDENING_MODE=fast`; only its name says so. Every run at r554220
 (`97367d1046a2`) reported no tests at all, on every machine, so those 11 runs are empty.
 
-Each file's `run_parameters.start_time` identifies it among its machine's runs at
-`https://lnt.llvm.org/db_default/v4/libcxx/machine/<v4 machine id>`. They were fetched from the v4
-REST API into a local mirror between 2026-08-14 and 2026-09-25, and converted from that mirror on
-2026-10-05. At conversion, three of them were checked value for value against lnt.llvm.org:
-`r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and `r554973-hardenedfast-3` run 1536.
+Each file's `run_parameters.start_time` identifies it among the runs of its v4 machine. They were
+fetched from the v4 REST API into a local mirror between 2026-08-14 and 2026-09-25, and converted
+from that mirror on 2026-10-05. At conversion, three of them were checked value for value against
+the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
+`r554973-hardenedfast-3` run 1536.
 
 ## Conversion
 

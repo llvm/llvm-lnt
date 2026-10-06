@@ -1,4 +1,4 @@
-"""Real runs from lnt.llvm.org, submitted and read back through the API.
+"""Real runs from LLVM's LNT v4 instance, submitted and read back through the API.
 
 The other modules cover each endpoint's rules with synthetic data. This one is about real data end
 to end instead, from two suites whose producers differ in the shapes they send. `nts` carries test
@@ -438,7 +438,7 @@ class TestTests:
 
 @pytest.mark.parametrize("dataset", ["nts"], indirect=True)
 class TestNts:
-    def test_values_copied_by_hand_from_lnt_llvm_org(
+    def test_values_copied_by_hand_from_the_v4_instance(
         self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
         samples_path = dataset.url(SAMPLES_PATH, uuid=dataset.by_file["r598181-sifive"]["uuid"])
@@ -470,7 +470,7 @@ class TestLibcxx:
     # The commit at which every run, on every machine, reported no tests.
     FAILED = "97367d1046a2ec81e9b4e708ae7acdc83d99dcf7"
 
-    def test_values_copied_by_hand_from_lnt_llvm_org(
+    def test_values_copied_by_hand_from_the_v4_instance(
         self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
         # v4 run 339, on the Linux machine.
