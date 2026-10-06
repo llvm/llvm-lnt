@@ -33,8 +33,9 @@ the UI causes a full page reload.
   (external dependencies are fetched on demand).
 - **State**: URL query params for shareable deep-links; the auth token is
   persisted in the browser. A page writes its settings to the URL as they
-  change, replacing the current history entry rather than adding one, so that
-  Back leaves the page rather than stepping back through its settings.
+  change. Changing the path adds a history entry, whereas changing only the
+  query parameters replaces the current one, so that Back leaves the page
+  rather than stepping back through its settings.
 
 **Design consistency**: All pages should share a consistent look and feel --
 comboboxes, metric selectors, table styling, progress/error feedback, color
@@ -94,11 +95,12 @@ input.
 **Comboboxes**: Every combobox supports ArrowDown/ArrowUp to move through its
 suggestions and Enter to select the focused one, closes on Escape, on blur, on
 a click outside it and once a suggestion is selected, and follows the standard
-combobox accessibility conventions. While no suggestion matches the typed text,
-the input shows a red halo (red border and glow), and the text cannot be
-accepted by Enter or blur. The halo updates on every keystroke -- for a commit
-picker, as soon as the server has answered the search for the current text.
-Clicking a suggestion always accepts it.
+combobox accessibility conventions. Typed text is accepted, by Enter or blur,
+only if it is exactly one of the combobox's options; text that is not shows a
+red halo (red border and glow). The halo also shows as soon as no suggestion
+matches the typed text, updating on every keystroke -- for a commit picker, as
+soon as the server has answered the search for the current text. Clicking a
+suggestion always accepts it.
 
 **Commit pickers**: Every combobox that selects a commit -- on the Compare and
 Profiles pages, for Graph baselines, and for a regression's commit -- lists its
@@ -123,9 +125,9 @@ so its display value is resolved through `POST commits/resolve`.
 
 **Deletions**: Deleting a suite, a machine, a run or a regression is confirmed
 by typing its identifier -- the name of a suite or a machine, the first 8
-characters of the UUID of a run or a regression -- before the request is sent.
-Revoking an API key (AD1), which destroys nothing, asks for a plain
-confirmation instead.
+characters of the UUID of a run or a regression -- before the request is sent;
+the prompt shows the text to type. Revoking an API key (AD1), which destroys
+nothing, asks for a plain confirmation instead.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for the API
 key endpoints, which require `admin` scope even to read (see I5). No
@@ -134,8 +136,10 @@ It sends the token only with the requests that need more than `read` scope, and
 with the check below.
 
 The navigation bar includes a Settings panel with a Bearer token input. The
-token is checked through `GET /api/auth` (see E12): the panel shows the name
-and scope of the key it belongs to, or that it is not valid.
+token is checked through `GET /api/auth` (see E12) when it is entered and
+whenever the SPA loads: the panel shows the name and scope of the key it
+belongs to, that it is not valid (a 401), or that the check failed (any other
+error). Until a check succeeds, the SPA behaves as if no token were set.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --

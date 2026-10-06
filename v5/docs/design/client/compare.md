@@ -184,9 +184,9 @@ comparison. Previous in-flight fetches are aborted.
   brief visual feedback indicating success or failure. Hidden when no rows are
   visible.
 - **Profile column**: When either side has profile data for a test, a "Profile"
-  link appears, leading to the Profiles page pre-populated as PF1 describes --
-  for both sides:
-  `/profiles?suite_a={ts_a}&run_a={uuid_a}&test_a={test}&suite_b={ts_b}&run_b={uuid_b}&test_b={test}`
+  link appears, leading to the Profiles page pre-populated as PF1 describes.
+  With a profile on both sides, it is
+  `/profiles?suite_a={ts_a}&run_a={uuid_a}&test_a={test}&suite_b={ts_b}&run_b={uuid_b}&test_b={test}`.
   The link is omitted when neither side has a profile for that test.
 
 
@@ -221,7 +221,7 @@ and Status are all `N/A`. This classification happens before noise
 classification -- noise knobs are never evaluated for zero-baseline tests.
 
 **Missing value.** When a test has samples on both sides but no value for the
-metric on either of them, its Status is `N/A`, and so is every derived column.
+metric on one side or both, its Status is `N/A`, and so is every derived column.
 Like a zero baseline, this is decided before noise classification.
 
 **Status classification** (checked in this order, after zero-baseline tests and
@@ -247,13 +247,9 @@ present, both values are non-zero, and ratio is defined:
 | Delta %         | `(Delta / \|Geomean A\|) * 100`             |
 
 Absolute values are taken before computing the geometric mean so that negative
-metric values do not produce undefined logarithms. The Ratio column shows the
-geometric mean of per-test ratios (the multiplicative average), which differs
-from `Geomean B / Geomean A`. The former weights all tests equally regardless of
-absolute magnitude; the latter is dominated by tests with large absolute values.
-For example, given two tests with ratios 2.0 and 0.5, the geomean of ratios is
-`sqrt(2.0 * 0.5) = 1.0` (no net change), while the ratio of geomeans depends on
-the magnitude of the values.
+metric values do not produce undefined logarithms. Since all three are taken
+over the same N tests, the geometric mean of the ratios equals
+`Geomean B / Geomean A`.
 
 The row's Status is classified from its Delta by steps 2 to 6 above: it is
 never `noise`.
@@ -412,7 +408,9 @@ All selection state is encoded as query parameters for shareability:
   defaults: 1, 0.05, 0 respectively), `noise_pct_on`, `noise_pval_on`,
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
-- `test_filter`, and the comparison table's sort column and direction
+- `test_filter`
+- `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,
+  `delta`, `delta_pct`, `ratio` or `status`), prefixed with `-` for descending
 
 
 ### CP8: Shadow Trace (Comparison Overlay)
@@ -507,7 +505,9 @@ is frozen at pin time.
 A collapsible panel (button: "Add to regression" in the controls area),
 requiring `triage` scope. It works on side B: its indicators name side B's
 machine, the selected metric, and the test of each visible row (see CP2), and
-the regression they go to belongs to side B's suite. When expanded, it offers:
+the regression they go to belongs to side B's suite. It is disabled, with an
+explanation, while there are more visible rows than one request can carry
+indicators (I2's maximum page size; see E8). When expanded, it offers:
 - "Create new regression" -- a title input and a button that creates a
   regression in side B's suite, attributed to side B's commit, with those
   indicators.

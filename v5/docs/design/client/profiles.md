@@ -21,8 +21,8 @@ endpoint (`GET /runs/{uuid}/profiles`).
 1. **Nav bar**: `[Profiles]` link navigates to `/profiles` with no params.
 2. **Compare page**: "Profile" link in the comparison table for tests that have
    a profile on at least one side. Pre-populates both sides when both have
-   one, and side A with whichever side has one otherwise. Uses the latest run
-   when multiple runs are selected on a side.
+   one, and side A with whichever side has one otherwise. On each side, uses
+   the latest of the selected runs that has a profile for that test.
 3. **Run Detail page**: Tests with profiles show a "Profile" link in the samples
    table, navigating to `/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.
 

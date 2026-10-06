@@ -70,8 +70,8 @@ Each row shows:
   indicators rather than only those on this machine
 
 If there are no unresolved regressions for the machine, it shows "No active regressions on this machine."
-Below the table (when populated) there's a "Show all regressions" button linking to the Regressions tab
-of the Test Suites page, pre-filtered for this machine.
+The table has no Previous/Next: below it (when populated), a "Show all regressions" button links to the
+Regressions tab of the Test Suites page, pre-filtered for this machine.
 
 ### Run History table
 
@@ -187,8 +187,8 @@ If the commit has no ordinal, these buttons are greyed out.
 
 ### Regressions section
 
-Section listing regressions where `commit` matches this commit's value, newest first
-(`sort=-created_at`). Each row's title links to its regression detail page. Displays
+Section listing regressions where `commit` matches this commit's value, newest first,
+25 per page (`sort=-created_at`). Each row's title links to its regression detail page. Displays
 `No regressions at this commit.` if there are no regressions.
 
 ### Runs section

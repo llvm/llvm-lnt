@@ -116,7 +116,8 @@ Suites page.
   suite. On successful creation, navigates to the new regression's detail page.
 - Delete: a per-row button, confirmed as AR2 describes.
 
-Clicking a row navigates to the regression's detail page.
+Clicking a row navigates to the regression's detail page, except on the commit and
+bug links it holds, which lead to their own targets.
 
 The table lists regressions newest first (`sort=-created_at`), so that newly
 recorded regressions are on the first page. It looks like this:
@@ -132,5 +133,3 @@ Machines and Tests are the `machine_count` and `test_count` the list endpoint re
 for each regression. They count the whole regression even when the table is filtered.
 The names are on the regression detail page. Created is the regression's
 `created_at`.
-
-The elements are clickable and link to the details page for that entity.

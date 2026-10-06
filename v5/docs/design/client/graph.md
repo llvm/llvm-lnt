@@ -131,8 +131,8 @@ test restores all (selects every visible test). Selected tests with data still
 loading show a loading indicator. The chart has no legend of its own; the
 table serves as one. Bidirectional hover highlighting: hovering a table row
 highlights the corresponding chart trace(s); hovering a chart trace highlights
-the table row. The selection is kept in the URL, along with the rest of the
-page's state (see GR13).
+the table row. A selection of up to 10 tests is kept in the URL, along with
+the rest of the page's state (see GR13).
 
 
 ### GR7: Client-Side Caching and State Persistence
@@ -142,10 +142,11 @@ names are fetched once per machine/metric combination (all names, no server-side
 filter) and filtered client-side. Changing the test filter or aggregation mode
 re-renders instantly from cache without any additional API calls. Adding a
 second machine starts its own fetch pipeline while the first machine's data is
-already displayed. The cache, the selected test set, and the matching test list
-are all preserved across page unmount/remount, so navigating away and pressing
-browser back renders the previous selection and chart instantly from cache. All
-caches and selections are cleared on suite change.
+already displayed. The cache and the matching test list are preserved across
+page unmount/remount, so navigating away and pressing browser back renders the
+previous chart instantly from cache. The previous selection is restored with
+them when the URL names no tests; tests the URL names replace it. All caches
+and selections are cleared on suite change.
 
 
 ### GR8: Baselines
@@ -186,7 +187,7 @@ other machines' fetches.
 
 ### GR10: Hover Behavior
 
-Hover a data point: tooltip showing test name, machine name, commit value,
+Hover a data point: tooltip showing test name, machine name, commit,
 aggregated metric value, run count. The tooltip only appears when the cursor
 is within a few pixels of a data point, so that tooltips are not sticky. When
 hovering over an aggregated point that represents multiple runs, the individual
@@ -220,10 +221,11 @@ the user can see the commit range.
 `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}`
 
 The `machine`, `test` and `baseline` parameters are repeated for each selected
-machine, selected test and baseline respectively. The URL holds every selected
-test, however many there are. On load, a `test` that the test list for the
-selected machines and metric does not hold, or that does not match the filter,
-is dropped.
+machine, selected test and baseline respectively. `test` is present only while
+at most 10 tests are selected: with more, the URL holds no `test` at all, and
+the page warns that the selection is not part of the URL and so cannot be
+shared. On load, a `test` that the test list for the selected machines and
+metric does not hold, or that does not match the filter, is dropped.
 
 
 ### GR14: Regression Annotations
