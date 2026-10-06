@@ -674,26 +674,25 @@ with it by `DELETE /api/suites/{name}` (see D2). This is ordinary request
 handling, not initialization.
 
 **Everything else is decided by code.** The global tables (`schema`,
-`schema_version`, `api_key`), the built-in columns, indexes and constraints of
-every per-suite table, and how each dynamic column is represented -- its column
-type (D3), nullability and default, such as the per-metric flags of
-`{suite}.test_coverage` -- are fixed by the server build rather than by anything
-a user submits. A database must therefore be brought to the structure the
-running build expects before that build serves traffic, and must be brought
+`schema_version`, `api_key`), and everything about a suite's tables other than
+which dynamic columns they carry, are fixed by the server build rather than by
+anything a user submits. A database must therefore be brought to the structure
+the running build expects before that build serves traffic, and must be brought
 forward again whenever a later build changes it -- including every suite that
-already exists, not only the ones created afterwards. This is what "when the
-database is initialized" in D5 refers to.
+already exists. This is what "when the database is initialized" in D5 refers
+to.
 
 Changes form two sequences: one for the global tables, and one for what code
 decides about a suite's tables, which every suite goes through on its own.
 Requirements on the mechanism that applies them:
 
 - **Ordered and recorded.** The database records how far along each sequence it
-  is -- once for the global tables, and once per suite, in that suite's
-  `migration_version` (D5) -- so that a build can tell what remains to be
-  applied. Creating the global tables in an empty database is the first step of
-  theirs, not a separate path. A suite is created at the end of its sequence as
-  the creating build knows it, so it has nothing left to apply.
+  is, so that a build can tell what remains to be applied: once for the global
+  tables, and once per suite, in that suite's `migration_version` (D5).
+  Initializing an empty database is not a separate code path: creating the
+  global tables is simply the first change in their sequence. A new suite is
+  created at the latest version the creating build knows, so it has nothing to
+  apply.
 - **Global tables first.** No suite is brought forward until the global tables
   are current.
 - **Idempotent.** Applying it against an already-current database does nothing
@@ -702,14 +701,18 @@ Requirements on the mechanism that applies them:
 - **All-or-nothing.** A global step that fails leaves the database as it was. A
   suite is brought forward as a whole: if any of its steps fails, the suite is
   left as it was, although suites already brought forward stay so.
-- **Equivalent to creation.** A suite brought forward has exactly the columns,
-  indexes and constraints that the same build gives a suite it creates from the
-  same schema. A step is given the suite's schema, since what it changes may
-  depend on which dynamic columns exist, and may move data as well as change
-  structure.
-- **Never backwards.** A build neither starts nor applies changes against a
-  database, or a suite, that a newer build has brought further than it knows:
-  its code does not match what that build left.
+- **Equivalent to creation.** After its changes have been applied, a suite has
+  exactly the same columns, indexes and constraints as a suite that the same
+  build would create from the same schema.
+- **Steps can see the suite's schema and can change data.** Suites have
+  different dynamic columns, and some changes apply to each of them -- for
+  example, changing the column type used for every `integer` metric. A step
+  therefore receives the suite's schema, so that it knows which columns it has
+  to change. A step may also update existing rows, not only change the tables.
+- **Never backwards.** If a newer build has already migrated the database, or
+  any suite, past the latest change the running build knows about, the running
+  build refuses to start or to apply changes. Its code would not match the
+  tables.
 - **Safe under concurrency.** At most one process may apply changes at a time,
   and the others wait rather than failing -- two servers starting against one
   database, say, or an operator applying changes by hand while a server starts.

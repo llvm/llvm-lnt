@@ -1,7 +1,7 @@
 """The sequence of changes to what code decides about a suite's tables (D6).
 
-`suites/tables.py` describes the tables a suite is created with: their built-in columns, indexes and
-constraints, and how each dynamic column is represented. A later build may change any of that. Each
+`suites/tables.py` describes the tables a suite is created with, and everything about them but which
+dynamic columns they carry is decided by code. A later build may change any of that. Each
 change also needs a step here that brings an existing suite from the structure before it to the
 structure after it, because a suite created by an earlier build keeps the tables that build gave it.
 `migrate.py` runs the outstanding steps of every suite at startup, and records each suite's position
