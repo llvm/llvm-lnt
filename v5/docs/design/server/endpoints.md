@@ -728,7 +728,7 @@ the API key the request's credential resolves to, or `null` when the request
 carries no `Authorization` header. A credential that does not authenticate is
 a 401, as on every endpoint under `/api/` (see I5), so this is also how a
 client checks a token: it learns whether the token is usable and which scope
-it grants, without needing the `admin` scope that E11 requires to read keys.
+it grants.
 
 Since a revoked key does not authenticate, `is_active` is always `true` here.
 `last_used_at` may predate the request itself (see D5), so it can still be
