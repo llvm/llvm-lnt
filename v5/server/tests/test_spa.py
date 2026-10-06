@@ -88,6 +88,7 @@ class TestSpaServing:
         response = client.head(url)
 
         assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache, max-age=0"
 
     def test_returns_the_json_error_envelope_for_an_unmatched_api_route(
         self, client: TestClient
@@ -118,6 +119,7 @@ class TestSpaServing:
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
+        assert "immutable" not in response.headers.get("cache-control", "")
 
     def test_a_miss_names_what_was_requested(self, client: TestClient) -> None:
         # StaticFiles raises its own 404 with a bare "Not Found" detail, which says nothing about
@@ -139,6 +141,39 @@ class TestSpaServing:
 
         assert response.status_code == 404
         assert "SENTINEL" not in response.text
+
+
+class TestSpaCacheControl:
+    """AR2: hashed assets are cached forever, and everything else is revalidated on every use."""
+
+    @pytest.mark.parametrize("url", ["/", "/index.html", "/real.css", "/assets/"])
+    def test_revalidates_the_shell_and_unhashed_files(self, client: TestClient, url: str) -> None:
+        # `/assets/` is answered with index.html, which must not get the hashed assets' header just
+        # because of its URL.
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache, max-age=0"
+
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("/suites/nts/runs/abc", "no-cache, max-age=0"),
+            ("/assets/index-DcWSbQGc.js", "public, max-age=31536000, immutable"),
+        ],
+    )
+    def test_a_file_and_its_revalidation_carry_the_header(
+        self, client: TestClient, url: str, expected: str
+    ) -> None:
+        # Browsers get a 304 on almost every load of the shell, and RFC 9110 says it repeats the
+        # 200's Cache-Control.
+        first = client.get(url)
+        revalidated = client.get(url, headers={"If-None-Match": first.headers["etag"]})
+
+        assert first.status_code == 200
+        assert first.headers["cache-control"] == expected
+        assert revalidated.status_code == 304
+        assert revalidated.headers["cache-control"] == expected
 
 
 class TestCanonicalServerPath:

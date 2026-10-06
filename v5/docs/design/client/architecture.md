@@ -29,6 +29,11 @@ the UI causes a full page reload.
   than 404. Unmatched `/api/...` paths are a genuine 404 and must answer with
   the API's JSON error envelope (see I4) rather than falling through to the
   SPA.
+- **Caching**: The client build gives every file under `/assets/` a
+  content-hashed name, so these files are served as immutable
+  (`public, max-age=31536000, immutable`). Everything else served for the SPA,
+  `index.html` included, is revalidated on every use
+  (`no-cache, max-age=0`), so that a deploy takes effect on the next page load.
 - **Code splitting**: Routes are lazy-loaded so the initial bundle stays small
   (external dependencies are fetched on demand).
 - **State**: URL query params for shareable deep-links; the auth token is

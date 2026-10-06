@@ -33,6 +33,18 @@ STATIC_ASSET_EXTENSIONS = frozenset(
     }
 )  # fmt: skip
 
+# Cache-Control for the files the SPA mount serves (AR2). The client build gives files under
+# assets/ content-hashed names, so they can be cached forever. Everything else, index.html above
+# all, is revalidated on every use. `max-age=0` repeats `no-cache` for shared caches that ignore
+# it, such as Fastly, which would otherwise apply a fallback TTL.
+#
+# Revalidation only works if the ETag changes with the file. StaticFiles computes it from the
+# file's mtime and size, and a rebuilt index.html usually has the same size, so this relies on the
+# image build giving the files fresh mtimes. A reproducible build that pins timestamps would break
+# it.
+IMMUTABLE = "public, max-age=31536000, immutable"
+REVALIDATE = "no-cache, max-age=0"
+
 # Paths the server answers itself that are not under /api/. They share the API's slash handling:
 # a probe is as easy to misconfigure with a trailing slash as an endpoint is.
 INFRASTRUCTURE_PATHS = frozenset({"/healthz", "/llms.txt"})
@@ -236,7 +248,7 @@ class SpaStaticFiles(StaticFiles):
             raise _not_found(method, request_path)
 
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code != 404:
                 raise
@@ -244,9 +256,14 @@ class SpaStaticFiles(StaticFiles):
             # turns a stale deploy into a MIME-type error instead of a clean miss.
             if is_static_asset_path(request_path):
                 raise _not_found(method, request_path) from exc
+            path = "index.html"
+            try:
+                response = await super().get_response(path, scope)
+            except StarletteHTTPException as no_index:
+                # No built client, or a bundle somehow missing its entry point.
+                raise _not_found(method, request_path) from no_index
 
-        try:
-            return await super().get_response("index.html", scope)
-        except StarletteHTTPException as exc:
-            # No built client, or a bundle somehow missing its entry point.
-            raise _not_found(method, request_path) from exc
+        # Based on the file served rather than the URL requested, and set on whatever the base class
+        # returned, so that a 304 carries the same header as the 200 (RFC 9110).
+        response.headers["Cache-Control"] = IMMUTABLE if path.startswith("assets/") else REVALIDATE
+        return response

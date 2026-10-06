@@ -66,6 +66,8 @@ def client_dist(tmp_path: Path) -> Path:
     dist.mkdir()
     (dist / "index.html").write_text("<!doctype html><title>LNT</title>")
     (dist / "real.css").write_text("body{}")
+    (dist / "assets").mkdir()
+    (dist / "assets" / "index-DcWSbQGc.js").write_text("export {}")
     return dist
 
 
