@@ -116,10 +116,10 @@ class TestUpgrade:
         with pytest.raises(MigrationError, match="from_the_future"):
             upgrade_to_head(empty_engine)
 
-    def test_records_existing_suites_at_the_first_structure_version(
+    def test_records_existing_suites_at_the_first_migration_version(
         self, empty_engine: Engine
     ) -> None:
-        """0002 adds `schema.structure_version`, and gives every suite already there version 0.
+        """0002 adds `schema.migration_version`, and gives every suite already there version 0.
 
         Then drops the default it used to do so, so that creating a suite has to state a version: a
         suite created at the latest structure but recorded at 0 would have every step replayed onto
@@ -136,7 +136,7 @@ class TestUpgrade:
         with empty_engine.connect() as connection:
             assert (
                 connection.execute(
-                    text("SELECT structure_version FROM schema WHERE name = 'nts'")
+                    text("SELECT migration_version FROM schema WHERE name = 'nts'")
                 ).scalar_one()
                 == 0
             )

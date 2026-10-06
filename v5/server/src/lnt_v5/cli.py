@@ -82,13 +82,13 @@ def _migrate(settings: Settings) -> int:
         print(f"Migrated the database from {result.before or 'empty'} to {result.after}.")
     if result.suites_migrated:
         print(
-            f"Migrated the built-in tables of {len(result.suites_migrated)} test suite(s) to "
-            f"structure version {suite_migrations.head()}: {', '.join(result.suites_migrated)}."
+            f"Migrated the tables of {len(result.suites_migrated)} test suite(s) to "
+            f"migration version {suite_migrations.head()}: {', '.join(result.suites_migrated)}."
         )
     if not result.applied:
         print(
             f"The database is already up to date at revision {result.after}, with every test "
-            f"suite at structure version {suite_migrations.head()}."
+            f"suite at migration version {suite_migrations.head()}."
         )
     return 0
 

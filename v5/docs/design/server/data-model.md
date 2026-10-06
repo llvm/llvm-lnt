@@ -307,7 +307,7 @@ of its own named after its suite (see below).
 | name | VARCHAR | PK |
 | schema_json | TEXT | not null |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
-| structure_version | INTEGER | not null |
+| migration_version | INTEGER | not null |
 
 - One row per test suite, holding the suite's schema (see D4).
 - `schema_json` holds the *normalized* schema -- the same content
@@ -315,7 +315,7 @@ of its own named after its suite (see below).
   rather than the request body as submitted. It is stored as text rather than
   JSONB because the server never queries into it: it is read whole, parsed
   into the in-memory model, and written whole.
-- `structure_version` records how far the suite's tables have been brought
+- `migration_version` records how far the suite's tables have been brought
   along their sequence of changes (see D6). It has nothing to do with
   `schema_version` below, which only announces that some suite changed.
 - See D4 for limits on the schema name.
@@ -690,7 +690,7 @@ Requirements on the mechanism that applies them:
 
 - **Ordered and recorded.** The database records how far along each sequence it
   is -- once for the global tables, and once per suite, in that suite's
-  `structure_version` (D5) -- so that a build can tell what remains to be
+  `migration_version` (D5) -- so that a build can tell what remains to be
   applied. Creating the global tables in an empty database is the first step of
   theirs, not a separate path. A suite is created at the end of its sequence as
   the creating build knows it, so it has nothing left to apply.

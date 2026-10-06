@@ -139,7 +139,7 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
     head = migrations.head()
     with connection.begin():
         rows = connection.execute(
-            select(schema.c.name, schema.c.structure_version, schema.c.schema_json).order_by(
+            select(schema.c.name, schema.c.migration_version, schema.c.schema_json).order_by(
                 schema.c.name
             )
         ).all()
@@ -147,7 +147,7 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
     for name, version, schema_json in rows:
         if version > head:
             raise MigrationError(
-                f"test suite '{name}' is at structure version {version}, but this build only knows "
+                f"test suite '{name}' is at migration version {version}, but this build only knows "
                 f"up to version {head}: it was migrated by a newer build, which is the one to run"
             )
         if version < head:
@@ -179,20 +179,20 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
     """
     with connection.begin():
         row = connection.execute(
-            select(schema.c.schema_json, schema.c.structure_version)
+            select(schema.c.schema_json, schema.c.migration_version)
             .where(schema.c.name == name)
             .with_for_update()
         ).one_or_none()
-        if row is None or row.structure_version >= head:
+        if row is None or row.migration_version >= head:
             # Dropped, or dropped and created again at the latest version, since the first pass --
             # which only a running server can do.
             return False
 
         suite = SuiteSchema.model_validate_json(row.schema_json)
         operations = Operations(MigrationContext.configure(connection))
-        for step in migrations.STEPS[row.structure_version : head]:
+        for step in migrations.STEPS[row.migration_version : head]:
             step(operations, suite)
         connection.execute(
-            update(schema).where(schema.c.name == name).values(structure_version=head)
+            update(schema).where(schema.c.name == name).values(migration_version=head)
         )
     return True

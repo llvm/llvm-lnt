@@ -5,13 +5,13 @@ constraints, and how each dynamic column is represented. A later build may chang
 change also needs a step here that brings an existing suite from the structure before it to the
 structure after it, because a suite created by an earlier build keeps the tables that build gave it.
 `migrate.py` runs the outstanding steps of every suite at startup, and records each suite's position
-in `schema.structure_version`.
+in `schema.migration_version`.
 
 A suite is at version N once it has been through the first N steps. Version 0 is the structure as
 it stood before the first step was written. Steps are only ever appended: once released, a step may
 already have run against some database, so editing, reordering or removing one leaves those
-databases disagreeing with the code. `tests/data/suite_structure/` holds a snapshot of the structure
-at every version, checked by `test_suite_migrations.py`, which is what makes a change to
+databases disagreeing with the code. `tests/data/migration_snapshots/` holds a snapshot of the
+structure at every version, checked by `test_suite_migrations.py`, which is what makes a change to
 `suites/tables.py` without a step fail a test. The snapshots hold structure only, so a step that
 moves data needs a test of its own for that.
 

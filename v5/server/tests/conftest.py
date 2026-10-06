@@ -412,7 +412,7 @@ def store_suite(engine: Engine, suite: SuiteSchema, version: int) -> None:
     with engine.begin() as connection:
         add_suite(connection, suite)
         connection.execute(
-            update(schema).where(schema.c.name == suite.name).values(structure_version=version)
+            update(schema).where(schema.c.name == suite.name).values(migration_version=version)
         )
 
 

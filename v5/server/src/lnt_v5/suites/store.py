@@ -71,7 +71,7 @@ def add_suite(connection: Connection, suite: SuiteSchema) -> None:
         insert(schema).values(
             name=suite.name,
             schema_json=normalized_json(suite),
-            structure_version=migrations.head(),
+            migration_version=migrations.head(),
         )
     )
     suite_tables.create(connection, suite)

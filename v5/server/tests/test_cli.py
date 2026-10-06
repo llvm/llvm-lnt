@@ -248,7 +248,7 @@ class TestMigrate:
 
         assert cli.main(["server", "migrate"]) == 0
 
-        assert "1 test suite(s) to structure version 1: nts" in capsys.readouterr().out
+        assert "1 test suite(s) to migration version 1: nts" in capsys.readouterr().out
 
     def test_reports_a_database_it_must_not_serve_without_a_traceback(
         self,

@@ -86,14 +86,15 @@ schema = Table(
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     # No default, deliberately: whatever creates a suite must say which version it created it at
     # (see `suites/migrations.py`), since a suite recorded too low would have steps replayed on it.
-    Column("structure_version", Integer, nullable=False),
+    Column("migration_version", Integer, nullable=False),
 )
 """One row per test suite, holding that suite's normalized schema (D2, D5).
 
 `schema_json` is TEXT rather than JSONB deliberately: the server never queries into it. It is
 read whole, parsed into the in-memory model, and written whole.
 
-`structure_version` is how far the suite's built-in tables have been brought forward (D6).
+`migration_version` is how many of the per-suite migration steps the suite has been through
+(D6).
 """
 
 

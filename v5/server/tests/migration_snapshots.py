@@ -1,15 +1,16 @@
-"""Snapshots of a suite's built-in structure at every version (D6, `suites/migrations.py`).
+"""Snapshots of a suite's tables at every migration version (D6, `suites/migrations.py`).
 
 `test_suite_migrations.py` holds the code to them: the snapshot of the latest version must match
 what `suites/tables.py` creates today, and every older one, migrated, must match it too. A change to
-the built-in structure therefore fails a test until it comes with a step and a new snapshot.
+`suites/tables.py` therefore fails a test until it comes with a step and a new snapshot. They hold
+structure only: a step that moves data needs a test of its own for that.
 
 Each snapshot is the DDL that creates one fixed reference suite, as this module renders it from
 `suites/tables.py` at the time the version is current. Never edit or regenerate an existing one: it
 records what suites created at that version actually have, which is what the steps after it must
 start from. After adding a step, write the new version's snapshot with
 
-    uv run --frozen python tests/suite_structure.py
+    uv run --frozen python tests/migration_snapshots.py
 
 which refuses to overwrite a snapshot that already exists.
 """
@@ -26,9 +27,9 @@ from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
 
-SNAPSHOTS_DIR = Path(__file__).resolve().parent / "data" / "suite_structure"
+SNAPSHOTS_DIR = Path(__file__).resolve().parent / "data" / "migration_snapshots"
 
-# Exercises every kind of entry the built-in structure depends on: every attribute type in each of
+# Exercises everything the structure depends on: every attribute type in each of
 # the three lists, and the presentation keys. Frozen with the snapshots, which are rendered from it.
 REFERENCE_SCHEMA = SNAPSHOTS_DIR / "reference.json"
 
@@ -84,8 +85,9 @@ def main() -> int:
     path = snapshot_path(version)
     if path.exists():
         print(
-            f"{path.name} already exists. Snapshots are never rewritten: a change to the built-in "
-            "structure needs a new step in suites/migrations.py, and then a snapshot of its own.",
+            f"{path.name} already exists. Snapshots are never rewritten: a change to "
+            "suites/tables.py needs a new step in suites/migrations.py, and then a snapshot of "
+            "its own.",
             file=sys.stderr,
         )
         return 1

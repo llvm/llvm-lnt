@@ -76,7 +76,7 @@ class TestUnitOfWork:
         def write(db: EngineDep) -> dict[str, bool]:
             with db.begin() as connection:
                 connection.execute(
-                    insert(schema).values(name="nts", schema_json="{}", structure_version=0)
+                    insert(schema).values(name="nts", schema_json="{}", migration_version=0)
                 )
             return {"ok": True}
 
@@ -94,7 +94,7 @@ class TestUnitOfWork:
         def half_written(db: EngineDep) -> dict[str, bool]:
             with db.begin() as connection:
                 connection.execute(
-                    insert(schema).values(name="nts", schema_json="{}", structure_version=0)
+                    insert(schema).values(name="nts", schema_json="{}", migration_version=0)
                 )
                 raise RuntimeError("something went wrong after the first write")
 

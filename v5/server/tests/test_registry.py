@@ -249,7 +249,7 @@ class TestBadRows:
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
-                    name="bad", schema_json='{"name": "bad", "nonsense": 1}', structure_version=0
+                    name="bad", schema_json='{"name": "bad", "nonsense": 1}', migration_version=0
                 )
             )
             bump(connection)

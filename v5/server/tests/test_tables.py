@@ -105,7 +105,7 @@ class TestTimestamps:
         # D5's convention for every timestamp column in the instance. A naive datetime here
         # would silently be interpreted in whatever the reader's local zone happens to be.
         before = datetime.now(UTC)
-        db.execute(insert(schema).values(name="nts", schema_json="{}", structure_version=0))
+        db.execute(insert(schema).values(name="nts", schema_json="{}", migration_version=0))
 
         created_at = db.execute(select(schema.c.created_at)).scalar_one()
 

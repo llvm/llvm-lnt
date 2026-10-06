@@ -4,7 +4,7 @@ Revision ID: 0002
 Revises: 0001
 Create Date: 2026-10-06
 
-D6 migrates the tables of every existing suite, and `schema.structure_version` is where
+D6 migrates the tables of every existing suite, and `schema.migration_version` is where
 each suite's position in that sequence is recorded (D5). Frozen like 0001: nothing is imported from
 `lnt_v5.tables`.
 """
@@ -29,10 +29,10 @@ def upgrade() -> None:
     # and replay every step onto tables that already have them.
     op.add_column(
         "schema",
-        sa.Column("structure_version", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("migration_version", sa.Integer(), server_default=sa.text("0"), nullable=False),
     )
-    op.alter_column("schema", "structure_version", server_default=None)
+    op.alter_column("schema", "migration_version", server_default=None)
 
 
 def downgrade() -> None:
-    op.drop_column("schema", "structure_version")
+    op.drop_column("schema", "migration_version")

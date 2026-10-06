@@ -129,7 +129,7 @@ renamed before production can be torn down again.
 ## Database schema
 
 The app applies any outstanding schema changes to its database when it starts, before it begins
-serving: first to the instance-wide tables, then to the built-in tables of every existing test suite.
+serving: first to the instance-wide tables, then to the tables of every existing test suite.
 A suite's own metrics and fields are a different matter -- their columns are created and altered
 through the test-suite API as the suite is defined, not by a migration.
 

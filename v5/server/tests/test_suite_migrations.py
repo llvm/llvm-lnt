@@ -25,7 +25,7 @@ from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import normalized_json
 from lnt_v5.suites.tables import SuiteTables
 from lnt_v5.tables import schema
-from suite_structure import reference_schema, replay, snapshot_versions
+from migration_snapshots import reference_schema, replay, snapshot_versions
 
 
 def suite_named(name: str) -> SuiteSchema:
@@ -36,7 +36,7 @@ def version_of(engine: Engine, name: str) -> int:
     with engine.connect() as connection:
         return int(
             connection.execute(
-                select(schema.c.structure_version).where(schema.c.name == name)
+                select(schema.c.migration_version).where(schema.c.name == name)
             ).scalar_one()
         )
 
@@ -185,7 +185,7 @@ class TestUpgrade:
         calls: list[tuple[str, str]] = []
         monkeypatch.setattr(migrations, "STEPS", (adding_machine_column("first", calls),))
 
-        with pytest.raises(MigrationError, match="'b' is at structure version 2"):
+        with pytest.raises(MigrationError, match="'b' is at migration version 2"):
             upgrade_to_head(db_engine)
 
         assert calls == []
@@ -199,7 +199,7 @@ class TestUpgrade:
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
-                    name="bad", schema_json='{"name": "bad", "nonsense": 1}', structure_version=0
+                    name="bad", schema_json='{"name": "bad", "nonsense": 1}', migration_version=0
                 )
             )
         calls: list[tuple[str, str]] = []
@@ -246,11 +246,11 @@ class TestUpgrade:
 
 
 class TestSnapshots:
-    """The structure of the reference suite at every version (see `suite_structure.py`)."""
+    """The structure of the reference suite at every version (see `migration_snapshots.py`)."""
 
     def test_every_version_has_a_snapshot(self) -> None:
         assert snapshot_versions() == list(range(migrations.head() + 1)), (
-            "every version needs exactly one snapshot; see tests/suite_structure.py"
+            "every version needs exactly one snapshot; see tests/migration_snapshots.py"
         )
 
     def test_the_latest_snapshot_is_what_the_code_creates(self, db_engine: Engine) -> None:
@@ -281,7 +281,7 @@ class TestSnapshots:
                 insert(schema).values(
                     name="reference",
                     schema_json=normalized_json(reference_schema()),
-                    structure_version=version,
+                    migration_version=version,
                 )
             )
         upgrade_to_head(db_engine)
