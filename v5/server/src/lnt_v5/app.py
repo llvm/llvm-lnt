@@ -13,7 +13,7 @@ from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 from .config import Settings, get_settings
 from .db import make_engine
 from .errors import register_error_handlers
-from .openapi import use_i4_error_responses
+from .openapi import OVERVIEW, SWAGGER_UI_PARAMETERS, TAGS, operation_id, refine_document
 from .routes.admin import router as admin_router
 from .routes.auth import router as auth_router
 from .routes.commits import router as commits_router
@@ -77,6 +77,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="LNT v5",
         # The API's version, not the server build's. Fixed by I8.
         version="5",
+        description=OVERVIEW,
+        openapi_tags=TAGS,
+        generate_unique_id_function=operation_id,
         lifespan=lifespan,
         # I8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
         # SPA's namespace, where the catch-all serves index.html and `.json` already reads as a
@@ -89,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # /docs/oauth2-redirect -- a path inside the SPA's namespace, for a flow this API does not
         # have: I5 authenticates with a bearer token and nothing else.
         swagger_ui_oauth2_redirect_url=None,
+        swagger_ui_parameters=SWAGGER_UI_PARAMETERS,
     )
 
     # One per worker, holding that worker's copy of every suite schema (D2). Built here rather
@@ -97,7 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.suites = SuiteRegistry()
 
     register_error_handlers(app)
-    use_i4_error_responses(app)
+    refine_document(app)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
     app.add_middleware(RedirectTrailingSlash)
     app.add_middleware(RejectNulInUrl)

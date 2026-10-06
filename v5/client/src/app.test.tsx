@@ -22,6 +22,15 @@ describe('navbar', () => {
     expect(screen.getByRole('link', { name: 'Profiles' })).toHaveAttribute('href', '/profiles')
     expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin')
   })
+
+  it('opens the API documentation viewer in a new tab', () => {
+    renderAt('/')
+
+    const api = screen.getByRole('link', { name: 'API' })
+    expect(api).toHaveAttribute('href', '/api/docs')
+    expect(api).toHaveAttribute('target', '_blank')
+    expect(api).toHaveAttribute('rel', 'noopener noreferrer')
+  })
 })
 
 describe('routing', () => {

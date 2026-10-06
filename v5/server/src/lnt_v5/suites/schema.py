@@ -20,6 +20,7 @@ from typing import Annotated, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from lnt_v5 import examples
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 
 # D4: a suite name is also the name of the namespace holding its tables, and an entry name is also
@@ -50,12 +51,21 @@ RESERVED_TEST_ENTRY_KEYS = frozenset({"name", "profile"})
 
 Name = Annotated[str, StringConstraints(pattern=NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)]
 
+# The docstrings of the enum and of the four models without a leading underscore below are
+# published, as the descriptions I8's document gives them, so they are written for API users. The
+# two private bases are not published themselves; the fields they declare are, through each
+# subclass.
 
+
+# D3: one set shared by metrics, commit fields and machine fields, so that a value's representation
+# is described in exactly one place no matter which of the three carries it.
 class AttributeType(StrEnum):
-    """The types an entry may declare (D3).
+    """The type of a metric's or a field's values. It determines their JSON type: a number for
+    `real` and `integer`, a string for `text`, and an ISO 8601 string for `datetime`.
 
-    One set shared by metrics, commit fields and machine fields, so that a value's representation
-    is described in exactly one place no matter which of the three carries it.
+    Values must have the right JSON type: `"5"` is not a valid `integer`. An integer is a valid
+    `real`, and a whole number like `8.0` is a valid `integer`. Only `real` and `integer` metrics
+    can be aggregated.
     """
 
     REAL = "real"
@@ -93,9 +103,19 @@ class Entry(BaseModel):
     # other.
     LIST: ClassVar[str] = ""
 
-    name: Name
+    name: Name = Field(
+        description=(
+            "The name, used as the key for its values. Lowercase letters, digits and underscores, "
+            "starting with a letter. Must be unique within its list."
+        )
+    )
     type: AttributeType
-    display_name: str | None = None
+    display_name: str | None = Field(
+        default=None,
+        description=(
+            "A friendlier name for the UI to show instead of `name`. Null if there is none."
+        ),
+    )
 
     @model_validator(mode="after")
     def _reject_reserved_column(self) -> Self:
@@ -115,7 +135,13 @@ class _SearchableEntry(Entry):
     rather than quietly ignored on the others (D3).
     """
 
-    searchable: bool = False
+    searchable: bool = Field(
+        default=False,
+        description=(
+            "Whether the `search` parameter of list operations matches this field's values. Only "
+            "`text` fields can be searchable."
+        ),
+    )
 
     @model_validator(mode="after")
     def _searchable_is_text_only(self) -> Self:
@@ -126,9 +152,15 @@ class _SearchableEntry(Entry):
         return self
 
 
+# A column on `{suite}.sample`, and a flag on `{suite}.test_coverage` (D5).
 class Metric(Entry):
-    """A measured value, stored as a column on `{suite}.sample` and recorded as a flag on
-    `{suite}.test_coverage` (D5)."""
+    """Something the suite's tests measure, such as execution time. In a run submission, each
+    test reports its values under the metric's name.
+
+    The name can't be `id`, `run_id`, `test_id`, `machine_id`, `name` or `profile`.
+    """
+
+    model_config = ConfigDict(json_schema_extra={"examples": [examples.METRICS[0]]})
 
     LIST: ClassVar[str] = "metrics"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
@@ -136,9 +168,20 @@ class Metric(Entry):
         "test_coverage": frozenset({"machine_id", "test_id"}),
     }
 
-    unit: str | None = None
-    unit_abbrev: str | None = None
-    bigger_is_better: bool = False
+    unit: str | None = Field(
+        default=None,
+        description="The unit of the values, such as `seconds`. Null if there is none.",
+    )
+    unit_abbrev: str | None = Field(
+        default=None, description="The unit's abbreviation, such as `s`. Null if there is none."
+    )
+    bigger_is_better: bool = Field(
+        default=False,
+        description=(
+            "Whether higher values are better, as for a score. False when lower values are "
+            "better, as for a time."
+        ),
+    )
 
     @model_validator(mode="after")
     def _reject_reserved_submission_key(self) -> Self:
@@ -153,8 +196,14 @@ class Metric(Entry):
         return self
 
 
+# Optional metadata on `{suite}.commit` (D5).
 class CommitField(_SearchableEntry):
-    """Optional metadata on `{suite}.commit` (D5)."""
+    """A piece of information a commit can have in its `fields`, such as its author.
+
+    The name can't be `id`, `commit`, `ordinal` or `tag`.
+    """
+
+    model_config = ConfigDict(json_schema_extra={"examples": [examples.COMMIT_FIELDS[0]]})
 
     LIST: ClassVar[str] = "commit_fields"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
@@ -164,8 +213,8 @@ class CommitField(_SearchableEntry):
     display: bool = Field(
         default=False,
         description=(
-            "A hint for the UI: show this field's value in place of the raw commit string. "
-            "At most one commit field may set it, and it must be 'text'."
+            "Whether the UI should show this field instead of the commit's value, for example a "
+            "short SHA. Only one commit field can set this, and it must be a `text` field."
         ),
     )
 
@@ -180,8 +229,14 @@ class CommitField(_SearchableEntry):
         return self
 
 
+# Optional metadata on `{suite}.machine` (D5).
 class MachineField(_SearchableEntry):
-    """Optional metadata on `{suite}.machine` (D5)."""
+    """A piece of information a machine can have in its `fields`, such as its operating system.
+
+    The name can't be `id`, `name` or `tracked`.
+    """
+
+    model_config = ConfigDict(json_schema_extra={"examples": [examples.MACHINE_FIELDS[0]]})
 
     LIST: ClassVar[str] = "machine_fields"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
@@ -202,22 +257,37 @@ def _reject_duplicates(entries: Sequence[Entry]) -> None:
         seen.add(entry.name)
 
 
+# D4. The whole document: the body `POST /api/suites` accepts and the body `GET /api/suites/{name}`
+# returns. There is no `format_version` -- only one format exists for v5.
 class SuiteSchema(BaseModel):
-    """A test suite's schema (D4).
+    """A test suite's schema: its name, and the metrics, commit fields and machine fields it
+    defines. A suite can only store what its schema defines.
 
-    This is the whole document: the body `POST /api/suites` accepts and the body
-    `GET /api/suites/{name}` returns. There is no `format_version` -- only one format exists for
-    v5.
+    The same document is used to create a suite and is returned when reading one (with all
+    optional keys filled in), so a suite read from one instance can be created as-is on another.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra={"examples": [examples.SUITE_SCHEMA]}
+    )
 
     name: Name = Field(
-        description="Identifies the suite, and names the namespace holding its tables."
+        description=(
+            "The suite's name. Lowercase letters, digits and underscores, starting with a letter. "
+            "It can't be "
+            + " or ".join(f"`{reserved}`" for reserved in sorted(RESERVED_SUITE_NAMES))
+            + f", or start with `{RESERVED_SUITE_PREFIX}`."
+        )
     )
-    metrics: list[Metric] = Field(default_factory=list)
-    commit_fields: list[CommitField] = Field(default_factory=list)
-    machine_fields: list[MachineField] = Field(default_factory=list)
+    metrics: list[Metric] = Field(
+        default_factory=list, description="What the suite's tests measure."
+    )
+    commit_fields: list[CommitField] = Field(
+        default_factory=list, description="The information commits can have."
+    )
+    machine_fields: list[MachineField] = Field(
+        default_factory=list, description="The information machines can have."
+    )
 
     @model_validator(mode="after")
     def _validate(self) -> Self:

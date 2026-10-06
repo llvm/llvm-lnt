@@ -11,7 +11,7 @@ from collections.abc import Collection
 from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import (
     Column,
@@ -23,6 +23,7 @@ from sqlalchemy import (
     select,
 )
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode
@@ -47,7 +48,7 @@ from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.entities import DatetimeValue, DeclaredValue, Named, declared_entry
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import NUMERIC_TYPES, Metric
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
+from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
 
 QUERY_PATH = f"{SUITES_PATH}/{{testsuite}}/query"
 TRENDS_PATH = f"{SUITES_PATH}/{{testsuite}}/trends"
@@ -64,80 +65,111 @@ QuerySort = Literal["test", "-test", "commit", "-commit", "submitted_at", "-subm
 DEFAULT_LAST_N = 500
 
 _NO_QUERY_ENTITY = (
-    f"{SUITE_NOT_FOUND} Or the machine, a test, or a range-bounding commit the body names is not "
-    "in it."
+    "The test suite doesn't exist, or the body names a machine, a test, or an `after_commit` or "
+    "`before_commit` that doesn't exist."
 )
-_NO_TREND_ENTITY = f"{SUITE_NOT_FOUND} Or a machine the request names is not in it."
+_NO_TREND_ENTITY = "The test suite, or one of the machines, doesn't exist."
+
+# Built from `examples.py`, like every example in I8's document.
+_QUERY_EXAMPLES = {
+    "series": {
+        "summary": "One test's execution time on one machine, in commit order",
+        "value": {
+            "metric": examples.METRIC,
+            "machine": examples.MACHINE,
+            "test": [examples.TEST],
+            "sort": "commit",
+        },
+    },
+    "range": {
+        "summary": "Every test's instruction count after a given commit",
+        "value": {
+            "metric": examples.OTHER_METRIC,
+            "after_commit": examples.COMMIT,
+            "sort": "commit",
+            "limit": 1000,
+        },
+    },
+}
+
+# The docstrings of the models and endpoints below, and the field descriptions, are published, as
+# the descriptions I8's document gives them, so they are written for API users.
+
+_TAG = "The commit's tag. Null if it has none."
 
 
+# Carries the commit's `ordinal` and `tag`, the denormalization I4 grants this endpoint, and echoes
+# `metric` so that each point is self-descriptive.
 class DataPoint(BaseModel):
-    """One measured value, placed in the time series.
+    """One measured value, with the test, machine, commit and run it comes from."""
 
-    Carries the commit's `ordinal` and `tag`, the denormalization I4 grants this endpoint, and
-    echoes `metric` so that each point is self-descriptive.
-    """
-
-    test: str = Field(description="The name of the test this value was measured for.")
-    machine: str = Field(description="The name of the machine it was measured on.")
-    metric: str = Field(description="The metric it measures -- the one the request asked for.")
-    value: DeclaredValue = Field(
-        description=(
-            "The measured value, in the JSON representation of the metric's declared type (D3). "
-            "Never null: a sample with no value for the metric is not a point in its series."
-        )
+    test: str = Field(description="The name of the test.", examples=[examples.TEST])
+    machine: str = Field(description="The name of the machine.", examples=[examples.MACHINE])
+    metric: str = Field(
+        description="The name of the metric (the one in the request).",
+        examples=[examples.METRIC],
     )
-    commit: str = Field(description="The identity string of the commit the run belongs to.")
+    value: DeclaredValue = Field(
+        description="The measured value. Never null.",
+        examples=[examples.SAMPLE_METRICS["execution_time"]],
+    )
+    commit: str = Field(
+        description="The value of the commit the run measured.",
+        examples=[examples.COMMIT],
+    )
     ordinal: int | None = Field(
         description=(
-            "That commit's position in the suite's order, or null if it has none. Never null when "
-            "the request sorts by commit or bounds a commit range, which exclude the commits that "
-            "have no ordinal."
-        )
+            "The commit's ordinal. Null if it has none, which can't happen when sorting by commit "
+            "or filtering on a range of commits."
+        ),
+        examples=[examples.ORDINAL],
     )
-    run_uuid: str = Field(description="The UUID of the run this value came from.")
-    submitted_at: datetime = Field(description="When the server accepted that run.")
-    tag: str | None = Field(
-        description="That commit's human-readable label, or null if it has none."
-    )
+    run_uuid: str = Field(description="The UUID of the run.", examples=[examples.RUN_UUID])
+    submitted_at: datetime = Field(description="When the run was submitted.")
+    tag: str | None = Field(description=_TAG, examples=[examples.TAG])
 
 
 class TrendPoint(BaseModel):
-    """One (machine, commit) group's geomean. Unlike a data point, it does not echo `metric`."""
+    """One machine's trend value at one commit."""
 
-    machine: str = Field(description="The name of the machine these values were measured on.")
-    commit: str = Field(description="The identity string of the commit they were measured at.")
+    machine: str = Field(description="The name of the machine.", examples=[examples.MACHINE])
+    commit: str = Field(
+        description="The value of the commit.",
+        examples=[examples.COMMIT],
+    )
     ordinal: int = Field(
-        description=(
-            "That commit's position in the suite's order. Never null: this endpoint includes only "
-            "commits that have one, since a trendline is drawn along that order."
-        )
+        description="The commit's ordinal. Never null: trends only include commits that have one.",
+        examples=[examples.ORDINAL],
     )
     submitted_at: datetime = Field(
-        description="When the server accepted the most recent of the runs behind this value."
+        description="When the most recent of the runs behind this value was submitted."
     )
-    tag: str | None = Field(
-        description="That commit's human-readable label, or null if it has none."
-    )
+    tag: str | None = Field(description=_TAG, examples=[examples.TAG])
     value: float = Field(
         description=(
-            "The geometric mean of the geomeans of the runs at this machine and commit, for the "
-            "metric and sample aggregation the request names (O9). Always a real, even where the "
-            "metric is declared 'integer' (D3)."
+            "The trend value: the geometric mean of the machine's runs at this commit (see the "
+            "operation's description). Always a floating-point number, even for an `integer` "
+            "metric."
         )
     )
 
 
 class QueryRequest(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/query`."""
+    """Which data points to return. Only `metric` is required; the other keys narrow down the
+    results."""
 
     model_config = ConfigDict(extra="forbid")
 
     metric: Named = Field(
-        description="A metric name this test suite's schema declares. 400 if it declares no such."
+        description=(
+            "The metric to return values for. Returns 400 if the suite's schema doesn't define it."
+        )
     )
     machine: Named | None = Field(
         default=None,
-        description="Keep only values measured on this machine. 404 if there is no such machine.",
+        description=(
+            "Only return values from this machine. Returns 404 if the machine doesn't exist."
+        ),
     )
     # Bounded at I2's page ceiling, for the same reason `POST /commits/resolve` is: the list
     # expands into one statement, and an unbounded one would expand into a statement with more
@@ -146,42 +178,47 @@ class QueryRequest(BaseModel):
         default=None,
         max_length=MAX_LIMIT,
         description=(
-            f"Keep only values measured for one of these tests, at most {MAX_LIMIT} of them. 404 "
-            "if any of them names no test. An empty list keeps nothing, which is not the same as "
-            "omitting the key."
+            f"Only return values for these tests (at most {MAX_LIMIT}). Returns 404 if any of them "
+            "doesn't exist. An empty list returns nothing; leave the key out to include all tests."
         ),
     )
     commit: Named | None = Field(
         default=None,
         description=(
-            "Keep only values from runs on this exact commit. A value no commit has matches "
-            "nothing, rather than being an error. Cannot be combined with the two bounds below."
+            "Only return values from runs of this commit. If the commit doesn't exist, the result "
+            "is empty. Can't be combined with `after_commit` or `before_commit`."
         ),
     )
     after_commit: Named | None = Field(
         default=None,
         description=(
-            "Keep only values from commits strictly after this one in ordinal order. 404 if there "
-            "is no such commit, 400 if it has no ordinal to bound a range with."
+            "Only return values from commits after this one (exclusive), by ordinal. Commits "
+            "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if "
+            "it has no ordinal."
         ),
     )
     before_commit: Named | None = Field(
-        default=None, description="The same, strictly before this one in ordinal order."
+        default=None,
+        description=(
+            "Only return values from commits before this one (exclusive), by ordinal. Commits "
+            "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if "
+            "it has no ordinal."
+        ),
     )
     after_time: DatetimeValue | None = Field(
         default=None,
-        description="Keep only values from runs submitted strictly after this instant.",
+        description="Only return values from runs submitted after this time (exclusive).",
     )
     before_time: DatetimeValue | None = Field(
-        default=None, description="The same, strictly before this instant."
+        default=None,
+        description="Only return values from runs submitted before this time (exclusive).",
     )
     sort: QuerySort | None = Field(
         default=None,
         description=(
-            "Order by test name, by commit (meaning by ordinal) or by submission time, ascending "
-            "or descending. Sorting by commit excludes the commits that have no ordinal, since "
-            "they have no place in that order. Omit for an arbitrary but stable order, which "
-            "excludes nothing and is the cheapest way to walk the whole series."
+            "Sort by test name, by commit (that is, by ordinal) or by submission time. Sorting by "
+            "commit leaves out commits without an ordinal. Without it, the order is unspecified "
+            "but stable, which is the fastest way to page through all values."
         ),
     )
     limit: BodyLimit = DEFAULT_LIMIT
@@ -389,22 +426,25 @@ def _numeric(suite: Suite, name: str) -> Metric:
     return metric
 
 
+# The metric is resolved first, so an undeclared one is a 400 even if the body also names an absent
+# machine or test. The spec leaves that order open.
 @router.post(
     "/query",
     dependencies=[require_scope(Scope.READ)],
-    summary="Query time-series data points",
+    summary="Get a metric's values over time",
     responses=suite_responses(not_found=_NO_QUERY_ENTITY),
 )
 def query_points(
-    testsuite: str,
-    body: QueryRequest,
+    testsuite: SuiteName,
+    body: Annotated[QueryRequest, Body(openapi_examples=_QUERY_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> CursorPage[DataPoint]:
-    """One metric's measured values, filtered, ordered and cursor-paginated (I2, I3, O5).
+    """The values of one metric, one page at a time, with the test, machine, commit and run of
+    each. Use this to chart a metric over time.
 
-    The metric is resolved first, so an undeclared one is a 400 even if the body also names an
-    absent machine or test. The spec leaves that order open.
+    This is a POST only because the list of tests can be too long for a URL; it doesn't change
+    anything. `limit` and `cursor` go in the body too.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         points = Points(suite, declared_entry(suite.schema, Metric, body.metric))
@@ -433,22 +473,24 @@ def query_points(
         )
 
 
+# No `tracked` filter: that flag governs automatic machine selection (D5), which the Dashboard
+# applies when it picks the machines it names here.
 @router.get(
     "/trends",
     dependencies=[require_scope(Scope.READ)],
-    summary="Query geomean-aggregated trend data",
+    summary="Get a metric's trend across machines",
     responses=suite_responses(not_found=_NO_TREND_ENTITY),
 )
 def query_trends(
-    testsuite: str,
+    testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
     metric: Annotated[
         str,
         Query(
             description=(
-                "A numeric metric name this test suite's schema declares (D3). 400 if it declares "
-                "no such metric, and 400 if the one it declares is 'text' or 'datetime'."
+                "A `real` or `integer` metric. Returns 400 if the suite's schema doesn't define "
+                "it, or defines it with another type."
             )
         ),
     ],
@@ -456,14 +498,14 @@ def query_trends(
         list[str],
         Query(
             description=(
-                "A machine to return trends for. Repeat the parameter for several machines. 404 if "
-                "any of them names no machine. Tracked or not, a machine named here is returned."
+                "The machines to return trends for. Repeat the parameter for several machines. "
+                "Returns 404 if any of them doesn't exist. Untracked machines can be used too."
             ),
         ),
     ],
     sample_agg: Annotated[
         SampleAggregation,
-        Query(description="How each test's samples within a run are reduced to one value (O9)."),
+        Query(description="How to combine a test's samples in a run into a single value."),
     ] = SampleAggregation.MEDIAN,
     last_n: Annotated[
         int,
@@ -471,17 +513,25 @@ def query_trends(
             ge=1,
             le=MAX_LIMIT,
             description=(
-                "Keep only the N most recent commits, by ordinal, at which any of the named "
-                "machines has a run geomean (O9) for the metric under the sample aggregation. "
-                f"Defaults to {DEFAULT_LAST_N}, so that the response is always bounded."
+                "Only include the N most recent commits (by ordinal) that have data on any of the "
+                "machines. All machines share this window, so a machine that stopped reporting "
+                "has no values for the latest commits."
             ),
         ),
     ] = DEFAULT_LAST_N,
 ) -> Items[TrendPoint]:
-    """One geomean per machine and commit, for the Dashboard's sparklines (I2, I3, O9).
+    """A summary of one metric over time, for a few machines: one value per machine and commit,
+    sorted by machine name and then by ordinal. Only commits with an ordinal are included.
 
-    No `tracked` filter: that flag governs automatic machine selection (D5), which the Dashboard
-    applies when it picks the machines it names here.
+    Each value is computed in three steps:
+
+    1. For each test in a run, the samples are combined into one value with `sample_agg`.
+    2. The run's value is the geometric mean of those per-test values, ignoring values that are
+       zero or negative.
+    3. The trend value is the geometric mean of the run values of the machine's runs at that
+       commit.
+
+    Machines and commits without any positive value are left out.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         trends = Trends(suite, _numeric(suite, metric), sample_agg)

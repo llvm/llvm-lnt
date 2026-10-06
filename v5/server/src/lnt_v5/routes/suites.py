@@ -12,9 +12,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Body, Query, Response
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, is_duplicate_schema, unique_violation_constraint
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
@@ -25,7 +26,7 @@ from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.registry import RegistryDep
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.scope import SUITE_NOT_FOUND
+from lnt_v5.suites.scope import SUITE_NOT_FOUND, SuiteName
 from lnt_v5.suites.store import (
     SCHEMA_NAME_CONSTRAINT,
     add_suite,
@@ -44,12 +45,44 @@ router = APIRouter(prefix=SUITES_PATH, tags=["Test Suites"])
 # `1`, `yes` and `on`, which is a deliberate widening.
 Confirm = Annotated[
     bool,
-    Query(description="Must be true. Required because this operation destroys data permanently."),
+    Query(description="Set to `true` to confirm. Required, because this permanently deletes data."),
+]
+
+# The same, on a schema change, which destroys data only when it removes an entry.
+ConfirmRemoval = Annotated[
+    bool,
+    Query(
+        description=(
+            "Set to `true` to confirm, if the request removes a metric or field: that permanently "
+            "deletes its data. Not needed otherwise."
+        )
+    ),
 ]
 
 _NOT_FOUND = {"model": ErrorEnvelope, "description": SUITE_NOT_FOUND}
 # Every write can answer this: the suite was busy and the change could not take its locks (D2).
-_BUSY = "`retry`: the suite is busy, and the change could not take the locks it needs."
+_BUSY = (
+    "`retry`: the suite was busy, for example because another request was reading it, so the "
+    "change couldn't start. Nothing was saved: send the request again."
+)
+
+_CREATE_EXAMPLES = {
+    "libcxx": {"summary": "The suite for libc++'s benchmarks", "value": examples.SUITE_SCHEMA},
+}
+
+_PATCH_EXAMPLES = {
+    "add_and_update": {
+        "summary": "Add a commit field and change a metric's display name",
+        "value": {
+            "commit_fields": {"add": [{"name": "author", "type": "text", "searchable": True}]},
+            "metrics": {"update": [{"name": "max_rss", "display_name": "Max RSS"}]},
+        },
+    },
+    "remove": {
+        "summary": "Remove a machine field (requires confirm=true)",
+        "value": {"machine_fields": {"remove": ["test_suite_commit"]}},
+    },
+}
 
 
 def _confirmed(confirm: bool, what: str) -> None:
@@ -57,13 +90,15 @@ def _confirmed(confirm: bool, what: str) -> None:
         raise ApiError(ErrorCode.INVALID_REQUEST, f"{what} Pass ?confirm=true to proceed.")
 
 
+# The docstrings of the endpoints below are published, as the descriptions I8's document gives them,
+# so they are written for API users.
+
+
+# Schemas rather than names alone: suites are limited in number, and parts of the client need every
+# suite's metric list up front (E10).
 @router.get("", dependencies=[require_scope(Scope.READ)], summary="List test suites")
 def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
-    """Every suite on this instance, with its full schema, ordered by name.
-
-    Schemas rather than names alone: suites are limited in number, and parts of the client need
-    every suite's metric list up front (E10).
-    """
+    """All test suites on this instance, with their schemas, sorted by name."""
     with engine.connect() as connection:
         suites = registry.fresh(connection)
     return Items(items=[suites[name].schema for name in sorted(suites)])
@@ -77,13 +112,21 @@ def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
     responses={
         409: {
             "model": ErrorEnvelope,
-            "description": "`duplicate`: a suite with that name exists. `conflict`: a database "
-            f"namespace with that name exists although no suite does. {_BUSY}",
+            "description": "`duplicate`: a suite with this name already exists. `conflict`: the "
+            f"name is already used in the database by something other than a test suite. {_BUSY}",
         }
     },
 )
-def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> SuiteSchema:
-    """Create a suite from a schema definition, and the tables that schema describes (D2, D5)."""
+def create_suite(
+    body: Annotated[SuiteSchema, Body(openapi_examples=_CREATE_EXAMPLES)],
+    engine: EngineDep,
+    response: Response,
+) -> SuiteSchema:
+    """Create a test suite from a schema.
+
+    The response is the schema with all optional keys filled in. Its `Location` header points to
+    the new suite.
+    """
     try:
         with suite_write(engine, body.name) as connection:
             add_suite(connection, body)
@@ -111,8 +154,9 @@ def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> Su
     summary="Get a test suite",
     responses={404: _NOT_FOUND},
 )
-def get_suite(name: str, engine: EngineDep, registry: RegistryDep) -> SuiteSchema:
-    """A suite's normalized schema -- the same document `POST /api/suites` accepts."""
+def get_suite(name: SuiteName, engine: EngineDep, registry: RegistryDep) -> SuiteSchema:
+    """A test suite's schema, with all optional keys filled in. It can be used as-is to create the
+    same suite on another instance."""
     with engine.connect() as connection:
         return registry.resolve(connection, name).schema
 
@@ -120,24 +164,31 @@ def get_suite(name: str, engine: EngineDep, registry: RegistryDep) -> SuiteSchem
 @router.patch(
     "/{name}/schema",
     dependencies=[require_scope(Scope.MANAGE)],
-    summary="Evolve a test suite's schema",
+    summary="Change a test suite's schema",
     responses={
         404: {
             "model": ErrorEnvelope,
-            "description": "No suite has that name, or an entry to update or remove is not there.",
+            "description": (
+                "The test suite, or a metric or field you are updating or removing, doesn't exist."
+            ),
         },
         409: {
             "model": ErrorEnvelope,
-            "description": f"`duplicate`: an entry to add is already in its list. {_BUSY}",
+            "description": f"`duplicate`: a metric or field you are adding already exists. {_BUSY}",
         },
     },
 )
 def patch_schema(
-    name: str, body: SchemaPatch, engine: EngineDep, confirm: Confirm = False
+    name: SuiteName,
+    body: Annotated[SchemaPatch, Body(openapi_examples=_PATCH_EXAMPLES)],
+    engine: EngineDep,
+    confirm: ConfirmRemoval = False,
 ) -> SuiteSchema:
-    """Add, update and/or remove entries in a suite's three lists (D2).
+    """Add, update or remove metrics, commit fields and machine fields. Returns the updated schema.
 
-    A request that asks for no change is a successful no-op.
+    Only display settings can be updated. To change the type of a metric or field, remove it and
+    add it again. Removing a metric or field permanently deletes its data, so the request must
+    include `confirm=true`.
     """
     with suite_write(engine, name) as connection:
         current = locked_suite(connection, name)
@@ -158,8 +209,9 @@ def patch_schema(
         409: {"model": ErrorEnvelope, "description": _BUSY},
     },
 )
-def delete_suite(name: str, engine: EngineDep, confirm: Confirm = False) -> None:
-    """Delete a suite and every machine, run, commit, sample and regression in it."""
+def delete_suite(name: SuiteName, engine: EngineDep, confirm: Confirm = False) -> None:
+    """Delete a test suite and all its data: machines, commits, runs, samples, profiles and
+    regressions. This can't be undone, so the request must include `confirm=true`."""
     with suite_write(engine, name) as connection:
         locked_suite(connection, name)
         _confirmed(confirm, f"Deleting '{name}' permanently destroys all of its data.")

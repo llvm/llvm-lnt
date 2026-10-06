@@ -22,6 +22,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, Connection, Row, Select, Table, select
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode
@@ -33,21 +34,25 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import declared_entry, identifier, identifiers
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
-from lnt_v5.suites.scope import suite_responses, suite_scope
+from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
 
 TESTS_PATH = f"{SUITES_PATH}/{{testsuite}}/tests"
 
 router = APIRouter(prefix=TESTS_PATH, tags=["Tests"])
 
 
+# An object around a single key rather than a bare string, which is what endpoints.md asks for: the
+# object can gain a key later without every client having to be changed at once.
+#
+# The docstring is published, as the description I8's document gives this schema, so it is written
+# for API users.
 class Test(BaseModel):
-    """A test as the list endpoint returns it.
+    """A test: a benchmark the suite has results for."""
 
-    An object around a single key rather than a bare string, which is what endpoints.md asks for:
-    the object can gain a key later without every client having to be changed at once.
-    """
-
-    name: str = Field(description="Identifies the test within its test suite.")
+    name: str = Field(
+        description="The test's name, unique within its test suite.",
+        examples=[examples.TEST],
+    )
 
 
 class Tests:
@@ -129,20 +134,20 @@ def test_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> dict
     responses=suite_responses(not_found=NO_MACHINE_FILTERED),
 )
 def list_tests(
-    testsuite: str,
+    testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
     cursor: Cursor = None,
     search: Annotated[
         str | None,
-        Query(description="Case-insensitive substring match against the test's name."),
+        Query(description="Only return tests whose name contains this text. Not case-sensitive."),
     ] = None,
     machine: Annotated[
         str | None,
         Query(
             description=(
-                "Keep only tests this machine has had data for. Deleting runs does not remove a "
-                "test from this; deleting the machine does. 404 if there is no such machine."
+                "Only return tests that have results on this machine. Returns 404 if the machine "
+                "doesn't exist."
             )
         ),
     ] = None,
@@ -150,15 +155,18 @@ def list_tests(
         str | None,
         Query(
             description=(
-                "Keep only tests that have had a value for this metric. Combined with `machine=`, "
-                "only values measured on that machine count. Deleting runs does not remove a test "
-                "from this. 400 if the suite declares no such metric."
+                "Only return tests that have values for this metric (on `machine`, if given). "
+                "Returns 400 if the suite's schema doesn't define the metric."
             )
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Test]:
-    """Every test in the suite, filtered and cursor-paginated (I2, I3, O4, O5)."""
+    """The tests in the suite, one page at a time. Tests are created as runs are submitted.
+
+    The `machine` and `metric` filters look at every result ever submitted: a test still matches
+    after the runs that matched are deleted, but not after the machine is deleted.
+    """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         tests = Tests(suite)
         conditions: list[ColumnElement[bool]] = []

@@ -370,6 +370,13 @@ instance. The exact mechanism is implementation-specific.
   generator that documents its framework's native validation failure (commonly
   422) has to be corrected to the 400 the error envelope specifies. A 405 is
   listed on no operation: it answers a method for which no operation exists.
+- The specification is written for the API's users. It explains operations,
+  parameters and schemas in terms of the API alone, and refers neither to this
+  design documentation nor to how the server is built. It opens with the
+  conventions every operation shares -- authentication, pagination, filtering
+  and errors -- so that it can be read on its own.
+- Each operation states the scope it requires (I5), and one requiring `read`
+  is marked as callable without credentials.
 - `GET /api/docs` serves an interactive documentation viewer rendering that
   specification, as `text/html`.
 - How the viewer obtains its own scripts and stylesheets is left to the

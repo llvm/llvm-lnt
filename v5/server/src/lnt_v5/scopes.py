@@ -11,9 +11,15 @@ from enum import StrEnum
 #
 # The class docstring is published: it is this enum's description in the OpenAPI document.
 class Scope(StrEnum):
-    """What an API key is allowed to do.
+    """What an API key is allowed to do. Each scope includes the ones before it: read < submit <
+    triage < manage < admin.
 
-    A key grants its own scope and every lower one: read < submit < triage < manage < admin.
+    - `read`: read all data. Doesn't need a key at all.
+    - `submit`: submit runs and create commits.
+    - `triage`: create, update and delete regressions and their indicators.
+    - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
+      change and delete test suites.
+    - `admin`: list, create and revoke API keys.
     """
 
     # Lowest privilege first: the declaration order *is* the hierarchy, and `grants` reads it.

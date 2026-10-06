@@ -10,21 +10,22 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Path, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import Connection, Row, Select, Table, and_, select
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.responses import Items
-from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
+from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, RunKey, run_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import UuidKey, identifier
 from lnt_v5.suites.profile_document import document_json, instructions
 from lnt_v5.suites.registry import RegistryDep, Suite
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
+from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
 
 PROFILES_PATH = f"{SUITES_PATH}/{{testsuite}}/profiles"
 RUN_PROFILES_PATH = f"{RUNS_PATH}/{{uuid}}/profiles"
@@ -36,104 +37,135 @@ router = APIRouter(prefix=PROFILES_PATH, tags=["Profiles"])
 run_profiles_router = APIRouter(prefix=RUNS_PATH, tags=["Profiles"])
 
 # `suite_scope`'s 404, widened with the cases these endpoints add.
-_NO_PROFILE = f"{SUITE_NOT_FOUND} Or no profile in it has that UUID."
-_NO_FUNCTION = f"{_NO_PROFILE} Or the profile holds no function of that name."
+_NO_PROFILE = "The test suite or the profile doesn't exist."
+_NO_FUNCTION = "The test suite, the profile, or the function doesn't exist."
+
+# The path segment naming a profile.
+ProfileKey = Annotated[UuidKey, Path(description="The profile's UUID (not case-sensitive).")]
+
+# The docstrings of the models and endpoints below, and the field descriptions, are published, as
+# the descriptions I8's document gives them, so they are written for API users.
 
 # Field descriptions more than one response model carries.
-_TEST = "The name of the test this profile was measured for."
-_DISASSEMBLY_FORMAT = "How the instruction text was produced, for example `llvm-objdump`."
-_INSTRUCTIONS = "The function's instructions, in the order the profile records them."
+_TEST = "The name of the test the profile was measured for."
+_DISASSEMBLY_FORMAT = "The tool that produced the instruction text, for example `llvm-objdump`."
+_INSTRUCTIONS = "The function's instructions, in their original order."
+_FUNCTION_COUNTERS = (
+    "The function's counters, keyed by counter name. Each is the sum of that counter over the "
+    "function's instructions. A function may have fewer counters than the profile as a whole."
+)
 
 
 class RunProfile(BaseModel):
-    """A profile as a run's listing carries it: what it measured, and how to ask for it."""
+    """A profile in a run: the test it is for, and its UUID."""
 
-    test: str = Field(description=_TEST)
+    test: str = Field(description=_TEST, examples=[examples.TEST])
     uuid: str = Field(
-        description="Identifies the profile. Server-generated (I1); the profile data endpoints "
-        "take it."
+        description="The profile's UUID, used by the other profile operations.",
+        examples=[examples.PROFILE_UUID],
     )
 
 
 class ProfileMetadata(BaseModel):
-    """What a profile is of, and the counters it measured as a whole."""
+    """A profile's test, run and top-level counters. All counters are raw counts, not
+    percentages."""
 
-    uuid: str = Field(description="Identifies the profile.")
-    test: str = Field(description=_TEST)
-    run_uuid: str = Field(description="The UUID of the run this profile belongs to.")
+    uuid: str = Field(description="The profile's UUID.", examples=[examples.PROFILE_UUID])
+    test: str = Field(description=_TEST, examples=[examples.TEST])
+    run_uuid: str = Field(
+        description="The UUID of the run the profile belongs to.", examples=[examples.RUN_UUID]
+    )
     counters: dict[str, int] = Field(
         description=(
-            "The profile's top-level counters, keyed by counter name. Raw totals for the whole "
-            "profile, and integers -- unlike every other counter here, which is a number."
-        )
+            "The profile's counters, keyed by counter name. They are totals for the whole profile, "
+            "including functions it doesn't list. Unlike the other counters, these are integers."
+        ),
+        examples=[examples.PROFILE_COUNTERS],
     )
-    disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
+    disassembly_format: str = Field(
+        description=_DISASSEMBLY_FORMAT, examples=[examples.DISASSEMBLY_FORMAT]
+    )
 
 
 class ProfileFunction(BaseModel):
-    """One function of a profile, as the functions response carries it."""
+    """One function of a profile, without its instructions."""
 
-    name: str = Field(description="The function's name, as the profile's producer recorded it.")
+    name: str = Field(description="The function's name.", examples=[examples.FUNCTION])
     counters: dict[str, float] = Field(
         description=(
-            "The function's counters, keyed by counter name: each the sum of that counter over the "
-            "function's instructions. Raw counts, not percentages: a client that wants a share of "
-            "the profile computes it against the top-level counters. "
-            "A function carries only the counters its instructions were measured with, which may "
-            "be fewer than the profile has."
-        )
+            f"{_FUNCTION_COUNTERS} To get a percentage of the profile, divide by the profile's "
+            "counter of the same name."
+        ),
+        examples=[examples.FUNCTION_COUNTERS],
     )
-    length: int = Field(description="How many instructions the function's disassembly holds.")
+    length: int = Field(description="The number of instructions in the function.")
 
 
 class Instruction(BaseModel):
-    """One instruction of a function's disassembly."""
+    """One instruction of a function."""
 
-    address: int = Field(description="The instruction's address.")
+    address: int = Field(
+        description="The instruction's address. Can't be negative.", examples=[4096]
+    )
     counters: dict[str, float] = Field(
         description=(
-            "The counts measured at this instruction, keyed by counter name. Raw counts, not "
-            "percentages, and the same counters the function carries."
-        )
+            "The counts measured at this instruction, keyed by counter name. They can't be "
+            "negative. All instructions of a function must have the same counters, and each must "
+            "also be one of the profile's counters."
+        ),
+        examples=[examples.INSTRUCTION_COUNTERS],
     )
     text: str = Field(
-        description="The disassembled instruction, in the profile's `disassembly_format`."
+        description="The disassembled instruction.", examples=[examples.INSTRUCTION_TEXT]
     )
 
 
 class FunctionDisassembly(BaseModel):
-    """One function's disassembly and the counters measured along it."""
+    """One function of a profile, with its instructions."""
 
-    name: str = Field(description="The function's name.")
+    name: str = Field(description="The function's name.", examples=[examples.FUNCTION])
     counters: dict[str, float] = Field(
-        description=(
-            "The function's counters, keyed by counter name: the same sums the functions "
-            "response carries."
-        )
+        description=_FUNCTION_COUNTERS, examples=[examples.FUNCTION_COUNTERS]
     )
-    disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
+    disassembly_format: str = Field(
+        description=_DISASSEMBLY_FORMAT, examples=[examples.DISASSEMBLY_FORMAT]
+    )
     instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
 
 
 class DocumentFunction(BaseModel):
-    """One function of a profile document: its instructions, and no counters of its own (O7)."""
+    """One function in a profile document: its name and its instructions. The function's own
+    counters aren't included, since they are just the sums over its instructions."""
 
-    name: str = Field(description="The function's name.")
+    name: str = Field(
+        description="The function's name. Can't be empty, and must be unique.",
+        examples=[examples.FUNCTION],
+    )
     instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
 
 
 # Describes the response for I8 only: the endpoint encodes the document itself.
 class ProfileDocument(BaseModel):
-    """A whole profile, as the document a submission carries it in (O7), but uncompressed."""
+    """A complete profile. This is also the format of a test's `profile` in a run submission,
+    where it is gzip-compressed and then base64-encoded.
 
-    disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
+    All counters are raw counts, not percentages.
+    """
+
+    disassembly_format: str = Field(
+        description=_DISASSEMBLY_FORMAT, examples=[examples.DISASSEMBLY_FORMAT]
+    )
     counters: dict[str, int] = Field(
-        description="The profile's top-level counters, keyed by counter name, as in the metadata."
+        description=(
+            "The profile's counters, keyed by counter name. They are totals for the whole profile, "
+            "including functions it doesn't list, and can't be negative."
+        ),
+        examples=[examples.PROFILE_COUNTERS],
     )
     functions: list[DocumentFunction] = Field(
         description=(
-            "Every function of the profile, in the order the functions response lists them -- not "
-            "necessarily the order they were submitted in."
+            "The profile's functions. When returned by the API, they are sorted by name, which may "
+            "differ from the order they were submitted in."
         )
     )
 
@@ -270,6 +302,8 @@ class Profiles:
         )
 
 
+# Unpaginated: a run holds at most one profile per test it measured, so the response is bounded by
+# the run itself (I2).
 @run_profiles_router.get(
     "/{uuid}/profiles",
     dependencies=[require_scope(Scope.READ)],
@@ -277,13 +311,10 @@ class Profiles:
     responses=suite_responses(not_found=NO_RUN),
 )
 def list_run_profiles(
-    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, uuid: RunKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[RunProfile]:
-    """Which tests of one run have a profile, and the UUID of each (I2).
-
-    Unpaginated: a run holds at most one profile per test it measured, so the response is bounded
-    by the run itself.
-    """
+    """The run's profiles: which tests have one, and each profile's UUID, sorted by test name. A
+    run has at most one profile per test."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         profiles = Profiles(suite)
         rows = connection.execute(profiles.of_run(run_id(connection, suite, uuid)))
@@ -297,13 +328,14 @@ def list_run_profiles(
     responses=suite_responses(not_found=_NO_PROFILE),
 )
 def get_profile(
-    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, uuid: ProfileKey, engine: EngineDep, registry: RegistryDep
 ) -> ProfileMetadata:
-    """What a profile is of, and its top-level counters (E7)."""
+    """Get a profile's test, run and top-level counters."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Profiles(suite).metadata(connection, uuid)
 
 
+# Unpaginated, since O7 caps a profile's functions.
 @router.get(
     "/{uuid}/functions",
     dependencies=[require_scope(Scope.READ)],
@@ -311,12 +343,10 @@ def get_profile(
     responses=suite_responses(not_found=_NO_PROFILE),
 )
 def list_profile_functions(
-    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, uuid: ProfileKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[ProfileFunction]:
-    """Every function the profile measured, by name (I2, E7).
-
-    Unpaginated, since O7 caps a profile's functions.
-    """
+    """The functions in a profile, with their counters but without their instructions, sorted by
+    name."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Items(items=Profiles(suite).functions(connection, uuid))
 
@@ -328,21 +358,22 @@ def list_profile_functions(
     responses=suite_responses(not_found=_NO_FUNCTION),
 )
 def get_profile_disassembly(
-    testsuite: str,
-    uuid: UuidKey,
+    testsuite: SuiteName,
+    uuid: ProfileKey,
     function: Annotated[
         str,
         Query(
             description=(
-                "The name of the function, exactly as the functions response gives it. 404 if the "
-                "profile holds no function of that name."
+                "The function's name, as returned by the function list. Returns 404 if the profile "
+                "has no such function."
             )
         ),
     ],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> FunctionDisassembly:
-    """One function's disassembly and the counters measured along it (E7)."""
+    """One function of a profile, with the counters measured at each instruction. The function is
+    passed as a query parameter because its name can contain '/'."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         disassembly_format, counters, stored = Profiles(suite).disassembly(
             connection, uuid, function
@@ -364,14 +395,19 @@ def get_profile_disassembly(
 @router.get(
     "/{uuid}/document",
     dependencies=[require_scope(Scope.READ)],
-    summary="Get a whole profile, as a document",
+    summary="Get a complete profile",
     response_model=ProfileDocument,
     responses=suite_responses(not_found=_NO_PROFILE),
 )
 def get_profile_document(
-    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, uuid: ProfileKey, engine: EngineDep, registry: RegistryDep
 ) -> Response:
-    """The whole profile in one response, as the profile document a submission carries (E7)."""
+    """The complete profile in a single response.
+
+    To copy a profile to another run or instance, gzip-compress and base64-encode this document
+    and submit it as a test's `profile`. The result may be larger than what was originally
+    submitted, so a profile close to the size limits may exceed them when copied.
+    """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         disassembly_format, counters, functions = Profiles(suite).document(connection, uuid)
 

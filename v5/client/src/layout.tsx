@@ -13,10 +13,11 @@ export function Layout() {
           <NavLink to="/graph">Graph</NavLink>
           <NavLink to="/compare">Compare</NavLink>
           <NavLink to="/profiles">Profiles</NavLink>
-          {/* Opens the OpenAPI viewer in a new tab once the API exists (see AR4). */}
-          <span className="navbar-disabled" title="The API documentation viewer is not available yet">
+          {/* The API documentation viewer is a separate document rather than an SPA route, so it
+              opens in a new tab (see AR4). */}
+          <a href="/api/docs" target="_blank" rel="noopener noreferrer">
             API
-          </span>
+          </a>
         </div>
         <div className="navbar-group">
           <NavLink to="/admin">Admin</NavLink>

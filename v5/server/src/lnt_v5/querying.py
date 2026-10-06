@@ -52,22 +52,19 @@ MAX_LIMIT = 10_000
 # The wording of I2's two paging parameters, stated once because they travel by two carriers: as
 # query parameters on the GET lists, and as keys of the request body on `POST /query`, which is
 # asked for with a body because its test list does not fit a query string. I2 is explicit that
-# nothing else about the contract differs between the two.
-_LIMIT = "How many items to return, at most."
+# nothing else about the contract differs between the two. Published in I8's document, so written
+# for API users.
+_LIMIT = "The maximum number of results to return."
 _CURSOR = (
-    "Continue from where a previous page ended: pass back the `cursor.next` that page returned, "
-    "with the same filters and sort. Only `limit` may change between pages. Cursors are opaque -- "
-    "they must not be parsed, constructed or stored, and one presented with a request asking for "
-    "other results -- other path parameters, filters or sort -- is rejected. One may also be "
-    "rejected after a change between pages, e.g. to the suite's schema; start again from the first "
-    "page."
+    "To get the next page, set this to `cursor.next` from the previous response, and keep the "
+    "other parameters the same (except `limit`). Omit it to get the first page."
 )
 
 Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
 
 # Bounded by what PostgreSQL's OFFSET takes, a BIGINT, so that a larger one is a 400 rather than
 # failing in the database.
-Offset = Annotated[int, Query(ge=0, le=INTEGER_MAX, description="How many matching items to skip.")]
+Offset = Annotated[int, Query(ge=0, le=INTEGER_MAX, description="The number of results to skip.")]
 
 # A cursor is scoped to the list that issued it by `cursor_page`, from the statement that list runs,
 # so neither carrier needs to know which of the request's other parameters are filters.

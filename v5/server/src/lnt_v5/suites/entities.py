@@ -45,6 +45,7 @@ from pydantic import (
 )
 from sqlalchemy import Column, Connection, Row, Table, select, update
 
+from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.strings import Storable
 from lnt_v5.suites import concurrency
@@ -219,9 +220,9 @@ ClientUuid = Annotated[
 
 # How I8's document describes a `ClientUuid`, after a sentence saying what the field identifies.
 CLIENT_UUID_FORMAT = (
-    "In the standard 8-4-4-4-12 hyphenated hex form. Any UUID version is accepted; only the "
-    "format is validated. Case-insensitive, and normalized to lowercase. Omit it, or send null, "
-    "to have the server generate one."
+    "Use the standard hyphenated format (`8-4-4-4-12` hex digits); any UUID version works. It is "
+    "case-insensitive and stored in lowercase. Leave it out, or set it to null, to let the server "
+    "generate one."
 )
 
 
@@ -236,21 +237,21 @@ def location_of(path: str, testsuite: str, key: str) -> str:
     return f"{path.format(testsuite=quote(testsuite, safe=''))}/{quote(key, safe='')}"
 
 
+# The descriptions and docstrings from here to the end of the entity objects are published, in I8's
+# document, so they are written for API users.
+#
+# `EntityObject` itself is not published: each entity subclasses it, adding its identity attribute
+# and its built-in ones beside `fields`. The values inside `fields` are typed against the *suite's*
+# schema, which no static model can describe, so this validates their shape and `validate_fields`
+# does the rest (O2).
 class EntityObject(BaseModel):
-    """What every write path accepts for an entity carrying declared metadata (O2).
-
-    Subclassed rather than used directly: each entity adds its identity attribute and its built-in
-    ones beside `fields`. The values inside `fields` are typed against the *suite's* schema, which
-    no static model can describe, so this validates their shape and `validate_fields` does the rest.
-    """
-
     model_config = ConfigDict(extra="forbid")
 
     fields: dict[str, FieldValue] = Field(
         default_factory=dict,
         description=(
-            "Metadata declared by this test suite's schema, keyed by field name. "
-            "A key the schema does not declare is rejected."
+            "Values for the fields defined in the suite's schema, keyed by field name. Each value "
+            "must have the JSON type of its field. Fields the schema doesn't define are rejected."
         ),
     )
 
@@ -262,9 +263,10 @@ MachineName = Annotated[
     Storable,
     Field(
         description=(
-            "Identifies the machine within its test suite. It appears in the URL that addresses "
-            "the machine, so it may not contain '/' and may not be '.' or '..' (I1)."
-        )
+            "The machine's name, unique within its test suite. It is used in URLs, so it can't "
+            "contain '/' or be '.' or '..'."
+        ),
+        examples=[examples.MACHINE],
     ),
 ]
 
@@ -272,8 +274,8 @@ Tracked = Annotated[
     bool,
     Field(
         description=(
-            "Whether the machine takes part in automatic machine selection. An untracked machine "
-            "stays fully addressable everywhere a machine is chosen deliberately."
+            "Whether the machine is picked automatically, for example when a dashboard chooses "
+            "which machines to show. Untracked machines are still listed and usable as usual."
         )
     ),
 ]
@@ -285,10 +287,11 @@ CommitValue = Annotated[
     Storable,
     Field(
         description=(
-            "Identifies the commit within its test suite -- a Git SHA, a version number, or an "
-            "ad-hoc label. It appears in the URL that addresses the commit, so it may not contain "
-            "'/' and may not be '.' or '..' (I1). It is immutable: commits cannot be renamed."
-        )
+            "The commit's identifier, unique within its test suite: a Git SHA, a version number or "
+            "any other label. It is used in URLs, so it can't contain '/' or be '.' or '..'. It "
+            "can't be changed later."
+        ),
+        examples=[examples.COMMIT],
     ),
 ]
 
@@ -298,9 +301,10 @@ Tag = Annotated[
     Storable,
     Field(
         description=(
-            "A human-readable label, such as a release name. Several commits may share one. Null "
-            "means untagged."
-        )
+            "A label such as a release name. Several commits can have the same tag. Null if the "
+            "commit has none."
+        ),
+        examples=[examples.TAG],
     ),
 ]
 
@@ -310,23 +314,25 @@ Ordinal = Annotated[
         ge=INT32_MIN,
         le=INT32_MAX,
         description=(
-            "Places the commit in the suite's total order, and so in every time series. Unique "
-            "within the suite, and never inferred from the commit value even when that value is "
-            "numeric. Null means unordered."
+            "The commit's position in the suite's history, used to order time series. Each commit "
+            "must have a different ordinal, and it is never derived from the commit's value. Null "
+            "if the commit has none; such commits are left out when sorting by ordinal or "
+            "filtering on a range of commits."
         ),
+        examples=[examples.ORDINAL],
     ),
 ]
 
 
 class MachineObject(EntityObject):
-    """O2's entity object for a machine, as every write path accepts it."""
+    """A machine: its name, whether it is tracked, and its fields."""
 
     name: MachineName
     tracked: Tracked = True
 
 
 class CommitObject(EntityObject):
-    """O2's entity object for a commit, as every write path that creates one accepts it."""
+    """A commit: its value, its ordinal and tag if it has them, and its fields."""
 
     value: CommitValue
     ordinal: Ordinal | None = None
