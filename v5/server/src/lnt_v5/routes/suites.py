@@ -28,9 +28,9 @@ from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.scope import SUITE_NOT_FOUND
 from lnt_v5.suites.store import (
     SCHEMA_NAME_CONSTRAINT,
+    add_suite,
     bump,
     locked_suite,
-    normalized_json,
     suite_write,
 )
 from lnt_v5.tables import schema as schema_table
@@ -86,14 +86,7 @@ def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> Su
     """Create a suite from a schema definition, and the tables that schema describes (D2, D5)."""
     try:
         with suite_write(engine, body.name) as connection:
-            # The row first: it is the lock every writer of this suite contends on, so two callers
-            # racing to create one name serialize here and the loser gets a clean 409 rather than a
-            # half-built namespace. It is also the order the other two writes take their locks in.
-            connection.execute(
-                schema_table.insert().values(name=body.name, schema_json=normalized_json(body))
-            )
-            suite_tables.create(connection, body)
-            bump(connection)
+            add_suite(connection, body)
     except IntegrityError as error:
         if unique_violation_constraint(error) != SCHEMA_NAME_CONSTRAINT:
             raise

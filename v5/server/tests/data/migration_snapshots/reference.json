@@ -1,0 +1,28 @@
+{
+  "name": "reference",
+  "metrics": [
+    {
+      "name": "execution_time",
+      "type": "real",
+      "display_name": "Execution Time",
+      "unit": "seconds",
+      "unit_abbrev": "s",
+      "bigger_is_better": false
+    },
+    {"name": "code_size", "type": "integer"},
+    {"name": "hash", "type": "text"},
+    {"name": "finished_at", "type": "datetime"}
+  ],
+  "commit_fields": [
+    {"name": "short_sha", "type": "text", "searchable": true, "display": true},
+    {"name": "parent_count", "type": "integer"},
+    {"name": "weight", "type": "real"},
+    {"name": "committed_at", "type": "datetime"}
+  ],
+  "machine_fields": [
+    {"name": "hardware", "type": "text", "searchable": true},
+    {"name": "core_count", "type": "integer"},
+    {"name": "clock_ghz", "type": "real"},
+    {"name": "provisioned_at", "type": "datetime"}
+  ]
+}

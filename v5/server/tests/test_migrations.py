@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import threading
 
+import pytest
 from alembic import command
 from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from lnt_v5.migrate import (
     MIGRATION_LOCK_KEY,
+    MigrationError,
     alembic_config,
     current_revision,
     head_revision,
@@ -103,6 +106,45 @@ class TestUpgrade:
 
         assert_no_pending_revision(empty_engine)
 
+    def test_refuses_a_database_a_newer_build_migrated(self, empty_engine: Engine) -> None:
+        # D6: never backwards. A revision this build doesn't know means a newer build has migrated
+        # the database, so this build's code doesn't match the tables.
+        upgrade_to_head(empty_engine)
+        with empty_engine.begin() as connection:
+            connection.execute(text("UPDATE alembic_version SET version_num = 'from_the_future'"))
+
+        with pytest.raises(MigrationError, match="from_the_future"):
+            upgrade_to_head(empty_engine)
+
+    def test_records_existing_suites_at_the_first_migration_version(
+        self, empty_engine: Engine
+    ) -> None:
+        """0002 adds `schema.migration_version`, and sets it to 0 for every existing suite.
+
+        It then drops the default it used for that, so that creating a suite has to give the version
+        explicitly. A suite created with the latest structure but recorded at 0 would later have
+        every step applied again to tables that already have them.
+        """
+        with empty_engine.begin() as connection:
+            config = alembic_config()
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0001")
+            connection.execute(text("INSERT INTO schema (name, schema_json) VALUES ('nts', '{}')"))
+
+        upgrade_to_head(empty_engine)
+
+        with empty_engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT migration_version FROM schema WHERE name = 'nts'")
+                ).scalar_one()
+                == 0
+            )
+            with pytest.raises(IntegrityError):
+                connection.execute(
+                    text("INSERT INTO schema (name, schema_json) VALUES ('other', '{}')")
+                )
+
     def test_downgrading_undoes_it(self, empty_engine: Engine) -> None:
         upgrade_to_head(empty_engine)
 
@@ -122,11 +164,12 @@ class TestConcurrentUpgrade:
     def test_waits_for_whoever_holds_the_migration_lock(
         self, empty_engine: Engine, empty_database_url: str
     ) -> None:
-        """Two servers starting at once must not run the same DDL concurrently (D6).
+        """Two processes migrating the same database must not run the same DDL at once (D6).
 
-        Not hypothetical: a deploy replaces the EC2 instance, so the outgoing and incoming ones
-        overlap. Rather than racing two migrations and hoping the timing lines up, this holds the
-        lock explicitly and checks that a migration will not start until it is released.
+        This happens, for example, when two servers start against the same database, or when an
+        operator runs `server migrate` while a server starts. Rather than racing two migrations and
+        hoping the timing works out, this test holds the lock itself and checks that a migration
+        doesn't start until the lock is released.
         """
         finished = threading.Event()
         failure: list[BaseException] = []
@@ -180,8 +223,8 @@ def test_the_build_carries_a_head_revision() -> None:
 
 
 def test_a_connection_is_left_usable_afterwards(empty_engine: Engine) -> None:
-    # The advisory lock is taken inside the migration's own transaction and released with it;
-    # leaking a connection or a lock would show up much later as pool exhaustion or a hang.
+    # The advisory lock is held on one connection for all the transactions and released at the
+    # end. A leaked connection or lock would only show up much later, as pool exhaustion or a hang.
     upgrade_to_head(empty_engine)
 
     with empty_engine.connect() as connection:

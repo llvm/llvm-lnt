@@ -1,9 +1,10 @@
 """The global tables (D5), and the naming convention every table in an instance shares.
 
 Global tables exist once per instance. They are defined here, in code, and brought into being by
-a migration (D6). Per-suite tables are the other half of the model: defined by data rather than
-by code -- a suite's schema -- and created and altered at runtime by the suite endpoints. They
-are not defined here, but they must adopt the naming convention below.
+a migration (D6). Per-suite tables are the other half of the model. They are described in
+`suites/tables.py`, and the suite endpoints create and alter them at runtime, since which dynamic
+columns they have depends on each suite's schema. They are not defined here, but they must use the
+naming convention below.
 """
 
 from __future__ import annotations
@@ -83,11 +84,17 @@ schema = Table(
     Column("name", String(IDENTIFIER_MAX_LENGTH), primary_key=True),
     Column("schema_json", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+    # Deliberately no default: whatever creates a suite must give its version explicitly (see
+    # `suites/migrations.py`). A suite recorded at too low a version would have steps applied again
+    # to tables that already have them.
+    Column("migration_version", Integer, nullable=False),
 )
 """One row per test suite, holding that suite's normalized schema (D2, D5).
 
 `schema_json` is TEXT rather than JSONB deliberately: the server never queries into it. It is
 read whole, parsed into the in-memory model, and written whole.
+
+`migration_version` is how many per-suite migration steps have been applied to the suite (D6).
 """
 
 

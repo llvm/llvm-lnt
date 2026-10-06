@@ -75,7 +75,9 @@ class TestUnitOfWork:
         @app.post("/write")
         def write(db: EngineDep) -> dict[str, bool]:
             with db.begin() as connection:
-                connection.execute(insert(schema).values(name="nts", schema_json="{}"))
+                connection.execute(
+                    insert(schema).values(name="nts", schema_json="{}", migration_version=0)
+                )
             return {"ok": True}
 
         response = TestClient(app).post("/write")
@@ -91,7 +93,9 @@ class TestUnitOfWork:
         @app.post("/half-written")
         def half_written(db: EngineDep) -> dict[str, bool]:
             with db.begin() as connection:
-                connection.execute(insert(schema).values(name="nts", schema_json="{}"))
+                connection.execute(
+                    insert(schema).values(name="nts", schema_json="{}", migration_version=0)
+                )
                 raise RuntimeError("something went wrong after the first write")
 
         response = TestClient(app, raise_server_exceptions=False).post("/half-written")

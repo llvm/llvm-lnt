@@ -14,10 +14,12 @@ import uvicorn
 from sqlalchemy import Engine, func, inspect, select
 from sqlalchemy.exc import OperationalError
 
-from conftest import TOKEN_PATTERN
+from conftest import TOKEN_PATTERN, store_suite
 from lnt_v5 import cli, migrate
 from lnt_v5.config import get_settings
 from lnt_v5.scopes import Scope
+from lnt_v5.suites import migrations as suite_migrations
+from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.tables import api_key, metadata
 
 
@@ -50,7 +52,7 @@ def migrations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     def record(engine: Engine) -> migrate.MigrationResult:
         applied.append(engine.url.render_as_string())
-        return migrate.MigrationResult(before="0001", after="0001")
+        return migrate.MigrationResult(before="0001", after="0001", suites_migrated=())
 
     monkeypatch.setattr(migrate, "upgrade_to_head", record)
     return applied
@@ -234,6 +236,35 @@ class TestMigrate:
         assert cli.main(["server", "migrate"]) == 0
 
         assert "already up to date" in capsys.readouterr().out
+
+    def test_names_the_suites_it_migrated(
+        self,
+        configured_database: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        store_suite(configured_database, SuiteSchema.model_validate({"name": "nts"}), version=0)
+        monkeypatch.setattr(suite_migrations, "STEPS", (lambda op, suite: None,))
+
+        assert cli.main(["server", "migrate"]) == 0
+
+        assert "1 test suite(s) to migration version 1: nts" in capsys.readouterr().out
+
+    def test_reports_a_database_it_must_not_serve_without_a_traceback(
+        self,
+        configured: None,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def refused(engine: Engine) -> migrate.MigrationResult:
+            raise migrate.MigrationError("test suite 'nts' was migrated by a newer build")
+
+        monkeypatch.setattr(migrate, "upgrade_to_head", refused)
+
+        assert cli.main(["server", "migrate"]) == 1
+
+        captured = capsys.readouterr()
+        assert captured.err == "lnt-v5: test suite 'nts' was migrated by a newer build\n"
 
     def test_reports_an_unreachable_database_without_a_traceback(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
