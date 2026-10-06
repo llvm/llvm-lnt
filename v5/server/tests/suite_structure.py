@@ -18,10 +18,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
 
 from sqlalchemy import Connection, create_mock_engine
-from sqlalchemy.schema import CreateSchema, ExecutableDDLElement
+from sqlalchemy.schema import CreateIndex, CreateSchema, CreateTable, ExecutableDDLElement
 
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
@@ -53,20 +52,23 @@ def snapshot_versions() -> list[int]:
 def render(schema: SuiteSchema) -> str:
     """The DDL `suites/tables.py` creates a suite with, as text that `replay` can execute.
 
-    Captured from `create_all` against a mock engine, so it is the statements the real creation
-    issues rather than a rendering of our own. The metric rows `suite_tables.create` also inserts
-    are data, not structure, and are left out.
+    The statements `suite_tables.create` issues -- each table in dependency order, followed by its
+    indexes -- except that a table's indexes come in name order: SQLAlchemy holds them in a set, so
+    the order `create_all` issues them in changes from one run to the next. The metric rows
+    `suite_tables.create` also inserts are data, not structure, and are left out.
     """
-    statements: list[str] = []
+    dialect = create_mock_engine("postgresql+psycopg://", lambda *args, **kwargs: None).dialect
 
-    def capture(element: ExecutableDDLElement, *args: Any, **kwargs: Any) -> None:
-        compiled = str(element.compile(dialect=engine.dialect)).strip()
+    def compiled(element: ExecutableDDLElement) -> str:
+        text = str(element.compile(dialect=dialect)).strip()
         # SQLAlchemy ends most lines of a CREATE TABLE with a space, which editors strip.
-        statements.append("\n".join(line.rstrip() for line in compiled.splitlines()))
+        return "\n".join(line.rstrip() for line in text.splitlines())
 
-    engine = create_mock_engine("postgresql+psycopg://", capture)
-    capture(CreateSchema(schema.name))
-    suite_tables.build(schema).metadata.create_all(engine, checkfirst=False)
+    statements = [compiled(CreateSchema(schema.name))]
+    for table in suite_tables.build(schema).metadata.sorted_tables:
+        statements.append(compiled(CreateTable(table)))
+        indexes = sorted(table.indexes, key=lambda index: str(index.name))
+        statements.extend(compiled(CreateIndex(index)) for index in indexes)
     return _SEPARATOR.join(statements) + "\n"
 
 
