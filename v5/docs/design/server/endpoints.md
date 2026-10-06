@@ -379,9 +379,11 @@ PATCH  /api/suites/{testsuite}/regressions/{uuid}                       -- Updat
 DELETE /api/suites/{testsuite}/regressions/{uuid}                       -- Delete (cascades indicators)
 POST   /api/suites/{testsuite}/regressions/{uuid}/indicators            -- Add indicator(s) (batch)
 DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators            -- Remove indicator(s) (batch, UUIDs in body)
+POST   /api/suites/{testsuite}/regressions/indicators/query             -- Look up indicators across regressions (cursor-paginated, filterable by machine, test, metric, state, commit)
 ```
 
-Auth scopes: `read` for GET, `triage` for POST/PATCH/DELETE and indicator management.
+Auth scopes: `read` for GET and for the indicator lookup, `triage` for
+POST/PATCH/DELETE and indicator management.
 
 Regressions and their indicators are identified by UUIDs. A regression's may be
 supplied by the client at creation (see below); an indicator's is always
@@ -473,6 +475,29 @@ body; `DELETE` returns 204.
   response. A UUID naming no indicator on this regression is ignored rather than
   404, so a retried removal is not an error. An indicator of another regression
   is never removed.
+
+**Indicator lookup** (`POST /api/suites/{testsuite}/regressions/indicators/query`):
+lists indicators across every regression of the suite, so that a client holding
+many (machine, test, metric) combinations can learn which regressions cover
+which of them without one request per combination -- the Graph page's
+regression annotations (GR14), or a detector checking whether what it flagged
+is already tracked (O3). It is a `read`-scoped POST for the same reason as
+`POST /query` (E9).
+
+- Body: `{machine, test, metric, state, commit, limit, cursor}`, every key
+  optional. `machine`, `test` and `state` are lists of names, each at most I2's
+  maximum page size; `metric` and `commit` are single names. An indicator is
+  returned when its machine, test and metric are each among those named, and its
+  regression is in one of the named states and attributed to the named commit.
+  An omitted key does not filter, whereas an empty list matches nothing, as with
+  `POST /query`'s `test`.
+- Names that refer to nothing are answered as I3 says, and an unknown state
+  name is 400, as on the list above.
+- Returns I2's cursor envelope over `{uuid, regression_uuid, machine, test,
+  metric}`: the indicator as the detail response gives it, plus the UUID of the
+  regression it belongs to.
+- Sort: none; results come back in an arbitrary but deterministic order suitable
+  for pagination (I2, O5).
 
 
 ## E9: Time Series

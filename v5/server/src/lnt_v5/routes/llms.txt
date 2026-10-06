@@ -103,6 +103,7 @@ PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update tit
 DELETE /api/suites/{testsuite}/regressions/{uuid}             triage  Delete a regression
 POST   /api/suites/{testsuite}/regressions/{uuid}/indicators  triage  Add indicators
 DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators  triage  Remove indicators, by UUID
+POST   /api/suites/{testsuite}/regressions/indicators/query   read    Indicators across regressions (machine, test, metric, state, commit)
 
 GET    /api/admin/api-keys                                    admin   List API keys
 POST   /api/admin/api-keys                                    admin   Create an API key
@@ -143,11 +144,12 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
     was written; send the same request again.
 - **Names that match nothing**: a run submission creates the machine, commit
   and tests it names. Everywhere else, an unknown machine or test is 404, an
-  unknown metric is 400, and an unknown commit used as a filter (`commit=`, or
-  `/query`'s `commit`) is an empty result. A commit used as a range bound
-  (`after_commit`, `before_commit`) is 404 if unknown and 400 if it has no
-  ordinal. A commit a regression refers to is 404. A schema `PATCH` that updates
-  or removes an entry the schema does not have is 404, metrics included.
+  unknown metric or regression state is 400, and an unknown commit used as a
+  filter (`commit=`, or the `commit` of `/query` or of the indicator lookup) is
+  an empty result. A commit used as a range bound (`after_commit`,
+  `before_commit`) is 404 if unknown and 400 if it has no ordinal. A commit a
+  regression refers to is 404. A schema `PATCH` that updates or removes an
+  entry the schema does not have is 404, metrics included.
 - **Values**: timestamps are ISO 8601 in UTC with a `Z` suffix. Values in
   `fields` and `metrics` use the JSON type their declared type calls for: a
   number for `real` and `integer`, never a string, so `"5"` is not accepted for
@@ -224,6 +226,22 @@ numeric.
 profile is then read through its own UUID; every counter is a raw count.
 `GET /profiles/{uuid}/document` returns it whole: gzip-compressed and
 base64-encoded.
+
+**Check what is already tracked** before recording a regression. A change is
+tracked when a regression attributed to its commit has an indicator naming its
+machine, test and metric. Check many at once with
+`POST /regressions/indicators/query`:
+
+```json
+{"machine": ["linux-x86_64"], "test": ["bench/foo", "bench/bar"],
+ "metric": "execution_time", "commit": "abc123"}
+```
+
+Every key is optional; `machine`, `test` and `state` are lists. It returns the
+matching indicators across all regressions, each as `{uuid, regression_uuid,
+machine, test, metric}`, cursor-paginated like `/query`: a (machine, test,
+metric) it returns is already tracked at that commit. Read a regression itself
+with `GET /regressions/{uuid}`.
 
 **Record a regression** with `POST /regressions`:
 

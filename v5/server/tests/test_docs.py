@@ -12,7 +12,11 @@ from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
-from lnt_v5.routes.regressions import INDICATORS_PATH, REGRESSIONS_PATH
+from lnt_v5.routes.regressions import (
+    INDICATOR_LOOKUP_PATH,
+    INDICATORS_PATH,
+    REGRESSIONS_PATH,
+)
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
@@ -787,10 +791,11 @@ class TestProfileOperations:
 REGRESSIONS = REGRESSIONS_PATH
 REGRESSION = f"{REGRESSIONS_PATH}/{{uuid}}"
 INDICATORS = INDICATORS_PATH
+LOOKUP = INDICATOR_LOOKUP_PATH
 
 
 class TestRegressionOperations:
-    """I8: the document describes what the API can actually do, including these seven."""
+    """I8: the document describes what the API can actually do, including these eight."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
@@ -802,6 +807,7 @@ class TestRegressionOperations:
             (REGRESSION, "delete"),
             (INDICATORS, "post"),
             (INDICATORS, "delete"),
+            (LOOKUP, "post"),
         ],
     )
     def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
@@ -822,6 +828,7 @@ class TestRegressionOperations:
             (REGRESSION, "delete"),
             (INDICATORS, "post"),
             (INDICATORS, "delete"),
+            (LOOKUP, "post"),
         ],
     )
     @pytest.mark.parametrize("status", ["404", "409"])
@@ -903,7 +910,9 @@ class TestRegressionOperations:
             "indicators",
         }
 
-    @pytest.mark.parametrize("model", ["Regression", "RegressionDetail", "Indicator"])
+    @pytest.mark.parametrize(
+        "model", ["Regression", "RegressionDetail", "Indicator", "RegressionIndicator"]
+    )
     def test_the_response_promises_every_key_it_documents(
         self, client: TestClient, model: str
     ) -> None:
@@ -955,6 +964,65 @@ class TestRegressionOperations:
 
         for key in ("machine", "test", "metric"):
             assert indicator["properties"][key]["type"] == "string"
+
+    def test_the_lookup_takes_its_filters_in_the_body_rather_than_the_query_string(
+        self, client: TestClient
+    ) -> None:
+        # The reason it is a POST, as for `POST /query`: a list of test names does not fit a query
+        # string. The suite is the only thing left in the path.
+        operation = client.get("/api/openapi.json").json()["paths"][LOOKUP]["post"]
+
+        assert "requestBody" in operation
+        assert {p["name"] for p in operation.get("parameters", [])} == {"testsuite"}
+
+    def test_the_lookup_body_carries_exactly_the_keys_endpoints_md_gives_it(
+        self, client: TestClient
+    ) -> None:
+        # Exactly, not merely at least, and none of them required: every filter is optional.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["IndicatorQuery"]["properties"]) == {
+            "machine",
+            "test",
+            "metric",
+            "state",
+            "commit",
+            "limit",
+            "cursor",
+        }
+        assert "required" not in schemas["IndicatorQuery"]
+
+    def test_the_lookup_pages_with_a_cursor_over_indicators_naming_their_regression(
+        self, client: TestClient
+    ) -> None:
+        # E8: the indicator plus its regression's UUID, and no other regression field -- a client
+        # reads those from the regression list.
+        document = client.get("/api/openapi.json").json()
+        body = document["paths"][LOOKUP]["post"]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]
+        schemas = document["components"]["schemas"]
+        envelope = schemas[body["$ref"].rsplit("/", 1)[-1]]
+
+        assert set(envelope["properties"]) == {"items", "cursor"}
+        assert envelope["properties"]["items"]["items"]["$ref"].endswith("/RegressionIndicator")
+        assert set(schemas["RegressionIndicator"]["properties"]) == {
+            "uuid",
+            "regression_uuid",
+            "machine",
+            "test",
+            "metric",
+        }
+
+    def test_the_lookup_takes_states_from_the_same_enum_as_the_bodies(
+        self, client: TestClient
+    ) -> None:
+        state = client.get("/api/openapi.json").json()["components"]["schemas"]["IndicatorQuery"][
+            "properties"
+        ]["state"]
+        array = next(option for option in state["anyOf"] if option.get("type") == "array")
+
+        assert array["items"]["$ref"].endswith("/RegressionStateName")
 
     @pytest.mark.parametrize(
         ("method", "model", "count"),

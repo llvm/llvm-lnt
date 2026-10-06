@@ -329,6 +329,18 @@ def build(schema: SuiteSchema) -> SuiteTables:
             name=REGRESSION_INDICATOR_CONSTRAINT,
         ),
     )
+    # D5: the indicator lookup across regressions, which narrows by machine and test rather than by
+    # regression, and pages in this order with `id` as the cursor's tiebreaker. The unique
+    # constraint above leads with `regression_id`, so it can serve neither. Leading with
+    # `machine_id` also gives the cascade from a deleted machine an index to find its indicators
+    # by; PostgreSQL does not index a referencing column on its own.
+    Index(
+        None,
+        regression_indicator.c.machine_id,
+        regression_indicator.c.test_id,
+        regression_indicator.c.metric_id,
+        regression_indicator.c.id,
+    )
 
     profile = Table(
         "profile",

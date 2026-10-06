@@ -606,6 +606,20 @@ class TestIndexes:
 
         assert indexes["ix_regression_created_at_id"]["column_names"] == ["created_at", "id"]
 
+    def test_regression_indicator_is_indexed_by_machine_test_and_metric(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: the indicator lookup across regressions narrows by machine and test and pages in this
+        # order, which the unique constraint cannot serve since it leads with `regression_id`; and
+        # deleting a machine cascades to its indicators, which PostgreSQL does not index on its own.
+        make_suite("nts")
+
+        indexes = indexes_of(inspect(db_engine), "nts", "regression_indicator")
+
+        assert indexes["ix_regression_indicator_machine_id_test_id_metric_id_id"][
+            "column_names"
+        ] == ["machine_id", "test_id", "metric_id", "id"]
+
 
 class TestUniqueness:
     def test_a_commit_string_names_one_commit(

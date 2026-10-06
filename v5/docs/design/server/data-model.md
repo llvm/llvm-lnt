@@ -575,6 +575,11 @@ The DB layer validates state values on create and update.
 
 - Unique constraint on `(regression_id, machine_id, test_id, metric_id)`. Its
   leading column also serves lookups of all indicators for a regression.
+- Compound index on `(machine_id, test_id, metric_id, id)`: serves the
+  indicator lookup across regressions (E8), whose callers narrow by machine and
+  test rather than by regression, and which pages in this order; `id` is the
+  cursor's tiebreaker (O5). It also keeps the cascade from a deleted machine to
+  a bounded index scan rather than a scan of this table.
 - Each indicator represents one (machine, test, metric) combination
   affected by the regression.
 - Cascade: deleted with its regression, its machine, and its metric (see D2). A
