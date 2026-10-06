@@ -427,12 +427,12 @@ class Regressions:
     def keyset(self, sort: RegressionSort | None) -> Keyset:
         """O5's ordering for this list: the caller's sort, then the internal tiebreaker.
 
-        `created_at` is not unique -- every regression created in one transaction shares it -- so
-        it cannot be the whole order on its own. Nor can the id stand in for it, the way it does for
-        a commit's `first_seen`: `created_at` is when the creating transaction began and the id is
-        handed out when it inserts, so concurrent creations can order the two differently. With no
-        `sort` the tiebreaker is the whole order, which is the arbitrary but deterministic one O5
-        allows.
+        `created_at` is not unique -- nothing stops two regressions being created in the same
+        instant -- so it cannot be the whole order on its own. Nor can the id stand in for it, the
+        way it does for a commit's `first_seen`: `created_at` is when the creating transaction began
+        and the id is handed out when it inserts, so concurrent creations can order the two
+        differently. With no `sort` the tiebreaker is the whole order, which is the arbitrary but
+        deterministic one O5 allows.
         """
         if sort is None:
             return Keyset(tiebreaker=self.table.c.id)

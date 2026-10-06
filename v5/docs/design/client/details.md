@@ -60,7 +60,9 @@ flag is not a lifetime policy: untracked machines are kept indefinitely.
 ### Active regressions table
 
 A section showing non-resolved regressions (state: detected, active) with at least one
-indicator on this machine. Each row's title links to its regression detail page.
+indicator on this machine, newest first
+(`GET /regressions?machine={name}&state=detected&state=active&sort=-created_at&limit=25`).
+Each row's title links to its regression detail page.
 
 Each row shows:
 - Regression: the regression's title (truncated to 50 chars, or (untitled)), link to the regression detail page
@@ -186,9 +188,9 @@ If the commit has no ordinal, these buttons are greyed out.
 
 ### Regressions section
 
-Section listing regressions where `commit` matches this commit's value. Each row's title
-links to its regression detail page. Displays `No regressions at this commit.` if there
-are no regressions.
+Section listing regressions where `commit` matches this commit's value, newest first
+(`sort=-created_at`). Each row's title links to its regression detail page. Displays
+`No regressions at this commit.` if there are no regressions.
 
 ### Runs section
 
@@ -215,6 +217,8 @@ edited.
   see AR2). Nullable.
 - Notes: text display with Edit button. Edit mode shows textarea + Save/Cancel.
   Ctrl/Cmd+Enter saves. Display preserves line breaks (pre-wrap).
+
+The header also shows, read-only, when the regression was created (`created_at`).
 
 **Delete regression**: Button with type-to-confirm prompt. Requires `triage`
 scope. On success, navigates to the regressions tab.

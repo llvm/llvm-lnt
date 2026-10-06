@@ -96,7 +96,7 @@ GET    /api/suites/{testsuite}/profiles/{uuid}/functions      read    Its functi
 GET    /api/suites/{testsuite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
 GET    /api/suites/{testsuite}/profiles/{uuid}/document       read    The whole profile, as the document a submission carries
 
-GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, test=, metric=, ...)
+GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, search=, sort=, ...)
 POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
 GET    /api/suites/{testsuite}/regressions/{uuid}             read    One regression, with its indicators
 PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit

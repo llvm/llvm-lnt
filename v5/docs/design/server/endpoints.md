@@ -447,10 +447,10 @@ endpoints below.
 
 **List response items** carry exactly: `uuid`, `title`, `bug`, `state`,
 `commit`, `created_at`, `machine_count`, `test_count`. The `notes` field is
-included in detail responses only, not in list responses. `machine_count` and `test_count` count
-the distinct machines and tests across the regression's indicators, independent
-of any `machine=` or `test=` filter on the request -- they describe the
-regression, not the query.
+included in detail responses only, not in list responses. `machine_count` and
+`test_count` count the distinct machines and tests across the regression's
+indicators, independent of any `machine=` or `test=` filter on the request --
+they describe the regression, not the query.
 
 `POST` returns 201 with the created regression's detail body and a `Location`
 header pointing at its detail route, or 409 `duplicate` if a regression with

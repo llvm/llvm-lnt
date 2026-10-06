@@ -119,7 +119,7 @@ def regression_at(
 ) -> Callable[..., str]:
     """Create a regression and move its `created_at` where the test needs it.
 
-    Created through the API, and only the clock forced afterwards: a request cannot supply it (E8),
+    Created through the API, and only the clock forced afterwards: a request cannot supply it (D5),
     and every regression a test creates would otherwise fall within the same second or so.
     """
 
@@ -536,29 +536,27 @@ class TestSort:
         assert uuids_in(listed(api_client, "sort=created_at")) == [old, new]
 
     def test_serves_regressions_sharing_an_instant_exactly_once(
-        self,
-        api_client: TestClient,
-        db_engine: Engine,
-        suite: SuiteTables,
-        create: Callable[..., Any],
+        self, api_client: TestClient, regression_at: Callable[..., str]
     ) -> None:
-        # O5: `created_at` is not unique -- every regression created in one transaction shares it
-        # -- so the keyset needs its internal tiebreaker. Without one, a page boundary falling
-        # between two of them drops one and repeats the other.
-        created = [create()["uuid"] for _ in range(3)]
-        with db_engine.begin() as connection:
-            connection.execute(
-                update(suite.regression).values(created_at=datetime(2026, 3, 4, tzinfo=UTC))
-            )
+        # O5: `created_at` is not unique -- nothing stops two regressions being created in the same
+        # instant -- so the keyset needs its internal tiebreaker. Without one, a page boundary
+        # falling between two of them drops one and repeats the other.
+        moment = datetime(2026, 3, 4, tzinfo=UTC)
+        created = [regression_at(moment) for _ in range(3)]
 
         assert sorted(walk(api_client, "sort=-created_at&limit=2")) == sorted(created)
 
     def test_pages_the_sorted_order(
         self, api_client: TestClient, regression_at: Callable[..., str]
     ) -> None:
-        created = [regression_at(datetime(2026, 1, day, tzinfo=UTC)) for day in range(1, 6)]
+        # Created out of order, so that a cursor resuming by the id alone would serve the wrong
+        # regressions after a page boundary.
+        days = [3, 1, 5, 2, 4]
+        created = {day: regression_at(datetime(2026, 1, day, tzinfo=UTC)) for day in days}
 
-        assert walk(api_client, "sort=-created_at&limit=2") == list(reversed(created))
+        assert walk(api_client, "sort=-created_at&limit=2") == [
+            created[day] for day in sorted(days, reverse=True)
+        ]
 
     def test_applies_to_the_filtered_list(
         self, api_client: TestClient, regression_at: Callable[..., str]

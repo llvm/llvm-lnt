@@ -289,7 +289,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         # by a regression undeletable, and this constraint is what produces that refusal -- which
         # the API reports as `conflict` (I4).
         Column("commit_id", ForeignKey("commit.id"), nullable=True, index=True),
-        # The database's clock, as for `run.submitted_at`. A request cannot supply this (E8).
+        # The database's clock, as for `run.submitted_at`. A request cannot supply this (D5).
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         # D5 has the database layer validate the state. Restating it as a constraint costs nothing
         # -- the five values are fixed for v5 -- and in exchange a bug that writes an unknown state
