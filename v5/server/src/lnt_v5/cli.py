@@ -74,11 +74,21 @@ def _migrate(settings: Settings) -> int:
             result = migrate.upgrade_to_head(engine)
     except DBAPIError as error:
         return _fail(_database_problem(error))
+    except migrate.MigrationError as error:
+        return _fail(str(error))
 
-    if result.applied:
+    if result.before != result.after:
         print(f"Migrated the database from {result.before or 'empty'} to {result.after}.")
-    else:
-        print(f"The database is already up to date at revision {result.after}.")
+    if result.suites_migrated:
+        print(
+            f"Migrated the built-in tables of {len(result.suites_migrated)} test suite(s) to "
+            f"structure version {result.structure_version}: {', '.join(result.suites_migrated)}."
+        )
+    if not result.applied:
+        print(
+            f"The database is already up to date at revision {result.after}, with every test "
+            f"suite at structure version {result.structure_version}."
+        )
     return 0
 
 

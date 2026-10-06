@@ -129,8 +129,13 @@ renamed before production can be torn down again.
 ## Database schema
 
 The app applies any outstanding schema changes to its database when it starts, before it begins
-serving. This only covers the instance-wide tables. Per-suite tables are created and altered through
-the test-suite API as suites are defined, not by a migration.
+serving: first to the instance-wide tables, then to the built-in tables of every existing test suite.
+A suite's own metrics and fields are a different matter -- their columns are created and altered
+through the test-suite API as the suite is defined, not by a migration.
+
+Migrations do not keep the previous version of the app working, which is fine because a deployment
+replaces the instance rather than running both side by side. Starting an older image against a
+database that a newer one has migrated fails rather than serving.
 
 To inspect or apply the schema by hand, run the same command the server runs at startup:
 

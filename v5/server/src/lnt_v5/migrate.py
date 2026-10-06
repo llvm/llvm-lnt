@@ -1,8 +1,11 @@
 """Bringing a database up to the structure the code expects (D6).
 
-Only the global tables are managed here. Per-suite tables are created and altered at runtime from
-a suite's schema, which is a different mechanism for a different reason: those tables are defined
-by data, so no revision written in advance could describe them.
+Two sequences of changes are applied here, in this order. The global tables are migrated by
+Alembic, from the revisions in `migrations/`. Then the built-in structure of every existing suite is
+brought forward by the steps in `suites/migrations.py`, each suite in a transaction of its own.
+
+Neither touches a suite's dynamic columns, which are defined by data -- the suite's schema -- and
+are created and altered at runtime by the suite endpoints instead.
 """
 
 from __future__ import annotations
@@ -12,9 +15,15 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import Connection, Engine, text
+from pydantic import ValidationError
+from sqlalchemy import Connection, Engine, select, text, update
+
+from lnt_v5.suites import migrations
+from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.tables import schema
 
 # Inside the package rather than beside it, because the Dockerfile copies only `server/src` and
 # installs the result into site-packages -- migrations left outside would simply not exist in the
@@ -22,22 +31,31 @@ from sqlalchemy import Connection, Engine, text
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 # An arbitrary but fixed key for Postgres' advisory locks, spelling "LNT5". Every process that
-# applies migrations takes it first, so two servers starting at once cannot run the same DDL
-# concurrently -- which is not hypothetical: a deploy replaces the EC2 instance, and the outgoing
-# and incoming ones overlap.
+# applies migrations takes it first, so that two of them -- two servers starting against one
+# database, or an operator running `lnt-v5 server migrate` while a server starts -- cannot run the
+# same DDL concurrently.
 MIGRATION_LOCK_KEY = 0x4C4E5435
+
+
+class MigrationError(Exception):
+    """A database this build must not serve, for a reason an operator can act on.
+
+    Not a database error: everything here was read successfully, and what was read is the problem.
+    """
 
 
 @dataclass(frozen=True)
 class MigrationResult:
-    """Which revision the database was at, and which it is at now."""
+    """What the database was at, what it is at now, and which suites had to be brought forward."""
 
     before: str | None
     after: str | None
+    structure_version: int
+    suites_migrated: tuple[str, ...]
 
     @property
     def applied(self) -> bool:
-        return self.before != self.after
+        return self.before != self.after or bool(self.suites_migrated)
 
 
 def alembic_config() -> Config:
@@ -62,22 +80,108 @@ def head_revision() -> str | None:
 
 
 def upgrade_to_head(engine: Engine) -> MigrationResult:
-    """Apply every outstanding migration, or do nothing if there are none.
+    """Apply every outstanding change, or do nothing if there are none.
 
     Safe to call concurrently and safe to call repeatedly: the advisory lock serializes callers,
     and whichever one arrives second finds the work already done.
+
+    The lock is a session-level one, held on one connection across several transactions -- the
+    global migration's, then one per suite -- rather than tied to a single transaction, so that a
+    suite that fails to migrate leaves the suites before it migrated. Every transaction runs on that
+    same connection, so the lock cannot outlive the work by being stranded on another one.
     """
-    # One transaction around the lock and every revision. Postgres has transactional DDL, so a
-    # migration that fails halfway leaves nothing behind, and `pg_advisory_xact_lock` is released
-    # by the same commit or rollback -- no unlock to get wrong, and no second connection whose only
-    # job is to hold a session-scoped lock. Alembic notices the connection is already in a
-    # transaction and leaves the commit to us.
-    with engine.begin() as connection:
-        connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
+    with engine.connect() as connection:
+        connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
+        connection.commit()
+        try:
+            before, after = _upgrade_global_tables(connection)
+            migrated = _upgrade_suites(connection)
+        finally:
+            # A no-op unless a failure left a transaction open, which the unlock cannot run inside.
+            connection.rollback()
+            connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY})
+            connection.commit()
+
+    return MigrationResult(
+        before=before,
+        after=after,
+        structure_version=migrations.head(),
+        suites_migrated=migrated,
+    )
+
+
+def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | None]:
+    """Apply every outstanding Alembic revision, and report the revisions before and after.
+
+    One transaction around every revision. Postgres has transactional DDL, so a migration that fails
+    halfway leaves nothing behind. Alembic notices the connection is already in a transaction and
+    leaves the commit to us.
+    """
+    with connection.begin():
         before = current_revision(connection)
         config = alembic_config()
         config.attributes["connection"] = connection
         command.upgrade(config, "head")
         after = current_revision(connection)
+    return before, after
 
-    return MigrationResult(before=before, after=after)
+
+def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
+    """Bring every suite's built-in structure forward to this build's, and name the ones that moved.
+
+    Every suite is checked before any is migrated, so that a database this build must refuse is
+    refused as it was found rather than after part of it has been migrated anyway.
+    """
+    head = migrations.head()
+    with connection.begin():
+        positions = connection.execute(
+            select(schema.c.name, schema.c.structure_version).order_by(schema.c.name)
+        ).all()
+
+    for name, version in positions:
+        if version > head:
+            raise MigrationError(
+                f"test suite '{name}' is at structure version {version}, but this build only knows "
+                f"up to version {head}: it was migrated by a newer build, which is the one to run"
+            )
+    return tuple(
+        name
+        for name, version in positions
+        if version < head and _upgrade_suite(connection, name, head)
+    )
+
+
+def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
+    """Run one suite's outstanding steps in one transaction, and say whether it still existed.
+
+    The suite's `schema` row is locked first, as every change to a suite does (see `store.py`), so
+    that a server already running cannot change or drop the suite while its tables are rebuilt. It
+    waits as long as that takes: unlike a request, nothing is waiting on this to free a connection.
+    """
+    with connection.begin():
+        row = connection.execute(
+            select(schema.c.schema_json, schema.c.structure_version)
+            .where(schema.c.name == name)
+            .with_for_update()
+        ).one_or_none()
+        if row is None:
+            # Deleted since the versions were read, which only a running server can do.
+            return False
+
+        try:
+            suite = SuiteSchema.model_validate_json(row.schema_json)
+        except ValidationError as error:
+            # Unlike the registry, which skips a suite it cannot parse and serves the rest, this
+            # has to stop: the steps need the schema, and a suite left behind would fail later.
+            raise MigrationError(
+                f"test suite '{name}' cannot be migrated, because its stored schema is invalid: "
+                f"{error}"
+            ) from error
+
+        operations = Operations(MigrationContext.configure(connection))
+        for step in migrations.STEPS[row.structure_version : head]:
+            step(operations, suite)
+        connection.execute(
+            update(schema).where(schema.c.name == name).values(structure_version=head)
+        )
+    return True

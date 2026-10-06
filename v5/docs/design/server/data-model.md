@@ -307,6 +307,7 @@ of its own named after its suite (see below).
 | name | VARCHAR | PK |
 | schema_json | TEXT | not null |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
+| structure_version | INTEGER | not null |
 
 - One row per test suite, holding the suite's schema (see D4).
 - `schema_json` holds the *normalized* schema -- the same content
@@ -314,6 +315,9 @@ of its own named after its suite (see below).
   rather than the request body as submitted. It is stored as text rather than
   JSONB because the server never queries into it: it is read whole, parsed
   into the in-memory model, and written whole.
+- `structure_version` records how far the suite's built-in structure has been
+  brought along its sequence of changes (see D6). It has nothing to do with
+  `schema_version` below, which only announces that some suite changed.
 - See D4 for limits on the schema name.
 
 #### `schema_version`
@@ -327,7 +331,9 @@ of its own named after its suite (see below).
   (see D6) and never deleted. Readers may rely on its presence; `id` is fixed
   at `1` so that the row is addressable without a search.
 - Bumped whenever a suite is created, modified, or deleted, so that other
-  workers can detect that their cached schemas are stale (see D2).
+  workers can detect that their cached schemas are stale (see D2). Bringing a
+  suite's built-in structure forward (D6) changes no schema, and does not bump
+  it.
 
 #### `api_key`
 
@@ -658,51 +664,71 @@ The DB layer validates state values on create and update.
 
 ## D6: Database Initialization and Evolution
 
-The two groups of tables in D5 come into being by two different mechanisms,
-because they are defined by different things.
+The structure D5 describes is decided partly by data and partly by code, and
+the two parts evolve by different means.
 
-**Per-suite tables are defined by data.** A suite's schema decides which tables
-exist and which columns they carry, so no description written in advance could
-cover them. They are created by `POST /api/suites`, altered by
-`PATCH /api/suites/{name}/schema`, and dropped by `DELETE /api/suites/{name}`
-(see D2). This is ordinary request handling, not initialization.
+**Dynamic columns are defined by data.** A suite's schema decides which columns
+its tables carry beyond the built-in ones, so no description written in advance
+could cover them. They are created with the suite by `POST /api/suites`,
+altered by `PATCH /api/suites/{name}/schema`, and dropped with it by
+`DELETE /api/suites/{name}` (see D2). This is ordinary request handling, not
+initialization.
 
-Only the dynamic columns are defined by data, though. The built-in columns,
-indexes and constraints D5 specifies are fixed by the server build and created
-with the suite, and nothing brings an existing suite forward when a later build
-changes them: such a change reaches only suites created after it.
+**Everything else is defined by code.** The global tables (`schema`,
+`schema_version`, `api_key`), and the built-in columns, indexes and constraints
+of every per-suite table, are fixed by the server build rather than by anything
+a user submits. A database must therefore be brought to the structure the
+running build expects before that build serves traffic, and must be brought
+forward again whenever a later build changes it -- including every suite that
+already exists, not only the ones created afterwards. This is what "when the
+database is initialized" in D5 refers to.
 
-**Global tables are defined by code.** `schema`, `schema_version`, and
-`api_key` are fixed by the server build rather than by anything a user submits.
-A database must therefore be brought to the structure the running build expects
-before that build serves traffic, and must be brought forward again whenever a
-later build changes it. This is what "when the database is initialized" in D5
-refers to.
+Changes form two sequences: one for the global tables, and one for the built-in
+structure of a suite, which every suite goes through on its own. Requirements on
+the mechanism that applies them:
 
-Requirements on that mechanism:
-
-- **Ordered and recorded.** Changes to the global tables form a sequence, and
-  the database records how far along it is, so that a build can tell what
-  remains to be applied. Creating the tables in an empty database is the first
-  step of that sequence, not a separate path.
+- **Ordered and recorded.** The database records how far along each sequence it
+  is -- once for the global tables, and once per suite, in that suite's
+  `structure_version` (D5) -- so that a build can tell what remains to be
+  applied. Creating the global tables in an empty database is the first step of
+  theirs, not a separate path. A suite is created at the end of its sequence as
+  the creating build knows it, so it has nothing left to apply.
+- **Global tables first.** No suite is brought forward until the global tables
+  are current.
 - **Idempotent.** Applying it against an already-current database does nothing
   and succeeds. The server applies it on every start, so doing nothing is the
   common case.
-- **All-or-nothing per step.** A step that fails leaves the database as it was.
+- **All-or-nothing.** A global step that fails leaves the database as it was. A
+  suite is brought forward as a whole: if any of its steps fails, the suite is
+  left as it was, although suites already brought forward stay so.
+- **Equivalent to creation.** A suite brought forward has exactly the built-in
+  columns, indexes and constraints that the same build gives a suite it creates.
+  A step is given the suite's schema, since some built-in structure is
+  per-metric (`{suite}.test_coverage`), and may move data as well as change
+  structure.
+- **Never backwards.** The database, or a suite, that a newer build has brought
+  further than the running build knows is refused rather than served by code
+  that does not match it.
 - **Safe under concurrency.** At most one process may apply changes at a time,
-  and the others wait rather than failing. Two servers starting against one
-  database is normal: a deployment that replaces the instance overlaps the
-  outgoing and incoming ones.
-- **Confined to the default namespace.** The mechanism must not create, alter, or
-  drop anything in a suite's namespace, and must not treat its contents as
-  something to reconcile. A tool that compares the database against the global
-  definitions would otherwise see every per-suite table as unaccounted for, and
-  propose dropping all of them.
+  and the others wait rather than failing -- two servers starting against one
+  database, say, or an operator applying changes by hand while a server starts.
+  A change need not keep the previous build working, though: a deployment stops
+  the outgoing build before the incoming one starts, and accepts a short outage
+  in exchange.
+- **The global mechanism is confined to the default namespace.** What applies
+  the global changes must not create, alter, or drop anything in a suite's
+  namespace, and must not treat its contents as something to reconcile. A tool
+  that compares the database against the global definitions would otherwise see
+  every per-suite table as unaccounted for, and propose dropping all of them.
 - **Seeds `schema_version`.** The single row D5 requires (`id = 1`,
   `version = 0`) exists from the moment the global tables do, so that every
   reader can address it without coping with its absence.
 
-The server applies it at startup, before it begins serving, and refuses to
-serve if it fails -- a server whose tables are not those its code expects would
-fail every request. It is also available as a standalone administrative
-operation, so an operator can apply or inspect it without starting a server.
+The stored schemas are data in a global table, so a change to the schema format
+(D4) that stored `schema_json` values no longer satisfy is a global step too.
+
+The server applies all of this at startup, before it begins serving, and refuses
+to serve if any of it fails -- a server whose tables are not those its code
+expects would fail every request. It is also available as a standalone
+administrative operation, so an operator can apply or inspect it without
+starting a server.

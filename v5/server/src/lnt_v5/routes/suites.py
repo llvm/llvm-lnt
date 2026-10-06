@@ -20,7 +20,7 @@ from lnt_v5.db import EngineDep, is_duplicate_schema, unique_violation_constrain
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
-from lnt_v5.suites import evolve
+from lnt_v5.suites import evolve, migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.registry import RegistryDep
@@ -89,8 +89,14 @@ def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> Su
             # The row first: it is the lock every writer of this suite contends on, so two callers
             # racing to create one name serialize here and the loser gets a clean 409 rather than a
             # half-built namespace. It is also the order the other two writes take their locks in.
+            # The tables are created as this build describes them, which is the end of the
+            # sequence that brings a suite's built-in structure forward (D6): nothing to apply.
             connection.execute(
-                schema_table.insert().values(name=body.name, schema_json=normalized_json(body))
+                schema_table.insert().values(
+                    name=body.name,
+                    schema_json=normalized_json(body),
+                    structure_version=migrations.head(),
+                )
             )
             suite_tables.create(connection, body)
             bump(connection)

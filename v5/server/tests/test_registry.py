@@ -37,7 +37,9 @@ def store(db_engine: Engine) -> Callable[..., SuiteSchema]:
         parsed = schema_for(name, **overrides)
         with db_engine.begin() as connection:
             connection.execute(
-                insert(schema).values(name=name, schema_json=normalized_json(parsed))
+                insert(schema).values(
+                    name=name, schema_json=normalized_json(parsed), structure_version=0
+                )
             )
             suite_tables.create(connection, parsed)
             bump(connection)
@@ -246,7 +248,9 @@ class TestBadRows:
         store("good")
         with db_engine.begin() as connection:
             connection.execute(
-                insert(schema).values(name="bad", schema_json='{"name": "bad", "nonsense": 1}')
+                insert(schema).values(
+                    name="bad", schema_json='{"name": "bad", "nonsense": 1}', structure_version=0
+                )
             )
             bump(connection)
 
