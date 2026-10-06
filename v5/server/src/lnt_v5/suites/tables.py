@@ -1,12 +1,12 @@
 """A suite's own tables (D5), built from its schema, and the DDL that puts them in the database.
 
-Per-suite tables are the half of the model whose columns are partly defined by *data*: which
-dynamic columns exist follows from a suite's schema, so no migration written in advance could
-describe them (D6). They are created here, at runtime, by the suite endpoints.
+Which dynamic columns a suite's tables have depends on the suite's schema, so no migration written
+in advance could describe them (D6). The suite endpoints create and alter them at runtime, using
+this module.
 
-Everything else about them is decided by code, though, and describes the structure as of the latest
-step in `suites/migrations.py`. Changing any of it needs a new step there too, so that existing
-suites are brought forward to match.
+Everything else about these tables is decided by the code here, which describes the structure after
+the latest step in `suites/migrations.py`. Any change to it needs a new step there too, so that
+existing suites are migrated to match.
 
 Each suite's tables live in a PostgreSQL namespace of their own, named after the suite, so a table
 is addressed as `{suite}.commit`. That is what lets every suite carry *identical* constraint names:

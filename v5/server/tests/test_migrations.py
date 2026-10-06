@@ -107,8 +107,8 @@ class TestUpgrade:
         assert_no_pending_revision(empty_engine)
 
     def test_refuses_a_database_a_newer_build_migrated(self, empty_engine: Engine) -> None:
-        # D6: never backwards. A revision this build does not carry means a newer build has been
-        # here, and this one's code does not match the tables it left.
+        # D6: never backwards. A revision this build doesn't know means a newer build has migrated
+        # the database, so this build's code doesn't match the tables.
         upgrade_to_head(empty_engine)
         with empty_engine.begin() as connection:
             connection.execute(text("UPDATE alembic_version SET version_num = 'from_the_future'"))
@@ -119,11 +119,11 @@ class TestUpgrade:
     def test_records_existing_suites_at_the_first_migration_version(
         self, empty_engine: Engine
     ) -> None:
-        """0002 adds `schema.migration_version`, and gives every suite already there version 0.
+        """0002 adds `schema.migration_version`, and sets it to 0 for every existing suite.
 
-        Then drops the default it used to do so, so that creating a suite has to state a version: a
-        suite created at the latest structure but recorded at 0 would have every step replayed onto
-        tables that already have them.
+        It then drops the default it used for that, so that creating a suite has to give the version
+        explicitly. A suite created with the latest structure but recorded at 0 would later have
+        every step applied again to tables that already have them.
         """
         with empty_engine.begin() as connection:
             config = alembic_config()
@@ -164,12 +164,12 @@ class TestConcurrentUpgrade:
     def test_waits_for_whoever_holds_the_migration_lock(
         self, empty_engine: Engine, empty_database_url: str
     ) -> None:
-        """Two processes migrating one database must not run the same DDL concurrently (D6).
+        """Two processes migrating the same database must not run the same DDL at once (D6).
 
-        Two servers starting against one database, say, or an operator running `server migrate` by
-        hand while a server starts. Rather than racing two migrations and hoping the timing lines
-        up, this holds the lock explicitly and checks that a migration will not start until it is
-        released.
+        This happens, for example, when two servers start against the same database, or when an
+        operator runs `server migrate` while a server starts. Rather than racing two migrations and
+        hoping the timing works out, this test holds the lock itself and checks that a migration
+        doesn't start until the lock is released.
         """
         finished = threading.Event()
         failure: list[BaseException] = []
@@ -223,8 +223,8 @@ def test_the_build_carries_a_head_revision() -> None:
 
 
 def test_a_connection_is_left_usable_afterwards(empty_engine: Engine) -> None:
-    # The advisory lock is held on one connection across every transaction and released at the
-    # end; leaking a connection or a lock would show up much later as pool exhaustion or a hang.
+    # The advisory lock is held on one connection for all the transactions and released at the
+    # end. A leaked connection or lock would only show up much later, as pool exhaustion or a hang.
     upgrade_to_head(empty_engine)
 
     with empty_engine.connect() as connection:

@@ -1,11 +1,11 @@
 """Bringing a database up to the structure the code expects (D6).
 
-Two sequences of changes are applied here, in this order. The global tables are migrated by
-Alembic, from the revisions in `migrations/`. Then the tables of every existing suite are brought
-forward by the steps in `suites/migrations.py`, each suite in a transaction of its own.
+This applies two kinds of migrations, in this order. First, Alembic migrates the global tables,
+using the revisions in `migrations/`. Then the tables of every existing suite are migrated with the
+steps in `suites/migrations.py`, one transaction per suite.
 
-Neither adds or removes a suite's dynamic columns: which of those exist is decided by data -- the
-suite's schema -- so the suite endpoints create and drop them at runtime instead.
+Neither adds nor removes a suite's dynamic columns. Those come from the suite's schema, and the
+suite endpoints create and drop them at runtime.
 """
 
 from __future__ import annotations
@@ -31,16 +31,17 @@ from lnt_v5.tables import schema
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 # An arbitrary but fixed key for Postgres' advisory locks, spelling "LNT5". Every process that
-# applies migrations takes it first, so that two of them -- two servers starting against one
-# database, or an operator running `lnt-v5 server migrate` while a server starts -- cannot run the
-# same DDL concurrently.
+# applies migrations takes it first, so that two of them cannot run the same DDL at the same time --
+# for example, two servers starting against the same database, or an operator running
+# `lnt-v5 server migrate` while a server starts.
 MIGRATION_LOCK_KEY = 0x4C4E5435
 
 
 class MigrationError(Exception):
-    """A database this build must not serve, for a reason an operator can act on.
+    """Raised when this build must not serve the database, for a reason an operator can fix.
 
-    Not a database error: everything here was read successfully, and what was read is the problem.
+    This is not a database error: the data was read without problems, but what it says rules out
+    serving it.
     """
 
 
@@ -88,10 +89,11 @@ def upgrade_to_head(engine: Engine) -> MigrationResult:
     Safe to call concurrently and safe to call repeatedly: the advisory lock serializes callers,
     and whichever one arrives second finds the work already done.
 
-    The lock is a session-level one, held on one connection across several transactions -- the
-    global migration's, then one per suite -- rather than tied to a single transaction, so that a
-    suite that fails to migrate leaves the suites before it migrated. Every transaction runs on that
-    same connection, so the lock cannot outlive the work by being stranded on another one.
+    The lock is held by the session rather than by a single transaction, because the work spans
+    several transactions: one for the global tables, then one per suite. If a suite fails to
+    migrate, the suites before it stay migrated. Every transaction runs on the same connection as
+    the lock, so the lock is released when the work is done and can't be left behind on another
+    connection.
     """
     with engine.connect() as connection:
         connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
@@ -100,7 +102,7 @@ def upgrade_to_head(engine: Engine) -> MigrationResult:
             before, after = _upgrade_global_tables(connection)
             migrated = _upgrade_suites(connection)
         finally:
-            # A no-op unless a failure left a transaction open, which the unlock cannot run inside.
+            # Roll back any transaction a failure left open, since the unlock can't run inside it.
             connection.rollback()
             connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY})
             connection.commit()
@@ -121,8 +123,8 @@ def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | No
         before = current_revision(connection)
         if before is not None and before not in known:
             raise MigrationError(
-                f"the database is at revision {before}, which this build does not know: it was "
-                "migrated by a newer build, which is the one to run"
+                f"the database is at revision {before}, which this build does not know. A newer "
+                "build has migrated it; run that build instead"
             )
         config.attributes["connection"] = connection
         command.upgrade(config, "head")
@@ -131,10 +133,10 @@ def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | No
 
 
 def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
-    """Bring every suite's tables forward to this build's, and name the suites that moved.
+    """Migrate the tables of every suite that is behind, and return the names of those suites.
 
-    Every suite is checked before any is migrated, so that a database this build must refuse is
-    refused as it was found rather than after part of it has been migrated anyway.
+    Every suite is checked before any of them is migrated, so that if this build has to refuse the
+    database, it does so before changing anything.
     """
     head = migrations.head()
     with connection.begin():
@@ -148,15 +150,15 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
         if version > head:
             raise MigrationError(
                 f"test suite '{name}' is at migration version {version}, but this build only knows "
-                f"up to version {head}: it was migrated by a newer build, which is the one to run"
+                f"up to version {head}. A newer build has migrated it; run that build instead"
             )
         if version < head:
             try:
                 SuiteSchema.model_validate_json(schema_json)
             except ValidationError as error:
-                # Unlike the registry, which skips a suite it cannot parse and serves the rest, this
-                # has to stop: the steps need the schema, and a suite left behind would be served
-                # unmigrated once its row was repaired.
+                # The registry skips a suite it cannot parse and serves the others, but here we
+                # have to stop: the steps need the schema, and if we skipped the suite, it would be
+                # served without its migrations once someone fixed the row.
                 raise MigrationError(
                     f"test suite '{name}' cannot be migrated, because its stored schema is "
                     f"invalid: {error}"
@@ -170,12 +172,12 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
 
 
 def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
-    """Run one suite's outstanding steps in one transaction, and say whether any were run.
+    """Run one suite's outstanding steps in a single transaction. Returns whether any steps ran.
 
-    The suite's `schema` row is locked first, as every change to a suite does (see `store.py`), so
-    that a server already running cannot change or drop the suite while its tables are rebuilt. It
-    waits as long as that takes: unlike a request, nothing is waiting on this to free a connection.
-    The row is read again under that lock, which is what the steps are run from.
+    Like every change to a suite (see `store.py`), this first locks the suite's `schema` row, so
+    that a running server can't change or drop the suite while its tables are being migrated. It
+    waits for the lock as long as necessary: unlike a request, nothing else is waiting for this
+    connection. The steps use the row as read under the lock.
     """
     with connection.begin():
         row = connection.execute(
@@ -184,8 +186,8 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
             .with_for_update()
         ).one_or_none()
         if row is None or row.migration_version >= head:
-            # Dropped, or dropped and created again at the latest version, since the first pass --
-            # which only a running server can do.
+            # Only possible if a running server deleted the suite since the first pass, or deleted
+            # it and created it again at the latest version.
             return False
 
         suite = SuiteSchema.model_validate_json(row.schema_json)

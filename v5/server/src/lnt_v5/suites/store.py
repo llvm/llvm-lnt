@@ -64,8 +64,8 @@ def add_suite(connection: Connection, suite: SuiteSchema) -> None:
     create one name serialize here and the loser fails on its primary key rather than leaving a
     half-built namespace. It is also the order the other writes take their locks in.
 
-    The tables are created as this build describes them, which is the end of the sequence that
-    brings a suite's tables forward (D6), so that is the version recorded.
+    The tables are created with this build's latest structure, so the suite is recorded at the
+    latest migration version (D6).
     """
     connection.execute(
         insert(schema).values(

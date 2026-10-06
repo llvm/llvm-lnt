@@ -1,18 +1,19 @@
 """Snapshots of a suite's tables at every migration version (D6, `suites/migrations.py`).
 
-`test_suite_migrations.py` holds the code to them: the snapshot of the latest version must match
-what `suites/tables.py` creates today, and every older one, migrated, must match it too. A change to
-`suites/tables.py` therefore fails a test until it comes with a step and a new snapshot. They hold
-structure only: a step that moves data needs a test of its own for that.
+`test_suite_migrations.py` checks two things against them: the snapshot of the latest version
+must match what `suites/tables.py` creates today, and every older snapshot, once migrated, must
+match it too. So changing `suites/tables.py` makes a test fail until the change comes with a step
+and a new snapshot. The snapshots only cover structure, so a step that changes data needs its own
+test.
 
-Each snapshot is the DDL that creates one fixed reference suite, as this module renders it from
-`suites/tables.py` at the time the version is current. Never edit or regenerate an existing one: it
-records what suites created at that version actually have, which is what the steps after it must
-start from. After adding a step, write the new version's snapshot with
+Each snapshot is the DDL that creates a fixed reference suite, as rendered from `suites/tables.py`
+when that version was the latest. Never edit or regenerate an existing snapshot: it records the
+tables that suites created at that version actually have, which is what later steps start from.
+After adding a step, write the snapshot for the new version with
 
     uv run --frozen python tests/migration_snapshots.py
 
-which refuses to overwrite a snapshot that already exists.
+which refuses to overwrite an existing snapshot.
 """
 
 from __future__ import annotations
@@ -29,8 +30,9 @@ from lnt_v5.suites.schema import SuiteSchema
 
 SNAPSHOTS_DIR = Path(__file__).resolve().parent / "data" / "migration_snapshots"
 
-# Exercises everything the structure depends on: every attribute type in each of
-# the three lists, and the presentation keys. Frozen with the snapshots, which are rendered from it.
+# Uses every attribute type in each of the three lists, and the presentation keys, so that the
+# snapshots cover everything the structure depends on. Never change it: the snapshots are rendered
+# from it.
 REFERENCE_SCHEMA = SNAPSHOTS_DIR / "reference.json"
 
 # Between statements in a snapshot. None of the DDL contains it, so splitting on it is exact.

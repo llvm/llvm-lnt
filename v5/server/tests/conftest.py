@@ -402,12 +402,11 @@ def code_of(response: Any) -> str:
 
 
 def store_suite(engine: Engine, suite: SuiteSchema, version: int) -> None:
-    """A suite recorded at structure `version`, as the build that created it would have left it.
+    """Create a suite the way the server does, then record it at migration version `version`.
 
-    Created the way the server creates one, then recorded at `version`: the tables are this build's,
-    so a test that migrates the suite runs steps against them that the snapshots do not cover --
-    which is what the tests of the migration mechanism want, and why the snapshot tests replay
-    a snapshot instead.
+    The tables have this build's latest structure whatever `version` says. That suits the tests of
+    the migration mechanism, which only check which steps run. The snapshot tests, which care about
+    the structure itself, replay a snapshot instead.
     """
     with engine.begin() as connection:
         add_suite(connection, suite)

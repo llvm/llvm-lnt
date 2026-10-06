@@ -315,9 +315,9 @@ of its own named after its suite (see below).
   rather than the request body as submitted. It is stored as text rather than
   JSONB because the server never queries into it: it is read whole, parsed
   into the in-memory model, and written whole.
-- `migration_version` records how far the suite's tables have been brought
-  along their sequence of changes (see D6). It has nothing to do with
-  `schema_version` below, which only announces that some suite changed.
+- `migration_version` is the number of per-suite migrations (see D6) that have
+  been applied to the suite's tables. It is unrelated to `schema_version`
+  below, which only signals that some suite has changed.
 - See D4 for limits on the schema name.
 
 #### `schema_version`
@@ -331,8 +331,9 @@ of its own named after its suite (see below).
   (see D6) and never deleted. Readers may rely on its presence; `id` is fixed
   at `1` so that the row is addressable without a search.
 - Bumped whenever a suite is created, modified, or deleted, so that other
-  workers can detect that their cached schemas are stale (see D2). Bringing a
-  suite's tables forward (D6) changes no schema, and does not bump it.
+  workers can detect that their cached schemas are stale (see D2). Migrating a
+  suite's tables (D6) does not change its schema, so it does not bump the
+  counter.
 
 #### `api_key`
 
@@ -663,73 +664,77 @@ The DB layer validates state values on create and update.
 
 ## D6: Database Initialization and Evolution
 
-The structure D5 describes is decided partly by data and partly by code, and
-the two parts evolve by different means.
+Part of the structure in D5 is decided by data and part by code, and the two
+parts change in different ways.
 
 **Which dynamic columns exist is decided by data.** A suite's schema decides
-which columns its tables carry beyond the built-in ones, so no description
-written in advance could cover them. They are created with the suite by
-`POST /api/suites`, altered by `PATCH /api/suites/{name}/schema`, and dropped
-with it by `DELETE /api/suites/{name}` (see D2). This is ordinary request
-handling, not initialization.
+which columns its tables have beyond the built-in ones, so they cannot be
+described in advance. They are created by `POST /api/suites`, added or removed
+by `PATCH /api/suites/{name}/schema`, and dropped along with the suite by
+`DELETE /api/suites/{name}` (see D2). This is ordinary request handling, not
+initialization.
 
 **Everything else is decided by code.** The global tables (`schema`,
 `schema_version`, `api_key`), and everything about a suite's tables other than
-which dynamic columns they carry, are fixed by the server build rather than by
-anything a user submits. A database must therefore be brought to the structure
-the running build expects before that build serves traffic, and must be brought
-forward again whenever a later build changes it -- including every suite that
-already exists. This is what "when the database is initialized" in D5 refers
+which dynamic columns they have, are fixed by the server build rather than by
+anything a user submits. So before a build serves traffic, the database must be
+migrated to the structure that build expects, and it must be migrated again
+whenever a later build changes that structure -- including the tables of every
+existing suite. This is what "when the database is initialized" in D5 refers
 to.
 
-Changes form two sequences: one for the global tables, and one for what code
-decides about a suite's tables, which every suite goes through on its own.
-Requirements on the mechanism that applies them:
+These changes form two sequences of migrations: one for the global tables, and
+one for the per-suite tables, which is applied to each suite separately. The
+mechanism that applies them must meet these requirements:
 
 - **Ordered and recorded.** The database records how far along each sequence it
-  is, so that a build can tell what remains to be applied: once for the global
+  is, so that a build can tell which migrations remain: once for the global
   tables, and once per suite, in that suite's `migration_version` (D5).
   Initializing an empty database is not a separate code path: creating the
-  global tables is simply the first change in their sequence. A new suite is
-  created at the latest version the creating build knows, so it has nothing to
-  apply.
-- **Global tables first.** No suite is brought forward until the global tables
-  are current.
+  global tables is simply the first migration in their sequence. A suite
+  created by a build already has that build's latest structure, so it has no
+  migrations to apply.
+- **Global tables first.** The global migrations are applied before any suite is
+  migrated.
 - **Idempotent.** Applying it against an already-current database does nothing
   and succeeds. The server applies it on every start, so doing nothing is the
   common case.
-- **All-or-nothing.** A global step that fails leaves the database as it was. A
-  suite is brought forward as a whole: if any of its steps fails, the suite is
-  left as it was, although suites already brought forward stay so.
-- **Equivalent to creation.** After its changes have been applied, a suite has
-  exactly the same columns, indexes and constraints as a suite that the same
-  build would create from the same schema.
-- **Steps can see the suite's schema and can change data.** Suites have
+- **All-or-nothing.** If a global migration fails, the database is left as it
+  was. A suite's migrations are applied together: if one of them fails, that
+  suite is left as it was, while suites that were already migrated stay
+  migrated.
+- **Equivalent to creation.** Once migrated, a suite has exactly the same
+  columns, indexes and constraints as a suite that the same build would create
+  from the same schema.
+- **Migrations can see the suite's schema and can change data.** Suites have
   different dynamic columns, and some changes apply to each of them -- for
-  example, changing the column type used for every `integer` metric. A step
-  therefore receives the suite's schema, so that it knows which columns it has
-  to change. A step may also update existing rows, not only change the tables.
+  example, changing the column type used for every `integer` metric. A
+  migration therefore receives the suite's schema, so that it knows which
+  columns it has to change. A migration may also update existing rows, not only
+  change the tables.
 - **Never backwards.** If a newer build has already migrated the database, or
-  any suite, past the latest change the running build knows about, the running
-  build refuses to start or to apply changes. Its code would not match the
-  tables.
-- **Safe under concurrency.** At most one process may apply changes at a time,
-  and the others wait rather than failing -- two servers starting against one
-  database, say, or an operator applying changes by hand while a server starts.
-  A change need not keep the previous build working, though: a deployment stops
-  the outgoing build before the incoming one starts, and accepts a short outage
-  in exchange.
-- **The global mechanism is confined to the default namespace.** What applies
-  the global changes must not create, alter, or drop anything in a suite's
-  namespace, and must not treat its contents as something to reconcile. A tool
-  that compares the database against the global definitions would otherwise see
-  every per-suite table as unaccounted for, and propose dropping all of them.
+  any suite, past the latest migration the running build knows about, the
+  running build refuses to start or to apply migrations. Its code would not
+  match the tables.
+- **Safe under concurrency.** At most one process may apply migrations at a
+  time, and the others wait rather than fail. This happens, for example, when
+  two servers start against the same database, or when an operator runs the
+  migrations by hand while a server is starting.
+- **No compatibility with the previous build.** A migration does not need to
+  keep the previous build working: a deployment stops the old build before
+  starting the new one, and accepts a short outage in exchange.
+- **The global migrations are confined to the default namespace.** They must
+  not create, alter, or drop anything in a suite's namespace, and must not treat
+  its contents as something to reconcile. A tool that compares the database
+  against the global definitions would otherwise see every per-suite table as
+  unaccounted for, and propose dropping all of them.
 - **Seeds `schema_version`.** The single row D5 requires (`id = 1`,
   `version = 0`) exists from the moment the global tables do, so that every
   reader can address it without coping with its absence.
 
-The stored schemas are data in a global table, so a change to the schema format
-(D4) that stored `schema_json` values no longer satisfy is a global step too.
+Stored schemas are data in a global table. If the schema format (D4) changes in
+a way that existing `schema_json` values no longer satisfy, rewriting them is a
+global migration.
 
 The server applies all of this at startup, before it begins serving, and refuses
 to serve if any of it fails -- a server whose tables are not those its code

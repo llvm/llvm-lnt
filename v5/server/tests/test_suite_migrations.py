@@ -1,7 +1,7 @@
-"""Bringing the built-in structure of existing suites forward (D6).
+"""Migrating the tables of existing suites (D6).
 
-The mechanism is exercised with stand-in steps, since this build has none of its own yet. The
-snapshot tests are what hold the real steps, and `suites/tables.py`, to each other.
+The mechanism is tested with stand-in steps, since this build has no real steps yet. The snapshot
+tests check that the real steps and `suites/tables.py` agree.
 """
 
 from __future__ import annotations
@@ -54,8 +54,8 @@ def adding_machine_column(column: str, calls: list[tuple[str, str]]) -> Step:
 def migration_lock_is_free(database_url: str) -> bool:
     """Whether another session could take the migration lock right now.
 
-    From an engine of its own: the lock is a session-level one, which the session holding it can
-    take again, so asking on a pooled connection could find a stranded lock and report it free.
+    This uses an engine of its own. The lock belongs to a session, and the session holding it can
+    take it again, so checking from a pooled connection could report a leftover lock as free.
     """
     engine = create_engine(database_url, poolclass=NullPool)
     try:
@@ -75,10 +75,10 @@ def migration_lock_is_free(database_url: str) -> bool:
 
 
 def fresh_structure(engine: Engine) -> dict[str, list[tuple[Any, ...]]]:
-    """What this build creates the reference suite with, in place of whatever is there now.
+    """Replace the reference suite with a new one from this build, and return its structure.
 
-    The comparison is made in the same namespace, since PostgreSQL renders a foreign key with its
-    target's namespace.
+    It uses the same namespace as the suite it is compared with, because PostgreSQL includes the
+    target's namespace when it renders a foreign key.
     """
     with engine.begin() as connection:
         suite_tables.drop(connection, "reference")
@@ -125,8 +125,8 @@ class TestUpgrade:
     def test_gives_each_step_the_suites_own_schema(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Some built-in structure is per-metric (`test_coverage`), so a step has to know the suite's
-        # metrics -- the stored ones, not some other suite's.
+        # A step may need to change something for each metric (like the flags in `test_coverage`),
+        # so it needs the suite's own metrics.
         nts = suite_named("nts")
         stored = nts.model_copy(update={"metrics": nts.metrics[:1]})
         store_suite(db_engine, stored, version=0)
@@ -173,8 +173,8 @@ class TestUpgrade:
         assert "added" in column_names(db_engine, "a", "machine")
         assert version_of(db_engine, "b") == 0
         assert "added" not in column_names(db_engine, "b", "machine")
-        # The failure came partway through a suite's transaction, which is what holding the lock
-        # across transactions has to survive.
+        # The step failed partway through a suite's transaction. That is the case the lock has to
+        # survive, since it is held across transactions.
         assert migration_lock_is_free(migrated_database_url)
 
     def test_refuses_a_suite_a_newer_build_migrated_before_migrating_any(
@@ -194,7 +194,8 @@ class TestUpgrade:
     def test_refuses_a_suite_whose_stored_schema_is_invalid_before_migrating_any(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # "a" sorts first, so it would be migrated before "bad" were the check made suite by suite.
+        # "a" sorts first, so it would already be migrated if the check were made one suite at a
+        # time.
         store_suite(db_engine, suite_named("a"), version=0)
         with db_engine.begin() as connection:
             connection.execute(
@@ -214,8 +215,8 @@ class TestUpgrade:
     def test_releases_the_lock_when_it_fails(
         self, db_engine: Engine, migrated_database_url: str
     ) -> None:
-        # The lock is held across transactions, so a failure in one of them must not strand it on
-        # the pooled connection, where it would hang every later migration until a restart.
+        # The lock is held across transactions. A failure in one of them must not leave it held on
+        # the pooled connection, where it would block every later migration until a restart.
         store_suite(db_engine, suite_named("nts"), version=5)
 
         with pytest.raises(MigrationError):
@@ -229,8 +230,8 @@ class TestUpgrade:
         monkeypatch: pytest.MonkeyPatch,
         make_api_suite: Callable[[dict[str, Any]], SuiteTables],
     ) -> None:
-        # Its tables come from `suites/tables.py`, which already describes the latest structure, so
-        # replaying any step onto them would apply it twice.
+        # Its tables come from `suites/tables.py`, which already has the latest structure, so
+        # running any step on them would apply that step twice.
         calls: list[tuple[str, str]] = []
         monkeypatch.setattr(
             migrations,
@@ -254,12 +255,12 @@ class TestSnapshots:
         )
 
     def test_the_latest_snapshot_is_what_the_code_creates(self, db_engine: Engine) -> None:
-        """The test that fails when `suites/tables.py` changes without a step.
+        """Fails when `suites/tables.py` changes without a new step.
 
-        If it fails, the built-in structure no longer matches the latest snapshot. Existing suites
-        have the snapshot's structure, so they need a step in `suites/migrations.py` that brings
-        them to the new one, and the new version needs a snapshot of its own. Rewriting the
-        snapshot instead would leave every existing suite behind.
+        If it fails, `suites/tables.py` no longer matches the latest snapshot. Existing suites still
+        have the snapshot's structure, so they need a step in `suites/migrations.py` that migrates
+        them to the new one, and the new version needs its own snapshot. Rewriting the existing
+        snapshot instead would leave every existing suite unmigrated.
         """
         with db_engine.begin() as connection:
             replay(connection, migrations.head())
@@ -274,7 +275,7 @@ class TestSnapshots:
     def test_migrating_an_older_snapshot_yields_what_the_code_creates(
         self, db_engine: Engine, version: int
     ) -> None:
-        # D6: a suite brought forward is indistinguishable from one created by the same build.
+        # D6: once migrated, a suite has the same structure as a new suite from the same build.
         with db_engine.begin() as connection:
             replay(connection, version)
             connection.execute(
@@ -292,11 +293,12 @@ class TestSnapshots:
     def test_a_step_brings_a_suite_forward_to_what_the_code_creates(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The comparison above, exercised end to end on a change this codebase actually made.
+        """The comparison above, tested end to end on a real change from this codebase's history.
 
         `regression.created_at` and its index were added to `suites/tables.py` after suites already
-        existed. Had any been deployed, this is the step they would have needed. Until this build
-        has real steps, it is also what shows the comparison can tell an old suite from a new one.
+        existed. If any had been deployed, they would have needed this step. Until this build has
+        real steps, this test is also what shows that the comparison can tell an old suite from a
+        new one.
         """
         store_suite(db_engine, reference_schema(), version=0)
         with db_engine.begin() as connection:

@@ -120,16 +120,16 @@ def indexes_of(inspector: Inspector, suite: str, table: str) -> dict[str, Reflec
 
 
 def structure_of(engine: Engine, namespace: str) -> dict[str, list[tuple[Any, ...]]]:
-    """Everything about a namespace's tables that D6 requires a migrated suite to match.
+    """The structure of a namespace's tables, to check that a migrated suite matches a new one (D6).
 
-    Columns, with their type, nullability, identity and default; every constraint; and every index,
-    each as PostgreSQL itself renders it. Sorted rather than in catalog order, so that two
-    namespaces compare equal when they hold the same structure however they came to hold it: a
-    column added by a migration lands at the end of its table, where a fresh suite may have it
-    elsewhere, and nothing addresses a column by position.
+    This covers every column (with its type, nullability, identity and default), every constraint
+    and every index, each as PostgreSQL renders it. The lists are sorted, so that two namespaces
+    with the same structure compare equal however they were built. Column order is ignored: a
+    migration adds a column at the end of its table, where a new suite may have it elsewhere, and
+    nothing refers to columns by position.
 
-    Read from the catalogs rather than through SQLAlchemy's reflection, which normalizes some of
-    these away -- the very differences this exists to catch.
+    It reads the catalogs directly, because SQLAlchemy's reflection normalizes away some of the
+    differences this is meant to catch.
     """
     queries = {
         "columns": "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod), "
