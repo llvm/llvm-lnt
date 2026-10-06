@@ -31,18 +31,20 @@ class RegressionState(IntEnum):
     FALSE_POSITIVE = 4
 
 
+# A second enum rather than a property on the first, because this is the type a request body and a
+# response field are validated against: pydantic renders it as one named string enum in I8's
+# document, so every endpoint that carries a state refers to the same component, and a value that is
+# not one of the five is I4's 400 naming those that are.
+#
+# `auto()` gives each member the lowercase of its own name, so only the names are written twice, and
+# the two enums are paired *by name* below -- which is what makes a member added to one and
+# forgotten in the other a failure rather than a state the API can never speak.
+#
+# The class docstring is published: it is this enum's description in I8's document.
 class RegressionStateName(StrEnum):
-    """The same five states, as endpoints.md has the API speak them.
-
-    A second enum rather than a property on the first, because this is the type a request body and
-    a response field are validated against: pydantic renders it as one named string enum in I8's
-    document, so every endpoint that carries a state refers to the same component, and a value that
-    is not one of the five is I4's 400 naming those that are.
-
-    `auto()` gives each member the lowercase of its own name, so only the names are written twice,
-    and the two enums are paired *by name* below -- which is what makes a member added to one and
-    forgotten in the other a failure rather than a state the API can never speak.
-    """
+    """The state of a regression. `detected` and `active` mean it is still being worked on;
+    `not_to_be_fixed`, `fixed` and `false_positive` mean it is resolved. A regression can move from
+    any state to any other."""
 
     DETECTED = auto()
     ACTIVE = auto()

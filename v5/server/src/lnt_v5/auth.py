@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 # I5: every 401 tells the caller which scheme it should have used.
 UNAUTHENTICATED_HEADERS = {"WWW-Authenticate": "Bearer"}
 
+# What I8's document calls the scheme, and so what every operation's security requirement names.
+SECURITY_SCHEME = "ApiKey"
+
 
 class BearerToken(SecurityBase):
     """I5's `Authorization: Bearer <token>`, reduced to the token or to nothing.
@@ -56,7 +59,7 @@ class BearerToken(SecurityBase):
         self.model = HTTPBearerModel(
             description="An LNT API key: 64 lowercase hexadecimal characters."
         )
-        self.scheme_name = "ApiKey"
+        self.scheme_name = SECURITY_SCHEME
 
     async def __call__(self, request: Request) -> str | None:
         header = request.headers.get("Authorization")

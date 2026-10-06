@@ -31,6 +31,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.strings import NUL, Storable
 from lnt_v5.suites.entities import (
@@ -53,7 +54,17 @@ _NO_NUL = (
     "contains a NUL character (U+0000), which cannot be stored; run parameters are stored as JSON"
 )
 
-RunUuid = Annotated[ClientUuid, Field(description=f"Identifies the run. {CLIENT_UUID_FORMAT}")]
+# The descriptions and docstrings from here to the end of `RunSubmission` are published, in I8's
+# document, so they are written for API users.
+RunUuid = Annotated[
+    ClientUuid,
+    Field(
+        description=(
+            f"The run's UUID. {CLIENT_UUID_FORMAT} Choosing it yourself makes it safe to retry a "
+            "submission: if a run with this UUID already exists, you get a 409 `duplicate`."
+        )
+    ),
+]
 
 TestName = Annotated[
     str,
@@ -61,20 +72,29 @@ TestName = Annotated[
     Storable,
     Field(
         description=(
-            "Identifies the test within its test suite. Unlike a machine name or a commit value, "
-            "it may contain '/'."
-        )
+            "The test's name, unique within its test suite. Unlike machine names and commit "
+            "values, it can contain '/'."
+        ),
+        examples=[examples.TEST],
     ),
 ]
 
 
+# `extra="allow"`, alone among the models here, because the keys beside the two reserved ones are
+# the suite's metric names -- data rather than format, which no static model can enumerate. They are
+# validated against the schema by `validate_submission`; what this model contributes is the shape of
+# `name` and `profile`, and the fact that everything else is a metric.
 class TestEntry(BaseModel):
-    """One test's results within a submission (O1).
+    """The results of one test: its `name`, an optional `profile`, and one key per metric, named
+    after the metric.
 
-    `extra="allow"`, alone among the models here, because the keys beside the two reserved ones are
-    the suite's metric names -- data rather than format, which no static model can enumerate. They
-    are validated against the schema by `validate_submission`; what this model contributes is the
-    shape of `name` and `profile`, and the fact that everything else is a metric.
+    Each metric's value is either a single value or an array of values, one per repetition of the
+    test. Each array element is recorded as a separate sample. All arrays in one entry must have the
+    same length, and single values next to them are repeated in each sample. An entry without any
+    metric still records that the test ran.
+
+    Values must have the JSON type of their metric. Metrics the schema doesn't define are rejected,
+    and so are nulls: leave out metrics that have no value.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -83,40 +103,40 @@ class TestEntry(BaseModel):
     profile: str | None = Field(
         default=None,
         description=(
-            "The profile of this test in this run: a JSON profile document, gzip-compressed and "
-            "base64-encoded (O7). Null means the entry carries no profile, exactly as omitting "
-            "the key does."
+            "The test's profile: a profile document (the JSON returned by "
+            "`GET /api/suites/{testsuite}/profiles/{uuid}/document`), gzip-compressed and then "
+            "base64-encoded. Limits: 4 MiB compressed, 32 MiB uncompressed, 10000 functions, and "
+            "100000 instructions per function. Null is the same as leaving it out."
         ),
     )
 
 
 class RunSubmission(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/runs` (O1)."""
+    """A run: the results for one machine at one commit, with one entry per test.
+
+    If the machine or the commit doesn't exist yet, it is created. If it does exist, the submission
+    must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
+    but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
+    change stored values. Keys you leave out, or set to null, aren't checked. The exception is the
+    machine's `tracked`, which is only used when the machine is created.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    format_version: Literal["5"] = Field(
-        description="The submission format. Only '5' exists; v4's formats are not accepted."
-    )
+    format_version: Literal["5"] = Field(description='The submission format. Always `"5"`.')
     uuid: RunUuid | None = None
-    machine: MachineObject = Field(description="The machine this run was measured on (O2).")
-    commit: CommitObject = Field(description="The commit this run belongs to (O2).")
+    machine: MachineObject = Field(description="The machine the run was measured on.")
+    commit: CommitObject = Field(description="The commit the run measured.")
     run_parameters: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "Free-form metadata about the run as a whole, stored verbatim. A run has no declared "
-            "field list, so unlike a machine's or a commit's `fields` this is an opaque blob and "
-            "its keys are neither declared nor validated. It must still be something the stored "
-            "representation can hold: the non-standard `NaN`, `Infinity` and `-Infinity` literals "
-            "some parsers accept, and the NUL character (U+0000), are rejected wherever they "
-            "appear in it -- in a key as well as in a value."
+            "Any extra information about the run, such as build options. It is stored as-is and "
+            "isn't checked against the schema. It can't contain `NaN`, `Infinity` or the NUL "
+            "character (U+0000)."
         ),
     )
     tests: list[TestEntry] = Field(
-        description=(
-            "The tests this run measured, at most one entry per test. May be empty -- a run that "
-            "measured nothing is still a run -- but not omitted."
-        )
+        description="The results, with at most one entry per test. Can be empty, but is required."
     )
 
 

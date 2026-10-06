@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -68,19 +68,26 @@ def error_response(
 
 
 class ErrorBody(BaseModel):
-    """An error's machine-readable code and human-readable message."""
+    """What went wrong: an error code for programs, and a message for people."""
 
     # Deliberately a plain string rather than ErrorCode: this one schema describes every error
-    # response, and enumerating every code on it would claim a 401 might carry `duplicate`.
-    code: str
-    message: str
+    # response, and enumerating every code on it would claim a 401 might carry `duplicate`. The
+    # description lists them instead, and each response says which ones it carries.
+    code: str = Field(
+        description=(
+            "A stable, machine-readable error code: one of `invalid_request`, `unauthorized`, "
+            "`forbidden`, `not_found`, `method_not_allowed`, `duplicate`, `conflict`, `retry` and "
+            "`internal_error`. Check this to handle errors."
+        ),
+        examples=["not_found"],
+    )
+    message: str = Field(
+        description="A description of the error, meant for people. It may change: don't parse it."
+    )
 
 
 class ErrorEnvelope(BaseModel):
-    """The body of every error response.
-
-    Branch on `code`, which is stable. `message` is for humans and may be reworded at any time.
-    """
+    """The body of every error response."""
 
     error: ErrorBody
 

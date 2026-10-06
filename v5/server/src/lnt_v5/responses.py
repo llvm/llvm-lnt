@@ -5,6 +5,10 @@ which is present and empty rather than absent when nothing matches. Wrapping eve
 results is what lets an endpoint gain a cursor later without breaking clients.
 
 What *produces* a cursor lives in `querying.py`; this module is only the shape it travels in.
+
+The field descriptions are published in I8's document, so they are written for API users. The
+class docstrings are not: pydantic does not carry a generic model's docstring over to its
+parametrizations, so `openapi.py` describes each envelope where it renames it.
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ from pydantic import BaseModel, Field
 class Items[T](BaseModel):
     """I2's unpaginated envelope: `{"items": [...]}`."""
 
-    items: list[T]
+    items: list[T] = Field(description="The results.")
 
 
 class OffsetPage[T](BaseModel):
@@ -27,31 +31,28 @@ class OffsetPage[T](BaseModel):
     carry no `total`.
     """
 
-    items: list[T]
-    total: int
+    items: list[T] = Field(description="The results on this page.")
+    total: int = Field(description="The number of results across all pages.")
 
 
+# `previous` is typed as null rather than as an optional string because I8 requires the document to
+# describe only what the API can produce, and forward-only pagination can never produce a backward
+# cursor. It is declared rather than defaulted so that the document marks it required: I4 promises a
+# documented key is always present, and a defaulted field would be described as one a response may
+# omit.
+#
+# The class docstring is published: it is this schema's description in I8's document.
 class PageCursor(BaseModel):
-    """Where a cursor-paginated endpoint's results continue (I2).
-
-    `previous` is typed as null rather than as an optional string because I8 requires the document
-    to describe only what the API can produce, and forward-only pagination can never produce a
-    backward cursor. It is declared rather than defaulted so that the document marks it required:
-    I4 promises a documented key is always present, and a defaulted field would be described as
-    one a response may omit.
-    """
+    """Where to continue a cursor-paginated list."""
 
     next: str | None = Field(
         description=(
-            "An opaque token for the page after this one, or null when this is the last page. "
-            "Pass it back the way this endpoint takes it -- as the `cursor=` query parameter, or "
-            "as the `cursor` key of the request body for an endpoint that takes one. Do not "
-            "parse it."
-        )
+            "Pass this as `cursor` to get the next page. Null on the last page. It is an opaque "
+            "string: don't try to parse it."
+        ),
+        examples=["WzU1NDk3MywgNDJd.7f3a9c"],
     )
-    previous: None = Field(
-        description="Always null. Pagination is forward-only; reserved for backward pagination."
-    )
+    previous: None = Field(description="Always null. Reserved for future use.")
 
 
 class CursorPage[T](BaseModel):
@@ -61,7 +62,7 @@ class CursorPage[T](BaseModel):
     why an endpoint with unbounded results is cursor-paginated in the first place.
     """
 
-    items: list[T]
+    items: list[T] = Field(description="The results on this page.")
     cursor: PageCursor
 
     @classmethod

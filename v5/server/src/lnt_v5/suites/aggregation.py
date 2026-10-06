@@ -13,11 +13,12 @@ from collections.abc import Callable, Iterable, Sequence
 from enum import StrEnum, auto
 
 
+# The same names the API speaks and `{suite}.run_summary.sample_agg` stores.
+#
+# The class docstring is published: it is this enum's description in I8's document.
 class SampleAggregation(StrEnum):
-    """How a test's samples within one run are reduced to one value.
-
-    The same names the API speaks and `{suite}.run_summary.sample_agg` stores.
-    """
+    """How to combine a test's samples in one run into a single value. For an even number of
+    samples, the median is the mean of the two middle ones."""
 
     MEDIAN = auto()
     MEAN = auto()

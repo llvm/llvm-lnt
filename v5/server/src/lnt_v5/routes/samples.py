@@ -25,34 +25,40 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, Row, Select, Table, select
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.querying import DEFAULT_LIMIT, Cursor, Keyset, Limit, SortKey, cursor_page
 from lnt_v5.responses import CursorPage
-from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
+from lnt_v5.routes.runs import RUNS_PATH, RunKey, run_id
 from lnt_v5.routes.tests import test_id
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.entities import DeclaredValue, UuidKey
+from lnt_v5.suites.entities import DeclaredValue
 from lnt_v5.suites.registry import RegistryDep, Suite
-from lnt_v5.suites.scope import suite_responses, suite_scope
+from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
 
 SAMPLES_PATH = f"{RUNS_PATH}/{{uuid}}/samples"
 
 router = APIRouter(prefix=RUNS_PATH, tags=["Samples"])
 
-_NOT_FOUND = f"{NO_RUN} Or the suite has no test of the name `test=` gives."
+_NOT_FOUND = "The test suite, the run, or the test given in `test`, doesn't exist."
 
 
+# Published, as the description I8's document gives this schema, so written for API users.
 class Sample(BaseModel):
-    """One measurement of one test within one run (I4)."""
+    """One measurement of one test in a run. If a test was repeated in a run, it has one sample per
+    repetition."""
 
-    test: str = Field(description="The name of the test this sample measured.")
+    test: str = Field(
+        description="The name of the test that was measured.",
+        examples=[examples.TEST],
+    )
     metrics: dict[str, DeclaredValue] = Field(
         description=(
-            "The metrics this sample has a value for, keyed by metric name and typed per the "
-            "suite's schema. Unlike a `fields` dict, it carries only the metrics that have a "
-            "value: a suite's metric list is long and any one test populates little of it."
-        )
+            "The measured values, keyed by metric name. Unlike `fields`, metrics without a value "
+            "are left out."
+        ),
+        examples=[examples.SAMPLE_METRICS],
     )
 
 
@@ -110,8 +116,8 @@ class Samples:
     responses=suite_responses(not_found=_NOT_FOUND),
 )
 def list_samples(
-    testsuite: str,
-    uuid: UuidKey,
+    testsuite: SuiteName,
+    uuid: RunKey,
     engine: EngineDep,
     registry: RegistryDep,
     cursor: Cursor = None,
@@ -119,18 +125,16 @@ def list_samples(
         str | None,
         Query(
             description=(
-                "Keep only the samples for this test. 404 if the suite has no test of that name; "
-                "a test this run did not measure is an empty page, not an error."
+                "Only return the samples of this test. Returns 404 if the test doesn't exist in "
+                "the suite. If the run didn't measure it, the result is empty."
             )
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Sample]:
-    """Every sample one run produced, optionally narrowed to one test (I2, I3, O5).
-
-    The run is resolved to its id rather than read whole: this query filters on `run_id`, and the
-    404 for an unknown UUID has to come from somewhere regardless.
-    """
+    """The samples recorded by a run, one page at a time."""
+    # The run is resolved to its id rather than read whole: this query filters on `run_id`, and the
+    # 404 for an unknown UUID has to come from somewhere regardless.
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         samples = Samples(suite)
         conditions: list[ColumnElement[bool]] = [

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Body, Path, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import (
     ColumnElement,
@@ -37,6 +37,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
@@ -72,7 +73,12 @@ from lnt_v5.suites.entities import (
 )
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import CommitField
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, SUITE_SCHEMA_CHANGED, suite_responses, suite_scope
+from lnt_v5.suites.scope import (
+    SUITE_SCHEMA_CHANGED,
+    SuiteName,
+    suite_responses,
+    suite_scope,
+)
 from lnt_v5.suites.submission import SubmittedCommit
 from lnt_v5.suites.tables import (
     COMMIT_ORDINAL_CONSTRAINT,
@@ -91,51 +97,101 @@ CommitSort = Literal["first_seen", "-first_seen", "ordinal", "-ordinal"]
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
-_NO_COMMIT = f"{SUITE_NOT_FOUND} Or no commit in it has that value."
-_ORDINAL_TAKEN = (
-    f"`conflict`: the ordinal is already held by another commit. {SUITE_SCHEMA_CHANGED}"
-)
+_NO_COMMIT = "The test suite or the commit doesn't exist."
+_ORDINAL_TAKEN = f"`conflict`: another commit already has this ordinal. {SUITE_SCHEMA_CHANGED}"
+
+# The path segment naming a commit.
+CommitKey = Annotated[str, Path(description="The commit's value, such as a Git SHA.")]
+
+_CREATE_EXAMPLES = {
+    "commit": {
+        "summary": "A commit with an ordinal, a tag and its fields",
+        "value": {
+            "value": examples.NEXT_COMMIT,
+            "ordinal": examples.NEXT_ORDINAL,
+            "tag": examples.TAG,
+            "fields": {
+                "llvm_project_revision": str(examples.NEXT_ORDINAL),
+                "commit_info": "[libc++] Implement P2697R1: std::bitset interface for string_view",
+            },
+        },
+    },
+    "unordered": {
+        "summary": "A commit for an A/B experiment, without an ordinal",
+        "value": {"value": "experiment-find-if-simd"},
+    },
+}
+
+_UPDATE_EXAMPLES = {
+    "order": {
+        "summary": "Change a commit's ordinal",
+        "value": {"ordinal": examples.NEXT_ORDINAL + 1},
+    },
+    "untag": {"summary": "Clear a commit's tag", "value": {"tag": None}},
+}
+
+_RESOLVE_EXAMPLES = {
+    "commits": {
+        "summary": "Look up two commits",
+        "value": {"commits": [examples.COMMIT, examples.NEXT_COMMIT]},
+    }
+}
+
+# What a commit looks like in a response, for the examples of the responses that carry several.
+_COMMIT = {
+    "value": examples.COMMIT,
+    "ordinal": examples.ORDINAL,
+    "tag": None,
+    "fields": examples.COMMIT_VALUES,
+}
+
+# The docstrings of the models and endpoints below are published, as the descriptions I8's document
+# gives them, so they are written for API users.
 
 
+# `ordinal`, `tag` and `fields` are redeclared without their defaults. I4 requires every documented
+# key to be present in a response, and inheriting the request model's optionality would instead
+# tell a generated client they may be absent.
 class Commit(CommitObject):
-    """A commit as every response carries it.
-
-    `ordinal`, `tag` and `fields` are redeclared without their defaults. I4 requires
-    every documented key to be present in a response, and inheriting the request model's
-    optionality would instead tell a generated client they may be absent.
-    """
+    """A commit: a version that was benchmarked."""
 
     ordinal: Ordinal | None
     tag: Tag | None
-    fields: dict[str, FieldValue]
+    fields: dict[str, FieldValue] = Field(
+        description=(
+            "The commit's values for the fields defined in the suite's schema, keyed by field "
+            "name. Every field is listed, with null for those that have no value."
+        ),
+        examples=[examples.COMMIT_VALUES],
+    )
 
 
+# The neighbours are plain commit objects, without neighbours of their own -- the chain stops after
+# one step, so a client walking the order pages through it one request at a time.
 class CommitDetail(Commit):
-    """What the detail, create and update responses carry: a commit and its ordinal neighbours.
-
-    The neighbours are plain commit objects, without neighbours of their own -- the chain stops
-    after one step, so a client walking the order pages through it one request at a time.
-    """
+    """A commit, with the commits just before and after it in the suite's history."""
 
     previous: Commit | None = Field(
         description=(
-            "The commit with the nearest lower ordinal, or null at the start of the ordered range "
-            "and on a commit with no ordinal of its own. Commits with no ordinal are skipped."
+            "The commit with the next lower ordinal, skipping commits without one. Null if there "
+            "is none, or if this commit has no ordinal."
         )
     )
     next: Commit | None = Field(
-        description="The commit with the nearest higher ordinal, under the same rules."
+        description=(
+            "The commit with the next higher ordinal, skipping commits without one. Null if there "
+            "is none, or if this commit has no ordinal."
+        )
     )
 
 
+# The endpoint dumps this with `exclude_unset`, which is what keeps an omitted key apart from one
+# sent as `null`. `value` is not here at all, because a commit cannot be renamed -- sending one is a
+# 400.
 class CommitUpdate(EntityObject):
-    """What `PATCH` may change. A key the request omits is left unchanged.
-
-    Every key is optional, and the endpoint dumps this with `exclude_unset`, which is what keeps an
-    omitted key apart from one sent as `null`: `ordinal: null` and `tag: null` clear a stored value,
-    while omitting them leaves it alone. Inside `fields`, an explicit null clears likewise. `value`
-    is not here at all, because a commit cannot be renamed -- sending one is a 400.
-    """
+    """Changes to a commit. Only include what you want to change; this also applies to the keys
+    of `fields`. Set the ordinal, the tag or a field to null to clear it. A commit's value can't be
+    changed."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
@@ -144,7 +200,7 @@ class CommitUpdate(EntityObject):
 
 
 class ResolveRequest(BaseModel):
-    """The body of `POST /commits/resolve`."""
+    """The commits to look up."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -158,26 +214,27 @@ class ResolveRequest(BaseModel):
         min_length=1,
         max_length=MAX_LIMIT,
         description=(
-            "The commit values to look up: at least one, at most 10 000. Duplicates are resolved "
-            "once. A value that is not a commit in this suite is reported under 'not_found' "
-            "rather than failing the request."
+            "The values of the commits to look up, from 1 to 10000 of them. Duplicates are "
+            "ignored. Values that don't match any commit are listed in `not_found`."
         ),
     )
 
 
+# A lookup table keyed by commit value rather than one of I2's envelopes: I2's `items` rule governs
+# a response that is a sequence of results, and a client resolving a page of runs looks each one up
+# by the value it already holds.
 class ResolvedCommits(BaseModel):
-    """The body of `POST /commits/resolve`: a lookup table, not one of I2's envelopes.
-
-    I2's `items` rule governs a response that is a sequence of results; this is a table keyed by
-    commit value, which is what makes it useful -- a client resolving a page of runs looks each one
-    up by the value it already holds.
-    """
+    """The commits that were found, and the values that weren't."""
 
     results: dict[str, Commit] = Field(
-        description="Each commit that exists, keyed by the value it was asked for."
+        description=(
+            "The commits that were found, keyed by value, in the order they were requested."
+        ),
+        examples=[{examples.COMMIT: _COMMIT}],
     )
     not_found: list[str] = Field(
-        description="The requested values that name no commit in this suite."
+        description="The values that don't match any commit.",
+        examples=[["experiment-find-if-simd"]],
     )
 
 
@@ -426,7 +483,7 @@ def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
     responses=suite_responses(not_found=NO_MACHINE_FILTERED),
 )
 def list_commits(
-    testsuite: str,
+    testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
     cursor: Cursor = None,
@@ -434,21 +491,27 @@ def list_commits(
         str | None,
         Query(
             description=(
-                "Case-insensitive substring match against the commit value, the tag, or any "
-                "searchable commit field."
+                "Only return commits whose value, tag or any searchable field contains this text. "
+                "Not case-sensitive."
             )
         ),
     ] = None,
     machine: Annotated[
         str | None,
-        Query(description="Keep only commits with at least one run on this machine."),
+        Query(
+            description=(
+                "Only return commits with at least one run on this machine. Returns 404 if the "
+                "machine doesn't exist."
+            )
+        ),
     ] = None,
     has_profiles: Annotated[
         bool | None,
         Query(
             description=(
-                "Keep only commits that have a run carrying profile data, or only those that have "
-                "none. Scoped to `machine=` when that is given too. Omit for both."
+                "Only return commits that have (`true`) or don't have (`false`) a run with "
+                "profiles. If `machine` is given, only that machine's runs are considered. Leave "
+                "out to return both."
             )
         ),
     ] = None,
@@ -456,20 +519,21 @@ def list_commits(
         CommitSort,
         Query(
             description=(
-                "`first_seen` orders by when the server first saw each commit, oldest first, and "
-                "`-first_seen` most recently seen first; both keep every commit. `ordinal` and "
-                "`-ordinal` order by ordinal (oldest first, or newest first) and exclude the "
-                "commits that have none."
+                "`first_seen`: in the order the commits were added, oldest first "
+                "(`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: "
+                "highest first); commits without an ordinal are left out."
             )
         ),
     ] = "first_seen",
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Commit]:
-    """Every commit in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
+    """The commits in the suite, one page at a time.
 
-    `sort=ordinal` excludes the commits that have no ordinal, since they have no position in that
-    order. That exclusion comes from the keyset rather than from here (O5, `Keyset.defined`).
+    For `sort=first_seen`, a commit's position is set when it is created (explicitly or by a run
+    submission). Later runs or ordinal changes don't move it.
     """
+    # `sort=ordinal` excludes the commits that have no ordinal; that exclusion comes from the keyset
+    # rather than from here (O5, `Keyset.defined`).
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         conditions: list[ColumnElement[bool]] = []
@@ -502,20 +566,22 @@ def list_commits(
     dependencies=[require_scope(Scope.SUBMIT)],
     summary="Create a commit",
     responses=suite_responses(
-        conflict=f"`duplicate`: a commit with that value already exists. {_ORDINAL_TAKEN}"
+        conflict=f"`duplicate`: a commit with this value already exists. {_ORDINAL_TAKEN}"
     ),
 )
 def create_commit(
-    testsuite: str,
-    body: CommitObject,
+    testsuite: SuiteName,
+    body: Annotated[CommitObject, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
     response: Response,
 ) -> CommitDetail:
-    """Create a commit without a run, optionally ordered and tagged (O2, O6).
+    """Create a commit before any run is submitted for it. The response's `Location` header
+    points to the new commit.
 
-    Commits are also created implicitly by run submission; this is the path for declaring one ahead
-    of any data, or for giving an ordinal to a commit that will never carry any.
+    You don't need to do this before submitting runs: submitting a run creates its commit if it
+    doesn't exist yet. Creating a commit yourself is useful to give it an ordinal or a tag before
+    any run arrives.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
@@ -541,6 +607,8 @@ def create_commit(
     return created
 
 
+# `read`-scoped despite being a POST: the body is a lookup key too long for a query string, not a
+# change (I5). Unpaginated, because the response is bounded by the request.
 @router.post(
     "/resolve",
     dependencies=[require_scope(Scope.READ)],
@@ -548,14 +616,14 @@ def create_commit(
     responses=suite_responses(),
 )
 def resolve_commits(
-    testsuite: str, body: ResolveRequest, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName,
+    body: Annotated[ResolveRequest, Body(openapi_examples=_RESOLVE_EXAMPLES)],
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> ResolvedCommits:
-    """Look up many commits at once, for a client that holds a page of values and needs their
-    metadata.
-
-    `read`-scoped despite being a POST: the body is a lookup key too long for a query string, not a
-    change (I5). Unpaginated, because the response is bounded by the request.
-    """
+    """Look up many commits by value in a single request, for example all the commits referred to
+    by a page of runs. This is a POST only because the list can be too long for a URL; it doesn't
+    change anything."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         # Deduplicated, keeping the order the request gave, so that a client can read the response
@@ -585,9 +653,9 @@ def resolve_commits(
     responses=suite_responses(not_found=_NO_COMMIT),
 )
 def get_commit(
-    testsuite: str, value: str, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, value: CommitKey, engine: EngineDep, registry: RegistryDep
 ) -> CommitDetail:
-    """One commit, plus the commits either side of it in ordinal order (O6)."""
+    """Get a commit, with the commits just before and after it."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Commits(suite).detail(connection, value)
 
@@ -599,12 +667,17 @@ def get_commit(
     responses=suite_responses(not_found=_NO_COMMIT, conflict=_ORDINAL_TAKEN),
 )
 def update_commit(
-    testsuite: str, value: str, body: CommitUpdate, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName,
+    value: CommitKey,
+    body: Annotated[CommitUpdate, Body(openapi_examples=_UPDATE_EXAMPLES)],
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> CommitDetail:
-    """Set or clear the ordinal and tag, and/or set declared fields (O2, O6).
+    """Set or clear a commit's ordinal, tag and fields.
 
-    This is the only way to change an ordinal or a tag once set, and the only way to clear one. A
-    key the request omits is left unchanged, inside `fields` as well as beside it.
+    This is the only way to change an ordinal or a tag once it is set. Only include what you want
+    to change. If you change a value here, later run submissions that still send the old value are
+    rejected with a 409 `conflict` until they are updated.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
@@ -636,17 +709,18 @@ def update_commit(
     summary="Delete a commit",
     responses=suite_responses(
         not_found=_NO_COMMIT,
-        conflict=f"`conflict`: a regression references this commit. {SUITE_SCHEMA_CHANGED}",
+        conflict=f"`conflict`: a regression refers to this commit. {SUITE_SCHEMA_CHANGED}",
     ),
 )
-def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: RegistryDep) -> None:
-    """Delete a commit, its runs, and their samples and profiles (D1, D5).
-
-    One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their
-    samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has no
-    cascade, so a commit a regression still names refuses to go -- reported as I4's `conflict`:
-    the caller has to detach the regression, and retrying as sent cannot help.
-    """
+def delete_commit(
+    testsuite: SuiteName, value: CommitKey, engine: EngineDep, registry: RegistryDep
+) -> None:
+    """Delete a commit, along with its runs and their samples and profiles. A commit that a
+    regression refers to can't be deleted: remove it from the regression first."""
+    # One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take
+    # their samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has
+    # no cascade, so a commit a regression still names refuses to go -- reported as I4's `conflict`:
+    # the caller has to detach the regression, and retrying as sent cannot help.
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         with reporting_violation(

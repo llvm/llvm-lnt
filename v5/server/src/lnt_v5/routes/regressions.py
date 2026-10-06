@@ -33,7 +33,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Body, Path, Query, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import (
     ColumnElement,
@@ -50,6 +50,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import insert as upsert
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
@@ -89,8 +90,8 @@ from lnt_v5.suites.entities import (
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
 from lnt_v5.suites.scope import (
-    SUITE_NOT_FOUND,
     SUITE_SCHEMA_CHANGED,
+    SuiteName,
     schema_changed,
     suite_responses,
     suite_scope,
@@ -121,21 +122,88 @@ MAX_INDICATORS = MAX_LIMIT
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
-_NO_REGRESSION = f"{SUITE_NOT_FOUND} Or no regression in it has that UUID."
-_NO_FILTERED_ENTITY = f"{SUITE_NOT_FOUND} Or the machine or test a filter names is not in it."
-_NO_NAMED_ENTITY = f"{SUITE_NOT_FOUND} Or the commit, machine or test the body names is not in it."
-_NO_INDICATOR_TARGET = f"{_NO_REGRESSION} Or a machine or test an indicator names is not in it."
+_NO_REGRESSION = "The test suite or the regression doesn't exist."
+_NO_FILTERED_ENTITY = "The test suite, or a machine or test given as a filter, doesn't exist."
+_NO_NAMED_ENTITY = "The test suite, or a commit, machine or test named in the body, doesn't exist."
+_NO_INDICATOR_TARGET = (
+    "The test suite, the regression, or a machine or test named by an indicator, doesn't exist."
+)
+
+# The path segment naming a regression.
+RegressionKey = Annotated[UuidKey, Path(description="The regression's UUID (not case-sensitive).")]
+
+# Built from `examples.py`, like every example in I8's document, and naming the machine and test
+# that the run example in `routes/runs.py` creates.
+_EXAMPLE_INDICATOR = {
+    "machine": examples.MACHINE,
+    "test": examples.TEST,
+    "metric": examples.METRIC,
+}
+
+_CREATE_EXAMPLES = {
+    "regression": {
+        "summary": "A regression with a suspected commit and one indicator",
+        "value": {
+            "title": examples.REGRESSION_TITLE,
+            "commit": examples.COMMIT,
+            "indicators": [_EXAMPLE_INDICATOR],
+        },
+    },
+    "empty": {
+        "summary": "A regression to fill in later",
+        "value": {"title": "Noisy std::stable_sort results on macOS"},
+    },
+}
+
+_UPDATE_EXAMPLES = {
+    "triage": {
+        "summary": "Confirm a regression and link its bug",
+        "value": {"state": "active", "bug": examples.BUG},
+    },
+    "detach": {"summary": "Clear the suspected commit", "value": {"commit": None}},
+}
+
+_ADD_EXAMPLES = {
+    "indicators": {
+        "summary": "Add two indicators",
+        "value": {
+            "indicators": [
+                _EXAMPLE_INDICATOR,
+                {**_EXAMPLE_INDICATOR, "metric": examples.OTHER_METRIC},
+            ]
+        },
+    }
+}
+
+_REMOVE_EXAMPLES = {
+    "indicators": {
+        "summary": "Remove an indicator",
+        "value": {"indicator_uuids": [examples.INDICATOR_UUID]},
+    }
+}
+
+_QUERY_EXAMPLES = {
+    "tracked": {
+        "summary": "Which of these are already part of an open regression?",
+        "value": {
+            "machine": [examples.MACHINE],
+            "test": [examples.TEST, examples.OTHER_TEST],
+            "metric": examples.METRIC,
+            "state": ["detected", "active"],
+        },
+    }
+}
+
+# The docstrings of the models and endpoints below, and the field descriptions, are published, as
+# the descriptions I8's document gives them, so they are written for API users.
 
 Title = Annotated[
     str,
     StringConstraints(min_length=1, max_length=NAME_LENGTH),
     Storable,
     Field(
-        description=(
-            "A short human-readable summary. Null when the regression has none, which is an "
-            "ordinary state rather than a gap: a detector that has nothing to say leaves it unset, "
-            "and a client renders a placeholder."
-        )
+        description="A short summary of the regression. Null if it has none.",
+        examples=[examples.REGRESSION_TITLE],
     ),
 ]
 
@@ -144,9 +212,8 @@ Bug = Annotated[
     StringConstraints(min_length=1, max_length=NAME_LENGTH),
     Storable,
     Field(
-        description=(
-            "A URL naming this regression in an external bug tracker. Null when it has none."
-        )
+        description="A link to the regression's bug report. Null if it has none.",
+        examples=[examples.BUG],
     ),
 ]
 
@@ -155,40 +222,41 @@ Notes = Annotated[
     Storable,
     Field(
         description=(
-            "Investigation findings: A/B results, bisection notes, anything a triager wants to "
-            "keep. Unbounded, which is why it appears in the detail response only."
-        )
+            "Notes from the investigation, such as A/B results or bisection findings. Null if "
+            "there are none. Not included in the regression list."
+        ),
+        examples=["Bisected to the commit. Only the 8-element case regressed, by about 15%."],
     ),
 ]
 
 
+# I4's reference rule throughout: each part is the other entity's identifier under a key named after
+# it, rather than a nested object. A metric is declared by the suite's schema rather than created
+# like a machine or a test, but is referenced the same way underneath (D5).
 class Indicator(BaseModel):
-    """One (machine, test, metric) combination a regression affects (D5).
+    """A machine, test and metric where a regression was seen."""
 
-    I4's reference rule throughout: each part is the other entity's identifier under a key named
-    after it, rather than a nested object. A metric is declared by the suite's schema rather than
-    created like a machine or a test, but is referenced the same way underneath (D5).
-    """
-
-    uuid: str = Field(description="Identifies the indicator. Always server-generated.")
-    machine: str = Field(description="The name of the machine this indicator names.")
-    test: str = Field(description="The name of the test this indicator names.")
-    metric: str = Field(description="The name of the metric this indicator names.")
+    uuid: str = Field(
+        description="The indicator's UUID, generated by the server.",
+        examples=[examples.INDICATOR_UUID],
+    )
+    machine: str = Field(description="The name of the machine.", examples=[examples.MACHINE])
+    test: str = Field(description="The name of the test.", examples=[examples.TEST])
+    metric: str = Field(description="The name of the metric.", examples=[examples.METRIC])
 
 
+# I3 makes a name that is not there a 404 for the machine and the test, which nothing here creates,
+# but a 400 for the metric: a metric is a column the schema declares rather than a row the suite
+# holds.
 class IndicatorObject(BaseModel):
-    """One indicator as a request names it: by name, everywhere.
-
-    The machine and the test must already exist -- nothing here creates either -- so a name that
-    is not there is a 404. The metric must be declared by the suite's schema, which I3 makes a 400
-    instead: a metric is a column the schema declares rather than a row the suite holds.
-    """
+    """A machine, test and metric where a regression was seen. The machine and the test must
+    already exist, and the metric must be defined in the suite's schema."""
 
     model_config = ConfigDict(extra="forbid")
 
-    machine: Named = Field(description="The name of an existing machine.")
-    test: Named = Field(description="The name of an existing test.")
-    metric: Named = Field(description="A metric name this test suite's schema declares.")
+    machine: Named = Field(description="The name of the machine.")
+    test: Named = Field(description="The name of the test.")
+    metric: Named = Field(description="The name of the metric.")
 
 
 class _Regression(BaseModel):
@@ -201,51 +269,53 @@ class _Regression(BaseModel):
 
     uuid: str = Field(
         description=(
-            "Identifies the regression: the UUID the creation request supplied, normalized to "
-            "lowercase, or one the server generated."
-        )
+            "The regression's UUID, either chosen when it was created or generated by the server. "
+            "Always in lowercase."
+        ),
+        examples=[examples.REGRESSION_UUID],
     )
     title: Title | None
     bug: Bug | None
-    state: RegressionStateName = Field(description="Where this regression stands in triage.")
+    state: RegressionStateName = Field(description="The state of the regression.")
     commit: str | None = Field(
         description=(
-            "The identity string of the commit suspected of introducing the regression, or null "
-            "if none has been identified."
-        )
+            "The value of the commit suspected of causing the regression. Null if it isn't known."
+        ),
+        examples=[examples.COMMIT],
     )
-    created_at: datetime = Field(
-        description=(
-            "When the regression was created. Recorded by the server from the database's clock; "
-            "a request cannot supply it (D5)."
-        )
-    )
+    created_at: datetime = Field(description="When the regression was created. Set by the server.")
 
 
+# The two counts describe the regression rather than the request: they count the distinct machines
+# and tests across *every* indicator it has, whatever `machine=` or `test=` narrowed the results
+# down to.
 class Regression(_Regression):
-    """A regression as the list endpoint returns it (E8).
-
-    The two counts describe the regression rather than the request: they count the distinct
-    machines and tests across *every* indicator it has, whatever `machine=` or `test=` narrowed the
-    results down to.
-    """
+    """A performance regression being investigated. In the list, notes and indicators are left
+    out, and the number of machines and tests involved is given instead."""
 
     machine_count: int = Field(
-        description="How many distinct machines this regression's indicators name."
+        description=(
+            "The number of different machines in the regression's indicators, regardless of the "
+            "request's filters."
+        )
     )
     test_count: int = Field(
-        description="How many distinct tests this regression's indicators name."
+        description=(
+            "The number of different tests in the regression's indicators, regardless of the "
+            "request's filters."
+        )
     )
 
 
 class RegressionDetail(_Regression):
-    """A regression as the detail, create and update responses carry it."""
+    """A performance regression being investigated, with its notes and indicators."""
 
     notes: Notes | None
     indicators: list[Indicator] = Field(
         description=(
-            "Every (machine, test, metric) this regression affects. An empty list is a legal "
-            "state: deleting a machine takes its indicators with it and leaves the regression (D5)."
+            "The machines, tests and metrics where the regression was seen, oldest first. Can be "
+            "empty: a regression can be created without indicators, and its indicators are "
+            "deleted along with their machine, or when their metric is removed from the schema."
         )
     )
 
@@ -271,31 +341,29 @@ class _RegressionBody(BaseModel):
     state: RegressionStateName = Field(
         default=RegressionStateName.DETECTED,
         description=(
-            "Where this regression stands in triage. Omitted, `POST` defaults to 'detected' and "
-            "`PATCH` leaves the current state."
+            "The state of the regression. Can't be null. New regressions are `detected` unless "
+            "another state is given."
         ),
     )
     commit: Named | None = Field(
         default=None,
         description=(
-            "The value of an existing commit, suspected of introducing the regression. 404 if no "
-            "commit has that value."
+            "The value of the commit suspected of causing the regression. Returns 404 if the "
+            "commit doesn't exist."
         ),
     )
 
 
 class RegressionCreate(_RegressionBody):
-    """The body of `POST /api/suites/{testsuite}/regressions`. Every key is optional.
-
-    A regression with nothing but a state is legal, and is what a triager opens before it knows
-    what it is looking at.
-    """
+    """A new regression. All keys are optional, so a regression can be recorded right away and
+    filled in as the investigation progresses."""
 
     uuid: ClientUuid | None = Field(
         default=None,
         description=(
-            f"Identifies the regression. {CLIENT_UUID_FORMAT} Supplying one makes creation safe to "
-            "retry: a regression that already has it is a 409 `duplicate`."
+            f"The regression's UUID. {CLIENT_UUID_FORMAT} Choosing it yourself makes it safe to "
+            "retry the request: if a regression with this UUID already exists, you get a 409 "
+            "`duplicate`."
         ),
     )
 
@@ -303,25 +371,24 @@ class RegressionCreate(_RegressionBody):
         default_factory=list,
         max_length=MAX_INDICATORS,
         description=(
-            "The (machine, test, metric) combinations this regression affects: at most "
-            f"{MAX_INDICATORS}, as on the add route. Duplicates within the list are stored once."
+            f"The machines, tests and metrics where the regression was seen, at most "
+            f"{MAX_INDICATORS}. Duplicates are ignored."
         ),
     )
 
 
+# Indicators are deliberately absent: they are managed through the two routes below, which are batch
+# operations with counts of their own rather than a whole-list replacement. Sending one here is a
+# 400, rather than a key that could not take effect being silently dropped.
 class RegressionUpdate(_RegressionBody):
-    """What `PATCH` may change. A key the request omits is left unchanged.
-
-    Indicators are deliberately absent: they are managed through the two routes below, which are
-    batch operations with counts of their own rather than a whole-list replacement. Sending one
-    here is a 400, rather than a key that could not take effect being silently dropped.
-    """
+    """Changes to a regression. Only include what you want to change. Set a key to null to clear
+    it (except `state`, which can't be null). Indicators have their own operations."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
 
 class IndicatorAddition(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/regressions/{uuid}/indicators`."""
+    """The indicators to add to a regression."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -329,14 +396,14 @@ class IndicatorAddition(BaseModel):
         min_length=1,
         max_length=MAX_INDICATORS,
         description=(
-            f"The indicators to add: at least one, at most {MAX_INDICATORS}. One this regression "
-            "already has is silently ignored, as is a duplicate within the list."
+            f"The indicators to add, from 1 to {MAX_INDICATORS} of them. Indicators the regression "
+            "already has, and duplicates, are ignored."
         ),
     )
 
 
 class IndicatorRemoval(BaseModel):
-    """The body of `DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators`."""
+    """The indicators to remove from a regression."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -344,46 +411,48 @@ class IndicatorRemoval(BaseModel):
         min_length=1,
         max_length=MAX_INDICATORS,
         description=(
-            f"The UUIDs of the indicators to remove: at least one, at most {MAX_INDICATORS}. "
-            "Matched case-insensitively, as a UUID in a path segment is. A UUID naming no "
-            "indicator on this regression is ignored, so a retried removal is not an error."
+            f"The UUIDs of the indicators to remove, from 1 to {MAX_INDICATORS} of them (not "
+            "case-sensitive). UUIDs that don't match an indicator of this regression are ignored, "
+            "so it is safe to retry a removal."
         ),
     )
 
 
 class IndicatorsAdded(BaseModel):
-    """What adding indicators answers: how many were created, and the full list afterwards."""
+    """The number of indicators added, and the regression's indicators afterwards."""
 
-    added: int = Field(description="How many of the submitted indicators did not already exist.")
+    added: int = Field(description="The number of indicators that were actually added.")
     indicators: list[Indicator] = Field(
-        description="Every indicator this regression has now, added ones included."
+        description="All the regression's indicators after the change, oldest first."
     )
 
 
 class IndicatorsRemoved(BaseModel):
-    """What removing indicators answers, mirroring the addition above."""
+    """The number of indicators removed, and the regression's indicators afterwards."""
 
-    removed: int = Field(description="How many of the submitted UUIDs named an indicator here.")
-    indicators: list[Indicator] = Field(description="Every indicator this regression still has.")
+    removed: int = Field(description="The number of indicators that were actually removed.")
+    indicators: list[Indicator] = Field(
+        description="All the regression's indicators after the change, oldest first."
+    )
 
 
+# The regression is referenced by its UUID and nothing else (E8). A client that needs its title,
+# state or commit joins on that UUID with the regression list, which already carries them.
 class RegressionIndicator(Indicator):
-    """An indicator as the lookup across regressions returns it: with the regression it belongs to.
+    """An indicator, with the UUID of its regression. To get the regression's title, state and
+    commit, look it up by UUID in the regression list."""
 
-    The regression is referenced by its UUID and nothing else (E8). A client that needs its title,
-    state or commit joins on that UUID with the regression list, which already carries them.
-    """
-
-    regression_uuid: str = Field(description="The UUID of the regression this indicator is on.")
+    regression_uuid: str = Field(
+        description="The UUID of the regression.", examples=[examples.REGRESSION_UUID]
+    )
 
 
+# A body rather than query parameters for the reason `POST /query` takes one. The lists are bounded
+# at I2's page ceiling for that endpoint's reason too: each expands into one statement, and an
+# unbounded one would carry more bind parameters than the protocol does.
 class IndicatorQuery(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/regressions/indicators/query`.
-
-    A body rather than query parameters for the reason `POST /query` takes one. The lists are
-    bounded at I2's page ceiling for that endpoint's reason too: each expands into one statement,
-    and an unbounded one would carry more bind parameters than the protocol does.
-    """
+    """Which indicators to return. All keys are optional, and only indicators that match every
+    key given are returned."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -391,39 +460,40 @@ class IndicatorQuery(BaseModel):
         default=None,
         max_length=MAX_LIMIT,
         description=(
-            f"Keep only indicators naming one of these machines, at most {MAX_LIMIT} of them. 404 "
-            "if any of them names no machine. An empty list keeps nothing, which is not the same "
-            "as omitting the key."
+            f"Only return indicators for one of these machines (at most {MAX_LIMIT}). Returns 404 "
+            "if any of them doesn't exist. An empty list returns nothing; leave the key out to "
+            "include all machines."
         ),
     )
     test: list[Named] | None = Field(
         default=None,
         max_length=MAX_LIMIT,
         description=(
-            f"Keep only indicators naming one of these tests, at most {MAX_LIMIT} of them. 404 if "
-            "any of them names no test. An empty list keeps nothing."
+            f"Only return indicators for one of these tests (at most {MAX_LIMIT}). Returns 404 if "
+            "any of them doesn't exist. An empty list returns nothing; leave the key out to "
+            "include all tests."
         ),
     )
     metric: Named | None = Field(
         default=None,
         description=(
-            "Keep only indicators naming this metric. 400 if the suite's schema declares no such "
-            "metric."
+            "Only return indicators for this metric. Returns 400 if the suite's schema doesn't "
+            "define it."
         ),
     )
     state: list[RegressionStateName] | None = Field(
         default=None,
         max_length=MAX_LIMIT,
         description=(
-            "Keep only indicators of regressions in one of these states. An empty list keeps "
+            "Only return indicators of regressions in one of these states. An empty list returns "
             "nothing."
         ),
     )
     commit: Named | None = Field(
         default=None,
         description=(
-            "Keep only indicators of regressions attributed to this commit. A value no commit has "
-            "matches nothing, rather than being an error."
+            "Only return indicators of regressions whose suspected commit is this one. If the "
+            "commit doesn't exist, the result is empty."
         ),
     )
     limit: BodyLimit = DEFAULT_LIMIT
@@ -834,6 +904,10 @@ class Regressions:
         )
 
 
+# I3's three answers to a filter naming something absent are all visible here: an unknown `machine=`
+# or `test=` is a 404, an unknown `metric=` is a 400 -- it names a column the schema declares rather
+# than a row the suite holds -- and an unknown `commit=` is an empty page, because a commit no
+# regression was ever attributed to is an ordinary answer.
 @router.get(
     "",
     dependencies=[require_scope(Scope.READ)],
@@ -841,20 +915,23 @@ class Regressions:
     responses=suite_responses(not_found=_NO_FILTERED_ENTITY),
 )
 def list_regressions(
-    testsuite: str,
+    testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
     cursor: Cursor = None,
     search: Annotated[
         str | None,
-        Query(description="Case-insensitive substring match against the regression's title."),
+        Query(
+            description="Only return regressions whose title contains this text. Not "
+            "case-sensitive."
+        ),
     ] = None,
     state: Annotated[
         list[RegressionStateName] | None,
         Query(
             description=(
-                "Keep only regressions in one of these states. Repeat the parameter for several "
-                "states, as in `state=active&state=detected`. Omit for every state."
+                "Only return regressions in one of these states. Repeat the parameter for several "
+                "states: `state=active&state=detected`. Leave out to return all states."
             )
         ),
     ] = None,
@@ -862,8 +939,8 @@ def list_regressions(
         str | None,
         Query(
             description=(
-                "Keep only regressions with an indicator naming this machine. 404 if there is no "
-                "such machine."
+                "Only return regressions with an indicator for this machine. Returns 404 if the "
+                "machine doesn't exist."
             )
         ),
     ] = None,
@@ -871,8 +948,8 @@ def list_regressions(
         str | None,
         Query(
             description=(
-                "Keep only regressions with an indicator naming this test. 404 if there is no "
-                "such test."
+                "Only return regressions with an indicator for this test. Returns 404 if the test "
+                "doesn't exist."
             )
         ),
     ] = None,
@@ -880,8 +957,8 @@ def list_regressions(
         str | None,
         Query(
             description=(
-                "Keep only regressions with an indicator naming this metric. 400 if the suite "
-                "declares no such metric."
+                "Only return regressions with an indicator for this metric. Returns 400 if the "
+                "suite's schema doesn't define it."
             )
         ),
     ] = None,
@@ -889,8 +966,8 @@ def list_regressions(
         str | None,
         Query(
             description=(
-                "Keep only regressions attributed to this commit. A value no commit has matches "
-                "nothing, rather than being an error."
+                "Only return regressions whose suspected commit is this one. If the commit doesn't "
+                "exist, the result is empty."
             )
         ),
     ] = None,
@@ -898,8 +975,8 @@ def list_regressions(
         bool | None,
         Query(
             description=(
-                "Keep only regressions that name a commit, or only those that name none. Omit for "
-                "both."
+                "Only return regressions that have (`true`) or don't have (`false`) a suspected "
+                "commit. Leave out to return both."
             )
         ),
     ] = None,
@@ -907,22 +984,16 @@ def list_regressions(
         RegressionSort | None,
         Query(
             description=(
-                "Order by creation time, ascending (oldest first) or descending (newest first). "
-                "Omit for an arbitrary but stable order."
+                "Sort by creation time, oldest first (`created_at`) or newest first "
+                "(`-created_at`). Without it, the order is unspecified but stable."
             )
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Regression]:
-    """Every regression in the suite, filtered, ordered and cursor-paginated (I2, I3, O4, O5).
+    """The regressions in the suite, one page at a time.
 
-    I3's three answers to a filter naming something absent are all visible here: an unknown
-    `machine=` or `test=` is a 404, an unknown `metric=` is a 400 -- it names a column the schema
-    declares rather than a row the suite holds -- and an unknown `commit=` is an empty page, because
-    a commit no regression was ever attributed to is an ordinary answer.
-
-    `machine=`, `test=` and `metric=` given together describe one indicator rather than three
-    independent ones, which is what a caller combining them is asking.
+    If you combine `machine`, `test` and `metric`, they must all match the same indicator.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
@@ -964,20 +1035,19 @@ def list_regressions(
     summary="Create a regression",
     responses=suite_responses(
         not_found=_NO_NAMED_ENTITY,
-        conflict=f"`duplicate`: a regression with that UUID already exists. {SUITE_SCHEMA_CHANGED}",
+        conflict=f"`duplicate`: a regression with this UUID already exists. {SUITE_SCHEMA_CHANGED}",
     ),
 )
 def create_regression(
-    testsuite: str,
-    body: RegressionCreate,
+    testsuite: SuiteName,
+    body: Annotated[RegressionCreate, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
     response: Response,
 ) -> RegressionDetail:
-    """Open a regression, with as much or as little as the detector knows (O3).
+    """Record a regression. The response's `Location` header points to the new regression.
 
-    Every key is optional: a regression with no title, no commit and no indicators is legal, and
-    `PATCH` and the indicator routes fill it in as triage proceeds.
+    LNT doesn't detect regressions itself: people or external tools record them here.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
@@ -1021,9 +1091,9 @@ def create_regression(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def get_regression(
-    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, uuid: RegressionKey, engine: EngineDep, registry: RegistryDep
 ) -> RegressionDetail:
-    """One regression, with its indicators embedded."""
+    """Get a regression, with its notes and indicators."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Regressions(suite).detail(connection, uuid)
 
@@ -1032,19 +1102,20 @@ def get_regression(
     "/{uuid}",
     dependencies=[require_scope(Scope.TRIAGE)],
     summary="Update a regression",
-    responses=suite_responses(not_found=f"{_NO_REGRESSION} Or no commit in it has that value."),
+    responses=suite_responses(
+        not_found="The test suite, the regression, or the commit named in the body, doesn't exist."
+    ),
 )
 def update_regression(
-    testsuite: str,
-    uuid: UuidKey,
-    body: RegressionUpdate,
+    testsuite: SuiteName,
+    uuid: RegressionKey,
+    body: Annotated[RegressionUpdate, Body(openapi_examples=_UPDATE_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> RegressionDetail:
-    """Retitle, re-state, attach a bug, record notes, or move the suspected commit.
+    """Change a regression's title, bug, notes, state or suspected commit.
 
-    A key the request omits is left unchanged and an explicit null clears it, except `state`, which
-    a regression always has. Transitions are unconstrained: any state may be set to any other.
+    Only include what you want to change. A regression can move from any state to any other.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
@@ -1085,13 +1156,11 @@ def update_regression(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def delete_regression(
-    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, uuid: RegressionKey, engine: EngineDep, registry: RegistryDep
 ) -> None:
-    """Delete a regression and its indicators (D5).
-
-    One statement: D5 gives `{suite}.regression_indicator.regression_id` an `ON DELETE CASCADE`.
-    The machines, tests and commit it named are references and are left alone.
-    """
+    """Delete a regression and its indicators. The machines, tests and commit it refers to are not
+    affected."""
+    # One statement: D5 gives `{suite}.regression_indicator.regression_id` an `ON DELETE CASCADE`.
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
         removed = connection.execute(
@@ -1101,6 +1170,9 @@ def delete_regression(
             raise regressions.missing(uuid)
 
 
+# 200 rather than 201, because a batch whose indicators all already exist creates nothing and there
+# is no one resource to point a `Location` at. `indicators` is the whole list afterwards -- which is
+# what a client rendering the indicator table needs, and saves it a second request.
 @router.post(
     "/{uuid}/indicators",
     dependencies=[require_scope(Scope.TRIAGE)],
@@ -1108,19 +1180,14 @@ def delete_regression(
     responses=suite_responses(not_found=_NO_INDICATOR_TARGET),
 )
 def add_indicators(
-    testsuite: str,
-    uuid: UuidKey,
-    body: IndicatorAddition,
+    testsuite: SuiteName,
+    uuid: RegressionKey,
+    body: Annotated[IndicatorAddition, Body(openapi_examples=_ADD_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> IndicatorsAdded:
-    """Add one or more indicators, ignoring those the regression already has.
-
-    200 rather than 201, because a batch whose indicators all already exist creates nothing and
-    there is no one resource to point a `Location` at. `added` counts what this request actually
-    created, and `indicators` is the whole list afterwards -- which is what a client rendering the
-    indicator table needs, and saves it a second request.
-    """
+    """Add indicators to a regression. Indicators it already has are ignored. The response lists
+    all of its indicators afterwards."""
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
         regression = regressions.resolve(connection, uuid)
@@ -1146,17 +1213,17 @@ def add_indicators(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def remove_indicators(
-    testsuite: str,
-    uuid: UuidKey,
-    body: IndicatorRemoval,
+    testsuite: SuiteName,
+    uuid: RegressionKey,
+    body: Annotated[IndicatorRemoval, Body(openapi_examples=_REMOVE_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> IndicatorsRemoved:
-    """Remove indicators by UUID, ignoring any that are not on this regression.
+    """Remove indicators from a regression, by UUID. The response lists all of its indicators
+    afterwards.
 
-    A UUID naming nothing here is not a 404, so a client that retries a removal after a dropped
-    response gets `removed: 0` rather than an error. A regression left with no indicators is kept:
-    an empty indicator set is a legal state (D5).
+    UUIDs that don't match an indicator of this regression are ignored, so it is safe to retry a
+    removal. A regression left without indicators is kept.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
@@ -1167,6 +1234,8 @@ def remove_indicators(
         )
 
 
+# The metric is resolved first, so an undeclared one is a 400 even if the body also names an absent
+# machine or test -- the same order `POST /query` takes, which the spec leaves open.
 @router.post(
     "/indicators/query",
     dependencies=[require_scope(Scope.READ)],
@@ -1174,15 +1243,15 @@ def remove_indicators(
     responses=suite_responses(not_found=_NO_FILTERED_ENTITY),
 )
 def query_indicators(
-    testsuite: str,
-    body: IndicatorQuery,
+    testsuite: SuiteName,
+    body: Annotated[IndicatorQuery, Body(openapi_examples=_QUERY_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> CursorPage[RegressionIndicator]:
-    """Every indicator matching the body, across all regressions, cursor-paginated (I2, I3, O5).
+    """Search the indicators of all regressions in the suite, one page at a time. For example, to
+    find out which of a set of machines, tests and metrics are already part of a regression.
 
-    The metric is resolved first, so an undeclared one is a 400 even if the body also names an
-    absent machine or test -- the same order `POST /query` takes, which the spec leaves open.
+    This is a POST only because the lists can be too long for a URL; it doesn't change anything.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)

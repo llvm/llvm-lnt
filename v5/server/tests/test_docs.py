@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from lnt_v5 import examples
+from lnt_v5.auth import iter_routes, required_scope
+from lnt_v5.openapi import OVERVIEW, TAGS
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
@@ -19,8 +24,10 @@ from lnt_v5.routes.regressions import (
 )
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
+from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import DEFAULT_LAST_N, QUERY_PATH, TRENDS_PATH
+from lnt_v5.scopes import Scope
 
 
 class TestOpenApiDocument:
@@ -35,7 +42,16 @@ class TestOpenApiDocument:
         # I8 fixes info.version at the API's major version.
         info = client.get("/api/openapi.json").json()["info"]
 
-        assert info == {"title": "LNT v5", "version": "5"}
+        assert info["title"] == "LNT v5"
+        assert info["version"] == "5"
+
+    def test_opens_with_the_overview(self, client: TestClient) -> None:
+        info = client.get("/api/openapi.json").json()["info"]
+
+        assert info["description"] == OVERVIEW
+        # Linked as I8 asks of the API's documentation, and written for people rather than tools.
+        assert "/llms.txt" in OVERVIEW
+        assert "## Authentication" in OVERVIEW
 
     def test_describes_only_permitted_statuses(self, client: TestClient) -> None:
         # I8: the document must not advertise a response the API cannot produce. FastAPI adds a
@@ -150,10 +166,37 @@ class TestDocumentedAuthentication:
         assert schemes["ApiKey"]["type"] == "http"
         assert schemes["ApiKey"]["scheme"] == "bearer"
 
-    def test_every_operation_requires_that_scheme(self, client: TestClient) -> None:
+    def test_every_operation_requires_its_scope_through_that_scheme(self, app: FastAPI) -> None:
+        """Each operation names its scope as the role its requirement on the scheme needs.
+
+        A `read` one also allows the empty requirement, which is how OpenAPI says a caller may send
+        no credentials at all -- I5's anonymous read access. Checked against the scope each route
+        actually enforces, so the document cannot drift from it.
+        """
+        enforced = {
+            (route.path_format, method.lower()): required_scope(route)
+            for route in iter_routes(app.routes)
+            for method in route.methods or ()
+        }
+
+        for path, operations in app.openapi()["paths"].items():
+            for method, operation in operations.items():
+                scope = enforced[(path, method)]
+                assert scope is not None, f"{method.upper()} {path}"
+                requirement = {"ApiKey": [scope.value]}
+                expected = [{}, requirement] if scope is Scope.READ else [requirement]
+                assert operation["security"] == expected, f"{method.upper()} {path}"
+
+    def test_every_operation_states_its_scope_in_words(self, client: TestClient) -> None:
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():
             for method, operation in operations.items():
-                assert operation.get("security") == [{"ApiKey": []}], f"{method.upper()} {path}"
+                roles = operation["security"][-1]["ApiKey"]
+                sentence = (
+                    "**Authorization:** no API key needed."
+                    if roles == ["read"]
+                    else f"**Authorization:** requires an API key with the `{roles[0]}` scope."
+                )
+                assert operation["description"].endswith(sentence), f"{method.upper()} {path}"
 
     def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
         # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.
@@ -1233,3 +1276,272 @@ class TestDocumentationViewer:
         # The mount at "/" matches everything, so both routes have to be registered before it.
         # Falling through would serve the client shell under an /api path instead.
         assert "<title>LNT</title>" not in client.get("/api/docs").text
+
+    def test_keeps_the_token_across_reloads(self, client: TestClient) -> None:
+        # So that trying out a sequence of authenticated operations does not mean pasting the token
+        # again after every reload.
+        assert '"persistAuthorization": true' in client.get("/api/docs").text
+
+
+def _prose(document: dict[str, Any]) -> Iterator[tuple[str, str]]:
+    """Every piece of prose the document publishes, with where it sits."""
+
+    def walk(node: Any, where: str) -> Iterator[tuple[str, str]]:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in ("description", "summary") and isinstance(value, str):
+                    yield f"{where}/{key}", value
+                else:
+                    yield from walk(value, f"{where}/{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                yield from walk(value, f"{where}/{index}")
+
+    return walk(document, "")
+
+
+class TestWrittenForUsers:
+    """I8: the document is written for the API's users, not for the maintainers of its server."""
+
+    # A section of the design documentation (`D5`, `O7`, `I2`, `E10`, `AR4`, `GR14`), one of its
+    # files or a source file, or a suite's table as the database spells it (`{suite}.run`). None of
+    # them means anything to a user, and each is a sign of maintainer documentation published by
+    # mistake -- most often a docstring that FastAPI or pydantic turned into a description.
+    INTERNAL = re.compile(
+        r"\b(?:[DOIE]|AR|DA|TS|DT|GR|CP|PF|AD)[0-9]+\b|\b[\w-]+\.(?:md|py)\b|\{suite\}\."
+    )
+
+    def test_refers_to_nothing_internal(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+
+        leaks = [
+            f"{where}: {match.group()}"
+            for where, text in _prose(document)
+            for match in self.INTERNAL.finditer(text)
+        ]
+        assert not leaks
+
+    def test_describes_every_operation_and_schema(self, client: TestClient) -> None:
+        # Beyond the sentence stating the scope, which every operation gets regardless.
+        document = client.get("/api/openapi.json").json()
+
+        for path, operations in document["paths"].items():
+            for method, operation in operations.items():
+                description = operation["description"].rsplit("**Authorization:**", 1)[0]
+                assert description.strip(), f"{method.upper()} {path}"
+        for name, schema in document["components"]["schemas"].items():
+            assert schema.get("description"), name
+
+    def test_describes_nullable_properties_on_the_property(self, client: TestClient) -> None:
+        # Pydantic puts the description of `title: Title | None` inside the non-null branch, where
+        # a viewer showing the property does not look for it.
+        for name, schema in client.get("/api/openapi.json").json()["components"]["schemas"].items():
+            for key, property in schema.get("properties", {}).items():
+                for branch in property.get("anyOf", []):
+                    assert "description" not in branch, f"{name}.{key}"
+
+    def test_describes_every_parameter(self, client: TestClient) -> None:
+        for path, operations in client.get("/api/openapi.json").json()["paths"].items():
+            for method, operation in operations.items():
+                for parameter in operation.get("parameters", []):
+                    where = f"{method.upper()} {path}: {parameter['name']}"
+                    assert parameter.get("description"), where
+
+    def test_names_every_operation_after_its_endpoint(self, app: FastAPI) -> None:
+        # Rather than after its endpoint, path and method, which is FastAPI's default and what a
+        # generated client would otherwise name its methods after.
+        names = {
+            (route.path_format, method.lower()): route.name
+            for route in iter_routes(app.routes)
+            for method in route.methods or ()
+        }
+
+        operation_ids = []
+        for path, operations in app.openapi()["paths"].items():
+            for method, operation in operations.items():
+                assert operation["operationId"] == names[(path, method)]
+                operation_ids.append(operation["operationId"])
+        assert len(operation_ids) == len(set(operation_ids))
+
+    def test_describes_and_orders_every_tag(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+
+        assert document["tags"] == TAGS
+        declared = {tag["name"] for tag in TAGS}
+        used: set[str] = set()
+        for path, operations in document["paths"].items():
+            for method, operation in operations.items():
+                assert set(operation["tags"]) <= declared, f"{method.upper()} {path}"
+                used |= set(operation["tags"])
+        assert used == declared
+
+    def test_names_every_envelope_after_what_it_holds(self, client: TestClient) -> None:
+        # `RunCursorPage` rather than pydantic's `CursorPage_Run_`, and every reference follows.
+        response = client.get("/api/openapi.json")
+        schemas = response.json()["components"]["schemas"]
+
+        assert {"RunCursorPage", "MachineOffsetPage", "ApiKeyList"} <= set(schemas)
+        for name, schema in schemas.items():
+            assert re.fullmatch(r"[A-Za-z0-9]+", name), name
+            assert schema.get("title", name) == name, name
+        assert set(re.findall(r'"#/components/schemas/([^"]+)"', response.text)) <= set(schemas)
+
+
+def _responses(document: dict[str, Any]) -> Iterator[tuple[str, dict[str, Any]]]:
+    """The schema of every successful response the document describes, with where it sits."""
+    for path, operations in document["paths"].items():
+        for method, operation in operations.items():
+            for status, response in operation["responses"].items():
+                if not status.startswith("2"):
+                    continue
+                for media in response.get("content", {}).values():
+                    if "schema" in media:
+                        yield f"{method.upper()} {path} {status}", media["schema"]
+
+
+class TestResponseSamples:
+    """Swagger UI shows a sample of each response, made from the schemas' examples.
+
+    For text it has no example for, it makes something up: `"string"`, or a random match of a
+    pattern, which for a metric name looks like `"ovjr1s_ivktow62klyyu4v"`. So every text value a
+    response can carry has an example, either of its own or from an enclosing object's.
+    """
+
+    def test_no_text_is_made_up(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+        schemas = document["components"]["schemas"]
+        missing: set[str] = set()
+
+        def visit(schema: dict[str, Any], where: str, seen: frozenset[str]) -> None:
+            if "examples" in schema or "example" in schema or "const" in schema:
+                return
+            reference = schema.get("$ref")
+            if reference is not None:
+                name = reference.rsplit("/", 1)[-1]
+                if name not in seen:
+                    visit(schemas[name], name, seen | {name})
+                return
+            for branch in schema.get("anyOf", []):
+                visit(branch, where, seen)
+            for key, property in schema.get("properties", {}).items():
+                visit(property, f"{where}.{key}", seen)
+            if isinstance(schema.get("items"), dict):
+                visit(schema["items"], f"{where}[]", seen)
+            if isinstance(schema.get("additionalProperties"), dict):
+                missing.add(f"{where}{{}}")
+            if schema.get("type") == "string" and "enum" not in schema and "format" not in schema:
+                missing.add(where)
+
+        for where, schema in _responses(document):
+            visit(schema, where, frozenset())
+        assert not sorted(missing), "\n".join(sorted(missing))
+
+    def test_keep_their_nulls(self, client: TestClient) -> None:
+        # FastAPI drops nulls from the document, which would leave a sample response without keys
+        # the API always sends -- here, the machine fields and display names that have no value.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert schemas["SuiteSchema"]["examples"] == [examples.SUITE_SCHEMA]
+        assert schemas["Machine"]["properties"]["fields"]["examples"] == [examples.MACHINE_VALUES]
+        assert None in examples.MACHINE_VALUES.values()
+
+
+# Every operation that takes a request body, in an order in which the examples it publishes can be
+# sent one after another: each builds on what the ones before it created. Path parameters are filled
+# in from the examples' own names, and `{uuid}` names the regression the first regression example
+# creates.
+EXAMPLE_SEQUENCE = [
+    (SUITES_PATH, "post"),
+    (RUNS_PATH, "post"),
+    (MACHINES_PATH, "post"),
+    (f"{MACHINES_PATH}/{{machine_name}}", "patch"),
+    (COMMITS_PATH, "post"),
+    (f"{COMMITS_PATH}/{{value}}", "patch"),
+    (f"{COMMITS_PATH}/resolve", "post"),
+    (QUERY_PATH, "post"),
+    (REGRESSIONS_PATH, "post"),
+    (f"{REGRESSIONS_PATH}/{{uuid}}", "patch"),
+    (INDICATORS_PATH, "post"),
+    (INDICATORS_PATH, "delete"),
+    (INDICATOR_LOOKUP_PATH, "post"),
+    # Last among the suite's operations, since one of its examples removes a field.
+    (f"{SUITES_PATH}/{{name}}/schema", "patch"),
+    ("/api/admin/api-keys", "post"),
+]
+
+
+class TestRequestExamples:
+    """The request examples the document publishes are ones the API accepts.
+
+    Swagger UI fills a request in with its example, so a broken one is the first thing a user trying
+    the API out would send. They are all written against one suite, so they are sent here, in order,
+    to a real server.
+    """
+
+    def test_every_request_body_has_some(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+        bodies = [
+            (path, method)
+            for path, operations in document["paths"].items()
+            for method, operation in operations.items()
+            if "requestBody" in operation
+        ]
+
+        assert sorted(bodies) == sorted(EXAMPLE_SEQUENCE)
+        for path, method in bodies:
+            content = document["paths"][path][method]["requestBody"]["content"]
+            assert content["application/json"].get("examples"), f"{method.upper()} {path}"
+
+    def test_are_published_as_written(self, app: FastAPI) -> None:
+        # Nulls included: FastAPI drops them from the document, which would turn an example that
+        # clears a value into one that does nothing.
+        document = app.openapi()
+
+        for route in iter_routes(app.routes):
+            body = getattr(route, "body_field", None)
+            if body is None:
+                continue
+            for method in route.methods or ():
+                operation = document["paths"][route.path_format][method.lower()]
+                published = operation["requestBody"]["content"]["application/json"]["examples"]
+                assert published == body.field_info.openapi_examples, route.name
+
+    def test_are_accepted(
+        self,
+        api_client: TestClient,
+        make_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(make_key(Scope.ADMIN))
+        document = api_client.get("/api/openapi.json").json()
+        names = {
+            "testsuite": examples.SUITE,
+            "name": examples.SUITE,
+            "machine_name": examples.OTHER_MACHINE,
+            "value": examples.NEXT_COMMIT,
+        }
+
+        for path, method in EXAMPLE_SEQUENCE:
+            content = document["paths"][path][method]["requestBody"]["content"]
+            for name, example in content["application/json"]["examples"].items():
+                response = api_client.request(
+                    method.upper(),
+                    path.format(**names),
+                    # Harmless where nothing is removed, and needed where something is.
+                    params={"confirm": "true"} if path.endswith("/schema") else None,
+                    json=example["value"],
+                    headers=headers,
+                )
+                assert response.is_success, (
+                    f"{method.upper()} {path} example '{name}': {response.status_code} "
+                    f"{response.text}"
+                )
+                if path == REGRESSIONS_PATH and "uuid" not in names:
+                    names["uuid"] = response.json()["uuid"]
+
+        # The examples that clear a value with an explicit null did clear it.
+        suite = f"{SUITES_PATH}/{names['testsuite']}"
+        machine = api_client.get(f"{suite}/machines/{names['machine_name']}").json()
+        assert machine["fields"]["sdk"] is None
+        assert api_client.get(f"{suite}/commits/{names['value']}").json()["tag"] is None
+        assert api_client.get(f"{suite}/regressions/{names['uuid']}").json()["commit"] is None

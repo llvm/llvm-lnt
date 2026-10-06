@@ -39,8 +39,11 @@ class _EntryUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
-    name: Name
-    display_name: str | None = None
+    name: Name = Field(description="The name of the metric or field to change.")
+    display_name: str | None = Field(
+        default=None,
+        description="A friendlier name for the UI to show instead of `name`. Null removes it.",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -56,19 +59,56 @@ class _EntryUpdate(BaseModel):
         return data
 
 
+# The docstrings of the models below are published, as the descriptions I8's document gives them, so
+# they are written for API users. The private bases above and below are not published themselves;
+# the fields they declare are, through each subclass.
+#
+# The defaults of the update models are never read (see `_EntryUpdate`), and `omit_defaults` keeps
+# them out of the document.
+
+
 class MetricUpdate(_EntryUpdate):
-    unit: str | None = None
-    unit_abbrev: str | None = None
-    bigger_is_better: bool = False
+    """Changes to an existing metric's display settings. Only include the keys you want to change.
+    The metric's type can't be changed."""
+
+    unit: str | None = Field(
+        default=None,
+        description="The unit of the values, such as `seconds`. Null removes it.",
+    )
+    unit_abbrev: str | None = Field(
+        default=None, description="The unit's abbreviation, such as `s`. Null removes it."
+    )
+    bigger_is_better: bool = Field(
+        default=False, description="Whether higher values are better. Can't be null."
+    )
 
 
 class CommitFieldUpdate(_EntryUpdate):
-    searchable: bool = False
-    display: bool = False
+    """Changes to an existing commit field's settings. Only include the keys you want to change.
+    The field's type can't be changed."""
+
+    searchable: bool = Field(
+        default=False,
+        description="Whether `search` on the commit list matches this field. Can't be null.",
+    )
+    display: bool = Field(
+        default=False,
+        description=(
+            "Whether the UI should show this field instead of the commit's value. Can't be null."
+        ),
+    )
 
 
 class MachineFieldUpdate(_EntryUpdate):
-    searchable: bool = False
+    """Changes to an existing machine field's settings. Only include the keys you want to change.
+    The field's type can't be changed."""
+
+    searchable: bool = Field(
+        default=False,
+        description=(
+            "Whether `search` on the machine and run lists matches this field. Can't be null."
+        ),
+    )
 
 
 class _Changes[E: Entry, U: _EntryUpdate](BaseModel):
@@ -82,31 +122,42 @@ class _Changes[E: Entry, U: _EntryUpdate](BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     add: list[E] = Field(
-        default_factory=list, description="Entries to add, in the format a schema declares."
+        default_factory=list, description="New entries, in the same format as in a schema."
     )
     update: list[U] = Field(
-        default_factory=list, description="Presentation metadata to change on existing entries."
+        default_factory=list, description="Changes to the settings of existing entries."
     )
     remove: list[Name] = Field(
         default_factory=list,
-        description="Names to remove. Destroys every value stored for them.",
+        description=(
+            "Names of the entries to remove. This permanently deletes their data, so the request "
+            "must include `confirm=true`."
+        ),
     )
 
 
 class MetricChanges(_Changes[Metric, MetricUpdate]):
-    pass
+    """Metrics to add, update or remove."""
 
 
 class CommitFieldChanges(_Changes[CommitField, CommitFieldUpdate]):
-    pass
+    """Commit fields to add, update or remove."""
 
 
 class MachineFieldChanges(_Changes[MachineField, MachineFieldUpdate]):
-    pass
+    """Machine fields to add, update or remove."""
 
 
 class SchemaPatch(BaseModel):
-    """Add, update and/or remove entries in any of a suite's three lists (D2)."""
+    """Changes to a suite's metrics, commit fields and machine fields. Lists you leave out are
+    not changed.
+
+    Either all the changes are applied or none are, and the resulting schema must be valid. Each
+    metric or field can only be changed once per request. A new metric or field has no value for
+    existing data. Removing one permanently deletes its data (and, for a metric, the regression
+    indicators that refer to it), so the request must include `confirm=true`. To rename a metric
+    or field, remove it and add it again.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

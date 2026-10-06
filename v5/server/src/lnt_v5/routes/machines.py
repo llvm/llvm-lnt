@@ -18,7 +18,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Body, Path, Query, Response
 from pydantic import ConfigDict, Field
 from sqlalchemy import (
     ColumnElement,
@@ -36,6 +36,7 @@ from sqlalchemy import (
     update,
 )
 
+from lnt_v5 import examples
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
@@ -60,7 +61,12 @@ from lnt_v5.suites.entities import (
 )
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import MachineField
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, SUITE_SCHEMA_CHANGED, suite_responses, suite_scope
+from lnt_v5.suites.scope import (
+    SUITE_SCHEMA_CHANGED,
+    SuiteName,
+    suite_responses,
+    suite_scope,
+)
 from lnt_v5.suites.submission import SubmittedMachine
 from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT
 
@@ -74,35 +80,65 @@ MachineSort = Literal["name", "-name", "last_run_at", "-last_run_at"]
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
-NO_MACHINE = f"{SUITE_NOT_FOUND} Or no machine in it has that name."
-NO_MACHINE_FILTERED = f"{SUITE_NOT_FOUND} Or the machine the `machine=` filter names is not in it."
-_NAME_TAKEN = f"`duplicate`: a machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
+NO_MACHINE = "The test suite or the machine doesn't exist."
+NO_MACHINE_FILTERED = "The test suite, or the machine given in `machine`, doesn't exist."
+_NAME_TAKEN = f"`duplicate`: a machine with this name already exists. {SUITE_SCHEMA_CHANGED}"
+
+# The path segment naming a machine.
+MachineKey = Annotated[str, Path(description="The name of the machine.")]
+
+_CREATE_EXAMPLES = {
+    "machine": {
+        "summary": "A machine with its fields",
+        "value": {
+            "name": examples.OTHER_MACHINE,
+            "tracked": True,
+            "fields": examples.OTHER_MACHINE_VALUES,
+        },
+    }
+}
+
+_UPDATE_EXAMPLES = {
+    "untrack": {
+        "summary": "Stop tracking a machine",
+        "value": {"tracked": False},
+    },
+    "fields": {
+        "summary": "Set one field and clear another",
+        "value": {"fields": {"os": "macOS 26.6 (25G5)", "sdk": None}},
+    },
+}
+
+# The docstrings of the models and endpoints below are published, as the descriptions I8's document
+# gives them, so they are written for API users.
 
 
+# `tracked` and `fields` are redeclared without their defaults. I4 requires every documented key to
+# be present in a response, and inheriting the request model's optionality would instead tell a
+# generated client both may be absent.
 class Machine(MachineObject):
-    """A machine as every response carries it: the entity object plus what D5 derives.
-
-    `tracked` and `fields` are redeclared without their defaults. I4 requires every documented key
-    to be present in a response, and inheriting the request model's optionality would instead tell
-    a generated client both may be absent.
-    """
+    """A machine that benchmarks run on."""
 
     tracked: Tracked
-    fields: dict[str, FieldValue]
+    fields: dict[str, FieldValue] = Field(
+        description=(
+            "The machine's values for the fields defined in the suite's schema, keyed by field "
+            "name. Every field is listed, with null for those that have no value."
+        ),
+        examples=[examples.MACHINE_VALUES],
+    )
     last_run_at: datetime | None = Field(
-        description="When the machine's most recent run was submitted, or null if it has none."
+        description="When the machine's most recent run was submitted. Null if it has no runs."
     )
 
 
+# Every key is optional and the defaults below are never read, because the endpoint dumps this with
+# `exclude_unset`. Their *types* are what carry meaning: neither `name` nor `tracked` is nullable,
+# so sending either as null is a 400 rather than an instruction to clear it.
 class MachineUpdate(EntityObject):
-    """What `PATCH` may change. A key the request omits is left unchanged.
-
-    Every key is optional and the defaults below are never read, because the endpoint dumps this
-    with `exclude_unset`. Their *types* are what carry meaning: neither `name` nor `tracked` is
-    nullable, so sending either as null is a 400 rather than an instruction to clear it. Inside
-    `fields`, an explicit null does clear a stored value -- the same convention as
-    `PATCH /api/suites/{testsuite}/commits/{value}`.
-    """
+    """Changes to a machine. Only include what you want to change; this also applies to the keys
+    of `fields`. Set a field to null to clear it. Set `name` to rename the machine. `name` and
+    `tracked` can't be null."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
@@ -274,27 +310,39 @@ def machine_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> d
     responses=suite_responses(),
 )
 def list_machines(
-    testsuite: str,
+    testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
     search: Annotated[
         str | None,
         Query(
             description=(
-                "Case-insensitive substring match against the machine's name or any searchable "
-                "machine field."
+                "Only return machines whose name, or any searchable field, contains this text. "
+                "Not case-sensitive."
             )
         ),
     ] = None,
     tracked: Annotated[
         bool | None,
-        Query(description="Keep only tracked or only untracked machines. Omit for both."),
+        Query(
+            description="Only return tracked machines (`true`) or untracked ones (`false`). "
+            "Leave out to return both."
+        ),
     ] = None,
-    sort: MachineSort = "name",
+    sort: Annotated[
+        MachineSort,
+        Query(
+            description=(
+                "Sort by name, or by the time of each machine's most recent run. Machines without "
+                "runs always come last, and ties are sorted by name."
+            )
+        ),
+    ] = "name",
     limit: Limit = DEFAULT_LIMIT,
     offset: Offset = 0,
 ) -> OffsetPage[Machine]:
-    """Every machine in the suite, filtered, ordered and offset-paginated (I2, I3, O4)."""
+    """The machines in the suite, one page at a time. To list a machine's runs, use
+    `GET /api/suites/{testsuite}/runs?machine={name}`."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         machines = Machines(suite)
         conditions: list[ColumnElement[bool]] = []
@@ -326,16 +374,17 @@ def list_machines(
     responses=suite_responses(conflict=_NAME_TAKEN),
 )
 def create_machine(
-    testsuite: str,
-    body: MachineObject,
+    testsuite: SuiteName,
+    body: Annotated[MachineObject, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
     response: Response,
 ) -> Machine:
-    """Create a machine without a run (O2).
+    """Create a machine before any run is submitted for it. The response's `Location` header
+    points to the new machine.
 
-    Machines are also created implicitly by run submission; this is the path for declaring one
-    ahead of any data, or for one that will never carry any.
+    You don't need to do this before submitting runs: submitting a run creates its machine if it
+    doesn't exist yet.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         machines = Machines(suite)
@@ -359,9 +408,9 @@ def create_machine(
     responses=suite_responses(not_found=NO_MACHINE),
 )
 def get_machine(
-    testsuite: str, machine_name: str, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, machine_name: MachineKey, engine: EngineDep, registry: RegistryDep
 ) -> Machine:
-    """One machine, in the same shape the list endpoint returns."""
+    """Get a machine."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Machines(suite).one(connection, machine_name)
 
@@ -373,16 +422,17 @@ def get_machine(
     responses=suite_responses(not_found=NO_MACHINE, conflict=_NAME_TAKEN),
 )
 def update_machine(
-    testsuite: str,
-    machine_name: str,
-    body: MachineUpdate,
+    testsuite: SuiteName,
+    machine_name: MachineKey,
+    body: Annotated[MachineUpdate, Body(openapi_examples=_UPDATE_EXAMPLES)],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> Machine:
-    """Rename a machine, flip `tracked`, and/or set declared fields (O2).
+    """Rename a machine, change whether it is tracked, or set or clear its fields.
 
-    A key the request omits is left unchanged, inside `fields` as well as beside it, so a caller
-    that knows one field can send that field alone.
+    Only include what you want to change. If you change a field here, later run submissions that
+    still send the old value are rejected with a 409 `conflict` until they are updated. If you
+    rename a machine, later run submissions that still use the old name create a new machine.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         machines = Machines(suite)
@@ -419,15 +469,14 @@ def update_machine(
     responses=suite_responses(not_found=NO_MACHINE),
 )
 def delete_machine(
-    testsuite: str, machine_name: str, engine: EngineDep, registry: RegistryDep
+    testsuite: SuiteName, machine_name: MachineKey, engine: EngineDep, registry: RegistryDep
 ) -> None:
-    """Delete a machine, its runs, and every regression indicator naming it (D5).
-
-    One statement: D5 gives `{suite}.run.machine_id` and `{suite}.regression_indicator.machine_id`
-    an `ON DELETE CASCADE`, and the runs take their samples and profiles with them in turn. A
-    regression left with no indicators is deliberately kept -- it keeps its title, bug, notes and
-    commit, and an empty indicator set is a legal state.
-    """
+    """Delete a machine, along with its runs (and their samples and profiles) and the regression
+    indicators that refer to it. Regressions left without indicators are kept."""
+    # One statement: D5 gives `{suite}.run.machine_id` and `{suite}.regression_indicator.machine_id`
+    # an `ON DELETE CASCADE`, and the runs take their samples and profiles with them in turn. A
+    # regression left with no indicators keeps its title, bug, notes and commit, and an empty
+    # indicator set is a legal state.
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         machines = Machines(suite)
         removed = connection.execute(

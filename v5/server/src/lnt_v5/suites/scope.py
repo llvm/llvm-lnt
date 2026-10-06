@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Annotated, Any
 
+from fastapi import Path
 from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError
 
@@ -20,12 +21,20 @@ from lnt_v5.suites.registry import Suite, SuiteRegistry
 
 # The two failures every suite-scoped operation can answer, worded once for I8's document. They come
 # from `suite_scope` rather than from any endpoint, so restating them per endpoint would be dozens
-# of copies of one sentence, each free to drift from what the code actually does.
+# of copies of one sentence, each free to drift from what the code actually does. An endpoint that
+# can fail to find something else too words its whole 404 itself, as one sentence naming the suite
+# along with the rest, since appending to this one reads badly.
 #
 # OpenAPI keys responses by status alone, so every case an operation answers with 409 shares one
 # description. Each case is therefore introduced by its I4 code, which is what a client branches on.
-SUITE_NOT_FOUND = "No test suite has that name."
-SUITE_SCHEMA_CHANGED = "`retry`: the suite's schema changed while the request was running."
+SUITE_NOT_FOUND = "The test suite doesn't exist."
+SUITE_SCHEMA_CHANGED = (
+    "`retry`: the suite's schema changed while the request was being handled. Send it again."
+)
+
+# The path segment naming a suite, described once for I8's document: `{testsuite}` on every
+# suite-scoped route, and `{name}` on the suite routes themselves.
+SuiteName = Annotated[str, Path(description="The name of the test suite.")]
 
 
 @contextmanager
