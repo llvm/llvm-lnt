@@ -15,6 +15,7 @@ from .db import make_engine
 from .errors import register_error_handlers
 from .openapi import use_i4_error_responses
 from .routes.admin import router as admin_router
+from .routes.auth import router as auth_router
 from .routes.commits import router as commits_router
 from .routes.health import router as health_router
 from .routes.index import DOCS_PATH, OPENAPI_PATH
@@ -107,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(llms_router)
     app.include_router(index_router)
     app.include_router(admin_router)
+    app.include_router(auth_router)
     app.include_router(suites_router)
     app.include_router(machines_router)
     app.include_router(commits_router)

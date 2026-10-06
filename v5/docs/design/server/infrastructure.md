@@ -40,10 +40,10 @@ alongside an interactive viewer (see I8).
 - An index endpoint at `GET /api` links to the test suite list endpoint and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
-  routes (`/api/suites`, `/api/admin/...`), so routing reserves no suite names
-  at all -- a suite may legally be named `admin` or even `suites`. A few names
-  are nevertheless rejected at creation, for a reason that has nothing to do
-  with routing; see D4.
+  routes (`/api/suites`, `/api/admin/...`, `/api/auth`), so routing reserves no
+  suite names at all -- a suite may legally be named `admin` or even `suites`. A
+  few names are nevertheless rejected at creation, for a reason that has nothing
+  to do with routing; see D4.
 
 
 ## I2: Pagination
@@ -244,7 +244,8 @@ The HTTP method implies nothing about the required scope in either direction:
 some POST endpoints are `read`-scoped, and the API key endpoints require
 `admin` even for GET. The per-endpoint `Auth scope` lines in the endpoints spec
 are authoritative for which endpoint needs which; the list above says what each
-scope means.
+scope means. A client learns which scope a token grants through
+`GET /api/auth` (see E12).
 
 **Unauthenticated access**. `read`-scoped endpoints allow unauthenticated
 access. Endpoints requiring any higher scope require a valid Bearer token.

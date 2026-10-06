@@ -11,10 +11,11 @@ import hashlib
 import logging
 import re
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Connection, Engine, func, insert, select, update
+from sqlalchemy import Connection, Engine, Row, func, insert, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .db import unique_violation_constraint
@@ -63,7 +64,7 @@ class CreatedKey(ApiKeyInfo):
 
 
 @dataclass(frozen=True)
-class ResolvedKey:
+class ResolvedKey(ApiKeyInfo):
     """What a presented token resolved to. Internal: carries the row id, which no response does.
 
     `is_active` is read rather than filtered on, so the caller can log whether a rejected key was
@@ -71,9 +72,16 @@ class ResolvedKey:
     """
 
     id: int
-    prefix: str
-    scope: Scope
-    is_active: bool
+
+
+# The columns an `ApiKeyInfo` is read from, named as its fields are, and how to read one back out of
+# a row selecting them.
+_SHOWN_COLUMNS = tuple(api_key.c[field.name] for field in fields(ApiKeyInfo))
+
+
+def _shown(row: Row[Any]) -> dict[str, Any]:
+    values = {field.name: row._mapping[field.name] for field in fields(ApiKeyInfo)}
+    return values | {"scope": Scope(values["scope"])}
 
 
 def generate_token() -> str:
@@ -106,8 +114,8 @@ def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
         prefix = token[:TOKEN_PREFIX_LENGTH]
         try:
             with connection.begin_nested():
-                # Read the defaults back rather than assuming them: `created_at` is the database's
-                # clock, and `last_used_at` and `is_active` are column defaults (D5).
+                # Read the row back rather than assuming its defaults: `created_at` is the
+                # database's clock, and `last_used_at` and `is_active` are column defaults (D5).
                 row = connection.execute(
                     insert(api_key)
                     .values(
@@ -116,21 +124,13 @@ def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
                         name=name,
                         scope=scope.value,
                     )
-                    .returning(api_key.c.created_at, api_key.c.last_used_at, api_key.c.is_active)
+                    .returning(*_SHOWN_COLUMNS)
                 ).one()
         except IntegrityError as error:
             if unique_violation_constraint(error) != PREFIX_CONSTRAINT:
                 raise
             continue
-        return CreatedKey(
-            prefix=prefix,
-            name=name,
-            scope=scope,
-            created_at=row.created_at,
-            last_used_at=row.last_used_at,
-            is_active=row.is_active,
-            token=token,
-        )
+        return CreatedKey(token=token, **_shown(row))
 
     raise RuntimeError(
         f"Could not generate a token with an unused prefix in {_MAX_ATTEMPTS} attempts."
@@ -151,16 +151,14 @@ def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
     if not TOKEN_PATTERN.match(token):
         return None
 
+    # Every shown column, not only what authorization needs: a resolved key is a whole `ApiKeyInfo`,
+    # and the row is being read anyway.
     row = connection.execute(
-        select(api_key.c.id, api_key.c.prefix, api_key.c.scope, api_key.c.is_active).where(
-            api_key.c.key_hash == hash_token(token)
-        )
+        select(api_key.c.id, *_SHOWN_COLUMNS).where(api_key.c.key_hash == hash_token(token))
     ).one_or_none()
     if row is None:
         return None
-    return ResolvedKey(
-        id=row.id, prefix=row.prefix, scope=Scope(row.scope), is_active=row.is_active
-    )
+    return ResolvedKey(id=row.id, **_shown(row))
 
 
 def touch_last_used(engine: Engine, key_id: int) -> None:
@@ -193,26 +191,9 @@ def list_keys(connection: Connection) -> list[ApiKeyInfo]:
     across requests.
     """
     rows = connection.execute(
-        select(
-            api_key.c.prefix,
-            api_key.c.name,
-            api_key.c.scope,
-            api_key.c.created_at,
-            api_key.c.last_used_at,
-            api_key.c.is_active,
-        ).order_by(api_key.c.created_at.desc(), api_key.c.prefix)
+        select(*_SHOWN_COLUMNS).order_by(api_key.c.created_at.desc(), api_key.c.prefix)
     ).all()
-    return [
-        ApiKeyInfo(
-            prefix=row.prefix,
-            name=row.name,
-            scope=Scope(row.scope),
-            created_at=row.created_at,
-            last_used_at=row.last_used_at,
-            is_active=row.is_active,
-        )
-        for row in rows
-    ]
+    return [ApiKeyInfo(**_shown(row)) for row in rows]
 
 
 def revoke_key(connection: Connection, prefix: str) -> bool:

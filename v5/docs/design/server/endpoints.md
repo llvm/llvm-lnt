@@ -690,7 +690,7 @@ mutable, nullable, and only approximate (see D5). Revoked keys are included, wit
 `admin`). Returns 201 with the key's fields plus a `token` field carrying the
 raw token, which is shown only this once and cannot be retrieved afterwards
 (see I5). No `Location` header is set: there is deliberately no per-key detail
-route, so the list endpoint is the only way to read a key back.
+route.
 
 Returns 400 if `name` is missing, empty, or longer than 256 characters (see D5),
 or if `scope` is missing or is not one of the five values. `name` is a
@@ -715,3 +715,19 @@ special case for either, because an operator's ability to revoke a leaked key
 must not depend on which key leaked. Recovering from revoking the last `admin`
 key means creating one through the out-of-band interface described in I5, which
 is also how an instance gets its first key.
+
+
+## E12: Authentication
+
+```
+GET    /api/auth                  -- The API key the request authenticated with, if any
+```
+
+Response is `{"key": ...}`, where `key` is an object with E11's key fields for
+the API key the request's credential resolves to, or `null` when the request
+carries no `Authorization` header. A credential that does not authenticate is
+a 401, as on every endpoint under `/api/` (see I5), so this is also how a
+client checks a token: it learns whether the token is usable and which scope
+it grants.
+
+Auth scope: `read`.
