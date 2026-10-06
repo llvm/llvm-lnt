@@ -50,7 +50,9 @@ class PageCursor(BaseModel):
             "Pass this as `cursor` to get the next page. Null on the last page. It is an opaque "
             "string: don't try to parse it."
         ),
-        examples=["WzU1NDk3MywgNDJd.7f3a9c"],
+        # The shape `querying.Keyset.cursor` produces: base64url JSON of a fingerprint and the
+        # position, here a submission time and an id.
+        examples=["WyIzYzlmMGExYjdlNDIiLFsiMjAyNi0wOC0xNFQwMjo0MToxMloiLDE4NDJdXQ"],
     )
     previous: None = Field(description="Always null. Reserved for future use.")
 

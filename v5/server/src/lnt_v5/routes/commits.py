@@ -227,9 +227,7 @@ class ResolvedCommits(BaseModel):
     """The commits that were found, and the values that weren't."""
 
     results: dict[str, Commit] = Field(
-        description=(
-            "The commits that were found, keyed by value, in the order they were requested."
-        ),
+        description="The commits that were found, keyed by value.",
         examples=[{examples.COMMIT: _COMMIT}],
     )
     not_found: list[str] = Field(
@@ -676,8 +674,8 @@ def update_commit(
     """Set or clear a commit's ordinal, tag and fields.
 
     This is the only way to change an ordinal or a tag once it is set. Only include what you want
-    to change. If you change a value here, later run submissions that still send the old value are
-    rejected with a 409 `conflict` until they are updated.
+    to change. If you change the ordinal, the tag or a field here, later run submissions that still
+    send the old value are rejected with a 409 `conflict` until they are updated.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)

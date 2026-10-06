@@ -13,7 +13,8 @@ Reading data doesn't require an API key. Everything else does: send the key's to
 Each operation lists the scope it requires, and the `Scope` schema describes what each scope
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
 everything its scope and the scopes below it allow. Keys are created with
-`POST /api/admin/api-keys`, which requires the `admin` scope.
+`POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
+your first key.
 
 If you do send a key, it must be valid: a malformed, unknown or revoked key gets a 401, even on
 operations that don't need a key. A valid key without the required scope gets a 403.
@@ -51,15 +52,16 @@ the filters, across all pages.
 - Unknown query parameters are rejected with a 400 rather than ignored, so a typo can't silently
   return the wrong results. So is a parameter given twice when it only takes one value.
 - `sort=<name>` sorts in ascending order and `sort=-<name>` in descending order. Each operation
-  lists the sort orders it supports. Without `sort`, results come back in an unspecified but
-  stable order, which is the fastest way to page through everything.
+  lists the sort orders it supports, and its default if it has one. If it has none and `sort` is
+  left out, results come back in an unspecified but stable order, which is the fastest way to page
+  through everything.
 
 ## Errors
 
 All errors have the same body:
 
 ```json
-{"error": {"code": "not_found", "message": "Machine 'foo' not found in test suite 'nts'"}}
+{"error": {"code": "not_found", "message": "No machine named 'foo' in test suite 'libcxx'"}}
 ```
 
 Check `code` in your code. `message` is meant for people and may change.
@@ -73,7 +75,7 @@ Check `code` in your code. `message` is meant for people and may change.
 | `method_not_allowed` | 405 | The path exists, but not with this HTTP method. The `Allow` header lists the methods it supports. |
 | `duplicate` | 409 | The thing you are creating already exists. If you chose the UUID of a run or a regression yourself, a previous attempt probably succeeded: don't resend it with a new UUID, or you'll store it twice. |
 | `conflict` | 409 | The request contradicts data that is already stored. Sending it again won't help: change the request or the stored data first. |
-| `retry` | 409 | Someone changed the suite's schema at the same time. Nothing was saved: send the same request again. |
+| `retry` | 409 | The suite's schema changed at the same time, or the suite was too busy for a schema change to start. Nothing was saved: send the same request again. |
 | `internal_error` | 500 | Something went wrong on the server. |
 
 A request body that is too large is rejected with a 413, which may not have this body.

@@ -62,8 +62,8 @@ ConfirmRemoval = Annotated[
 _NOT_FOUND = {"model": ErrorEnvelope, "description": SUITE_NOT_FOUND}
 # Every write can answer this: the suite was busy and the change could not take its locks (D2).
 _BUSY = (
-    "`retry`: another change to this suite was in progress, and nothing was saved. Send the "
-    "request again."
+    "`retry`: the suite was busy, for example because another request was reading it, so the "
+    "change couldn't start. Nothing was saved: send the request again."
 )
 
 _CREATE_EXAMPLES = {
@@ -72,7 +72,7 @@ _CREATE_EXAMPLES = {
 
 _PATCH_EXAMPLES = {
     "add_and_update": {
-        "summary": "Add a commit field and rename a metric",
+        "summary": "Add a commit field and change a metric's display name",
         "value": {
             "commit_fields": {"add": [{"name": "author", "type": "text", "searchable": True}]},
             "metrics": {"update": [{"name": "max_rss", "display_name": "Max RSS"}]},

@@ -111,7 +111,7 @@ OTHER_MACHINE_VALUES: dict[str, Any] = {
     "sdk": "26.5",
 }
 
-# Three commits, from the real runs.
+# Three commits. The first two are from the real runs; the third is made up, to come after them.
 PREVIOUS_COMMIT = "97367d1046a2ec81e9b4e708ae7acdc83d99dcf7"
 PREVIOUS_ORDINAL = 554220
 COMMIT = "45c41247f82e5691425542de829d568cdc2fb580"

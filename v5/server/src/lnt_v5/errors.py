@@ -75,11 +75,11 @@ class ErrorBody(BaseModel):
     # description lists them instead, and each response says which ones it carries.
     code: str = Field(
         description=(
-            "A stable, machine-readable error code: one of `invalid_request`, `unauthorized`, "
-            "`forbidden`, `not_found`, `method_not_allowed`, `duplicate`, `conflict`, `retry` and "
-            "`internal_error`. Check this to handle errors."
+            "A stable, machine-readable error code: one of "
+            + ", ".join(f"`{code.value}`" for code in ErrorCode)
+            + ". Check this to handle errors."
         ),
-        examples=["not_found"],
+        examples=[ErrorCode.NOT_FOUND.value],
     )
     message: str = Field(
         description="A description of the error, meant for people. It may change: don't parse it."

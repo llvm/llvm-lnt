@@ -82,7 +82,7 @@ _QUERY_EXAMPLES = {
         },
     },
     "range": {
-        "summary": "Every test's instruction count since a given commit",
+        "summary": "Every test's instruction count after a given commit",
         "value": {
             "metric": examples.OTHER_METRIC,
             "after_commit": examples.COMMIT,

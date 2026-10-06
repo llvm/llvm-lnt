@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from lnt_v5 import examples
 from lnt_v5.auth import iter_routes, required_scope
+from lnt_v5.errors import ErrorCode
 from lnt_v5.openapi import OVERVIEW, TAGS
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
@@ -28,6 +29,7 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import DEFAULT_LAST_N, QUERY_PATH, TRENDS_PATH
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.schema import RESERVED_TEST_ENTRY_KEYS, CommitField, MachineField, Metric
 
 
 class TestOpenApiDocument:
@@ -1385,6 +1387,31 @@ class TestWrittenForUsers:
             assert re.fullmatch(r"[A-Za-z0-9]+", name), name
             assert schema.get("title", name) == name, name
         assert set(re.findall(r'"#/components/schemas/([^"]+)"', response.text)) <= set(schemas)
+
+
+class TestStatedFacts:
+    """Facts the prose states that are defined elsewhere in the code.
+
+    Field descriptions are built from the constants they state, so they cannot drift. Docstrings and
+    the overview are plain text, so these check them against the code instead -- in backticks,
+    where the text writes them, so that a name is not found inside a longer word.
+    """
+
+    def test_the_overview_lists_every_error_code(self) -> None:
+        assert {code for code in ErrorCode if f"`{code.value}`" in OVERVIEW} == set(ErrorCode)
+
+    def test_the_overview_states_the_page_sizes(self) -> None:
+        assert f"defaults to {DEFAULT_LIMIT}" in OVERVIEW
+        assert f"at most {MAX_LIMIT}" in OVERVIEW
+
+    @pytest.mark.parametrize("entry", [Metric, CommitField, MachineField])
+    def test_an_entry_lists_the_names_it_cannot_take(self, client: TestClient, entry: Any) -> None:
+        reserved = set().union(*entry.RESERVED_COLUMNS.values())
+        if entry is Metric:
+            reserved |= RESERVED_TEST_ENTRY_KEYS
+        schema = client.get("/api/openapi.json").json()["components"]["schemas"][entry.__name__]
+
+        assert {name for name in reserved if f"`{name}`" in schema["description"]} == reserved
 
 
 def _responses(document: dict[str, Any]) -> Iterator[tuple[str, dict[str, Any]]]:

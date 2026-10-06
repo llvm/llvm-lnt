@@ -274,7 +274,9 @@ class SuiteSchema(BaseModel):
     name: Name = Field(
         description=(
             "The suite's name. Lowercase letters, digits and underscores, starting with a letter. "
-            "It can't be `public` or `information_schema`, or start with `pg_`."
+            "It can't be "
+            + " or ".join(f"`{reserved}`" for reserved in sorted(RESERVED_SUITE_NAMES))
+            + f", or start with `{RESERVED_SUITE_PREFIX}`."
         )
     )
     metrics: list[Metric] = Field(

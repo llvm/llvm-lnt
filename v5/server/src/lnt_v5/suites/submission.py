@@ -45,7 +45,15 @@ from lnt_v5.suites.entities import (
     validate_fields,
     validate_value,
 )
-from lnt_v5.suites.profile_document import StoredProfile, stored_profile
+from lnt_v5.suites.profile_document import (
+    MAX_COMPRESSED_SIZE,
+    MAX_DOCUMENT_SIZE,
+    MAX_FUNCTION_NAME_BYTES,
+    MAX_FUNCTIONS,
+    MAX_INSTRUCTIONS,
+    StoredProfile,
+    stored_profile,
+)
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.tables import NAME_LENGTH
 
@@ -53,6 +61,9 @@ from lnt_v5.suites.tables import NAME_LENGTH
 _NO_NUL = (
     "contains a NUL character (U+0000), which cannot be stored; run parameters are stored as JSON"
 )
+
+# For stating the profile size limits in MiB, as their constants are written.
+_MIB = 1024 * 1024
 
 # The descriptions and docstrings from here to the end of `RunSubmission` are published, in I8's
 # document, so they are written for API users.
@@ -105,8 +116,10 @@ class TestEntry(BaseModel):
         description=(
             "The test's profile: a profile document (the JSON returned by "
             "`GET /api/suites/{testsuite}/profiles/{uuid}/document`), gzip-compressed and then "
-            "base64-encoded. Limits: 4 MiB compressed, 32 MiB uncompressed, 10000 functions, and "
-            "100000 instructions per function. Null is the same as leaving it out."
+            f"base64-encoded. Limits: {MAX_COMPRESSED_SIZE // _MIB} MiB compressed, "
+            f"{MAX_DOCUMENT_SIZE // _MIB} MiB uncompressed, {MAX_FUNCTIONS} functions, "
+            f"{MAX_INSTRUCTIONS} instructions per function, and {MAX_FUNCTION_NAME_BYTES} bytes "
+            "per function name (in UTF-8). Null is the same as leaving it out."
         ),
     )
 
