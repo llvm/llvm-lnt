@@ -27,14 +27,17 @@ the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
 
 - `schema.json` is libc++'s `libcxx/utils/ci/lnt/schemas/libcxx.yaml` in D4's format: its `Real`
   metrics are `real`, with the same display names and units. v4's run fields describe the commit
-  rather than the run: `git_sha` is the commit's identity, and `llvm_project_revision` (the order
-  field) and `commit_info` are commit fields. None of these runs reports `commit_info`. v4 has no
-  notion of `searchable` or `display`, so those are new: `hardware`, `os` and
-  `llvm_project_revision` are searchable, and `llvm_project_revision` is the commit's display value.
+  rather than the run: `git_sha` is the commit's identity, the order field (the LLVM revision
+  number) is its ordinal, and `commit_info` is a commit field. None of these runs reports
+  `commit_info`. The commit field `svn_revision` is new, and so are `searchable` and `display`, of
+  which v4 has no notion: `hardware`, `os` and `svn_revision` are searchable, and `svn_revision` is
+  the commit's display value.
 - `machine`: the v4 name, and as `fields` whichever v4 machine fields the machine reports. The
   Linux machine has no `hardware`, `os` or `sdk`.
-- `commit`: `value` is v4's `git_sha`, `ordinal` is `llvm_project_revision` as an integer, and
-  `fields` keeps `llvm_project_revision` itself.
+- `commit`: `value` is v4's `git_sha`, `ordinal` is v4's order field as an integer, and `fields`
+  holds `svn_revision`, synthesized from the ordinal (`r554973`): LLVM's revision number in the
+  style of its Subversion days, which no SHA can contain, so that a search for it only matches the
+  field.
 - `run_parameters`: every other v4 run field, verbatim, except v4's bookkeeping (`id`,
   `order_id`, `order_by`).
 - `tests`: these bots report one sample per test per run, repeating a commit with several runs

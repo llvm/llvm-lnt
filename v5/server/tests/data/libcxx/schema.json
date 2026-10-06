@@ -63,7 +63,7 @@
   ],
   "commit_fields": [
     {
-      "name": "llvm_project_revision",
+      "name": "svn_revision",
       "type": "text",
       "searchable": true,
       "display": true

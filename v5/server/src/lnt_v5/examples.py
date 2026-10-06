@@ -69,9 +69,9 @@ MACHINE_FIELDS: list[dict[str, Any]] = [
 ]
 COMMIT_FIELDS: list[dict[str, Any]] = [
     {
-        "name": "llvm_project_revision",
+        "name": "svn_revision",
         "type": "text",
-        "display_name": "Revision",
+        "display_name": None,
         "searchable": True,
         "display": True,
     },
@@ -117,7 +117,7 @@ PREVIOUS_ORDINAL = 554220
 COMMIT = "45c41247f82e5691425542de829d568cdc2fb580"
 ORDINAL = 554973
 COMMIT_VALUES: dict[str, Any] = {
-    "llvm_project_revision": "554973",
+    "svn_revision": "r554973",
     "commit_info": "[libc++] Vectorize std::find_if",
 }
 NEXT_COMMIT = "b2c7e9f0d14a8b36c5e2f7a90d3e41b6c8a5f217"
