@@ -690,8 +690,7 @@ mutable, nullable, and only approximate (see D5). Revoked keys are included, wit
 `admin`). Returns 201 with the key's fields plus a `token` field carrying the
 raw token, which is shown only this once and cannot be retrieved afterwards
 (see I5). No `Location` header is set: there is deliberately no per-key detail
-route, so the list endpoint is the only way to read a key back, apart from a
-caller reading its own key through `GET /api/auth` (see E12).
+route.
 
 Returns 400 if `name` is missing, empty, or longer than 256 characters (see D5),
 or if `scope` is missing or is not one of the five values. `name` is a
