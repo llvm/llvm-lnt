@@ -20,8 +20,9 @@ endpoint (`GET /runs/{uuid}/profiles`).
 
 1. **Nav bar**: `[Profiles]` link navigates to `/profiles` with no params.
 2. **Compare page**: "Profile" link in the comparison table for tests that have
-   profiles on both sides. Pre-populates suite_a, run_a, test_a, suite_b, run_b,
-   test_b. Uses the latest run when multiple runs are selected on a side.
+   a profile on at least one side. Pre-populates both sides when both have
+   one, and side A with whichever side has one otherwise. Uses the latest run
+   when multiple runs are selected on a side.
 3. **Run Detail page**: Tests with profiles show a "Profile" link in the samples
    table, navigating to `/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.
 
@@ -41,7 +42,7 @@ selections:
    machine is selected (see AR2). Disabled until machine is selected.
 4. **Run**: dropdown of runs for the selected machine+commit that contain
    profile data (populated by `GET /runs?machine=M&commit=C&has_profiles=true`;
-   shows timestamp + short UUID). Disabled until commit is selected.
+   shows timestamp + shortened UUID). Disabled until commit is selected.
 5. **Test**: dropdown over tests that have profiles for the selected run
    (populated from `GET /runs/{uuid}/profiles`). Disabled until run is selected.
 
@@ -50,7 +51,8 @@ selections:
 
 When both sides are selected:
 - Table showing counter names, value A, value B, and % difference
-- Color-coded: green (improvement), red (regression)
+- Color-coded: green when B is lower than A (an improvement), red when it is
+  higher (a regression)
 - Horizontal bar chart showing % differences per counter
 
 When only side A is selected:
@@ -93,9 +95,6 @@ The CFG view requires ISA-specific basic block boundary detection (parsing
 instruction semantics to identify branches, jumps, and fall-throughs). The v4
 implementation in `lnt/server/ui/static/lnt_profile.js` can serve as a reference
 for the patterns of each ISA.
-
-**Note**: The CFG view is deferred to a future phase. Only the straight-line
-display mode is currently implemented.
 
 
 ### PF6: Counter Display Modes
@@ -154,6 +153,3 @@ When only one side:
 
 All selection state is encoded as query parameters for shareability:
 - `suite_a`, `suite_b`, `run_a`, `test_a`, `run_b`, `test_b`
-
-Auth token is stored in `localStorage`, not in URL state. All URL updates use
-`replaceState` (not `pushState`).

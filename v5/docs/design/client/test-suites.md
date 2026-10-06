@@ -14,8 +14,7 @@ Clicking a card selects it (highlighted) and shows the tab bar below, navigating
 to `/suites/{name}`. When no suite is selected (`/suites`), only the suite
 picker is visible.
 
-**Tabs**: [Recent Activity] [Machines] [Runs] [Commits] [Regressions]. Default
-tab is Recent Activity.
+**Tabs**: [Runs] [Machines] [Commits] [Regressions]. Default tab is Runs.
 
 **URL state**: the suite is a path segment (`/suites/{ts}`); the remaining state
 is in query params (`?tab=machines&search=foo&offset=0`). On mount, reads the
@@ -23,30 +22,33 @@ path and params to restore state. On changes, updates the URL.
 
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
-| Recent Activity | Last 25 runs sorted by time | `GET runs?sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
-| Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine searchable fields |
-| Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-submitted_at&limit=25` | Substring match on machine searchable fields |
+| Runs | Run list with cursor pagination, most recent first | `GET runs?search=...&sort=-submitted_at&limit=25` | Substring match on machine name and searchable machine fields |
+| Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
-| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
+| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title search |
 
-## TS2: Recent Activity tab
+## TS2: Runs tab
 
-This tab shows the last 25 runs sorted by time. It shows a table like this:
+This tab shows the runs submitted to that test suite, most recent first. It
+shows a table like this:
 
 ```
-Machine             Commit          Submitted                 Run
--------------------------------------------------------------------------------------
-macos-26.5-arm64    fcc09b6f0267    2026-08-31, 3:03:36 PM    f1668bea... (truncated)
-linux-arm64         f059e5870216    2026-08-31, 3:03:20 PM    0a03c629... (truncated)
+Run               Machine                   Commit            Submitted
+------------------------------------------------------------------------------------
+f1668bea...       macos-26.5-arm64          fcc09b6f0267      2026-08-31, 3:03:36 PM
+53e0d192...       linux-x86_64              ef2afa1e83fa      2026-08-31, 3:03:15 PM
 etc...
 ```
 
-The machines, commits and runs are clickable links leading to the detail page for
-that object. At the bottom of the page, a "Load more" button that allows loading
-the next page. The value in the `Commit` column is the `display` field for that
-commit, if any.
+- `Run` is a link to the run detail page, showing the shortened UUID.
+- `Machine` is a link to the machine detail page.
+- `Commit` is a link to the commit detail page.
+- `Submitted` is the submission timestamp for that run
 
-## TS3: Machine tab
+Above the table, a search box showing "Filter by machine name...". It allows substring
+matching on machine name and searchable machine fields.
+
+## TS3: Machines tab
 
 This tab shows the machines defined in the test suite. It shows a table like this:
 
@@ -59,7 +61,7 @@ macos-arm64-O3 [untracked]  compiler: Apple clang version 21.0.0, hardware: Appl
 ```
 
 The `Name` is a clickable link to the machine detail page. The `Info` column presents the machine
-fields for that machine separated by commas.
+fields that have a value for that machine, separated by commas.
 
 Machines with `tracked: false` carry a small grey `untracked` badge next to the name. All machines
 are listed regardless of `tracked`; the badge is informational, marking configurations that are
@@ -70,29 +72,7 @@ matching on their name and searchable fields.
 
 Below the table, `[<- Previous] 1-2 of 2 [Next ->]` allows navigating through pages.
 
-## TS4: Runs tab
-
-This tab shows the runs submitted to that test suite. It shows a table like this:
-
-```
-Run               Machine                   Commit            Submitted
-------------------------------------------------------------------------------------
-f1668bea...       macos-26.5-arm64          fcc09b6f0267      2026-08-31, 3:03:36 PM
-53e0d192...       linux-x86_64              ef2afa1e83fa      2026-08-31, 3:03:15 PM
-etc...
-```
-
-- `Run` is a link to the run detail page. UUID is abbreviated.
-- `Machine` is a link to the machine detail page.
-- `Commit` is a link to the commit detail page. `display` commit field is used if any.
-- `Submitted` is the submission timestamp for that run
-
-Above the table, a search box showing "Filter by machine name...". It allows substring
-matching on machine name and searchable machine fields.
-
-Below the table, `[<- Previous] [Next ->]` allows navigating through pages.
-
-## TS5: Commits tab
+## TS4: Commits tab
 
 This tab shows the commits present in the test suite, most recently seen first
 (see E3), so that the commits that just arrived are on the first page whether or
@@ -106,34 +86,36 @@ Commit            Ordinal                 Tag
 etc...
 ```
 
-- `Commit` is a link to the commit detail page. `display` field is used.
+- `Commit` is a link to the commit detail page.
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 
 Above the table, a text filter showing "Search commits..." allows filtering based
 on the commit's value and any tags and searchable fields. Substring matching is used.
 
-Below the table, `[<- Previous] [Next ->]` allows navigating through pages.
-
-## TS6: Regressions tab
+## TS5: Regressions tab
 
 The Regressions tab embeds the full regression triage UI directly in the Test
 Suites page.
 
 **Filters** (control panel above table):
 - State: multi-select chips (detected, active, not_to_be_fixed, fixed,
-  false_positive) -- toggleable, all deselected by default
+  false_positive) -- toggleable, none selected by default; with none
+  selected, every state is shown
 - Machine: combobox with typeahead
 - Metric: dropdown
-- Has commit: checkbox (surfaces regressions with unset commit)
+- "No commit set": checkbox. When checked, only regressions without a commit
+  are shown (`has_commit=false`); when unchecked, regressions are shown whether
+  or not they have one.
 - Free-text search on title: server-side `search=` (see AR2)
 
-**Actions**:
-- "New Regression" button (auth-gated) -> toggles an inline create form with
-  title, bug, state, commit fields. On successful creation, navigates to the new
-  regression's detail page.
-- Row click -> navigates to regression detail page.
-- Delete: per-row button with confirmation prompt (auth-gated).
+**Actions** (each requires `triage` scope):
+- "New Regression" button -> toggles an inline create form with title, bug,
+  state and commit fields, the latter a commit picker over every commit of the
+  suite. On successful creation, navigates to the new regression's detail page.
+- Delete: a per-row button, confirmed as AR2 describes.
+
+Clicking a row navigates to the regression's detail page.
 
 The table lists regressions newest first (`sort=-created_at`), so that newly
 recorded regressions are on the first page. It looks like this:
@@ -151,4 +133,3 @@ The names are on the regression detail page. Created is the regression's
 `created_at`.
 
 The elements are clickable and link to the details page for that entity.
-Below the table, `[<- Previous] [Next ->]` allows navigating through pages.

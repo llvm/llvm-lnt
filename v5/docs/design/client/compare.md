@@ -17,34 +17,27 @@ Each side (A and B) has independent controls:
   machine combobox from the new suite's machines endpoint. Clearing the suite
   also clears cached fields and commits for that side so stale metrics don't
   linger.
-- **Commit**: combobox (searchable dropdown) over commit values. When the schema
-  defines a commit_field with `display: true`, the dropdown items show the
-  display value (e.g. short SHA) while the internal selection uses the raw
-  commit string; when no display field is defined or not populated, the raw
-  commit string is shown. Suggestions are only commits where the selected
-  machine has runs, ordered and narrowed by typing as AR2 describes for every
-  commit picker. When a machine is pre-selected from URL state, its commits are
-  fetched on creation so the dropdown is correctly filtered from the start, and
-  a commit pre-selected from it shows its display value, resolved as AR2
-  describes.
-  **Disabled until a machine is selected** -- shows "Select a machine first"
-  placeholder. Re-disabled if the machine is cleared. Clearing the commit also
-  clears the runs for that side.
 - **Machine**: combobox over machine names. The full machine list for the
   selected suite is fetched once and filtered locally by case-insensitive
   substring as the user types (instant, no per-keystroke API calls). **Disabled
   until a suite is selected** -- shows "Select a suite first" placeholder.
   Clearing the machine text and blurring resets downstream state (commit, runs)
   and disables the commit input.
+- **Commit**: a commit picker (see AR2) over the commits where the selected
+  machine has runs. When a machine is pre-selected from URL state, its commits
+  are fetched on creation so the dropdown is correctly filtered from the start.
+  **Disabled until a machine is selected** -- shows "Select a machine first"
+  placeholder. Re-disabled if the machine is cleared. Clearing the commit also
+  clears the runs for that side.
 - **Runs**: checkbox list of runs for the selected commit+machine, populated by
   `GET /api/suites/{ts}/runs?machine=M&commit=C`. Empty list shown when no runs exist.
   All runs are selected by default. The only exception is URL state restoration:
   if the shared URL specifies a subset of runs, that selection is restored. Each
-  run shows its timestamp and a short UUID linking to the Run Detail page.
+  run shows its timestamp and its shortened UUID, linking to the Run Detail page.
   Before a commit is selected, a hint message ("Select a commit first") is shown
   instead.
 - **Run aggregation**: strategy for aggregating across selected runs
-  (median/mean/min/max); grayed out when only one run selected
+  (median/mean/min/max, default: median); grayed out when only one run selected
 
 A **Swap sides** button (circular, showing arrows) sits between the two sides.
 Clicking it exchanges all of side A's state (commit, machine, runs, run
@@ -54,11 +47,13 @@ direction.
 
 Global controls (shared across both sides):
 - **Metric**: single-select dropdown; one metric at a time, applies to both
-  table and chart. Shows the **union** of metrics from both sides' suites. Only
-  numeric metrics (see D3) are shown (filtered client-side); the delta, ratio,
-  and geomean columns are undefined for `text` and `datetime`. Before any
-  suite is selected, the metric area shows a "Select a suite to load metrics..."
-  hint instead of an empty dropdown.
+  table and chart. Only numeric metrics (see D3) are offered; the delta, ratio,
+  and geomean columns are undefined for `text` and `datetime`. When the two
+  sides select different suites, a metric is offered only if both suites
+  declare it, with the same `bigger_is_better` and the same `unit` (an unset
+  unit matching only an unset one). While only one side has a suite, that
+  suite's metrics are offered. Before any suite is selected, the metric area
+  shows a "Select a suite to load metrics..." hint instead of an empty dropdown.
 - **Sample aggregation**: strategy for aggregating multiple samples within a
   single run (default: median). When a test appears multiple times in a run's
   samples, this strategy produces a single value per test per run.
@@ -110,9 +105,9 @@ Global controls (shared across both sides):
   both table and chart
 
 There is no Compare button. The comparison triggers automatically whenever the
-state becomes valid (both sides have runs and a metric is selected), like the
-Graph page's auto-plot. Changing the machine, commit, metric, or aggregation
-settings re-triggers the comparison. Previous in-flight fetches are aborted.
+state becomes valid (both sides have runs and a metric is selected). Changing
+the machine, commit, metric, or aggregation settings re-triggers the
+comparison. Previous in-flight fetches are aborted.
 
 
 ### CP2: Comparison Table
@@ -127,8 +122,72 @@ settings re-triggers the comparison. Previous in-flight fetches are aborted.
 | Ratio    | `vB / vA`; same quantity plotted on the chart as `log2(Ratio)` |
 | Status   | Improved / Regressed / Unchanged / Noise / N/A; see Computation Reference for classification rules |
 
-- **Geomean summary row**: see Computation Reference for precise formulas. The
-  geomean summary row is never classified as noise.
+- **Visible rows**: the rows the text filter, the chart zoom and "Hide noise"
+  keep, minus those toggled off by a click (see "Interactive rows" below). Rows
+  of the "Missing tests" section are not visible rows. The geomean summary row,
+  the CSV export and Add to Regression (CP9) all operate on them.
+- **Geomean summary row**: computed over the visible rows; see Computation
+  Reference for precise formulas. It carries a status like any row, but is
+  never classified as noise.
+- Sortable by any column (click header)
+- Color-coded status: green = improved, red = regressed (direction respects the
+  metric's `bigger_is_better` flag)
+- **Noise handling**: rows classified as noise by any enabled noise filtering
+  knob are visually distinguished by the grey "noise" label in the Status
+  column. The "Hide noise" checkbox removes them from the table and chart
+  entirely (not rendered in the DOM).
+- **Noise tooltip**: hovering over the Status cell of a noise-classified row
+  shows a tooltip listing all knobs that triggered, e.g. "Delta 0.3% below 1%
+  threshold", "p-value 0.12 above 0.05", "max(|A|, |B|) = 0.4 below floor of 1".
+  All triggered knobs are shown, not just the first.
+- **Sample count tooltips**: Value A and Value B cells show a tooltip
+  indicating how many raw samples and contributing runs produced the aggregated
+  value, e.g. "6 samples across 2 runs". Delta, Delta %, and Ratio cells show
+  both sides: "A: 6 samples across 2 runs, B: 4 samples across 1 run". Sample
+  count is the total number of raw sample values pooled across contributing
+  runs (before any aggregation). Run count is the number of selected runs that
+  have data for that specific test (not all selected runs). The geomean summary
+  row and missing-test rows have no sample count tooltips. Singular/plural is
+  applied ("1 sample across 1 run" vs "6 samples across 2 runs").
+- **Missing tests**: tests present in only one side show "—" for the
+  missing side's values. These are grayed out in a separate section at the
+  bottom, excluded from the chart. This includes tests absent due to cross-suite
+  comparison (different suites may have different test sets). The section header
+  shows "Missing tests (N)" with the total count. When a text filter or chart
+  zoom is active, the header updates to "Missing tests (M of N matching)" where
+  M is the number of missing tests matching the filter and N is the total. Since
+  missing tests are excluded from the chart, chart zoom always hides all missing
+  rows (none can be in the zoomed range).
+- **Null metrics**: when a test has samples on a side but no value for the
+  selected metric there, that side's value shows "N/A", the test's Status is
+  `N/A`, and it is excluded from the chart
+- **Zero baseline**: when Value A is 0, display "N/A" for Delta %, Ratio, and
+  Status (raw values are still shown)
+- **Interactive rows**: Clicking a row toggles its visibility on the chart.
+  Double-clicking a row isolates it (hides all others), like the Graph page's
+  legend table. Manually-hidden rows (toggled by clicking) are shown grayed out
+  in the table (not removed from the DOM). The "Hide noise" checkbox is a
+  separate filter that removes noise rows from the DOM entirely. The two filters
+  are independent: manual toggles persist across hideNoise changes, and changing
+  noise filtering knobs correctly hides/unhides tests as their status changes.
+- **Summary message**: A message above the table rows shows a count, consistent
+  with the Graph page's legend message: "150 tests" when all are shown, "120 of
+  150 tests shown" when some are toggled off, or "42 of 150 tests matching" when a
+  text filter or chart zoom is active. Counts reflect only tests present in the
+  table — noise-hidden tests (removed by "Hide noise") are excluded from both
+  the numerator and denominator.
+- **Copy as CSV**: A small clipboard icon button (right-justified on the summary
+  message row) copies the visible comparison table as CSV to the clipboard. The
+  exported CSV contains exactly the visible rows, in the current sort order,
+  with the geomean summary as the first data row. Columns match the table:
+  Test, Value A, Value B, Delta, Delta %, Ratio, Status. The button provides
+  brief visual feedback indicating success or failure. Hidden when no rows are
+  visible.
+- **Profile column**: When either side has profile data for a test, a "Profile"
+  link appears, leading to the Profiles page pre-populated as PF1 describes --
+  for both sides:
+  `/profiles?suite_a={ts_a}&run_a={uuid_a}&test_a={test}&suite_b={ts_b}&run_b={uuid_b}&test_b={test}`
+  The link is omitted when neither side has a profile for that test.
 
 
 #### Computation Reference
@@ -161,8 +220,12 @@ Notes:
 and Status are all `N/A`. This classification happens before noise
 classification -- noise knobs are never evaluated for zero-baseline tests.
 
-**Status classification** (checked in this order, after zero-baseline tests have
-already been classified as `N/A`):
+**Missing value.** When a test has samples on both sides but no value for the
+metric on either of them, its Status is `N/A`, and so is every derived column.
+Like a zero baseline, this is decided before noise classification.
+
+**Status classification** (checked in this order, after zero-baseline tests and
+tests missing a value have already been classified as `N/A`):
 1. If any enabled noise knob triggers -> `noise`
 2. If `Delta = 0` -> `unchanged`
 3. If `bigger_is_better` and `Delta > 0` -> `improved`
@@ -172,7 +235,7 @@ already been classified as `N/A`):
 
 Status uses the sign of Delta (not Ratio) combined with `bigger_is_better`.
 
-**Geomean summary row.** Computed over N valid tests where both sides are
+**Geomean summary row.** Computed over the N visible rows where both sides are
 present, both values are non-zero, and ratio is defined:
 
 | Quantity        | Formula                                     |
@@ -192,6 +255,9 @@ For example, given two tests with ratios 2.0 and 0.5, the geomean of ratios is
 `sqrt(2.0 * 0.5) = 1.0` (no net change), while the ratio of geomeans depends on
 the magnitude of the values.
 
+The row's Status is classified from its Delta by steps 2 to 6 above: it is
+never `noise`.
+
 **Chart Y-axis.** The chart plots `log2(Ratio)` = `log2(vB / vA)`. The log2
 scale makes equal multiplicative changes symmetric: a 2x speedup (ratio = 0.5)
 and a 2x slowdown (ratio = 2.0) appear at -1 and +1 respectively, equidistant
@@ -200,6 +266,7 @@ from zero. Tick labels show the equivalent percentage change at "nice" values
 
 A test is excluded from the chart when any of these conditions hold:
 - Only one side has the test (not present on both sides)
+- Either side has no value for the metric
 - `vA = 0` (ratio undefined)
 - Ratio <= 0 (log2 undefined -- occurs when `vA` and `vB` have opposite signs,
   or when `vB = 0`)
@@ -214,71 +281,6 @@ lines are drawn at the log2-space equivalents of the threshold:
 For small thresholds these lines are approximately symmetric (e.g. 5% maps to
 +0.070 / -0.074). The asymmetry grows with larger thresholds. A test whose bar
 falls inside the band has `|Delta %| < threshold`.
-- Sortable by any column (click header)
-- Color-coded status: green = improved, red = regressed (direction respects the
-  metric's `bigger_is_better` flag)
-- **Noise handling**: rows classified as noise by any enabled noise filtering
-  knob are visually distinguished by the grey "noise" label in the Status
-  column. The "Hide noise" checkbox removes them from the table and chart
-  entirely (not rendered in the DOM).
-- **Noise tooltip**: hovering over the Status cell of a noise-classified row
-  shows a tooltip listing all knobs that triggered, e.g. "Delta 0.3% below 1%
-  threshold", "p-value 0.12 above 0.05", "max(|A|, |B|) = 0.4 below floor of 1".
-  All triggered knobs are shown, not just the first.
-- **Sample count tooltips**: Value A and Value B cells show a native browser
-  tooltip (via `title` attribute) indicating how many raw samples and
-  contributing runs produced the aggregated value, e.g. "6 samples across 2
-  runs". Delta, Delta %, and Ratio cells show both sides: "A: 6 samples across 2
-  runs, B: 4 samples across 1 run". Sample count is the total number of raw
-  sample values pooled across contributing runs (before any aggregation). Run
-  count is the number of selected runs that have data for that specific test
-  (not all selected runs). The geomean summary row and missing-test rows have no
-  sample count tooltips. Singular/plural is applied ("1 sample across 1 run" vs
-  "6 samples across 2 runs").
-- **Missing tests**: tests present in only one side show "—" for the
-  missing side's values. These are grayed out in a separate section at the
-  bottom, excluded from the chart. This includes tests absent due to cross-suite
-  comparison (different suites may have different test sets). The section header
-  shows "Missing tests (N)" with the total count. When a text filter or chart
-  zoom is active, the header updates to "Missing tests (M of N matching)" where
-  M is the number of missing tests matching the filter and N is the total. Since
-  missing tests are excluded from the chart, chart zoom always hides all missing
-  rows (none can be in the zoomed range).
-- **Null metrics**: when a test has a sample but no value for the selected
-  metric, display "N/A" in the table and exclude from the chart
-- **Zero baseline**: when Value A is 0, display "N/A" for Delta %, Ratio, and
-  Status (raw values are still shown)
-- **Interactive rows**: Clicking a row toggles its visibility on the chart.
-  Double-clicking a row isolates it (hides all others), like the Graph page's
-  legend table. Manually-hidden rows (toggled by clicking) are shown grayed out
-  in the table (not removed from the DOM). The "Hide noise" checkbox is a
-  separate filter that removes noise rows from the DOM entirely. The two filters
-  are independent: manual toggles persist across hideNoise changes, and changing
-  noise filtering knobs correctly hides/unhides tests as their status changes.
-- **Summary message**: A message above the table rows shows a count, consistent
-  with the Graph page's legend message: "150 tests" when all visible, "120 of
-  150 tests visible" when some are hidden, or "42 of 150 tests matching" when a
-  text filter or chart zoom is active. Counts reflect only tests present in the
-  table — noise-hidden tests (removed by "Hide noise") are excluded from both
-  the numerator and denominator.
-- **Copy as CSV**: A small clipboard icon button (right-justified on the summary
-  message row) copies the visible comparison table as CSV to the clipboard. The
-  exported CSV contains exactly the rows visible in the table (respecting noise
-  hiding, manual click-hiding, text filter, and chart zoom), in the current sort
-  order, with the geomean summary as the first data row. Columns match the
-  table: Test, Value A, Value B, Delta, Delta %, Ratio, Status. The button
-  provides brief visual feedback indicating success or failure. Hidden when no
-  rows are visible.
-- **Profile column**: When both sides have profile data for a test, a "Profile"
-  link appears. Clicking it navigates to the Profiles page pre-populated with
-  both sides' run and test:
-  `/profiles?suite_a={ts_a}&run_a={uuid_a}&test_a={test}&suite_b={ts_b}&run_b={uuid_b}&test_b={test}`
-  When only one side has a profile, the link pre-populates just that side. The
-  link is omitted when neither side has a profile for that test.
-- **Filter performance**: Typing in the test filter must feel instant even with
-  thousands of tests. The table updates immediately on each keystroke; the chart
-  may update asynchronously (within one animation frame) to avoid blocking
-  input.
 
 
 ### CP3: Chart
@@ -289,11 +291,11 @@ Sorted ratio chart (relative performance chart):
   symmetry rationale, and chart exclusion criteria. Tick labels show percentage
   change at "nice" values (+/-1%, +/-5%, +/-10%, +/-50%, +/-100%, etc.),
   auto-adapting to the data range
-- Rendered as a connected line (not discrete bars) for readability at scale
+- Rendered as bars, one per test, colored by status (see CP2)
 
 Interactivity:
-- **Hover**: tooltip showing test name, exact ratio, and absolute values for
-  both sides
+- **Hover**: tooltip showing test name, exact ratio, the values of both sides,
+  and Delta %
 - **Zoom / drag-select**: filters the comparison table to show only the tests in
   the visible range
 - **Noise band**: see Computation Reference for how the Delta % threshold is
@@ -364,8 +366,8 @@ The chart and table always represent the same dataset:
   to the matching tests
 - **Table -> Chart**: the text filter and row toggles update the chart to show
   only visible, matching tests
-- **Hover sync**: hovering on a chart point highlights the table row (scrolls
-  into view); hovering on a table row highlights the chart point
+- **Hover sync**: hovering on a chart bar highlights the table row (scrolls
+  into view); hovering on a table row highlights the chart bar
 
 
 ### CP6: Data Flow
@@ -410,12 +412,7 @@ All selection state is encoded as query parameters for shareability:
   defaults: 1, 0.05, 0 respectively), `noise_pct_on`, `noise_pval_on`,
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
-- Filter/sort state as applicable
-
-Auth token is stored in `localStorage`, not in URL state (to avoid leaking
-credentials when sharing URLs). URL updates are done such that using the
-browser's back button navigates between pages, not between individual setting
-changes.
+- `test_filter`, and the comparison table's sort column and direction
 
 
 ### CP8: Shadow Trace (Comparison Overlay)
@@ -493,8 +490,6 @@ is frozen at pin time.
   The shadow's side B samples are already in the sample cache.
 - On recompute: the shadow reuses the main comparison's cached side A
   aggregation, then aggregates only the shadow's side B samples independently.
-- Cache eviction preserves shadow-referenced run UUIDs alongside the main
-  selection's UUIDs.
 - On page load from a URL with shadow parameters, shadow samples are fetched in
   parallel with the main samples. Shadow fetch failures are tolerated — the main
   comparison still renders.
@@ -509,35 +504,32 @@ is frozen at pin time.
 
 ### CP9: Add to Regression
 
-A collapsible panel (button: "Add to regression" in the controls area). When
-expanded, offers:
-- "Create new regression" -- pre-fills commit, machines, tests, and metrics from
-  the current comparison into a new regression
-- "Add to existing" -- a regression picker; adds the comparison's indicators to
-  the selected regression. A suite can hold more regressions than fit on a
-  page, so the picker searches the server (see AR2): it opens on the first page
-  of `GET regressions?sort=-created_at` and narrows it with `search=`, which
-  matches the title. Each suggestion shows the regression's title, or
-  `(untitled)` and the first 8 characters of its UUID when it has none. It uses
-  the standard combobox ARIA and keyboard behavior (collapse on select,
-  ArrowDown/ArrowUp/Enter/Escape, close on blur and outside click). On
-  selection, the input shows the suggestion's label; editing the text afterwards
-  clears the selection. Enter on the input is a no-op (the user must select from
-  the dropdown list, since regressions are identified by UUID).
-
-Only tests currently visible in the comparison table are included as indicators
-(tests that are noise-hidden, manually-hidden, or excluded by the text filter
-are not included).
+A collapsible panel (button: "Add to regression" in the controls area),
+requiring `triage` scope. It works on side B: its indicators name side B's
+machine, the selected metric, and the test of each visible row (see CP2), and
+the regression they go to belongs to side B's suite. When expanded, it offers:
+- "Create new regression" -- a title input and a button that creates a
+  regression in side B's suite, attributed to side B's commit, with those
+  indicators.
+- "Add to existing" -- a regression picker over side B's suite; adds the
+  indicators to the selected regression. A suite can hold more regressions than
+  fit on a page, so the picker searches the server (see AR2): it opens on the
+  first page of `GET regressions?sort=-created_at` and narrows it with
+  `search=`, which matches the title. Each suggestion shows the regression's
+  title, or `(untitled)` and its shortened UUID when it has none. On selection,
+  the input shows the suggestion's label; editing the text afterwards clears
+  the selection. Enter with no suggestion focused does nothing: the user must
+  select from the list, since regressions are identified by UUID.
 
 On successful creation, the feedback shows "Regression created: " followed by a
 clickable link to the new regression's detail page. The link text is the
-regression title if one was provided, otherwise the first 8 characters of the
-UUID. Clicking the link navigates to the regression detail page within the SPA.
-The title input is cleared after successful creation.
+regression title if one was provided, otherwise its shortened UUID. Clicking
+the link navigates to the regression detail page within the SPA. The title
+input is cleared after successful creation.
 
 On successful addition of indicators to an existing regression, the feedback
 shows "Added N indicator(s) to " followed by a clickable link to the regression
-detail page. The link text is the regression title if available, otherwise the
-first 8 characters of the UUID.
+detail page. The link text is the regression title if available, otherwise its
+shortened UUID.
 
 The panel collapses back to the button when done.

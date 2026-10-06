@@ -42,20 +42,19 @@ etc..
 ### Action buttons
 
 "View Graph" (pre-filled machine), "Compare" (pre-selected machine), and red "Delete Machine" button.
-Clicking "Delete Machine" shows a confirmation prompt (below the action row) requiring the user to type
-the machine name. Deletion requires a valid API token with `manage` scope. On success, navigates to the
-test suites page. While the delete is in progress, a message reassures the user that deletion may take a
-while for machines with many runs.
+Clicking "Delete Machine" shows its confirmation prompt (see AR2) below the action row.
+Deletion requires `manage` scope. On success, navigates to the test suites page. While
+the delete is in progress, a message reassures the user that deletion may take a while
+for machines with many runs.
 
 ### Tracked toggle
 
 The info box shows a `Tracked` checkbox reflecting the machine's `tracked`
-flag. Toggling it issues `PATCH /machines/{name}` and requires an API token
-with `manage` scope; without one the checkbox is disabled and hovering it
-explains why. Unchecking it excludes the machine from the Dashboard's trend
-overview -- it stays fully available in Graph, Compare, Profiles, and every
-listing. The label carries a help tooltip saying so, and makes clear that the
-flag is not a lifetime policy: untracked machines are kept indefinitely.
+flag. Toggling it issues `PATCH /machines/{name}` and requires `manage` scope.
+Unchecking it excludes the machine from the Dashboard's trend overview -- it
+stays fully available in Graph, Compare, Profiles, and every listing. The label
+carries a help tooltip saying so, and makes clear that the flag is not a
+lifetime policy: untracked machines are kept indefinitely.
 
 ### Active regressions table
 
@@ -65,7 +64,7 @@ indicator on this machine, newest first
 Each row's title links to its regression detail page.
 
 Each row shows:
-- Regression: the regression's title (truncated to 50 chars, or (untitled)), link to the regression detail page
+- Regression: the regression's title (truncated to 50 chars), link to the regression detail page
 - State: a colored state badge
 - Tests: the regression's `test_count`, which counts the tests across all of its
   indicators rather than only those on this machine
@@ -76,7 +75,7 @@ of the Test Suites page, pre-filtered for this machine.
 
 ### Run History table
 
-Shows the 25 runs most recently submitted to this machine
+Shows the runs submitted to this machine, most recent first, 25 per page
 (`GET /runs?machine={name}&sort=-submitted_at&limit=25`). Entities (runs, commits) are clickable and
 lead to the details page for that object.
 
@@ -114,9 +113,8 @@ BM_BitsetToString<1048576>/Dense_(90%)/90                                       
 "Compare with..." button navigates to the Compare page (pre-selects this run's machine and commit
 on side A).
 
-Clicking "Delete Run" shows a confirmation prompt (below the action row) requiring the user to type
-the first 8 characters of the run UUID. Deletion requires a valid API token with `manage` scope. On
-success, navigates to the machine detail page.
+Clicking "Delete Run" shows its confirmation prompt (see AR2) below the action row.
+Deletion requires `manage` scope. On success, navigates to the machine detail page.
 
 ### Metric selector
 
@@ -178,8 +176,8 @@ etc...
 ### Display and edit
 
 The various commit fields are displayed prominently. Inline edit buttons allow setting
-or clearing the tag and ordinal via `PATCH /commits/{value}`. Editing requires an API
-token with `manage` scope; show an auth error if the token is missing or insufficient.
+or clearing the tag and ordinal via `PATCH /commits/{value}`. Editing requires `manage`
+scope.
 
 ### Navigation
 
@@ -204,24 +202,23 @@ on machine names, filters the runs table. The summary updates to reflect filtere
 Investigation and management page for a single regression.
 
 **Page header**: Shows "Regression: {title}" when a title is set, or
-"Regression: {uuid_short}" as fallback. Updates dynamically when the title is
-edited.
+"Regression: {shortened UUID}" as fallback. Updates dynamically when the title
+is edited.
 
 **Header section** (editable fields):
 - Title: inline-editable text. Enter key saves.
 - State: dropdown selector (detected, active, not_to_be_fixed, fixed,
   false_positive)
 - Bug: URL input (opens in new tab when set). Enter key saves.
-- Commit: display value shown (linked to commit detail page). A commit picker
-  over every commit of the suite for editing (shows display values in dropdown;
-  see AR2). Nullable.
+- Commit: linked to the commit detail page. A commit picker over every commit
+  of the suite for editing (see AR2). Nullable.
 - Notes: text display with Edit button. Edit mode shows textarea + Save/Cancel.
   Ctrl/Cmd+Enter saves. Display preserves line breaks (pre-wrap).
 
 The header also shows, read-only, when the regression was created (`created_at`).
 
-**Delete regression**: Button with type-to-confirm prompt. Requires `triage`
-scope. On success, navigates to the regressions tab.
+**Delete regression**: Button with a confirmation prompt (see AR2). Requires
+`triage` scope. On success, navigates to the regressions tab.
 
 **Add indicators panel**:
 - Metric: dropdown selector
@@ -245,7 +242,10 @@ scope. On success, navigates to the regressions tab.
 - Select-all checkbox in header (with indeterminate state for partial selection)
 - Shift+click range selection on checkboxes
 - Batch "Remove selected" button
-- "View on graph" link per indicator: opens Graph page pre-populated with the
-  indicator's machine, test, metric, and the regression's commit as context
+- "View on graph" link per indicator: opens the Graph page with the
+  regression's suite and the indicator's machine, metric and test selected, and
+  regression annotations
+  showing every state (`regressions=all`; see GR14), which marks this
+  regression's commit on the chart
 
 Auth: requires `triage` scope for all modifications.

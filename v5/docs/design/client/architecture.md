@@ -31,8 +31,10 @@ the UI causes a full page reload.
   SPA.
 - **Code splitting**: Routes are lazy-loaded so the initial bundle stays small
   (external dependencies are fetched on demand).
-- **State**: URL query params for shareable deep-links; local storage for auth
-  token
+- **State**: URL query params for shareable deep-links; the auth token is
+  persisted in the browser. A page writes its settings to the URL as they
+  change, replacing the current history entry rather than adding one, so that
+  Back leaves the page rather than stepping back through its settings.
 
 **Design consistency**: All pages should share a consistent look and feel --
 comboboxes, metric selectors, table styling, progress/error feedback, color
@@ -41,6 +43,28 @@ than reinvented per-page. Pages with selection controls (dropdowns, filters,
 aggregation settings) wrap them in a shared controls panel -- a lightly shaded
 box with a border -- so the settings area is visually distinct from the page
 content.
+
+**Display conventions**: These hold on every page.
+
+- A commit is shown by its *display value*: the value of the commit field the
+  schema marks `display: true` (see D4) when the commit has one, and the commit
+  string otherwise, followed by ` (tag)` when the commit has a tag. A table
+  that gives the tag a column of its own leaves the suffix off, and the Commit
+  Detail page (DT3) shows the commit string itself. The display value is for
+  display only: links, URL state and API requests use the commit string.
+- A metric, machine field or commit field is labelled with its `display_name`
+  when the schema sets one, and with its `name` otherwise. The Admin page's
+  schema viewer (AD2), which shows schemas as they are stored, is the exception.
+- Timestamps are shown in the browser's local time zone.
+- Where space is short, a UUID is shortened to its first 8 characters.
+- A regression without a title is labelled `(untitled)`.
+
+**Paginated tables**: A table that shows a cursor-paginated endpoint (see I2) a
+page at a time has `[<- Previous]` and `[Next ->]` below it. Pagination is
+forward-only, so Previous returns to pages the user has already visited. The
+position is not kept in the URL: reloading the page shows the first page again.
+A table over an offset-paginated endpoint keeps its `offset` in the URL
+instead.
 
 **Text filtering**: All client-side text filter and search inputs share a
 unified filtering behavior. Plain text performs case-insensitive substring
@@ -62,10 +86,20 @@ again as the user types (debounced), from the first page, and discards a
 response for text the user has since changed, so that what it shows always
 reflects the text currently in the input.
 
-**Text filtering performance**: All pages with large tables (Compare, Graph)
-must keep filter typing responsive even with thousands of rows. Typing in a
-filter input must produce a visible table update within a single animation
-frame. Chart updates may be deferred to avoid blocking the input.
+**Text filtering performance**: Typing in a client-side filter must update the
+rows it filters within a single animation frame, even over thousands of rows --
+the test tables of the Graph and Compare pages, or a run's samples. A chart
+that depends on the filter may update after the table, so as not to block the
+input.
+
+**Comboboxes**: Every combobox supports ArrowDown/ArrowUp to move through its
+suggestions and Enter to select the focused one, closes on Escape, on blur, on
+a click outside it and once a suggestion is selected, and follows the standard
+combobox accessibility conventions. While no suggestion matches the typed text,
+the input shows a red halo (red border and glow), and the text cannot be
+accepted by Enter or blur. The halo updates on every keystroke -- for a commit
+picker, as soon as the server has answered the search for the current text.
+Clicking a suggestion always accepts it.
 
 **Commit pickers**: Every combobox that selects a commit -- on the Compare and
 Profiles pages, for Graph baselines, and for a regression's commit -- lists its
@@ -83,16 +117,33 @@ accepted only if it is exactly a commit the picker offers, which the picker
 checks by looking that commit up under its filters (e.g.
 `GET runs?machine={name}&commit={value}&limit=1`) rather than by finding it
 among the suggestions: a short value can be a substring of more commits than
-fit on a page. Likewise, a commit the picker is given rather than chosen --
-restored from the URL, for instance -- need not be on the first page, so its
-display value is resolved through `POST commits/resolve`.
+fit on a page. A value that fails the check shows the red halo, even while
+suggestions are listed. Likewise, a commit the picker is given rather than
+chosen -- restored from the URL, for instance -- need not be on the first page,
+so its display value is resolved through `POST commits/resolve`.
 
-**Authentication**: The v5 API allows unauthenticated reads, except for
-the API key endpoints, which require `admin` scope even to read (see I5). No
+**Deletions**: Deleting a suite, a machine, a run or a regression is confirmed
+by typing its identifier -- the name of a suite or a machine, the first 8
+characters of the UUID of a run or a regression -- before the request is sent.
+Revoking an API key (AD1), which destroys nothing, asks for a plain
+confirmation instead.
+
+**Authentication**: The v5 API allows unauthenticated reads, except for the API
+key endpoints, which require `admin` scope even to read (see I5). No
 configuration can gate reads, so the SPA never needs a token merely to browse.
-The SPA navigation bar includes a Settings panel with a Bearer token input
-(stored in local storage) for the Admin page and other write-capable pages
-(regression triage, etc.).
+It sends the token only with the requests that need more than `read` scope, and
+with the check below.
+
+The navigation bar includes a Settings panel with a Bearer token input. The
+token is checked through `GET /api/auth` (see E12): the panel shows the name
+and scope of the key it belongs to, or that it is not valid.
+
+A control whose action needs a scope the token does not grant -- or any scope
+above `read`, when no valid token is set -- is disabled, and hovering it says
+which scope it needs. A tab whose whole content needs the scope (AD1, AD3)
+shows `Permission denied. Set an API token with the required scope in Settings.`
+in place of its content instead. A request the API nevertheless refuses with
+401 or 403 is reported with the same message.
 
 
 ## AR3: Page Hierarchy
