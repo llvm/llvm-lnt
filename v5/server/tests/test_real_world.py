@@ -1,16 +1,18 @@
-"""Real `nts` runs from lnt.llvm.org, submitted and read back through the API.
+"""Real runs from lnt.llvm.org, submitted and read back through the API.
 
 The other modules cover each endpoint's rules with synthetic data. This one is about real data end
-to end instead: test names full of punctuation, kilobytes of multi-line compiler provenance in
-`run_parameters`, metrics that only some tests carry, and repetitions within a run, for three
-machines over three commits. data/nts/README.md says where the data comes from.
+to end instead, from two suites whose producers differ in the shapes they send. `nts` carries test
+names full of punctuation, kilobytes of multi-line compiler provenance in `run_parameters`, metrics
+that only some tests carry, and repetitions within a run. `libcxx` carries populated machine fields,
+several runs per machine and commit instead of repetitions, runs with no tests at all, and tests
+that only some machines run. The README beside each suite's data says where it comes from.
 
 Each run is submitted as its file's bytes rather than re-serialized, so that the server receives
 exactly what a producer sent. Most expectations are derived from the submissions, so that a test
-says "what was submitted reads back" rather than restating hundreds of values. The derivations
-deliberately share no code with the server, since they are what it is checked against. A few values
-are written out by hand, so that a mistake made the same way on both sides of a comparison cannot go
-unnoticed.
+says "what was submitted reads back" rather than restating hundreds of values; those tests run
+against both suites. The derivations deliberately share no code with the server, since they are
+what it is checked against. A few values are written out by hand, so that a mistake made the same
+way on both sides of a comparison cannot go unnoticed.
 """
 
 from __future__ import annotations
@@ -18,7 +20,9 @@ from __future__ import annotations
 import json
 import math
 import statistics
+from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -35,29 +39,73 @@ from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import QUERY_PATH, TRENDS_PATH
 from lnt_v5.suites.tables import SuiteTables
 
-DATA = Path(__file__).parent / "data" / "nts"
-SCHEMA: dict[str, Any] = json.loads((DATA / "schema.json").read_text())
-RUN_FILES = sorted((DATA / "runs").glob("*.json"))
-# Each submission, keyed by its file's stem, in the order of `RUN_FILES`.
-BY_FILE: dict[str, dict[str, Any]] = {path.stem: json.loads(path.read_text()) for path in RUN_FILES}
-SUBMISSIONS = list(BY_FILE.values())
-
-RUNS = RUNS_PATH.format(testsuite="nts")
-MACHINES = MACHINES_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
-TESTS = TESTS_PATH.format(testsuite="nts")
-QUERY = QUERY_PATH.format(testsuite="nts")
-TRENDS = TRENDS_PATH.format(testsuite="nts")
-
-MACHINE_NAMES = sorted({run["machine"]["name"] for run in SUBMISSIONS})
-# The commit objects the submissions carry, oldest first. Every machine ran at the same three.
-ORDERED_COMMITS = sorted(
-    {run["commit"]["value"]: run["commit"] for run in SUBMISSIONS}.values(),
-    key=lambda commit: commit["ordinal"],
-)
+DATA = Path(__file__).parent / "data"
 
 NAMD = "External/SPEC/CFP2017rate/508.namd_r/508.namd_r"
 MEMCMP = "MicroBenchmarks/MemFunctions/MemFunctions.test:BM_MemCmp<1, EqZero, First>"
+PRINT = 'std::print("Hello,_World!")'
+VPRINT = 'std::vprint_unicode("Hello,_World!")'
+BITSET = "BM_BitsetToString<1048576>/Dense_(90%)/90"
+FROM_SYS = "BM_from_sys/1970/threads:4"
+
+
+@dataclass(frozen=True)
+class Dataset:
+    """One suite's real runs, as data/ holds them, and what the tests need to know about them."""
+
+    name: str
+    schema: dict[str, Any]
+    files: list[Path]
+    # Each submission, keyed by its file's stem, in the order of `files`.
+    by_file: dict[str, dict[str, Any]]
+    # A test every machine measured, whose time series is queried.
+    series_test: str
+    # A `search=` term for the test list, and the names it matches.
+    search: tuple[str, list[str]]
+
+    @property
+    def submissions(self) -> list[dict[str, Any]]:
+        return list(self.by_file.values())
+
+    @property
+    def machine_names(self) -> list[str]:
+        return sorted({run["machine"]["name"] for run in self.submissions})
+
+    @property
+    def ordered_commits(self) -> list[dict[str, Any]]:
+        """The commit objects the submissions carry, oldest first."""
+        commits = {run["commit"]["value"]: run["commit"] for run in self.submissions}
+        return sorted(commits.values(), key=lambda commit: commit["ordinal"])
+
+    def declared(self, kind: str, fields: dict[str, Any]) -> dict[str, Any]:
+        """`fields` as a response carries it: every declared field, null where unset (I4)."""
+        return {entry["name"]: fields.get(entry["name"]) for entry in self.schema[kind]}
+
+    def url(self, template: str, **params: str) -> str:
+        return template.format(testsuite=self.name, **params)
+
+
+def load(name: str, *, series_test: str, search: tuple[str, list[str]]) -> Dataset:
+    files = sorted((DATA / name / "runs").glob("*.json"))
+    return Dataset(
+        name=name,
+        schema=json.loads((DATA / name / "schema.json").read_text()),
+        files=files,
+        by_file={path.stem: json.loads(path.read_text()) for path in files},
+        series_test=series_test,
+        search=search,
+    )
+
+
+DATASETS = {
+    dataset.name: dataset
+    for dataset in [
+        load("nts", series_test=NAMD, search=("eqzero, first", [MEMCMP])),
+        load("libcxx", series_test=BITSET, search=("HELLO,_WORLD", [PRINT, VPRINT])),
+    ]
+}
+
+EVERY_SUITE = pytest.mark.parametrize("dataset", sorted(DATASETS), indirect=True)
 
 
 def samples(entry: dict[str, Any]) -> list[dict[str, Any]]:
@@ -88,19 +136,39 @@ def canonical(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
 
 
-def run_geomean(run: dict[str, Any], metric: str) -> float:
-    """O9 under the default `median` aggregation.
+def geomean(values: list[float]) -> float | None:
+    """The geometric mean of the positive values, or None if there are none."""
+    logs = [math.log(value) for value in values if value > 0]
+    return math.exp(sum(logs) / len(logs)) if logs else None
 
-    A test's samples reduce to their median, and the run's value is the geomean of those, skipping
-    any that are not positive.
+
+def run_geomean(run: dict[str, Any], metric: str) -> float | None:
+    """O9 under the default `median` aggregation: the geomean of each test's median."""
+    return geomean(
+        [
+            statistics.median(values)
+            for entry in run["tests"]
+            if (values := [s["metrics"][metric] for s in samples(entry) if metric in s["metrics"]])
+        ]
+    )
+
+
+def trend(dataset: Dataset, metric: str) -> list[dict[str, Any]]:
+    """E9's trend items: the geomean of the run geomeans at each machine and commit.
+
+    A machine and commit with no run geomean -- every run there empty -- has no item.
     """
-    medians = [
-        statistics.median(values)
-        for entry in run["tests"]
-        if (values := [s["metrics"][metric] for s in samples(entry) if metric in s["metrics"]])
+    run_geomeans: defaultdict[tuple[str, str, int], list[float]] = defaultdict(list)
+    for run in dataset.submissions:
+        if (value := run_geomean(run, metric)) is not None:
+            key = (run["machine"]["name"], run["commit"]["value"], run["commit"]["ordinal"])
+            run_geomeans[key].append(value)
+    return [
+        {"machine": machine, "commit": commit, "ordinal": ordinal, "value": geomean(values)}
+        for (machine, commit, ordinal), values in sorted(
+            run_geomeans.items(), key=lambda item: (item[0][0], item[0][2])
+        )
     ]
-    logs = [math.log(value) for value in medians if value > 0]
-    return math.exp(sum(logs) / len(logs))
 
 
 def body_of(response: Any) -> Any:
@@ -112,47 +180,70 @@ def body_of(response: Any) -> Any:
     return response.json()
 
 
-def submit(api_client: TestClient, submitter: dict[str, str], path: Path) -> Any:
+def submit(api_client: TestClient, submitter: dict[str, str], dataset: Dataset, path: Path) -> Any:
     """POST a run file as it is."""
     headers = submitter | {"Content-Type": "application/json"}
-    return api_client.post(RUNS, content=path.read_bytes(), headers=headers)
+    return api_client.post(dataset.url(RUNS_PATH), content=path.read_bytes(), headers=headers)
+
+
+def query(api_client: TestClient, dataset: Dataset, body: dict[str, Any]) -> list[Any]:
+    """Every point `POST /query` serves for the body, following the cursor to the end."""
+    return walk_cursor(
+        lambda cursor: api_client.post(
+            dataset.url(QUERY_PATH), json=body if cursor is None else body | {"cursor": cursor}
+        )
+    )
 
 
 @pytest.fixture
-def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
-    return make_api_suite(SCHEMA)
+def dataset(request: pytest.FixtureRequest) -> Dataset:
+    return DATASETS[request.param]
 
 
 @pytest.fixture
-def submitted(api_client: TestClient, submitter: dict[str, str], suite: SuiteTables) -> list[Any]:
-    """Every run submitted, and the responses, in the order of `SUBMISSIONS`."""
-    responses = [submit(api_client, submitter, path) for path in RUN_FILES]
+def submitted(
+    api_client: TestClient,
+    submitter: dict[str, str],
+    make_api_suite: Callable[[dict[str, Any]], SuiteTables],
+    dataset: Dataset,
+) -> list[Any]:
+    """The suite created, and every run submitted; the responses, in the order of `files`."""
+    make_api_suite(dataset.schema)
+    responses = [submit(api_client, submitter, dataset, path) for path in dataset.files]
     for response in responses:
         assert response.status_code == 201, response.text
     return responses
 
 
+@EVERY_SUITE
 class TestSubmission:
-    def test_every_run_is_stored_under_its_own_uuid(self, submitted: list[Any]) -> None:
-        for run, response in zip(SUBMISSIONS, submitted, strict=True):
-            assert response.headers["Location"] == f"{RUNS}/{run['uuid']}"
+    def test_every_run_is_stored_under_its_own_uuid(
+        self, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        for run, response in zip(dataset.submissions, submitted, strict=True):
+            assert response.headers["Location"] == f"{dataset.url(RUNS_PATH)}/{run['uuid']}"
 
     def test_resubmitting_a_run_is_refused_as_a_duplicate(
-        self, api_client: TestClient, submitter: dict[str, str], submitted: list[Any]
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        dataset: Dataset,
+        submitted: list[Any],
     ) -> None:
-        response = submit(api_client, submitter, RUN_FILES[0])
+        response = submit(api_client, submitter, dataset, dataset.files[0])
 
         assert response.status_code == 409
         assert code_of(response) == "duplicate"
-        assert len(walk_pages(api_client, RUNS)) == len(SUBMISSIONS)
+        assert len(walk_pages(api_client, dataset.url(RUNS_PATH))) == len(dataset.submissions)
 
 
+@EVERY_SUITE
 class TestReadBack:
     def test_every_run_reads_back_as_sent(
-        self, api_client: TestClient, submitted: list[Any]
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        for run in SUBMISSIONS:
-            body = body_of(api_client.get(f"{RUNS}/{run['uuid']}"))
+        for run in dataset.submissions:
+            body = body_of(api_client.get(f"{dataset.url(RUNS_PATH)}/{run['uuid']}"))
 
             assert {key: body[key] for key in ("uuid", "machine", "commit", "run_parameters")} == {
                 "uuid": run["uuid"],
@@ -161,48 +252,196 @@ class TestReadBack:
                 "run_parameters": run["run_parameters"],
             }
 
-    def test_every_repetition_reads_back_as_a_sample(
-        self, api_client: TestClient, submitted: list[Any]
+    def test_every_sample_reads_back(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        for run in SUBMISSIONS:
+        for run in dataset.submissions:
             # At the default page size, so that the walk crosses several pages of real names.
-            served = walk_pages(api_client, SAMPLES_PATH.format(testsuite="nts", uuid=run["uuid"]))
+            served = walk_pages(api_client, dataset.url(SAMPLES_PATH, uuid=run["uuid"]))
 
             expected = [sample for entry in run["tests"] for sample in samples(entry)]
             assert canonical(served) == canonical(expected)
 
     def test_the_submissions_created_the_machines(
-        self, api_client: TestClient, submitted: list[Any]
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        body = body_of(api_client.get(MACHINES))
+        fields = {
+            run["machine"]["name"]: run["machine"].get("fields", {}) for run in dataset.submissions
+        }
 
-        assert body["total"] == len(MACHINE_NAMES)
-        assert [machine["name"] for machine in body["items"]] == MACHINE_NAMES
-        assert all(m["tracked"] and m["last_run_at"] is not None for m in body["items"])
+        body = body_of(api_client.get(dataset.url(MACHINES_PATH)))
 
-    def test_the_submissions_created_the_commits_in_ordinal_order(
-        self, api_client: TestClient, submitted: list[Any]
-    ) -> None:
-        assert walk_pages(api_client, COMMITS, "sort=ordinal") == [
-            {"value": c["value"], "ordinal": c["ordinal"], "tag": None, "fields": c["fields"]}
-            for c in ORDERED_COMMITS
+        assert body["total"] == len(dataset.machine_names)
+        assert all(machine["last_run_at"] is not None for machine in body["items"])
+        served = [{k: v for k, v in m.items() if k != "last_run_at"} for m in body["items"]]
+        assert served == [
+            {
+                "name": name,
+                "tracked": True,
+                "fields": dataset.declared("machine_fields", fields[name]),
+            }
+            for name in dataset.machine_names
         ]
 
-    def test_a_commit_links_to_its_neighbours(
-        self, api_client: TestClient, submitted: list[Any]
+    def test_the_submissions_created_the_commits_in_ordinal_order(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        oldest, middle, newest = (commit["value"] for commit in ORDERED_COMMITS)
+        assert walk_pages(api_client, dataset.url(COMMITS_PATH), "sort=ordinal") == [
+            {
+                "value": c["value"],
+                "ordinal": c["ordinal"],
+                "tag": None,
+                "fields": dataset.declared("commit_fields", c["fields"]),
+            }
+            for c in dataset.ordered_commits
+        ]
 
-        body = body_of(api_client.get(f"{COMMITS}/{middle}"))
+    def test_each_commit_links_to_its_neighbours(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        values = [commit["value"] for commit in dataset.ordered_commits]
+        for index, value in enumerate(values):
+            body = body_of(api_client.get(f"{dataset.url(COMMITS_PATH)}/{value}"))
 
-        assert body["previous"]["value"] == oldest
-        assert body["next"]["value"] == newest
+            previous = values[index - 1] if index > 0 else None
+            following = values[index + 1] if index + 1 < len(values) else None
+            assert (body["previous"] or {}).get("value") == previous
+            assert (body["next"] or {}).get("value") == following
 
+    def test_commits_are_searched_by_their_revision(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        for commit in dataset.ordered_commits:
+            revision = commit["fields"]["llvm_project_revision"]
+            expected = [
+                c["value"]
+                for c in dataset.ordered_commits
+                if revision in c["value"] or revision in c["fields"]["llvm_project_revision"]
+            ]
+
+            served = walk_pages(
+                api_client, dataset.url(COMMITS_PATH), urlencode({"search": revision})
+            )
+
+            assert sorted(c["value"] for c in served) == sorted(expected)
+
+    def test_the_runs_of_each_machine_at_each_commit_are_listed(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        for machine in dataset.machine_names:
+            for commit in dataset.ordered_commits:
+                expected = {
+                    run["uuid"]
+                    for run in dataset.submissions
+                    if run["machine"]["name"] == machine
+                    and run["commit"]["value"] == commit["value"]
+                }
+
+                query = urlencode({"machine": machine, "commit": commit["value"]})
+                served = walk_pages(api_client, dataset.url(RUNS_PATH), query)
+
+                assert {run["uuid"] for run in served} == expected
+
+
+@EVERY_SUITE
+class TestTimeSeries:
+    def test_a_query_reads_back_across_commits_in_ordinal_order(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        test = dataset.series_test
+        for machine in dataset.machine_names:
+            served = query(
+                api_client,
+                dataset,
+                {"metric": "execution_time", "machine": machine, "test": [test], "sort": "commit"},
+            )
+
+            assert [point["ordinal"] for point in served] == sorted(p["ordinal"] for p in served)
+            expected = [
+                {
+                    "test": test,
+                    "machine": machine,
+                    "metric": "execution_time",
+                    "value": sample["metrics"]["execution_time"],
+                    "commit": run["commit"]["value"],
+                    "ordinal": run["commit"]["ordinal"],
+                    "run_uuid": run["uuid"],
+                    "tag": None,
+                }
+                for run in dataset.submissions
+                if run["machine"]["name"] == machine
+                for entry in run["tests"]
+                if entry["name"] == test
+                for sample in samples(entry)
+            ]
+            # `submitted_at` is the server's clock, which nothing submitted can predict.
+            stripped = [{k: v for k, v in point.items() if k != "submitted_at"} for point in served]
+            assert canonical(stripped) == canonical(expected)
+
+    def test_trends_are_the_geomean_of_the_run_geomeans(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        response = api_client.get(
+            dataset.url(TRENDS_PATH),
+            params=[("metric", "execution_time"), *(("machine", m) for m in dataset.machine_names)],
+        )
+
+        items = body_of(response)["items"]
+        expected = trend(dataset, "execution_time")
+        assert [{k: item[k] for k in ("machine", "commit", "ordinal")} for item in items] == [
+            {k: item[k] for k in ("machine", "commit", "ordinal")} for item in expected
+        ]
+        assert [item["value"] for item in items] == pytest.approx(
+            [item["value"] for item in expected], rel=1e-9
+        )
+
+
+@EVERY_SUITE
+class TestTests:
+    def test_every_submitted_test_is_listed(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        names = {entry["name"] for run in dataset.submissions for entry in run["tests"]}
+
+        served = walk_pages(api_client, dataset.url(TESTS_PATH))
+
+        assert sorted(test["name"] for test in served) == sorted(names)
+
+    def test_the_list_is_filtered_by_machine_and_metric(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        # Every declared metric, including those no producer reports, which list no test.
+        for machine in dataset.machine_names:
+            for metric in (entry["name"] for entry in dataset.schema["metrics"]):
+                names = {
+                    entry["name"]
+                    for run in dataset.submissions
+                    if run["machine"]["name"] == machine
+                    for entry in run["tests"]
+                    if metric in entry
+                }
+
+                query = urlencode({"machine": machine, "metric": metric})
+                served = walk_pages(api_client, dataset.url(TESTS_PATH), query)
+
+                assert sorted(test["name"] for test in served) == sorted(names), (machine, metric)
+
+    def test_the_list_is_searched_case_insensitively(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
+    ) -> None:
+        term, names = dataset.search
+
+        body = body_of(api_client.get(dataset.url(TESTS_PATH), params={"search": term}))
+
+        assert sorted(test["name"] for test in body["items"]) == sorted(names)
+
+
+@pytest.mark.parametrize("dataset", ["nts"], indirect=True)
+class TestNts:
     def test_values_copied_by_hand_from_lnt_llvm_org(
-        self, api_client: TestClient, submitted: list[Any]
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        uuid = BY_FILE["r598181-sifive"]["uuid"]
-        samples_path = SAMPLES_PATH.format(testsuite="nts", uuid=uuid)
+        samples_path = dataset.url(SAMPLES_PATH, uuid=dataset.by_file["r598181-sifive"]["uuid"])
 
         namd = [
             s["metrics"]
@@ -219,109 +458,63 @@ class TestReadBack:
             11884.851777649495,
         ]
 
-        commit = body_of(api_client.get(f"{COMMITS}/dc0abebc8e834bceea9a467f07e124ab944e9be9"))
+        commit = body_of(
+            api_client.get(f"{dataset.url(COMMITS_PATH)}/dc0abebc8e834bceea9a467f07e124ab944e9be9")
+        )
         assert commit["ordinal"] == 598181
         assert commit["fields"] == {"llvm_project_revision": "r598181"}
 
 
-class TestTimeSeries:
-    def test_a_query_reads_back_across_commits_in_ordinal_order(
-        self, api_client: TestClient, submitted: list[Any]
+@pytest.mark.parametrize("dataset", ["libcxx"], indirect=True)
+class TestLibcxx:
+    # The commit at which every run, on every machine, reported no tests.
+    FAILED = "97367d1046a2ec81e9b4e708ae7acdc83d99dcf7"
+
+    def test_values_copied_by_hand_from_lnt_llvm_org(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        machine = MACHINE_NAMES[0]
-        body = {"metric": "execution_time", "machine": machine, "test": [NAMD], "sort": "commit"}
+        # v4 run 339, on the Linux machine.
+        samples_path = dataset.url(SAMPLES_PATH, uuid=dataset.by_file["r554973-linux-1"]["uuid"])
 
-        served = walk_cursor(
-            lambda cursor: api_client.post(
-                QUERY, json=body if cursor is None else body | {"cursor": cursor}
-            )
-        )
+        for test, value in [(PRINT, 532.9731275614754), (FROM_SYS, 152.59618881588426)]:
+            body = body_of(api_client.get(samples_path, params={"test": test}))
+            assert body["items"] == [{"test": test, "metrics": {"execution_time": value}}]
 
-        assert [point["ordinal"] for point in served] == sorted(p["ordinal"] for p in served)
-        expected = [
-            {
-                "test": NAMD,
-                "machine": machine,
-                "metric": "execution_time",
-                "value": sample["metrics"]["execution_time"],
-                "commit": run["commit"]["value"],
-                "ordinal": run["commit"]["ordinal"],
-                "run_uuid": run["uuid"],
-                "tag": None,
-            }
-            for run in SUBMISSIONS
-            if run["machine"]["name"] == machine
-            for entry in run["tests"]
-            if entry["name"] == NAMD
-            for sample in samples(entry)
-        ]
-        # `submitted_at` is the server's clock, which nothing submitted can predict.
-        stripped = [{k: v for k, v in point.items() if k != "submitted_at"} for point in served]
-        assert canonical(stripped) == canonical(expected)
-
-    def test_trends_are_the_geomean_of_each_runs_per_test_medians(
-        self, api_client: TestClient, submitted: list[Any]
-    ) -> None:
-        response = api_client.get(
-            TRENDS,
-            params=[("metric", "execution_time"), *(("machine", name) for name in MACHINE_NAMES)],
-        )
-
-        items = body_of(response)["items"]
-        # One run per machine and commit here, so each trend point is that one run's geomean.
-        expected = sorted(
-            (
-                {
-                    "machine": run["machine"]["name"],
-                    "commit": run["commit"]["value"],
-                    "ordinal": run["commit"]["ordinal"],
-                    "value": run_geomean(run, "execution_time"),
-                }
-                for run in SUBMISSIONS
-            ),
-            key=lambda item: (item["machine"], item["ordinal"]),
-        )
-        assert [{k: item[k] for k in ("machine", "commit", "ordinal")} for item in items] == [
-            {k: item[k] for k in ("machine", "commit", "ordinal")} for item in expected
-        ]
-        assert [item["value"] for item in items] == pytest.approx(
-            [item["value"] for item in expected], rel=1e-9
-        )
-
-
-class TestTests:
-    def test_every_submitted_test_is_listed(
-        self, api_client: TestClient, submitted: list[Any]
-    ) -> None:
-        names = {entry["name"] for run in SUBMISSIONS for entry in run["tests"]}
-
-        assert sorted(test["name"] for test in walk_pages(api_client, TESTS)) == sorted(names)
-
-    @pytest.mark.parametrize("metric", ["execution_time", "code_size", "hash"])
-    def test_the_list_is_filtered_by_machine_and_metric(
-        self, api_client: TestClient, submitted: list[Any], metric: str
-    ) -> None:
-        machine = MACHINE_NAMES[0]
-        names = {
-            entry["name"]
-            for run in SUBMISSIONS
-            if run["machine"]["name"] == machine
-            for entry in run["tests"]
-            if metric in entry
+        machine = body_of(api_client.get(f"{dataset.url(MACHINES_PATH)}/macos-26.5-arm64-20260812"))
+        assert machine["fields"] == {
+            "hardware": "Apple M4",
+            "os": "macOS 26.5 (25F71)",
+            "test_suite_commit": "8bb5e216937e6b541f351aa1637c67e85a43ada0",
+            "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+            "sdk": "26.5",
         }
 
-        served = walk_pages(api_client, TESTS, urlencode({"machine": machine, "metric": metric}))
-
-        assert sorted(test["name"] for test in served) == sorted(names)
-
-    def test_a_declared_metric_no_bot_reports_has_no_tests(
-        self, api_client: TestClient, submitted: list[Any]
+    def test_a_commit_at_which_every_run_failed_has_runs_but_no_data(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        assert body_of(api_client.get(TESTS, params={"metric": "compile_time"}))["items"] == []
+        runs = walk_pages(api_client, dataset.url(RUNS_PATH), urlencode({"commit": self.FAILED}))
 
-    def test_the_list_is_searched_case_insensitively(
-        self, api_client: TestClient, submitted: list[Any]
+        assert len(runs) == 11
+        for run in runs:
+            assert walk_pages(api_client, dataset.url(SAMPLES_PATH, uuid=run["uuid"])) == []
+
+        response = api_client.get(
+            dataset.url(TRENDS_PATH),
+            params=[("metric", "execution_time"), *(("machine", m) for m in dataset.machine_names)],
+        )
+        assert self.FAILED not in {item["commit"] for item in body_of(response)["items"]}
+
+    def test_machines_and_their_runs_are_searched_by_hardware(
+        self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
-        body = body_of(api_client.get(TESTS, params={"search": "eqzero, first"}))
+        macs = ["macos-26.5-arm64-20260812", "macos-26.5-arm64-hardenedfast-20260821"]
 
-        assert body["items"] == [{"name": MEMCMP}]
+        machines = body_of(
+            api_client.get(dataset.url(MACHINES_PATH), params={"search": "apple m4"})
+        )
+        assert [machine["name"] for machine in machines["items"]] == macs
+
+        runs = walk_pages(api_client, dataset.url(RUNS_PATH), urlencode({"search": "APPLE M4"}))
+        assert sorted(run["uuid"] for run in runs) == sorted(
+            run["uuid"] for run in dataset.submissions if run["machine"]["name"] in macs
+        )

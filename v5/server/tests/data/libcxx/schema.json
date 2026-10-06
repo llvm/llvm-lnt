@@ -1,0 +1,76 @@
+{
+  "name": "libcxx",
+  "metrics": [
+    {
+      "name": "execution_time",
+      "type": "real",
+      "display_name": "Execution Time",
+      "unit": "seconds",
+      "unit_abbrev": "s"
+    },
+    {
+      "name": "instructions",
+      "type": "real",
+      "display_name": "Instructions Retired",
+      "unit": "instructions",
+      "unit_abbrev": "instr"
+    },
+    {
+      "name": "max_rss",
+      "type": "real",
+      "display_name": "Maximum Resident Set Size",
+      "unit": "megabytes",
+      "unit_abbrev": "mb"
+    },
+    {
+      "name": "cycles",
+      "type": "real",
+      "display_name": "Cycles Elapsed",
+      "unit": "cycles",
+      "unit_abbrev": "cycles"
+    },
+    {
+      "name": "peak_memory",
+      "type": "real",
+      "display_name": "Peak Memory Footprint",
+      "unit": "megabytes",
+      "unit_abbrev": "mb"
+    }
+  ],
+  "machine_fields": [
+    {
+      "name": "hardware",
+      "type": "text",
+      "searchable": true
+    },
+    {
+      "name": "os",
+      "type": "text",
+      "searchable": true
+    },
+    {
+      "name": "test_suite_commit",
+      "type": "text"
+    },
+    {
+      "name": "compiler",
+      "type": "text"
+    },
+    {
+      "name": "sdk",
+      "type": "text"
+    }
+  ],
+  "commit_fields": [
+    {
+      "name": "llvm_project_revision",
+      "type": "text",
+      "searchable": true,
+      "display": true
+    },
+    {
+      "name": "commit_info",
+      "type": "text"
+    }
+  ]
+}
