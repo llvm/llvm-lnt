@@ -21,6 +21,7 @@ from . import keys, migrate
 from .config import Settings, get_settings
 from .db import is_undefined_table, make_engine
 from .scopes import Scope
+from .suites import migrations as suite_migrations
 
 APP = "lnt_v5.app:create_app"
 
@@ -77,17 +78,17 @@ def _migrate(settings: Settings) -> int:
     except migrate.MigrationError as error:
         return _fail(str(error))
 
-    if result.before != result.after:
+    if result.global_tables_migrated:
         print(f"Migrated the database from {result.before or 'empty'} to {result.after}.")
     if result.suites_migrated:
         print(
             f"Migrated the built-in tables of {len(result.suites_migrated)} test suite(s) to "
-            f"structure version {result.structure_version}: {', '.join(result.suites_migrated)}."
+            f"structure version {suite_migrations.head()}: {', '.join(result.suites_migrated)}."
         )
     if not result.applied:
         print(
             f"The database is already up to date at revision {result.after}, with every test "
-            f"suite at structure version {result.structure_version}."
+            f"suite at structure version {suite_migrations.head()}."
         )
     return 0
 

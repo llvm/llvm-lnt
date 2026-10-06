@@ -11,17 +11,16 @@ from typing import Any
 
 import pytest
 import uvicorn
-from sqlalchemy import Engine, func, insert, inspect, select
+from sqlalchemy import Engine, func, inspect, select
 from sqlalchemy.exc import OperationalError
 
-from conftest import TOKEN_PATTERN
+from conftest import TOKEN_PATTERN, store_suite
 from lnt_v5 import cli, migrate
 from lnt_v5.config import get_settings
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import migrations as suite_migrations
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import normalized_json
-from lnt_v5.tables import api_key, metadata, schema
+from lnt_v5.tables import api_key, metadata
 
 
 @pytest.fixture
@@ -53,9 +52,7 @@ def migrations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     def record(engine: Engine) -> migrate.MigrationResult:
         applied.append(engine.url.render_as_string())
-        return migrate.MigrationResult(
-            before="0001", after="0001", structure_version=0, suites_migrated=()
-        )
+        return migrate.MigrationResult(before="0001", after="0001", suites_migrated=())
 
     monkeypatch.setattr(migrate, "upgrade_to_head", record)
     return applied
@@ -246,15 +243,7 @@ class TestMigrate:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        with configured_database.begin() as connection:
-            connection.execute(
-                insert(schema).values(
-                    name="nts",
-                    schema_json=normalized_json(SuiteSchema.model_validate({"name": "nts"})),
-                    structure_version=0,
-                )
-            )
-        # A step that changes nothing, so the suite needs no tables: this is about the report.
+        store_suite(configured_database, SuiteSchema.model_validate({"name": "nts"}), version=0)
         monkeypatch.setattr(suite_migrations, "STEPS", (lambda op, suite: None,))
 
         assert cli.main(["server", "migrate"]) == 0

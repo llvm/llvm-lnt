@@ -19,7 +19,13 @@ from lnt_v5.suites import registry as registry_module
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.registry import SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import SCHEMA_NAME_CONSTRAINT, bump, locked_suite, normalized_json
+from lnt_v5.suites.store import (
+    SCHEMA_NAME_CONSTRAINT,
+    add_suite,
+    bump,
+    locked_suite,
+    normalized_json,
+)
 from lnt_v5.tables import schema, schema_version
 
 MINIMAL = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
@@ -36,13 +42,7 @@ def store(db_engine: Engine) -> Callable[..., SuiteSchema]:
     def write(name: str = "nts", **overrides: object) -> SuiteSchema:
         parsed = schema_for(name, **overrides)
         with db_engine.begin() as connection:
-            connection.execute(
-                insert(schema).values(
-                    name=name, schema_json=normalized_json(parsed), structure_version=0
-                )
-            )
-            suite_tables.create(connection, parsed)
-            bump(connection)
+            add_suite(connection, parsed)
         return parsed
 
     return write

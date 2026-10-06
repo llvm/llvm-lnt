@@ -21,7 +21,7 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import Connection, Engine, create_engine, insert, make_url, select, text
+from sqlalchemy import Connection, Engine, create_engine, insert, make_url, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
@@ -32,8 +32,9 @@ from lnt_v5.migrate import upgrade_to_head
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.store import add_suite
 from lnt_v5.suites.tables import SuiteTables, build
-from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema_version
+from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema, schema_version
 
 # Derived rather than hardcoded: a setting added to Settings but forgotten here would silently
 # stop being scrubbed, which is exactly the leak this fixture exists to prevent.
@@ -398,6 +399,21 @@ def code_of(response: Any) -> str:
     body = response.json()
     assert list(body) == ["error"], body
     return str(body["error"]["code"])
+
+
+def store_suite(engine: Engine, suite: SuiteSchema, version: int) -> None:
+    """A suite recorded at structure `version`, as the build that created it would have left it.
+
+    Created the way the server creates one, then recorded at `version`: the tables are this build's,
+    so a test that migrates the suite runs steps against them that the snapshots do not cover --
+    which is what the tests of the migration mechanism want, and why the snapshot tests replay
+    a snapshot instead.
+    """
+    with engine.begin() as connection:
+        add_suite(connection, suite)
+        connection.execute(
+            update(schema).where(schema.c.name == suite.name).values(structure_version=version)
+        )
 
 
 def run_payload(**overrides: Any) -> dict[str, Any]:

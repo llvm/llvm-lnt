@@ -11,11 +11,13 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import Connection, Engine, select, text, update
+from sqlalchemy import Connection, Engine, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from lnt_v5.db import is_lock_unavailable
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.suites import migrations
+from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
 
@@ -53,6 +55,27 @@ def bump(connection: Connection) -> None:
         .where(schema_version.c.id == SCHEMA_VERSION_ID)
         .values(version=schema_version.c.version + 1)
     )
+
+
+def add_suite(connection: Connection, suite: SuiteSchema) -> None:
+    """Store a new suite and create its tables, announcing it to every worker (D2, D5).
+
+    The row first: it is the lock every writer of this suite contends on, so two callers racing to
+    create one name serialize here and the loser fails on its primary key rather than leaving a
+    half-built namespace. It is also the order the other writes take their locks in.
+
+    The tables are created as this build describes them, which is the end of the sequence that
+    brings a suite's built-in structure forward (D6), so that is the version recorded.
+    """
+    connection.execute(
+        insert(schema).values(
+            name=suite.name,
+            schema_json=normalized_json(suite),
+            structure_version=migrations.head(),
+        )
+    )
+    suite_tables.create(connection, suite)
+    bump(connection)
 
 
 def locked_suite(connection: Connection, name: str) -> SuiteSchema:

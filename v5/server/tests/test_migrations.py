@@ -6,12 +6,12 @@ import threading
 
 import pytest
 from alembic import command
-from alembic.util import CommandError
 from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from lnt_v5.migrate import (
     MIGRATION_LOCK_KEY,
+    MigrationError,
     alembic_config,
     current_revision,
     head_revision,
@@ -113,7 +113,7 @@ class TestUpgrade:
         with empty_engine.begin() as connection:
             connection.execute(text("UPDATE alembic_version SET version_num = 'from_the_future'"))
 
-        with pytest.raises(CommandError, match="from_the_future"):
+        with pytest.raises(MigrationError, match="from_the_future"):
             upgrade_to_head(empty_engine)
 
     def test_records_existing_suites_at_the_first_structure_version(

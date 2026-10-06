@@ -46,16 +46,19 @@ class MigrationError(Exception):
 
 @dataclass(frozen=True)
 class MigrationResult:
-    """What the database was at, what it is at now, and which suites had to be brought forward."""
+    """Which revision the global tables were at and are at now, and which suites were migrated."""
 
     before: str | None
     after: str | None
-    structure_version: int
     suites_migrated: tuple[str, ...]
 
     @property
+    def global_tables_migrated(self) -> bool:
+        return self.before != self.after
+
+    @property
     def applied(self) -> bool:
-        return self.before != self.after or bool(self.suites_migrated)
+        return self.global_tables_migrated or bool(self.suites_migrated)
 
 
 def alembic_config() -> Config:
@@ -102,12 +105,7 @@ def upgrade_to_head(engine: Engine) -> MigrationResult:
             connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY})
             connection.commit()
 
-    return MigrationResult(
-        before=before,
-        after=after,
-        structure_version=migrations.head(),
-        suites_migrated=migrated,
-    )
+    return MigrationResult(before=before, after=after, suites_migrated=migrated)
 
 
 def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | None]:
@@ -117,9 +115,15 @@ def _upgrade_global_tables(connection: Connection) -> tuple[str | None, str | No
     halfway leaves nothing behind. Alembic notices the connection is already in a transaction and
     leaves the commit to us.
     """
+    config = alembic_config()
+    known = {script.revision for script in ScriptDirectory.from_config(config).walk_revisions()}
     with connection.begin():
         before = current_revision(connection)
-        config = alembic_config()
+        if before is not None and before not in known:
+            raise MigrationError(
+                f"the database is at revision {before}, which this build does not know: it was "
+                "migrated by a newer build, which is the one to run"
+            )
         config.attributes["connection"] = connection
         command.upgrade(config, "head")
         after = current_revision(connection)
@@ -144,11 +148,11 @@ def _upgrade_suites(connection: Connection) -> tuple[str, ...]:
                 f"test suite '{name}' is at structure version {version}, but this build only knows "
                 f"up to version {head}: it was migrated by a newer build, which is the one to run"
             )
-    return tuple(
-        name
-        for name, version in positions
-        if version < head and _upgrade_suite(connection, name, head)
-    )
+    migrated: list[str] = []
+    for name, version in positions:
+        if version < head and _upgrade_suite(connection, name, head):
+            migrated.append(name)
+    return tuple(migrated)
 
 
 def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:

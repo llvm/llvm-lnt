@@ -18,7 +18,9 @@ out its types and constraint names literally rather than taking them from `suite
 describes the structure as of the *latest* step. It is given an Alembic `Operations` bound to the
 suite's transaction -- pass `schema=suite.name` to each operation, since nothing qualifies table
 names for you -- and the suite's schema, since some built-in structure is per-metric. It may move
-data as well as change structure.
+data as well as change structure. The server does not start until every suite has been through its
+steps, and `{suite}.sample` may hold many millions of rows, so move data with set-based SQL rather
+than row by row, and expect a change that rewrites a large table to cost downtime in proportion.
 """
 
 from __future__ import annotations

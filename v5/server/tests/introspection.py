@@ -131,42 +131,29 @@ def structure_of(engine: Engine, namespace: str) -> dict[str, list[tuple[Any, ..
     Read from the catalogs rather than through SQLAlchemy's reflection, which normalizes some of
     these away -- the very differences this exists to catch.
     """
-    with engine.connect() as connection:
-        columns = connection.execute(
-            text(
-                "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod), "
-                "a.attnotnull, a.attidentity, pg_get_expr(d.adbin, d.adrelid) "
-                "FROM pg_attribute a "
-                "JOIN pg_class c ON c.oid = a.attrelid "
-                "JOIN pg_namespace n ON n.oid = c.relnamespace "
-                "LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum "
-                "WHERE n.nspname = :namespace AND c.relkind = 'r' "
-                "AND a.attnum > 0 AND NOT a.attisdropped"
-            ),
-            {"namespace": namespace},
-        ).all()
-        constraints = connection.execute(
-            text(
-                "SELECT c.relname, k.conname, pg_get_constraintdef(k.oid) "
-                "FROM pg_constraint k "
-                "JOIN pg_class c ON c.oid = k.conrelid "
-                "JOIN pg_namespace n ON n.oid = c.relnamespace "
-                "WHERE n.nspname = :namespace"
-            ),
-            {"namespace": namespace},
-        ).all()
-        indexes = connection.execute(
-            text(
-                "SELECT tablename, indexname, indexdef FROM pg_indexes "
-                "WHERE schemaname = :namespace"
-            ),
-            {"namespace": namespace},
-        ).all()
-    return {
-        "columns": sorted(tuple(row) for row in columns),
-        "constraints": sorted(tuple(row) for row in constraints),
-        "indexes": sorted(tuple(row) for row in indexes),
+    queries = {
+        "columns": "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod), "
+        "a.attnotnull, a.attidentity, pg_get_expr(d.adbin, d.adrelid) "
+        "FROM pg_attribute a "
+        "JOIN pg_class c ON c.oid = a.attrelid "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum "
+        "WHERE n.nspname = :namespace AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped",
+        "constraints": "SELECT c.relname, k.conname, pg_get_constraintdef(k.oid) "
+        "FROM pg_constraint k "
+        "JOIN pg_class c ON c.oid = k.conrelid "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = :namespace",
+        "indexes": "SELECT tablename, indexname, indexdef FROM pg_indexes "
+        "WHERE schemaname = :namespace",
     }
+    with engine.connect() as connection:
+        return {
+            kind: sorted(
+                tuple(row) for row in connection.execute(text(sql), {"namespace": namespace})
+            )
+            for kind, sql in queries.items()
+        }
 
 
 def schema_version_of(engine: Engine) -> int:
