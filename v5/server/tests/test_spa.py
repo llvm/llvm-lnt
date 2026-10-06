@@ -182,7 +182,18 @@ class TestRedirectTrailingSlash:
         response = client.get(path, follow_redirects=False)
 
         assert response.status_code == 307
-        assert response.headers["location"].endswith(path.rstrip("/"))
+        assert response.headers["location"] == path.rstrip("/")
+
+    def test_names_neither_a_scheme_nor_a_host(self, client: TestClient) -> None:
+        # Behind the TLS-terminating proxy the request reaches the server as plain http, and the
+        # Host header is the client's to choose: neither belongs in the target (I1).
+        response = client.get(
+            "https://lnt.example/api/suites/",
+            headers={"Host": "evil.example"},
+            follow_redirects=False,
+        )
+
+        assert response.headers["location"] == "/api/suites"
 
     def test_redirects_a_path_that_exists_under_neither_spelling(self, client: TestClient) -> None:
         # Purely syntactic, so a miss costs one extra round trip before its 404 rather than
@@ -190,10 +201,41 @@ class TestRedirectTrailingSlash:
         assert client.get("/api/nope/", follow_redirects=False).status_code == 307
         assert client.get("/api/nope/").status_code == 404
 
-    def test_keeps_the_query_string(self, client: TestClient) -> None:
-        response = client.get("/api/?limit=25", follow_redirects=False)
+    @pytest.mark.parametrize(
+        ("path", "location"),
+        [
+            ("/api/?limit=25", "/api?limit=25"),
+            # Passed through as it was encoded: `%26` is a literal `&` inside a value rather than
+            # a separator, and `%FF` is not UTF-8 at all.
+            ("/api/?q=a%26b&r=%FF", "/api?q=a%26b&r=%FF"),
+        ],
+    )
+    def test_keeps_the_query_string(self, client: TestClient, path: str, location: str) -> None:
+        response = client.get(path, follow_redirects=False)
 
-        assert response.headers["location"].endswith("/api?limit=25")
+        assert response.headers["location"] == location
+
+    @pytest.mark.parametrize(
+        "segment",
+        [
+            "a%23b",  # left bare, `#` would start a fragment and cut the name short
+            "a%3Fb",  # ... and `?` a query string
+            "a%25b",  # ... and `%` an escape that is not one
+            "caf%C3%A9",
+        ],
+    )
+    def test_keeps_a_segment_encoded(self, client: TestClient, segment: str) -> None:
+        # I1 allows all of these in a machine name or a commit value.
+        response = client.get(f"/api/suites/nts/machines/{segment}/", follow_redirects=False)
+
+        assert response.headers["location"] == f"/api/suites/nts/machines/{segment}"
+
+    def test_does_not_redirect_an_encoded_slash_to_itself(self, client: TestClient) -> None:
+        # `%2F` is decoded before routing, so this does end in a slash -- but only once decoded,
+        # and a target built from the raw path would be the very URL requested.
+        response = client.get("/api/suites/x%2F", follow_redirects=False)
+
+        assert response.headers["location"] == "/api/suites/x"
 
     @pytest.mark.parametrize("path", ["/api/admin/api-keys/", "/api/suites/"])
     def test_preserves_the_method_and_body(self, client: TestClient, path: str) -> None:
@@ -201,6 +243,7 @@ class TestRedirectTrailingSlash:
         response = client.post(path, json={"name": "x"}, follow_redirects=False)
 
         assert response.status_code == 307
+        assert response.headers["location"] == path.rstrip("/")
 
     @pytest.mark.parametrize("path", ["/api/suites/", "/api/suites/nts/"])
     def test_redirects_a_suite_path_to_its_canonical_form(
@@ -210,7 +253,7 @@ class TestRedirectTrailingSlash:
         response = client.get(path, follow_redirects=False)
 
         assert response.status_code == 307
-        assert response.headers["location"].endswith(path.rstrip("/"))
+        assert response.headers["location"] == path.rstrip("/")
 
     def test_does_not_let_the_health_probe_be_answered_by_the_spa(self, client: TestClient) -> None:
         # Without this, `/healthz/` falls through to the catch-all and answers 200 with the client
@@ -218,7 +261,7 @@ class TestRedirectTrailingSlash:
         response = client.get("/healthz/", follow_redirects=False)
 
         assert response.status_code == 307
-        assert response.headers["location"].endswith("/healthz")
+        assert response.headers["location"] == "/healthz"
 
     @pytest.mark.parametrize("path", ["/", "/suites/nts/", "/graph/"])
     def test_leaves_client_routes_alone(self, client: TestClient, path: str) -> None:

@@ -13,9 +13,11 @@ alongside an interactive viewer (see I8).
 - No path carries a trailing slash. A request that adds one is answered with a
   307 redirect to the canonical form; 307 rather than 301 or 308 so that the
   method and body survive and a misspelled write is not downgraded to a GET.
-  This covers `/healthz` and `/llms.txt` as well. Client routes are unaffected
-  -- the web UI answers both spellings itself, and redirecting between them
-  would be noise.
+  The target is the canonical path with the query string preserved, and no
+  scheme or host, so that it stays correct behind a TLS-terminating proxy
+  whatever the request looked like when it reached the server. This covers
+  `/healthz` and `/llms.txt` as well. Client routes are unaffected -- the web UI
+  answers both spellings itself, and redirecting between them would be noise.
 - Entities addressed by natural keys (suite name, machine name, test name, commit value) or
   UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
   auto-increment database IDs. API keys are the one exception to both: they are addressed by

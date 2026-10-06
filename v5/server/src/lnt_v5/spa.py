@@ -12,11 +12,11 @@ are statements about the raw path rather than about any endpoint: a URL carrying
 from __future__ import annotations
 
 from pathlib import PurePosixPath
+from urllib.parse import quote, quote_from_bytes
 
 from starlette._utils import get_route_path
-from starlette.datastructures import URL
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -117,15 +117,21 @@ class RedirectTrailingSlash:
     """Send a server path carrying a trailing slash to its canonical form.
 
     Starlette does this out of the box, but only once nothing has matched -- and the SPA mount at
-    "/" matches every path, so its redirect is unreachable here. This restores the framework's
-    behaviour for the paths the server owns, and leaves client routes alone: the SPA answers
-    `/suites/nts` and `/suites/nts/` alike, and bouncing the browser between them would be noise.
+    "/" matches every path, so its redirect is unreachable here. This does the same for the paths
+    the server owns, and leaves client routes alone: the SPA answers `/suites/nts` and
+    `/suites/nts/` alike, and bouncing the browser between them would be noise.
 
     Purely syntactic, with no consultation of the route table: a trailing slash on a path that
     exists under neither spelling simply costs one extra round trip before its 404.
 
     307 rather than 301 or 308: it preserves the method and body, so a misspelled POST arrives
     intact, and it does not license a cache to remember the mapping.
+
+    Unlike Starlette's, the target is a path and query with no scheme or host (I1). Behind the
+    TLS-terminating proxy the request reaches uvicorn as plain `http`, and an absolute URL built
+    from it would send the client to `http://` -- a plaintext hop on which a POST commonly loses
+    its body to the proxy's own 301 back to `https://`. A plain Response carries it rather than a
+    RedirectResponse, whose own quoting would otherwise have to agree with ours.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -135,10 +141,30 @@ class RedirectTrailingSlash:
         if scope["type"] == "http":
             target = canonical_server_path(scope["path"])
             if target is not None:
-                url = URL(scope=scope).replace(path=target)
-                await RedirectResponse(url, status_code=307)(scope, receive, send)
+                location = _path_and_query(target, scope.get("query_string", b""))
+                response = Response(status_code=307, headers={"Location": location})
+                await response(scope, receive, send)
                 return
         await self.app(scope, receive, send)
+
+
+def _path_and_query(path: str, query: bytes) -> str:
+    """`path` followed by `query`, encoded for a `Location` header.
+
+    The path is the decoded one the router saw, so it is encoded again here: a natural key may
+    carry `%`, `?` or `#`, and left bare each would change what the URL names. Encoding the raw
+    path instead would not do -- `/api/suites/x%2F` decodes to a trailing slash its raw form does
+    not have, and would redirect to itself forever.
+
+    The query string arrives encoded already, and is passed through rather than decoded: it is
+    bytes in no particular encoding, and decoding it as UTF-8 would turn a stray byte into a 500.
+    Only what may not appear in a query at all is escaped -- RFC 3986's query characters and `%`
+    itself are left as they are.
+    """
+    url = quote(path)
+    if query:
+        url += "?" + quote_from_bytes(query, safe="!$&'()*+,;=:@/?%")
+    return url
 
 
 def is_static_asset_path(path: str) -> bool:
