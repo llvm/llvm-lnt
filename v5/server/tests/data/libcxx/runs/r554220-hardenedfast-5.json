@@ -1,0 +1,26 @@
+{
+  "format_version": "5",
+  "uuid": "a1323e33-7bab-4d42-aadc-5f25bb94ced8",
+  "machine": {
+    "name": "macos-26.5-arm64-hardenedfast-20260821",
+    "fields": {
+      "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+      "hardware": "Apple M4",
+      "os": "macOS 26.5 (25F71)",
+      "sdk": "26.5",
+      "test_suite_commit": "8bb5e216937e6b541f351aa1637c67e85a43ada0"
+    }
+  },
+  "commit": {
+    "value": "97367d1046a2ec81e9b4e708ae7acdc83d99dcf7",
+    "ordinal": 554220,
+    "fields": {
+      "llvm_project_revision": "554220"
+    }
+  },
+  "run_parameters": {
+    "end_time": "2026-08-29T01:53:28",
+    "start_time": "2026-08-29T01:53:28"
+  },
+  "tests": []
+}
