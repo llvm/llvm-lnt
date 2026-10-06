@@ -60,6 +60,7 @@ Every operation, with the scope it requires (see Authentication).
 
 ```
 GET    /api                                                   read    API index
+GET    /api/auth                                              read    The API key the request authenticated with
 GET    /api/suites                                            read    Every suite, with its schema
 POST   /api/suites                                            manage  Create a suite from a schema
 GET    /api/suites/{name}                                     read    One suite's schema
@@ -165,6 +166,8 @@ Send `Authorization: Bearer <token>`. Scopes form a hierarchy -- `read` <
 every lower one. `read` endpoints allow anonymous access, so send no header if
 you only read. A header that carries no usable Bearer token, or an unknown or
 revoked one, is 401 even on a `read` endpoint, and too little scope is 403.
+To check a token before relying on it, `GET /api/auth` returns the key it
+belongs to, including the scope it grants.
 
 ## Workflows
 

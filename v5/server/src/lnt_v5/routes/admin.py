@@ -69,7 +69,7 @@ def list_api_keys(engine: EngineDep) -> Items[ApiKey]:
 
 
 # No `Location` header: there is deliberately no per-key detail route, so the list is the only way
-# to read a key back.
+# to read a key back, apart from a caller reading its own through `GET /api/auth` (E12).
 @router.post("/api-keys", status_code=201, summary="Create an API key")
 def create_api_key(body: ApiKeyCreate, engine: EngineDep) -> ApiKeyCreated:
     """Create a key. The token is returned only here and cannot be retrieved afterwards."""

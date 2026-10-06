@@ -60,7 +60,7 @@ e.g. `D5`, `I4` or `GR8`.
 | [Data Model](server/data-model.md) | D | Architecture, Commit concept, schema storage and format, all table definitions, database initialization |
 | [Operations](server/operations.md) | O | Run submission, machine and commit metadata, search, time-series queries, ordinal management, run summaries |
 | [Infrastructure](server/infrastructure.md) | I | URL structure, pagination, filtering, response format, authentication, AI orientation, health check, API documentation |
-| [Endpoints](server/endpoints.md) | E | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin |
+| [Endpoints](server/endpoints.md) | E | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin, authentication |
 
 ### Web UI
 
