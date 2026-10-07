@@ -175,8 +175,8 @@ def addressable(value: str) -> str:
     A key containing `/`, or equal to `.` or `..`, does not. A server decodes `%2F` back to a
     separator before routing and normalizes a relative segment away long before the request
     arrives, so such a key would name an entity no URL can reach -- and the `Location` header
-    handed back at creation would 404. Rejected where the entity is created rather than papered
-    over where it is addressed.
+    handed back at creation would 404. Rejected wherever the key is set -- at creation, and when a
+    machine is renamed -- rather than papered over where it is addressed.
     """
     if "/" in value or value in {".", ".."}:
         raise ValueError(
