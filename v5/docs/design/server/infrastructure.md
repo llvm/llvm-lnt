@@ -44,8 +44,9 @@ addressed by: `name` (suite, machine, test), `value` (commit), `uuid`, or
 `.` and `..` segments. A machine name or commit value that contains a `/`, or
 is exactly `.` or `..`, could therefore never be reached by URL -- even the
 `Location` header returned when creating it would lead to a 404. Such a name is
-rejected with 400 wherever the entity is created, including implicitly during
-run submission (see O1).
+rejected with 400 wherever it is set: when the entity is created, including
+implicitly during run submission (see O1), and when a machine is renamed (see
+E2).
 
 Test names and the function names inside a profile are exempt from this rule.
 Both legitimately contain `/` (e.g. a demangled `operator/` overload, for a
