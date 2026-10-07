@@ -126,8 +126,10 @@ so its display value is resolved through `POST commits/resolve`.
 **Deletions**: Deleting a suite, a machine, a run or a regression is confirmed
 by typing its identifier -- the name of a suite or a machine, the first 8
 characters of the UUID of a run or a regression -- before the request is sent;
-the prompt shows the text to type. Revoking an API key (AD1), which destroys
-nothing, asks for a plain confirmation instead.
+the prompt shows the text to type. Saving a schema change that removes entries
+(AD3) is confirmed the same way, by typing the suite name, since it destroys
+their stored values. Revoking an API key (AD1), which destroys nothing, asks for
+a plain confirmation instead.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for the API
 key endpoints, which require `admin` scope even to read (see I5). No
