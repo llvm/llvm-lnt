@@ -52,8 +52,11 @@ Global controls (shared across both sides):
   sides select different suites, a metric is offered only if both suites
   declare it, with the same `bigger_is_better` and the same `unit` (an unset
   unit matching only an unset one). While only one side has a suite, that
-  suite's metrics are offered. Before any suite is selected, the metric area
-  shows a "Select a suite to load metrics..." hint instead of an empty dropdown.
+  suite's metrics are offered. The dropdown shows "-- Select metric --" until
+  a metric is selected, and again if a side's suite changes so that the
+  selected metric is no longer offered. Before any suite is selected, the
+  metric area shows a "Select a suite to load metrics..." hint instead of an
+  empty dropdown.
 - **Sample aggregation**: strategy for aggregating multiple samples within a
   single run (default: median). When a test appears multiple times in a run's
   samples, this strategy produces a single value per test per run.
@@ -122,6 +125,8 @@ comparison. Previous in-flight fetches are aborted.
 | Ratio    | `vB / vA`; same quantity plotted on the chart as `log2(Ratio)` |
 | Status   | Improved / Regressed / Unchanged / Noise / N/A; see Computation Reference for classification rules |
 
+The table can also show optional statistics columns (see "Optional columns" below).
+
 - **Visible rows**: the rows the text filter, the chart zoom and "Hide noise"
   keep, minus those toggled off by a click (see "Interactive rows" below). Rows
   of the "Missing tests" section are not visible rows. The geomean summary row,
@@ -179,10 +184,34 @@ comparison. Previous in-flight fetches are aborted.
 - **Copy as CSV**: A small clipboard icon button (right-justified on the summary
   message row) copies the visible comparison table as CSV to the clipboard. The
   exported CSV contains exactly the visible rows, in the current sort order,
-  with the geomean summary as the first data row. Columns match the table:
-  Test, Value A, Value B, Delta, Delta %, Ratio, Status. The button provides
-  brief visual feedback indicating success or failure. Hidden when no rows are
-  visible.
+  with the geomean summary as the first data row. Columns match the table's:
+  Test, Value A, Value B, Delta, Delta %, Ratio, the optional columns shown,
+  and Status. The button provides brief visual feedback indicating success or
+  failure. Hidden when no rows are visible.
+- **Optional columns**: A "Columns" button on the summary message row opens a
+  menu of checkboxes adding statistics columns to the table, all off by
+  default:
+
+  | Column   | Key            | Per side | Value                                        | N/A when                          |
+  |----------|----------------|----------|----------------------------------------------|-----------------------------------|
+  | Samples  | `samples`      | yes      | The number of samples                        | Never (0 on a side with none)     |
+  | Mean     | `mean`         | yes      | The arithmetic mean                          | The side has no samples           |
+  | Median   | `median`       | yes      | The median                                   | The side has no samples           |
+  | Min, Max | `min`, `max`   | yes      | The smallest and largest sample              | The side has no samples           |
+  | Std dev  | `stddev`       | yes      | The sample standard deviation (`n - 1`)      | Fewer than 2 samples              |
+  | CV %     | `cv`           | yes      | `Std dev / \|Mean\| * 100`                   | Std dev is N/A, or Mean is 0      |
+  | P-value  | `pvalue`       | no       | Welch's t-test p-value, as for the P-value knob, whether or not the knob is enabled; 0 where the knob treats the change as deterministic | The knob would be skipped |
+
+  Statistics are computed over all the samples of a side's selected runs taken
+  together, ignoring the sample and run aggregation settings, as the P-value
+  knob does. Only samples with a value for the metric count. Hovering a
+  column's header says so.
+
+  A per-side statistic adds an A and a B column. Optional columns sit between
+  Ratio and Status, in the order above, A before B. They are empty on the
+  geomean summary row, and a missing-test row shows the per-side ones for the
+  side it has. They are sortable, and hiding the column the table is sorted by
+  returns the table to its default sort.
 - **Profile column**: When either side has profile data for a test, a "Profile"
   link appears, leading to the Profiles page pre-populated as PF1 describes.
   With a profile on both sides, it is
@@ -409,8 +438,12 @@ All selection state is encoded as query parameters for shareability:
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
 - `test_filter`
+- `columns`: the keys of the optional columns shown (see CP2), comma-separated;
+  omitted when none is shown
 - `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,
-  `delta`, `delta_pct`, `ratio` or `status`), prefixed with `-` for descending
+  `delta`, `delta_pct`, `ratio` or `status`, or the key of an optional column
+  shown, suffixed with `_a` or `_b` for a per-side one), prefixed with `-` for
+  descending
 
 
 ### CP8: Shadow Trace (Comparison Overlay)
