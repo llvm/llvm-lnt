@@ -190,32 +190,28 @@ The table can also show optional statistics columns (see "Optional columns" belo
   failure. Hidden when no rows are visible.
 - **Optional columns**: A "Columns" button on the summary message row opens a
   menu of checkboxes adding statistics columns to the table, all off by
-  default. Hovering a statistic's header says that it is computed over the raw
-  samples pooled across the selected runs. Each per-side statistic adds an A
-  and a B column:
-  - **Samples**: the number of samples
-  - **Mean**, **Median**, **Min**, **Max**
-  - **Std dev**: the sample standard deviation (with `n - 1`); N/A with fewer
-    than 2 samples
-  - **CV %**: `Std dev / |Mean| * 100`; N/A when Std dev is, or when Mean is 0
+  default:
 
-  and one more column is shared by both sides:
-  - **P-value**: the Welch's t-test p-value, computed exactly as for the
-    P-value noise knob and with its edge cases: N/A where the knob would be
-    skipped, and 0 where it treats the change as deterministic. It is shown
-    whether or not the knob is enabled.
+  | Column   | Key            | Per side | Value                                        | N/A when                          |
+  |----------|----------------|----------|----------------------------------------------|-----------------------------------|
+  | Samples  | `samples`      | yes      | The number of samples                        | Never (0 on a side with none)     |
+  | Mean     | `mean`         | yes      | The arithmetic mean                          | The side has no samples           |
+  | Median   | `median`       | yes      | The median                                   | The side has no samples           |
+  | Min, Max | `min`, `max`   | yes      | The smallest and largest sample              | The side has no samples           |
+  | Std dev  | `stddev`       | yes      | The sample standard deviation (`n - 1`)      | Fewer than 2 samples              |
+  | CV %     | `cv`           | yes      | `Std dev / \|Mean\| * 100`                   | Std dev is N/A, or Mean is 0      |
+  | P-value  | `pvalue`       | no       | Welch's t-test p-value, as for the P-value knob, whether or not the knob is enabled; 0 where the knob treats the change as deterministic | The knob would be skipped |
 
-  Every statistic is computed over a side's raw samples pooled across its
-  selected runs, before any aggregation -- the same values the P-value knob
-  tests -- so these columns describe the measurements themselves and do not
-  change with the sample and run aggregation settings. Only samples with a
-  value for the metric count, so on a side with none, Samples is 0 and the
-  other statistics are N/A. They are empty on the geomean summary row, and a
-  missing-test row shows the per-side ones for the side it has, and no
-  P-value. Optional columns sit between Ratio and Status, in the order above,
-  each per-side statistic as its A column then its B column. Like the other
-  columns, they are sortable. Hiding the column the table is sorted by returns
-  the table to its default sort.
+  Statistics are computed over all the samples of a side's selected runs taken
+  together, ignoring the sample and run aggregation settings, as the P-value
+  knob does. Only samples with a value for the metric count. Hovering a
+  column's header says so.
+
+  A per-side statistic adds an A and a B column. Optional columns sit between
+  Ratio and Status, in the order above, A before B. They are empty on the
+  geomean summary row, and a missing-test row shows the per-side ones for the
+  side it has. They are sortable, and hiding the column the table is sorted by
+  returns the table to its default sort.
 - **Profile column**: When either side has profile data for a test, a "Profile"
   link appears, leading to the Profiles page pre-populated as PF1 describes.
   With a profile on both sides, it is
@@ -442,13 +438,12 @@ All selection state is encoded as query parameters for shareability:
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
 - `test_filter`
-- `columns`: the optional columns shown (see CP2), comma-separated, from
-  `samples`, `mean`, `median`, `min`, `max`, `stddev`, `cv` and `pvalue`;
+- `columns`: the keys of the optional columns shown (see CP2), comma-separated;
   omitted when none is shown
 - `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,
-  `delta`, `delta_pct`, `ratio` or `status`, or an optional column shown:
-  `pvalue`, or a per-side statistic suffixed with its side, such as
-  `stddev_b`), prefixed with `-` for descending
+  `delta`, `delta_pct`, `ratio` or `status`, or the key of an optional column
+  shown, suffixed with `_a` or `_b` for a per-side one), prefixed with `-` for
+  descending
 
 
 ### CP8: Shadow Trace (Comparison Overlay)

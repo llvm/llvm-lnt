@@ -110,8 +110,9 @@ BM_BitsetToString<1048576>/Dense_(90%)/90                                       
 
 ### Action buttons
 
-"Compare with..." button navigates to the Compare page, with this run's machine and commit
-pre-selected on side A and the metric selected on this page pre-selected (see CP7).
+"Compare with..." button navigates to the Compare page with side A set to this run's commit and
+machine, with only this run selected (`runs_a={uuid}`), and the metric selected on this page
+(see CP7).
 
 "Compare with previous commit" navigates to the Compare page set up to compare this run with
 the commit before it on the same machine: side A is the previous commit (see below) on this
