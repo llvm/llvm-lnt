@@ -177,15 +177,9 @@ instance in accordance with the expected usage.
 
 ## Caching
 
-The server sets `Cache-Control` on every response (see I9 and AR2 in the design docs), so nothing in
-front of it needs to know what can be cached. Today, neither layer in front of the server caches API
-responses: Nginx is a plain proxy with no `proxy_cache`, and Cloudflare, which decides what to cache
-by file extension, respects the origin's headers on what it does cache.
-
-Keep it that way when changing either layer. A Cloudflare Cache Rule, or any other CDN setting, must
-respect the origin's headers rather than impose an edge TTL. A cache that enforces its own minimum
-lifetime overrides `max-age=0`, and can then serve stale data, or serve one caller's response to
-another.
+The server sets `Cache-Control` on every response (see I9 and AR2 in the design docs). Whatever sits
+in front of it must respect those headers rather than impose its own lifetimes: a cache that
+overrides `max-age=0` can serve stale data, or serve one caller's response to another.
 
 ## Operating the instance
 
