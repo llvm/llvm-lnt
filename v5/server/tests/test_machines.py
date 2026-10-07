@@ -30,7 +30,7 @@ MACHINES = f"{SUITES_PATH}/nts/machines"
 
 NTS: dict[str, Any] = {
     "name": "nts",
-    "metrics": [{"name": "execution_time", "type": "real"}],
+    "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": False}],
     "machine_fields": [
         {"name": "hardware", "type": "text", "searchable": True},
         {"name": "os", "type": "text", "searchable": True},

@@ -31,10 +31,10 @@ NTS = SuiteSchema.model_validate(
     {
         "name": "nts",
         "metrics": [
-            {"name": "execution_time", "type": "real"},
-            {"name": "compile_status", "type": "integer"},
-            {"name": "notes", "type": "text"},
-            {"name": "measured_at", "type": "datetime"},
+            {"name": "execution_time", "type": "real", "bigger_is_better": False},
+            {"name": "compile_status", "type": "integer", "bigger_is_better": False},
+            {"name": "notes", "type": "text", "bigger_is_better": False},
+            {"name": "measured_at", "type": "datetime", "bigger_is_better": False},
         ],
         "machine_fields": [
             {"name": "hardware", "type": "text"},

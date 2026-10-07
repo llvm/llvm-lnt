@@ -31,8 +31,8 @@ MACHINES = MACHINES_PATH.format(testsuite="nts")
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
-        {"name": "execution_time", "type": "real"},
-        {"name": "compile_time", "type": "real"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_time", "type": "real", "bigger_is_better": False},
     ],
 }
 

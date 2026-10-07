@@ -48,8 +48,8 @@ MACHINES = MACHINES_PATH.format(testsuite="nts")
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
-        {"name": "execution_time", "type": "real"},
-        {"name": "compile_time", "type": "real"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_time", "type": "real", "bigger_is_better": False},
     ],
 }
 
@@ -1808,7 +1808,11 @@ class TestCascades:
 
         response = api_client.patch(
             f"{SUITES_PATH}/nts/schema",
-            json={"metrics": {"add": [{"name": "compile_time", "type": "real"}]}},
+            json={
+                "metrics": {
+                    "add": [{"name": "compile_time", "type": "real", "bigger_is_better": False}]
+                }
+            },
             headers=manage,
         )
 

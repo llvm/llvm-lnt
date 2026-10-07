@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from conftest import entry
 from lnt_v5.suites.schema import AttributeType, SuiteSchema
 
 # The schema from D4, which exercises every list and most of the optional keys.
@@ -21,8 +22,8 @@ EXAMPLE: dict[str, Any] = {
             "unit_abbrev": "s",
             "bigger_is_better": False,
         },
-        {"name": "execution_time", "type": "real"},
-        {"name": "compile_status", "type": "integer"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_status", "type": "integer", "bigger_is_better": False},
     ],
     "machine_fields": [
         {"name": "hardware", "type": "text", "searchable": True},
@@ -89,17 +90,21 @@ class TestEntryNames:
         # An entry name becomes a column name, so it is an identifier for the same reason a suite
         # name is (D4).
         with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(**{list_name: [{"name": name, "type": "text"}]}))
+            SuiteSchema.model_validate(
+                schema(**{list_name: [entry(list_name, name=name, type="text")]})
+            )
 
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
     def test_may_be_a_postgresql_reserved_word(self, list_name: str) -> None:
         # Nothing in the schema needs them reserved; tables.py quotes every identifier so that
         # they work. See the round-trip in test_suite_tables.py.
-        SuiteSchema.model_validate(schema(**{list_name: [{"name": "order", "type": "integer"}]}))
+        SuiteSchema.model_validate(
+            schema(**{list_name: [entry(list_name, name="order", type="integer")]})
+        )
 
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
     def test_may_appear_once_per_list(self, list_name: str) -> None:
-        entries = [{"name": "duplicated", "type": "text"}] * 2
+        entries = [entry(list_name, name="duplicated", type="text")] * 2
         with pytest.raises(ValidationError, match="more than once"):
             SuiteSchema.model_validate(schema(**{list_name: entries}))
 
@@ -107,7 +112,7 @@ class TestEntryNames:
         # A metric `os` and a machine field `os` are columns on different tables and never meet.
         SuiteSchema.model_validate(
             schema(
-                metrics=[{"name": "os", "type": "integer"}],
+                metrics=[{"name": "os", "type": "integer", "bigger_is_better": False}],
                 machine_fields=[{"name": "os", "type": "text"}],
                 commit_fields=[{"name": "os", "type": "text"}],
             )
@@ -126,13 +131,17 @@ class TestEntryNames:
     @pytest.mark.parametrize("name", ["id", "run_id", "test_id"])
     def test_a_metric_cannot_shadow_a_sample_column(self, name: str) -> None:
         with pytest.raises(ValidationError, match="built-in column on 'sample'"):
-            SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
+            SuiteSchema.model_validate(
+                schema(metrics=[{"name": name, "type": "real", "bigger_is_better": False}])
+            )
 
     def test_a_metric_cannot_shadow_a_coverage_column(self) -> None:
         # D5: a metric is also a flag column on `test_coverage`, beside that table's built-ins.
         # `test_id` is one too, but `sample` claims it first.
         with pytest.raises(ValidationError, match="built-in column on 'test_coverage'"):
-            SuiteSchema.model_validate(schema(metrics=[{"name": "machine_id", "type": "real"}]))
+            SuiteSchema.model_validate(
+                schema(metrics=[{"name": "machine_id", "type": "real", "bigger_is_better": False}])
+            )
 
     @pytest.mark.parametrize("name", ["name", "profile"])
     def test_a_metric_cannot_take_a_reserved_submission_key(self, name: str) -> None:
@@ -141,7 +150,9 @@ class TestEntryNames:
         # rather than created in a state where one of its metrics is unreachable. This is not a
         # column collision -- `profile` is a table of its own -- so the message must not say it is.
         with pytest.raises(ValidationError, match="reserved key inside a submission"):
-            SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
+            SuiteSchema.model_validate(
+                schema(metrics=[{"name": name, "type": "real", "bigger_is_better": False}])
+            )
 
 
 class TestTypes:
@@ -152,26 +163,30 @@ class TestTypes:
     ) -> None:
         # D3: one set of attribute types, shared by all three lists.
         SuiteSchema.model_validate(
-            schema(**{list_name: [{"name": "entry", "type": attribute.value}]})
+            schema(**{list_name: [entry(list_name, name="entry", type=attribute.value)]})
         )
 
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
     def test_is_required_on_every_entry(self, list_name: str) -> None:
         # D3: there is no default type.
         with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(**{list_name: [{"name": "entry"}]}))
+            SuiteSchema.model_validate(schema(**{list_name: [entry(list_name, name="entry")]}))
 
     @pytest.mark.parametrize("attribute", ["string", "float", "bool", "status", "hash", "default"])
     def test_rejects_a_type_outside_that_set(self, attribute: str) -> None:
         # `status`, `hash` and `default` are v4 spellings, and v5 keeps no compatibility with them.
         with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(metrics=[{"name": "m", "type": attribute}]))
+            SuiteSchema.model_validate(
+                schema(metrics=[{"name": "m", "type": attribute, "bigger_is_better": False}])
+            )
 
 
 class TestPresentationKeys:
     @pytest.mark.parametrize("key", ["unit", "unit_abbrev"])
     def test_a_metric_carries_its_unit(self, key: str) -> None:
-        SuiteSchema.model_validate(schema(metrics=[{"name": "m", "type": "real", key: "s"}]))
+        SuiteSchema.model_validate(
+            schema(metrics=[{"name": "m", "type": "real", key: "s", "bigger_is_better": False}])
+        )
 
     @pytest.mark.parametrize(
         ("list_name", "key", "value"),
@@ -192,18 +207,38 @@ class TestPresentationKeys:
         self, list_name: str, key: str, value: Any
     ) -> None:
         # Accepting it silently would leave the author believing it had an effect.
-        entry = {"name": "entry", "type": "text", key: value}
+        refused = entry(list_name, name="entry", type="text", **{key: value})
         with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(**{list_name: [entry]}))
+            SuiteSchema.model_validate(schema(**{list_name: [refused]}))
 
     def test_an_unknown_key_is_refused(self) -> None:
         with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(metrics=[{"name": "m", "type": "real", "unt": "s"}]))
+            SuiteSchema.model_validate(
+                schema(
+                    metrics=[{"name": "m", "type": "real", "unt": "s", "bigger_is_better": False}]
+                )
+            )
 
     def test_an_unknown_top_level_key_is_refused(self) -> None:
         # In particular `format_version`, which D4 says the schema does not carry.
         with pytest.raises(ValidationError):
             SuiteSchema.model_validate(schema(format_version="5"))
+
+
+class TestDirection:
+    @pytest.mark.parametrize("attribute", list(AttributeType))
+    def test_is_required_on_every_metric(self, attribute: AttributeType) -> None:
+        # D4: no default, whatever the type, since a type does not say whether a direction means
+        # anything.
+        with pytest.raises(ValidationError, match="bigger_is_better"):
+            SuiteSchema.model_validate(schema(metrics=[{"name": "m", "type": attribute.value}]))
+
+    def test_is_kept_when_true(self) -> None:
+        parsed = SuiteSchema.model_validate(
+            schema(metrics=[{"name": "m", "type": "real", "bigger_is_better": True}])
+        )
+
+        assert parsed.metrics[0].bigger_is_better is True
 
 
 class TestSearchable:
@@ -216,14 +251,14 @@ class TestSearchable:
     @pytest.mark.parametrize("list_name", ["commit_fields", "machine_fields"])
     def test_nothing_else_can_be(self, list_name: str, attribute: str) -> None:
         # D3: `?search=` is substring matching, which only means something over text.
-        entry = {"name": "entry", "type": attribute, "searchable": True}
+        field = {"name": "entry", "type": attribute, "searchable": True}
         with pytest.raises(ValidationError, match="searchable"):
-            SuiteSchema.model_validate(schema(**{list_name: [entry]}))
+            SuiteSchema.model_validate(schema(**{list_name: [field]}))
 
     @pytest.mark.parametrize("attribute", ["real", "integer", "datetime"])
     def test_a_non_text_field_may_still_say_so_explicitly(self, attribute: str) -> None:
-        entry = {"name": "entry", "type": attribute, "searchable": False}
-        SuiteSchema.model_validate(schema(commit_fields=[entry]))
+        field = {"name": "entry", "type": attribute, "searchable": False}
+        SuiteSchema.model_validate(schema(commit_fields=[field]))
 
 
 class TestDisplayField:
@@ -258,16 +293,16 @@ class TestDisplayField:
     @pytest.mark.parametrize("attribute", ["real", "integer", "datetime"])
     def test_only_a_text_field_can_be(self, attribute: str) -> None:
         # D4: the display value stands in for the commit string, which is text.
-        entry = {"name": "entry", "type": attribute, "display": True}
+        field = {"name": "entry", "type": attribute, "display": True}
         with pytest.raises(ValidationError, match="display field"):
-            SuiteSchema.model_validate(schema(commit_fields=[entry]))
+            SuiteSchema.model_validate(schema(commit_fields=[field]))
 
     @pytest.mark.parametrize("attribute", ["real", "integer", "datetime"])
     def test_a_non_text_field_may_still_say_it_is_not(self, attribute: str) -> None:
         # The normalized form carries `display: false` on every commit field (D4), so it has to be
         # accepted back on one of any type.
-        entry = {"name": "entry", "type": attribute, "display": False}
-        SuiteSchema.model_validate(schema(commit_fields=[entry]))
+        field = {"name": "entry", "type": attribute, "display": False}
+        SuiteSchema.model_validate(schema(commit_fields=[field]))
 
 
 class TestNormalization:
@@ -279,7 +314,9 @@ class TestNormalization:
     """
 
     def test_fills_in_every_optional_key_on_a_metric(self) -> None:
-        parsed = SuiteSchema.model_validate(schema(metrics=[{"name": "m", "type": "real"}]))
+        parsed = SuiteSchema.model_validate(
+            schema(metrics=[{"name": "m", "type": "real", "bigger_is_better": False}])
+        )
 
         assert parsed.model_dump()["metrics"] == [
             {
@@ -322,7 +359,7 @@ class TestNormalization:
         # document differ from the one posted, and would leave a stale label behind if the entry
         # were ever replaced.
         parsed = SuiteSchema.model_validate(
-            schema(metrics=[{"name": "compile_time", "type": "real"}])
+            schema(metrics=[{"name": "compile_time", "type": "real", "bigger_is_better": False}])
         )
 
         assert parsed.metrics[0].display_name is None

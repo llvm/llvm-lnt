@@ -20,8 +20,9 @@
   `GET /api/suites` returns every suite with its schema.
 - **Schema** -- a suite declares its `metrics`, `machine_fields` and
   `commit_fields` up front. Each entry has a `name` and a `type`: `real`,
-  `integer`, `text` or `datetime`. Nothing undeclared can be stored: a metric or
-  a field the schema does not name is rejected with 400 rather than ignored.
+  `integer`, `text` or `datetime`. Each metric also states `bigger_is_better`,
+  whether higher values are better. Nothing undeclared can be stored: a metric
+  or a field the schema does not name is rejected with 400 rather than ignored.
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
   declared `machine_fields` under `fields`, and a built-in `tracked` flag
   marking whether it takes part in *automatic* machine selection, such as a

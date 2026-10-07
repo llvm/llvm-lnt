@@ -22,7 +22,8 @@ mirror on 2026-09-25, without recording the v4 run ids, and converted from that 
 
 - `schema.json` is v4's `schemas/nts.yaml` in D4's format: `Real` metrics are `real`, `Status`
   ones `integer` and `Hash` ones `text`, with the same display names, units and
-  `bigger_is_better`. `ignore_same_hash` has no v5 equivalent and is dropped. v4's order field,
+  `bigger_is_better`, which v5 requires: every metric but `score` states v4's default, `false`.
+  `ignore_same_hash` has no v5 equivalent and is dropped. v4's order field,
   the LLVM revision (`r598181`), describes the commit rather than the run, so it becomes the
   commit's ordinal. The commit field `svn_revision` is new, and so are `searchable` and `display`,
   of which v4 has no notion: `hardware`, `os` and `svn_revision` are searchable, and `svn_revision`

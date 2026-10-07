@@ -33,7 +33,7 @@ COMMITS = COMMITS_PATH.format(testsuite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
-    "metrics": [{"name": "execution_time", "type": "real"}],
+    "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": False}],
     "machine_fields": [{"name": "hardware", "type": "text", "searchable": True}],
     "commit_fields": [
         {"name": "git_sha", "type": "text", "searchable": True, "display": True},

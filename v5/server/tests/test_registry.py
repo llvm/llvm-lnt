@@ -28,7 +28,10 @@ from lnt_v5.suites.store import (
 )
 from lnt_v5.tables import schema, schema_version
 
-MINIMAL = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
+MINIMAL = {
+    "name": "nts",
+    "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": False}],
+}
 
 
 def schema_for(name: str = "nts", **overrides: object) -> SuiteSchema:
@@ -122,7 +125,9 @@ class TestFreshness:
         worker = SuiteRegistry()
         fresh(worker, db_engine)
 
-        evolved = schema_for("nts", metrics=[{"name": "compile_time", "type": "real"}])
+        evolved = schema_for(
+            "nts", metrics=[{"name": "compile_time", "type": "real", "bigger_is_better": False}]
+        )
         with db_engine.begin() as connection:
             connection.execute(
                 update(schema)
@@ -327,7 +332,9 @@ class TestLockedSuite:
         # The registry is allowed to be a commit behind; a change derived from it would drop
         # whatever the previous change added while still applying its own DDL.
         store("nts")
-        evolved = schema_for("nts", metrics=[{"name": "compile_time", "type": "real"}])
+        evolved = schema_for(
+            "nts", metrics=[{"name": "compile_time", "type": "real", "bigger_is_better": False}]
+        )
         with db_engine.begin() as connection:
             connection.execute(
                 update(schema)
@@ -397,7 +404,9 @@ class TestSuiteTablesAreNotMutated:
         held = fresh(registry, db_engine)
         held_suite = held["nts"]
 
-        evolved = schema_for("nts", metrics=[{"name": "compile_time", "type": "real"}])
+        evolved = schema_for(
+            "nts", metrics=[{"name": "compile_time", "type": "real", "bigger_is_better": False}]
+        )
         with db_engine.begin() as connection:
             connection.execute(
                 update(schema)

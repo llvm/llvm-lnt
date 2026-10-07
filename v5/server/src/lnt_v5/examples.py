@@ -17,7 +17,7 @@ from typing import Any
 
 SUITE = "libcxx"
 
-# `tests/data/libcxx/schema.json`, with every optional key written out, as the API returns it.
+# `tests/data/libcxx/schema.json`, with every key written out, as the API returns it.
 METRICS: list[dict[str, Any]] = [
     {
         "name": "execution_time",

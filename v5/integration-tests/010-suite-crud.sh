@@ -23,7 +23,7 @@ readonly ATTEMPTS=12
 echo "  creating a suite reports where to find it"
 request -X POST -H "$AUTH" -H "$JSON" --data '{
   "name": "integration",
-  "metrics": [{"name": "execution_time", "type": "real"}],
+  "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": false}],
   "commit_fields": [{"name": "git_sha", "type": "text", "searchable": true, "display": true}],
   "machine_fields": [{"name": "hardware", "type": "text"}]
 }' "$SUITES"
@@ -50,7 +50,7 @@ expect_body '"suites":"/api/suites"'
 
 echo "  evolving it is visible on every worker"
 request -X PATCH -H "$AUTH" -H "$JSON" --data '{
-  "metrics": {"add": [{"name": "code_size", "type": "integer"}]},
+  "metrics": {"add": [{"name": "code_size", "type": "integer", "bigger_is_better": false}]},
   "machine_fields": {"remove": ["hardware"]}
 }' "${SUITES}/integration/schema?confirm=true"
 expect_status 200

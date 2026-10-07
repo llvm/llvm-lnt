@@ -104,8 +104,8 @@ both machines and commits (see O2).
 In an `update` entry, an omitted key leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`,
 `unit_abbrev`). The boolean keys (`bigger_is_better`, `searchable`, `display`)
-are not nullable, because D4 normalizes them to `false` rather than to null, so
-`null` for one of them is rejected with 400.
+are not nullable, because the normalized form always holds a boolean for each
+(see D4), so `null` for one of them is rejected with 400.
 
 Notes:
 - Renaming is not supported: it is semantically a remove plus an add.
@@ -195,8 +195,8 @@ through the API. The two formats still share much of their vocabulary.
       "unit_abbrev": "s",
       "bigger_is_better": false
     },
-    {"name": "execution_time", "type": "real"},
-    {"name": "compile_status", "type": "integer"}
+    {"name": "execution_time", "type": "real", "bigger_is_better": false},
+    {"name": "compile_status", "type": "integer", "bigger_is_better": false}
   ],
   "machine_fields": [
     {"name": "hardware", "type": "text", "searchable": true},
@@ -231,17 +231,25 @@ Notes:
 - There is no `format_version` in the schema: v5 has only one format.
 
 **Presentation keys.** Besides `name` and `type`, each list accepts only the
-optional keys that mean something for it. A key outside its list's set is
+presentation keys that mean something for it. A key outside its list's set is
 rejected with 400.
 
 | List | Accepts, in addition to `name` and `type` |
 |------|-------------------------------------------|
-| `metrics` | `display_name`, `unit`, `unit_abbrev`, `bigger_is_better` |
+| `metrics` | `display_name`, `unit`, `unit_abbrev`, `bigger_is_better` (required) |
 | `commit_fields` | `display_name`, `searchable`, `display` |
 | `machine_fields` | `display_name`, `searchable` |
 
 Only metrics accept `bigger_is_better`, only commit and machine fields can be
 searchable, and only a commit field can be the UI's display value.
+
+**Direction.** `bigger_is_better` says whether a higher value of the metric is
+an improvement. It has no default, because no value is right for every metric
+and a wrong one silently swaps improvements and regressions, so a metric
+without it is rejected with 400. It is required whatever the metric's type:
+for a numeric metric the type cannot tell whether a direction is meaningful (an
+`integer` may encode a status, see D3), and requiring it of the other types too,
+where it is meaningless, keeps the rule uniform.
 
 **Normalization.** The stored and returned form of a schema contains every
 optional key, filled in with the default below when the submitted document
@@ -252,7 +260,6 @@ another, so these defaults are part of the wire contract.
 |-----|---------|
 | `display_name` | `null` |
 | `unit`, `unit_abbrev` | `null` |
-| `bigger_is_better` | `false` |
 | `searchable` | `false` |
 | `display` | `false` |
 

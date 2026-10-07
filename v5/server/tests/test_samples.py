@@ -31,11 +31,11 @@ COMMITS = COMMITS_PATH.format(testsuite="nts")
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
-        {"name": "execution_time", "type": "real"},
-        {"name": "compile_time", "type": "real"},
-        {"name": "compile_status", "type": "integer"},
-        {"name": "toolchain", "type": "text"},
-        {"name": "started_at", "type": "datetime"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_status", "type": "integer", "bigger_is_better": False},
+        {"name": "toolchain", "type": "text", "bigger_is_better": False},
+        {"name": "started_at", "type": "datetime", "bigger_is_better": False},
     ],
 }
 

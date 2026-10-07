@@ -41,7 +41,7 @@ NTS: dict[str, Any] = {
             "unit_abbrev": "s",
             "bigger_is_better": False,
         },
-        {"name": "execution_time", "type": "real"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
     ],
     "commit_fields": [{"name": "git_sha", "type": "text", "searchable": True, "display": True}],
     "machine_fields": [{"name": "hardware", "type": "text", "searchable": True}],
@@ -127,7 +127,9 @@ class TestCreate:
 
     def test_normalizes_what_it_returns(self, create: Callable[..., Any]) -> None:
         # D4: every optional key present and explicit, so the response is postable verbatim.
-        metric = create(metrics=[{"name": "execution_time", "type": "real"}]).json()["metrics"][0]
+        metric = create(
+            metrics=[{"name": "execution_time", "type": "real", "bigger_is_better": False}]
+        ).json()["metrics"][0]
 
         assert metric == {
             "name": "execution_time",
@@ -142,7 +144,7 @@ class TestCreate:
         self, api_client: TestClient, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
         # D5: `schema_json` holds the same content `GET /api/suites/{name}` returns.
-        create(metrics=[{"name": "execution_time", "type": "real"}])
+        create(metrics=[{"name": "execution_time", "type": "real", "bigger_is_better": False}])
 
         assert stored_schema(db_engine, "nts") == api_client.get(f"{SUITES}/nts").json()
 
@@ -181,7 +183,14 @@ class TestCreate:
             # `test_suite_schema.py`. What this proves is that a model failure surfaces as I4's 400
             # rather than as the framework's own 422.
             ({"name": "NTS"}, "a name rule"),
-            ({"name": "nts", "metrics": [{"name": "m", "type": "status"}]}, "a type rule"),
+            (
+                {
+                    "name": "nts",
+                    "metrics": [{"name": "m", "type": "status", "bigger_is_better": False}],
+                },
+                "a type rule",
+            ),
+            ({"name": "nts", "metrics": [{"name": "m", "type": "real"}]}, "a metric's direction"),
             ({"name": "nts", "format_version": "5"}, "an unknown top-level key"),
         ],
     )
@@ -222,7 +231,9 @@ class TestCreate:
     ) -> None:
         metric = "m" * IDENTIFIER_MAX_LENGTH
 
-        assert create(metrics=[{"name": metric, "type": "real"}]).status_code == 201
+        response = create(metrics=[{"name": metric, "type": "real", "bigger_is_better": False}])
+
+        assert response.status_code == 201
         assert metric in column_names(db_engine, "nts", "sample")
 
 
@@ -283,7 +294,13 @@ class TestEvolve:
         create()
 
         response = patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}}
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "code_size", "type": "integer", "bigger_is_better": False}]
+                }
+            },
         )
 
         assert response.status_code == 200
@@ -301,7 +318,9 @@ class TestEvolve:
         create()
 
         body = patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "aaa", "type": "real"}]}}
+            api_client,
+            manage,
+            {"metrics": {"add": [{"name": "aaa", "type": "real", "bigger_is_better": False}]}},
         ).json()
 
         assert [m["name"] for m in body["metrics"]][-1] == "aaa"
@@ -321,6 +340,19 @@ class TestEvolve:
         assert changed["display_name"] == "Compile Time"
         assert changed["unit_abbrev"] == "s"
 
+    def test_leaves_an_omitted_direction_alone(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        # Every stored metric has a direction, and one the request omits must survive rather than
+        # be reset to whatever the update model defaults it to.
+        create(metrics=[{"name": "score", "type": "real", "bigger_is_better": True}])
+
+        body = patch_request(
+            api_client, manage, {"metrics": {"update": [{"name": "score", "unit": "points"}]}}
+        ).json()
+
+        assert body["metrics"][0]["bigger_is_better"] is True
+
     def test_clears_a_nullable_key_sent_as_null(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
     ) -> None:
@@ -339,7 +371,8 @@ class TestEvolve:
     def test_refuses_a_boolean_key_sent_as_null(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
     ) -> None:
-        # D4 defaults these to false, so there is no unset state for a null to mean.
+        # The normalized form always holds a boolean for each (D4), so there is no unset state for
+        # a null to mean.
         create()
 
         response = patch_request(
@@ -451,7 +484,13 @@ class TestEvolve:
         create()
 
         response = patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "compile_time", "type": "real"}]}}
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "compile_time", "type": "real", "bigger_is_better": False}]
+                }
+            },
         )
 
         assert response.status_code == 409
@@ -482,7 +521,10 @@ class TestEvolve:
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:
         response = patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "m", "type": "real"}]}}, name="nope"
+            api_client,
+            manage,
+            {"metrics": {"add": [{"name": "m", "type": "real", "bigger_is_better": False}]}},
+            name="nope",
         )
 
         assert response.status_code == 404
@@ -490,7 +532,12 @@ class TestEvolve:
     @pytest.mark.parametrize(
         "body",
         [
-            {"metrics": {"add": [{"name": "m", "type": "real"}], "remove": ["m"]}},
+            {
+                "metrics": {
+                    "add": [{"name": "m", "type": "real", "bigger_is_better": False}],
+                    "remove": ["m"],
+                }
+            },
             {"metrics": {"remove": ["compile_time", "compile_time"]}},
             {"metrics": {"update": [{"name": "compile_time"}], "remove": ["compile_time"]}},
         ],
@@ -525,11 +572,24 @@ class TestEvolve:
 
         assert response.status_code == 400
 
+    def test_refuses_adding_a_metric_without_a_direction(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        # `add` entries are in D4's format, which requires `bigger_is_better` on every metric.
+        create()
+
+        response = patch_request(
+            api_client, manage, {"metrics": {"add": [{"name": "m", "type": "real"}]}}
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     @pytest.mark.parametrize(
         "body",
         [
-            {"metrics": {"ad": [{"name": "m", "type": "real"}]}},
-            {"metricz": {"add": [{"name": "m", "type": "real"}]}},
+            {"metrics": {"ad": [{"name": "m", "type": "real", "bigger_is_better": False}]}},
+            {"metricz": {"add": [{"name": "m", "type": "real", "bigger_is_better": False}]}},
             {"metrics": {"update": [{"name": "compile_time", "nonsense": 1}]}},
         ],
     )
@@ -594,7 +654,14 @@ class TestEvolveConfirmation:
         create()
 
         response = patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "m", "type": "real"}], "remove": []}}
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "m", "type": "real", "bigger_is_better": False}],
+                    "remove": [],
+                }
+            },
         )
 
         assert response.status_code == 200
@@ -606,7 +673,9 @@ class TestEvolveConfirmation:
 
         assert (
             patch_request(
-                api_client, manage, {"metrics": {"add": [{"name": "m", "type": "real"}]}}
+                api_client,
+                manage,
+                {"metrics": {"add": [{"name": "m", "type": "real", "bigger_is_better": False}]}},
             ).status_code
             == 200
         )
@@ -644,7 +713,13 @@ class TestMetricRows:
         create()
 
         patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}}
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "code_size", "type": "integer", "bigger_is_better": False}]
+                }
+            },
         )
 
         assert metric_rows(db_engine) == ["code_size", "compile_time", "execution_time"]
@@ -744,7 +819,13 @@ class TestEvolveAgainstStoredData:
     ) -> None:
         # D2: adding an entry leaves existing rows with no value for it.
         patch_request(
-            api_client, manage, {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}}
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "code_size", "type": "integer", "bigger_is_better": False}]
+                }
+            },
         )
 
         with db_engine.connect() as connection:
@@ -868,7 +949,9 @@ class TestConcurrentWrites:
     def add_metric(engine: Engine, name: str, metric: str) -> Any:
         return patch_schema(
             name,
-            SchemaPatch.model_validate({"metrics": {"add": [{"name": metric, "type": "real"}]}}),
+            SchemaPatch.model_validate(
+                {"metrics": {"add": [{"name": metric, "type": "real", "bigger_is_better": False}]}}
+            ),
             engine,
         )
 

@@ -9,9 +9,9 @@
       "unit_abbrev": "s",
       "bigger_is_better": false
     },
-    {"name": "code_size", "type": "integer"},
-    {"name": "hash", "type": "text"},
-    {"name": "finished_at", "type": "datetime"}
+    {"name": "code_size", "type": "integer", "bigger_is_better": false},
+    {"name": "hash", "type": "text", "bigger_is_better": false},
+    {"name": "finished_at", "type": "datetime", "bigger_is_better": false}
   ],
   "commit_fields": [
     {"name": "short_sha", "type": "text", "searchable": true, "display": true},

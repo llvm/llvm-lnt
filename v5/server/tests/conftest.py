@@ -401,6 +401,13 @@ def code_of(response: Any) -> str:
     return str(body["error"]["code"])
 
 
+def entry(list_name: str, **keys: Any) -> dict[str, Any]:
+    """An entry of the schema list `list_name` with `keys`, plus the `bigger_is_better` a metric
+    requires (D4), so that a test of a rule shared by the three lists is not answered by that
+    requirement instead."""
+    return ({"bigger_is_better": False} if list_name == "metrics" else {}) | keys
+
+
 def store_suite(engine: Engine, suite: SuiteSchema, version: int) -> None:
     """Create a suite the way the server does, then record it at migration version `version`.
 

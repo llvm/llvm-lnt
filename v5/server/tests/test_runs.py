@@ -54,9 +54,9 @@ COMMITS = COMMITS_PATH.format(testsuite="nts")
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
-        {"name": "execution_time", "type": "real"},
-        {"name": "compile_time", "type": "real"},
-        {"name": "compile_status", "type": "integer"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_status", "type": "integer", "bigger_is_better": False},
     ],
     "machine_fields": [
         # `hardware` is searchable so that the run list's `?search=`, which O4 makes the machine
@@ -1528,7 +1528,12 @@ class TestSchemaChangedUnderneath:
             pytest.param({"metrics": {"remove": ["execution_time"]}}, id="metric-removed"),
             pytest.param({"machine_fields": {"remove": ["hardware"]}}, id="field-removed"),
             pytest.param(
-                {"metrics": {"add": [{"name": "size", "type": "integer"}]}}, id="metric-added"
+                {
+                    "metrics": {
+                        "add": [{"name": "size", "type": "integer", "bigger_is_better": False}]
+                    }
+                },
+                id="metric-added",
             ),
         ],
     )

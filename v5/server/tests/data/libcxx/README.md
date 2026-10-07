@@ -26,7 +26,8 @@ the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
 ## Conversion
 
 - `schema.json` is libc++'s `libcxx/utils/ci/lnt/schemas/libcxx.yaml` in D4's format: its `Real`
-  metrics are `real`, with the same display names and units. v4's run fields describe the commit
+  metrics are `real`, with the same display names and units. None of them sets `bigger_is_better`,
+  which v5 requires, so each states v4's default, `false`. v4's run fields describe the commit
   rather than the run: `git_sha` is the commit's identity, the order field (the LLVM revision
   number) is its ordinal, and `commit_info` is a commit field. None of these runs reports
   `commit_info`. The commit field `svn_revision` is new, and so are `searchable` and `display`, of

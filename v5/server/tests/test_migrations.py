@@ -96,7 +96,7 @@ class TestUpgrade:
         suite = SuiteSchema.model_validate(
             {
                 "name": "nts",
-                "metrics": [{"name": "execution_time", "type": "real"}],
+                "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": False}],
                 "commit_fields": [{"name": "git_sha", "type": "text", "searchable": True}],
                 "machine_fields": [{"name": "hardware", "type": "text"}],
             }

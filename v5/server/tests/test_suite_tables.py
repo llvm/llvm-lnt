@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import Connection, Engine, Table, func, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from conftest import PROFILE_COLUMNS
+from conftest import PROFILE_COLUMNS, entry
 from introspection import (
     assert_names_survived,
     columns_of,
@@ -63,10 +63,10 @@ SUITE_TABLES = frozenset(
 # A schema exercising all three lists and every attribute type (D3).
 FULL: dict[str, Any] = {
     "metrics": [
-        {"name": "execution_time", "type": "real"},
-        {"name": "compile_status", "type": "integer"},
-        {"name": "build_id", "type": "text"},
-        {"name": "measured_at", "type": "datetime"},
+        {"name": "execution_time", "type": "real", "bigger_is_better": False},
+        {"name": "compile_status", "type": "integer", "bigger_is_better": False},
+        {"name": "build_id", "type": "text", "bigger_is_better": False},
+        {"name": "measured_at", "type": "datetime", "bigger_is_better": False},
     ],
     "commit_fields": [
         {"name": "git_sha", "type": "text", "searchable": True, "display": True},
@@ -218,8 +218,12 @@ class TestCreate:
     def test_two_suites_coexist_with_schemas_of_their_own(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        make_suite("nts", metrics=[{"name": "execution_time", "type": "real"}])
-        make_suite("compile", metrics=[{"name": "size", "type": "integer"}])
+        make_suite(
+            "nts", metrics=[{"name": "execution_time", "type": "real", "bigger_is_better": False}]
+        )
+        make_suite(
+            "compile", metrics=[{"name": "size", "type": "integer", "bigger_is_better": False}]
+        )
 
         inspector = inspect(db_engine)
         assert "execution_time" in columns_of(inspector, "nts", "sample")
@@ -418,7 +422,9 @@ class TestDynamicColumns:
         attribute: str,
         sql_type: str,
     ) -> None:
-        make_suite("nts", metrics=[{"name": "measurement", "type": attribute}])
+        make_suite(
+            "nts", metrics=[{"name": "measurement", "type": attribute, "bigger_is_better": False}]
+        )
 
         assert sql_type_of(db_engine, "nts", "sample", "measurement") == sql_type
 
@@ -435,7 +441,7 @@ class TestDynamicColumns:
     ) -> None:
         # D2: adding an entry leaves existing rows with no value for it, and O2 lets a submission
         # send any subset of a record's metadata.
-        make_suite("nts", **{list_name: [{"name": "added", "type": "text"}]})
+        make_suite("nts", **{list_name: [entry(list_name, name="added", type="text")]})
 
         assert columns_of(inspect(db_engine), "nts", table)["added"]["nullable"] is True
 
@@ -446,7 +452,7 @@ class TestDynamicColumns:
         # quoted. Unquoted, the CREATE TABLE below is a syntax error.
         tables = make_suite(
             "nts",
-            metrics=[{"name": "order", "type": "integer"}],
+            metrics=[{"name": "order", "type": "integer", "bigger_is_better": False}],
             machine_fields=[{"name": "user", "type": "text"}],
         )
 
@@ -981,7 +987,12 @@ class TestEvolution:
         tables = make_suite("nts")
         grown = suite_tables.build(
             SuiteSchema.model_validate(
-                {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
+                {
+                    "name": "nts",
+                    "metrics": [
+                        {"name": "execution_time", "type": "real", "bigger_is_better": False}
+                    ],
+                }
             )
         )
 
@@ -997,7 +1008,9 @@ class TestEvolution:
     ) -> None:
         # D2: removing an entry permanently destroys every value stored for it, which is why the
         # endpoint that reaches this requires `?confirm=true`.
-        tables = make_suite("nts", metrics=[{"name": "execution_time", "type": "real"}])
+        tables = make_suite(
+            "nts", metrics=[{"name": "execution_time", "type": "real", "bigger_is_better": False}]
+        )
 
         with db_engine.begin() as connection:
             suite_tables.drop_column(connection, tables.sample, "execution_time")
@@ -1007,14 +1020,16 @@ class TestEvolution:
     def test_a_column_named_for_a_reserved_word_can_be_added_and_removed(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        tables = make_suite("nts", metrics=[{"name": "order", "type": "integer"}])
+        tables = make_suite(
+            "nts", metrics=[{"name": "order", "type": "integer", "bigger_is_better": False}]
+        )
         grown = suite_tables.build(
             SuiteSchema.model_validate(
                 {
                     "name": "nts",
                     "metrics": [
-                        {"name": "order", "type": "integer"},
-                        {"name": "user", "type": "text"},
+                        {"name": "order", "type": "integer", "bigger_is_better": False},
+                        {"name": "user", "type": "text", "bigger_is_better": False},
                     ],
                 }
             )

@@ -20,9 +20,9 @@ from lnt_v5.suites.submission import SubmittedTest
 from lnt_v5.suites.summaries import summarize
 from lnt_v5.suites.tables import SuiteTables
 
-TIME = Metric.model_validate({"name": "time", "type": "real"})
-COUNT = Metric.model_validate({"name": "count", "type": "integer"})
-LABEL = Metric.model_validate({"name": "label", "type": "text"})
+TIME = Metric.model_validate({"name": "time", "type": "real", "bigger_is_better": False})
+COUNT = Metric.model_validate({"name": "count", "type": "integer", "bigger_is_better": False})
+LABEL = Metric.model_validate({"name": "label", "type": "text", "bigger_is_better": False})
 
 
 def entry(name: str, *samples: dict[str, Any]) -> SubmittedTest:
@@ -126,8 +126,8 @@ class TestSubmission:
             {
                 "name": "nts",
                 "metrics": [
-                    {"name": "time", "type": "real"},
-                    {"name": "size", "type": "integer"},
+                    {"name": "time", "type": "real", "bigger_is_better": False},
+                    {"name": "size", "type": "integer", "bigger_is_better": False},
                 ],
             }
         )

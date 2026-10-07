@@ -84,7 +84,10 @@ EXOTIC = encoded_profile(
     }
 )
 
-NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
+NTS: dict[str, Any] = {
+    "name": "nts",
+    "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": False}],
+}
 
 RUNS = RUNS_PATH.format(testsuite="nts")
 PROFILES = PROFILES_PATH.format(testsuite="nts")

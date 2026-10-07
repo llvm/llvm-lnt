@@ -33,8 +33,9 @@ class _EntryUpdate(BaseModel):
     Only the keys being changed are sent. Every key is optional and the defaults below are never
     read, because `_apply` dumps these with `exclude_unset`: a key the request omitted is simply
     absent. Their *types* are what carry meaning. The nullable ones can be cleared with an explicit
-    null; the booleans cannot, because D4 normalizes those to false rather than to null and so gives
-    them no unset state to clear to, which makes `searchable: null` a 400 rather than an ambiguity.
+    null; the booleans cannot, because the normalized form always holds a boolean for each (D4) and
+    so gives them no unset state to clear to, which makes `searchable: null` a 400 rather than an
+    ambiguity.
     """
 
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)

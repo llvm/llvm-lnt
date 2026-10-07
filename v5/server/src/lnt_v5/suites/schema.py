@@ -176,10 +176,10 @@ class Metric(Entry):
         default=None, description="The unit's abbreviation, such as `s`. Null if there is none."
     )
     bigger_is_better: bool = Field(
-        default=False,
         description=(
             "Whether higher values are better, as for a score. False when lower values are "
-            "better, as for a time."
+            "better, as for a time. Required even on a `text` or `datetime` metric, where it is "
+            "meaningless."
         ),
     )
 

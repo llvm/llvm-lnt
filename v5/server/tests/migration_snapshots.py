@@ -31,8 +31,8 @@ from lnt_v5.suites.schema import SuiteSchema
 SNAPSHOTS_DIR = Path(__file__).resolve().parent / "data" / "migration_snapshots"
 
 # Uses every attribute type in each of the three lists, and the presentation keys, so that the
-# snapshots cover everything the structure depends on. Never change it: the snapshots are rendered
-# from it.
+# snapshots cover everything the structure depends on. The snapshots are rendered from it, so a
+# change to anything the DDL depends on invalidates them.
 REFERENCE_SCHEMA = SNAPSHOTS_DIR / "reference.json"
 
 # Between statements in a snapshot. None of the DDL contains it, so splitting on it is exact.

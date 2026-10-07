@@ -44,7 +44,7 @@ from lnt_v5.suites.tables import SuiteTables
 # against something other than text, and one metric because D5 gives every suite a sample table.
 NTS: dict[str, Any] = {
     "name": "nts",
-    "metrics": [{"name": "execution_time", "type": "real"}],
+    "metrics": [{"name": "execution_time", "type": "real", "bigger_is_better": False}],
     "machine_fields": [
         {"name": "hardware", "type": "text"},
         {"name": "core_count", "type": "integer"},
