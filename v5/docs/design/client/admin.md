@@ -158,18 +158,17 @@ uniqueness within its list. A name that fails shows the red halo (see AR2), and 
 the schema is submitted.
 
 **Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
-is also checked against the names of the existing suites. Two shortcuts fill the editor in,
-replacing its contents:
-
-- A "Start from" dropdown copies the schema of an existing suite, leaving the name empty.
-- "Import JSON" takes a schema in the format `POST /api/suites` accepts, pasted or read from a
-  file, including its name. If the editor cannot show the document as it is, it shows an error
-  and keeps its contents. This is the case for a document that is not JSON in that format, or
-  that has a key its list does not accept, a `type` outside D3's, or `searchable` or `display`
-  on an entry that is not `text`.
+is also checked against the names of the existing suites. A "Start from" dropdown replaces the
+editor's contents with a copy of an existing suite's schema, leaving the name empty.
 
 "Create" creates the suite. On success, the editor closes and the dropdown selects the new
 suite.
+
+"Import JSON" creates a suite from a schema document instead, without going through the
+editor. It opens a text area, where the user pastes the document or loads it from a file, and
+a button that sends the document unchanged to `POST /api/suites`, where the server validates
+it. On success, the editor closes and the dropdown selects the new suite, as with "Create". On
+failure, the text area keeps its contents, and the API's error message is shown.
 
 **Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only
 an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since
@@ -183,5 +182,5 @@ The prompt lists the removed entries and warns that every value stored for them 
 permanently destroyed, along with the regression indicators of any removed metric (see D2). On
 success, the editor closes and the viewer shows the schema the API returned.
 
-In both modes, if the request fails, the editor stays open with its contents and shows the
-API's error message.
+In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
+the API's error message.
