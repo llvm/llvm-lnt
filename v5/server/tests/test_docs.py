@@ -444,8 +444,9 @@ class TestCommitOperations:
         [
             # An unknown suite on every one of them (I1), an unknown commit on the three that
             # address one, and D2's stale reader everywhere the suite's own columns are queried.
-            # The list's 404 covers an unknown `machine=` too (I3), and the writes' 409 covers a
-            # duplicate value, a taken ordinal and a commit a regression still references.
+            # The list's 404 covers an unknown `machine=` or range bound too (I3), and the writes'
+            # 409 covers a duplicate value, a taken ordinal and a commit a regression still
+            # references.
             (COMMITS, "get", "404"),
             (COMMITS, "get", "409"),
             (COMMITS, "post", "404"),
@@ -468,7 +469,17 @@ class TestCommitOperations:
         assert status in operation["responses"]
 
     @pytest.mark.parametrize(
-        "name", ["search", "machine", "has_profiles", "sort", "limit", "cursor"]
+        "name",
+        [
+            "search",
+            "machine",
+            "has_profiles",
+            "after_commit",
+            "before_commit",
+            "sort",
+            "limit",
+            "cursor",
+        ],
     )
     def test_the_list_documents_every_parameter_endpoints_md_gives_it(
         self, client: TestClient, name: str

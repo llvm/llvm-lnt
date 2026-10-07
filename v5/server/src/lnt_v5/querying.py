@@ -91,9 +91,9 @@ def exclusive_range(
     """A range over one ordered column, strictly after and strictly before, either bound optional.
 
     I3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
-    run list's `after=`/`before=` over `submitted_at`, and `POST /query`'s two pairs over the commit
-    ordinal and the submission time. One spelling, so that a bound cannot become inclusive in one
-    place and stay exclusive in another.
+    run list's `after=`/`before=` over `submitted_at`, the commit list's pair over the ordinal, and
+    `POST /query`'s two pairs over the commit ordinal and the submission time. One spelling, so that
+    a bound cannot become inclusive in one place and stay exclusive in another.
     """
     conditions: list[ColumnElement[bool]] = []
     if after is not None:

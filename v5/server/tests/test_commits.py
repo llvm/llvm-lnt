@@ -404,6 +404,78 @@ class TestListHasProfilesFilter:
         assert page(api_client, "has_profiles=maybe").status_code == 400
 
 
+class TestListOrdinalBounds:
+    @pytest.fixture(autouse=True)
+    def commits(self, create: Callable[..., Any], add_run: Callable[..., str]) -> None:
+        # Created out of ordinal order, so that the default sort tells first sighting and ordinal
+        # apart.
+        create("c30", ordinal=30)
+        create("c10", ordinal=10)
+        create("unordered")
+        create("c40", ordinal=40)
+        create("c20", ordinal=20)
+        add_run("c10", "linux")
+        add_run("c20", "darwin")
+        add_run("c40", "linux")
+
+    def test_after_keeps_only_the_commits_strictly_after(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "after_commit=c20&sort=ordinal")) == ["c30", "c40"]
+
+    def test_before_keeps_only_the_commits_strictly_before(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "before_commit=c30&sort=ordinal")) == ["c10", "c20"]
+
+    def test_both_bounds_together_keep_what_lies_between(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "after_commit=c10&before_commit=c40&sort=ordinal")) == [
+            "c20",
+            "c30",
+        ]
+
+    def test_leaves_out_the_commits_with_no_ordinal_whatever_the_sort(
+        self, api_client: TestClient
+    ) -> None:
+        # endpoints.md: a bound excludes them even under `first_seen`, which otherwise keeps every
+        # commit, and the order stays the one asked for.
+        assert values_in(page(api_client, "after_commit=c10")) == ["c30", "c40", "c20"]
+
+    def test_finds_the_previous_commit_a_machine_has_runs_at(self, api_client: TestClient) -> None:
+        # The lookup behind "Compare with previous commit" (DT2): c30 and c20 sit in between, but
+        # linux has no run at either, so the commit's own `previous` neighbour would be the wrong
+        # answer.
+        response = page(api_client, "machine=linux&before_commit=c40&sort=-ordinal&limit=1")
+
+        assert values_in(response) == ["c10"]
+
+    def test_finds_nothing_before_a_machines_first_commit(self, api_client: TestClient) -> None:
+        response = page(api_client, "machine=linux&before_commit=c10&sort=-ordinal&limit=1")
+
+        assert response.status_code == 200
+        assert values_in(response) == []
+
+    def test_the_bounds_survive_a_page_boundary(self, api_client: TestClient) -> None:
+        assert walk(api_client, "after_commit=c10&before_commit=c40&sort=-ordinal&limit=1") == [
+            "c30",
+            "c20",
+        ]
+
+    @pytest.mark.parametrize("bound", ["after_commit", "before_commit"])
+    def test_is_404_for_a_commit_that_is_not_there(
+        self, api_client: TestClient, bound: str
+    ) -> None:
+        # I3: a range bound names a position, which an unknown commit doesn't have -- unlike the
+        # `commit=` filter, which answers an unknown commit with an empty result.
+        response = page(api_client, f"{bound}=nope")
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    @pytest.mark.parametrize("bound", ["after_commit", "before_commit"])
+    def test_refuses_a_commit_that_has_no_ordinal(self, api_client: TestClient, bound: str) -> None:
+        response = page(api_client, f"{bound}=unordered")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+
 class TestListPagination:
     @pytest.fixture(autouse=True)
     def commits(self, create: Callable[..., Any]) -> None:
