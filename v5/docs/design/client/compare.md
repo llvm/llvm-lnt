@@ -52,13 +52,11 @@ Global controls (shared across both sides):
   sides select different suites, a metric is offered only if both suites
   declare it, with the same `bigger_is_better` and the same `unit` (an unset
   unit matching only an unset one). While only one side has a suite, that
-  suite's metrics are offered. Whenever no offered metric is selected -- none
-  was given in the URL, or the selected one stops being offered because a
-  side's suite changed -- the first offered metric is selected, in the schema
-  order of side A's suite, or of side B's while side A has none. Every entry
-  point therefore lands on a comparison, even when it has no metric to pass.
-  Before any suite is selected, the metric area shows a "Select a suite to
-  load metrics..." hint instead of an empty dropdown.
+  suite's metrics are offered. The dropdown shows "-- Select metric --" until
+  a metric is selected, and again if a side's suite changes so that the
+  selected metric is no longer offered. Before any suite is selected, the
+  metric area shows a "Select a suite to load metrics..." hint instead of an
+  empty dropdown.
 - **Sample aggregation**: strategy for aggregating multiple samples within a
   single run (default: median). When a test appears multiple times in a run's
   samples, this strategy produces a single value per test per run.
@@ -192,7 +190,9 @@ The table can also show optional statistics columns (see "Optional columns" belo
   failure. Hidden when no rows are visible.
 - **Optional columns**: A "Columns" button on the summary message row opens a
   menu of checkboxes adding statistics columns to the table, all off by
-  default. Each per-side statistic adds an A and a B column:
+  default. Hovering a statistic's header says that it is computed over the raw
+  samples pooled across the selected runs. Each per-side statistic adds an A
+  and a B column:
   - **Samples**: the number of samples
   - **Mean**, **Median**, **Min**, **Max**
   - **Std dev**: the sample standard deviation (with `n - 1`); N/A with fewer
@@ -209,11 +209,13 @@ The table can also show optional statistics columns (see "Optional columns" belo
   selected runs, before any aggregation -- the same values the P-value knob
   tests -- so these columns describe the measurements themselves and do not
   change with the sample and run aggregation settings. Only samples with a
-  value for the metric count, so the statistics are N/A on a side with none.
-  They are empty on the geomean summary row, and a missing-test row shows them
-  for the side it has. Optional columns sit between Ratio and Status, in the
-  order above, each per-side statistic as its A column then its B column. Like
-  the other columns, they are sortable.
+  value for the metric count, so on a side with none, Samples is 0 and the
+  other statistics are N/A. They are empty on the geomean summary row, and a
+  missing-test row shows the per-side ones for the side it has, and no
+  P-value. Optional columns sit between Ratio and Status, in the order above,
+  each per-side statistic as its A column then its B column. Like the other
+  columns, they are sortable. Hiding the column the table is sorted by returns
+  the table to its default sort.
 - **Profile column**: When either side has profile data for a test, a "Profile"
   link appears, leading to the Profiles page pre-populated as PF1 describes.
   With a profile on both sides, it is
