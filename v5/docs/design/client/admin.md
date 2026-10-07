@@ -174,6 +174,8 @@ failure, the text area keeps its contents, and the API's error message is shown.
 an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since
 D2 allows changing neither. An added entry is editable in full. Removing an existing entry only
 marks it as removed, with an undo button, and its name stays taken until the schema is saved.
+Hovering the red halo on an added entry with that name explains that an entry removed in this
+edit cannot be re-created in the same edit.
 
 "Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
 the user changed, so that it does not overwrite changes made by others since the editor opened.
