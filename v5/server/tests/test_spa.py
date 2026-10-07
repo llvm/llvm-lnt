@@ -119,7 +119,8 @@ class TestSpaServing:
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
-        assert "immutable" not in response.headers.get("cache-control", "")
+        # A missing file gets I9's header, not AR2's: it may exist after the next deploy.
+        assert response.headers["cache-control"] == "no-cache, max-age=0"
 
     def test_a_miss_names_what_was_requested(self, client: TestClient) -> None:
         # StaticFiles raises its own 404 with a bare "Not Found" detail, which says nothing about

@@ -21,6 +21,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import iter_routes
+from .caching import IMMUTABLE, REVALIDATE
 from .errors import ApiError, ErrorCode, error_response
 
 # Extensions that mark a request as asking for a file rather than for a page. Accepted
@@ -32,18 +33,6 @@ STATIC_ASSET_EXTENSIONS = frozenset(
         "otf", "png", "svg", "ttf", "txt", "wasm", "webmanifest", "webp", "woff", "woff2", "xml",
     }
 )  # fmt: skip
-
-# Cache-Control for the files the SPA mount serves (AR2). The client build gives files under
-# assets/ content-hashed names, so they can be cached forever. Everything else, index.html above
-# all, is revalidated on every use. `max-age=0` repeats `no-cache` for shared caches that ignore
-# it, such as Fastly, which would otherwise apply a fallback TTL.
-#
-# Revalidation only works if the ETag changes with the file. StaticFiles computes it from the
-# file's mtime and size, and a rebuilt index.html usually has the same size, so this relies on the
-# image build giving the files fresh mtimes. A reproducible build that pins timestamps would break
-# it.
-IMMUTABLE = "public, max-age=31536000, immutable"
-REVALIDATE = "no-cache, max-age=0"
 
 # Paths the server answers itself that are not under /api/. They share the API's slash handling:
 # a probe is as easy to misconfigure with a trailing slash as an endpoint is.
@@ -263,7 +252,13 @@ class SpaStaticFiles(StaticFiles):
                 # No built client, or a bundle somehow missing its entry point.
                 raise _not_found(method, request_path) from no_index
 
-        # Based on the file served rather than the URL requested, and set on whatever the base class
-        # returned, so that a 304 carries the same header as the 200 (RFC 9110).
+        # AR2's header, based on the file served rather than the URL requested, and set on whatever
+        # the base class returned, so that a 304 carries the same header as the 200 (RFC 9110).
+        # Missing files raise an exception instead, and get I9's header from caching.py.
+        #
+        # Revalidation only works if the ETag changes with the file. StaticFiles computes it from
+        # the file's mtime and size, and a rebuilt index.html usually has the same size, so this
+        # relies on the image build giving the files fresh mtimes. A reproducible build that pins
+        # timestamps would break it.
         response.headers["Cache-Control"] = IMMUTABLE if path.startswith("assets/") else REVALIDATE
         return response

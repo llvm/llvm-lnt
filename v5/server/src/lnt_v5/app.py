@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 
+from .caching import CachingFastAPI
 from .config import Settings, get_settings
 from .db import make_engine
 from .errors import register_error_handlers
@@ -73,7 +74,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             app.state.engine.dispose()
 
-    app = FastAPI(
+    # I9: every response, errors included, gets caching headers.
+    app = CachingFastAPI(
         title="LNT v5",
         # The API's version, not the server build's. Fixed by I8.
         version="5",

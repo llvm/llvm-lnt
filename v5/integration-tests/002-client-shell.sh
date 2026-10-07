@@ -10,4 +10,4 @@ source "$(dirname "$0")/lib.sh"
 request "${BASE_URL}/"
 expect_status 200
 expect_body '<title>LNT</title>'
-expect_header 'cache-control' 'no-cache, max-age=0'
+expect_header 'cache-control' 'no-cache, max-age=0[[:space:]]*$'

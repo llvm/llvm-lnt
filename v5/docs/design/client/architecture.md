@@ -34,6 +34,7 @@ the UI causes a full page reload.
   (`public, max-age=31536000, immutable`). Everything else served for the SPA,
   `index.html` included, is revalidated on every use
   (`no-cache, max-age=0`), so that a deploy takes effect on the next page load.
+  A request for a file that does not exist follows I9 instead.
 - **Code splitting**: Routes are lazy-loaded so the initial bundle stays small
   (external dependencies are fetched on demand).
 - **State**: URL query params for shareable deep-links; the auth token is

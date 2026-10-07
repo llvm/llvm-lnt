@@ -1,8 +1,8 @@
 # v5 REST API: Infrastructure
 
 This document covers the conventions shared across the v5 REST API: URL
-structure, pagination, filtering and sorting, response format, and
-authentication. It also covers the routes that sit outside the REST API proper:
+structure, pagination, filtering and sorting, response format, authentication,
+and caching. It also covers the routes that sit outside the REST API proper:
 the AI orientation document, the health check, and the API documentation.
 
 API documentation is generated using the OpenAPI 3.x format, and served
@@ -289,7 +289,7 @@ rather than part of the REST API, and sit outside this section entirely:
 the documentation viewer at `GET /api/docs` (I8). They do not use scopes or the
 I4 error envelope, and never authenticate: an `Authorization` header has no
 effect on them, not even a malformed or revoked one, which would be a 401
-anywhere else under `/api/`.
+anywhere else under `/api/`. Their caching headers still follow I9.
 
 The exemption is an explicit list rather than a consequence of being outside
 `/api/`, since two of the four are under it. For `/healthz` this matters: its
@@ -419,3 +419,18 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
   on either, even though both are under `/api/` (see I5).
 - Swapping the viewer implementation must not change the URL, so the path
   does not name a particular tool.
+
+
+## I9: Caching
+
+Every response carries a `Cache-Control` header:
+
+| Response | `Cache-Control` |
+|----------|-----------------|
+| A web UI file | As given in AR2 |
+| Any other response, to a request with an `Authorization` header (valid or not) | `private, no-store` |
+| Any other response, to a request without one | `no-cache, max-age=0` |
+
+The last two also carry `Vary: Authorization`. This way, no cache reuses a
+response without checking with the server first, and no shared cache stores a
+response that may depend on a credential.
