@@ -50,11 +50,12 @@ from lnt_v5.querying import (
     Limit,
     SortKey,
     cursor_page,
+    exclusive_range,
     search_condition,
     sort_order,
 )
 from lnt_v5.responses import CursorPage
-from lnt_v5.routes.machines import NO_MACHINE_FILTERED, machine_id
+from lnt_v5.routes.machines import machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
@@ -98,6 +99,10 @@ CommitSort = Literal["first_seen", "-first_seen", "ordinal", "-ordinal"]
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
 _NO_COMMIT = "The test suite or the commit doesn't exist."
+_NO_LIST_ENTITY = (
+    "The test suite, the machine given in `machine`, or the commit given in `after_commit` or "
+    "`before_commit` doesn't exist."
+)
 _ORDINAL_TAKEN = f"`conflict`: another commit already has this ordinal. {SUITE_SCHEMA_CHANGED}"
 
 # The path segment naming a commit.
@@ -447,15 +452,15 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
 
 
 def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
-    """The ordinal of a commit a request body names as a range boundary (O6).
+    """The ordinal of a commit a request names as a range boundary (O6).
 
-    `POST /query`'s `after_commit`/`before_commit` name a commit and mean its *position*, so both
-    ways of failing to have one are the caller's mistake and neither is an empty page. A value no
-    commit has is the 404 I4 gives an entity named by a request body -- deliberately unlike the
-    `commit=` filter beside it, which I3 answers with an empty result, because that one asks which
-    rows belong to a commit whereas this one asks where a commit sits. And a commit that exists but
-    has no ordinal sits nowhere (D1), so there is no comparison to make: that is a 400, since no
-    data would answer it either.
+    The `after_commit`/`before_commit` of `POST /query` and of the commit list name a commit and
+    mean its *position*, so both ways of failing to have one are the caller's mistake and neither
+    is an empty page. A value no commit has is the 404 I4 gives an entity a request names --
+    deliberately unlike the `commit=` filter, which I3 answers with an empty result, because that
+    one asks which rows belong to a commit whereas this one asks where a commit sits. And a commit
+    that exists but has no ordinal sits nowhere (D1), so there is no comparison to make: that is a
+    400, since no data would answer it either.
 
     A SELECT of its own rather than `entities.identifier` or `Commits.one`: the first projects the
     row's `id`, which is not what a bound needs, and the second reads every declared commit field
@@ -478,7 +483,7 @@ def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
     "",
     dependencies=[require_scope(Scope.READ)],
     summary="List commits",
-    responses=suite_responses(not_found=NO_MACHINE_FILTERED),
+    responses=suite_responses(not_found=_NO_LIST_ENTITY),
 )
 def list_commits(
     testsuite: SuiteName,
@@ -510,6 +515,27 @@ def list_commits(
                 "Only return commits that have (`true`) or don't have (`false`) a run with "
                 "profiles. If `machine` is given, only that machine's runs are considered. Leave "
                 "out to return both."
+            )
+        ),
+    ] = None,
+    after_commit: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only return commits after this one (exclusive), by ordinal. Commits without an "
+                "ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has "
+                "no ordinal."
+            )
+        ),
+    ] = None,
+    before_commit: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only return commits before this one (exclusive), by ordinal. Commits without an "
+                "ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has "
+                "no ordinal. To find the commit before a given one at which a machine has runs, "
+                "combine it with `machine`, `sort=-ordinal` and `limit=1`."
             )
         ),
     ] = None,
@@ -547,6 +573,13 @@ def list_commits(
         if has_profiles is not None:
             profiled = commits.has_run(on_machine, profiled=True)
             conditions.append(profiled if has_profiles else ~profiled)
+        # A NULL ordinal compares as unknown against either bound, so the commits without one drop
+        # out here whatever the sort, as endpoints.md requires.
+        conditions += exclusive_range(
+            commits.table.c.ordinal,
+            None if after_commit is None else commit_ordinal(connection, suite, after_commit),
+            None if before_commit is None else commit_ordinal(connection, suite, before_commit),
+        )
 
         return cursor_page(
             connection,

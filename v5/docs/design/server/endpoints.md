@@ -163,6 +163,12 @@ commit that has no ordinal itself.
 - `has_profiles=`: boolean. `true` returns only commits where at least one run
   has profile data, and `false` only commits where no run does. Combined with
   `machine=`, only the runs on that machine are considered.
+- `after_commit=`, `before_commit=`: exclusive bounds on the ordinal (strictly
+  after, strictly before the named commit's). When either is given, commits
+  with no ordinal are excluded, whatever the `sort`. Combined with `machine=`
+  and `sort=-ordinal&limit=1`, `before_commit=` finds the commit before a given
+  one at which a machine has runs. An unknown commit is 404, and one that has
+  no ordinal is 400 (see I3).
 
 **Sort:**
 

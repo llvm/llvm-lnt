@@ -35,6 +35,7 @@
   is absent from every result ordered by ordinal. Listing commits orders them
   by when the server first saw each one by default (`sort=first_seen`), keeping
   every commit; `sort=-first_seen` puts the most recently seen first.
+  `after_commit=` and `before_commit=` bound the list by ordinal.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names
@@ -73,7 +74,7 @@ GET    /api/suites/{testsuite}/machines/{machine_name}        read    One machin
 PATCH  /api/suites/{testsuite}/machines/{machine_name}        manage  Update or rename a machine
 DELETE /api/suites/{testsuite}/machines/{machine_name}        manage  Delete a machine and its runs
 
-GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, has_profiles=, sort=)
+GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, before_commit=, sort=, ...)
 POST   /api/suites/{testsuite}/commits                        submit  Create a commit
 POST   /api/suites/{testsuite}/commits/resolve                read    Look up many commits by value at once
 GET    /api/suites/{testsuite}/commits/{value}                read    One commit, with its previous/next by ordinal
@@ -229,6 +230,12 @@ numeric.
 profile is then read through its own UUID; every counter is a raw count.
 `GET /profiles/{uuid}/document` returns it whole: gzip-compressed and
 base64-encoded.
+
+**Compare a run with the previous commit on its machine**:
+`GET /commits?machine=linux-x86_64&before_commit=abc123&sort=-ordinal&limit=1`
+returns the nearest earlier commit at which that machine has runs, which the
+commit's own `previous` may not be, and
+`GET /runs?machine=linux-x86_64&commit={value}` lists those runs.
 
 **Check what is already tracked** before recording a regression. A change is
 tracked when a regression attributed to its commit has an indicator naming its

@@ -119,9 +119,11 @@ describes them (see I8).
 Common filters include:
 - `machine=`, `test=`, `metric=`
 - `search=`: case-insensitive substring match (see O4)
-- `after=`, `before=`: exclusive bounds on submission time. An endpoint that
-  bounds more than one dimension names each bound after its dimension instead
-  (e.g. `after_commit` and `after_time` on `POST /api/suites/{testsuite}/query`).
+- `after=`, `before=`: exclusive bounds on submission time. A bound on another
+  dimension is named after it (`after_commit` on
+  `GET /api/suites/{testsuite}/commits`), and so is the time bound of an
+  endpoint that bounds both (`after_time` on
+  `POST /api/suites/{testsuite}/query`).
 - `state=` (for regressions; takes several values)
 - `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
 - `tracked=` (boolean, for machines; omitting it returns both)
