@@ -32,7 +32,7 @@ the suite is a query parameter, not a path segment.
   to plot by clicking rows in the test table, unless the URL already names some
   (see GR13). Data is fetched on-demand when tests are selected. The metric
   selector initially shows a "-- Select metric --" placeholder (no metric
-  pre-selected), consistent with the Compare page.
+  pre-selected).
   It lists only numeric metrics (see D3), since non-numeric metrics cannot be
   plotted on a value axis.
 
@@ -111,8 +111,12 @@ Below the chart, a table lists ALL tests matching the current filter, sorted
 alphabetically by test name. One row per test name (not per test x machine
 combination -- selecting a test plots it on all active machines). The table is
 part of the normal page flow (no scrollable container). A message line above the
-rows shows counts (e.g., "3 of 1200 tests selected" or "3 of 1200 tests
-selected, loading..."). Each row has: a checkbox cell (checked =
+rows says how many of the table's rows are selected, e.g. "3 of 1200 tests
+selected", followed by ", loading..." while selected tests' data is loading.
+When the test filter is set, it counts the rows the filter keeps and also
+gives the unfiltered total: "3 of 42 matching tests selected (1200 total)".
+The selection is always among those rows, since the filter prunes it, and the
+message follows the filter as it changes. Each row has: a checkbox cell (checked =
 selected/plotted), a symbol cell (colored marker character
 (circle/triangle/square) only when selected, empty otherwise), and the test
 name. The test filter narrows the table; tests that no longer match are pruned
@@ -224,7 +228,8 @@ The `machine`, `test` and `baseline` parameters are repeated for each selected
 machine, selected test and baseline respectively. `test` is present only while
 at most 10 tests are selected: with more, the URL holds no `test` at all, and
 the page warns that the selection is not part of the URL and so cannot be
-shared. On load, a `test` that the test list for the selected machines and
+shared. On load, `test_filter` filters the test table as if it had been typed
+(see AR2), and a `test` that the test list for the selected machines and
 metric does not hold, or that does not match the filter, is dropped.
 
 

@@ -95,7 +95,7 @@ All data from a single run. Layout:
 | <run-parameters>                                |
 +-------------------------------------------------+
 
-[Compare with...] [Delete run]
+[Compare with...] [Compare with previous commit] [Delete run]
 
 Metric [metric dropdown]
 
@@ -110,8 +110,19 @@ BM_BitsetToString<1048576>/Dense_(90%)/90                                       
 
 ### Action buttons
 
-"Compare with..." button navigates to the Compare page (pre-selects this run's machine and commit
-on side A).
+"Compare with..." button navigates to the Compare page, with this run's machine and commit
+pre-selected on side A and the metric selected on this page pre-selected (see CP7).
+
+"Compare with previous commit" navigates to the Compare page set up to compare this run with
+the commit before it on the same machine: side A is the previous commit (see below) on this
+run's machine, with all of its runs, side B is this run alone (`runs_b={uuid}`), and the
+metric is the one selected on this page. The previous commit is the one with the nearest lower
+ordinal at which this machine has runs
+(`GET commits?machine={name}&before_commit={value}&sort=-ordinal&limit=1`), not the commit's
+`previous` neighbour, which may have no runs on this machine. The button is disabled, with a
+tooltip saying why, when the run's commit has no ordinal or the machine has no earlier commit.
+
+Both are links, so a modified click opens the comparison in a new tab (see AR2).
 
 Clicking "Delete Run" shows its confirmation prompt (see AR2) below the action row.
 Deletion requires `manage` scope. On success, navigates to the machine detail page.
@@ -119,7 +130,11 @@ Deletion requires `manage` scope. On success, navigates to the machine detail pa
 ### Metric selector
 
 The metric selector drop-down controls which metric column is shown in the
-samples table, consistent with how the Compare page handles metric selection.
+samples table. It offers every metric of the suite, and defaults to the first
+numeric metric (see D3) in schema order, or to the first metric if none is
+numeric. The selected metric is kept in the URL as `?metric={name}`, and is
+passed on by the Compare links above; Compare falls back to its own default
+for a metric it does not offer (see AR2).
 
 ### Test filter
 
@@ -168,8 +183,8 @@ etc...
 [Filter machines...]
 
 Machine                                       Run             Submitted
-------------------------------------------------------------------------------------
-linux-x86_64                                  67713ef1...     2026-08-25, 2:22:36 PM
+------------------------------------------------------------------------------------------------------
+linux-x86_64                                  67713ef1...     2026-08-25, 2:22:36 PM    [Compare with previous]
 etc...
 ```
 
@@ -196,6 +211,12 @@ Section listing regressions where `commit` matches this commit's value, newest f
 Displays the runs at this commit in a table. Provides a text input for substring matching
 on machine names, filters the runs table. The summary updates to reflect filtered counts
 (e.g. "5 of 12 runs across 2 of 8 machines").
+
+Each row has a "Compare with previous" link, which does what the Run Detail page's "Compare
+with previous commit" does for that row's run (see DT2), with no metric given, so that Compare
+uses its default. The previous commit is looked up once per machine rather than once per run.
+The link is disabled, with a tooltip saying why, when this commit has no ordinal or the row's
+machine has no earlier commit.
 
 
 ## DT4: Regression Detail -- `/suites/{ts}/regressions/{uuid}`
