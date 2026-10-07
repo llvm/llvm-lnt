@@ -21,6 +21,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import iter_routes
+from .caching import IMMUTABLE, REVALIDATE
 from .errors import ApiError, ErrorCode, error_response
 
 # Extensions that mark a request as asking for a file rather than for a page. Accepted
@@ -236,7 +237,7 @@ class SpaStaticFiles(StaticFiles):
             raise _not_found(method, request_path)
 
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code != 404:
                 raise
@@ -244,9 +245,20 @@ class SpaStaticFiles(StaticFiles):
             # turns a stale deploy into a MIME-type error instead of a clean miss.
             if is_static_asset_path(request_path):
                 raise _not_found(method, request_path) from exc
+            path = "index.html"
+            try:
+                response = await super().get_response(path, scope)
+            except StarletteHTTPException as no_index:
+                # No built client, or a bundle somehow missing its entry point.
+                raise _not_found(method, request_path) from no_index
 
-        try:
-            return await super().get_response("index.html", scope)
-        except StarletteHTTPException as exc:
-            # No built client, or a bundle somehow missing its entry point.
-            raise _not_found(method, request_path) from exc
+        # AR2's header, based on the file served rather than the URL requested, and set on whatever
+        # the base class returned, so that a 304 carries the same header as the 200 (RFC 9110).
+        # Missing files raise an exception instead, and get I9's header from caching.py.
+        #
+        # Revalidation only works if the ETag changes with the file. StaticFiles computes it from
+        # the file's mtime and size, and a rebuilt index.html usually has the same size, so this
+        # relies on the image build giving the files fresh mtimes. A reproducible build that pins
+        # timestamps would break it.
+        response.headers["Cache-Control"] = IMMUTABLE if path.startswith("assets/") else REVALIDATE
+        return response

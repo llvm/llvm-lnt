@@ -17,6 +17,9 @@ echo "  anonymous reads are allowed, and anonymous admin is not"
 request "$INDEX"
 expect_status 200
 expect_body '"suites"'
+# Caches must check with the server before reusing this, so a revoked token still gets its 401 (I9).
+expect_header Cache-Control 'no-cache, max-age=0[[:space:]]*$'
+expect_header Vary 'Authorization'
 
 request "$KEYS"
 expect_status 401
@@ -41,6 +44,8 @@ bootstrap="$(mint_key integration admin)"
 request -H "Authorization: Bearer ${bootstrap}" "$KEYS"
 expect_status 200
 expect_body '"name":"integration"'
+# Meant for this credential only, so no shared cache may store it (I9).
+expect_header Cache-Control 'private, no-store[[:space:]]*$'
 
 echo "  a key created over the API is usable immediately, on whichever worker answers"
 request -X POST -H "Authorization: Bearer ${bootstrap}" -H 'Content-Type: application/json' \

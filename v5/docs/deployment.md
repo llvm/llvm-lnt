@@ -175,6 +175,12 @@ about 200 MiB, and each submission in flight can reach that at the same time. Re
 back whole, as a document, peaks at about 60 MiB per request, and needs no API key. Scale the
 instance in accordance with the expected usage.
 
+## Caching
+
+The server sets `Cache-Control` on every response (see I9 and AR2 in the design docs). Whatever sits
+in front of it must respect those headers rather than impose its own lifetimes: a cache that
+overrides `max-age=0` can serve stale data, or serve one caller's response to another.
+
 ## Operating the instance
 
 There is no inbound SSH. The instance's IAM role carries `AmazonSSMManagedInstanceCore`, so shell
