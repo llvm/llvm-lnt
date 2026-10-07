@@ -1,7 +1,9 @@
 # v5 REST API: Infrastructure
 
-This document covers the framework, URL structure, pagination, filtering,
-response format, and authentication for the v5 REST API.
+This document covers the conventions shared across the v5 REST API: URL
+structure, pagination, filtering and sorting, response format, and
+authentication. It also covers the routes that sit outside the REST API proper:
+the AI orientation document, the health check, and the API documentation.
 
 API documentation is generated using the OpenAPI 3.x format, and served
 alongside an interactive viewer (see I8).
@@ -9,386 +11,410 @@ alongside an interactive viewer (see I8).
 
 ## I1: URL Structure and Identifiers
 
-- Base path: `/api/suites/{testsuite}/`
-- No path carries a trailing slash. A request that adds one is answered with a
-  307 redirect to the canonical form; 307 rather than 301 or 308 so that the
-  method and body survive and a misspelled write is not downgraded to a GET.
-  The target is the canonical path with the query string preserved, and no
-  scheme or host, so that it stays correct behind a TLS-terminating proxy
-  whatever the request looked like when it reached the server. This covers
-  `/healthz` and `/llms.txt` as well. Client routes are unaffected -- the web UI
-  answers both spellings itself, and redirecting between them would be noise.
-- Entities addressed by natural keys (suite name, machine name, test name, commit value) or
-  UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
-  auto-increment database IDs. API keys are the one exception to both: they are addressed by
-  their `prefix`, which is neither a natural key nor a UUID (see I5). Run and regression UUIDs
-  may be client-provided or server-generated (see O1 and E8); all other UUIDs are
-  server-generated.
-- An entity carries its own identifier in responses under the key it is addressed by: `name`
-  (suite, machine, test), `value` (commit), `uuid`, `prefix`. I4 covers how one entity refers
-  to another.
-- A natural key that appears in a path has to survive being one segment of it. A server decodes
-  `%2F` back to a path separator before routing, and normalizes `.` and `..` away, so a key
-  containing `/`, or equal to `.` or `..`, would name an entity that no URL can reach -- and the
-  `Location` header handed back at creation would answer 404. A machine name or a commit value
-  that is not addressable in this sense is therefore rejected with 400 wherever the entity is
-  created, including implicit creation during run submission (see O1), rather than accepted and
-  then unreachable.
-- Test names, and the function names inside a profile, are exempt: both legitimately contain `/`
-  (a demangled `operator/` overload, for a function) and arrive implicitly with a run submission,
-  so no path carries one. A request names a test in a `test=` query parameter or in a request
-  body, and a function in a `function=` query parameter. Percent-encoding does not help, since
-  `%2F` is decoded before routing.
-- An index endpoint at `GET /api` links to the test suite list endpoint and the API documentation
-- Suite-scoped resources live one level below the suite collection, under
-  `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
-  routes (`/api/suites`, `/api/admin/...`, `/api/auth`), so routing reserves no
-  suite names at all -- a suite may legally be named `admin` or even `suites`. A
-  few names are nevertheless rejected at creation, for a reason that has nothing
-  to do with routing; see D4.
+**Layout.** `GET /api` is an index that links to the test suite list and to the
+API documentation (see E1). Instance-level routes live under `/api/`
+(`/api/suites`, `/api/admin/...`, `/api/auth`), and everything that belongs to a
+suite lives under `/api/suites/{testsuite}/`. Because suite-scoped routes sit
+one level below the suite collection, no suite name can collide with a route: a
+suite may legally be named `admin` or even `suites`. D4 still rejects a few
+suite names at creation, for reasons unrelated to routing.
+
+**No trailing slashes.** No path ends with a `/`. A request that adds one gets a
+307 redirect to the canonical form, including for `/healthz` and `/llms.txt`.
+307 is used rather than 301 or 308 so that the method and body are kept, and a
+write sent to the wrong spelling is not turned into a GET. The redirect target
+is the canonical path with the query string preserved, and no scheme or host,
+so that it stays correct behind a TLS-terminating proxy whatever the request
+looked like when it reached the server. Client routes are not redirected: the
+web UI accepts both spellings itself.
+
+**Identifiers.** Entities are addressed by natural keys (suite name, machine
+name, test name, commit value) or by UUIDs (runs, regressions, regression
+indicators, profiles), never by internal auto-increment database IDs. API keys
+are the one exception: they are addressed by their `prefix`, which is neither a
+natural key nor a UUID (see I5). Run and regression UUIDs may be supplied by
+the client or generated by the server (see O1 and E8); all other UUIDs are
+generated by the server.
+
+In responses, an entity carries its own identifier under the key it is
+addressed by: `name` (suite, machine, test), `value` (commit), `uuid`, or
+`prefix` (API key). I4 covers how one entity refers to another.
+
+**Names in paths.** A server decodes `%2F` to `/` before routing, and removes
+`.` and `..` segments. A machine name or commit value that contains a `/`, or
+is exactly `.` or `..`, could therefore never be reached by URL -- even the
+`Location` header returned when creating it would lead to a 404. Such a name is
+rejected with 400 wherever the entity is created, including implicitly during
+run submission (see O1).
+
+Test names and the function names inside a profile are exempt from this rule.
+Both legitimately contain `/` (e.g. a demangled `operator/` overload, for a
+function) and arrive implicitly with a run submission, so they never appear in
+a path. A request passes a test name in a `test=` query parameter or in the
+request body, and a function name in a `function=` query parameter.
+Percent-encoding would not help, since `%2F` is decoded before routing.
 
 
 ## I2: Pagination
 
-A response whose body is a sequence of results -- entities, data points or
-aggregates -- never returns them as a bare array. It carries them under `items`,
-in one of three envelopes:
+An endpoint that returns a list of results -- entities, data points or
+aggregates -- never returns a bare array. It returns them under `items`, in one
+of three envelopes:
 
 - Cursor-paginated: `{"items": [...], "cursor": {"next": "...", "previous": null}}`
 - Offset-paginated: `{"items": [...], "total": N}`
 - Unpaginated: `{"items": [...]}`
 
-The endpoints spec names the envelope each endpoint uses; this section says
-what each one means.
+The endpoints spec says which envelope each endpoint uses. `items` is always
+present, and is an empty list when nothing matches. Even unpaginated results
+are wrapped, so that an endpoint can add pagination later without breaking
+clients.
 
-`items` is present and empty rather than absent when nothing matches. Wrapping
-even unpaginated results is what lets an endpoint gain a cursor later without
-breaking clients.
+This applies only to the top level of a response body. An array that is a
+field of a larger object keeps its own name (a regression's `indicators`, a
+function's `instructions`), and a response that is not a list of results, such
+as the lookup table returned by `POST /commits/resolve`, has the shape its
+endpoint specifies.
 
-The rule governs only a response's top-level body. An array that is a *field*
-of some larger response keeps its own name -- a regression's `indicators`, a
-function's `instructions` -- and a body that is not a sequence of results, such
-as `POST /commits/resolve`'s lookup table keyed by commit string, has the shape
-its endpoint specifies.
+**Cursor pagination** is forward-only. `previous` is always `null` (it is
+reserved for future backward pagination) and clients must not rely on it. Cursors are
+opaque strings that clients must not parse.
 
-Cursor pagination is forward-only: `previous` is always `null` (reserved for
-future backward pagination) and clients must not rely on it. Cursors are opaque
-strings that clients must not parse. A client asks for the page after the one it
-holds by passing `cursor.next` back as `cursor`, alongside the same filters and
-`sort` that produced it: as the `cursor=` query parameter, or as a `cursor` body
-key for an endpoint that takes its filters in a request body (where `limit` is
-a body key too). Only `limit` may change from one page to the next. A cursor
-that is malformed, or that is presented with a request asking for other results
-than the one it was issued for -- other path parameters, other filters or
-another ordering -- is rejected with 400 rather than quietly answered with a
-page of the wrong rows.
-A cursor may also stop being accepted when the suite's schema, the server, or an
-entity named by one of the request's filters changes between two pages; a client
-whose unmodified cursor is rejected starts again from the first page. Opacity is
-a contract on the client rather than a cryptographic guarantee: a cursor need
-not be unforgeable, because it can only name a position in a query its holder
-could have asked for anyway.
+To get the next page, a client sends `cursor.next` back as `cursor`, along with
+the same filters and `sort` as the request that returned it: as the `cursor=`
+query parameter, or as the `cursor` body key on an endpoint that takes its
+filters in the request body (where `limit` is a body key too). Only `limit` may
+change from one page to the next. A cursor that is malformed, or that is sent
+with a request for different results than the one it was issued for (other
+path parameters, other filters or another ordering), is rejected with 400
+rather than answered with a page of the wrong rows.
 
-Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
-number of items matching the request's filters, ignoring `limit` and `offset`,
-so that a client can render "1-25 of 240". Only endpoints with bounded results
-are offset-paginated: an exact `total` costs a scan of everything matching, so
-the rest use a cursor and carry no `total`.
+A cursor may also stop being accepted if the suite's schema, the server, or an
+entity named by one of the request's filters changes between two pages. A
+client whose unmodified cursor is rejected starts again from the first page.
 
-Default page size is 25, with a configurable `limit` parameter (max `10 000`) on
-paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
-`total` is available from any page.
+Opacity is a contract on the client, not a cryptographic guarantee: a cursor
+need not be unforgeable, because it can only point into a query its holder
+could have made anyway.
+
+**Offset pagination** takes `offset` (default `0`) alongside `limit`. `total`
+is the number of items matching the request's filters, ignoring `limit` and
+`offset`, so that a client can show "1-25 of 240". It is available from every
+page. Only endpoints with bounded results use offset pagination, because an
+exact `total` requires scanning everything that matches. The other paginated
+endpoints use a cursor and have no `total`.
+
+**Page size.** The default page size is 25. Paginated endpoints accept a
+`limit` parameter between 1 and `10 000`.
 
 
 ## I3: Filtering and Sorting
 
-- Filters and sorting are named query parameters, or keys of the request body
-  for an endpoint that takes its filters in one. The endpoints spec is
-  authoritative for which ones each endpoint takes; the OpenAPI document
-  describes them (see I8).
-- Common filter types (examples):
-  - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see O4)
-  - `after=`, `before=`: exclusive bounds on submission time. An endpoint that
-    bounds more than one dimension names its bounds after each of them instead
-    (e.g. `after_commit`/`after_time` on `POST /api/suites/{testsuite}/query`).
-  - `state=` (for regressions; takes several values)
-  - `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
-  - `tracked=` (boolean, for machines; omitted returns both)
-- `sort=<name>` names one ordering, prefixed with `-` for descending
-  (`sort=-submitted_at`). The endpoints spec lists the orderings each endpoint
-  offers.
-- A query parameter that takes several values is repeated, once per value
-  (`?state=active&state=detected`).
-- A query parameter the endpoint does not take is rejected with 400
-  `invalid_request` naming it, rather than ignored: a misspelled filter
-  (`?machnie=linux`) would otherwise silently widen the result. So is a
-  single-valued parameter given more than once (`?limit=1&limit=2`), rather
-  than answered with one of its values. This holds on every endpoint of the
-  REST API surface, but not on the four routes I5 exempts from the scope system.
-- A name in a filter or a request body that refers to nothing is answered
-  according to what it names:
-  - A metric is part of the suite's schema, so an unknown one makes the request
-    invalid: 400.
-  - A commit used as a filter (`commit=`) selects the rows belonging to it, and a
-    commit no run has reached yet legitimately has none -- a client may well ask
-    for the runs of a revision before any has been submitted: an unknown one is
-    an empty result, not 404.
-  - A commit used as a range bound names a position in the commit order rather
-    than a set of rows: an unknown one is 404, and one with no ordinal, which has
-    no position, is 400.
-  - Any other entity -- a machine, a test, the commit a regression points at --
-    is 404. These are named from what the suite already holds rather than ahead of
-    it, so an unknown one is almost always a misspelling, which is reported rather
-    than answered with an empty result.
-- These rules cover names a request uses to refer to something. A schema change
-  that names the entry it updates or removes addresses that entry instead, and
-  answers an unknown one with 404 like any other missing target (see E10).
+Filters and sorting are named query parameters, or keys of the request body for
+an endpoint that takes its filters in the body. The endpoints spec is
+authoritative for which ones each endpoint accepts, and the OpenAPI document
+describes them (see I8).
+
+Common filters include:
+- `machine=`, `test=`, `metric=`
+- `search=`: case-insensitive substring match (see O4)
+- `after=`, `before=`: exclusive bounds on submission time. An endpoint that
+  bounds more than one dimension names each bound after its dimension instead
+  (e.g. `after_commit` and `after_time` on `POST /api/suites/{testsuite}/query`).
+- `state=` (for regressions; takes several values)
+- `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
+- `tracked=` (boolean, for machines; omitting it returns both)
+
+**Sorting.** `sort=<name>` selects one ordering. Prefix the name with `-` for
+descending order (`sort=-submitted_at`). The endpoints spec lists the orderings
+each endpoint offers.
+
+**Multiple values.** A query parameter that takes several values is repeated,
+once per value (`?state=active&state=detected`).
+
+**Unknown and repeated parameters.** A query parameter that the endpoint does
+not accept is rejected with 400 `invalid_request`, and the error names it.
+Ignoring it instead would let a typo (`?machnie=linux`) silently widen the
+results. A single-valued parameter given more than once (`?limit=1&limit=2`) is
+rejected the same way, rather than answered with one of its values. This
+applies to every endpoint of the REST API, but not to the four routes that I5
+exempts from the scope system.
+
+**Names that refer to nothing.** When a filter or request body names something
+that does not exist, the result depends on what is named:
+
+| Unknown name | Result |
+|--------------|--------|
+| A metric | 400 |
+| A commit used as a filter (`commit=`) | Empty result |
+| A commit used as a range bound | 404, or 400 if the commit exists but has no ordinal |
+| Any other entity (a machine, a test, the commit a regression points at) | 404 |
+
+A metric is part of the suite's schema, so naming an unknown one makes the
+request invalid. A commit filter selects the rows belonging to that commit, and
+a commit that no run has reached yet legitimately has none: a client may well
+ask for the runs of a revision before any has been submitted. A range bound names a position in
+the commit order, which an unknown commit, or one without an ordinal, does not
+have. Every other name is normally taken from what the suite already holds, so
+an unknown one is almost always a typo, and is reported rather than answered
+with an empty result.
+
+These rules cover names a request uses to refer to something. A schema change
+that updates or removes an entry is addressing that entry instead, and returns
+404 for an unknown one like any other missing target (see E10).
 
 
 ## I4: Response Format
 
-All REST API responses are JSON. A sequence of results comes in one of the
-envelopes in I2; any other response is the entity object itself, except where
-its endpoint's spec says otherwise. Status codes are drawn from 200, 201, 204, 400,
-401, 403, 404, 405, 409, 500. The four routes exempt from the scope system (see I5)
-are not part of this surface and follow their own sections: they serve plain
-text or HTML as well as JSON. Three things are settled before a request reaches
-an endpoint at all, and are likewise outside this surface: an oversized request
-body, which is refused (see Errors, below); a trailing slash, which is
-redirected (see I1); and a URL carrying a NUL character, which is refused with
-400 `invalid_request` because no value the API can act on contains one (see D5).
-Being settled first, all three are answered whatever credential accompanied
-them; none of the three names a resource, so I5's reason for authorizing before
-resolving does not reach them.
+All REST API responses are JSON. A list of results comes in one of the
+envelopes from I2; any other response is the entity object itself, unless its
+endpoint specifies otherwise. Status codes are limited to 200, 201, 204, 400,
+401, 403, 404, 405, 409, and 500.
 
-**Object conventions.** These hold for every response body, so each endpoint's
-spec need only name its keys.
+The four routes exempt from the scope system (see I5) are not part of the REST
+API and follow their own sections. They serve plain text and HTML as well as
+JSON.
 
-- A reference to another entity carries that entity's identifier (see I1) under
-  a key named after the entity -- `machine`, `commit`, `test` -- rather than a
-  nested object, so that an item stays flat and a page of them stays small. When
-  the identifier is a UUID the key says so: `run_uuid`. Two cases nest or
-  denormalize instead, and say so where they are specified: a commit's
-  `previous`/`next` neighbours, and time-series points and trend items, which
-  carry the referenced commit's `ordinal` and `tag` because a client cannot
-  place a point without them.
-- Schema-declared data always sits in a nested dict of its own -- `fields` on
-  machines and commits, `metrics` on samples -- and is never flattened onto the
-  entity.
-- A `fields` dict carries every field the suite's schema declares, with `null`
+Three cases are also outside the REST API, because they are handled before a
+request reaches any endpoint:
+- An oversized request body is rejected with 413 (see Errors below).
+- A trailing slash is redirected with 307 (see I1).
+- A URL containing a NUL character is rejected with 400 `invalid_request`,
+  since no value the API can act on contains one (see D5).
+
+All three are handled the same way whatever credential the request carries.
+None of them names a resource, so the reason I5 gives for authorizing before
+looking up the resource does not apply.
+
+**Object conventions.** These apply to every response body, so each endpoint's
+spec only needs to list its keys.
+
+- A reference to another entity is that entity's identifier (see I1), under a
+  key named after the entity (`machine`, `commit`, `test`), not a nested
+  object. This keeps items flat and pages small. When the identifier is a UUID,
+  the key says so: `run_uuid`. There are two exceptions, specified where they
+  apply: a commit's `previous`/`next` neighbours are nested objects, and
+  time-series points and trend items also carry the commit's `ordinal` and
+  `tag`, because a client cannot place a point without them.
+- Schema-declared data is always in its own nested dict -- `fields` on machines
+  and commits, `metrics` on samples -- never flattened onto the entity.
+- A `fields` dict contains every field the suite's schema declares, with `null`
   where the entity has no value. A sample's `metrics` is the exception to this
   rule.
-- Values inside `fields` and `metrics` use the JSON representation of their
-  declared type (see D3) and are never stringified. Built-in timestamps follow
-  the same convention (see D5).
-- Unless specified otherwise, a key an endpoint documents is always present, and
-  `null` when it has no value.
+- Values in `fields` and `metrics` use the JSON representation of their
+  declared type (see D3) and are never converted to strings. Built-in
+  timestamps follow the same convention (see D5).
+- Unless specified otherwise, every key an endpoint documents is always
+  present, and is `null` when it has no value.
 
 **Errors** all use one envelope:
 
 `{"error": {"code": "not_found", "message": "Machine 'foo' not found in test suite 'nts'"}}`
 
-`code` is machine-readable and stable; `message` is for humans and may be reworded at any
-time, so clients must branch on `code` alone and never parse `message`.
+`code` is machine-readable and stable. `message` is for humans and may be
+reworded at any time, so clients must branch on `code` only and never parse
+`message`.
 
 | Code | Status | Meaning |
 |------|--------|---------|
-| `invalid_request` | 400 | Malformed or invalid request: bad syntax, a failed validation, an unknown query parameter (see I3), an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
-| `unauthorized` | 401 | A credential was required and none was usable, or the `Authorization` header carries no usable one (see I5) |
-| `forbidden` | 403 | Valid token, insufficient scope (see I5) |
-| `not_found` | 404 | No route matches the path, or an entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
-| `method_not_allowed` | 405 | The path is an API route, but not for this method; the `Allow` header lists the methods it serves |
+| `invalid_request` | 400 | The request is malformed or invalid: bad syntax, a failed validation, an unknown query parameter (see I3), an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
+| `unauthorized` | 401 | A credential was required and no usable one was sent, or the `Authorization` header does not hold a usable one (see I5) |
+| `forbidden` | 403 | The token is valid, but its scope is insufficient (see I5) |
+| `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
+| `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a suite name, a schema entry added to a list that already has one of that name |
-| `conflict` | 409 | The request contradicts existing state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), deleting a commit a regression references, a suite name already taken by a database namespace |
-| `retry` | 409 | A concurrent change to the suite's schema kept the request from completing, and nothing was written: the schema changed while it ran, or a schema change could not take its locks in time (see D2) |
-| `internal_error` | 500 | The server failed to answer |
+| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), deleting a commit that a regression references, a suite name already used by a database namespace |
+| `retry` | 409 | A concurrent change to the suite's schema prevented the request from completing, and nothing was written: the schema changed while the request ran, or a schema change could not take its locks in time (see D2) |
+| `internal_error` | 500 | The server failed to process the request |
 
-409 carries more than one code because its cases call for different client behaviour, one per code.
-A `duplicate` run or regression UUID means the entity is already stored -- for a client that chose
-the UUID itself, most likely by an earlier attempt whose response was lost, so it is done and must
-not resend under a fresh UUID, which would store it twice. A `conflict` fails again until the
-request or the stored state changes, so it must not be retried as sent: typically, the client's view
-of what is stored -- a machine's metadata, the commit order -- is out of date. A `retry` changed
-nothing and failed through no fault of the request, so a client may send it again unchanged. A
-resend is answered on its own merits rather than guaranteed to succeed: the concurrent change may
-have made the request invalid -- a metric it names removed, its suite dropped -- and then it gets
-that definitive answer instead. The `message` says what a `conflict` is about; the `code` does not,
-because the client's reaction does not depend on it.
+409 has three codes because each one calls for a different reaction from the
+client:
 
-A method mismatch is answered with 405 only under `/api/`. Elsewhere -- a client route, `/healthz`,
-`/llms.txt` -- it is a 404 like any other miss. HEAD is a 404 under `/api/` too: no API endpoint
-serves it, and a 405 would refuse HEAD on a path that serves GET. Either way it is answered
-whatever credential accompanied the request: no endpoint is reached, and which methods a path
-serves is public in the API document (I8).
+- `duplicate`: the entity is already stored. For a run or regression whose
+  UUID the client chose itself, this most likely means that an earlier attempt
+  succeeded but its response was lost: the client is done, and must not resend
+  under a new UUID, which would store the entity twice.
+- `conflict`: the request will keep failing until either the request or the
+  stored state changes, so it must not be retried as is. Typically the client's
+  view of what is stored -- a machine's metadata, the commit order -- is out of
+  date. The `message` says what the conflict is about; the `code` does not,
+  because the client's reaction does not depend on it.
+- `retry`: nothing was changed, and the failure is not the request's fault, so
+  the client may resend it unchanged. The resend is not guaranteed to succeed:
+  the concurrent change may have made the request invalid (a metric it names
+  was removed, its suite was deleted), in which case the resend gets that
+  definitive answer instead.
 
-**Oversized request bodies** are rejected but do not have to use the envelope: they can be rejected
-at the transport layer instead. However, they must be rejected with `413`. This is a property of the
-deployment rather than of any endpoint, so no endpoint documents it.
+**Method mismatches** get a 405 only under `/api/`. Elsewhere -- a client route,
+`/healthz`, `/llms.txt` -- a method mismatch is a 404 like any other miss. HEAD
+gets a 404 under `/api/` too: no API endpoint supports it, and a 405 would claim
+HEAD is not allowed on a path that serves GET. Whether it is a 405 or a 404,
+the response does not depend on the credential the request carries: no endpoint is reached, and
+which methods a path accepts is public in the API document (I8).
+
+**Oversized request bodies** must be rejected with 413, but they do not have to
+use the error envelope: they may be rejected at the transport layer instead.
+This is a property of the deployment rather than of any endpoint, so no
+endpoint documents it.
 
 
 ## I5: Authentication and Authorization
 
-**Scopes**. Every endpoint under `/api/` declares the scope it requires. The
-scopes form a strict hierarchy -- `read` < `submit` < `triage` < `manage` <
-`admin` -- and a key grants its own scope plus every lower one, so an `admin`
-key can do everything a `read` key can.
+**Scopes.** Every endpoint under `/api/` declares the scope it requires. Scopes
+form a strict hierarchy, `read` < `submit` < `triage` < `manage` < `admin`, and
+a key grants its own scope plus every lower one: an `admin` key can do
+everything a `read` key can.
 
 - **read** -- read-only access to test suites and everything in them. Covers
-  most GET endpoints, plus the read-only POST endpoints like `commits/resolve`
-  and others.
+  most GET endpoints, plus read-only POST endpoints such as `commits/resolve`.
 - **submit** -- submit runs (`POST /api/suites/{testsuite}/runs`), create commits (`POST /api/suites/{testsuite}/commits`)
 - **triage** -- create/update/delete regressions, manage regression indicators
 - **manage** -- create/update/delete machines; update/delete commits; delete
   runs; create/delete test suites and change their schemas
 - **admin** -- list, create, and revoke API keys
 
-The HTTP method implies nothing about the required scope in either direction:
-some POST endpoints are `read`-scoped, and the API key endpoints require
-`admin` even for GET. The per-endpoint `Auth scope` lines in the endpoints spec
-are authoritative for which endpoint needs which; the list above says what each
-scope means. A client learns which scope a token grants through
-`GET /api/auth` (see E12).
+The HTTP method does not determine the scope, in either direction: some POST
+endpoints only require `read`, and the API key endpoints require `admin` even
+for GET. The `Auth scope` line of each endpoint in the endpoints spec is
+authoritative; the list above describes what each scope is for. A client can
+find out which scope a token grants through `GET /api/auth` (see E12).
 
-**Unauthenticated access**. `read`-scoped endpoints allow unauthenticated
-access. Endpoints requiring any higher scope require a valid Bearer token.
+**Unauthenticated access.** Endpoints that require `read` can be used without a
+token. Endpoints that require a higher scope require a valid Bearer token.
 
-Four routes fall outside this section altogether, because they are documentation
-and infrastructure probes rather than part of the REST API surface: `GET
-/llms.txt` (I6), `GET /healthz` (I7), `GET /api/openapi.json` (I8), and the
-documentation viewer at `GET /api/docs` (I8). None of them participates in the
-scope system and none returns the I4 error envelope, so no authentication
-happens on their path and an `Authorization` header has no effect on them -- not
-even a malformed or revoked one, which anywhere else under `/api/` would be a
-401.
+**Exempt routes.** Four routes are documentation and infrastructure probes
+rather than part of the REST API, and sit outside this section entirely:
+`GET /llms.txt` (I6), `GET /healthz` (I7), `GET /api/openapi.json` (I8), and
+the documentation viewer at `GET /api/docs` (I8). They do not use scopes or the
+I4 error envelope, and never authenticate: an `Authorization` header has no
+effect on them, not even a malformed or revoked one, which would be a 401
+anywhere else under `/api/`.
 
-The exemption is an explicit list rather than a consequence of living outside
-`/api/`, since two of the four live under it. For `/healthz` it is deliberate
-beyond mere tidiness: its contract is 200 for healthy and 500 for "cannot reach
-the database", so letting a stale token turn it into a 401 would report a working
-server as unhealthy. For the two documentation routes it keeps a caller holding a
-bad token from being locked out of the very document that explains how to
-authenticate.
+The exemption is an explicit list rather than a consequence of being outside
+`/api/`, since two of the four are under it. For `/healthz` this matters: its
+contract is 200 for healthy and 500 for "cannot reach the database", so a stale
+token turning it into a 401 would report a working server as unhealthy. For the
+two documentation routes, it keeps a caller with a bad token from being locked
+out of the document that explains how to authenticate.
 
-**Presenting a token**. Credentials are sent as `Authorization: Bearer <token>`;
-the scheme name is matched case-insensitively, per RFC 9110.
+**Presenting a token.** Credentials are sent as `Authorization: Bearer <token>`.
+The scheme name is matched case-insensitively, per RFC 9110.
 
-- No `Authorization` header: allowed on `read`-scoped endpoints, 401 on any
-  endpoint requiring a higher scope.
-- Header present but carrying no usable Bearer credential -- unreadable syntax,
-  a scheme other than `Bearer`, or no token after it: **401** on every endpoint
-  under `/api/`. RFC 6750 treats a request with no Bearer credential as one
-  without credentials, which is a 401. It is deliberately not treated as an
-  absent header: falling through to anonymous access would silently ignore a
-  credential the caller believes it sent.
-- Well-formed Bearer credential carrying a token that is malformed, unknown, or
-  belongs to a revoked key: **401** on every endpoint under `/api/` --
-  including `read`-scoped ones that would have allowed anonymous access. This
-  matches RFC 6750's `invalid_token`, which covers malformed tokens as well as
-  revoked ones. A bad credential is never silently downgraded to anonymous
-  access, which would otherwise turn a broken or revoked token into results the
-  caller misreads as authoritative.
-- Valid token whose scope is insufficient for the endpoint: **403**, matching
-  RFC 6750's `insufficient_scope`.
+| Request | Result |
+|---------|--------|
+| No `Authorization` header | Allowed on `read` endpoints; 401 on any endpoint requiring a higher scope |
+| Header present, but no usable Bearer credential: unreadable syntax, a scheme other than `Bearer`, or no token after it | 401 on every endpoint under `/api/` |
+| A Bearer token that is malformed, unknown, or belongs to a revoked key | 401 on every endpoint under `/api/`, including `read` endpoints that would allow anonymous access |
+| A valid token whose scope is insufficient for the endpoint | 403 |
 
-A 401 carries a `WWW-Authenticate: Bearer` header. Both statuses use the I4
-error envelope, with `code` set to `unauthorized` and `forbidden` respectively.
+A header with no usable Bearer credential is deliberately not treated as an
+absent header: falling back to anonymous access would silently ignore a
+credential the caller believes it sent. RFC 6750 treats such a request as one
+without credentials, which is a 401.
 
-**Order of checks**. Authentication precedes authorization, which precedes
-resolving the addressed resource. An insufficiently-scoped request therefore
-gets 403 whether or not the resource it names exists -- resolving first and
-answering 404 would let an unauthorized caller enumerate which resources do.
-This matters for the API keys, the only resources whose existence is not
-already public; the rule is stated uniformly rather than per endpoint so that
-there is one order to implement and to reason about. A body whose syntax cannot
-be read at all -- JSON that does not parse -- may be refused with 400 before
-authentication, and so may a query parameter that I3 rejects. Like the cases I4
-settles before an endpoint, neither answer depends on whether anything exists --
-which parameters an endpoint takes is public in the API document (I8) -- so
-giving it first reveals nothing.
+A malformed, unknown or revoked token is a 401 even on `read` endpoints, which
+matches RFC 6750's `invalid_token`: it covers malformed tokens as well as
+revoked ones. Such a token is never downgraded to anonymous access, which would
+turn a broken or revoked token into results the caller mistakes for
+authoritative. An insufficient scope matches RFC 6750's `insufficient_scope`.
 
-**Authorization is not cached**. Every authenticated request resolves its token
-against the database, so revoking a key takes effect immediately rather than
-after some window. The lookup is a single indexed match on a table holding one
-row per key, small enough to stay resident in memory; that cost is not worth
-trading for delayed revocation.
+A 401 carries a `WWW-Authenticate: Bearer` header. Both 401 and 403 use the I4
+error envelope, with `code` set to `unauthorized` and `forbidden`
+respectively.
 
-**Tokens**. A token is generated by the server from a cryptographically secure
-random source and is exactly 64 lowercase hexadecimal characters (256 bits).
-The stored `key_hash` is the lowercase hex SHA-256 of the token's ASCII bytes,
-and `prefix` is the token's first 8 characters (see D5). A token is returned
-exactly once, by the operation that creates it, and cannot be recovered
-afterwards: neither the raw token nor `key_hash` appears in any other response.
+**Order of checks.** Authentication comes first, then authorization, then
+looking up the resource the request addresses. A request with insufficient
+scope therefore gets a 403 whether or not the resource exists: returning 404
+first would let an unauthorized caller find out which resources exist. This
+matters for the API keys, the only resources whose existence is not already
+public, but the rule applies to every endpoint so that there is only one order
+to implement and reason about.
 
-A single SHA-256 is used deliberately, rather than a password-style KDF
-(bcrypt, scrypt, argon2). A KDF exists to make guessing a *low-entropy* secret
-expensive, whereas these tokens are server-generated with 256 bits of entropy
--- 224 of which remain secret, since the 8-character prefix is published --
-putting them far out of guessing range. Deliberately slow hashing would instead
-let any unauthenticated caller burn server CPU by presenting a garbage token.
+Two more errors may be returned before authentication: a 400 for a body that cannot
+be read at all (JSON that does not parse), and a 400 for a query parameter that
+I3 rejects. Like the cases I4 handles before reaching an endpoint, neither
+depends on whether anything exists -- which parameters an endpoint accepts is
+public in the API document (I8) -- so returning them first reveals nothing.
 
-**Bootstrap and out-of-band key creation**. Every key-management endpoint
-requires `admin` scope, so the API alone cannot produce an instance's first
-key: a newly initialized database holds no keys at all, and an operator who
-revokes the last active `admin` key has no way to create a replacement.
+**Authorization is not cached.** Every authenticated request looks its token up
+in the database, so revoking a key takes effect immediately. The lookup is a
+single indexed match on a table holding one row per key, small enough to stay
+in memory; saving that cost is not worth delaying revocation.
 
-An instance therefore provides an out-of-band administrative interface for
-creating keys, for example a command-line tool that can be used from the
+**Tokens.** The server generates each token from a cryptographically secure
+random source. A token is exactly 64 lowercase hexadecimal characters (256
+bits). The stored `key_hash` is the lowercase hex SHA-256 of the token's ASCII
+bytes, and `prefix` is the token's first 8 characters (see D5). A token is
+returned exactly once, by the operation that creates it, and cannot be
+recovered afterwards: neither the token nor `key_hash` appears in any other
+response.
+
+A single SHA-256 is used rather than a password hashing function (bcrypt,
+scrypt, argon2). Those exist to make guessing a *low-entropy* secret expensive,
+whereas these tokens have 256 bits of entropy -- 224 of them secret, since the
+8-character prefix is public -- which puts them far out of guessing range. A
+deliberately slow hash would instead let any unauthenticated caller burn server
+CPU by sending garbage tokens.
+
+**Creating keys out of band.** Every key-management endpoint requires `admin`
+scope, so the API alone cannot create an instance's first key: a new database
+has no keys at all, and an operator who revokes the last active `admin` key
+has no way to create a replacement. An instance therefore provides an
+out-of-band way to create keys, for example a command-line tool run on the
 instance. The exact mechanism is implementation-specific.
 
 
 ## I6: AI Agent Orientation
 
-- Serve a plain-text orientation document at `GET /llms.txt` (following the
-  llms.txt convention, analogous to robots.txt)
-- Content: what LNT is, key domain concepts, API structure, common workflows,
-  and links to `/api/docs` and `/api/openapi.json` (see I8)
-- Static content, outside the REST API surface: always public, and an
-  `Authorization` header has no effect on it (see I5)
-- Served as `text/plain` with UTF-8 charset
+`GET /llms.txt` serves a plain-text orientation document for AI agents,
+following the llms.txt convention (analogous to robots.txt).
+
+- Content: what LNT is, its key domain concepts, the API structure, common
+  workflows, and links to `/api/docs` and `/api/openapi.json` (see I8).
+- Static content outside the REST API: always public, and an `Authorization`
+  header has no effect on it (see I5).
+- Served as `text/plain` with UTF-8 charset.
 
 
 ## I7: Health Check
 
-- `GET /healthz` reports whether the server is able to serve traffic. It
-  verifies database connectivity by issuing a trivial query, so a 200 means the
-  process is up *and* can reach Postgres.
-- Returns `200 {"ok": true}` on success, `500 {"ok": false}` if the database
-  cannot be reached.
-- No authentication, always public; an `Authorization` header has no effect
+`GET /healthz` reports whether the server can serve traffic. It runs a trivial
+database query, so a 200 means the process is up *and* can reach PostgreSQL.
+
+- Returns `200 {"ok": true}` on success, and `500 {"ok": false}` if the
+  database cannot be reached.
+- No authentication: always public, and an `Authorization` header has no effect
   (see I5).
-- Deliberately outside `/api/`, and deliberately not using the I4 error
-  envelope: this is an infrastructure probe rather than part of the REST API
-  surface.
+- Deliberately outside `/api/` and not using the I4 error envelope: it is an
+  infrastructure probe, not part of the REST API.
 
 
 ## I8: API Documentation
 
-- `GET /api/openapi.json` serves the OpenAPI 3.x specification describing this
+- `GET /api/openapi.json` serves the OpenAPI 3.x specification of this
   instance's API, as `application/json`. Its `info.title` is `LNT v5` and its
-  `info.version` is `5` -- the version of the API, which is fixed for the
-  lifetime of v5, and not of the server build serving it.
+  `info.version` is `5`: the version of the API, which is fixed for the
+  lifetime of v5, not the version of the server build.
 - The specification describes only responses the API can actually produce. In
-  particular it must not advertise a status outside the set I4 permits: a
-  generator that documents its framework's native validation failure (commonly
-  422) has to be corrected to the 400 the error envelope specifies. A 405 is
-  listed on no operation: it answers a method for which no operation exists.
+  particular, it must not list a status outside the set I4 allows. Frameworks
+  commonly document their own validation failure (often 422), which has to be
+  corrected to the 400 the error envelope specifies. No operation lists 405,
+  since a 405 is returned for a method that has no operation.
 - The specification is written for the API's users. It explains operations,
-  parameters and schemas in terms of the API alone, and refers neither to this
-  design documentation nor to how the server is built. It opens with the
+  parameters and schemas in terms of the API alone, without referring to this
+  design documentation or to how the server is built. It opens with the
   conventions every operation shares -- authentication, pagination, filtering
   and errors -- so that it can be read on its own.
-- Each operation states the scope it requires (I5), and one requiring `read`
-  is marked as callable without credentials.
-- `GET /api/docs` serves an interactive documentation viewer rendering that
+- Each operation states the scope it requires (I5), and an operation requiring
+  `read` is marked as callable without credentials.
+- `GET /api/docs` serves an interactive documentation viewer for that
   specification, as `text/html`.
-- How the viewer obtains its own scripts and stylesheets is left to the
-  implementation, which may load them from a third-party CDN rather than
-  serving them from this instance (in which case the API viewer may only be
-  available when the instance is online).
-- Both are linked from the API index (`GET /api`) under the `openapi` and
-  `docs` keys, and from `/llms.txt` (I6).
+- How the viewer gets its scripts and stylesheets is up to the implementation.
+  It may load them from a third-party CDN rather than from this instance, in
+  which case the viewer may only work when the instance is online.
+- Both routes are linked from the API index (`GET /api`), under the `openapi`
+  and `docs` keys, and from `/llms.txt` (I6).
 - Neither requires authentication, and an `Authorization` header has no effect
-  on either, even though both live under `/api/` (see I5).
-- The viewer is named for what it is rather than for what renders it. Swapping
-  the viewer implementation must not change the URL, so the path deliberately
+  on either, even though both are under `/api/` (see I5).
+- Swapping the viewer implementation must not change the URL, so the path
   does not name a particular tool.
