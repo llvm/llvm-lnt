@@ -15,11 +15,11 @@ the suite is a query parameter, not a path segment.
   the page is loaded with `suite=` in the URL, the dropdown is pre-selected.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select
-  input. The user types a machine name (with typeahead suggestions) and presses
-  Enter to add it. Each added machine appears as a chip with an x button to
-  remove it. Multiple machines can be added to overlay their data on the same
-  chart. Removing the last machine clears the chart. The metric selector is
-  shared across all machines -- the same metric is plotted for every machine.
+  input: the user adds a machine by picking it from a combobox (see AR2), and
+  each added machine appears as a chip with an x button to remove it. Multiple
+  machines can be added to overlay their data on the same chart. Removing the
+  last machine clears the chart. The metric selector is shared across all
+  machines -- the same metric is plotted for every machine.
   The full machine list is fetched once when the combobox is created and
   filtered locally by case-insensitive substring as the user types (instant, no
   per-keystroke API calls). A "Loading machines..." hint is shown until the
@@ -47,7 +47,7 @@ the suite is a query parameter, not a path segment.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not
-  machine name) via case-insensitive substring. Changing the filter prunes
+  machine name), and has regex mode (see AR2). Changing the filter prunes
   selected tests that no longer match -- their traces are removed from the
   chart. Clearing the filter restores the full test list (previously selected
   tests remain selected if they match).
@@ -157,7 +157,7 @@ and selections are cleared on suite change.
 
 Users can overlay one or more baselines as horizontal dashed lines on the chart.
 Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
-comparisons. The selector is an expandable panel with cascading dropdowns: Suite
+comparisons. The selector is an expandable panel with cascading selectors: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint) -> Commit (populated from the selected machine's
 commits via `GET commits?machine={name}&sort=-first_seen`; see AR2). Added
@@ -213,7 +213,7 @@ the user can see the commit range.
   (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`)
 - `GET tests?machine=...&metric=...` (test name discovery)
 - `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
-- `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit dropdown)
+- `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit picker)
 - `GET machines` (machine combobox)
 - `GET suites/{ts}` (fields/metrics)
 - `POST regressions/indicators/query` and `GET regressions` (regression

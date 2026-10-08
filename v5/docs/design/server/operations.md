@@ -219,8 +219,8 @@ instead. An empty term matches every row.
 
 The term is plain text: `%` and `_` are not wildcards, and the client's `re:`
 regex-mode prefix (see AR2) is not interpreted. That convention only applies to
-client-side text filters over data already loaded in the browser, never to a
-`search=` value sent to the API.
+the client-side test filters AR2 gives it to, never to a `search=` value sent to
+the API.
 
 
 ## O5: Time-Series Queries

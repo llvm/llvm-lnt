@@ -67,8 +67,8 @@ Machines with `tracked: false` carry a small grey `untracked` badge next to the 
 are listed regardless of `tracked`; the badge is informational, marking configurations that are
 excluded from the Dashboard's trend overview. Hovering the badge explains that.
 
-Above the table, a `Filter by name...` text box allows filtering the machines using substring
-matching on their name and searchable fields.
+Above the table, a `Search machines...` box searches the machines by name and searchable fields
+(see O4).
 
 Below the table, `[<- Previous] 1-2 of 2 [Next ->]` allows navigating through pages.
 
@@ -91,8 +91,8 @@ etc...
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 
-Above the table, a text filter showing "Search commits..." allows filtering based
-on the commit's value and any tags and searchable fields. Substring matching is used.
+Above the table, a `Search commits...` box searches the commits by value, tag and searchable
+fields (see O4).
 
 ## TS5: Regressions tab
 

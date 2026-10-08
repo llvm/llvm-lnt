@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 
 function settings(page: Page) {
-  return page.getByRole('region', { name: 'Settings' })
+  return page.getByRole('dialog', { name: 'Settings' })
 }
 
 async function openSettings(page: Page) {

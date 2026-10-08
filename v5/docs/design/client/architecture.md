@@ -79,25 +79,23 @@ position is not kept in the URL: reloading the page shows the first page again.
 A table over an offset-paginated endpoint keeps its `offset` in the URL
 instead.
 
-**Text filtering**: All client-side text filter and search inputs share a
-unified filtering behavior. Plain text performs case-insensitive substring
-matching. Prefixing the input with `re:` (case-sensitive literal prefix)
-switches to case-insensitive regex matching. When regex mode is active (the
-input starts with `re:`), a small inline "regex" badge appears at the right edge
-of the input. The badge is blue for valid regex and red for invalid regex
-syntax. Invalid regex patterns also show a red halo on the input border. This
-convention applies uniformly to all text filter inputs across the UI: test name
-filters, machine name filters, indicator filters, combobox suggestion filters,
-and function name filters. The `re:` prefix is not consumed or hidden -- the
-user sees it in the input and it is included in URL state.
+**Text filtering**: A client-side text filter -- one that narrows data already
+loaded in the browser -- matches its text as a case-insensitive substring.
+
+The test filters of the Graph and Compare pages also have a regex mode, since
+they select the tests that a whole operation covers (plotting, a geomean, an
+export). Prefixing the input with `re:`
+(case-sensitive literal prefix) switches it to case-insensitive regex matching.
+While the input starts with `re:`, a small inline "regex" badge appears at its
+right edge, blue for a valid regex and red for an invalid one. The `re:` prefix
+is not consumed or hidden -- the user sees it in the input and it is included in
+URL state.
 
 Inputs that search the server rather than filter data already loaded -- the
 Test Suites tabs' searches (TS1), commit pickers (see below) and the regression
-picker (CP9) -- are the exception, and have no regex mode, since a server-side
-`search=` takes its term as plain text (see O4). Such an input asks the server
-again as the user types (debounced), from the first page, and discards a
-response for text the user has since changed, so that what it shows always
-reflects the text currently in the input.
+picker (CP9) -- ask the server again as the user types (debounced), from the
+first page. A response for earlier text never replaces the one for the current
+text, though the previous results may stay up until the current ones arrive.
 
 **Text filtering performance**: Typing in a client-side filter must update the
 rows it filters within a single animation frame, even over thousands of rows --
@@ -105,15 +103,26 @@ the test tables of the Graph and Compare pages, or a run's samples. A chart
 that depends on the filter may update after the table, so as not to block the
 input.
 
-**Comboboxes**: Every combobox supports ArrowDown/ArrowUp to move through its
-suggestions and Enter to select the focused one, closes on Escape, on blur, on
-a click outside it and once a suggestion is selected, and follows the standard
-combobox accessibility conventions. Typed text is accepted, by Enter or blur,
-only if it is exactly one of the combobox's options; text that is not shows a
-red halo (red border and glow). The halo also shows as soon as no suggestion
-matches the typed text, updating on every keystroke -- for a commit picker, as
-soon as the server has answered the search for the current text. Clicking a
-suggestion always accepts it.
+**Invalid input**: An input whose text is invalid -- an invalid regex in a test
+filter, a name the schema editor rejects (AD3) -- shows a red halo (red border
+and glow) for as long as its text stays invalid.
+
+**Comboboxes**: Every combobox follows the standard combobox accessibility
+conventions, with manual selection: typing narrows the suggestions, and the
+value changes only when the user picks a suggestion, by clicking it or by moving
+to it with ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without
+picking one puts back the text of its current value, and emptying the input
+clears the value. When no suggestion matches the typed text, the list says so.
+The list closes on Escape, on blur, on a click outside it and once a suggestion
+is picked.
+
+So that a value can be pasted and entered, Enter with no suggestion highlighted
+picks the suggestion whose text is exactly the typed text (case-sensitively,
+ignoring surrounding whitespace), if it is the only one among the suggestions
+loaded for that text -- the first page of them, unless the user has scrolled for
+more. Otherwise, the text stays as it is. An Enter pressed before those
+suggestions have loaded takes effect once they have, unless the text has changed
+meanwhile, as it does when the user leaves the combobox.
 
 **Commit pickers**: Every combobox that selects a commit -- on the Compare and
 Profiles pages, for Graph baselines, and for a regression's commit -- lists its
@@ -126,15 +135,13 @@ locally: a machine can have tens of thousands of commits. The search covers the
 display value the suggestions show only if the schema marks the display field
 `searchable` (see O4).
 
-A page of matches need not hold every matching commit, so a typed value is
-accepted only if it is exactly a commit the picker offers, which the picker
-checks by looking that commit up under its filters (e.g.
-`GET runs?machine={name}&commit={value}&limit=1`) rather than by finding it
-among the suggestions: a short value can be a substring of more commits than
-fit on a page. A value that fails the check shows the red halo, even while
-suggestions are listed. Likewise, a commit the picker is given rather than
-chosen -- restored from the URL, for instance -- need not be on the first page,
-so its display value is resolved through `POST commits/resolve`.
+A page of matches need not hold every matching commit: scrolling to the end of
+the suggestions loads the next page. For Enter, a commit suggestion's text is
+both its display value and its commit string, so that a pasted commit string is
+picked even when the suggestion shows another value. A commit the picker is
+given rather than chosen -- restored from the URL, for instance -- need not be
+among its suggestions, so its display value is resolved through
+`POST commits/resolve`.
 
 **Deletions**: Deleting a suite, a machine, a run or a regression is confirmed
 by typing its identifier -- the name of a suite or a machine, the first 8
