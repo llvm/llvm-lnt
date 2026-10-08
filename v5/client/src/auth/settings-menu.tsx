@@ -108,7 +108,7 @@ function SettingsPanel({ id }: { id: string }) {
 function statusText(status: TokenStatus): ReactNode {
   switch (status.state) {
     case 'none':
-      return 'No token set. Browsing needs none; changes need one with the scope they require.'
+      return 'No token set.'
     case 'checking':
       return 'Checking the token...'
     case 'valid':
