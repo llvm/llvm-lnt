@@ -158,11 +158,11 @@ describe('the token authenticated requests carry', () => {
     let revoked = false
     mockAuth(() => (revoked ? unknownToken() : HttpResponse.json({ key: apiKey('admin') })))
     const { result } = renderHook(useAuth, providers())
-    result.current.setToken(TOKEN)
+    act(() => result.current.setToken(TOKEN))
     await waitFor(() => expect(result.current.status.state).toBe('valid'))
 
     revoked = true
-    result.current.recheck()
+    act(() => result.current.recheck())
     await waitFor(() => expect(result.current.status.state).toBe('invalid'))
     expect(await sentHeader()).toBeNull()
   })
