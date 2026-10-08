@@ -118,6 +118,23 @@ describe('the token authenticated requests carry', () => {
     expect(checks).toEqual([`Bearer ${TOKEN}`, `Bearer ${OTHER}`])
   })
 
+  it('is checked without the line breaks a paste may have left in it', async () => {
+    const checks = mockAuth(() => HttpResponse.json({ key: apiKey('admin') }))
+    const { result } = renderHook(useAuth, providers())
+
+    act(() => result.current.setToken(`${TOKEN.slice(0, 32)}\r\n${TOKEN.slice(32)}`))
+    await waitFor(() => expect(result.current.status.state).toBe('valid'))
+    expect(checks).toEqual([`Bearer ${TOKEN}`])
+  })
+
+  it('is not valid if it cannot be sent at all, which no retry would change', async () => {
+    // A check that reached the server would fail the test: there is no handler for it.
+    const { result } = renderHook(useAuth, providers())
+
+    act(() => result.current.setToken(`${TOKEN.slice(0, 32)}\u2022${TOKEN.slice(32)}`))
+    await waitFor(() => expect(result.current.status.state).toBe('invalid'))
+  })
+
   it('is none once the check has refused it, even though it succeeded before', async () => {
     let revoked = false
     mockAuth(() => (revoked ? unknownToken() : HttpResponse.json({ key: apiKey('admin') })))

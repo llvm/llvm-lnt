@@ -10,12 +10,12 @@ describe('TokenStore', () => {
     expect(new TokenStore().get().token).toBe('persisted')
   })
 
-  it('persists the token it is given, without surrounding whitespace', () => {
+  it('persists the token it is given, without any whitespace', () => {
     const tokens = new TokenStore()
 
-    tokens.set('  abc\n')
-    expect(tokens.get().token).toBe('abc')
-    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('abc')
+    tokens.set('  ab\nc\td \n')
+    expect(tokens.get().token).toBe('abcd')
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('abcd')
   })
 
   it('forgets the token when cleared, or given only whitespace', () => {

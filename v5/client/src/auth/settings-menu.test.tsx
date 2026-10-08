@@ -173,6 +173,16 @@ describe('Settings panel', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
+  it('says that a token that cannot be sent is not valid, not why sending it failed', async () => {
+    renderMenu()
+    openPanel()
+
+    enterToken(`${TOKEN.slice(0, 32)}\u2022${TOKEN.slice(32)}`)
+    await waitFor(() => expect(status()).toHaveTextContent('This token is not valid'))
+    expect(status()).not.toHaveTextContent('TypeError')
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
   it('says that the check failed, and retries it', async () => {
     let fail = true
     const checks = mockAuth(() =>

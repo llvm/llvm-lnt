@@ -45,9 +45,12 @@ export class TokenStore {
     }
   }
 
-  /** Store `token`, or forget it if null. Leading and trailing whitespace is not part of it. */
+  /**
+   * Store `token`, or forget it if null. Whitespace is not part of it: a token has none (I5), and a
+   * copy and paste may leave some, line breaks included, anywhere in it.
+   */
   set = (token: string | null): void => {
-    const value = token?.trim() || null
+    const value = token?.replace(/\s/g, '') || null
     try {
       if (value === null) this.storage?.removeItem(TOKEN_STORAGE_KEY)
       else this.storage?.setItem(TOKEN_STORAGE_KEY, value)

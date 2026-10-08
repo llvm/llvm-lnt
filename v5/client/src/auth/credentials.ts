@@ -21,12 +21,26 @@ export function checkQueryKey({ generation }: TokenSnapshot) {
   return ['auth', generation] as const
 }
 
+/**
+ * A token that cannot be sent in an HTTP header at all, such as one with a character outside
+ * Latin-1. No server could accept it, so it is not valid, as much as one the server refuses.
+ */
+export class UnsendableTokenError extends Error {
+  constructor() {
+    super('The token contains characters that cannot be sent to the server.')
+    this.name = 'UnsendableTokenError'
+  }
+}
+
 /** The key `token` belongs to, from `GET /api/auth` (E12). A token it does not accept is a 401. */
 export async function checkToken(token: string, signal?: AbortSignal): Promise<ApiKey> {
-  const request = api.GET('/api/auth', {
-    headers: { Authorization: `Bearer ${token}` },
-    signal,
-  })
+  const headers = new Headers()
+  try {
+    headers.set('Authorization', `Bearer ${token}`)
+  } catch {
+    throw new UnsendableTokenError()
+  }
+  const request = api.GET('/api/auth', { headers, signal })
   const { key } = await unwrap(request)
   // Only a request without credentials gets no key back, so the token never reached the server.
   if (key === null) throw new Error('The server received no token.')

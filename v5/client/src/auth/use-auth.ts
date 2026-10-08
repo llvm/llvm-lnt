@@ -1,14 +1,14 @@
 import { createContext, useContext } from 'react'
 import type { FetchStatus, QueryStatus } from '@tanstack/react-query'
 import { ApiError } from '../api/client'
-import type { ApiKey } from './credentials'
+import { UnsendableTokenError, type ApiKey } from './credentials'
 
 /** What the latest check says about the token (AR2). */
 export type TokenStatus =
   | { state: 'none' }
   | { state: 'checking' }
   | { state: 'valid'; key: ApiKey }
-  /** The API refused the token with a 401: unknown, malformed or revoked. */
+  /** The API refused the token with a 401 (unknown, malformed or revoked), or it cannot be sent. */
   | { state: 'invalid' }
   /** The check itself failed, so the token may or may not be valid. */
   | { state: 'failed'; error: unknown }
@@ -34,6 +34,7 @@ export function statusOf(token: string | null, check: Check): TokenStatus {
   if (token === null) return { state: 'none' }
   if (check.fetchStatus === 'fetching' || check.status === 'pending') return { state: 'checking' }
   if (check.status === 'success') return { state: 'valid', key: check.data! }
+  if (check.error instanceof UnsendableTokenError) return { state: 'invalid' }
   if (check.error instanceof ApiError && check.error.status === 401) return { state: 'invalid' }
   return { state: 'failed', error: check.error }
 }
