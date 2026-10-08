@@ -53,6 +53,15 @@ describe('Settings panel', () => {
     expect(screen.queryByRole('region', { name: 'Settings' })).toBeNull()
   })
 
+  it('names the panel it controls only while the panel is there', () => {
+    renderMenu()
+    const button = screen.getByRole('button', { name: 'Settings' })
+    expect(button).not.toHaveAttribute('aria-controls')
+
+    const panel = openPanel()
+    expect(button).toHaveAttribute('aria-controls', panel.id)
+  })
+
   it('closes on Escape within it, returning focus to its button', () => {
     renderMenu()
 

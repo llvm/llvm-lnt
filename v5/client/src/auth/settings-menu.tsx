@@ -47,7 +47,7 @@ export function SettingsMenu() {
         type="button"
         className="navbar-button"
         aria-expanded={open}
-        aria-controls={panelId}
+        aria-controls={open ? panelId : undefined}
         onClick={() => setOpen(!open)}
       >
         Settings
