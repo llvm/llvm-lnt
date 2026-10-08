@@ -19,6 +19,41 @@ describe('navbar', () => {
     expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin')
   })
 
+  it.each([
+    ['/suites/nts'],
+    ['/suites/nts/machines/linux-x86_64'],
+    ['/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000'],
+  ])('passes the suite of %s on to the suite-agnostic pages (AR4)', (url) => {
+    renderAt(url)
+
+    expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/suites/nts')
+    expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph?suite=nts')
+    expect(screen.getByRole('link', { name: 'Compare' })).toHaveAttribute(
+      'href',
+      '/compare?suite_a=nts',
+    )
+    expect(screen.getByRole('link', { name: 'Profiles' })).toHaveAttribute(
+      'href',
+      '/profiles?suite_a=nts',
+    )
+  })
+
+  it.each([['/graph?suite=nts'], ['/admin']])(
+    'passes no suite on from the suite-agnostic page %s',
+    (url) => {
+      renderAt(url)
+
+      expect(screen.getByRole('link', { name: 'Test Suites' })).toHaveAttribute('href', '/suites')
+      expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph')
+    },
+  )
+
+  it('has a Settings button rather than a link', () => {
+    renderAt('/')
+
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeEnabled()
+  })
+
   it('opens the API documentation viewer in a new tab', () => {
     renderAt('/')
 

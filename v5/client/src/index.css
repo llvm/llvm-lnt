@@ -4,6 +4,7 @@
   --lnt-fg: #1c1e21;
   --lnt-muted: #6b7280;
   --lnt-border: #e2e5e9;
+  --lnt-border-strong: #c4c9d0;
   --lnt-accent: #2563eb;
   --lnt-panel: #f7f8fa;
   --lnt-danger: #b91c1c;
@@ -35,6 +36,44 @@ body {
 
 a {
   color: var(--lnt-accent);
+}
+
+/* Form controls, shared by every page (AR2 "Design consistency"). */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  color: inherit;
+}
+
+button {
+  padding: var(--lnt-space-1) 0.75rem;
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--lnt-accent);
+  color: var(--lnt-accent);
+}
+
+button:disabled {
+  color: var(--lnt-muted);
+  background: var(--lnt-panel);
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
 }
 
 /* The box around a page's selection controls, setting them apart from its content (AR2). */
