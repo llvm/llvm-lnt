@@ -48,7 +48,7 @@ v5/
         v5-teardown.yml             # NEW: v5 infrastructure teardown workflow
         v5-test.yml                 # NEW: v5 testing workflow
         v5-validate-terraform.yml   # NEW: v5 Terraform validation workflow
-        tox.yml         # existing v4 workflows
+        tox.yml                     # existing v4 workflows
         etc..
 ```
 
