@@ -6,11 +6,13 @@ Migrations are stubbed in the same spirit, except where a test names a database 
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 import uvicorn
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, inspect, select
 from sqlalchemy.exc import OperationalError
 
@@ -69,6 +71,10 @@ class TestArgumentParsing:
             (["server", "create-key", "--name", "k"], "no --scope"),
             (["server", "create-key", "--scope", "admin"], "no --name"),
             (["server", "create-key", "--name", "k", "--scope", "root"], "not a scope"),
+            (["server", "run", "--port", "http"], "not a port number"),
+            (["server", "run", "--port", "0"], "port 0"),
+            (["server", "run", "--port", "-1"], "negative port"),
+            (["server", "run", "--port", "70000"], "port above 65535"),
         ],
     )
     def test_rejects_with_the_conventional_usage_status(self, argv: list[str], why: str) -> None:
@@ -88,6 +94,17 @@ class TestArgumentParsing:
             cli.main(["server", "create-key", "--name", "k", "--scope", "root"])
 
         assert "admin" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("port", ["0", "-1", "65536", "70000"])
+    def test_says_which_ports_are_accepted(
+        self, port: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit):
+            cli.main(["server", "run", "--port", port])
+
+        err = capsys.readouterr().err
+        assert "between 1 and 65535" in err
+        assert "Traceback" not in err
 
     def test_parses_before_reading_configuration(self) -> None:
         # No DATABASE_URL is set here (conftest scrubs it), so reaching a usage error at all
@@ -120,7 +137,7 @@ class TestServerRun:
     def stub_migrations(self, migrations: list[str]) -> None:
         pass
 
-    def test_serves_the_app_factory_on_the_fixed_port(
+    def test_serves_the_app_factory_on_port_3000(
         self, configured: None, uvicorn_run: list[dict[str, Any]]
     ) -> None:
         assert cli.main(["server", "run"]) == 0
@@ -132,6 +149,21 @@ class TestServerRun:
         # Vite's dev proxy, the Dockerfile's EXPOSE and its HEALTHCHECK all name this port.
         assert call["port"] == 3000
         assert "reload" not in call
+
+    def test_listens_on_the_port_it_is_given(
+        self, configured: None, uvicorn_run: list[dict[str, Any]]
+    ) -> None:
+        assert cli.main(["server", "run", "--port", "3200"]) == 0
+
+        assert uvicorn_run[0]["port"] == 3200
+
+    @pytest.mark.parametrize("port", [1, 65535])
+    def test_accepts_every_port_in_range(
+        self, port: int, configured: None, uvicorn_run: list[dict[str, Any]]
+    ) -> None:
+        assert cli.main(["server", "run", "--port", str(port)]) == 0
+
+        assert uvicorn_run[0]["port"] == port
 
     def test_defaults_to_a_single_worker(
         self, configured: None, uvicorn_run: list[dict[str, Any]]
@@ -336,3 +368,23 @@ class TestCreateKey:
         assert "Traceback" not in captured.err
         with configured_database.connect() as connection:
             assert connection.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
+
+
+class TestOpenapi:
+    def test_prints_the_document_the_server_serves(
+        self, client: TestClient, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The client's API types are generated from this output, so it has to be the very
+        # document a running server publishes.
+        assert cli.main(["server", "openapi"]) == 0
+
+        assert json.loads(capsys.readouterr().out) == client.get("/api/openapi.json").json()
+
+    def test_needs_no_configuration(self, capsys: pytest.CaptureFixture[str]) -> None:
+        # No DATABASE_URL is set here (conftest scrubs it): the types are generated in places
+        # that have no database, such as CI's lint steps.
+        assert cli.main(["server", "openapi"]) == 0
+
+        captured = capsys.readouterr()
+        assert json.loads(captured.out)["info"]["title"] == "LNT v5"
+        assert captured.err == ""

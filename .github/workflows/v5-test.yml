@@ -35,7 +35,9 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck:client
+      - run: npm run typecheck:tools
       - run: npm run lint:client
+      - run: npm run lint:tools
       - run: npm run test:client
 
   test-server:
@@ -65,6 +67,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: v5/.nvmrc
+          cache: npm
+          cache-dependency-path: v5/package-lock.json
 
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
@@ -75,12 +79,72 @@ jobs:
       # silently resolving something no one has tested.
       - run: uv sync --frozen
         working-directory: v5/server
+
+      # The client's API types are generated from the server's OpenAPI document, which takes both
+      # toolchains, so this is the job that can tell when the checked-in types are stale. First,
+      # since it is quick.
+      - run: npm ci
+      - run: npm run check:api
+
       - run: npm run lint:server
       - run: npm run typecheck:server
       - run: npm run test:server
 
+  test-e2e:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: v5
+    # The end-to-end tests start the server themselves, against a throwaway database they create on
+    # this PostgreSQL and drop afterwards.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: lnt
+          POSTGRES_PASSWORD: lnt
+          POSTGRES_DB: lnt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lnt"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: v5/.nvmrc
+          cache: npm
+          cache-dependency-path: v5/package-lock.json
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: v5/server/uv.lock
+
+      - run: uv sync --frozen
+        working-directory: v5/server
+      - run: npm ci
+      # The browser is not cached: restoring it takes about as long as downloading it, and its
+      # system dependencies have to be installed either way.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            v5/e2e/playwright-report
+            v5/e2e/test-results
+            v5/e2e/server.log
+          retention-days: 14
+
   build-docker:
-    needs: [test-client, test-server]
+    needs: [test-client, test-server, test-e2e]
     # The app runs on arm64 in EC2, so we use native arm64 GitHub runners since that simplifies
     # building and testing the Docker image.
     runs-on: ubuntu-24.04-arm

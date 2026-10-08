@@ -20,7 +20,9 @@ every scoped operation refuses a query parameter it does not take, a 400. All of
 from each route's declared scope, so it cannot disagree with the scope the route enforces.
 
 And it names the components of generic models after their type parameters (`CursorPage_Run_`),
-which is noise in a document meant for people; they are renamed after what they hold.
+which is noise in a document meant for people; they are renamed after what they hold. A model it
+describes twice, because a response always has keys a request may omit (I4), gets `-Input` and
+`-Output` suffixes; the response keeps the plain name, and the request's is `{name}Input`.
 
 Everything prose in the document is written for API users rather than for maintainers of this code:
 route docstrings, model docstrings and field descriptions are all published (I8). The overview that
@@ -234,28 +236,56 @@ _ENVELOPES = {
 }
 
 
-def _rename_envelopes(document: dict[str, Any]) -> None:
-    """Rename and describe every envelope component, and rewrite every reference to one.
+# A model whose request and response forms differ -- one with defaults, which a request may leave
+# out and a response always has -- is described twice, as `{name}-Input` and `{name}-Output`.
+# `{name}` is any component name, including an envelope's (`CursorPage_Run_-Output`) when what it
+# holds is described twice.
+_VARIANT = re.compile(r"(.+)-(Input|Output)")
 
-    Done here rather than in pydantic, which derives a generic model's component name from the
-    generic class and its arguments whatever the parametrized class calls itself.
+_PLAIN = re.compile(r"[A-Za-z0-9]+")
+
+
+def _plain_name(name: str) -> tuple[str, str | None]:
+    """The plain name of the component pydantic calls `name`, and its description if it needs one.
+
+    Raises if there is none, rather than publish a name of pydantic's making.
+    """
+    base, variant = (match[1], match[2]) if (match := _VARIANT.fullmatch(name)) else (name, None)
+    description = None
+    if (match := _ENVELOPE.fullmatch(base)) is not None:
+        pattern, description = _ENVELOPES[match[1]]
+        base = pattern.format(match[2])
+    plain = f"{base}Input" if variant == "Input" else base
+    if _PLAIN.fullmatch(plain) is None:
+        raise RuntimeError(f"No plain name for component {name!r}")
+    return plain, description
+
+
+def _rename_components(document: dict[str, Any]) -> None:
+    """Give every component a plain name, and rewrite every reference to one.
+
+    Envelopes are renamed and described after what they hold, which pydantic cannot do: it derives
+    a generic model's component name from the generic class and its arguments whatever the
+    parametrized class calls itself. A model described twice keeps its name for the response form,
+    which is what reading it returns, and its request form is named `{name}Input`.
     """
     schemas = document.get("components", {}).get("schemas", {})
-    renames: dict[str, tuple[str, str]] = {}
+    renames: dict[str, tuple[str, str | None]] = {}
     for name in schemas:
-        match = _ENVELOPE.fullmatch(name)
-        if match is not None:
-            pattern, description = _ENVELOPES[match[1]]
-            renames[name] = (pattern.format(match[2]), description)
-    clashes = {new for new, _ in renames.values()} & set(schemas)
+        new, description = _plain_name(name)
+        if new != name:
+            renames[name] = (new, description)
+    new_names = [new for new, _ in renames.values()]
+    clashes = set(new_names) & set(schemas) | {new for new in new_names if new_names.count(new) > 1}
     if clashes:
-        raise RuntimeError(f"Renamed envelopes would replace existing schemas: {sorted(clashes)}")
+        raise RuntimeError(f"Renamed components would replace other schemas: {sorted(clashes)}")
 
     for old, (new, description) in renames.items():
         schema = schemas.pop(old)
         # The title is what the viewer shows as the schema's name.
         schema["title"] = new
-        schema["description"] = description
+        if description is not None:
+            schema["description"] = description
         schemas[new] = schema
     document["components"]["schemas"] = dict(sorted(schemas.items()))
 
@@ -371,9 +401,9 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
                     responses.setdefault("403", _FORBIDDEN)
 
     _drop_unreferenced_validation_schemas(document)
-    # Before the envelopes are renamed, while the components still have pydantic's names.
+    # Before the components are renamed, while they still have pydantic's names.
     _restore_examples(app, document)
-    _rename_envelopes(document)
+    _rename_components(document)
     _hoist_descriptions(document["components"]["schemas"])
 
 

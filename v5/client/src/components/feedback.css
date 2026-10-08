@@ -1,0 +1,11 @@
+.error-message {
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  border: 1px solid var(--lnt-danger-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-danger-bg);
+  color: var(--lnt-danger);
+}
+
+.loading {
+  color: var(--lnt-muted);
+}

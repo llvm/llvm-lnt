@@ -7,6 +7,7 @@ running it, and administering the database behind it.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -25,8 +26,9 @@ from .suites import migrations as suite_migrations
 
 APP = "lnt_v5.app:create_app"
 
-# This is fixed and it needs to stay synchronized with what the Dockerfile expects.
-# If needed, map it elsewhere at the container boundary instead (`docker run -p 8080:3000`).
+# The port `server run` listens on by default, which the Dockerfile's EXPOSE and HEALTHCHECK expect.
+# Map the container elsewhere at its boundary (`docker run -p 8080:3000`) rather than changing it;
+# `--port` is for running several servers on one host, as the end-to-end tests do.
 PORT = 3000
 
 # How long uvicorn lets in-flight requests finish before dropping them. Generous because a run
@@ -93,7 +95,7 @@ def _migrate(settings: Settings) -> int:
     return 0
 
 
-def _serve(settings: Settings) -> int:
+def _serve(settings: Settings, port: int) -> int:
     """Serve the API and the built client (`server run`).
 
     Migrating first, in this process, is what keeps the workers uvicorn is about to start from
@@ -109,7 +111,7 @@ def _serve(settings: Settings) -> int:
         APP,
         factory=True,
         host="0.0.0.0",
-        port=PORT,
+        port=port,
         workers=settings.web_concurrency,
         timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_SECONDS,
     )
@@ -169,6 +171,29 @@ def _create_key(settings: Settings, name: str, scope: Scope) -> int:
     return 0
 
 
+def _print_openapi() -> int:
+    """Print the OpenAPI document this build serves (`server openapi`).
+
+    The client's API types are generated from it; see `openapi_document`.
+    """
+    # Imported here: building the app is the expensive part of startup, and only this needs it.
+    from .app import openapi_document
+
+    print(json.dumps(openapi_document(), indent=2, ensure_ascii=False))
+    return 0
+
+
+def _port(value: str) -> int:
+    """Read `--port`. Raising here makes a bad port a usage error, like any other bad argument."""
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a port number: {value!r}") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, not {port}")
+    return port
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lnt-v5", description="Administer an LNT v5 instance.")
     groups = parser.add_subparsers(dest="group", required=True, metavar="GROUP")
@@ -176,9 +201,13 @@ def _build_parser() -> argparse.ArgumentParser:
     server = groups.add_parser("server", help="run and administer a server instance")
     commands = server.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    commands.add_parser("run", help="serve the API and web UI")
+    run = commands.add_parser("run", help="serve the API and web UI")
+    run.add_argument(
+        "--port", type=_port, default=PORT, help=f"port to listen on (default: {PORT})"
+    )
     commands.add_parser("dev", help="serve with autoreload, for development")
     commands.add_parser("migrate", help="bring the database up to date")
+    commands.add_parser("openapi", help="print the OpenAPI document of this build's API")
 
     create_key = commands.add_parser("create-key", help="create an API key")
     create_key.add_argument("--name", required=True, help="human-readable label for the key")
@@ -197,7 +226,11 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
-    # Every subcommand needs the database, so configuration is resolved up front -- before
+    # The one subcommand that needs no configuration, so it runs before any is required.
+    if args.command == "openapi":
+        return _print_openapi()
+
+    # Every other subcommand needs the database, so configuration is resolved up front -- before
     # uvicorn forks any workers, and before create-key opens a connection.
     try:
         settings = get_settings()
@@ -208,7 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     if args.command == "run":
-        return _serve(settings)
+        return _serve(settings, args.port)
     if args.command == "dev":
         return _serve_dev(settings)
     if args.command == "migrate":

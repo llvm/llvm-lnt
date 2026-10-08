@@ -24,3 +24,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+v5/e2e/test-results/
+v5/e2e/playwright-report/
+v5/e2e/server.log

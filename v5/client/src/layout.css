@@ -8,8 +8,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 1.5rem;
+  gap: var(--lnt-space-4);
+  padding: 0.75rem var(--lnt-space-4);
   border-bottom: 1px solid var(--lnt-border);
   background: var(--lnt-panel);
 }
@@ -48,7 +48,7 @@
 
 .page {
   flex: 1;
-  padding: 2rem 1.5rem;
+  padding: 2rem var(--lnt-space-4);
   max-width: 72rem;
   width: 100%;
   margin: 0 auto;

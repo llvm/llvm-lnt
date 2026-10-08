@@ -57,16 +57,33 @@ npm run create-key -- --name bot --scope submit   # anything else
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.
 Paste the token into the web UI's Settings panel to use it from the browser.
 
+### Seed data
+
+With `npm run dev` running, populate the dev database through the REST API:
+
+```sh
+npm run seed                                      # against http://localhost:3000
+npm run seed -- --token <token>                   # with a token of your own
+```
+
+This creates the `libcxx` and `nts` suites with their real runs from `server/tests/data`, and a
+synthetic libcxx history on top. Seeding takes a few seconds.
+
+It needs a token with `manage` scope: `--token`, or `$LNT_SEED_TOKEN`. Without either, it creates
+an admin key named `seed` for the database in `.env`, but only when seeding the dev server at its
+default URL; any other `--url` needs a token.
+
 ### Testing and building
 
 ```sh
-npm run check             # lint + typecheck + test
+npm run check             # API types up to date + lint + typecheck + test
 npm test                  # both test suites
 npm run lint
 npm run typecheck
 npm run format            # autoformat the Python sources
 npm run build             # build the client bundle the server serves
 npm run test:integration  # builds the Docker image and exercises it end to end
+npm run test:e2e          # builds the client and drives it in a browser against the real server
 ```
 
 Individual halves are available as `:client` / `:server` variants, e.g. `npm run test:server`.
@@ -77,6 +94,39 @@ The integration tests are what CI runs against the image; they need Docker, but 
 their own database.
 
 Stop the local database with `npm run db:down` when you're done.
+
+#### End-to-end tests
+
+`npm run test:e2e` tests the whole stack in a browser, with [Playwright](https://playwright.dev).
+It builds the client, then creates a throwaway database on the Postgres from `npm run db:up`,
+migrates it, starts the server, creates an admin key, and seeds the database as `npm run seed`
+does. It drops the database and stops the server when the tests are done. Install the browser
+they use once, with `npx playwright install chromium`; `npm run screenshot` (below) needs it too.
+
+A failing test keeps a trace, a screenshot, and the server's log while it ran, in `e2e/test-results`;
+open the report with `npx playwright show-report e2e/playwright-report`. The whole server log is in
+`e2e/server.log`.
+
+#### Screenshots
+
+To look at a page without a browser, take a screenshot of it on a running server:
+
+```sh
+npm run dev                                       # in one terminal
+npm run seed                                      # once, in another
+npm run screenshot -- /suites/libcxx --out /tmp/suites.png
+npm run screenshot -- '/graph?suite=libcxx' --width 1600 --height 1000 --full-page
+```
+
+### API types
+
+The client's types for the REST API, `client/src/api/schema.d.ts`, are generated from the server's
+OpenAPI document and checked in. Regenerate them whenever a server change alters the document:
+
+```sh
+npm run generate:api      # rewrite client/src/api/schema.d.ts
+npm run check:api         # fail if it is out of date
+```
 
 ### Docker
 
