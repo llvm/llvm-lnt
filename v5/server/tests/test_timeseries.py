@@ -385,7 +385,7 @@ class TestQueryFilters:
     def test_answers_the_baseline_call_the_graph_page_makes(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # GR8: a baseline is fetched with `{machine, metric, commit, test}` in one
+        # GR9: a baseline is fetched with `{machine, metric, commit, test}` in one
         # body, which is the only request any client doc combines four filters in.
         baseline = submit("linux", "base", {"name": "a", "execution_time": 1.0}, {"name": "b"})
         submit("darwin", "base", {"name": "a", "execution_time": 2.0})

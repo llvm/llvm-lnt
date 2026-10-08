@@ -1,4 +1,4 @@
-/* The colours of the states (GR14): red for active, yellow for detected, grey once resolved. */
+/* The colours of the states (GR15): red for active, yellow for detected, grey once resolved. */
 .active {
   --state-bg: #fde2e2;
   --state-fg: #991b1b;

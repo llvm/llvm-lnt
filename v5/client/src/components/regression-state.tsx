@@ -12,7 +12,7 @@ const STATE_CLASS: Record<RegressionState, string> = {
 }
 
 /**
- * A regression's state, coloured as the Graph page colours its annotations (GR14): red for
+ * A regression's state, coloured as the Graph page colours its annotations (GR15): red for
  * `active`, yellow for `detected`, and grey for the resolved states.
  */
 export function StateBadge({ state }: { state: RegressionState }) {

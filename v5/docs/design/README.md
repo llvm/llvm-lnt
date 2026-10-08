@@ -63,7 +63,7 @@ e.g. `D5`, `I4` or `GR8`.
 | Document | Prefix | Contents |
 |----------|----------|----------|
 | [Data Model](server/data-model.md) | D | Commit concept, schema storage and format, attribute types, all table definitions, database initialization |
-| [Operations](server/operations.md) | O | Run submission, machine and commit metadata, search, time-series queries, ordinal management, run summaries |
+| [Operations](server/operations.md) | O | Run submission, machine and commit metadata, search, time-series queries, ordinal management, profiles, concurrent submission, run summaries |
 | [Infrastructure](server/infrastructure.md) | I | URL structure, pagination, filtering, response format, authentication, AI orientation, health check, API documentation, caching |
 | [Endpoints](server/endpoints.md) | E | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin, authentication |
 

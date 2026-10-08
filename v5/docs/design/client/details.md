@@ -268,7 +268,7 @@ The header also shows, read-only, when the regression was created (`created_at`)
 - "View on graph" link per indicator: opens the Graph page with the
   regression's suite and the indicator's machine, metric and test selected, and
   regression annotations
-  showing every state (`regressions=all`; see GR14), which marks this
+  showing every state (`regressions=all`; see GR15), which marks this
   regression's commit on the chart
 
 Auth: requires `triage` scope for all modifications.
