@@ -16,6 +16,10 @@ export type ApiKey = Schemas['ApiKey']
 /**
  * The query of one check. Every change to the token is a generation of its own, so that each is
  * checked afresh; the token itself stays out of the key, and so out of anything that shows keys.
+ *
+ * This query must never be removed, nor refetched by a call over the whole cache (`clear()`,
+ * `removeQueries()`, or `invalidateQueries()` or `resetQueries()` without a filter): its state is
+ * what decides whether the token is sent. A recheck goes through `TokenStore.recheck` instead.
  */
 export function checkQueryKey({ generation }: TokenSnapshot) {
   return ['auth', generation] as const

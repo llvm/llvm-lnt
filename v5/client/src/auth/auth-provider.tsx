@@ -19,16 +19,16 @@ export function AuthProvider({ tokens, children }: { tokens: TokenStore; childre
     // Checked when the token changes or something asks for it again, never because time passed.
     staleTime: Infinity,
   })
-  const { status, fetchStatus, data, error } = check
+  const { status, data, error } = check
   // A new object only when the outcome changes, so that a gated control re-renders only then.
   const auth = useMemo<Auth>(
     () => ({
-      status: statusOf(token, { status, fetchStatus, data, error }),
+      status: statusOf(token, { status, data, error }),
       setToken: tokens.set,
       clearToken: () => tokens.set(null),
       recheck: tokens.recheck,
     }),
-    [token, status, fetchStatus, data, error, tokens],
+    [token, status, data, error, tokens],
   )
   return <AuthContext value={auth}>{children}</AuthContext>
 }

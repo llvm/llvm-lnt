@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { FetchStatus, QueryStatus } from '@tanstack/react-query'
+import type { QueryStatus } from '@tanstack/react-query'
 import { ApiError } from '../api/client'
 import { UnsendableTokenError, type ApiKey } from './credentials'
 
@@ -25,14 +25,17 @@ export interface Auth {
 /** The parts of the check's query result that decide the status. */
 interface Check {
   status: QueryStatus
-  fetchStatus: FetchStatus
   data: ApiKey | undefined
   error: Error | null
 }
 
+/**
+ * The status the check's query gives the token. It is decided by the query's `status` alone, as
+ * `acceptedToken` decides what `authedApi` sends, so that the two always agree.
+ */
 export function statusOf(token: string | null, check: Check): TokenStatus {
   if (token === null) return { state: 'none' }
-  if (check.fetchStatus === 'fetching' || check.status === 'pending') return { state: 'checking' }
+  if (check.status === 'pending') return { state: 'checking' }
   if (check.status === 'success') return { state: 'valid', key: check.data! }
   if (check.error instanceof UnsendableTokenError) return { state: 'invalid' }
   if (check.error instanceof ApiError && check.error.status === 401) return { state: 'invalid' }

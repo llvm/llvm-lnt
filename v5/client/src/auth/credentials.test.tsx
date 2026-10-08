@@ -135,6 +135,25 @@ describe('the token authenticated requests carry', () => {
     await waitFor(() => expect(result.current.status.state).toBe('invalid'))
   })
 
+  it('agrees with the status while an accepted token is being refetched', async () => {
+    let calls = 0
+    const checks = mockAuth(() =>
+      calls++ === 0 ? HttpResponse.json({ key: apiKey('admin') }) : new Promise<never>(() => {}),
+    )
+    const { wrapper, queryClient } = providers()
+    const { result } = renderHook(useAuth, { wrapper })
+    act(() => result.current.setToken(TOKEN))
+    await waitFor(() => expect(result.current.status.state).toBe('valid'))
+
+    // Nothing should refetch the check this way, but if something does, both still agree.
+    act(() => {
+      void queryClient.invalidateQueries()
+    })
+    await waitFor(() => expect(checks).toHaveLength(2))
+    expect(result.current.status.state).toBe('valid')
+    expect(await sentHeader()).toBe(`Bearer ${TOKEN}`)
+  })
+
   it('is none once the check has refused it, even though it succeeded before', async () => {
     let revoked = false
     mockAuth(() => (revoked ? unknownToken() : HttpResponse.json({ key: apiKey('admin') })))
