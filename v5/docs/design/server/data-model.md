@@ -217,8 +217,8 @@ Notes:
   from the shared attribute types (see D3).
 - `commit_fields` and `machine_fields` define optional metadata columns on the
   Commit and Machine tables, respectively.
-- `searchable: true` on a commit or machine field enables `?search=` substring
-  matching on that field in the corresponding list endpoint (see O4). It is
+- `searchable: true` on a commit or machine field makes `?search=` match that
+  field in the list endpoints that search commits or machines (see O4). It is
   only valid on `text` fields (see D3).
 - `display: true` on at most one `commit_field` is a hint for the UI: when it is
   set and the field has a non-null value, the UI shows that value instead of
@@ -472,7 +472,7 @@ as `{suite}.commit`, and the tables below are named that way.
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
-| uuid | VARCHAR(36) | unique, not null |
+| uuid | VARCHAR(36), collation `C` | unique, not null |
 | machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
 | submitted_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
@@ -491,6 +491,12 @@ as `{suite}.commit`, and the tables below are named that way.
 - Compound index on `(submitted_at, id)`: serves
   `GET /api/suites/{testsuite}/runs?sort=-submitted_at` without `machine=`,
   which the index above cannot. `id` is the cursor's tiebreaker (O5).
+- `uuid` uses the `C` collation so that its unique index also serves O4's
+  match by prefix, which an index under a linguistic collation cannot.
+  Equality is the same under either, and nothing sorts by `uuid`. With that
+  index, the one on `commit_id` and the one on `(machine_id, submitted_at)`,
+  `GET /api/suites/{testsuite}/runs?search=` must not scan this table when
+  fewer runs match than fill a page.
 - Deleting a run deletes its samples, profiles and run summaries.
 
 #### `{suite}.test`

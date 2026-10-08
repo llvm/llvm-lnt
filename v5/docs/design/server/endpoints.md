@@ -258,10 +258,8 @@ with the submission (see O2). A profile that O7 refuses is rejected with 400.
 
 **Filters:**
 
-- `search=`: case-insensitive substring match on the run's machine `name` or
-  any searchable machine field (see O4). It is the same predicate as
-  `GET /api/suites/{testsuite}/machines?search=`, applied through the run's
-  machine.
+- `search=`: matches the run's machine or commit, as the machine and commit
+  lists' `search=` match them, or a prefix of the run's `uuid` (see O4).
 - `machine=`, `commit=`, `after=`, `before=` (see I3).
 - `has_profiles=`: boolean. `true` returns only runs with at least one profile
   attached, and `false` only runs without profiles.
@@ -474,7 +472,8 @@ them.
 
 **Filters:**
 
-- `search=`: case-insensitive substring match on `title` (see O4).
+- `search=`: case-insensitive substring match on `title`, or prefix match on
+  `uuid` (see O4).
 - `state=`: any number of state names, repeated (see I3). An unknown name is
   400.
 - `machine=`, `test=` and `metric=`: only regressions with an indicator naming

@@ -44,6 +44,7 @@ from sqlalchemy import (
     delete,
     func,
     insert,
+    or_,
     select,
     true,
     update,
@@ -67,6 +68,7 @@ from lnt_v5.querying import (
     cursor_page,
     search_condition,
     sort_order,
+    uuid_prefix,
 )
 from lnt_v5.responses import CursorPage
 from lnt_v5.routes.commits import Commits, commit_id
@@ -576,8 +578,10 @@ class Regressions:
         return Keyset(SortKey(self.table.c.created_at, descending), tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
-        """O4's `?search=` for regressions: the title, and nothing else."""
-        return search_condition(term, self.table, ["title"])
+        """O4's `?search=` for regressions: the title, or the UUID by prefix."""
+        return or_(
+            search_condition(term, self.table, ["title"]), uuid_prefix(self.table.c.uuid, term)
+        )
 
     def in_states(self, states: Collection[RegressionStateName]) -> ColumnElement[bool]:
         """I3's `state=`, over the list and the indicator lookup alike.
@@ -922,8 +926,8 @@ def list_regressions(
     search: Annotated[
         str | None,
         Query(
-            description="Only return regressions whose title contains this text. Not "
-            "case-sensitive."
+            description="Only return regressions whose title contains this text, or whose UUID "
+            "starts with it. Not case-sensitive."
         ),
     ] = None,
     state: Annotated[

@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
 import pytest
@@ -58,15 +59,15 @@ NTS: dict[str, Any] = {
         {"name": "compile_time", "type": "real"},
         {"name": "compile_status", "type": "integer"},
     ],
+    # `hardware` and `author` are searchable so that the run list's `?search=`, which O4 extends to
+    # the run's machine and commit, has a field of each to reach.
     "machine_fields": [
-        # `hardware` is searchable so that the run list's `?search=`, which O4 makes the machine
-        # list's predicate applied through the run's machine, has a field to reach.
         {"name": "hardware", "type": "text", "searchable": True},
         {"name": "core_count", "type": "integer"},
     ],
     "commit_fields": [
         {"name": "git_sha", "type": "text"},
-        {"name": "author", "type": "text"},
+        {"name": "author", "type": "text", "searchable": True},
     ],
 }
 
@@ -1266,29 +1267,134 @@ class TestListFilters:
 
 
 class TestListSearch:
-    """O4: the same predicate as `GET /machines?search=`, applied through the run's machine."""
+    """O4: a run matches through its machine, through its commit, or by a prefix of its UUID.
+
+    The UUIDs are chosen rather than random, and the machines and commits avoid them, so that each
+    test knows which of the three a run matches through.
+    """
+
+    LINUX = "0aaa0000-0000-4000-8000-000000000000"
+    DARWIN = "86bbbbbb-0000-4000-8000-000000000000"
+    DARWIN_AT_RELEASE = "0ccc0000-0000-4000-8000-000000000000"
+
+    # The two runs at r555703, one per page.
+    AT_RELEASE = "search=r5557&sort=-submitted_at&limit=1"
 
     @pytest.fixture(autouse=True)
     def runs(self, submitted: Callable[..., Any]) -> None:
-        submitted(machine={"name": "linux-x86_64", "fields": {"hardware": "Skylake"}})
-        submitted(machine={"name": "darwin-arm64", "fields": {"hardware": "M2 Max"}})
+        release = {"value": "r555703", "tag": "llvmorg-22.1.0", "fields": {"author": "Jane"}}
+        linux = {"name": "linux-x86_64", "fields": {"hardware": "Skylake"}}
+        darwin = {"name": "darwin-arm64", "fields": {"hardware": "M2 Max"}}
+        submitted(uuid=self.LINUX, machine=linux, commit=release)
+        submitted(
+            uuid=self.DARWIN,
+            machine=darwin,
+            commit={"value": "r555800", "fields": {"git_sha": "sha-of-r555800"}},
+        )
+        submitted(uuid=self.DARWIN_AT_RELEASE, machine=darwin, commit={"value": "r555703"})
+
+    def found(self, api_client: TestClient, term: str, query: str = "") -> set[str]:
+        params = urlencode({"search": term}) + (f"&{query}" if query else "")
+        return set(uuids_in(listed(api_client, params)))
 
     def test_matches_the_machine_name(self, api_client: TestClient) -> None:
-        assert len(uuids_in(listed(api_client, "search=x86"))) == 1
+        assert self.found(api_client, "X86") == {self.LINUX}
 
     def test_matches_a_searchable_machine_field(self, api_client: TestClient) -> None:
-        assert len(uuids_in(listed(api_client, "search=skylake"))) == 1
+        assert self.found(api_client, "skylake") == {self.LINUX}
 
-    def test_is_the_machine_lists_predicate(self, api_client: TestClient) -> None:
-        # O4 requires the two to agree, so the machines the run list matches must be exactly the
-        # machines the machine list matches for the same term.
-        machines = api_client.get(f"{MACHINES}?search=ar").json()["items"]
-        runs = listed(api_client, "search=ar").json()["items"]
+    def test_matches_the_commit(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "R5558") == {self.DARWIN}
 
-        assert {machine["name"] for machine in machines} == {run["machine"] for run in runs}
+    def test_matches_the_tag(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "llvmorg-22") == {self.LINUX, self.DARWIN_AT_RELEASE}
+
+    def test_matches_a_searchable_commit_field(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "jane") == {self.LINUX, self.DARWIN_AT_RELEASE}
+
+    def test_ignores_a_commit_field_that_is_not_searchable(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "sha-of") == set()
+
+    def test_matches_a_prefix_of_the_uuid_whatever_its_case(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "0AAA") == {self.LINUX}
+
+    def test_matches_a_whole_uuid(self, api_client: TestClient) -> None:
+        assert self.found(api_client, self.DARWIN.upper()) == {self.DARWIN}
+
+    def test_does_not_match_the_middle_of_a_uuid(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "bbbb") == set()
+
+    def test_matches_any_of_the_three(self, api_client: TestClient) -> None:
+        # `86` is in one run's machine name (`x86`) and at the start of another's UUID.
+        assert self.found(api_client, "86") == {self.LINUX, self.DARWIN}
+
+    @pytest.mark.parametrize("term", ["", "x86", "arm", "555", "llvmorg", "jane", "0", "86b"])
+    def test_is_the_union_of_the_machine_commit_and_uuid_matches(
+        self, api_client: TestClient, term: str
+    ) -> None:
+        # O4 applies the machine and commit lists' own predicates through the run.
+        machines = {
+            machine["name"]
+            for machine in api_client.get(MACHINES, params={"search": term}).json()["items"]
+        }
+        commits = {
+            commit["value"]
+            for commit in api_client.get(COMMITS, params={"search": term}).json()["items"]
+        }
+        runs = listed(api_client).json()["items"]
+        expected = {
+            run["uuid"]
+            for run in runs
+            if run["machine"] in machines
+            or run["commit"] in commits
+            or run["uuid"].startswith(term.lower())
+        }
+
+        assert self.found(api_client, term) == expected
+
+    def test_combines_with_the_other_filters(self, api_client: TestClient) -> None:
+        assert self.found(api_client, "r555703", "machine=darwin-arm64") == {self.DARWIN_AT_RELEASE}
 
     def test_treats_a_wildcard_in_the_term_literally(self, api_client: TestClient) -> None:
-        assert uuids_in(listed(api_client, "search=%")) == []
+        assert self.found(api_client, "%") == set()
+        assert self.found(api_client, "x86_64") == {self.LINUX}
+        assert self.found(api_client, "x86-64") == set()
+        assert self.found(api_client, "0aa_") == set()
+
+    def test_pages_through_every_match_once(self, api_client: TestClient) -> None:
+        assert sorted(walk(api_client, self.AT_RELEASE)) == [self.LINUX, self.DARWIN_AT_RELEASE]
+
+    def test_keeps_its_cursor_when_a_matching_commit_arrives(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        # The commits a term matches are not named by any filter, so a new one is no reason to
+        # reject a cursor (I2).
+        first = listed(api_client, self.AT_RELEASE).json()
+        submitted(commit={"value": "r555799"})
+
+        response = listed(api_client, f"{self.AT_RELEASE}&cursor={first['cursor']['next']}")
+
+        assert response.status_code == 200, response.text
+        assert uuids_in(response) == [self.LINUX]
+
+    @pytest.mark.parametrize("other", ["search=darwin&", ""])
+    def test_refuses_a_cursor_issued_under_another_search(
+        self, api_client: TestClient, other: str
+    ) -> None:
+        cursor = listed(api_client, self.AT_RELEASE).json()["cursor"]["next"]
+
+        response = listed(api_client, f"{other}sort=-submitted_at&limit=1&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_cursor_issued_without_a_search(self, api_client: TestClient) -> None:
+        cursor = listed(api_client, "sort=-submitted_at&limit=1").json()["cursor"]["next"]
+
+        response = listed(api_client, f"{self.AT_RELEASE}&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 class TestListPagination:

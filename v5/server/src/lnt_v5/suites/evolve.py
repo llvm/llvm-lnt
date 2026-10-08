@@ -89,7 +89,9 @@ class CommitFieldUpdate(_EntryUpdate):
 
     searchable: bool = Field(
         default=False,
-        description="Whether `search` on the commit list matches this field. Can't be null.",
+        description=(
+            "Whether `search` on the commit and run lists matches this field. Can't be null."
+        ),
     )
     display: bool = Field(
         default=False,

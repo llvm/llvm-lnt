@@ -220,7 +220,8 @@ def build(schema: SuiteSchema) -> SuiteTables:
         "run",
         metadata,
         Column("id", Integer, Identity(), primary_key=True),
-        Column("uuid", String(UUID_LENGTH), nullable=False, unique=True),
+        # "C", so that the unique index also serves O4's search by prefix (D5).
+        Column("uuid", String(UUID_LENGTH, collation="C"), nullable=False, unique=True),
         Column("machine_id", ForeignKey("machine.id", ondelete="CASCADE"), nullable=False),
         Column(
             "commit_id",

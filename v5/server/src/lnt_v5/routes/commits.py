@@ -254,6 +254,7 @@ class Commits:
     """
 
     def __init__(self, suite: Suite) -> None:
+        self.suite = suite
         self.schema = suite.schema
         self.table: Table = suite.tables.commit
         self._run: Table = suite.tables.run
@@ -280,7 +281,7 @@ class Commits:
         return Keyset(SortKey(column, descending), tiebreaker=self.table.c.id)
 
     def search(self, term: str) -> ColumnElement[bool]:
-        return search_condition(term, self.table, ["commit", "tag"], self.schema.commit_fields)
+        return commit_search(self.suite, term)
 
     def has_run(self, machine: int | None, *, profiled: bool = False) -> ColumnElement[bool]:
         """Whether this commit has a run -- on that machine if one is named, carrying a profile if
@@ -435,6 +436,17 @@ def _missing(testsuite: str, value: str) -> ApiError:
     """The 404 for a commit no suite holds, shared by the commit routes and by every body that
     names one."""
     return ApiError(ErrorCode.NOT_FOUND, f"No commit '{value}' in test suite '{testsuite}'")
+
+
+def commit_search(suite: Suite, term: str) -> ColumnElement[bool]:
+    """O4's commit predicate: the commit string, the tag, or any searchable commit field.
+
+    Shared with `GET /runs?search=`, which applies it through the run's commit, for the same reason
+    as `machine_search`.
+    """
+    return search_condition(
+        term, suite.tables.commit, ["commit", "tag"], suite.schema.commit_fields
+    )
 
 
 def commit_id(connection: Connection, suite: Suite, value: str) -> int:

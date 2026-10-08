@@ -34,13 +34,30 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+import sqlalchemy as sa
 from alembic.operations import Operations
 
 from lnt_v5.suites.schema import SuiteSchema
 
 Step = Callable[[Operations, SuiteSchema], None]
 
-STEPS: Sequence[Step] = ()
+
+def _run_uuid_collation(op: Operations, suite: SuiteSchema) -> None:
+    """Version 1: `{suite}.run.uuid` in the "C" collation (D5).
+
+    PostgreSQL rebuilds the unique index on the column, without rewriting the table.
+    """
+    op.alter_column(
+        "run",
+        "uuid",
+        existing_type=sa.String(36),
+        type_=sa.String(36, collation="C"),
+        existing_nullable=False,
+        schema=suite.name,
+    )
+
+
+STEPS: Sequence[Step] = (_run_uuid_collation,)
 
 
 def head() -> int:

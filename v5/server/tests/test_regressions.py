@@ -925,6 +925,8 @@ class TestCommitFilters:
 
 
 class TestSearch:
+    UUID = "dec10abc-0000-4000-8000-000000000000"
+
     @pytest.fixture(autouse=True)
     def regressions(self, create: Callable[..., Any]) -> None:
         create(title="find_if Slowdown")
@@ -946,14 +948,35 @@ class TestSearch:
         ]
 
     def test_matches_the_title_alone(self, api_client: TestClient) -> None:
-        # O4 gives this list the title column and nothing else, so a regression whose *notes* say
-        # `find_if` does not match.
+        # O4 gives this list the title and the UUID, so a regression whose *notes* say `find_if`
+        # does not match.
         assert len(uuids_in(listed(api_client, "search=find_if"))) == 1
 
-    def test_a_regression_with_no_title_never_matches(self, api_client: TestClient) -> None:
-        # A NULL title compares as unknown, so an untitled regression falls out of the match
-        # rather than matching the empty term that every titled one does.
-        assert len(uuids_in(listed(api_client, "search="))) == 2
+    def test_matches_the_title_or_a_prefix_of_the_uuid(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        titled = create(title="Slower in dec10")["uuid"]
+        untitled = create(uuid=self.UUID)["uuid"]
+
+        assert set(uuids_in(listed(api_client, "search=DEC10"))) == {titled, untitled}
+
+    def test_does_not_match_the_middle_of_a_uuid(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        create(uuid=self.UUID)
+
+        assert uuids_in(listed(api_client, "search=abc-0000")) == []
+
+    def test_treats_a_wildcard_in_a_uuid_prefix_literally(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        create(uuid=self.UUID)
+
+        assert uuids_in(listed(api_client, "search=dec1_")) == []
+
+    def test_the_empty_term_matches_every_regression(self, api_client: TestClient) -> None:
+        # Untitled ones included, which the title alone would leave out (O4).
+        assert len(uuids_in(listed(api_client, "search="))) == 4
 
 
 class TestUpdate:

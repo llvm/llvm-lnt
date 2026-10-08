@@ -1130,7 +1130,7 @@ export interface components {
             display_name?: string | null;
             /**
              * Searchable
-             * @description Whether `search` on the commit list matches this field. Can't be null.
+             * @description Whether `search` on the commit and run lists matches this field. Can't be null.
              */
             searchable?: boolean;
             /**
@@ -4233,7 +4233,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
                 cursor?: string | null;
-                /** @description Only return runs whose machine's name, or any of its searchable fields, contains this text. Not case-sensitive. */
+                /** @description Only return runs whose machine (its name or any searchable field) or commit (its value, its tag or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return runs on this machine. Returns 404 if the machine doesn't exist. */
                 machine?: string | null;
@@ -4958,7 +4958,7 @@ export interface operations {
             query?: {
                 /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
                 cursor?: string | null;
-                /** @description Only return regressions whose title contains this text. Not case-sensitive. */
+                /** @description Only return regressions whose title contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
                 /** @description Only return regressions in one of these states. Repeat the parameter for several states: `state=active&state=detected`. Leave out to return all states. */
                 state?: components["schemas"]["RegressionStateName"][] | null;

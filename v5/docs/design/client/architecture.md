@@ -93,8 +93,8 @@ user sees it in the input and it is included in URL state.
 
 Inputs that search the server rather than filter data already loaded -- the
 Test Suites tabs' searches (TS1), commit pickers (see below) and the regression
-picker (CP9) -- are the exception, and have no regex mode: a server-side
-`search=` matches plain substrings only (see O4). Such an input asks the server
+picker (CP9) -- are the exception, and have no regex mode, since a server-side
+`search=` takes its term as plain text (see O4). Such an input asks the server
 again as the user types (debounced), from the first page, and discards a
 response for text the user has since changed, so that what it shows always
 reflects the text currently in the input.

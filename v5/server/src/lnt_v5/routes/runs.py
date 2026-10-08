@@ -26,13 +26,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy import (
     ColumnElement,
     Connection,
+    Integer,
     Row,
     Select,
     Table,
+    any_,
+    bindparam,
     delete,
     insert,
+    or_,
     select,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from lnt_v5 import examples
 from lnt_v5.auth import require_scope
@@ -43,13 +48,15 @@ from lnt_v5.querying import (
     Cursor,
     Keyset,
     Limit,
+    Resolved,
     SortKey,
     cursor_page,
     exclusive_range,
     sort_order,
+    uuid_prefix,
 )
 from lnt_v5.responses import CursorPage
-from lnt_v5.routes.commits import Commits
+from lnt_v5.routes.commits import Commits, commit_search
 from lnt_v5.routes.machines import NO_MACHINE_FILTERED, Machines, machine_id, machine_search
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
@@ -208,13 +215,37 @@ class Runs:
         _, descending = sort_order(sort)
         return Keyset(SortKey(self.table.c.submitted_at, descending), tiebreaker=self.table.c.id)
 
-    def search(self, term: str) -> ColumnElement[bool]:
-        """O4's `?search=` for a run list: the machine predicate, applied through the run's machine.
+    def search(self, connection: Connection, term: str) -> Resolved:
+        """O4's `?search=` for a run list: its machine, its commit, or its UUID by prefix.
 
-        Literally the same predicate as `GET /machines?search=`, which is what O4 asks for -- the
-        join `select` already makes is what puts the machine's columns in scope for it.
+        The machine and commit predicates are those of `GET /machines?search=` and
+        `GET /commits?search=`. Under an OR, PostgreSQL can use no index for a subquery, so the
+        list would walk the whole run table whenever fewer runs match than fill a page -- the usual
+        case for a commit or a UUID. It is therefore executed with the ids of the matching machines
+        and commits looked up first, which lets PostgreSQL answer every branch from an index (D5's
+        `(machine_id, submitted_at)` and `commit_id`, and the one on `uuid`).
+
+        That relies on the statement being planned with those ids, which a generic plan would not
+        be: psycopg prepares a statement only once it has run several times on one connection, and
+        forgets it when a transaction is rolled back, which is how this read-only request ends.
         """
-        return machine_search(self.suite, term)
+        machines = select(self._machine.c.id).where(machine_search(self.suite, term))
+        commits = select(self._commit.c.id).where(commit_search(self.suite, term))
+
+        def matching(machine_ids: Any, commit_ids: Any) -> ColumnElement[bool]:
+            return or_(
+                self.table.c.machine_id == any_(machine_ids),
+                self.table.c.commit_id == any_(commit_ids),
+                uuid_prefix(self.table.c.uuid, term),
+            )
+
+        return Resolved(
+            stands_for=matching(machines.scalar_subquery(), commits.scalar_subquery()),
+            executed=matching(
+                bindparam(None, connection.scalars(machines).all(), type_=ARRAY(Integer)),
+                bindparam(None, connection.scalars(commits).all(), type_=ARRAY(Integer)),
+            ),
+        )
 
     def has_profile(self) -> ColumnElement[bool]:
         """Whether this run carries profile data. D5's unique `(run_id, test_id)` indexes it."""
@@ -396,8 +427,9 @@ def list_runs(
         str | None,
         Query(
             description=(
-                "Only return runs whose machine's name, or any of its searchable fields, contains "
-                "this text. Not case-sensitive."
+                "Only return runs whose machine (its name or any searchable field) or commit (its "
+                "value, its tag or any searchable field) contains this text, or whose UUID starts "
+                "with it. Not case-sensitive."
             )
         ),
     ] = None,
@@ -451,8 +483,6 @@ def list_runs(
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         runs = Runs(suite)
         conditions = exclusive_range(runs.table.c.submitted_at, after, before)
-        if search is not None:
-            conditions.append(runs.search(search))
         if machine is not None:
             # By id rather than by the joined name, so the filter lands on the leading column of
             # D5's `(machine_id, submitted_at)` index -- and so an unknown name is I3's 404.
@@ -469,6 +499,7 @@ def list_runs(
             limit,
             cursor,
             runs.read,
+            resolved=None if search is None else runs.search(connection, search),
         )
 
 

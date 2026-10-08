@@ -1,7 +1,7 @@
 """Migrating the tables of existing suites (D6).
 
-The mechanism is tested with stand-in steps, since this build has no real steps yet. The snapshot
-tests check that the real steps and `suites/tables.py` agree.
+The mechanism is tested with stand-in steps, so that its tests do not depend on what the real ones
+do. The snapshot tests check that the real steps and `suites/tables.py` agree.
 """
 
 from __future__ import annotations
@@ -296,9 +296,8 @@ class TestSnapshots:
         """The comparison above, tested end to end on a real change from this codebase's history.
 
         `regression.created_at` and its index were added to `suites/tables.py` after suites already
-        existed. If any had been deployed, they would have needed this step. Until this build has
-        real steps, this test is also what shows that the comparison can tell an old suite from a
-        new one.
+        existed. If any had been deployed, they would have needed this step. It also shows that the
+        comparison can tell an old suite from a new one.
         """
         store_suite(db_engine, reference_schema(), version=0)
         with db_engine.begin() as connection:

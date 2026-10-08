@@ -269,10 +269,10 @@ def _missing(testsuite: str, name: str) -> ApiError:
 def machine_search(suite: Suite, term: str) -> ColumnElement[bool]:
     """O4's machine predicate: the machine's name, or any searchable machine field.
 
-    Here rather than inlined in `Machines.search` because O4 requires `GET /runs?search=` to be
-    *the same* predicate, applied through the run's machine. Takes the suite rather than the table
-    and the field list, so that the two callers cannot pass a matching pair of the wrong ones --
-    sharing `search_condition` alone would still leave each list naming the columns it covers.
+    Here rather than inlined in `Machines.search` because O4 has `GET /runs?search=` apply the same
+    predicate through the run's machine. Takes the suite rather than the table and the field list,
+    so that the two callers cannot pass a matching pair of the wrong ones -- sharing
+    `search_condition` alone would still leave each list naming the columns it covers.
     """
     return search_condition(term, suite.tables.machine, ["name"], suite.schema.machine_fields)
 
