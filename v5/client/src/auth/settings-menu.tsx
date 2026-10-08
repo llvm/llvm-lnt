@@ -119,7 +119,7 @@ function statusText(status: TokenStatus): ReactNode {
         </>
       )
     case 'invalid':
-      return 'This token is not valid: the server does not know it, or it has been revoked.'
+      return 'This token is not valid: it is malformed, unknown to the server, or revoked.'
     case 'failed':
       return `The token could not be checked: ${errorMessage(status.error)}`
   }
