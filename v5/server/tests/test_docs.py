@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from lnt_v5 import examples
 from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.errors import ErrorCode
-from lnt_v5.openapi import OVERVIEW, TAGS
+from lnt_v5.openapi import OVERVIEW, TAGS, _rename_components
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
@@ -177,6 +177,12 @@ class TestOpenApiDocument:
             )
             assert not optional, f"{name} leaves {sorted(optional)} optional"
 
+    def test_every_component_has_a_plain_name(self, client: TestClient) -> None:
+        # Not one of pydantic's: `CursorPage_Run_`, or `Metric-Input` for a model described twice.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert [name for name in schemas if not re.fullmatch(r"[A-Za-z0-9]+", name)] == []
+
     def test_describes_the_error_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
 
@@ -186,6 +192,55 @@ class TestOpenApiDocument:
             "message",
         }
         assert "error" in envelope["properties"]
+
+
+class TestComponentRenaming:
+    """How pydantic's component names are replaced, including for models the API has none of yet."""
+
+    @staticmethod
+    def renamed(*names: str) -> dict[str, Any]:
+        """`names` as `_rename_components` renames them, each referenced by a response."""
+        document: dict[str, Any] = {
+            "paths": {
+                f"/{i}": {"get": {"responses": {"200": {"$ref": f"#/components/schemas/{name}"}}}}
+                for i, name in enumerate(names)
+            },
+            "components": {"schemas": {name: {"type": "object"} for name in names}},
+        }
+        _rename_components(document)
+        return document
+
+    def test_names_both_forms_of_a_model_described_twice(self) -> None:
+        document = self.renamed("Metric-Input", "Metric-Output")
+
+        assert set(document["components"]["schemas"]) == {"Metric", "MetricInput"}
+
+    def test_names_both_forms_of_an_envelope_described_twice(self) -> None:
+        document = self.renamed("CursorPage_Run_-Input", "CursorPage_Run_-Output")
+        schemas = document["components"]["schemas"]
+
+        assert set(schemas) == {"RunCursorPage", "RunCursorPageInput"}
+        assert schemas["RunCursorPage"]["title"] == "RunCursorPage"
+        assert schemas["RunCursorPage"]["description"].startswith("One page of results.")
+        references = [
+            path["get"]["responses"]["200"]["$ref"] for path in document["paths"].values()
+        ]
+        assert references == [
+            "#/components/schemas/RunCursorPageInput",
+            "#/components/schemas/RunCursorPage",
+        ]
+
+    @pytest.mark.parametrize(
+        "name",
+        ["Page_Run_", "Page_Run_-Output", "Items_dict_str__Run__", "Items_dict_str__Run__-Input"],
+    )
+    def test_refuses_a_name_it_cannot_make_plain(self, name: str) -> None:
+        with pytest.raises(RuntimeError, match="No plain name"):
+            self.renamed(name)
+
+    def test_refuses_two_components_of_the_same_name(self) -> None:
+        with pytest.raises(RuntimeError, match="RunList"):
+            self.renamed("Items_Run_", "Items_Run_-Output")
 
 
 class TestDocumentedAuthentication:

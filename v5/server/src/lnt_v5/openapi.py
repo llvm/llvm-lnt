@@ -238,7 +238,27 @@ _ENVELOPES = {
 
 # A model whose request and response forms differ -- one with defaults, which a request may leave
 # out and a response always has -- is described twice, as `{name}-Input` and `{name}-Output`.
-_VARIANT = re.compile(r"([A-Za-z0-9]+)-(Input|Output)")
+# `{name}` is any component name, including an envelope's (`CursorPage_Run_-Output`) when what it
+# holds is described twice.
+_VARIANT = re.compile(r"(.+)-(Input|Output)")
+
+_PLAIN = re.compile(r"[A-Za-z0-9]+")
+
+
+def _plain_name(name: str) -> tuple[str, str | None]:
+    """The plain name of the component pydantic calls `name`, and its description if it needs one.
+
+    Raises if there is none, rather than publish a name of pydantic's making.
+    """
+    base, variant = (match[1], match[2]) if (match := _VARIANT.fullmatch(name)) else (name, None)
+    description = None
+    if (match := _ENVELOPE.fullmatch(base)) is not None:
+        pattern, description = _ENVELOPES[match[1]]
+        base = pattern.format(match[2])
+    plain = f"{base}Input" if variant == "Input" else base
+    if _PLAIN.fullmatch(plain) is None:
+        raise RuntimeError(f"No plain name for component {name!r}")
+    return plain, description
 
 
 def _rename_components(document: dict[str, Any]) -> None:
@@ -252,14 +272,13 @@ def _rename_components(document: dict[str, Any]) -> None:
     schemas = document.get("components", {}).get("schemas", {})
     renames: dict[str, tuple[str, str | None]] = {}
     for name in schemas:
-        if (match := _ENVELOPE.fullmatch(name)) is not None:
-            pattern, summary = _ENVELOPES[match[1]]
-            renames[name] = (pattern.format(match[2]), summary)
-        elif (match := _VARIANT.fullmatch(name)) is not None:
-            renames[name] = (match[1] if match[2] == "Output" else f"{match[1]}Input", None)
-    clashes = {new for new, _ in renames.values()} & set(schemas)
+        new, description = _plain_name(name)
+        if new != name:
+            renames[name] = (new, description)
+    new_names = [new for new, _ in renames.values()]
+    clashes = set(new_names) & set(schemas) | {new for new in new_names if new_names.count(new) > 1}
     if clashes:
-        raise RuntimeError(f"Renamed components would replace existing schemas: {sorted(clashes)}")
+        raise RuntimeError(f"Renamed components would replace other schemas: {sorted(clashes)}")
 
     for old, (new, description) in renames.items():
         schema = schemas.pop(old)
