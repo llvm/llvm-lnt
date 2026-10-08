@@ -36,6 +36,9 @@ export function createQueryClient(): QueryClient {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
       },
+      // A write is never resent on its own, not even after I4's `retry`, which says resending is
+      // safe: the page reports the failure and the user decides. In particular, a schema change
+      // that destroys data must not go out again behind their back.
       mutations: { retry: false },
     },
   })
