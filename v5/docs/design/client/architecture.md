@@ -153,9 +153,10 @@ with the check below.
 The navigation bar includes a Settings panel with a Bearer token input. The
 token is checked through `GET /api/auth` (see E12) when it is entered and
 whenever the SPA loads: the panel shows the name and scope of the key it
-belongs to, that it is not valid (a 401), or that the check failed (any other
-error), which it offers to retry. It can also clear the token. Until a check
-succeeds, the SPA behaves as if no token were set.
+belongs to, that it is not valid (the API refuses it with a 401, or it cannot be
+sent at all), or that the check failed (any other error), which it offers to
+retry. It can also clear the token. Until a check succeeds, the SPA behaves as
+if no token were set.
 
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
