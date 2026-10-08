@@ -144,6 +144,39 @@ class TestOpenApiDocument:
             for key, property in schemas[name]["properties"].items():
                 assert "default" not in property, f"{name}.{key} publishes a default"
 
+    def test_a_response_always_has_every_key_it_documents(self, client: TestClient) -> None:
+        # I4: every key an endpoint documents is always present in its responses. So no property
+        # of a schema a response can reach may be optional, or generated clients would have to
+        # handle a missing key that never is. Request schemas are unaffected: a key with a default
+        # stays optional there, which is why a model may be described twice.
+        document = client.get("/api/openapi.json").json()
+        schemas = document["components"]["schemas"]
+        reachable: set[str] = set()
+
+        def visit(node: Any) -> None:
+            if isinstance(node, dict):
+                reference = node.get("$ref")
+                if isinstance(reference, str):
+                    name = reference.rsplit("/", 1)[-1]
+                    if name not in reachable:
+                        reachable.add(name)
+                        visit(schemas[name])
+                for value in node.values():
+                    visit(value)
+            elif isinstance(node, list):
+                for value in node:
+                    visit(value)
+
+        for _, schema in _responses(document):
+            visit(schema)
+
+        assert reachable, "no response references a component"
+        for name in sorted(reachable):
+            optional = set(schemas[name].get("properties", {})) - set(
+                schemas[name].get("required", [])
+            )
+            assert not optional, f"{name} leaves {sorted(optional)} optional"
+
     def test_describes_the_error_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
 
@@ -270,20 +303,41 @@ class TestSuiteOperations:
             names = {p["name"] for p in paths[path][method].get("parameters", [])}
             assert "confirm" in names, f"{method.upper()} {path} does not document ?confirm="
 
-    def test_creating_and_reading_a_suite_share_one_schema(self, client: TestClient) -> None:
-        """The machine-checkable form of "postable verbatim to another instance".
+    def test_creating_and_reading_a_suite_describe_one_document(self, client: TestClient) -> None:
+        """The machine-checkable form of "postable verbatim to another instance" (E10).
 
-        If the request body and the detail response ever referenced different components, a
-        generated client could not feed one to the other -- which is the whole property endpoints.md
-        rests on.
+        The response is described apart from the request only because it always has the keys a
+        request may leave out (D4's normalization, I4). Otherwise the two must describe the same
+        document, so that a generated client can feed one to the other: the same keys with the
+        same values all the way down, and nothing the request requires that the response may lack.
         """
-        paths = client.get("/api/openapi.json").json()["paths"]
-        posted = paths["/api/suites"]["post"]["requestBody"]["content"]["application/json"]
-        returned = paths["/api/suites/{name}"]["get"]["responses"]["200"]["content"][
+        document = client.get("/api/openapi.json").json()
+        schemas = document["components"]["schemas"]
+        posted = document["paths"][SUITES_PATH]["post"]["requestBody"]["content"][
             "application/json"
-        ]
+        ]["schema"]
+        returned = document["paths"][f"{SUITES_PATH}/{{name}}"]["get"]["responses"]["200"][
+            "content"
+        ]["application/json"]["schema"]
 
-        assert posted["schema"] == returned["schema"]
+        def resolve(schema: dict[str, Any]) -> dict[str, Any]:
+            reference = schema.get("$ref")
+            return schemas[reference.rsplit("/", 1)[-1]] if reference else schema
+
+        def same_document(request: dict[str, Any], response: dict[str, Any]) -> None:
+            request, response = resolve(request), resolve(response)
+            assert set(request.get("required", [])) <= set(response.get("required", []))
+            assert set(request.get("properties", {})) == set(response.get("properties", {}))
+            for key, property in request.get("properties", {}).items():
+                same_document(property, response["properties"][key])
+            if "items" in request:
+                same_document(request["items"], response["items"])
+            ignored = {"properties", "items", "required", "title", "examples"}
+            assert {k: v for k, v in request.items() if k not in ignored} == {
+                k: v for k, v in response.items() if k not in ignored
+            }
+
+        same_document(posted, returned)
 
     def test_no_update_entry_accepts_a_type(self, client: TestClient) -> None:
         # D2 forbids changing a type in place, so the document must not advertise the key. Declaring

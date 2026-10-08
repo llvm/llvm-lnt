@@ -57,16 +57,39 @@ npm run create-key -- --name bot --scope submit   # anything else
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.
 Paste the token into the web UI's Settings panel to use it from the browser.
 
+### Seed data
+
+With `npm run dev` running, populate the dev database through the REST API:
+
+```sh
+npm run seed                                      # against http://localhost:3000
+npm run seed -- --token <token>                   # with a token of your own
+```
+
+This creates the `libcxx` and `nts` suites with their real runs from `server/tests/data`, and a
+synthetic libcxx history on top: 40 more ordered commits on the real machines, with noise, a few
+step changes, and regressions in every state that describe them. It also adds an untracked machine,
+a tagged commit, an A/B experiment commit with no ordinal, and runs carrying profiles. The data is
+the same on every run; `tools/synthetic.ts` describes it. Seeding takes a few seconds.
+
+It needs a token with `manage` scope: `--token`, or `$LNT_SEED_TOKEN`. Without either, it creates
+an admin key named `seed` for the database in `.env`, but only when seeding the dev server at its
+default URL; any other `--url` needs a token. It never modifies what exists: a suite that is
+already there is skipped whole, so running it again is safe and does nothing. To seed a suite
+again, delete it first, with `DELETE /api/suites/{name}?confirm=true`. If seeding fails partway, it
+says which suite it left incomplete, and so needs deleting.
+
 ### Testing and building
 
 ```sh
-npm run check             # lint + typecheck + test
+npm run check             # API types up to date + lint + typecheck + test
 npm test                  # both test suites
 npm run lint
 npm run typecheck
 npm run format            # autoformat the Python sources
 npm run build             # build the client bundle the server serves
 npm run test:integration  # builds the Docker image and exercises it end to end
+npm run test:e2e          # builds the client and drives it in a browser against the real server
 ```
 
 Individual halves are available as `:client` / `:server` variants, e.g. `npm run test:server`.
@@ -77,6 +100,59 @@ The integration tests are what CI runs against the image; they need Docker, but 
 their own database.
 
 Stop the local database with `npm run db:down` when you're done.
+
+### End-to-end tests
+
+`npm run test:e2e` tests the whole stack in a browser, with [Playwright](https://playwright.dev).
+It builds the client, then creates a throwaway database on the Postgres from `npm run db:up`,
+migrates it, starts the server on port 3200 (`E2E_PORT` to change it) serving that build, creates
+an admin key, and seeds the database as `npm run seed` does. It drops the database and stops the
+server when the tests are done. Install the browser they use once, with
+`npx playwright install chromium`; `npm run screenshot` (below) needs it too.
+
+Tests live in `e2e/` and import `test` and `expect` from `e2e/fixtures.ts` rather than from
+Playwright. Its `tokenFor(scope)` fixture returns the token of a new key with that scope. All tests
+share the seeded database, several at a time: a test that writes creates entities of its own, with
+unique names, and leaves the seeded ones alone. A failing test keeps a trace, a screenshot, and the
+server's log while it ran, in `e2e/test-results`; open the report with
+`npx playwright show-report e2e/playwright-report`. The whole server log is in `e2e/server.log`.
+
+### Screenshots
+
+To look at a page without a browser, take a screenshot of it on a running server:
+
+```sh
+npm run dev                                       # in one terminal
+npm run seed                                      # once, in another
+npm run screenshot -- /suites/libcxx --out /tmp/suites.png
+npm run screenshot -- '/graph?suite=libcxx' --width 1600 --height 1000 --full-page
+```
+
+The page is captured once the network is idle; `--wait-for <selector>` also waits for an element.
+`--url` points it at another server than the Vite one (http://localhost:5173), such as the
+production build on port 3000. Errors the page logs are printed. It writes `/tmp/lnt-screenshot.png`
+unless given `--out`, and prints the path.
+
+### API types
+
+The client's types for the REST API, `client/src/api/schema.d.ts`, are generated from the server's
+OpenAPI document and checked in. Regenerate them whenever a server change alters the document:
+
+```sh
+npm run generate:api      # rewrite client/src/api/schema.d.ts
+npm run check:api         # fail if it is out of date (part of `npm run check`, and of CI)
+```
+
+Both need uv but no database: the document comes from `lnt-v5 server openapi`, which prints it
+without any configuration. `--default-non-nullable=false` keeps keys that have a default optional
+in request types, so that a request need not send `limit`, `state` or `tracked`; responses already
+list every key they always send as required. The `typescript` override in `package.json` exists
+because `openapi-typescript` still declares a peer dependency on TypeScript 5, though it works with
+the TypeScript 6 the client uses.
+
+The client's tests run against [MSW](https://mswjs.io), which intercepts their requests. A request
+no handler matches fails the test that made it, even if the code under test handled the failure.
+`client/src/test/mock-api.ts` builds handlers typed by the same generated schema.
 
 ### Docker
 

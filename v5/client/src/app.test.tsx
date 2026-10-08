@@ -1,14 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { MemoryRouter } from 'react-router'
 import App from './app'
+import { renderWithProviders } from './test/render'
 
-function renderAt(path: string) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
-  )
+function renderAt(url: string) {
+  return renderWithProviders(<App />, { url })
 }
 
 describe('navbar', () => {
@@ -46,15 +42,16 @@ describe('routing', () => {
     ['/compare', 'Compare'],
     ['/profiles', 'Profiles'],
     ['/admin', 'Admin'],
-  ])('renders %s as the %s page', (path, heading) => {
+  ])('renders %s as the %s page', async (path, heading) => {
     renderAt(path)
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading)
+    // Pages are loaded on first use (AR2), so the heading arrives after the first render.
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(heading)
   })
 
-  it('falls back to a not-found page for an unknown route', () => {
+  it('falls back to a not-found page for an unknown route', async () => {
     renderAt('/nope')
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Page not found')
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Page not found')
   })
 })

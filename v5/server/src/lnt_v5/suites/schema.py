@@ -86,9 +86,12 @@ class Entry(BaseModel):
     `extra="forbid"` is doing real work here, not just tidiness: it is what makes the presentation
     keys per-list. A `bigger_is_better` on a machine field, or a `display` on a metric, means
     nothing, and accepting it silently would leave the author believing it had an effect.
+
+    A key with a default is optional in a request but always present in a response (D4's
+    normalization, I4), so the document describes the two separately.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_serialization_defaults_required=True)
 
     # The per-suite tables this entry adds a column to, each with the columns it already has (D5).
     # A declared name may not collide with any of those. Each subclass names its own; the validator
@@ -268,7 +271,10 @@ class SuiteSchema(BaseModel):
     """
 
     model_config = ConfigDict(
-        extra="forbid", json_schema_extra={"examples": [examples.SUITE_SCHEMA]}
+        extra="forbid",
+        # As for `Entry`: the lists are optional in a request, and always present in a response.
+        json_schema_serialization_defaults_required=True,
+        json_schema_extra={"examples": [examples.SUITE_SCHEMA]},
     )
 
     name: Name = Field(

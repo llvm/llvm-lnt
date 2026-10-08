@@ -1,6 +1,7 @@
 {
   "name": "lnt-v5",
   "private": true,
+  "type": "module",
   "workspaces": [
     "client"
   ],
@@ -13,21 +14,39 @@
     "test:client": "npm run test -w client",
     "test:server": "cd server && uv run pytest -n auto --maxprocesses=8 --durations=20",
     "test:integration": "integration-tests/run.sh",
-    "lint": "npm run lint:client && npm run lint:server",
+    "test:e2e": "npm run build && playwright test --config e2e/playwright.config.ts",
+    "lint": "npm run lint:client && npm run lint:tools && npm run lint:server",
     "lint:client": "npm run lint -w client",
+    "lint:tools": "eslint tools e2e",
     "lint:server": "cd server && uv run ruff check . && uv run ruff format --check .",
-    "typecheck": "npm run typecheck:client && npm run typecheck:server",
+    "typecheck": "npm run typecheck:client && npm run typecheck:tools && npm run typecheck:server",
     "typecheck:client": "npm run typecheck -w client",
+    "typecheck:tools": "tsc -p tsconfig.json",
     "typecheck:server": "cd server && uv run mypy .",
     "format": "cd server && uv run ruff format . && uv run ruff check --fix .",
-    "check": "npm run lint && npm run typecheck && npm test",
+    "generate:api": "npm run generate:api -w client",
+    "check:api": "npm run check:api -w client",
+    "check": "npm run check:api && npm run lint && npm run typecheck && npm test",
     "install:server": "cd server && uv sync",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "uv run --project server --env-file .env lnt-v5 server migrate",
-    "create-key": "uv run --project server --env-file .env lnt-v5 server create-key --name dev --scope admin"
+    "create-key": "uv run --project server --env-file .env lnt-v5 server create-key --name dev --scope admin",
+    "seed": "node tools/seed.ts",
+    "screenshot": "node tools/screenshot.ts"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^24.19.1",
+    "concurrently": "^10.0.5",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "openapi-fetch": "^0.17.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.71.1"
+  },
+  "overrides": {
+    "typescript": "~6.0.2"
   }
 }

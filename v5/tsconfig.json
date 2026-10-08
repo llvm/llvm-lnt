@@ -1,0 +1,21 @@
+{
+  // The dev tools and the end-to-end tests, run by Node and by Playwright as they are, without a
+  // build step: so only syntax that both can strip, and imports spelled with their `.ts` extension.
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["ES2024", "DOM"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["tools", "e2e"]
+}

@@ -1,48 +1,36 @@
+import { lazy } from 'react'
 import { Route, Routes } from 'react-router'
 import { Layout } from './layout'
-import { Placeholder } from './pages/placeholder'
 import { NotFound } from './pages/not-found'
 
-// The route table contains placeholder entries for now.
+// One chunk per page, fetched the first time the page is visited (AR2 "Code splitting").
+const Dashboard = lazy(() => import('./pages/dashboard'))
+const TestSuites = lazy(() => import('./pages/test-suites'))
+const MachineDetail = lazy(() => import('./pages/machine-detail'))
+const RunDetail = lazy(() => import('./pages/run-detail'))
+const CommitDetail = lazy(() => import('./pages/commit-detail'))
+const RegressionDetail = lazy(() => import('./pages/regression-detail'))
+const Graph = lazy(() => import('./pages/graph'))
+const Compare = lazy(() => import('./pages/compare'))
+const Profiles = lazy(() => import('./pages/profiles'))
+const Admin = lazy(() => import('./pages/admin'))
+
+// The page hierarchy of AR3.
 function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Placeholder title="Dashboard" doc="design/client/dashboard.md" />} />
-        <Route
-          path="suites"
-          element={<Placeholder title="Test Suites" doc="design/client/test-suites.md" />}
-        />
-        <Route
-          path="suites/:suite"
-          element={<Placeholder title="Test Suites" doc="design/client/test-suites.md" />}
-        />
-        <Route
-          path="suites/:suite/machines/:name"
-          element={<Placeholder title="Machine Detail" doc="design/client/details.md" />}
-        />
-        <Route
-          path="suites/:suite/runs/:uuid"
-          element={<Placeholder title="Run Detail" doc="design/client/details.md" />}
-        />
-        <Route
-          path="suites/:suite/commits/:value"
-          element={<Placeholder title="Commit Detail" doc="design/client/details.md" />}
-        />
-        <Route
-          path="suites/:suite/regressions/:uuid"
-          element={<Placeholder title="Regression Detail" doc="design/client/details.md" />}
-        />
-        <Route path="graph" element={<Placeholder title="Graph" doc="design/client/graph.md" />} />
-        <Route
-          path="compare"
-          element={<Placeholder title="Compare" doc="design/client/compare.md" />}
-        />
-        <Route
-          path="profiles"
-          element={<Placeholder title="Profiles" doc="design/client/profiles.md" />}
-        />
-        <Route path="admin" element={<Placeholder title="Admin" doc="design/client/admin.md" />} />
+        <Route index element={<Dashboard />} />
+        <Route path="suites" element={<TestSuites />} />
+        <Route path="suites/:suite" element={<TestSuites />} />
+        <Route path="suites/:suite/machines/:name" element={<MachineDetail />} />
+        <Route path="suites/:suite/runs/:uuid" element={<RunDetail />} />
+        <Route path="suites/:suite/commits/:value" element={<CommitDetail />} />
+        <Route path="suites/:suite/regressions/:uuid" element={<RegressionDetail />} />
+        <Route path="graph" element={<Graph />} />
+        <Route path="compare" element={<Compare />} />
+        <Route path="profiles" element={<Profiles />} />
+        <Route path="admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

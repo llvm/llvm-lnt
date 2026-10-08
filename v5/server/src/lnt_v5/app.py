@@ -6,6 +6,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from starlette.middleware.body_limit import RequestBodyLimitMiddleware
@@ -66,8 +67,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     _configure_logging()
 
+    client_dist = Path(settings.client_dist) if settings.client_dist else _default_client_dist()
+    # StaticFiles already models "no directory" as serving nothing, which is exactly the specified
+    # behaviour for an unbuilt client.
+    directory = str(client_dist) if client_dist.is_dir() else None
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # Warned about here rather than when the app is built, which also happens when only the
+        # API document is wanted (see `openapi_document`).
+        if directory is None:
+            logger.warning(
+                "Client bundle not found at %s; only API routes will be served", client_dist
+            )
         app.state.engine = make_engine(settings)
         try:
             yield
@@ -126,14 +138,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(regressions_router)
     app.include_router(timeseries_router)
 
-    client_dist = Path(settings.client_dist) if settings.client_dist else _default_client_dist()
-    if client_dist.is_dir():
-        directory: str | None = str(client_dist)
-    else:
-        # StaticFiles already models "no directory" as serving nothing, which is exactly the
-        # specified behaviour for an unbuilt client.
-        logger.warning("Client bundle not found at %s; only API routes will be served", client_dist)
-        directory = None
     app.mount("/", SpaStaticFiles(directory=directory), name="spa")
 
     return app
+
+
+def openapi_document() -> dict[str, Any]:
+    """The OpenAPI document this build serves, without any configuration or database.
+
+    The client generates its API types from this, so it must not depend on the environment it is
+    produced in. Nothing that shapes the document reads the settings, and the database is only
+    reached once the lifespan runs, which it never does here: unvalidated defaults are enough.
+    """
+    return create_app(Settings.model_construct()).openapi()

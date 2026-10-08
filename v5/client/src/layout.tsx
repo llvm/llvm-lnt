@@ -1,7 +1,12 @@
-import { NavLink, Outlet } from 'react-router'
+import { Suspense } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router'
+import { Loading } from './components/feedback'
+import { PageErrorBoundary } from './components/page-error-boundary'
 import './layout.css'
 
 export function Layout() {
+  // Every navigation recovers a page that failed, including one to the same URL.
+  const { key } = useLocation()
   return (
     <div className="layout">
       <nav className="navbar">
@@ -27,7 +32,11 @@ export function Layout() {
         </div>
       </nav>
       <main className="page">
-        <Outlet />
+        <PageErrorBoundary resetKey={key}>
+          <Suspense fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
+        </PageErrorBoundary>
       </main>
     </div>
   )
