@@ -1352,6 +1352,26 @@ class TestListSearch:
 
         assert self.found(api_client, term) == expected
 
+    @pytest.mark.parametrize("term", ["r555", "a", "-"])
+    def test_matches_the_same_when_too_many_commits_or_machines_match_to_look_up(
+        self, api_client: TestClient, monkeypatch: pytest.MonkeyPatch, term: str
+    ) -> None:
+        expected = self.found(api_client, term)
+        monkeypatch.setattr("lnt_v5.routes.runs._MAX_RESOLVED", 1)
+
+        assert self.found(api_client, term) == expected
+
+    def test_keeps_its_cursor_whichever_way_the_search_is_executed(
+        self, api_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        first = listed(api_client, self.AT_RELEASE).json()
+        monkeypatch.setattr("lnt_v5.routes.runs._MAX_RESOLVED", 0)
+
+        response = listed(api_client, f"{self.AT_RELEASE}&cursor={first['cursor']['next']}")
+
+        assert response.status_code == 200, response.text
+        assert uuids_in(response) == [self.LINUX]
+
     def test_combines_with_the_other_filters(self, api_client: TestClient) -> None:
         assert self.found(api_client, "r555703", "machine=darwin-arm64") == {self.DARWIN_AT_RELEASE}
 

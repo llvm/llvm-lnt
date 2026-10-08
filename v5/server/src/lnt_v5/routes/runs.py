@@ -82,6 +82,9 @@ router = APIRouter(prefix=RUNS_PATH, tags=["Runs"])
 # enumerates them and an unknown one is a 400 before the endpoint runs.
 RunSort = Literal["submitted_at", "-submitted_at"]
 
+# How many machines or commits a run search looks up the ids of (see `Runs.search`).
+_MAX_RESOLVED = 10_000
+
 # What `after=` and `before=` both tell a client about the timestamp they take.
 _TIMESTAMP = (
     "An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone "
@@ -228,6 +231,10 @@ class Runs:
         That relies on the statement being planned with those ids, which a generic plan would not
         be: psycopg prepares a statement only once it has run several times on one connection, and
         forgets it when a transaction is rolled back, which is how this read-only request ends.
+
+        A term that matches more than `_MAX_RESOLVED` machines or commits (a character or two, as
+        typed) is executed as it stands instead, rather than with an array of most of the table's
+        ids: so many runs then match that walking them in order fills a page at once.
         """
         machines = select(self._machine.c.id).where(machine_search(self.suite, term))
         commits = select(self._commit.c.id).where(commit_search(self.suite, term))
@@ -239,11 +246,16 @@ class Runs:
                 uuid_prefix(self.table.c.uuid, term),
             )
 
+        stands_for = matching(machines.scalar_subquery(), commits.scalar_subquery())
+        machine_ids = connection.scalars(machines.limit(_MAX_RESOLVED + 1)).all()
+        commit_ids = connection.scalars(commits.limit(_MAX_RESOLVED + 1)).all()
+        if max(len(machine_ids), len(commit_ids)) > _MAX_RESOLVED:
+            return Resolved(stands_for=stands_for, executed=stands_for)
         return Resolved(
-            stands_for=matching(machines.scalar_subquery(), commits.scalar_subquery()),
+            stands_for=stands_for,
             executed=matching(
-                bindparam(None, connection.scalars(machines).all(), type_=ARRAY(Integer)),
-                bindparam(None, connection.scalars(commits).all(), type_=ARRAY(Integer)),
+                bindparam(None, machine_ids, type_=ARRAY(Integer)),
+                bindparam(None, commit_ids, type_=ARRAY(Integer)),
             ),
         )
 
@@ -499,7 +511,8 @@ def list_runs(
             limit,
             cursor,
             runs.read,
-            resolved=None if search is None else runs.search(connection, search),
+            # An empty term matches every run (O4), so it filters nothing.
+            resolved=runs.search(connection, search) if search else None,
         )
 
 
