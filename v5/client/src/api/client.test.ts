@@ -1,5 +1,5 @@
 import { HttpResponse, http } from 'msw'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ApiError, api, authedApi, setCredentials, unwrap, type Schemas } from './client'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { server } from '../test/server'
@@ -166,8 +166,6 @@ describe('aborting', () => {
 })
 
 describe('credentials', () => {
-  afterEach(() => setCredentials({ token: () => null, rejected: () => {} }))
-
   /** Credentials holding `token`, recording the tokens reported as rejected. */
   function holding(token: string | null): { rejected: string[] } {
     const counts = { rejected: [] as string[] }

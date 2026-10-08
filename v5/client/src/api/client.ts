@@ -82,7 +82,10 @@ export interface Credentials {
   rejected(token: string): void
 }
 
-let credentials: Credentials = { token: () => null, rejected: () => {} }
+/** What `authedApi` has until the auth module provides better: no token at all. */
+export const NO_CREDENTIALS: Credentials = { token: () => null, rejected: () => {} }
+
+let credentials = NO_CREDENTIALS
 
 export function setCredentials(source: Credentials): void {
   credentials = source
