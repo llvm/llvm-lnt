@@ -183,6 +183,17 @@ def _print_openapi() -> int:
     return 0
 
 
+def _port(value: str) -> int:
+    """Read `--port`. Raising here makes a bad port a usage error, like any other bad argument."""
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a port number: {value!r}") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, not {port}")
+    return port
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lnt-v5", description="Administer an LNT v5 instance.")
     groups = parser.add_subparsers(dest="group", required=True, metavar="GROUP")
@@ -191,7 +202,9 @@ def _build_parser() -> argparse.ArgumentParser:
     commands = server.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     run = commands.add_parser("run", help="serve the API and web UI")
-    run.add_argument("--port", type=int, default=PORT, help=f"port to listen on (default: {PORT})")
+    run.add_argument(
+        "--port", type=_port, default=PORT, help=f"port to listen on (default: {PORT})"
+    )
     commands.add_parser("dev", help="serve with autoreload, for development")
     commands.add_parser("migrate", help="bring the database up to date")
     commands.add_parser("openapi", help="print the OpenAPI document of this build's API")
