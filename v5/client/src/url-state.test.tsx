@@ -138,6 +138,23 @@ describe('useUrlState', () => {
     expect(result.current.url).toBe('/suites/nts?search=x')
   })
 
+  it('does not navigate for a change that leaves the URL as it is', () => {
+    const { result } = renderHook(
+      () => {
+        const [, setState] = useUrlState(PARAMS)
+        return { setState, location: useLocation() }
+      },
+      providers({ url: '/graph?metric=a&machine=m' }),
+    )
+    const { key } = result.current.location
+
+    act(() => result.current.setState({ metric: 'a', agg: 'median' }))
+    act(() => result.current.setState({ machine: ['m'] }))
+    act(() => result.current.setState({}))
+
+    expect(result.current.location.key).toBe(key)
+  })
+
   it('ignores a change made after the path changed', () => {
     const result = renderSettings('/suites/nts')
     const stale = result.current.setState
@@ -219,6 +236,38 @@ describe('useDropUnusable', () => {
 
     await waitFor(() => expect(result.current.suites.isError).toBe(true))
     expect(result.current.url).toBe('/graph?suite=gone')
+  })
+
+  it('settles when the check also rejects the default', async () => {
+    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: [suite('nts')] })))
+    // Should it not settle, the drops stop after a while, so that the test fails rather than hangs.
+    let drops = 0
+    let renders = 0
+    const { result } = renderHook(() => {
+      renders++
+      const [{ suite }, set] = useUrlState(SUITE_PARAMS)
+      const suites = useQuery({
+        queryKey: ['suites'],
+        queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
+      })
+      // Wrong for the default, '', which no suite is named: `drop` is called on every render.
+      useDropUnusable(
+        suites,
+        (data) => data.items.some((s) => s.name === suite),
+        () => drops++ < 100 && set({ suite: '' }),
+      )
+      return { suites, location: useLocation() }
+    }, providers({ url: '/graph?suite=gone' }))
+
+    await waitFor(() => expect(result.current.suites.isSuccess).toBe(true))
+    await waitFor(() => expect(result.current.location.search).toBe(''))
+    const { key } = result.current.location
+    const settled = renders
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
+
+    expect(result.current.location.key).toBe(key)
+    expect(renders).toBe(settled)
+    expect(renders).toBeLessThan(20)
   })
 
   it('drops nothing on placeholder data', () => {

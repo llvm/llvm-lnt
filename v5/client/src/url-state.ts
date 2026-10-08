@@ -125,12 +125,20 @@ export function useUrlState<P extends Params>(
       if (current.pathname !== pathname) return
 
       const search = new URLSearchParams(current.search)
+      let changed = false
       for (const [key, value] of Object.entries(changes)) {
         const param = params[key]
         if (param === undefined || value === undefined) continue
+        const items = canonical(param, value)
+        if (sameValues(search.getAll(key), items)) continue
+        changed = true
         search.delete(key)
-        for (const item of canonical(param, value)) search.append(key, item)
+        for (const item of items) search.append(key, item)
       }
+      // A change that leaves the URL as it is must not navigate: each navigation is a new location
+      // that renders the page again, so a caller writing on every render (`useDropUnusable`, with a
+      // check that rejects the default too) would never settle.
+      if (!changed) return
       const next = search.toString()
       pendingRef.current = { ...current, search: next ? `?${next}` : '' }
       navigate(
