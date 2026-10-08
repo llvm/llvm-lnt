@@ -22,10 +22,10 @@ path and params to restore state. On changes, updates the URL.
 
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
-| Runs | Run list with cursor pagination, most recent first | `GET runs?search=...&sort=-submitted_at&limit=25` | Substring match on machine name and searchable machine fields |
+| Runs | Run list with cursor pagination, most recent first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
 | Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
-| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title search |
+| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
 
 ## TS2: Runs tab
 
@@ -45,8 +45,8 @@ etc...
 - `Commit` is a link to the commit detail page.
 - `Submitted` is the submission timestamp for that run
 
-Above the table, a search box showing "Filter by machine name...". It allows substring
-matching on machine name and searchable machine fields.
+Above the table, a search box showing "Search". It finds runs by their machine, their commit
+or a prefix of their UUID (see O4).
 
 ## TS3: Machines tab
 
@@ -108,7 +108,8 @@ Suites page.
 - "No commit set": checkbox. When checked, only regressions without a commit
   are shown (`has_commit=false`); when unchecked, regressions are shown whether
   or not they have one.
-- Free-text search on title: server-side `search=` (see AR2)
+- Free-text search on the title or a UUID prefix: server-side `search=` (see
+  AR2 and O4)
 
 **Actions** (each requires `triage` scope):
 - "New Regression" button -> toggles an inline create form with title, bug,

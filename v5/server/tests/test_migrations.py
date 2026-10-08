@@ -130,8 +130,8 @@ class TestUpgrade:
             config.attributes["connection"] = connection
             command.upgrade(config, "0001")
             connection.execute(text("INSERT INTO schema (name, schema_json) VALUES ('nts', '{}')"))
-
-        upgrade_to_head(empty_engine)
+            # The global tables only: the suite above is a placeholder, with no tables to migrate.
+            command.upgrade(config, "0002")
 
         with empty_engine.connect() as connection:
             assert (

@@ -118,7 +118,7 @@ describes them (see I8).
 
 Common filters include:
 - `machine=`, `test=`, `metric=`
-- `search=`: case-insensitive substring match (see O4)
+- `search=`: case-insensitive text search (see O4)
 - `after=`, `before=`: exclusive bounds on submission time. A bound on another
   dimension is named after it (`after_commit` on
   `GET /api/suites/{testsuite}/commits`), and so is the time bound of an

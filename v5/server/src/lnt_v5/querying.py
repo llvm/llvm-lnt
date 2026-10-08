@@ -109,13 +109,12 @@ def search_condition(
     identity: Sequence[str],
     entries: Sequence[CommitField | MachineField] = (),
 ) -> ColumnElement[bool]:
-    """O4's `?search=`: a case-insensitive substring match with OR semantics.
+    """O4's `?search=` on one table: a case-insensitive substring match with OR semantics.
 
-    One function for all five of O4's cases, because they differ only in which columns they cover:
-    an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's `commit`
-    and `tag`, a test's `name`, a regression's `title`) plus every declared entry marked
-    `searchable`. Stating that rule once is what keeps the machine and run list endpoints,
-    which O4 requires to share a predicate, from drifting apart.
+    One function for every substring match of O4, because they differ only in which columns they
+    cover: an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's
+    `commit` and `tag`, a test's `name`, a regression's `title`) plus every declared entry marked
+    `searchable`. A UUID is matched by prefix instead, with `uuid_prefix`.
 
     `autoescape` is doing real work: without it the `%` and `_` in the caller's term would be LIKE
     wildcards, so a search for `100%` would match every row and one for `a_b` would match `axb`.
@@ -123,6 +122,14 @@ def search_condition(
     columns: list[ColumnElement[Any]] = [table.c[name] for name in identity]
     columns += [table.c[entry.name] for entry in entries if entry.searchable]
     return or_(*(column.icontains(term, autoescape=True) for column in columns))
+
+
+def uuid_prefix(column: Column[Any], term: str) -> ColumnElement[bool]:
+    """O4's match on a UUID: whether it starts with `term`, ignoring case.
+
+    UUIDs are stored in lowercase (O1), so lowercasing the term is all it takes to ignore case.
+    """
+    return column.startswith(term.lower(), autoescape=True)
 
 
 def reject_unknown_query_parameters(request: Request) -> None:
@@ -325,6 +332,14 @@ class Keyset:
             ) from error
 
 
+@dataclass(frozen=True)
+class Resolved:
+    """A list's filter, and an equivalent one that the list executes instead (see `cursor_page`)."""
+
+    stands_for: ColumnElement[bool]
+    executed: ColumnElement[bool]
+
+
 def cursor_page[T](
     connection: Connection,
     statement: Select[Any],
@@ -332,6 +347,7 @@ def cursor_page[T](
     limit: int,
     cursor: str | None,
     read: Callable[[Row[Any]], T],
+    resolved: Resolved | None = None,
 ) -> CursorPage[T]:
     """One page of `statement` in `keyset`'s order, in I2's envelope.
 
@@ -353,12 +369,20 @@ def cursor_page[T](
     filter names resolving to another id or ordinal, or a deploy that alters the query --
     invalidates the cursors already issued for it, as I2 allows.
 
+    The exception is a `resolved` filter, executed with part of it looked up ahead of time, such
+    as the ids of the rows a subquery matches. Those ids change whenever a matching row is added,
+    which no filter of the request names, so the scope has the filter it stands for instead.
+
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
     making every client pay for one extra request to discover that.
     """
     statement = statement.where(*keyset.defined()).order_by(*keyset.order())
-    compiled = statement.compile(dialect=connection.dialect)
+    scoped = statement
+    if resolved is not None:
+        scoped = statement.where(resolved.stands_for)
+        statement = statement.where(resolved.executed)
+    compiled = scoped.compile(dialect=connection.dialect)
     scope = json.dumps([str(compiled), compiled.params], default=str, separators=(",", ":"))
     if cursor is not None:
         statement = statement.where(keyset.after(cursor, scope))

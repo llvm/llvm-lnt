@@ -204,19 +204,21 @@ API when it finds significant changes.
 ## O4: Search
 
 List endpoints for commits, machines, tests, runs, and regressions accept a
-`?search=` parameter. It is always a case-insensitive substring match, and when
-it covers several columns, a row matches if any of them does.
+`?search=` parameter. It is a case-insensitive substring match unless specified
+otherwise, and when it covers several columns or related entities, a row
+matches if any of them does. A UUID is matched by case-insensitive prefix
+instead. An empty term matches every row.
 
 | Endpoint | Matches against |
 |----------|-----------------|
 | `GET /api/suites/{testsuite}/commits?search=abc` | The `commit` column, the `tag` column, and any `searchable` commit field |
 | `GET /api/suites/{testsuite}/machines?search=x86` | The `name` column and any `searchable` machine field |
 | `GET /api/suites/{testsuite}/tests?search=bench` | The `name` column |
-| `GET /api/suites/{testsuite}/runs?search=x86` | The run's machine's `name` column and any `searchable` machine field -- the same predicate as the Machines `search=` above, applied through the run's machine |
-| `GET /api/suites/{testsuite}/regressions?search=slowdown` | The `title` column |
+| `GET /api/suites/{testsuite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |
+| `GET /api/suites/{testsuite}/regressions?search=slowdown` | The `title` column, and the `uuid` by prefix |
 
-Server-side `search=` always matches plain substrings. It does not interpret
-the client's `re:` regex-mode prefix (see AR2): that convention only applies to
+The term is plain text: `%` and `_` are not wildcards, and the client's `re:`
+regex-mode prefix (see AR2) is not interpreted. That convention only applies to
 client-side text filters over data already loaded in the browser, never to a
 `search=` value sent to the API.
 

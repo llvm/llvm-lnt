@@ -122,22 +122,23 @@ def indexes_of(inspector: Inspector, suite: str, table: str) -> dict[str, Reflec
 def structure_of(engine: Engine, namespace: str) -> dict[str, list[tuple[Any, ...]]]:
     """The structure of a namespace's tables, to check that a migrated suite matches a new one (D6).
 
-    This covers every column (with its type, nullability, identity and default), every constraint
-    and every index, each as PostgreSQL renders it. The lists are sorted, so that two namespaces
-    with the same structure compare equal however they were built. Column order is ignored: a
-    migration adds a column at the end of its table, where a new suite may have it elsewhere, and
-    nothing refers to columns by position.
+    This covers every column (with its type, collation, nullability, identity and default), every
+    constraint and every index, each as PostgreSQL renders it. The lists are sorted, so that two
+    namespaces with the same structure compare equal however they were built. Column order is
+    ignored: a migration adds a column at the end of its table, where a new suite may have it
+    elsewhere, and nothing refers to columns by position.
 
     It reads the catalogs directly, because SQLAlchemy's reflection normalizes away some of the
     differences this is meant to catch.
     """
     queries = {
         "columns": "SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod), "
-        "a.attnotnull, a.attidentity, pg_get_expr(d.adbin, d.adrelid) "
+        "co.collname, a.attnotnull, a.attidentity, pg_get_expr(d.adbin, d.adrelid) "
         "FROM pg_attribute a "
         "JOIN pg_class c ON c.oid = a.attrelid "
         "JOIN pg_namespace n ON n.oid = c.relnamespace "
         "LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum "
+        "LEFT JOIN pg_collation co ON co.oid = a.attcollation "
         "WHERE n.nspname = :namespace AND c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped",
         "constraints": "SELECT c.relname, k.conname, pg_get_constraintdef(k.oid) "
         "FROM pg_constraint k "

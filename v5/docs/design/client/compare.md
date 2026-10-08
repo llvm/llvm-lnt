@@ -548,11 +548,12 @@ indicators (I2's maximum page size; see E8). When expanded, it offers:
   indicators to the selected regression. A suite can hold more regressions than
   fit on a page, so the picker searches the server (see AR2): it opens on the
   first page of `GET regressions?sort=-created_at` and narrows it with
-  `search=`, which matches the title. Each suggestion shows the regression's
-  title, or `(untitled)` and its shortened UUID when it has none. On selection,
-  the input shows the suggestion's label; editing the text afterwards clears
-  the selection. Enter with no suggestion focused does nothing: the user must
-  select from the list, since regressions are identified by UUID.
+  `search=`, which matches the title or a prefix of the UUID. Each suggestion
+  shows the regression's title, or `(untitled)` and its shortened UUID when it
+  has none. On selection, the input shows the suggestion's label; editing the
+  text afterwards clears the selection. Enter with no suggestion focused does
+  nothing: the user must select from the list, since regressions are
+  identified by UUID.
 
 On successful creation, the feedback shows "Regression created: " followed by a
 clickable link to the new regression's detail page. The link text is the
