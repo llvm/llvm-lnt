@@ -7,14 +7,16 @@
  * `<path>` is the page's path and query, e.g. `/suites/libcxx?tab=machines`. `--url` defaults to
  * the Vite dev server, http://localhost:5173, which `npm run dev` starts. The page is captured once
  * the network has been idle for a moment, and, with `--wait-for`, once SELECTOR is visible. Errors
- * the page reports are printed, so that a blank screenshot comes with its reason. `--token` is not
- * supported yet (see below).
+ * the page reports are printed, so that a blank screenshot comes with its reason. `--token` stores
+ * TOKEN in the browser before the page loads, as the Settings panel does, so that the page is
+ * captured as a holder of that token sees it.
  */
 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { chromium } from '@playwright/test'
+import { TOKEN_STORAGE_KEY } from '../client/src/auth/storage-key.ts'
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -35,16 +37,18 @@ function fail(message: string): never {
 }
 
 if (positionals.length !== 1) fail('expected exactly one page path, e.g. /suites/libcxx')
-// The hook for pages that need a token. The client does not keep one anywhere yet; once it keeps it
-// in localStorage, import the key it uses from the client and store the token under it, before the
-// page loads: `context.addInitScript(([key, token]) => localStorage.setItem(key, token), [...])`.
-if (values.token !== undefined) fail('--token is not supported yet: the client keeps no token')
 
 const browser = await chromium.launch()
 try {
   const context = await browser.newContext({
     viewport: { width: Number(values.width), height: Number(values.height) },
   })
+  if (values.token !== undefined) {
+    await context.addInitScript(([key, token]) => localStorage.setItem(key, token), [
+      TOKEN_STORAGE_KEY,
+      values.token,
+    ])
+  }
   const page = await context.newPage()
   page.on('pageerror', (error) => console.error(`page error: ${error.message}`))
   page.on('console', (message) => {

@@ -154,7 +154,13 @@ The navigation bar includes a Settings panel with a Bearer token input. The
 token is checked through `GET /api/auth` (see E12) when it is entered and
 whenever the SPA loads: the panel shows the name and scope of the key it
 belongs to, that it is not valid (a 401), or that the check failed (any other
-error). Until a check succeeds, the SPA behaves as if no token were set.
+error), which it offers to retry. It can also clear the token. Until a check
+succeeds, the SPA behaves as if no token were set.
+
+The token is shared by every tab of the SPA: a change made in one tab takes
+effect in the others, which check the new token. It is also checked again
+whenever a request sent with it gets a 401, as its key may have been revoked in
+the meantime.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --

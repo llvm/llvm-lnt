@@ -1,0 +1,46 @@
+.settings-menu {
+  position: relative;
+}
+
+.settings-panel {
+  position: absolute;
+  top: calc(100% + var(--lnt-space-2));
+  right: 0;
+  z-index: 10;
+  width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  padding: var(--lnt-space-3);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+
+.settings-panel label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--lnt-space-1);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.settings-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-status {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.settings-status-error {
+  color: var(--lnt-danger);
+}

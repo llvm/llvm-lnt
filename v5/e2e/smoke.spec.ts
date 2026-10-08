@@ -44,6 +44,13 @@ test.describe('routing', () => {
     expect(await page.evaluate(() => document.documentElement.dataset.loadedOnce)).toBe('yes')
   })
 
+  test('the navbar passes the suite of a suite-scoped page on (AR4)', async ({ page }) => {
+    await page.goto('/suites/libcxx')
+    await page.getByRole('navigation').getByRole('link', { name: 'Graph', exact: true }).click()
+    await expect(page).toHaveURL('/graph?suite=libcxx')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Graph')
+  })
+
   test('the API link opens the API documentation in a new tab', async ({ page, context }) => {
     await page.goto('/')
     const opened = context.waitForEvent('page')

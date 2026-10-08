@@ -3,6 +3,8 @@ import { render } from '@testing-library/react'
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { createQueryClient } from '../api/query-client'
+import { AuthProvider } from '../auth/auth-provider'
+import { createTokenStore } from '../auth/credentials'
 import { UrlStateProvider } from '../url-state-provider'
 
 interface Options {
@@ -22,15 +24,22 @@ function createTestQueryClient(): QueryClient {
   return queryClient
 }
 
-/** A wrapper providing what the app does, a router and a fresh query client, for `renderHook`. */
+/**
+ * A wrapper providing what the app does, for `renderHook`: a router, a fresh query client, and a
+ * token store connected to the API client, which starts with the token in `localStorage` (see
+ * `signIn`).
+ */
 export function providers({ url = '/' }: Options = {}) {
   const queryClient = createTestQueryClient()
+  const tokens = createTokenStore(queryClient)
   function Providers({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[url]}>
-          <UrlStateProvider>{children}</UrlStateProvider>
-        </MemoryRouter>
+        <AuthProvider tokens={tokens}>
+          <MemoryRouter initialEntries={[url]}>
+            <UrlStateProvider>{children}</UrlStateProvider>
+          </MemoryRouter>
+        </AuthProvider>
       </QueryClientProvider>
     )
   }

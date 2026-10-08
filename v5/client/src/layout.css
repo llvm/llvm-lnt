@@ -20,17 +20,27 @@
   gap: 1.25rem;
 }
 
-.navbar a {
+.navbar a,
+.navbar-button {
   color: var(--lnt-fg);
   text-decoration: none;
   font-size: 0.95rem;
 }
 
-.navbar a:hover {
+/* A navbar entry that opens something rather than navigating: looks like the links beside it. */
+.navbar-button {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.navbar a:hover,
+.navbar-button:hover {
   color: var(--lnt-accent);
 }
 
-.navbar a.active {
+.navbar a.active,
+.navbar-button[aria-expanded='true'] {
   color: var(--lnt-accent);
   font-weight: 600;
 }
@@ -38,12 +48,6 @@
 .navbar-brand {
   font-weight: 700;
   letter-spacing: 0.04em;
-}
-
-.navbar-disabled {
-  color: var(--lnt-muted);
-  font-size: 0.95rem;
-  cursor: not-allowed;
 }
 
 .page {

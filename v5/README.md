@@ -55,7 +55,9 @@ npm run create-key -- --name bot --scope submit   # anything else
 ```
 
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.
-Paste the token into the web UI's Settings panel to use it from the browser.
+To use it from the browser, paste it into the Settings panel, at the right end of the web UI's
+navigation bar: the panel shows the key it belongs to, and the browser keeps it until you clear it
+there.
 
 ### Seed data
 

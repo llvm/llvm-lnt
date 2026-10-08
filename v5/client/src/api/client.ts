@@ -6,10 +6,10 @@
  *
  *     const suites = await unwrap(api.GET('/api/suites', { signal }))
  *
- * There are two clients. `api` never sends credentials, because every `read` endpoint can be used
- * without them (I5) and a stale or revoked token would turn those into 401s. `authedApi` sends the
- * token from `setTokenSource`, and is for the requests that need more than `read` scope, and for
- * checking a token through `GET /api/auth` (AR2).
+ * There are two clients. `api` never sends the stored token, because every `read` endpoint can be
+ * used without it (I5) and a stale or revoked token would turn those into 401s. `authedApi` sends
+ * the token from `setCredentials`, and is for the requests that need more than `read` scope. The
+ * check of a token (AR2) passes it to `api` explicitly, since it is not accepted yet.
  */
 
 import createClient, { type Middleware } from 'openapi-fetch'
@@ -74,18 +74,30 @@ export async function unwrap<Data>(
   return data as Data
 }
 
-let tokenSource: () => string | null = () => null
+/** What `authedApi` authenticates with. The auth module provides it (see auth/credentials.ts). */
+export interface Credentials {
+  /** The token to send, or null to send none. */
+  token(): string | null
+  /** A request sent with `token` got a 401: its key may have been revoked since it was checked. */
+  rejected(token: string): void
+}
 
-/** Where `authedApi` gets the token it sends; it sends none while this returns null. */
-export function setTokenSource(source: () => string | null): void {
-  tokenSource = source
+let credentials: Credentials = { token: () => null, rejected: () => {} }
+
+export function setCredentials(source: Credentials): void {
+  credentials = source
 }
 
 const sendToken: Middleware = {
   onRequest({ request }) {
-    const token = tokenSource()
+    const token = credentials.token()
     if (token) request.headers.set('Authorization', `Bearer ${token}`)
     return request
+  },
+  onResponse({ request, response }) {
+    const sent = request.headers.get('Authorization')?.replace(/^Bearer /, '')
+    if (response.status === 401 && sent) credentials.rejected(sent)
+    return response
   },
 }
 

@@ -38,12 +38,16 @@ v5/
     client/             # NEW: v5 SPA (client-side code)
     server/             # NEW: v5 server-side code
     integration-tests/  # NEW: end-to-end tests of the v5 Docker image
+    e2e/                # NEW: browser tests of the v5 web UI against a real server
+    tools/              # NEW: v5 development tools (seed data, screenshots)
     Dockerfile          # NEW: v5 Dockerfile
     deployment/         # NEW: Terraform infra to deploy the v5 instance
 .github/
     workflows/
-        v5-deploy.yml   # NEW: v5 deployment workflow
-        v5-test.yml     # NEW: v5 testing workflow
+        v5-deploy.yml               # NEW: v5 deployment workflow
+        v5-teardown.yml             # NEW: v5 infrastructure teardown workflow
+        v5-test.yml                 # NEW: v5 testing workflow
+        v5-validate-terraform.yml   # NEW: v5 Terraform validation workflow
         tox.yml         # existing v4 workflows
         etc..
 ```

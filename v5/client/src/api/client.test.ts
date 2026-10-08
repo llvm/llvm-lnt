@@ -1,8 +1,9 @@
 import { HttpResponse, http } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ApiError, api, authedApi, setTokenSource, unwrap } from './client'
+import { ApiError, api, authedApi, setCredentials, unwrap, type Schemas } from './client'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { server } from '../test/server'
+import { TOKEN, mockAuth, unknownToken } from '../test/auth'
 
 const SUITE = { name: 'nts', metrics: [], commit_fields: [], machine_fields: [] }
 
@@ -165,39 +166,54 @@ describe('aborting', () => {
 })
 
 describe('credentials', () => {
-  afterEach(() => setTokenSource(() => null))
+  afterEach(() => setCredentials({ token: () => null, rejected: () => {} }))
 
-  function recordAuthorization(): { header: string | null | undefined } {
-    const seen: { header: string | null | undefined } = { header: undefined }
-    server.use(
-      mockApi('get', '/api/auth', ({ request }) => {
-        seen.header = request.headers.get('Authorization')
-        return HttpResponse.json({ key: null })
-      }),
-    )
-    return seen
+  /** Credentials holding `token`, recording the tokens reported as rejected. */
+  function holding(token: string | null): { rejected: string[] } {
+    const counts = { rejected: [] as string[] }
+    setCredentials({ token: () => token, rejected: (sent) => counts.rejected.push(sent) })
+    return counts
   }
 
+  const noKey = () => HttpResponse.json<Schemas['Authentication']>({ key: null })
+
   it('are sent by the authenticated client', async () => {
-    setTokenSource(() => 'f'.repeat(64))
-    const seen = recordAuthorization()
+    holding(TOKEN)
+    const headers = mockAuth(noKey)
 
     await unwrap(authedApi.GET('/api/auth'))
-    expect(seen.header).toBe(`Bearer ${'f'.repeat(64)}`)
+    expect(headers).toEqual([`Bearer ${TOKEN}`])
   })
 
   it('are never sent by the anonymous client', async () => {
-    setTokenSource(() => 'f'.repeat(64))
-    const seen = recordAuthorization()
+    holding(TOKEN)
+    const headers = mockAuth(noKey)
 
     await unwrap(api.GET('/api/auth'))
-    expect(seen.header).toBeNull()
+    expect(headers).toEqual([''])
   })
 
   it('are not sent while there is no token', async () => {
-    const seen = recordAuthorization()
+    holding(null)
+    const headers = mockAuth(noKey)
 
     await unwrap(authedApi.GET('/api/auth'))
-    expect(seen.header).toBeNull()
+    expect(headers).toEqual([''])
+  })
+
+  it('are reported as rejected when a request sent with them gets a 401', async () => {
+    const counts = holding(TOKEN)
+    mockAuth(unknownToken)
+
+    await expect(unwrap(authedApi.GET('/api/auth'))).rejects.toHaveProperty('status', 401)
+    expect(counts.rejected).toEqual([TOKEN])
+  })
+
+  it('are not reported as rejected for a 401 on a request sent without them', async () => {
+    const counts = holding(null)
+    mockAuth(unknownToken)
+
+    await expect(unwrap(authedApi.GET('/api/auth'))).rejects.toHaveProperty('status', 401)
+    expect(counts.rejected).toEqual([])
   })
 })

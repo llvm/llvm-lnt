@@ -20,6 +20,7 @@ beforeAll(() =>
 afterEach(() => {
   cleanup()
   server.resetHandlers()
+  localStorage.clear()
   const requests = unhandled.splice(0)
   if (requests.length > 0) {
     throw new Error(`Requests no mock handler matched:\n${requests.join('\n')}`)
