@@ -143,7 +143,7 @@ Text input for substring matching on test names (client-side).
 
 ### Samples table
 
-All samples + selected metric value, sorted by test name by default.
+All samples + selected metric value, sorted by test name.
 
 Samples are loaded progressively -- the table renders immediately with the first
 page and grows as more pages arrive, with a progress indicator showing the

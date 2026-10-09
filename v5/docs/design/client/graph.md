@@ -149,11 +149,11 @@ names are fetched once per machine/metric combination (all names, no server-side
 filter) and filtered client-side. Changing the test filter or aggregation mode
 re-renders instantly from cache without any additional API calls. Adding a
 second machine starts its own fetch pipeline while the first machine's data is
-already displayed. The cache and the matching test list are preserved across
-page unmount/remount, so navigating away and pressing browser back renders the
-previous chart instantly from cache. The previous selection is restored with
-them when the URL names no tests; tests the URL names replace it. All caches
-and selections are cleared on suite change.
+already displayed. The cache and the matching test list are kept when the user
+navigates away, so that going back to the page renders the previous chart
+instantly from cache. The previous selection is restored with them when the
+URL names no tests; tests the URL names replace it. All caches and selections
+are cleared on suite change.
 
 
 ### GR9: Baselines

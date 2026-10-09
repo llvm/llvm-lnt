@@ -24,11 +24,9 @@ Each side (A and B) has independent controls:
   Clearing the machine resets downstream state (commit, runs) and disables the
   commit input.
 - **Commit**: a commit picker (see AR2) over the commits where the selected
-  machine has runs. When a machine is pre-selected from URL state, its commits
-  are fetched on creation so the dropdown is correctly filtered from the start.
-  **Disabled until a machine is selected** -- shows "Select a machine first"
-  placeholder. Re-disabled if the machine is cleared. Clearing the commit also
-  clears the runs for that side.
+  machine has runs. **Disabled until a machine is selected** -- shows "Select a
+  machine first" placeholder. Re-disabled if the machine is cleared. Clearing
+  the commit also clears the runs for that side.
 - **Runs**: checkbox list of runs for the selected commit+machine, populated by
   `GET /api/suites/{ts}/runs?machine=M&commit=C`. Empty list shown when no runs exist.
   All runs are selected by default. The only exception is URL state restoration:
@@ -140,7 +138,7 @@ The table can also show optional statistics columns (see "Optional columns" belo
 - **Noise handling**: rows classified as noise by any enabled noise filtering
   knob are visually distinguished by the grey "noise" label in the Status
   column. The "Hide noise" checkbox removes them from the table and chart
-  entirely (not rendered in the DOM).
+  entirely, rather than greying them out.
 - **Noise tooltip**: hovering over the Status cell of a noise-classified row
   shows a tooltip listing all knobs that triggered, e.g. "Delta 0.3% below 1%
   threshold", "p-value 0.12 above 0.05", "max(|A|, |B|) = 0.4 below floor of 1".
@@ -170,11 +168,12 @@ The table can also show optional statistics columns (see "Optional columns" belo
   Status (raw values are still shown)
 - **Interactive rows**: Clicking a row toggles its visibility on the chart.
   Double-clicking a row isolates it (hides all others), like the Graph page's
-  legend table. Manually-hidden rows (toggled by clicking) are shown grayed out
-  in the table (not removed from the DOM). The "Hide noise" checkbox is a
-  separate filter that removes noise rows from the DOM entirely. The two filters
-  are independent: manual toggles persist across hideNoise changes, and changing
-  noise filtering knobs correctly hides/unhides tests as their status changes.
+  legend table. Manually-hidden rows (toggled by clicking) stay in the table,
+  grayed out, so that clicking them again shows them. The "Hide noise" checkbox
+  is a separate filter that removes noise rows from the table entirely. The two
+  filters are independent: manual toggles persist across hideNoise changes, and
+  changing noise filtering knobs correctly hides/unhides tests as their status
+  changes.
 - **Summary message**: A message above the table rows shows a count, consistent
   with the Graph page's legend message: "150 tests" when all are shown, "120 of
   150 tests shown" when some are toggled off, or "42 of 150 tests matching" when a
@@ -519,8 +518,9 @@ respond to it equally. Run aggregation is per-side: the shadow's run aggregation
 is frozen at pin time.
 
 **Data flow:**
-- On pin: a deep copy of the current side B selection is stored as the shadow.
-  The shadow's side B samples are already in the sample cache.
+- On pin: the shadow keeps side B's selection as it is at that moment, whatever
+  happens to side B afterwards. Its samples are already in the sample cache, so
+  pinning fetches nothing.
 - On recompute: the shadow reuses the main comparison's cached side A
   aggregation, then aggregates only the shadow's side B samples independently.
 - On page load from a URL with shadow parameters, shadow samples are fetched in
