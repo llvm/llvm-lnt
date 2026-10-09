@@ -1,16 +1,21 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
-import { Button, Dialog, DialogTrigger, Popover } from 'react-aria-components'
+import { Button, Dialog, DialogTrigger } from 'react-aria-components'
+import clsx from 'clsx'
 import { errorMessage } from '../api/client'
+import { Popover } from '../components/popover'
 import { useAuth, type TokenStatus } from './use-auth'
-import './settings-menu.css'
+import styles from './settings-menu.module.css'
 
-/** The navbar's Settings button, and the panel it opens, which holds the API token (AR2). */
-export function SettingsMenu() {
+/**
+ * The navbar's Settings button, and the panel it opens, which holds the API token (AR2). The navbar
+ * styles the button, with `className`, so that it looks like the links beside it.
+ */
+export function SettingsMenu({ className }: { className?: string }) {
   return (
     <DialogTrigger>
-      <Button className="navbar-button">Settings</Button>
-      <Popover placement="bottom end" className="popover settings-popover">
-        <Dialog className="settings-panel" aria-label="Settings">
+      <Button className={className}>Settings</Button>
+      <Popover placement="bottom end" className={styles.popover}>
+        <Dialog className={styles.panel} aria-label="Settings">
           <SettingsPanel />
         </Dialog>
       </Popover>
@@ -32,10 +37,11 @@ function SettingsPanel() {
   return (
     <>
       <form onSubmit={save}>
-        <label htmlFor={inputId}>API token</label>
-        <div className="settings-row">
+        <label htmlFor={inputId} className={styles.label}>API token</label>
+        <div className={styles.row}>
           <input
             id={inputId}
+            className={styles.input}
             type="password"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -49,7 +55,7 @@ function SettingsPanel() {
           </button>
         </div>
       </form>
-      <div className="settings-row">
+      <div className={styles.row}>
         <StatusLine status={status} />
         {status.state === 'failed' && (
           <button type="button" onClick={recheck}>
@@ -89,7 +95,7 @@ function statusText(status: TokenStatus): ReactNode {
 function StatusLine({ status }: { status: TokenStatus }) {
   const failed = status.state === 'invalid' || status.state === 'failed'
   return (
-    <p className={failed ? 'settings-status settings-status-error' : 'settings-status'} role="status">
+    <p className={clsx(styles.status, failed && styles.error)} role="status">
       {statusText(status)}
     </p>
   )

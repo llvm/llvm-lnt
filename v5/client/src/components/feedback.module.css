@@ -1,4 +1,4 @@
-.error-message {
+.error {
   padding: var(--lnt-space-2) var(--lnt-space-3);
   border: 1px solid var(--lnt-danger-border);
   border-radius: var(--lnt-radius);

@@ -1,52 +1,52 @@
-.combobox {
+.root {
   display: inline-flex;
   flex-direction: column;
   gap: var(--lnt-space-1);
 }
 
-.combobox-field {
+.field {
   display: flex;
 }
 
-.combobox-field input {
+.input {
   flex: 1;
   min-width: 0;
   border-right: none;
   border-radius: var(--lnt-radius) 0 0 var(--lnt-radius);
 }
 
-.combobox-button {
+.button {
   padding: 0 var(--lnt-space-2);
   border-radius: 0 var(--lnt-radius) var(--lnt-radius) 0;
 }
 
 /* React Aria sizes the popover to fit the screen, and gives it the combobox's width to use. */
-.combobox-popover {
+.popover {
   min-width: var(--trigger-width);
   overflow: auto;
 }
 
-.combobox-list {
+.list {
   outline: none;
 }
 
-.combobox-list [role='option'] {
+.option {
   padding: var(--lnt-space-1) var(--lnt-space-2);
   font-size: 0.9rem;
   cursor: pointer;
   outline: none;
 }
 
-.combobox-list [role='option'][data-focused] {
+.option[data-focused] {
   background: var(--lnt-panel);
   color: var(--lnt-accent);
 }
 
-.combobox-list [role='option'][data-selected] {
+.option[data-selected] {
   font-weight: 600;
 }
 
-.combobox-status {
+.status {
   padding: var(--lnt-space-1) var(--lnt-space-2);
   font-size: 0.9rem;
   color: var(--lnt-muted);

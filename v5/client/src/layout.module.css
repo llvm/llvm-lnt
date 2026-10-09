@@ -1,4 +1,4 @@
-.layout {
+.root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -14,40 +14,38 @@
   background: var(--lnt-panel);
 }
 
-.navbar-group {
+.group {
   display: flex;
   align-items: center;
   gap: 1.25rem;
 }
 
-.navbar a,
-.navbar-button {
+.link {
   color: var(--lnt-fg);
   text-decoration: none;
   font-size: 0.95rem;
 }
 
 /* A navbar entry that opens something rather than navigating: looks like the links beside it. */
-.navbar-button {
+.button {
   padding: 0;
   border: none;
   background: none;
 }
 
-.navbar a:hover,
-.navbar-button:hover {
+.link:hover {
   color: var(--lnt-accent);
 }
 
-.navbar a.active,
-.navbar-button[aria-expanded='true'] {
-  color: var(--lnt-accent);
-  font-weight: 600;
-}
-
-.navbar-brand {
+.brand {
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.link[aria-current='page'],
+.link[aria-expanded='true'] {
+  color: var(--lnt-accent);
+  font-weight: 600;
 }
 
 .page {
