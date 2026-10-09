@@ -85,6 +85,10 @@ When the rows a table should show cannot be fetched -- for another page, search
 or filter -- the table and its pager give way to the error, with a way to try
 again, rather than leave up the rows of another page or search.
 
+Wherever a failure offers a way to try again, an error saying that what was
+asked for does not exist (I4's `not_found`) does not, since trying again would
+get the same answer.
+
 **Text filtering**: A client-side text filter -- one that narrows data already
 loaded in the browser -- matches its text as a case-insensitive substring.
 
@@ -166,8 +170,11 @@ their stored values. Revoking an API key (AD1), which destroys nothing, asks for
 a plain confirmation instead.
 
 Once the entity a page is about has been deleted, the page leaves for the one its
-spec names, which takes its place in the history rather than adding an entry, so
-that Back does not lead to the deleted entity.
+spec names, which takes its place in the history rather than adding an entry (an
+exception to "State"), so that Back does not lead to the deleted entity. If the
+user has already left the page by then, it stays where they are. Once deleted,
+the entity is not shown again from data fetched before the deletion, even while
+the page shown next fetches its own.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for the API
 key endpoints, which require `admin` scope even to read (see I5). No

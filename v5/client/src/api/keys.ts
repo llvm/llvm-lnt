@@ -20,13 +20,18 @@ export const queryKeys = {
 }
 
 /**
- * Forget what was read from inside `suite`, after a deletion that may change any of it. What no
- * page shows is dropped rather than marked stale, so that the page shown next does not list the
- * deleted entity while it fetches its data again. What a page shows -- the page about to leave
- * the entity it deleted -- is only marked stale, so that it does not ask for the entity again.
+ * Forget what was read from inside `suite`, after a deletion that may change any of it (AR2
+ * "Deletions"). What no page shows is dropped rather than marked stale, so that the page shown
+ * next does not list the deleted entity while it fetches its data again. What a page shows is
+ * fetched again, unless `leaving` says that it is the page about to leave the entity it deleted,
+ * which must not ask for the entity again.
  */
-export async function forgetSuite(queryClient: QueryClient, suite: string): Promise<void> {
+export async function forgetSuite(
+  queryClient: QueryClient,
+  suite: string,
+  { leaving }: { leaving: boolean },
+): Promise<void> {
   const queryKey = queryKeys.suite(suite)
   queryClient.removeQueries({ queryKey, type: 'inactive' })
-  await queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
+  await queryClient.invalidateQueries({ queryKey, refetchType: leaving ? 'none' : 'active' })
 }

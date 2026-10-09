@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
@@ -88,11 +88,13 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
 
 /** The machine's `tracked` flag, which a holder of `manage` scope can flip (DT1). */
 function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
-  const id = useId()
+  const labelId = useId()
   const helpId = useId()
   const queryClient = useQueryClient()
   const manage = useScopeGate('manage')
   const update = useMutation({
+    // A fetch of the machine under way could land after the answer, and show the flag as it was.
+    onMutate: () => queryClient.cancelQueries({ queryKey: machineKey(suite, machine.name) }),
     mutationFn: (tracked: boolean) =>
       unwrap(
         authedApi.PATCH('/api/suites/{testsuite}/machines/{machine_name}', {
@@ -113,19 +115,20 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
   return (
     <InfoRow
       label={
-        <label htmlFor={id} className={styles.help} title={TRACKED_HELP}>
+        // Not a <label>, which would flip the flag when clicked for its help.
+        <span id={labelId} className={styles.help} title={TRACKED_HELP}>
           Tracked
-        </label>
+        </span>
       }
     >
       {/* Not optimistic: the box shows the flag the API holds. While a change is under way, the
           box ignores clicks but keeps the focus, which disabling it would lose. */}
       <input
-        id={id}
         type="checkbox"
         checked={machine.tracked}
         {...manage}
         aria-disabled={update.isPending || undefined}
+        aria-labelledby={labelId}
         aria-describedby={helpId}
         onChange={(event) => {
           if (!update.isPending) update.mutate(event.target.checked)
@@ -144,6 +147,14 @@ function Actions({ suite, name }: { suite: string; name: string }) {
   const manage = useScopeGate('manage')
   const [confirming, setConfirming] = useState(false)
   const deleteButton = useRef<HTMLButtonElement>(null)
+  // Whether the page is still shown once the deletion is done: if not, it must not leave (AR2).
+  const shown = useRef(false)
+  useEffect(() => {
+    shown.current = true
+    return () => {
+      shown.current = false
+    }
+  }, [])
 
   const remove = async () => {
     await unwrap(
@@ -152,8 +163,9 @@ function Actions({ suite, name }: { suite: string; name: string }) {
       }),
     )
     // Its runs, their commits' and tests' lists, and the regressions it had indicators on, change.
-    await forgetSuite(queryClient, suite)
-    navigate(suiteTabPath(suite, 'machines'), { replace: true })
+    const leaving = shown.current
+    await forgetSuite(queryClient, suite, { leaving })
+    if (leaving) navigate(suiteTabPath(suite, 'machines'), { replace: true })
   }
 
   return (

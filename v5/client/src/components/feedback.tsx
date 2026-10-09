@@ -22,7 +22,7 @@ interface ErrorMessageProps {
 
 /** A failure, as the user should see it (see `errorMessage`). */
 export function ErrorMessage({ error, onRetry }: ErrorMessageProps) {
-  const missing = error instanceof ApiError && error.status === 404
+  const missing = error instanceof ApiError && error.code === 'not_found'
   return (
     <Alert>
       {errorMessage(error)}

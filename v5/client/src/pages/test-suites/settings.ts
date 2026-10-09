@@ -85,6 +85,12 @@ function defaults(settings: readonly Setting[]): Partial<Settings> {
  * The path of `tab` of the page for `suite`, with the Regressions tab filtered by `filters`: what
  * another page links to. Settings at their default are left out, as the page leaves them out.
  */
+export function suiteTabPath(suite: string, tab: Exclude<TabId, 'regressions'>): string
+export function suiteTabPath(
+  suite: string,
+  tab: 'regressions',
+  filters?: Pick<Partial<RegressionFilters>, 'machine'>,
+): string
 export function suiteTabPath(
   suite: string,
   tab: TabId,

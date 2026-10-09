@@ -64,7 +64,7 @@ indicator on this machine, newest first
 Each row's title links to its regression detail page.
 
 Each row shows:
-- Title: the regression's title (truncated to 50 chars), link to the regression detail page
+- Title: the regression's title (truncated to 50 chars, whole on hover), link to the regression detail page
 - State: a colored state badge
 - Tests: the regression's `test_count`, which counts the tests across all of its
   indicators rather than only those on this machine

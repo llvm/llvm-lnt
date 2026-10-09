@@ -204,7 +204,7 @@ describe('the Machine Detail page', () => {
 
       await screen.findByRole('group', { name: 'Machine' })
       await waitFor(() =>
-        expect(trackedBox()).toHaveAttribute('title', expect.stringMatching(/'manage' scope/)),
+        expect(trackedBox()).toHaveAttribute('title', expect.stringMatching(/has the 'triage' scope/)),
       )
       expect(trackedBox()).toBeDisabled()
     })
@@ -234,6 +234,22 @@ describe('the Machine Detail page', () => {
       await waitFor(() => expect(trackedBox()).not.toBeChecked())
       expect(trackedBox()).not.toHaveAttribute('aria-disabled')
       expect(sent).toEqual([{ body: { tracked: false }, auth: `Bearer ${TOKEN}` }])
+    })
+
+    it('is not changed by a click on its label, which explains it', async () => {
+      signIn('manage')
+      const sent: unknown[] = []
+      mockPatch(async (request) => {
+        sent.push(await request.json())
+        return HttpResponse.json(LINUX)
+      })
+      renderMachine()
+      await ready(trackedBox)
+
+      fireEvent.click(screen.getByText('Tracked'))
+
+      expect(trackedBox()).toBeChecked()
+      expect(sent).toEqual([])
     })
 
     it('reports a refused change, and keeps the flag as it was', async () => {
@@ -278,7 +294,10 @@ describe('the Machine Detail page', () => {
 
       await screen.findByRole('group', { name: 'Machine' })
       await waitFor(() =>
-        expect(deleteButton()).toHaveAttribute('title', expect.stringMatching(/'manage' scope/)),
+        expect(deleteButton()).toHaveAttribute(
+          'title',
+          expect.stringMatching(/has the 'triage' scope/),
+        ),
       )
       expect(deleteButton()).toBeDisabled()
     })
@@ -344,6 +363,46 @@ describe('the Machine Detail page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
       await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines&search=linux'))
+    })
+
+    /** Start deleting `NAME` from its page, confirmed. */
+    async function startDeleting() {
+      await ready(deleteButton)
+      fireEvent.click(deleteButton())
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: NAME } })
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    }
+
+    it('reports a deletion that failed, and stays on the page', async () => {
+      signIn('manage')
+      mockDelete(() => errorResponse(500, 'internal_error', 'Could not delete'))
+      renderMachine()
+
+      await startDeleting()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete')
+      expect(currentUrl()).toBe(PAGE)
+      expect(screen.getByRole('group', { name: 'Machine' })).toBeInTheDocument()
+    })
+
+    it('does not leave a page the user has already left, and refreshes the one shown', async () => {
+      signIn('manage')
+      const deletion = gate()
+      mockDelete(async () => {
+        await deletion.promise
+        return new HttpResponse(null, { status: 204 })
+      })
+      const { runQueries } = renderMachine()
+      await startDeleting()
+
+      // To the Runs tab of the suite, which lists the machine's runs, while the deletion runs.
+      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      await table('Runs')
+      const fetched = runQueries.length
+      act(() => deletion.open())
+
+      await waitFor(() => expect(runQueries.length).toBe(fetched + 1))
+      expect(currentUrl()).toBe('/suites/libcxx')
     })
 
     it('can be cancelled, giving the focus back to the button', async () => {
