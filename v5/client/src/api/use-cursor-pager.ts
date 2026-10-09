@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { hashKey, keepPreviousData, useQuery, type QueryKey } from '@tanstack/react-query'
+import { shownData } from './shown-data'
 import { rejectsCursor, type CursorPage } from './use-cursor-pages'
 
 type Paged = CursorPage<unknown>
@@ -18,18 +19,17 @@ interface Options<Page extends Paged> {
 
 export interface CursorPagerState<Page> {
   /**
-   * The page shown: the previous one while the one asked for loads, and none when it failed, so
-   * that the failure is shown in its place rather than rows for another page or search.
+   * The page shown: the previous one while the one asked for loads, and none when it failed or is
+   * being tried again, so that the failure is not shown next to rows for another page or search.
    */
   page: Page | undefined
-  /** Nothing has been fetched yet. */
+  /** There is no page to show, and no failure: the first page, or a retry, is on its way. */
   isPending: boolean
   /** The page shown is not the one asked for, which is on its way. */
   isUpdating: boolean
   error: Error | null
   /** Ask for the page that failed again. */
   retry(): void
-  isRetrying: boolean
   hasPrevious: boolean
   hasNext: boolean
   previous(): void
@@ -68,8 +68,8 @@ export function useCursorPager<Page extends Paged>({
     placeholderData: keepPreviousData,
     enabled,
   })
-  // A failed query has no placeholder: `data` is the page asked for, or none.
-  const { data, error, isPending, isPlaceholderData, isFetching, refetch } = query
+  const { data, error, isPlaceholderData, refetch } = query
+  const page = shownData(query)
 
   if (cursor !== null && rejectsCursor(error)) {
     setPosition({ identity, generation: generation + 1, cursors: [] })
@@ -79,12 +79,11 @@ export function useCursorPager<Page extends Paged>({
   // Only the page asked for, once it has arrived, leads further.
   const nextCursor = isPlaceholderData ? null : (data?.cursor.next ?? null)
   return {
-    page: data,
-    isPending,
+    page,
+    isPending: page === undefined && error === null,
     isUpdating: isPlaceholderData,
     error,
     retry: () => void refetch(),
-    isRetrying: error !== null && isFetching,
     hasPrevious: cursors.length > 0 && !isPlaceholderData,
     hasNext: nextCursor !== null,
     previous: () => moveTo(cursors.slice(0, -1)),

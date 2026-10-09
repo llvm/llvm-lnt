@@ -16,7 +16,6 @@ interface Props {
   /** Why the rows asked for could not be fetched, shown in place of the table and its pager. */
   error: Error | null
   onRetry(): void
-  retrying: boolean
   /** The table and its pager, rendered once there is something to show. */
   children: ReactNode
 }
@@ -35,7 +34,6 @@ export function TabContent({
   isPending,
   error,
   onRetry,
-  retrying,
   children,
 }: Props) {
   return (
@@ -46,7 +44,7 @@ export function TabContent({
       </ControlsPanel>
       {toolbar}
       {error ? (
-        <ErrorMessage error={error} onRetry={onRetry} retrying={retrying} />
+        <ErrorMessage error={error} onRetry={onRetry} />
       ) : isPending ? (
         <Loading />
       ) : (

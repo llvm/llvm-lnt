@@ -109,12 +109,14 @@ describe('useCursorPager', () => {
     expect(fetch.mock.calls.at(-1)).toEqual(['c1'])
   })
 
-  it('shows no page once one fails to load, and asks for it again on retry', async () => {
+  it('shows no page once one fails to load, nor while asking for it again', async () => {
     let failures = 1
+    let release = () => {}
     const { result, fetch } = renderPager(async (cursor) => {
       if (cursor === 'c1' && failures-- > 0) {
         throw new ApiError(500, 'internal_error', 'The server failed')
       }
+      if (cursor === 'c1') await new Promise<void>((resolve) => (release = resolve))
       return PAGES[cursor ?? 'first']
     })
     await waitFor(() => expect(result.current.hasNext).toBe(true))
@@ -125,6 +127,12 @@ describe('useCursorPager', () => {
     expect(result.current.hasNext).toBe(false)
 
     act(() => result.current.retry())
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3))
+    // Not the first page, which TanStack offers as a placeholder meanwhile.
+    expect(result.current.page).toBeUndefined()
+    expect(result.current.isPending).toBe(true)
+
+    act(() => release())
     await waitFor(() => expect(result.current.page?.items).toEqual(['c', 'd']))
     expect(result.current.error).toBeNull()
     expect(fetch.mock.calls).toEqual([[null], ['c1'], ['c1']])

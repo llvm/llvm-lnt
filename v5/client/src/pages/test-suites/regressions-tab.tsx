@@ -200,7 +200,6 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       isPending={pager.isPending}
       error={pager.error}
       onRetry={pager.retry}
-      retrying={pager.isRetrying}
     >
       {page && (
         <>

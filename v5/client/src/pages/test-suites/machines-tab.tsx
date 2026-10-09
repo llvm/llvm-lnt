@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { fetchMachinePage } from '../../api/machines'
+import { shownData } from '../../api/shown-data'
 import type { SuiteSchema } from '../../api/suites'
 import { DataTable, type Column } from '../../components/data-table'
 import { OffsetPager, PAGE_SIZE } from '../../components/pagination'
@@ -34,7 +35,7 @@ export function MachinesTab({ schema, search, onSearch, offset, onOffset }: Prop
   const params = { search: search || undefined, limit: PAGE_SIZE, offset }
   const machines = useQuery({
     queryKey: [...queryKeys.suite(suite), 'machines', params],
-    // With its offset, so that a page shown in place of another (see below) says where it is.
+    // With its offset, so that the page shown while the next one loads says where it is.
     queryFn: async ({ signal }) => ({ ...(await fetchMachinePage(suite, params, signal)), offset }),
     placeholderData: keepPreviousData,
   })
@@ -44,18 +45,16 @@ export function MachinesTab({ schema, search, onSearch, offset, onOffset }: Prop
     (page) => offset === 0 || page.items.length > 0,
     () => onOffset(0),
   )
-  // The page shown: the previous one while the one asked for loads, and none when it failed.
-  const page = machines.data
+  const page = shownData(machines)
 
   return (
     <TabContent
       search={input}
       searchLabel="Search machines"
       placeholder="Search machines..."
-      isPending={machines.isPending}
+      isPending={page === undefined}
       error={machines.error}
       onRetry={() => void machines.refetch()}
-      retrying={machines.isFetching}
     >
       {page && (
         <>

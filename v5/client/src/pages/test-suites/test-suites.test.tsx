@@ -306,12 +306,14 @@ describe('the Runs tab', () => {
   it('shows the error in place of the table when the next page fails, and retries', async () => {
     mockSuites()
     let failures = 1
+    const retry = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
+      mockApi('get', '/api/suites/{testsuite}/runs', async ({ request }) => {
         if (new URL(request.url).searchParams.get('cursor') !== 'page2') {
           return HttpResponse.json(cursorPage([run('a', { machine: 'first' })], 'page2'))
         }
         if (failures-- > 0) return errorResponse(500, 'internal_error', 'The server failed')
+        await retry.promise
         return HttpResponse.json(cursorPage([run('b', { machine: 'second' })]))
       }),
     )
@@ -325,6 +327,11 @@ describe('the Runs tab', () => {
     expect(screen.queryByRole('table', { name: 'Runs' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Runs pagination' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    // Loading, rather than the first page again, until the retry answers.
+    expect(await screen.findByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'first' })).not.toBeInTheDocument()
+    act(() => retry.open())
     expect(await screen.findByRole('link', { name: 'second' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -493,14 +500,16 @@ describe('the Machines tab', () => {
   it('shows the error in place of the table when the next page fails, and retries', async () => {
     mockSuites()
     let failures = 1
+    const retry = gate()
     const offsets: string[] = []
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', ({ request }) => {
+      mockApi('get', '/api/suites/{testsuite}/machines', async ({ request }) => {
         const offset = new URL(request.url).searchParams.get('offset')!
         offsets.push(offset)
         if (offset === '25' && failures-- > 0) {
           return errorResponse(500, 'internal_error', 'The server failed')
         }
+        if (offset === '25') await retry.promise
         const items = Array.from({ length: offset === '0' ? 25 : 5 }, (_, i) => i + Number(offset))
         return HttpResponse.json({ items: items.map((i) => machine(`m${i}`)), total: 30 })
       }),
@@ -514,6 +523,10 @@ describe('the Machines tab', () => {
     expect(screen.queryByRole('table', { name: 'Machines' })).not.toBeInTheDocument()
     expect(currentUrl()).toBe('/suites/libcxx?tab=machines&offset=25')
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'm0' })).not.toBeInTheDocument()
+    act(() => retry.open())
     expect(await screen.findByRole('link', { name: 'm25' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(offsets).toEqual(['0', '25', '25'])
