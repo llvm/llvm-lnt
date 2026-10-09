@@ -511,6 +511,16 @@ def list_commits(
             )
         ),
     ] = None,
+    commit: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only return the commit with exactly this value, if it also matches the other "
+                "filters. If no commit has this value, the result is empty. Use it to check "
+                "whether a commit is among those a list with the other filters returns."
+            )
+        ),
+    ] = None,
     machine: Annotated[
         str | None,
         Query(
@@ -575,6 +585,10 @@ def list_commits(
         conditions: list[ColumnElement[bool]] = []
         if search is not None:
             conditions.append(commits.search(search))
+        if commit is not None:
+            # I3's `commit=`: the row belonging to commit X is X itself, so an unknown value is an
+            # empty page rather than a 404.
+            conditions.append(commits.table.c.commit == commit)
 
         on_machine = None
         if machine is not None:

@@ -119,7 +119,8 @@ Common filters include:
   endpoint that bounds both (`after_time` on
   `POST /api/suites/{testsuite}/query`).
 - `state=` (for regressions; takes several values)
-- `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
+- `commit=`
+- `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
 - `tracked=` (boolean, for machines; omitting it returns both)
 
 **Sorting.** `sort=<name>` selects one ordering. Prefix the name with `-` for

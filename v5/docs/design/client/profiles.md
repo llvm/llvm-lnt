@@ -139,8 +139,8 @@ When only one side:
 **URL restoration** (page load with `run_a`/`test_a` params):
 1. Call `GET /runs/{uuid}` to recover machine + commit.
 2. Call `GET /commits?machine={name}&has_profiles=true&sort=-first_seen` to
-   populate the commit picker, and `POST /commits/resolve` for the recovered
-   commit's display value, since it need not be on that first page (see AR2).
+   populate the commit picker, and the same request with `commit={value}` for
+   the recovered commit, since it need not be on that first page (see AR2).
 3. Call `GET /runs?machine={name}&commit={value}&has_profiles=true` to populate
    the run dropdown.
 4. Call `GET /runs/{uuid}/profiles` to get the test list for the known run,

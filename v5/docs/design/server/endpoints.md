@@ -161,6 +161,9 @@ commit that has no ordinal itself.
 
 - `search=`: case-insensitive substring match on the commit string, the tag,
   and searchable commit fields (see O4).
+- `commit=`: only the commit with this value, if it also satisfies the other
+  filters. An unknown commit gives an empty result (see I3). A commit picker
+  uses it to check that it would offer a commit it was given (see AR2).
 - `machine=`: only commits with at least one run on this machine. 404 if the
   machine does not exist.
 - `has_profiles=`: boolean. `true` returns only commits where at least one run

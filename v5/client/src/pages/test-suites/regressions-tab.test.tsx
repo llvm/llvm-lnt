@@ -356,7 +356,12 @@ describe('creating a regression', () => {
     const view = renderTab()
     const commits = mockCommits((query) => {
       const text = query.get('search') ?? ''
-      return cursorPage([TAGGED, commit('def456')].filter((c) => c.value.includes(text)))
+      const exact = query.get('commit')
+      return cursorPage(
+        [TAGGED, commit('def456')].filter(
+          (c) => c.value.includes(text) && (exact === null || c.value === exact),
+        ),
+      )
     })
     const button = await screen.findByRole('button', { name: 'New Regression' })
     await waitFor(() => expect(button).toBeEnabled())

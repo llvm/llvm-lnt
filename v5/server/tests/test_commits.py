@@ -476,6 +476,78 @@ class TestListOrdinalBounds:
         assert code_of(response) == "invalid_request"
 
 
+class TestListCommitFilter:
+    """`commit=`: how a commit picker checks that it would offer a commit it was given (AR2)."""
+
+    @pytest.fixture(autouse=True)
+    def commits(self, create: Callable[..., Any], add_run: Callable[..., str]) -> None:
+        create("abc", ordinal=10, fields={"git_sha": "deadbeef"})
+        create("abc123", ordinal=20)
+        create("unordered")
+        add_run("abc", "linux", profile=True)
+        add_run("abc123", "darwin")
+
+    def test_keeps_only_the_commit_with_that_value(self, api_client: TestClient) -> None:
+        # An exact match, unlike `search=`: `abc` is also a substring of `abc123`.
+        assert values_in(page(api_client, "commit=abc")) == ["abc"]
+
+    def test_is_case_sensitive(self, api_client: TestClient) -> None:
+        # A commit's value is its identity, and identities are compared exactly.
+        assert values_in(page(api_client, "commit=ABC")) == []
+
+    def test_carries_the_commit_object(self, api_client: TestClient) -> None:
+        # What a picker shows the commit by: its display value is in `fields`.
+        [item] = page(api_client, "commit=abc").json()["items"]
+
+        assert item["fields"]["git_sha"] == "deadbeef"
+
+    def test_is_an_empty_page_for_a_commit_that_is_not_there(self, api_client: TestClient) -> None:
+        # I3: an unknown commit used as a filter is an empty result, not a 404.
+        response = page(api_client, "commit=nope")
+
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
+
+    def test_is_an_empty_page_for_a_value_longer_than_any_commit_can_be(
+        self, api_client: TestClient
+    ) -> None:
+        response = page(api_client, f"commit={'x' * (NAME_LENGTH + 1)}")
+
+        assert response.status_code == 200
+        assert values_in(response) == []
+
+    def test_combines_with_the_machine_filter(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "commit=abc&machine=linux")) == ["abc"]
+        assert values_in(page(api_client, "commit=abc&machine=darwin")) == []
+
+    def test_is_still_404_for_a_machine_that_is_not_there(self, api_client: TestClient) -> None:
+        response = page(api_client, "commit=abc&machine=nope")
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    def test_combines_with_the_profile_filter(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "commit=abc&has_profiles=true")) == ["abc"]
+        assert values_in(page(api_client, "commit=abc&has_profiles=false")) == []
+        assert values_in(page(api_client, "commit=abc123&has_profiles=false")) == ["abc123"]
+
+    def test_combines_with_the_search(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "commit=abc&search=beef")) == ["abc"]
+        assert values_in(page(api_client, "commit=abc&search=123")) == []
+
+    def test_combines_with_the_ordinal_bounds(self, api_client: TestClient) -> None:
+        assert values_in(page(api_client, "commit=abc123&after_commit=abc")) == ["abc123"]
+        assert values_in(page(api_client, "commit=abc&after_commit=abc")) == []
+
+    def test_follows_the_ordinal_order_in_leaving_out_unordered_commits(
+        self, api_client: TestClient
+    ) -> None:
+        # O5: sorting by ordinal excludes the commits without one, this filter or not.
+        assert values_in(page(api_client, "commit=abc&sort=ordinal")) == ["abc"]
+        assert values_in(page(api_client, "commit=unordered&sort=ordinal")) == []
+        assert values_in(page(api_client, "commit=unordered&sort=-first_seen")) == ["unordered"]
+
+
 class TestListPagination:
     @pytest.fixture(autouse=True)
     def commits(self, create: Callable[..., Any]) -> None:
@@ -569,6 +641,7 @@ class TestListPagination:
             ("limit=2&sort=-first_seen&cursor={cursor}", "issued for the opposite direction"),
             ("limit=2&search=c&cursor={cursor}", "issued without that filter"),
             ("limit=2&has_profiles=false&cursor={cursor}", "issued without that filter either"),
+            ("limit=2&commit=c2&cursor={cursor}", "issued without the commit filter"),
         ],
     )
     def test_refuses_a_cursor_it_did_not_issue(

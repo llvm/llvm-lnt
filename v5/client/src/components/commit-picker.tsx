@@ -1,10 +1,11 @@
-import { useCallback, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PAGE_SIZE } from '../api/client'
-import { fetchCommitPage, resolveCommits, type CommitFilters } from '../api/commits'
+import { fetchCommitPage, lookUpCommit, type CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
 import type { SuiteSchema } from '../api/suites'
-import { commitDisplayValue, displayValueOf, type Commit } from '../schema'
+import { commitDisplayValue, type Commit } from '../schema'
+import { useDropUnusable } from '../url-state'
 import { Combobox } from './combobox'
 import { useServerSuggestions, type Suggestion } from './suggestions'
 
@@ -16,7 +17,11 @@ interface Props {
   filters?: CommitFilters
   /** The commit string of the commit selected, or null for none. */
   value: string | null
-  /** A commit was picked, or the input was emptied (null), which clears the selection. */
+  /**
+   * A commit was picked, or the selection was cleared (null): because the input was emptied, or
+   * because the commit given is not one the picker offers (AR2). The latter may be reported more
+   * than once before `value` changes, so clearing must be idempotent, as a URL write is.
+   */
   onChange(value: string | null): void
   placeholder?: string
   isDisabled?: boolean
@@ -38,8 +43,11 @@ function suggestionOf(commit: Commit, schema: SuiteSchema): Suggestion {
  * scrolled to its end. The suggestions and the input show display values, and Enter also takes a
  * commit string.
  *
- * A commit the picker is given rather than one picked among its suggestions -- from the URL, say --
- * is shown by its display value, resolved through `POST commits/resolve`.
+ * A commit the picker is given rather than one picked among its suggestions -- from the URL, or
+ * kept while its filters change -- is looked up with the picker's filters plus `commit=`, which
+ * returns it, with its display value, only if the picker offers it. If the lookup
+ * returns nothing, the commit is unusable, and the picker is cleared as if the input had been
+ * emptied. A lookup that fails clears nothing (AR2 "State").
  */
 export function CommitPicker({
   label,
@@ -65,25 +73,38 @@ export function CommitPicker({
     enabled: !isDisabled,
   })
 
-  // The suggestion last picked, which already shows the value's display value.
-  const [picked, setPicked] = useState<Suggestion | null>(null)
-  const given = value !== null && picked?.key !== value
-  const resolved = useQuery({
-    queryKey: [...queryKeys.suite(suite), 'commits', 'resolve', value],
-    queryFn: ({ signal }) => resolveCommits(suite, [value!], signal),
-    enabled: given,
+  // The commit `value`, as a suggestion, if the picker offers it under its filters, and null if
+  // not. A pick stores the answer for the commit picked, since the suggestions are those of the
+  // current filters (see `useServerSuggestions`), so that only a commit given, or kept while the
+  // filters change, is looked up. The stored answer is fresh for the default `staleTime`, which is
+  // what keeps a pick from being looked up again.
+  const queryClient = useQueryClient()
+  const lookupKey = (commit: string | null) => [
+    ...queryKeys.suite(suite),
+    'commits',
+    'lookup',
+    filters,
+    commit,
+  ]
+  const lookup = useQuery({
+    queryKey: lookupKey(value),
+    queryFn: async ({ signal }) => {
+      const commit = await lookUpCommit(suite, filters, value!, signal)
+      return commit && suggestionOf(commit, schema)
+    },
+    enabled: value !== null,
+    // While the same commit is looked up under new filters, keep showing it as it was.
+    placeholderData: (previous) => (previous?.key === value ? previous : undefined),
   })
-  let selected: Suggestion | null = null
-  if (value !== null) {
-    selected = given ? { key: value, text: displayValueOf(value, resolved.data, schema) } : picked
-  }
+  useDropUnusable(lookup, (found) => found !== null, () => onChange(null))
+  const selected = value === null ? null : (lookup.data ?? { key: value, text: value })
 
   return (
     <Combobox
       label={label}
       value={selected}
       onChange={(suggestion) => {
-        setPicked(suggestion)
+        if (suggestion) queryClient.setQueryData(lookupKey(suggestion.key), suggestion)
         onChange(suggestion?.key ?? null)
       }}
       suggestions={suggestions}

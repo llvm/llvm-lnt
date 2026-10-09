@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { keepPreviousData, useInfiniteQuery, type QueryKey } from '@tanstack/react-query'
+import { hashKey, useInfiniteQuery, type QueryKey } from '@tanstack/react-query'
 import { cursorPaging, useRestartOnRejectedCursor, type CursorPage } from '../api/use-cursor-pages'
 
 export interface Suggestion {
@@ -74,6 +74,11 @@ export function useLocalSuggestions(
   }
 }
 
+/** Whether `searched`, the key of a search, is one of a search over `queryKey`, for any term. */
+function sameQuery(searched: QueryKey, queryKey: QueryKey): boolean {
+  return hashKey(searched.slice(0, -1)) === hashKey(queryKey)
+}
+
 /** How long typing must pause before a server-side search is sent, here or by `useServerSearch`. */
 export const SEARCH_DELAY_MS = 250
 
@@ -123,7 +128,12 @@ export function useServerSuggestions<Item>({
     queryKey: fullKey,
     queryFn: ({ pageParam, signal }) => fetchPage(term, pageParam, signal),
     ...cursorPaging,
-    placeholderData: keepPreviousData,
+    // The previous text's suggestions stay up while the new text's load (AR2), but not those of
+    // another `queryKey`: they are not suggestions at all under its filters, and could be picked.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery !== undefined && sameQuery(previousQuery.queryKey, queryKey)
+        ? previous
+        : undefined,
     enabled,
   })
   const { data, error, hasNextPage, isFetchingNextPage, isPlaceholderData, isPending } = query

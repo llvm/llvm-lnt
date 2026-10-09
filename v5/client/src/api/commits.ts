@@ -21,7 +21,7 @@ export function fetchCommitPage(suite: string, query: CommitListQuery, signal?: 
  * that only names its commits, such as a page of runs, needs to show their display values (AR2).
  * A value no commit has, deleted since the list was read, say, is absent from the map.
  */
-export async function resolveCommits(
+async function resolveCommits(
   suite: string,
   values: string[],
   signal?: AbortSignal,
@@ -47,6 +47,21 @@ export interface CommitFilters {
   machine?: string
   /** Only commits with a run that has profiles (on `machine`, if given). */
   has_profiles?: true
+}
+
+/**
+ * The commit `value`, if the commit list under `filters` holds it, and null otherwise: how a commit
+ * picker checks that it would offer a commit it was given (AR2 "Commit pickers"), with its filters
+ * plus `commit=` (E3).
+ */
+export async function lookUpCommit(
+  suite: string,
+  filters: CommitFilters,
+  value: string,
+  signal?: AbortSignal,
+): Promise<Commit | null> {
+  const page = await fetchCommitPage(suite, { ...filters, commit: value, limit: 1 }, signal)
+  return page.items[0] ?? null
 }
 
 /**
