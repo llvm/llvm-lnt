@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatTimestamp, shortUuid } from './format'
+import { formatTimestamp, regressionTitle, shortUuid, truncate } from './format'
 
 // The tests run in UTC (see vite.config.ts).
 describe('formatTimestamp', () => {
@@ -24,5 +24,27 @@ describe('formatTimestamp', () => {
 describe('shortUuid', () => {
   it('keeps the first 8 characters', () => {
     expect(shortUuid('573af861-8303-4a5b-a643-b8321e0142c4')).toBe('573af861…')
+  })
+})
+
+describe('truncate', () => {
+  it('keeps a text that fits as it is', () => {
+    expect(truncate('abc', 3)).toBe('abc')
+  })
+
+  it('cuts a longer one, ending it with an ellipsis', () => {
+    expect(truncate('abcdef', 4)).toBe('abc…')
+  })
+
+  it('counts characters rather than UTF-16 code units, and cuts none in half', () => {
+    expect(truncate('😀😀😀', 3)).toBe('😀😀😀')
+    expect(truncate('😀😀😀😀', 3)).toBe('😀😀…')
+  })
+})
+
+describe('regressionTitle', () => {
+  it('is the title, or (untitled) without one', () => {
+    expect(regressionTitle({ title: 'slow' })).toBe('slow')
+    expect(regressionTitle({ title: null })).toBe('(untitled)')
   })
 })

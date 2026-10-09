@@ -1,0 +1,29 @@
+.box {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--lnt-space-1) var(--lnt-space-4);
+  margin: 0 0 var(--lnt-space-3);
+  padding: var(--lnt-space-3);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+  font-size: 0.9rem;
+}
+
+/* A row's label and value sit in the box's two columns. */
+.row {
+  display: contents;
+}
+
+.label {
+  color: var(--lnt-muted);
+  font-weight: 600;
+}
+
+/* A value can be long and span lines, such as a compiler's whole `--version` output. */
+.value {
+  margin: 0;
+  max-height: 12rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

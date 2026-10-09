@@ -4,13 +4,8 @@ import clsx from 'clsx'
 import { SettingsMenu } from './auth/settings-menu'
 import { Loading } from './components/feedback'
 import { PageErrorBoundary } from './components/page-error-boundary'
-import { suitePath } from './paths'
+import { comparePath, graphPath, profilesPath, suitePath } from './paths'
 import styles from './layout.module.css'
-
-/** `path`, with the suite of a suite-scoped page passed on as `param` (AR4). */
-function withSuite(path: string, param: string, suite: string | undefined): string {
-  return suite === undefined ? path : `${path}?${new URLSearchParams({ [param]: suite })}`
-}
 
 export function Layout() {
   // Every navigation recovers a page that failed, including one to the same URL.
@@ -29,13 +24,13 @@ export function Layout() {
           >
             Test Suites
           </NavLink>
-          <NavLink to={withSuite('/graph', 'suite', suite)} className={styles.link}>
+          <NavLink to={graphPath({ suite })} className={styles.link}>
             Graph
           </NavLink>
-          <NavLink to={withSuite('/compare', 'suite_a', suite)} className={styles.link}>
+          <NavLink to={comparePath({ suite })} className={styles.link}>
             Compare
           </NavLink>
-          <NavLink to={withSuite('/profiles', 'suite_a', suite)} className={styles.link}>
+          <NavLink to={profilesPath({ suite })} className={styles.link}>
             Profiles
           </NavLink>
           {/* The API documentation viewer is a separate document rather than an SPA route, so it

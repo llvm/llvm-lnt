@@ -43,9 +43,9 @@ etc..
 
 "View Graph" (pre-filled machine), "Compare" (pre-selected machine), and red "Delete Machine" button.
 Clicking "Delete Machine" shows its confirmation prompt (see AR2) below the action row.
-Deletion requires `manage` scope. On success, navigates to the test suites page. While
-the delete is in progress, a message reassures the user that deletion may take a while
-for machines with many runs.
+Deletion requires `manage` scope. On success, navigates to the Machines tab of the Test
+Suites page. While the delete is in progress, a message reassures the user that deletion
+may take a while for machines with many runs.
 
 ### Tracked toggle
 
@@ -64,14 +64,15 @@ indicator on this machine, newest first
 Each row's title links to its regression detail page.
 
 Each row shows:
-- Title: the regression's title (truncated to 50 chars), link to the regression detail page
+- Title: the regression's title (truncated to 50 chars, whole on hover), link to the regression detail page
 - State: a colored state badge
 - Tests: the regression's `test_count`, which counts the tests across all of its
   indicators rather than only those on this machine
 
 If there are no unresolved regressions for the machine, it shows "No active regressions on this machine."
-The table has no Previous/Next: below it (when populated), a "Show all regressions" button links to the
-Regressions tab of the Test Suites page, pre-filtered for this machine.
+The table has no Previous/Next: below it, a "Show all regressions" button links to the
+Regressions tab of the Test Suites page, filtered by this machine only, whatever the state.
+It is shown even when the table is empty, since the machine may have resolved regressions.
 
 ### Run History table
 

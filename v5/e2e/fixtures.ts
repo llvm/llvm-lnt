@@ -12,7 +12,7 @@
  */
 
 import { readFileSync, statSync } from 'node:fs'
-import { test as base, expect, type Page } from '@playwright/test'
+import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { TOKEN_STORAGE_KEY } from '../client/src/auth/storage-key.ts'
 import { SERVER_LOG } from './global-setup.ts'
@@ -26,6 +26,13 @@ export function adminToken(): string {
   const token = process.env.E2E_ADMIN_TOKEN
   if (!token) throw new Error('E2E_ADMIN_TOKEN is not set: run the tests with playwright.config.ts')
   return token
+}
+
+/** The body of a successful `GET path`, failing the test with the API's answer otherwise. */
+export async function json<T>(request: APIRequestContext, path: string): Promise<T> {
+  const response = await request.get(path)
+  expect(response.status(), await response.text()).toBe(200)
+  return (await response.json()) as T
 }
 
 interface Fixtures {

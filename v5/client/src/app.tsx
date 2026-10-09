@@ -6,7 +6,7 @@ import { NotFound } from './pages/not-found'
 // One chunk per page, fetched the first time the page is visited (AR2 "Code splitting").
 const Dashboard = lazy(() => import('./pages/dashboard'))
 const TestSuites = lazy(() => import('./pages/test-suites'))
-const MachineDetail = lazy(() => import('./pages/machine-detail'))
+const MachineDetail = lazy(() => import('./pages/details/machine-detail'))
 const RunDetail = lazy(() => import('./pages/run-detail'))
 const CommitDetail = lazy(() => import('./pages/commit-detail'))
 const RegressionDetail = lazy(() => import('./pages/regression-detail'))

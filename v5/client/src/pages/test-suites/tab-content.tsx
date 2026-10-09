@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { ControlsPanel } from '../../components/controls-panel'
-import { ErrorMessage, Loading } from '../../components/feedback'
+import { Loaded } from '../../components/feedback'
 import { SearchInput } from '../../components/search-input'
 import type { ServerSearch } from '../../components/use-server-search'
 
@@ -43,13 +43,9 @@ export function TabContent({
         <SearchInput search={search} label={searchLabel} placeholder={placeholder} />
       </ControlsPanel>
       {toolbar}
-      {error ? (
-        <ErrorMessage error={error} onRetry={onRetry} />
-      ) : isPending ? (
-        <Loading />
-      ) : (
-        children
-      )}
+      <Loaded isPending={isPending} error={error} onRetry={onRetry}>
+        {children}
+      </Loaded>
     </>
   )
 }

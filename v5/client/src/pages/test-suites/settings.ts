@@ -2,6 +2,7 @@
  * The settings of the Test Suites page that live in the URL (TS1): the tab, and those of each tab.
  */
 
+import { suitePath } from '../../paths'
 import { REGRESSION_STATES } from '../../regression-states'
 import {
   booleanParam,
@@ -78,4 +79,26 @@ export function unusedSettings(settings: Settings): Partial<Settings> {
 
 function defaults(settings: readonly Setting[]): Partial<Settings> {
   return Object.fromEntries(settings.map((key) => [key, PARAMS[key].default]))
+}
+
+/**
+ * The path of `tab` of the page for `suite`, with the Regressions tab filtered by `filters`: what
+ * another page links to. Settings at their default are left out, as the page leaves them out.
+ */
+export function suiteTabPath(suite: string, tab: Exclude<TabId, 'regressions'>): string
+export function suiteTabPath(
+  suite: string,
+  tab: 'regressions',
+  filters?: Pick<Partial<RegressionFilters>, 'machine'>,
+): string
+export function suiteTabPath(
+  suite: string,
+  tab: TabId,
+  filters: Pick<Partial<RegressionFilters>, 'machine'> = {},
+): string {
+  const search = new URLSearchParams()
+  if (tab !== PARAMS.tab.default) search.set('tab', tab)
+  if (filters.machine) search.set('machine', filters.machine)
+  const query = search.toString()
+  return query ? `${suitePath(suite)}?${query}` : suitePath(suite)
 }
