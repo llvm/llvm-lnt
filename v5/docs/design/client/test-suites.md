@@ -136,8 +136,9 @@ UUID          Title                 State       Commit        Machines      Test
 etc...
 ```
 
-UUID is the regression's shortened UUID, linking to its detail page like Title. It tells
-untitled regressions apart, and shows the prefix that the search matches.
+UUID is the regression's shortened UUID, linking to its detail page like Title. It is the
+only way to tell regressions without a title apart, and it shows the prefix by which the
+search can find a regression.
 
 Machines and Tests are the `machine_count` and `test_count` the list endpoint returns
 for each regression. They count the whole regression even when the table is filtered.
