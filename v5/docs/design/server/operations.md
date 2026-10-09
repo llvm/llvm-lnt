@@ -217,10 +217,7 @@ instead. An empty term matches every row.
 | `GET /api/suites/{testsuite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |
 | `GET /api/suites/{testsuite}/regressions?search=slowdown` | The `title` column, and the `uuid` by prefix |
 
-The term is plain text: `%` and `_` are not wildcards, and the client's `re:`
-regex-mode prefix (see AR2) is not interpreted. That convention only applies to
-the client-side test filters AR2 gives it to, never to a `search=` value sent to
-the API.
+The term is plain text: `%`, `_` and regex syntax have no special meaning.
 
 
 ## O5: Time-Series Queries

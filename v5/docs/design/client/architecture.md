@@ -84,12 +84,10 @@ loaded in the browser -- matches its text as a case-insensitive substring.
 
 The test filters of the Graph and Compare pages also have a regex mode, since
 they select the tests that a whole operation covers (plotting, a geomean, an
-export). Prefixing the input with `re:`
-(case-sensitive literal prefix) switches it to case-insensitive regex matching.
-While the input starts with `re:`, a small inline "regex" badge appears at its
-right edge, blue for a valid regex and red for an invalid one. The `re:` prefix
-is not consumed or hidden -- the user sees it in the input and it is included in
-URL state.
+export). A "Regex" checkbox beside the input switches it between substring and
+regex matching, both case-insensitive. While its text is not a valid regex, the
+input shows the red halo (see Invalid input), and the filter keeps applying the
+last valid one, or none if there has not been one yet.
 
 Inputs that search the server rather than filter data already loaded -- the
 Test Suites tabs' searches (TS1), commit pickers (see below) and the regression

@@ -437,7 +437,8 @@ All selection state is encoded as query parameters for shareability:
   defaults: 1, 0.05, 0 respectively), `noise_pct_on`, `noise_pval_on`,
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
-- `test_filter`
+- `test_filter`, and `test_filter_regex`: `1` when the test filter's regex mode
+  is on (see AR2), omitted otherwise
 - `columns`: the keys of the optional columns shown (see CP2), comma-separated;
   omitted when none is shown
 - `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,

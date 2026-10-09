@@ -222,14 +222,15 @@ the user can see the commit range.
 
 ### GR13: URL State
 
-`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}`
+`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=1&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}`
 
 The `machine`, `test` and `baseline` parameters are repeated for each selected
 machine, selected test and baseline respectively. `test` is present only while
 at most 10 tests are selected: with more, the URL holds no `test` at all, and
 the page warns that the selection is not part of the URL and so cannot be
-shared. On load, `test_filter` filters the test table as if it had been typed
-(see AR2), and a `test` that the test list for the selected machines and
+shared. `test_filter_regex=1` turns on the test filter's regex mode (see AR2),
+and is omitted otherwise. On load, `test_filter` filters the test table as if it
+had been typed, and a `test` that the test list for the selected machines and
 metric does not hold, or that does not match the filter, is dropped.
 
 
