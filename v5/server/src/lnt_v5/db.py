@@ -189,9 +189,14 @@ def is_duplicate_schema(error: DBAPIError) -> bool:
 def is_lock_unavailable(error: DBAPIError) -> bool:
     """Whether an error means the statement gave up waiting for a lock, rather than failed.
 
-    Both cases a schema change can hit: `lock_timeout` expiring while an in-flight query holds the
-    table, and the deadlock detector picking this transaction as its victim. Neither says anything
-    is wrong with the request, so both answer 409 rather than 500 -- retrying is what a caller
-    should do.
+    Both cases a schema change, or a request contending with one, can hit: `lock_timeout` expiring
+    while another transaction holds the table, and the deadlock detector picking this transaction as
+    its victim. Neither says anything is wrong with the request, so both answer 409 rather than 500
+    -- retrying is what a caller should do.
     """
     return isinstance(error.orig, LockNotAvailable | DeadlockDetected)
+
+
+def is_deadlock(error: DBAPIError) -> bool:
+    """Whether an error means the deadlock detector picked this transaction as its victim."""
+    return isinstance(error.orig, DeadlockDetected)

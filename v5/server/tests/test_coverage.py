@@ -326,7 +326,7 @@ class TestConcurrency:
     ) -> None:
         # Every submission writes the same rows, and lists its tests in an order deliberately
         # incompatible with the others', which is what would deadlock writers that did not sort. A
-        # deadlock surfaces as a 500, which `submit` asserts against.
+        # deadlock surfaces as a 409 `retry`, which `submit` asserts against.
         names = [f"t{index:02d}" for index in range(40)]
         orders = [names, list(reversed(names)), names[20:] + names[:20], names[1::2] + names[::2]]
 

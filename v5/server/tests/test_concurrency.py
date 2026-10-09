@@ -14,6 +14,7 @@ savepoints, and an outer rollback-everything transaction would quietly interfere
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -24,6 +25,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, delete, insert, select, text
+from sqlalchemy.exc import DBAPIError
 
 from conftest import code_of, run_payload
 from introspection import counted, counting_statements
@@ -34,8 +36,9 @@ from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regress
 from lnt_v5.routes.runs import RUNS_PATH, Runs
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
-from lnt_v5.suites.registry import Suite
+from lnt_v5.suites.registry import Suite, SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.scope import suite_scope
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.suites.submission import SubmittedCommit, SubmittedMachine
 from lnt_v5.suites.tables import SuiteTables
@@ -895,6 +898,23 @@ class TestConcurrentIndicators:
         assert counted(db_engine, suite.tables, "regression_indicator") == 2
 
 
+@pytest.fixture
+def tables(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
+    """The `nts` suite, created through the API, for the tests that race a request."""
+    return make_api_suite(NTS)
+
+
+@pytest.fixture
+def linux(api_client: TestClient, submitter: dict[str, str], tables: SuiteTables) -> None:
+    """A machine and a test a request can name, which only a run submission creates."""
+    body = run_payload(
+        machine={"name": "linux"},
+        commit={"value": "abc"},
+        tests=[{"name": "suite/one", "execution_time": 1.0}],
+    )
+    assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
+
+
 class TestReferenceDeletedMidRequest:
     """A regression write racing the deletion of a machine or commit it names, or of the regression.
 
@@ -904,20 +924,6 @@ class TestReferenceDeletedMidRequest:
     stored by the endpoint itself. The delete holds its transaction open, so the request resolves
     the row it can still see and then blocks on it when its write checks the foreign key.
     """
-
-    @pytest.fixture
-    def tables(self, make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
-        return make_api_suite(NTS)
-
-    @pytest.fixture
-    def linux(self, api_client: TestClient, submitter: dict[str, str], tables: SuiteTables) -> None:
-        """A machine and a test an indicator can name, which only a run submission creates."""
-        body = run_payload(
-            machine={"name": "linux"},
-            commit={"value": "abc"},
-            tests=[{"name": "suite/one", "execution_time": 1.0}],
-        )
-        assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
 
     @pytest.fixture
     def doomed(
@@ -1042,3 +1048,126 @@ class TestReferenceDeletedMidRequest:
         assert response.status_code == 404
         assert code_of(response) == "not_found"
         assert api_client.get(f"{REGRESSIONS}/{regression}").json()["commit"] is None
+
+
+def deadlocked(
+    db_engine: Engine,
+    background: Callable[..., Future[Any]],
+    first: str,
+    second: str,
+    request: Callable[[], Any],
+) -> Any:
+    """Run `request` into a deadlock with another transaction, and return its response.
+
+    The other transaction locks the suite's `first` table, waits until `request` is blocked on it,
+    and then locks `second`, which the request holds. Each side checks for a deadlock once, when it
+    has waited for its `deadlock_timeout`, and the side whose check runs first is aborted. The
+    request starts waiting first, but only by milliseconds, which a loaded machine can reverse, so
+    this side's timeout is raised to put its check seconds after the request's. The request's check
+    also has to find the cycle: the second lock must arrive within the request's timeout (1s by
+    default) of it blocking, which `until_blocked` sees in milliseconds. Otherwise this side is
+    aborted instead, and the test fails rather than hangs.
+
+    The transaction ends before the response is returned, so that the test can read the tables it
+    locked, and a failing test does not leave it blocking the suite's teardown.
+    """
+    with db_engine.connect() as holder, holder.begin():
+        # Needs a superuser, which the test role is.
+        holder.execute(text("SET LOCAL deadlock_timeout = '10s'"))
+        holder.execute(text(f'LOCK TABLE "nts".{first} IN ACCESS EXCLUSIVE MODE'))
+        running = background(request)
+        until_blocked(db_engine)
+        holder.execute(text(f'LOCK TABLE "nts".{second} IN ACCESS EXCLUSIVE MODE'))
+    return running.result(timeout=BLOCK_TIMEOUT)
+
+
+class TestContendingWithASchemaChange:
+    """D2: a request that loses a lock conflict with a schema change is a retryable 409.
+
+    A schema change takes `ACCESS EXCLUSIVE` on each table it alters, one after the other, while a
+    request locks the tables it reads as it goes, often a name lookup first and the main statement
+    after it. The two can deadlock, and PostgreSQL aborts one of them. The change answers for
+    itself (`suite_write`); these stage the request as the victim, against a transaction locking
+    tables the way the change does, since the outcome of a race against the change itself would
+    depend on timing.
+    """
+
+    @pytest.mark.usefixtures("linux")
+    def test_a_read_that_loses_a_deadlock_is_retryable(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        # The run list looks the machine up, which keeps its table locked, and then needs the run
+        # table, which the other side has already locked.
+        response = deadlocked(
+            db_engine,
+            background,
+            "run",
+            "machine",
+            lambda: api_client.get(RUNS, params={"machine": "linux"}),
+        )
+
+        assert response.status_code == 409
+        assert code_of(response) == "retry"
+        assert [
+            record
+            for record in caplog.records
+            if record.name == "lnt_v5.suites.scope" and record.levelno == logging.WARNING
+        ]
+
+    def test_a_write_that_loses_a_deadlock_is_retryable_and_writes_nothing(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        tables: SuiteTables,
+    ) -> None:
+        # I4: `retry` means nothing was written. The submission creates its machine, its commit
+        # and its run before it blocks on the sample table, and none of them may survive.
+        body = run_payload(
+            machine={"name": "linux"},
+            commit={"value": "abc"},
+            tests=[{"name": "suite/one", "execution_time": 1.0}],
+        )
+
+        response = deadlocked(
+            db_engine,
+            background,
+            "sample",
+            "machine",
+            lambda: api_client.post(RUNS, json=body, headers=submitter),
+        )
+
+        assert response.status_code == 409
+        assert code_of(response) == "retry"
+        for table in ("machine", "commit", "run", "test", "sample"):
+            assert counted(db_engine, tables, table) == 0, table
+
+    def test_a_lock_timeout_is_retryable(self, db_engine: Engine, tables: SuiteTables) -> None:
+        # Requests set no `lock_timeout`, but an operator may set one on the role or the database.
+        # Both sides run on this thread, so this hangs if the timeout ever fails to apply.
+        with db_engine.connect() as holder, holder.begin():
+            holder.execute(text('LOCK TABLE "nts".sample IN ACCESS EXCLUSIVE MODE'))
+            with (
+                pytest.raises(ApiError) as raised,
+                db_engine.connect() as connection,
+                suite_scope(SuiteRegistry(), connection, "nts"),
+            ):
+                connection.execute(text("SET LOCAL lock_timeout = '10ms'"))
+                connection.execute(text('SELECT 1 FROM "nts".sample'))
+
+        assert raised.value.code is ErrorCode.RETRY
+
+    def test_any_other_database_error_is_not_retryable(
+        self, db_engine: Engine, tables: SuiteTables
+    ) -> None:
+        with (
+            pytest.raises(DBAPIError),
+            db_engine.connect() as connection,
+            suite_scope(SuiteRegistry(), connection, "nts"),
+        ):
+            connection.execute(text("SELEC 1"))
