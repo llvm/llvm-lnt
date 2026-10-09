@@ -1,8 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import type { Schemas } from '../../api/client'
-import { queryKeys } from '../../api/keys'
-import { fetchMachines } from '../../api/machines'
+import { machinesQuery } from '../../api/machines'
 import { shownData } from '../../api/shown-data'
 import type { SuiteSchema } from '../../api/suites'
 import { DataTable, type Column } from '../../components/data-table'
@@ -28,10 +27,8 @@ interface Props {
 export function MachinesTab({ schema, search, onSearch }: Props) {
   const suite = schema.name
   const input = useServerSearch(search, onSearch)
-  const params = { search: search || undefined }
   const machines = useQuery({
-    queryKey: [...queryKeys.suite(suite), 'machines', params],
-    queryFn: ({ signal }) => fetchMachines(suite, params, signal),
+    ...machinesQuery(suite, search),
     // Keep the machines shown until those of the next search arrive.
     placeholderData: keepPreviousData,
   })

@@ -8,9 +8,9 @@
  *
  * A value the page cannot use is dropped, and the page uses the default instead. One that is
  * malformed -- not one of an enumeration's values, say -- is dropped as soon as it is read, and one
- * that is only spelled unusually (`offset=050`) is rewritten. One that only the server can rule
- * out, such as a machine that does not exist, is dropped by `useDropUnusable` once a response shows
- * it to be unusable.
+ * that is only spelled unusually (a search with spaces around it) is rewritten. One that only the
+ * server can rule out, such as a machine that does not exist, is dropped by `useDropUnusable` once
+ * a response shows it to be unusable.
  *
  * `useUrlState` needs a `UrlStateProvider` inside the router.
  */
@@ -61,14 +61,6 @@ export function booleanParam(defaultValue: boolean): Param<boolean> {
   return singleParam(defaultValue, (value) =>
     value === 'true' ? true : value === 'false' ? false : undefined,
   )
-}
-
-/** A non-negative integer. */
-export function integerParam(defaultValue = 0): Param<number> {
-  return singleParam(defaultValue, (value) => {
-    const number = Number(value)
-    return /^\d+$/.test(value) && Number.isSafeInteger(number) ? number : undefined
-  })
 }
 
 /** A parameter repeated once per value (I3's convention). */

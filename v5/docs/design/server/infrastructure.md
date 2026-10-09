@@ -65,10 +65,12 @@ of two envelopes:
 - Cursor-paginated: `{"items": [...], "cursor": {"next": "...", "previous": null}}`
 - Unpaginated: `{"items": [...]}`
 
-The endpoints spec says which envelope each endpoint uses. `items` is always
-present, and is an empty list when nothing matches. Even unpaginated results
-are wrapped, so that adding pagination to an endpoint later keeps the shape of
-its responses.
+The endpoints spec says which envelope each endpoint uses: an endpoint whose
+results are bounded -- by the request, by the entity it reads from, or because
+there are few of them -- is unpaginated, and the others are cursor-paginated.
+`items` is always present, and is an empty list when nothing matches. Even
+unpaginated results are wrapped, so that adding pagination to an endpoint later
+keeps the shape of its responses.
 
 This applies only to the top level of a response body. An array that is a
 field of a larger object keeps its own name (a regression's `indicators`, a
