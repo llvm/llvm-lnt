@@ -33,7 +33,7 @@ Each side (A and B) has its own cascading selectors. The two sides may select
 different test suites. Changing an upstream selector clears downstream
 selections:
 
-1. **Suite**: dropdown over the test suites defined on the instance. Disabled: never.
+1. **Suite**: dropdown over the test suites defined on the instance.
 2. **Machine**: combobox over machine names for the selected suite. Disabled
    until suite is selected.
 3. **Commit**: combobox over commits filtered to those with profile-bearing runs
@@ -92,9 +92,7 @@ Display mode selector options:
 - CFG (X86-64)
 
 The CFG view requires ISA-specific basic block boundary detection (parsing
-instruction semantics to identify branches, jumps, and fall-throughs). The v4
-implementation in `lnt/server/ui/static/lnt_profile.js` can serve as a reference
-for the patterns of each ISA.
+instruction semantics to identify branches, jumps, and fall-throughs).
 
 
 ### PF6: Counter Display Modes

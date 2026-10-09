@@ -121,8 +121,9 @@ Notes:
 
 `metrics`, `commit_fields` and `machine_fields` entries each declare a `type`
 from one shared set of attribute types. `type` is required on every entry of
-all three lists: there is no default type. Schema creation is rejected with 400
-if `type` is missing or is not one of the values below.
+all three lists: there is no default type. A schema is rejected with 400, when
+it is created or changed, if `type` is missing or is not one of the values
+below.
 
 | Type       | Meaning                | SQL column type             | JSON representation         |
 |------------|------------------------|------------------------------|------------------------------|
@@ -133,7 +134,8 @@ if `type` is missing or is not one of the values below.
 
 `searchable: true` (D4, O4) is only valid on `text` entries: setting it on a
 `real`, `integer` or `datetime` field is rejected with 400 when the schema is
-created. Likewise, `display: true` (D4) is only valid on a `text` commit field.
+created or changed. Likewise, `display: true` (D4) is only valid on a `text`
+commit field.
 
 **Only the JSON representation is accepted.** A submitted value whose JSON type
 is not the one its declared type calls for is rejected with 400, not
@@ -227,7 +229,7 @@ Notes:
   purely a UI concern: the database layer does not treat display fields
   specially. A schema with more than one `commit_field` marked
   `display: true`, or with one that is not `text`, is rejected with 400 when it
-  is created.
+  is created or changed.
 - There is no `format_version` in the schema: v5 has only one format.
 
 **Presentation keys.** Besides `name` and `type`, each list accepts only the
