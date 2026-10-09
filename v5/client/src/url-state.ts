@@ -46,6 +46,11 @@ export function stringParam(defaultValue = ''): Param<string> {
   return singleParam(defaultValue, (value) => value)
 }
 
+/** A text whose surrounding spaces are dropped: a search's, which never means to match them. */
+export function trimmedStringParam(): Param<string> {
+  return singleParam('', (value) => value.trim())
+}
+
 /** One of `options`. */
 export function enumParam<const T extends string>(options: readonly T[], defaultValue: T): Param<T> {
   return singleParam(defaultValue, (value) => options.find((option) => option === value))

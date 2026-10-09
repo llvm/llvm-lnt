@@ -1,0 +1,34 @@
+/* What a combobox and a select share, so that the two look alike. */
+
+/* The label above the field. */
+.root {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+}
+
+/* React Aria sizes the popover to fit the screen, and gives it the field's width to use. */
+.popover {
+  min-width: var(--trigger-width);
+  overflow: auto;
+}
+
+.list {
+  outline: none;
+}
+
+.option {
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.option[data-focused] {
+  background: var(--lnt-panel);
+  color: var(--lnt-accent);
+}
+
+.option[data-selected] {
+  font-weight: 600;
+}

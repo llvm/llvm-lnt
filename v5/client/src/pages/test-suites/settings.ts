@@ -10,6 +10,7 @@ import {
   integerParam,
   isDefault,
   stringParam,
+  trimmedStringParam,
   type ValuesOf,
 } from '../../url-state'
 
@@ -44,7 +45,7 @@ export const PARAMS = {
     TABS.map((tab) => tab.id),
     'runs',
   ),
-  search: stringParam(),
+  search: trimmedStringParam(),
   // Only the Machines tab is offset-paginated; the others keep their position out of the URL (AR2).
   offset: integerParam(),
   ...REGRESSION_PARAMS,

@@ -14,7 +14,7 @@ import {
 import { errorMessage } from '../api/client'
 import { Popover } from './popover'
 import type { Suggestion, Suggestions } from './suggestions'
-import listStyles from './list-box.module.css'
+import shared from './dropdown.module.css'
 import styles from './combobox.module.css'
 
 interface Props {
@@ -107,7 +107,7 @@ export function Combobox({
 
   return (
     <ComboBox
-      className={styles.root}
+      className={shared.root}
       value={value?.key ?? null}
       onChange={onKeyChange}
       inputValue={text}
@@ -125,14 +125,14 @@ export function Combobox({
         <Input placeholder={placeholder} className={styles.input} />
       </Field>
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
-      <Popover className={styles.popover} maxHeight={320}>
+      <Popover className={shared.popover} maxHeight={320}>
         <ListBox
-          className={listStyles.list}
+          className={shared.list}
           renderEmptyState={() => <EmptyState suggestions={suggestions} />}
         >
           <Collection items={suggestions.items}>
             {(item) => (
-              <ListBoxItem id={item.key} textValue={item.text} className={listStyles.option}>
+              <ListBoxItem id={item.key} textValue={item.text} className={shared.option}>
                 {item.text}
               </ListBoxItem>
             )}

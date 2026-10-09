@@ -14,6 +14,7 @@ import {
   integerParam,
   listParam,
   stringParam,
+  trimmedStringParam,
   useDropUnusable,
   useUrlState,
 } from './url-state'
@@ -141,6 +142,20 @@ describe('useUrlState', () => {
     expect(result.current.url).toBe('/x?on=false')
     act(() => result.current.setState({ on: true, off: true }))
     expect(result.current.url).toBe('/x?off=true')
+  })
+
+  it('reads a trimmed text without the spaces around it, and rewrites it so', () => {
+    const { result } = renderHook(
+      () => {
+        const [state] = useUrlState({ search: trimmedStringParam() })
+        const { pathname, search } = useLocation()
+        return { state, url: pathname + search }
+      },
+      providers({ url: '/x?search=%20linux%20x86%20' }),
+    )
+
+    expect(result.current.state).toEqual({ search: 'linux x86' })
+    expect(result.current.url).toBe('/x?search=linux+x86')
   })
 
   it('keeps the hash', () => {

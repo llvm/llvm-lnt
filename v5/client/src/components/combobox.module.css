@@ -1,9 +1,3 @@
-.root {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--lnt-space-1);
-}
-
 .field {
   display: flex;
 }
@@ -18,12 +12,6 @@
 .button {
   padding: 0 var(--lnt-space-2);
   border-radius: 0 var(--lnt-radius) var(--lnt-radius) 0;
-}
-
-/* React Aria sizes the popover to fit the screen, and gives it the combobox's width to use. */
-.popover {
-  min-width: var(--trigger-width);
-  overflow: auto;
 }
 
 .status {

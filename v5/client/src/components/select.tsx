@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from 'react-aria-components'
 import { Popover } from './popover'
-import listStyles from './list-box.module.css'
+import shared from './dropdown.module.css'
 import styles from './select.module.css'
 
 export interface Option<Value extends string> {
@@ -39,7 +39,7 @@ export function Select<Value extends string>({
 }: Props<Value>) {
   return (
     <AriaSelect
-      className={styles.root}
+      className={shared.root}
       value={value}
       // A single selection that cannot be cleared: React Aria reports a null only for no selection.
       onChange={(key) => key !== null && onChange(key as Value)}
@@ -50,10 +50,10 @@ export function Select<Value extends string>({
         <SelectValue />
         <span aria-hidden="true">▾</span>
       </Button>
-      <Popover className={styles.popover} maxHeight={320}>
-        <ListBox className={listStyles.list} items={options}>
+      <Popover className={shared.popover} maxHeight={320}>
+        <ListBox className={shared.list} items={options}>
           {(option) => (
-            <ListBoxItem id={option.value} className={listStyles.option}>
+            <ListBoxItem id={option.value} className={shared.option}>
               {option.label}
             </ListBoxItem>
           )}

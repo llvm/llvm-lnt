@@ -1,9 +1,3 @@
-.root {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--lnt-space-1);
-}
-
 /* Looks like the other inputs, with the value on the left and the arrow on the right. */
 .button {
   display: flex;
@@ -13,10 +7,4 @@
   min-width: 8rem;
   padding: var(--lnt-space-1) var(--lnt-space-2);
   text-align: left;
-}
-
-/* React Aria gives the popover the button's width to use. */
-.popover {
-  min-width: var(--trigger-width);
-  overflow: auto;
 }

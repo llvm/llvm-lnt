@@ -12,8 +12,9 @@ export interface ServerSearch {
 /**
  * The text of an input that searches the server (AR2 "Text filtering"): `search` is the text the
  * results are for, typically kept in the URL, and `onSearch` is called with the input's text once
- * typing pauses, trimmed, since spaces around it are never meant to be matched. Results for a text the user has since changed are never shown, since each search
- * is a query of its own; `pending` says that the results shown are not yet for the input's text.
+ * typing pauses, trimmed, since spaces around it are never meant to be matched. Results for a text
+ * the user has since changed are never shown, since each search is a query of its own; `pending`
+ * says that the results shown are not yet for the input's text.
  *
  * The input starts with `search`, and takes it up whenever it changes for another reason than this
  * input's own search -- a page clearing it, say.
