@@ -1,8 +1,8 @@
 # v5 Web UI: Architecture
 
-This document covers the SPA architecture, client-side routing, backend routes,
-and navigation bar. For individual page specifications, see the other documents
-in this directory.
+This document covers the SPA architecture, how the server serves it,
+client-side routing, the page hierarchy, and the navigation bar. For individual
+page specifications, see the other documents in this directory.
 
 
 ## AR1: Context
