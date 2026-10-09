@@ -111,8 +111,8 @@ Suites page.
 - Free-text search on the title or a UUID prefix: server-side `search=` (see
   AR2 and O4)
 
-The filters are kept in the URL, as the API names them: `state` (repeated),
-`machine`, `metric` and `has_commit=false`.
+The filters are kept in the URL, as the API names them: `state`, `machine`,
+`metric` and `has_commit=false`.
 
 **Actions** (each requires `triage` scope):
 - "New Regression" button -> toggles an inline create form with title, bug,
