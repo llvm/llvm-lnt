@@ -9,12 +9,12 @@ import {
   ListBox,
   ListBoxItem,
   ListBoxLoadMoreItem,
-  Popover,
   type Key,
 } from 'react-aria-components'
 import { errorMessage } from '../api/client'
+import { Popover } from './popover'
 import type { Suggestion, Suggestions } from './suggestions'
-import './combobox.css'
+import styles from './combobox.module.css'
 
 interface Props {
   label: string
@@ -90,7 +90,7 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
 
   return (
     <ComboBox
-      className="combobox"
+      className={styles.root}
       value={value?.key ?? null}
       onChange={onKeyChange}
       inputValue={text}
@@ -105,23 +105,23 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
     >
       <Label>{label}</Label>
       <Field query={query} suggestions={suggestions} value={value} pick={pick}>
-        <Input placeholder={placeholder} />
+        <Input placeholder={placeholder} className={styles.input} />
       </Field>
-      <Popover className="popover combobox-popover">
+      <Popover className={styles.popover}>
         <ListBox
-          className="combobox-list"
+          className={styles.list}
           renderEmptyState={() => <EmptyState suggestions={suggestions} />}
         >
           <Collection items={suggestions.items}>
             {(item) => (
-              <ListBoxItem id={item.key} textValue={item.text}>
+              <ListBoxItem id={item.key} textValue={item.text} className={styles.option}>
                 {item.text}
               </ListBoxItem>
             )}
           </Collection>
           {suggestions.hasMore && (
             <ListBoxLoadMoreItem
-              className="combobox-status"
+              className={styles.status}
               onLoadMore={suggestions.loadMore}
               isLoading={suggestions.isLoadingMore}
             >
@@ -130,7 +130,7 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
           )}
         </ListBox>
         {suggestions.error !== null && suggestions.items.length > 0 && (
-          <div className="combobox-status" role="alert">
+          <div className={styles.status} role="alert">
             {errorMessage(suggestions.error)}
           </div>
         )}
@@ -143,7 +143,7 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
   let message = 'No matches.'
   if (suggestions.error !== null) message = errorMessage(suggestions.error)
   else if (suggestions.isLoading) message = 'Loading...'
-  return <div className="combobox-status">{message}</div>
+  return <div className={styles.status}>{message}</div>
 }
 
 /**
@@ -212,12 +212,12 @@ function Field({
 
   return (
     <div
-      className="combobox-field"
+      className={styles.field}
       onKeyDownCapture={onKeyDownCapture}
       onInput={() => state.open()}
     >
       {children}
-      <Button className="combobox-button">▾</Button>
+      <Button className={styles.button}>▾</Button>
     </div>
   )
 }

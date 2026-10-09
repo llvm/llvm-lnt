@@ -1,10 +1,8 @@
-/* React Aria positions the popover under its button, in a portal at the end of the page. */
-.settings-popover {
-  z-index: 10;
+.popover {
   width: 28rem;
 }
 
-.settings-panel {
+.panel {
   display: flex;
   flex-direction: column;
   gap: var(--lnt-space-2);
@@ -13,29 +11,29 @@
   outline: none;
 }
 
-.settings-panel label {
+.label {
   display: block;
   font-weight: 600;
   margin-bottom: var(--lnt-space-1);
 }
 
-.settings-row {
+.row {
   display: flex;
   align-items: center;
   gap: var(--lnt-space-2);
 }
 
-.settings-row input {
+.input {
   flex: 1;
   min-width: 0;
 }
 
-.settings-status {
+.status {
   flex: 1;
   margin: 0;
   font-size: 0.9rem;
 }
 
-.settings-status-error {
+.error {
   color: var(--lnt-danger);
 }

@@ -1,3 +1,25 @@
+/*
+ * The client's only global stylesheet: the design tokens, and the default look of plain elements.
+ * The latter are in the `base` layer, so that a module's class wins over them whatever its
+ * specificity (unlayered styles take precedence over layered ones). That includes their `:hover`
+ * and `:disabled` looks: a module that recolours a control styles those states as well.
+ *
+ * Everything else is styled by a CSS Module beside the component that renders it
+ * (`combobox.module.css` beside `combobox.tsx`), so that class names cannot collide across
+ * components. In a module:
+ *
+ * - Class names are short and camelCase (`.root` for the outermost element, `.field`,
+ *   `.errorText`), and read as `styles.field`.
+ * - Each element the component styles has a class of its own. A descendant selector (`.row input`)
+ *   would also match inside any component nested there.
+ * - State that React Aria or ARIA already exposes is styled through its attributes
+ *   (`.option[data-focused]`, `[aria-expanded='true']`). The component's own variants are modifier
+ *   classes, combined with `clsx`.
+ *
+ * A look shared by several components is a component of its own, such as `Popover`, rather than a
+ * global class.
+ */
+
 :root {
   /* Colours */
   --lnt-bg: #ffffff;
@@ -26,73 +48,54 @@
   background-color: var(--lnt-bg);
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-body {
-  margin: 0;
-}
+  body {
+    margin: 0;
+  }
 
-a {
-  color: var(--lnt-accent);
-}
+  a {
+    color: var(--lnt-accent);
+  }
 
-/* Form controls, shared by every page (AR2 "Design consistency"). */
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  font-size: 0.9rem;
-  color: inherit;
-}
+  /* Form controls, shared by every page (AR2 "Design consistency"). */
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    font-size: 0.9rem;
+    color: inherit;
+  }
 
-button {
-  padding: var(--lnt-space-1) 0.75rem;
-  border: 1px solid var(--lnt-border-strong);
-  border-radius: var(--lnt-radius);
-  background: var(--lnt-bg);
-  cursor: pointer;
-}
+  button {
+    padding: var(--lnt-space-1) 0.75rem;
+    border: 1px solid var(--lnt-border-strong);
+    border-radius: var(--lnt-radius);
+    background: var(--lnt-bg);
+    cursor: pointer;
+  }
 
-button:hover:not(:disabled) {
-  border-color: var(--lnt-accent);
-  color: var(--lnt-accent);
-}
+  button:hover:not(:disabled) {
+    border-color: var(--lnt-accent);
+    color: var(--lnt-accent);
+  }
 
-button:disabled {
-  color: var(--lnt-muted);
-  background: var(--lnt-panel);
-  cursor: not-allowed;
-}
+  button:disabled {
+    color: var(--lnt-muted);
+    background: var(--lnt-panel);
+    cursor: not-allowed;
+  }
 
-input,
-select,
-textarea {
-  padding: var(--lnt-space-1) var(--lnt-space-2);
-  border: 1px solid var(--lnt-border-strong);
-  border-radius: var(--lnt-radius);
-  background: var(--lnt-bg);
-}
-
-/* The box around a page's selection controls, setting them apart from its content (AR2). */
-.controls-panel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lnt-space-3);
-  padding: var(--lnt-space-3);
-  margin-bottom: var(--lnt-space-4);
-  border: 1px solid var(--lnt-border);
-  border-radius: var(--lnt-radius);
-  background: var(--lnt-panel);
-}
-
-/* A box floating over the page, such as a combobox's list or the Settings panel. */
-.popover {
-  border: 1px solid var(--lnt-border);
-  border-radius: var(--lnt-radius);
-  background: var(--lnt-bg);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+  input,
+  select,
+  textarea {
+    padding: var(--lnt-space-1) var(--lnt-space-2);
+    border: 1px solid var(--lnt-border-strong);
+    border-radius: var(--lnt-radius);
+    background: var(--lnt-bg);
+  }
 }
