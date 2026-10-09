@@ -3,9 +3,9 @@ import { queryKeys } from '../../api/keys'
 import { fetchRunPage, type RunPage } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
-import type { Schemas } from '../../api/client'
+import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { DataTable, type Column } from '../../components/data-table'
-import { CursorPager, PAGE_SIZE } from '../../components/pagination'
+import { CursorPager } from '../../components/pagination'
 import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
 import { formatTimestamp } from '../../format'
@@ -48,7 +48,14 @@ export function RunsTab({ schema, search, onSearch }: Props) {
             columns={columns(schema, page)}
             rows={page.items}
             rowKey={(run) => run.uuid}
-            empty={search ? 'No runs match this search.' : 'No runs yet.'}
+            empty={
+              // A later page may only have run out.
+              pager.hasPrevious
+                ? 'No more runs.'
+                : search
+                  ? 'No runs match this search.'
+                  : 'No runs yet.'
+            }
             busy={input.pending || pager.isUpdating}
           />
           <CursorPager pager={pager} label="Runs pagination" />

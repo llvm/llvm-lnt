@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { PAGE_SIZE } from '../api/client'
 import { fetchCommitPage, resolveCommits, type CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
 import type { SuiteSchema } from '../api/suites'
 import { commitDisplayValue, displayValueOf, type Commit } from '../schema'
 import { Combobox } from './combobox'
-import { PAGE_SIZE } from './pagination'
 import { useServerSuggestions, type Suggestion } from './suggestions'
 
 interface Props {

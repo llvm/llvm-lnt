@@ -51,7 +51,8 @@ export interface CommitFilters {
 
 /**
  * `page`, with the commits named by `values` resolved in one call: what a list naming commits needs
- * to show their display values (AR2).
+ * to show their display values (AR2). If they cannot be resolved, the page goes without them, and
+ * shows the commit strings instead, rather than fail for want of a way to display them.
  */
 export async function withCommits<Page>(
   suite: string,
@@ -59,5 +60,12 @@ export async function withCommits<Page>(
   values: string[],
   signal?: AbortSignal,
 ): Promise<Page & { commits: Map<string, Commit> }> {
-  return { ...page, commits: await resolveCommits(suite, values, signal) }
+  let commits = new Map<string, Commit>()
+  try {
+    commits = await resolveCommits(suite, values, signal)
+  } catch (error) {
+    // Cancelled along with the page, which TanStack Query must see as such.
+    if (signal?.aborted) throw error
+  }
+  return { ...page, commits }
 }

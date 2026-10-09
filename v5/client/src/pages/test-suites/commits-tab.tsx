@@ -1,10 +1,11 @@
 import { Link } from 'react-router'
+import { PAGE_SIZE } from '../../api/client'
 import { fetchCommitPage } from '../../api/commits'
 import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { DataTable, type Column } from '../../components/data-table'
-import { CursorPager, PAGE_SIZE } from '../../components/pagination'
+import { CursorPager } from '../../components/pagination'
 import { useServerSearch } from '../../components/use-server-search'
 import { MISSING } from '../../format'
 import { commitPath } from '../../paths'
@@ -47,7 +48,14 @@ export function CommitsTab({ schema, search, onSearch }: Props) {
             columns={columns(schema)}
             rows={page.items}
             rowKey={(commit) => commit.value}
-            empty={search ? 'No commits match this search.' : 'No commits yet.'}
+            empty={
+              // A later page may only have run out.
+              pager.hasPrevious
+                ? 'No more commits.'
+                : search
+                  ? 'No commits match this search.'
+                  : 'No commits yet.'
+            }
             busy={input.pending || pager.isUpdating}
           />
           <CursorPager pager={pager} label="Commits pagination" />

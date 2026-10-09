@@ -1,9 +1,6 @@
 import type { CursorPagerState } from '../api/use-cursor-pager'
 import styles from './pagination.module.css'
 
-/** The page size of every paginated table: I2's default. */
-export const PAGE_SIZE = 25
-
 /**
  * Previous and Next below a table over a cursor-paginated endpoint (AR2 "Paginated tables"), from
  * `useCursorPager`.

@@ -17,6 +17,9 @@ import type { components, paths } from './schema'
 
 export type Schemas = components['schemas']
 
+/** I2's default page size, which the client asks for wherever it shows a page at a time. */
+export const PAGE_SIZE = 25
+
 /** What the API reports a 401 or a 403 as, wherever it is shown (AR2). */
 export const PERMISSION_DENIED =
   'Permission denied. Set an API token with the required scope in Settings.'

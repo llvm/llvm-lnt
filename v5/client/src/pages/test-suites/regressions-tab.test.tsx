@@ -252,6 +252,11 @@ describe('the Regressions tab', () => {
     expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=linux-x86_64')
     await table('Regressions')
     expect(regressions[0].get('machine')).toBe('linux-x86_64')
+
+    // Retrying the machine list, which now answers, takes the error away.
+    mockMachineNames()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
   it('drops its filters on another tab, and clears them when switching tabs', async () => {

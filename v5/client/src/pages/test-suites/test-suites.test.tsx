@@ -276,6 +276,37 @@ describe('the Runs tab', () => {
     expect(resolved).toEqual([['abc123', 'deleted']])
   })
 
+  it('shows the commit strings when their display values cannot be resolved', async () => {
+    mockSuites()
+    mockRuns(() => cursorPage([run('a', { commit: 'abc123' })]))
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+        errorResponse(500, 'internal_error', 'The server failed'),
+      ),
+    )
+    renderPage('/suites/libcxx')
+
+    const runs = await table('Runs')
+    expect(within(runs).getByRole('link', { name: 'abc123' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('says there are no more runs on a later page that has none', async () => {
+    mockSuites()
+    mockRuns((query) =>
+      query.get('cursor') === 'page2'
+        ? cursorPage([])
+        : cursorPage([run('a', { machine: 'first' })], 'page2'),
+    )
+    mockResolve()
+    renderPage('/suites/libcxx')
+    await screen.findByRole('link', { name: 'first' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }))
+
+    expect(await screen.findByText('No more runs.')).toBeInTheDocument()
+  })
+
   it('pages forward and back with Previous and Next', async () => {
     mockSuites()
     const queries = mockRuns((query) =>

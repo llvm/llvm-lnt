@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import clsx from 'clsx'
-import { authedApi, unwrap, type Schemas } from '../../api/client'
+import { authedApi, PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { useMachineNames } from '../../api/machines'
 import { fetchRegressionPage, type RegressionPage } from '../../api/regressions'
@@ -14,7 +14,7 @@ import { Combobox } from '../../components/combobox'
 import { ConfirmDelete } from '../../components/confirm-delete'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
-import { CursorPager, PAGE_SIZE } from '../../components/pagination'
+import { CursorPager } from '../../components/pagination'
 import { StateBadge, StateChips } from '../../components/regression-state'
 import { Select } from '../../components/select'
 import { useLocalSuggestions } from '../../components/suggestions'
@@ -159,7 +159,9 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
 
   const toolbar = (
     <>
-      {machines.isError && <ErrorMessage error={machines.error} />}
+      {machines.isError && (
+        <ErrorMessage error={machines.error} onRetry={() => void machines.refetch()} />
+      )}
       <div className={styles.toolbar}>
         <button
           type="button"
@@ -216,7 +218,14 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
               ),
               onClick: openRow(regression),
             })}
-            empty={filtered ? 'No regressions match these filters.' : 'No regressions yet.'}
+            empty={
+              // A later page may only have run out.
+              pager.hasPrevious
+                ? 'No more regressions.'
+                : filtered
+                  ? 'No regressions match these filters.'
+                  : 'No regressions yet.'
+            }
             busy={input.pending || pager.isUpdating}
           />
           <CursorPager pager={pager} label="Regressions pagination" />
