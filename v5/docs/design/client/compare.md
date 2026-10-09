@@ -397,10 +397,11 @@ The chart and table always represent the same dataset:
 
 ### CP6: Data Flow
 
-1. Page loads: fetch metric metadata via `GET suites/{ts}`. When a machine is
-   selected, the first page of `GET commits?machine={name}&sort=-first_seen`
-   populates the commit combobox with the commits relevant to that machine,
-   most recently seen first; typing re-queries it with `search=` (see AR2).
+1. Page loads: read each side's metrics from its suite's schema, as listed by
+   `GET suites`. When a machine is selected, the first page of
+   `GET commits?machine={name}&sort=-first_seen` populates the commit combobox
+   with the commits relevant to that machine, most recently seen first; typing
+   re-queries it with `search=` (see AR2).
 2. User selects commit and machine on each side. On each change, fetch
    `GET runs?machine=M&commit=C` to populate the runs checkbox list. If no runs
    exist, show an empty list.

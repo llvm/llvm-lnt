@@ -215,7 +215,7 @@ the user can see the commit range.
 - `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
 - `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit picker)
 - `GET machines` (machine combobox)
-- `GET suites/{ts}` (fields/metrics)
+- `GET suites` (suite selector, and the selected suite's metrics)
 - `POST regressions/indicators/query` and `GET regressions` (regression
   annotations; see GR14)
 
