@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import { ErrorMessage, Loading } from './feedback'
 
@@ -31,6 +31,21 @@ describe('ErrorMessage', () => {
     render(<ErrorMessage error="nope" />)
 
     expect(screen.getByRole('alert')).toHaveTextContent('Something went wrong.')
+  })
+
+  it('offers to try again', () => {
+    const retry = vi.fn()
+    render(<ErrorMessage error={new ApiError(500, 'internal_error', 'Boom')} onRetry={retry} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer to try again what does not exist', () => {
+    render(<ErrorMessage error={new ApiError(404, 'not_found', 'Nope')} onRetry={() => {}} />)
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
 })
 

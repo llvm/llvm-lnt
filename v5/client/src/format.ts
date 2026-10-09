@@ -32,3 +32,17 @@ export function uuidPrefix(uuid: string): string {
 export function shortUuid(uuid: string): string {
   return `${uuidPrefix(uuid)}…`
 }
+
+/** A regression's title, or `(untitled)` when it has none (AR2 "Display conventions"). */
+export function regressionTitle(regression: { title: string | null }): string {
+  return regression.title ?? '(untitled)'
+}
+
+/**
+ * `text`, cut to at most `max` characters, the last of them an ellipsis when it is cut. Characters
+ * are counted as code points, so that none is cut in half.
+ */
+export function truncate(text: string, max: number): string {
+  const characters = Array.from(text)
+  return characters.length <= max ? text : `${characters.slice(0, max - 1).join('')}…`
+}

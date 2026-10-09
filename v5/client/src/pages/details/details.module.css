@@ -1,0 +1,27 @@
+/* Shared by the detail pages (DT1-DT4). */
+
+.heading {
+  margin: var(--lnt-space-4) 0 var(--lnt-space-2);
+  font-size: 1.2rem;
+}
+
+/* The row of actions below a detail page's info box. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+  margin-bottom: var(--lnt-space-3);
+}
+
+/* An action below a table, such as a link to more of what it lists. */
+.belowTable {
+  margin-top: var(--lnt-space-3);
+}
+
+/* A label that explains itself on hover. */
+.help {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}

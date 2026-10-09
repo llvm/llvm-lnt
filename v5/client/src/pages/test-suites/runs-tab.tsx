@@ -1,4 +1,3 @@
-import { Link } from 'react-router'
 import { queryKeys } from '../../api/keys'
 import { fetchRunPage, type RunPage } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
@@ -6,11 +5,8 @@ import { useCursorPager } from '../../api/use-cursor-pager'
 import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { DataTable, type Column } from '../../components/data-table'
 import { CursorPager } from '../../components/pagination'
+import { runColumns } from '../../components/run-columns'
 import { useServerSearch } from '../../components/use-server-search'
-import { uuidColumn } from '../../components/uuid-column'
-import { formatTimestamp } from '../../format'
-import { commitPath, machinePath, runPath } from '../../paths'
-import { displayValueOf } from '../../schema'
 import { TabContent } from './tab-content'
 
 type Run = Schemas['Run']
@@ -27,7 +23,7 @@ export function RunsTab({ schema, search, onSearch }: Props) {
   const input = useServerSearch(search, onSearch)
   const query = { search: search || undefined, sort: '-submitted_at', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
-    queryKey: [...queryKeys.suite(suite), 'runs', query],
+    queryKey: [...queryKeys.runs(suite), query],
     fetchPage: (cursor, signal) => fetchRunPage(suite, { ...query, cursor }, signal),
   })
   const page = pager.page
@@ -66,28 +62,6 @@ export function RunsTab({ schema, search, onSearch }: Props) {
 }
 
 function columns(schema: SuiteSchema, page: RunPage): Column<Run>[] {
-  const suite = schema.name
-  return [
-    uuidColumn('run', 'Run', (uuid) => runPath(suite, uuid)),
-    {
-      id: 'machine',
-      header: 'Machine',
-      cell: (run) => <Link to={machinePath(suite, run.machine)}>{run.machine}</Link>,
-    },
-    {
-      id: 'commit',
-      header: 'Commit',
-      cell: (run) => (
-        <Link to={commitPath(suite, run.commit)}>
-          {displayValueOf(run.commit, page.commits, schema)}
-        </Link>
-      ),
-    },
-    {
-      id: 'submitted',
-      header: 'Submitted',
-      looks: ['nowrap'],
-      cell: (run) => formatTimestamp(run.submitted_at),
-    },
-  ]
+  const { run, machine, commit, submitted } = runColumns(schema, page.commits)
+  return [run, machine, commit, submitted]
 }

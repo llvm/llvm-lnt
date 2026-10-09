@@ -12,7 +12,7 @@ type Machine = Schemas['Machine']
 export function machinesQuery(suite: string, search = '') {
   const query = { search: search || undefined }
   return queryOptions({
-    queryKey: [...queryKeys.suite(suite), 'machines', query],
+    queryKey: [...queryKeys.machines(suite), query],
     queryFn: async ({ signal }) => {
       const { items } = await unwrap(
         api.GET('/api/suites/{testsuite}/machines', {
@@ -33,4 +33,23 @@ const namesOf = (machines: Machine[]) => machines.map((machine) => machine.name)
  */
 export function useMachineNames(suite: string) {
   return useQuery({ ...machinesQuery(suite), select: namesOf })
+}
+
+/** The query key of the machine `name`, which a change to it updates. */
+export function machineKey(suite: string, name: string) {
+  return [...queryKeys.machines(suite), 'detail', name] as const
+}
+
+/** The machine `name` (E2). */
+export function useMachine(suite: string, name: string) {
+  return useQuery({
+    queryKey: machineKey(suite, name),
+    queryFn: ({ signal }) =>
+      unwrap(
+        api.GET('/api/suites/{testsuite}/machines/{machine_name}', {
+          params: { path: { testsuite: suite, machine_name: name } },
+          signal,
+        }),
+      ),
+  })
 }

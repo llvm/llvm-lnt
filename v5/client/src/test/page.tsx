@@ -144,3 +144,12 @@ export function rowsOf(table: HTMLElement) {
 export function search(label: string, text: string) {
   fireEvent.change(screen.getByRole('searchbox', { name: label }), { target: { value: text } })
 }
+
+/** The rows of the info box named `name` (see InfoBox), once it shows, as label and value text. */
+export async function infoRows(name: string) {
+  const box = await screen.findByRole('group', { name })
+  return [...box.querySelectorAll('dt')].map((label) => [
+    label.textContent,
+    label.nextElementSibling!.textContent,
+  ])
+}

@@ -6,16 +6,13 @@ import { shownData } from '../../api/shown-data'
 import type { SuiteSchema } from '../../api/suites'
 import { DataTable, type Column } from '../../components/data-table'
 import { useServerSearch } from '../../components/use-server-search'
+import { UNTRACKED_HELP } from '../../machines'
 import { machinePath } from '../../paths'
 import { formatFieldValue, labelOf } from '../../schema'
 import { TabContent } from './tab-content'
 import styles from './test-suites.module.css'
 
 type Machine = Schemas['Machine']
-
-const UNTRACKED_HELP =
-  "Untracked machines are left out of the Dashboard's trend overview, but are listed and " +
-  'usable everywhere else.'
 
 interface Props {
   schema: SuiteSchema

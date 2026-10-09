@@ -20,7 +20,7 @@ import { Select } from '../../components/select'
 import { useLocalSuggestions } from '../../components/suggestions'
 import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
-import { formatTimestamp, MISSING, uuidPrefix } from '../../format'
+import { formatTimestamp, MISSING, regressionTitle, uuidPrefix } from '../../format'
 import { commitPath, regressionPath } from '../../paths'
 import { displayValueOf, labelOf } from '../../schema'
 import { useDropUnusable } from '../../url-state'
@@ -181,7 +181,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
           onCancel={cancelDelete}
         >
           <p>
-            Delete the regression <strong>{titleOf(deleting.regression)}</strong>, and its
+            Delete the regression <strong>{regressionTitle(deleting.regression)}</strong>, and its
             indicators? This cannot be undone.
           </p>
         </ConfirmDelete>
@@ -235,11 +235,6 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   )
 }
 
-/** A regression's title, or `(untitled)` (AR2 "Display conventions"). */
-function titleOf(regression: Regression): string {
-  return regression.title ?? '(untitled)'
-}
-
 function columns(
   schema: SuiteSchema,
   page: RegressionPage,
@@ -254,7 +249,7 @@ function columns(
       header: 'Title',
       className: styles.title,
       cell: (regression) => (
-        <Link to={regressionPath(suite, regression.uuid)}>{titleOf(regression)}</Link>
+        <Link to={regressionPath(suite, regression.uuid)}>{regressionTitle(regression)}</Link>
       ),
     },
     { id: 'state', header: 'State', cell: (regression) => <StateBadge state={regression.state} /> },

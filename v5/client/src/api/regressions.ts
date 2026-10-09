@@ -6,6 +6,16 @@ type RegressionListQuery = NonNullable<
   paths['/api/suites/{testsuite}/regressions']['get']['parameters']['query']
 >
 
+/** One page of `GET /regressions` (E8). */
+export function fetchRegressions(suite: string, query: RegressionListQuery, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/api/suites/{testsuite}/regressions', {
+      params: { path: { testsuite: suite }, query },
+      signal,
+    }),
+  )
+}
+
 /**
  * One page of `GET /regressions` (E8), and the commits its regressions name, resolved in one call
  * for the whole page, to show their display values (AR2).
@@ -15,12 +25,7 @@ export async function fetchRegressionPage(
   query: RegressionListQuery,
   signal?: AbortSignal,
 ) {
-  const page = await unwrap(
-    api.GET('/api/suites/{testsuite}/regressions', {
-      params: { path: { testsuite: suite }, query },
-      signal,
-    }),
-  )
+  const page = await fetchRegressions(suite, query, signal)
   const values = page.items.flatMap((regression) => regression.commit ?? [])
   return withCommits(suite, page, values, signal)
 }

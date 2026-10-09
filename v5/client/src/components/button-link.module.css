@@ -1,0 +1,16 @@
+/* The look of a button (see index.css), on a link. */
+.button {
+  display: inline-block;
+  padding: var(--lnt-space-1) 0.75rem;
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+  color: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.button:hover {
+  border-color: var(--lnt-accent);
+  color: var(--lnt-accent);
+}

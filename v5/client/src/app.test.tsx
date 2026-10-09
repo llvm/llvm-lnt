@@ -4,7 +4,7 @@ import App from './app'
 import { mockSuites } from './test/page'
 import { renderWithProviders } from './test/render'
 
-// The Test Suites page lists the suites; no other page asks for anything yet.
+// Every page so far starts from the list of suites, and asks for nothing else without one.
 beforeEach(() => mockSuites([]))
 
 function renderAt(url: string) {
@@ -73,7 +73,7 @@ describe('routing', () => {
     ['/', 'Dashboard'],
     ['/suites', 'Test Suites'],
     ['/suites/nts', 'Test Suites'],
-    ['/suites/nts/machines/linux-x86_64', 'Machine Detail'],
+    ['/suites/nts/machines/linux-x86_64', 'Machine: linux-x86_64'],
     ['/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000', 'Run Detail'],
     ['/suites/nts/commits/abc123', 'Commit Detail'],
     ['/suites/nts/regressions/550e8400-e29b-41d4-a716-446655440000', 'Regression Detail'],

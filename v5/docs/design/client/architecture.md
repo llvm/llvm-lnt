@@ -165,6 +165,10 @@ the prompt shows the text to type. Saving a schema change that removes entries
 their stored values. Revoking an API key (AD1), which destroys nothing, asks for
 a plain confirmation instead.
 
+Once the entity a page is about has been deleted, the page leaves for the one its
+spec names, which takes its place in the history rather than adding an entry, so
+that Back does not lead to the deleted entity.
+
 **Authentication**: The v5 API allows unauthenticated reads, except for the API
 key endpoints, which require `admin` scope even to read (see I5). No
 configuration can gate reads, so the SPA never needs a token merely to browse.
