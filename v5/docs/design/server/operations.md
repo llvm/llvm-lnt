@@ -259,8 +259,8 @@ on neither side of the position and vanish from every page.
   submission, at creation with `POST /api/suites/{testsuite}/commits`, or at
   any time with `PATCH /api/suites/{testsuite}/commits/{value}`.
 - An inline ordinal is set if the commit has none, and a submission that sends
-  a different one from the commit's current ordinal is rejected with 409. `PATCH` is the only way to change an
-  ordinal once set.
+  a different one from the commit's current ordinal is rejected with 409.
+  `PATCH` is the only way to change an ordinal once set.
 - A commit whose ordinal is never set in any of these ways stays `NULL`, which
   means unordered.
 - The server never assigns an ordinal from the commit string, even a numeric

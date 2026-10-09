@@ -525,7 +525,7 @@ suitable for pagination (see I2 and O5).
 across every regression of the suite. A client holding many (machine, test,
 metric) combinations can learn which regressions cover which of them without
 one request per combination -- for the Graph page's regression annotations
-(GR14), or for a detector checking whether what it found is already tracked
+(GR15), or for a detector checking whether what it found is already tracked
 (O3). It is a `read`-scoped POST for the same reason as `POST /query` (E9).
 
 - The body is `{machine, test, metric, state, commit, limit, cursor}`, and
