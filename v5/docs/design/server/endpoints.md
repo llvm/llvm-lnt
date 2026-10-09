@@ -22,8 +22,8 @@ not repeated in each section:
   not depend on the route are not necessarily repeated: 400 for a request that
   does not follow the documented format, 401 and 403 as I5 describes, the 404s
   above, I3's answers for a filter naming something that does not exist, and
-  the 409 `retry` of a suite-scoped request whose suite's schema changed while
-  it ran (see D2).
+  the 409 `retry` of a suite-scoped request that a concurrent change to its
+  suite's schema prevented from completing (see D2).
 
 
 ## E1: Discovery

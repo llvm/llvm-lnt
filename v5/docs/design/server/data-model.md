@@ -74,7 +74,9 @@ A schema write waits only a bounded time for the locks it needs, and returns a
 retryable 409 (`retry`, see I4) rather than waiting indefinitely. This wait must
 be shorter than the time a request waits for a database connection, so that
 schema changes queued behind a long-running reader cannot exhaust the
-connection pool.
+connection pool. A request and a concurrent schema change may also deadlock.
+Avoiding that is not required, but whichever one is aborted gets the same
+retryable 409.
 
 **A stale reader gets an answer, not a silently wrong result.** Between a
 reader's version check and its next query, another worker may remove a field,

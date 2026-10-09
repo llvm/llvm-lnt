@@ -2,11 +2,13 @@
 
 Separate from `registry.py`, which is strictly the cache and knows nothing about requests. This is
 the request layer over it: resolving `{testsuite}` inside the endpoint's own unit of work, and
-answering the one failure that follows from the cache being allowed to lag.
+answering the failures a concurrent schema change can cause: the cache lagging behind it, and a
+request contending with it for the suite's tables.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Annotated, Any
@@ -15,9 +17,11 @@ from fastapi import Path
 from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError
 
-from lnt_v5.db import is_missing_relation
+from lnt_v5.db import is_deadlock, is_lock_unavailable, is_missing_relation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.suites.registry import Suite, SuiteRegistry
+
+logger = logging.getLogger(__name__)
 
 # The two failures every suite-scoped operation can answer, worded once for I8's document. They come
 # from `suite_scope` rather than from any endpoint, so restating them per endpoint would be dozens
@@ -46,11 +50,17 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
         with engine.connect() as connection, suite_scope(registry, connection, name) as suite:
             ...
 
-    Two obligations, both D2's. The freshness check happens on the endpoint's own connection, as
+    Three obligations, all D2's. The freshness check happens on the endpoint's own connection, as
     the first statement of its unit of work, and an unknown suite is a 404 before any query runs.
-    And a query that reaches a column another worker has since removed reports a retryable
-    409 rather than a fault: the check and the query cannot be made one atomic step, and they
-    do not have to be, as long as the reader is answered rather than silently wrong.
+    A query that reaches a column another worker has since removed reports a retryable 409 rather
+    than a fault: the check and the query cannot be made one atomic step, and they do not have to
+    be, as long as the reader is answered rather than silently wrong. And so does a request that a
+    concurrent schema change beat to the suite's tables: the change holds `ACCESS EXCLUSIVE` on
+    each table it alters, so a request that already holds one of them and waits for another can
+    deadlock with it, and PostgreSQL may abort either side. `suite_write` answers for the change.
+
+    `retry` promises that nothing was written, which holds for the endpoints that write too: they
+    run this inside `engine.begin()`, which the `ApiError` raised here rolls back whole.
 
     The translation deliberately starts *after* the suite resolves. Reaching this code at all
     means the global tables were there to read the registry from, so an undefined relation from
@@ -61,9 +71,25 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
     try:
         yield suite
     except DBAPIError as error:
-        if not is_missing_relation(error):
+        if is_missing_relation(error):
+            raise schema_changed(name) from error
+        if not is_lock_unavailable(error):
             raise
-        raise schema_changed(name) from error
+        # Expected when a request races a schema change, but any other deadlock is a bug (O8 rules
+        # out one between two submissions, for instance), and this is what reports it now that
+        # the request gets a 409 rather than a 500.
+        if is_deadlock(error):
+            logger.warning(
+                "A request on test suite '%s' was aborted by a deadlock and answered with a "
+                "retryable 409: %s",
+                name,
+                error.orig,
+            )
+        raise ApiError(
+            ErrorCode.RETRY,
+            f"Test suite '{name}' is busy: this request conflicted with a concurrent change. "
+            "Retry.",
+        ) from error
 
 
 def schema_changed(name: str) -> ApiError:

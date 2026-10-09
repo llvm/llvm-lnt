@@ -72,7 +72,7 @@ Check `code` in your code. `message` is meant for people and may change.
 | `method_not_allowed` | 405 | The path exists, but not with this HTTP method. The `Allow` header lists the methods it supports. |
 | `duplicate` | 409 | The thing you are creating already exists. If you chose the UUID of a run or a regression yourself, a previous attempt probably succeeded: don't resend it with a new UUID, or you'll store it twice. |
 | `conflict` | 409 | The request contradicts data that is already stored. Sending it again won't help: change the request or the stored data first. |
-| `retry` | 409 | The suite's schema changed at the same time, or the suite was too busy for a schema change to start. Nothing was saved: send the same request again. |
+| `retry` | 409 | The suite's schema was being changed at the same time, or the suite was too busy for a schema change to start. Nothing was saved: send the same request again. |
 | `internal_error` | 500 | Something went wrong on the server. |
 
 A request body that is too large is rejected with a 413, which may not have this body.
