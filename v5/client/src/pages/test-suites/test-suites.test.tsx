@@ -9,6 +9,7 @@ import {
   gate,
   mockCommits,
   mockMachines,
+  mockRegressions,
   mockResolve,
   mockRuns,
   mockSuites,
@@ -527,6 +528,22 @@ describe('the Machines tab', () => {
     expect(await screen.findByRole('link', { name: 'arm64' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(searches).toEqual([null, 'arm', 'arm'])
+  })
+
+  it('shares the machine list with the Regressions tab, rather than fetching it again', async () => {
+    mockSuites()
+    const queries = mockMachines(() => ({ items: [machine('linux-x86_64')] }))
+    mockRegressions()
+    mockResolve()
+    renderPage('/suites/libcxx?tab=machines')
+    await screen.findByRole('link', { name: 'linux-x86_64' })
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Regressions' }))
+
+    // The machine combobox is ready at once, from the list the Machines tab fetched.
+    const combobox = await screen.findByRole('combobox', { name: 'Machine' })
+    await waitFor(() => expect(combobox).toHaveAttribute('placeholder', 'Any machine'))
+    expect(queries).toHaveLength(1)
   })
 
   it('searches the server', async () => {

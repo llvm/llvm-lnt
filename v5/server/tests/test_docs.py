@@ -873,7 +873,7 @@ class TestProfileOperations:
     @pytest.mark.parametrize("path", [RUN_PROFILES, FUNCTIONS])
     def test_the_lists_are_unpaginated(self, client: TestClient, path: str) -> None:
         # I2: both are bounded -- by the tests of one run, and by the functions of one binary -- so
-        # they carry `items` alone, with neither a cursor nor a total to page by.
+        # they carry `items` alone, with no cursor to page by.
         document = client.get("/api/openapi.json").json()
         operation = document["paths"][path]["get"]
         body = operation["responses"]["200"]["content"]["application/json"]["schema"]

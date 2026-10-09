@@ -186,7 +186,8 @@ class TestListIsNotPaginated:
         self, api_client: TestClient, suite: SuiteTables, query: str
     ) -> None:
         # I3: a parameter the list does not take is refused rather than ignored, so that a client
-        # expecting a page is told it gets everything.
+        # asking for a page learns that the list is not paginated, rather than silently getting
+        # more than it asked for.
         response = api_client.get(f"{MACHINES}?{query}")
 
         assert response.status_code == 400

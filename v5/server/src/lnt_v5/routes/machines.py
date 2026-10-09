@@ -156,7 +156,7 @@ class Machines:
     recomputed whenever a run was deleted, and synchronized on submission. The LATERAL probe below
     is what D5 asks for -- the compound index on `{suite}.run(machine_id, submitted_at)` makes it a
     single-row backward index scan per machine, where `max(submitted_at) ... GROUP BY machine_id`
-    would read every run in the suite to answer a question about a handful of machines.
+    would read every run in the suite, which has far more runs than machines.
     """
 
     def __init__(self, suite: Suite) -> None:

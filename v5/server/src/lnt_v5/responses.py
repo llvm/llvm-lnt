@@ -45,11 +45,7 @@ class PageCursor(BaseModel):
 
 
 class CursorPage[T](BaseModel):
-    """I2's cursor envelope: `{"items": [...], "cursor": {"next": ..., "previous": null}}`.
-
-    Carries no `total`, deliberately: an exact count costs a scan of everything matching, which is
-    why an endpoint with unbounded results is cursor-paginated in the first place.
-    """
+    """I2's cursor envelope: `{"items": [...], "cursor": {"next": ..., "previous": null}}`."""
 
     items: list[T] = Field(description="The results on this page.")
     cursor: PageCursor
