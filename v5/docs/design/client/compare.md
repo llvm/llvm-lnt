@@ -551,8 +551,7 @@ indicators (I2's maximum page size; see E8). When expanded, it offers:
   first page of `GET regressions?sort=-created_at` and narrows it with
   `search=`, which matches the title or a prefix of the UUID. Each suggestion
   shows the regression's title, or `(untitled)` and its shortened UUID when it
-  has none. For Enter (see AR2), a suggestion's text is also the regression's
-  full UUID, so that a pasted UUID is picked.
+  has none.
 
 On successful creation, the feedback shows "Regression created: " followed by a
 clickable link to the new regression's detail page. The link text is the

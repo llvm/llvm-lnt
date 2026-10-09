@@ -115,12 +115,14 @@ The list closes on Escape, on blur, on a click outside it and once a suggestion
 is picked.
 
 So that a value can be pasted and entered, Enter with no suggestion highlighted
-picks the suggestion whose text is exactly the typed text (case-sensitively,
-ignoring surrounding whitespace), if it is the only one among the suggestions
-loaded for that text -- the first page of them, unless the user has scrolled for
-more. Otherwise, the text stays as it is. An Enter pressed before those
-suggestions have loaded takes effect once they have, unless the text has changed
-meanwhile, as it does when the user leaves the combobox.
+picks the suggestion that the typed text exactly identifies: its shown text, or
+the identifier of what it stands for, such as a commit string or a regression's
+UUID. The comparison is case-sensitive and ignores surrounding whitespace. The
+suggestion must be the only one so identified among the suggestions loaded for
+that text -- the first page of them, unless the user has scrolled for more.
+Otherwise, the text stays as it is. An Enter pressed before those suggestions
+have loaded takes effect once they have, unless the text has changed meanwhile,
+as it does when the user leaves the combobox.
 
 **Commit pickers**: Every combobox that selects a commit -- on the Compare and
 Profiles pages, for Graph baselines, and for a regression's commit -- lists its
@@ -134,9 +136,7 @@ display value the suggestions show only if the schema marks the display field
 `searchable` (see O4).
 
 A page of matches need not hold every matching commit: scrolling to the end of
-the suggestions loads the next page. For Enter, a commit suggestion's text is
-both its display value and its commit string, so that a pasted commit string is
-picked even when the suggestion shows another value. A commit the picker is
+the suggestions loads the next page. A commit the picker is
 given rather than chosen -- restored from the URL, for instance -- need not be
 among its suggestions, so its display value is resolved through
 `POST commits/resolve`.
