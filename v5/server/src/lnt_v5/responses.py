@@ -2,7 +2,7 @@
 
 A response carrying a sequence of results never returns a bare array: it carries them under `items`,
 which is present and empty rather than absent when nothing matches. Wrapping even unpaginated
-results is what lets an endpoint gain a cursor later without breaking clients.
+results is what lets an endpoint gain a cursor later without changing the shape of its responses.
 
 What *produces* a cursor lives in `querying.py`; this module is only the shape it travels in.
 
@@ -20,19 +20,6 @@ class Items[T](BaseModel):
     """I2's unpaginated envelope: `{"items": [...]}`."""
 
     items: list[T] = Field(description="The results.")
-
-
-class OffsetPage[T](BaseModel):
-    """I2's offset envelope: `{"items": [...], "total": N}`.
-
-    `total` counts everything matching the request's filters, ignoring `limit` and `offset`, so that
-    a client can render "1-25 of 240". That exact count costs a scan of everything matching, which
-    is why only endpoints with bounded results are offset-paginated -- the rest use a cursor and
-    carry no `total`.
-    """
-
-    items: list[T] = Field(description="The results on this page.")
-    total: int = Field(description="The number of results across all pages.")
 
 
 # `previous` is typed as null rather than as an optional string because I8 requires the document to

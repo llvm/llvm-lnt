@@ -152,8 +152,8 @@ class TestList:
         response = page(api_client)
 
         assert response.status_code == 200
-        # I2: `items` present and empty, and a `cursor` rather than a `total` -- this list is
-        # unbounded, so it is cursor-paginated and carries no count.
+        # I2: `items` present and empty, and a `cursor` -- this list is unbounded, so it is
+        # cursor-paginated.
         assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
 
     def test_is_ordered_by_first_sighting_by_default(

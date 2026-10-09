@@ -65,7 +65,7 @@ function SuitePicker({ suites, selected }: { suites: SuiteSchema[]; selected?: s
 
 function SuiteTabs({ schema }: { schema: SuiteSchema }) {
   const [settings, update] = useUrlState(PARAMS)
-  const { tab, search, offset } = settings
+  const { tab, search } = settings
 
   // `settings` changes only with the URL.
   useEffect(() => {
@@ -74,21 +74,12 @@ function SuiteTabs({ schema }: { schema: SuiteSchema }) {
   }, [settings, update])
 
   const select = (id: TabId) => update({ tab: id, ...resetSettings() })
-  // A new search starts from the first page.
-  const onSearch = (text: string) => update({ search: text, offset: 0 })
+  const onSearch = (text: string) => update({ search: text })
 
   return (
     <Tabs label="Suite data" tabs={TABS} selected={tab} onSelect={select}>
       {tab === 'runs' && <RunsTab schema={schema} search={search} onSearch={onSearch} />}
-      {tab === 'machines' && (
-        <MachinesTab
-          schema={schema}
-          search={search}
-          onSearch={onSearch}
-          offset={offset}
-          onOffset={(value) => update({ offset: value })}
-        />
-      )}
+      {tab === 'machines' && <MachinesTab schema={schema} search={search} onSearch={onSearch} />}
       {tab === 'commits' && (
         <CommitsTab schema={schema} search={search} onSearch={onSearch} />
       )}

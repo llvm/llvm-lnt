@@ -20,9 +20,9 @@ performance trends across all test suites.
 - Each card shows a small time-series chart (~300x160px) with the metric's
   label and unit (if any) as the card title.
 - Up to 5 traces per chart, one per most-recently-active machine. The set is
-  chosen once per suite rather than per metric, via
-  `GET /api/suites/{ts}/machines?tracked=true&sort=-last_run_at&limit=5`, and
-  the same machines are then requested for every card in that suite's section.
+  chosen once per suite rather than per metric: the first 5 machines of
+  `GET /api/suites/{ts}/machines?tracked=true&sort=-last_run_at`. The same
+  machines are then requested for every card in that suite's section.
   Each card fetches its data in one call to
   `GET /api/suites/{ts}/trends?metric={name}&machine=...&last_n={range}`. Only
   machines with `tracked: true` are eligible -- untracked machines are ad-hoc or

@@ -443,7 +443,8 @@ as `{suite}.commit`, and the tables below are named that way.
   machine endpoints return it and can sort on it. It is deliberately not
   stored: a stored copy would have to be recomputed whenever a run is deleted,
   and would need extra synchronization on submission. Computing it is cheap
-  because a suite has few machines, and the compound index on
+  because a suite is expected to have few machines -- at most a few thousand,
+  retired ones included -- and the compound index on
   `{suite}.run(machine_id, submitted_at)` reduces it to one index probe per
   machine. An implementation must not compute it by aggregating over the whole
   run table.

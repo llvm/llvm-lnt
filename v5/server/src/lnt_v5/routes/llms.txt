@@ -119,9 +119,7 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 
 - **List endpoints return objects**: `{"items": [...]}`, plus
   `"cursor": {"next": ..., "previous": null}` on a cursor-paginated endpoint,
-  or `"total": N` on an offset-paginated one, which takes `offset=`.
-  `/machines` is the only offset-paginated endpoint. `limit` defaults to 25,
-  at most 10000.
+  whose `limit` defaults to 25, at most 10000. The others return every result.
 - **Cursors**: send `cursor.next` back unchanged -- as `cursor=`, or as the
   `cursor` key of a request body -- with the same filters and `sort`; only
   `limit` may change. Stop when it is null. Never parse or build one.

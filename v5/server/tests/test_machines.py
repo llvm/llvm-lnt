@@ -18,6 +18,7 @@ from sqlalchemy import Engine, insert, select, text
 
 from conftest import PROFILE_COLUMNS, code_of
 from introspection import row_count, sql_type_of
+from lnt_v5.querying import DEFAULT_LIMIT
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
@@ -109,16 +110,14 @@ def names_in(response: Any) -> list[str]:
 
 
 class TestList:
-    def test_is_an_offset_envelope_even_when_nothing_matches(
+    def test_is_an_unpaginated_envelope_even_when_nothing_matches(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
         response = api_client.get(MACHINES)
 
         assert response.status_code == 200
-        # I2: `items` present and empty, and a `total` rather than a `cursor` -- this list is
-        # bounded, so it is offset-paginated.
-        assert sorted(response.json()) == ["items", "total"]
-        assert response.json() == {"items": [], "total": 0}
+        # E2: I2's unpaginated envelope, with `items` present and empty, and nothing to page by.
+        assert response.json() == {"items": []}
 
     def test_is_ordered_by_name_by_default(
         self, api_client: TestClient, create: Callable[..., Any]
@@ -171,27 +170,23 @@ class TestList:
         assert code_of(response) == "not_found"
 
 
-class TestListPagination:
-    @pytest.fixture(autouse=True)
-    def machines(self, create: Callable[..., Any]) -> None:
-        for index in range(5):
-            create(f"m{index}")
+class TestListIsNotPaginated:
+    def test_returns_every_machine_past_a_default_page(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # More than I2's default page size, which a paginated list would have stopped at.
+        names = [f"m{index:02}" for index in range(DEFAULT_LIMIT + 5)]
+        for name in names:
+            create(name)
 
-    def test_returns_the_requested_window(self, api_client: TestClient) -> None:
-        assert names_in(api_client.get(f"{MACHINES}?limit=2&offset=1")) == ["m1", "m2"]
+        assert names_in(api_client.get(MACHINES)) == names
 
-    def test_total_ignores_limit_and_offset(self, api_client: TestClient) -> None:
-        # I2: `total` is what matches the filters, so a client can render "1-2 of 5".
-        assert api_client.get(f"{MACHINES}?limit=2&offset=1").json()["total"] == 5
-
-    def test_total_respects_the_filters(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{MACHINES}?search=m3").json()["total"] == 1
-
-    # The last is one past what PostgreSQL's OFFSET takes, which once failed in the database.
-    @pytest.mark.parametrize(
-        "query", ["limit=0", "limit=10001", "offset=-1", "offset=9223372036854775808"]
-    )
-    def test_refuses_a_page_it_cannot_serve(self, api_client: TestClient, query: str) -> None:
+    @pytest.mark.parametrize("query", ["limit=25", "offset=0", "cursor=x"])
+    def test_refuses_a_page_parameter(
+        self, api_client: TestClient, suite: SuiteTables, query: str
+    ) -> None:
+        # I3: a parameter the list does not take is refused rather than ignored, so that a client
+        # expecting a page is told it gets everything.
         response = api_client.get(f"{MACHINES}?{query}")
 
         assert response.status_code == 400
@@ -237,7 +232,7 @@ class TestListSearch:
         assert names_in(api_client.get(MACHINES, params={"search": "a%b"})) == ["a%b"]
 
     def test_matches_nothing_rather_than_failing(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{MACHINES}?search=nope").json() == {"items": [], "total": 0}
+        assert api_client.get(f"{MACHINES}?search=nope").json() == {"items": []}
 
 
 class TestListTrackedFilter:

@@ -60,16 +60,15 @@ Percent-encoding would not help, since `%2F` is decoded before routing.
 
 An endpoint that returns a list of results -- entities, data points or
 aggregates -- never returns a bare array. It returns them under `items`, in one
-of three envelopes:
+of two envelopes:
 
 - Cursor-paginated: `{"items": [...], "cursor": {"next": "...", "previous": null}}`
-- Offset-paginated: `{"items": [...], "total": N}`
 - Unpaginated: `{"items": [...]}`
 
 The endpoints spec says which envelope each endpoint uses. `items` is always
 present, and is an empty list when nothing matches. Even unpaginated results
-are wrapped, so that an endpoint can add pagination later without breaking
-clients.
+are wrapped, so that adding pagination to an endpoint later keeps the shape of
+its responses.
 
 This applies only to the top level of a response body. An array that is a
 field of a larger object keeps its own name (a regression's `indicators`, a
@@ -97,13 +96,6 @@ client whose unmodified cursor is rejected starts again from the first page.
 Opacity is a contract on the client, not a cryptographic guarantee: a cursor
 need not be unforgeable, because it can only point into a query its holder
 could have made anyway.
-
-**Offset pagination** takes `offset` (default `0`) alongside `limit`. `total`
-is the number of items matching the request's filters, ignoring `limit` and
-`offset`, so that a client can show "1-25 of 240". It is available from every
-page. Only endpoints with bounded results use offset pagination, because an
-exact `total` requires scanning everything that matches. The other paginated
-endpoints use a cursor and have no `total`.
 
 **Page size.** The default page size is 25. Paginated endpoints accept a
 `limit` parameter between 1 and `10 000`.

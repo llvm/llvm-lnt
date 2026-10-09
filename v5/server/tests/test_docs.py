@@ -452,20 +452,13 @@ class TestMachineOperations:
 
         assert status in operation["responses"]
 
-    @pytest.mark.parametrize("name", ["search", "tracked", "sort", "limit", "offset"])
+    @pytest.mark.parametrize("name", ["search", "tracked", "sort"])
     def test_the_list_documents_every_parameter_endpoints_md_gives_it(
         self, client: TestClient, name: str
     ) -> None:
         operation = client.get("/api/openapi.json").json()["paths"][MACHINES]["get"]
 
         assert name in {parameter["name"] for parameter in operation["parameters"]}
-
-    def test_the_list_documents_the_page_size(self, client: TestClient) -> None:
-        operation = client.get("/api/openapi.json").json()["paths"][MACHINES]["get"]
-        limit = next(p for p in operation["parameters"] if p["name"] == "limit")
-
-        assert limit["schema"]["default"] == DEFAULT_LIMIT == 25
-        assert limit["schema"]["maximum"] == MAX_LIMIT == 10000
 
     def test_the_list_enumerates_the_sort_fields_rather_than_taking_any_string(
         self, client: TestClient
@@ -477,14 +470,16 @@ class TestMachineOperations:
 
         assert set(sort["schema"]["enum"]) == {"name", "-name", "last_run_at", "-last_run_at"}
 
-    def test_the_list_returns_the_offset_envelope(self, client: TestClient) -> None:
+    def test_the_list_is_not_paginated(self, client: TestClient) -> None:
+        # E2: every matching machine, in I2's unpaginated envelope, with no page to ask for.
         document = client.get("/api/openapi.json").json()
-        body = document["paths"][MACHINES]["get"]["responses"]["200"]["content"][
-            "application/json"
-        ]["schema"]
+        operation = document["paths"][MACHINES]["get"]
+        body = operation["responses"]["200"]["content"]["application/json"]["schema"]
         envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+        names = {parameter["name"] for parameter in operation["parameters"]}
 
-        assert set(envelope["properties"]) == {"items", "total"}
+        assert set(envelope["properties"]) == {"items"}
+        assert not names & {"limit", "offset", "cursor"}
 
     def test_creating_and_reading_a_machine_share_the_entity_object(
         self, client: TestClient
@@ -597,11 +592,12 @@ class TestCommitOperations:
 
         assert name in {parameter["name"] for parameter in operation["parameters"]}
 
-    def test_the_list_takes_no_offset(self, client: TestClient) -> None:
-        # I2 pairs `offset` with `total`, and a cursor-paginated endpoint has neither.
+    def test_the_list_documents_the_page_size(self, client: TestClient) -> None:
         operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
+        limit = next(p for p in operation["parameters"] if p["name"] == "limit")
 
-        assert "offset" not in {parameter["name"] for parameter in operation["parameters"]}
+        assert limit["schema"]["default"] == DEFAULT_LIMIT == 25
+        assert limit["schema"]["maximum"] == MAX_LIMIT == 10000
 
     def test_the_list_enumerates_the_sort_fields_rather_than_taking_any_string(
         self, client: TestClient
@@ -790,9 +786,9 @@ class TestReadOperations:
         assert names == expected | templated | {"limit", "cursor"}
 
     @pytest.mark.parametrize("path", [RUNS, TESTS_PATH, SAMPLES_PATH])
-    def test_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient, path: str) -> None:
-        # I2: an endpoint with unbounded results is cursor-paginated and carries no `total`, which
-        # is what a client generated from this document has to be told.
+    def test_pages_with_a_cursor(self, client: TestClient, path: str) -> None:
+        # I2: an endpoint with unbounded results is cursor-paginated, which is what a client
+        # generated from this document has to be told.
         document = client.get("/api/openapi.json").json()
         operation = document["paths"][path]["get"]
         body = operation["responses"]["200"]["content"]["application/json"]["schema"]
@@ -800,7 +796,6 @@ class TestReadOperations:
         names = {parameter["name"] for parameter in operation["parameters"]}
 
         assert {"limit", "cursor"} <= names
-        assert "offset" not in names
         assert set(envelope["properties"]) == {"items", "cursor"}
 
     def test_the_run_list_enumerates_its_sort_fields(self, client: TestClient) -> None:
@@ -886,7 +881,7 @@ class TestProfileOperations:
         names = {parameter["name"] for parameter in operation["parameters"]}
 
         assert set(envelope["properties"]) == {"items"}
-        assert not names & {"limit", "offset", "cursor"}
+        assert not names & {"limit", "cursor"}
 
     @pytest.mark.parametrize(
         ("schema", "keys"),
@@ -1034,7 +1029,7 @@ class TestRegressionOperations:
 
         assert set(sort["schema"]["anyOf"][0]["enum"]) == {"created_at", "-created_at"}
 
-    def test_the_list_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient) -> None:
+    def test_the_list_pages_with_a_cursor(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
         body = document["paths"][REGRESSIONS]["get"]["responses"]["200"]["content"][
             "application/json"
@@ -1502,7 +1497,7 @@ class TestWrittenForUsers:
         response = client.get("/api/openapi.json")
         schemas = response.json()["components"]["schemas"]
 
-        assert {"RunCursorPage", "MachineOffsetPage", "ApiKeyList"} <= set(schemas)
+        assert {"RunCursorPage", "MachineList", "ApiKeyList"} <= set(schemas)
         for name, schema in schemas.items():
             assert re.fullmatch(r"[A-Za-z0-9]+", name), name
             assert schema.get("title", name) == name, name

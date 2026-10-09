@@ -68,7 +68,7 @@ export function mockRuns(respond: Respond<Page<Schemas['Run']>>) {
   return queries
 }
 
-export function mockMachines(respond: Respond<Schemas['MachineOffsetPage']>) {
+export function mockMachines(respond: Respond<Schemas['MachineList']>) {
   const { queries, answer } = recording(respond)
   server.use(
     mockApi('get', '/api/suites/{testsuite}/machines', async ({ request }) =>

@@ -84,8 +84,8 @@ class TestList:
         response = api_client.get(SUITES)
 
         assert response.status_code == 200
-        # I2: `items` present and empty rather than absent, and nothing else -- no `total`, which
-        # would claim this list is offset-paginated.
+        # I2: `items` present and empty rather than absent, and nothing else -- no `cursor`, which
+        # would claim this list is paginated.
         assert list(response.json()) == ["items"]
         assert response.json()["items"] == []
 

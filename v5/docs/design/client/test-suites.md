@@ -25,7 +25,7 @@ path and params to restore state. On changes, updates the URL.
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
 | Runs | Run list with cursor pagination, most recent first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
-| Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Substring match on machine name and searchable machine fields |
+| Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
 
@@ -52,7 +52,7 @@ or a prefix of their UUID (see O4).
 
 ## TS3: Machines tab
 
-This tab shows the machines defined in the test suite. It shows a table like this:
+This tab shows every machine defined in the test suite, by name, in a single table like this:
 
 ```
 Name                        Info
@@ -71,8 +71,6 @@ excluded from the Dashboard's trend overview. Hovering the badge explains that.
 
 Above the table, a `Search machines...` box searches the machines by name and searchable fields
 (see O4).
-
-Below the table, `[<- Previous] 1-2 of 2 [Next ->]` allows navigating through pages.
 
 ## TS4: Commits tab
 

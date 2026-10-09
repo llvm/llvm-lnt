@@ -7,27 +7,21 @@ type MachineListQuery = NonNullable<
   paths['/api/suites/{testsuite}/machines']['get']['parameters']['query']
 >
 
-/** One page of `GET /machines` (E2), by name unless `query` sorts otherwise. */
-export function fetchMachinePage(suite: string, query: MachineListQuery, signal?: AbortSignal) {
-  return unwrap(
+/** Every machine of `GET /machines` (E2) that `query` matches, by name unless it sorts otherwise. */
+export async function fetchMachines(suite: string, query: MachineListQuery, signal?: AbortSignal) {
+  const { items } = await unwrap(
     api.GET('/api/suites/{testsuite}/machines', {
       params: { path: { testsuite: suite }, query },
       signal,
     }),
   )
+  return items
 }
 
-/** I2's largest page, so that one request is enough for any suite of reasonable size. */
-const PAGE = 10_000
-
-/** The names of every machine of the suite, by name, however many pages they take. */
+/** The names of every machine of the suite, by name. */
 async function fetchMachineNames(suite: string, signal: AbortSignal): Promise<string[]> {
-  const names: string[] = []
-  for (;;) {
-    const page = await fetchMachinePage(suite, { limit: PAGE, offset: names.length }, signal)
-    names.push(...page.items.map((machine) => machine.name))
-    if (page.items.length === 0 || names.length >= page.total) return names
-  }
+  const machines = await fetchMachines(suite, {}, signal)
+  return machines.map((machine) => machine.name)
 }
 
 /**
