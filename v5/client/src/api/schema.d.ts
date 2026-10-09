@@ -3812,6 +3812,8 @@ export interface operations {
                 cursor?: string | null;
                 /** @description Only return commits whose value, tag or any searchable field contains this text. Not case-sensitive. */
                 search?: string | null;
+                /** @description Only return the commit with exactly this value, if it also matches the other filters. If no commit has this value, the result is empty. Use it to check whether a commit is among those a list with the other filters returns. */
+                commit?: string | null;
                 /** @description Only return commits with at least one run on this machine. Returns 404 if the machine doesn't exist. */
                 machine?: string | null;
                 /** @description Only return commits that have (`true`) or don't have (`false`) a run with profiles. If `machine` is given, only that machine's runs are considered. Leave out to return both. */

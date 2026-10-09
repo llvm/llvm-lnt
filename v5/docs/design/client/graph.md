@@ -165,10 +165,13 @@ comparisons. The selector is an expandable panel with cascading selectors: Suite
 suite's machines endpoint) -> Commit (populated from the selected machine's
 commits via `GET commits?machine={name}&sort=-first_seen`; see AR2). Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
-where `display_value` is the commit's display value (see AR2). Display values
-for baseline commits are resolved via `POST /commits/resolve` so they display
-correctly when baselines are loaded from the URL. The "+" button keeps its
-own size rather than stretching to the width of the chips.
+where `display_value` is the commit's display value (see AR2). A baseline
+loaded from the URL is looked up like a commit given to the commit picker:
+through `GET commits?machine={machine}&commit={commit}` in the baseline's
+suite, which returns the commit, with its display value, only if the machine
+has runs at it. If that lookup succeeds without returning it, the baseline is
+unusable, and is dropped (see AR2 "State"). The "+" button keeps its own size
+rather than stretching to the width of the chips.
 Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
 with `{machine, metric, commit, test}` in the JSON body. Each baseline renders
 as a horizontal dashed line per test trace, spanning the full chart width,
@@ -217,6 +220,7 @@ the user can see the commit range.
 - `GET tests?machine=...&metric=...` (test name discovery)
 - `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
 - `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit picker)
+- `GET commits?machine={name}&commit={value}` (baselines loaded from the URL)
 - `GET machines` (machine combobox)
 - `GET suites` (suite selector, and the selected suite's metrics)
 - `POST regressions/indicators/query` and `GET regressions` (regression

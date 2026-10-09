@@ -144,10 +144,12 @@ display value the suggestions show only if the schema marks the display field
 `searchable` (see O4).
 
 A page of matches need not hold every matching commit: scrolling to the end of
-the suggestions loads the next page. A commit the picker is
-given rather than chosen -- restored from the URL, for instance -- need not be
-among its suggestions, so its display value is resolved through
-`POST commits/resolve`.
+the suggestions loads the next page. A commit the picker is given rather than
+chosen -- restored from the URL, or kept while its filters change -- is looked
+up with the picker's filters plus `commit=` (see E3). The lookup returns
+the commit, with its display value, only if the picker would offer it.
+Otherwise the commit is unusable, and the picker is cleared as if the user had
+emptied it (see "State").
 
 If the user types in a commit picker but does not pick one of its suggestions,
 the form containing the picker cannot be submitted until they do, or clear the

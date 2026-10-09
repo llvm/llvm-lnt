@@ -74,7 +74,7 @@ GET    /api/suites/{testsuite}/machines/{machine_name}        read    One machin
 PATCH  /api/suites/{testsuite}/machines/{machine_name}        manage  Update or rename a machine
 DELETE /api/suites/{testsuite}/machines/{machine_name}        manage  Delete a machine and its runs
 
-GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, before_commit=, sort=, ...)
+GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, commit=, before_commit=, sort=, ...)
 POST   /api/suites/{testsuite}/commits                        submit  Create a commit
 POST   /api/suites/{testsuite}/commits/resolve                read    Look up many commits by value at once
 GET    /api/suites/{testsuite}/commits/{value}                read    One commit, with its previous/next by ordinal
