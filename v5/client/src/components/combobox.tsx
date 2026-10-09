@@ -107,7 +107,8 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
       <Field query={query} suggestions={suggestions} value={value} pick={pick}>
         <Input placeholder={placeholder} className={styles.input} />
       </Field>
-      <Popover className={styles.popover}>
+      {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
+      <Popover className={styles.popover} maxHeight={320}>
         <ListBox
           className={styles.list}
           renderEmptyState={() => <EmptyState suggestions={suggestions} />}

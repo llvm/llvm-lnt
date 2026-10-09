@@ -19,20 +19,20 @@ type ProfileDocument = Schemas['ProfileDocument']
 
 // The real machines (see server/tests/data/libcxx/README.md).
 const LINUX = 'linux-x86_64-20260812'
-const MACOS = 'macos-26.5-arm64-20260812'
-const HARDENED = 'macos-26.5-arm64-hardenedfast-20260821'
+export const MACOS = 'macos-26.5-arm64-20260812'
+export const HARDENED = 'macos-26.5-arm64-hardenedfast-20260821'
 const TRACKED = [LINUX, MACOS, HARDENED]
 
 /** A configuration of the macOS machine kept out of the Dashboard: `tracked: false` (D5). */
-const UNTRACKED = 'macos-26.5-arm64-O3'
+export const UNTRACKED = 'macos-26.5-arm64-O3'
 
 const COMMITS = 40
 /** The distance between the ordinals of consecutive synthetic commits. */
 const ORDINAL_STEP = 37
 const TAGGED_COMMIT = 19
-const TAG = 'llvmorg-22.1.0'
+export const TAG = 'llvmorg-22.1.0'
 /** An ad-hoc A/B experiment on the newest commit: a commit with no ordinal (D1). */
-const EXPERIMENT = 'experiment-faster-format'
+export const EXPERIMENT = 'experiment-faster-format'
 
 /** A change to some tests' values from commit `from` on, until commit `until` (excluded). */
 interface Effect {

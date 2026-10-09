@@ -1,0 +1,11 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
+  padding: var(--lnt-space-3);
+  margin-bottom: var(--lnt-space-4);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-panel);
+}

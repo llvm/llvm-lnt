@@ -51,6 +51,13 @@ export function enumParam<const T extends string>(options: readonly T[], default
   return singleParam(defaultValue, (value) => options.find((option) => option === value))
 }
 
+/** A boolean, spelled `true` or `false`. */
+export function booleanParam(defaultValue: boolean): Param<boolean> {
+  return singleParam(defaultValue, (value) =>
+    value === 'true' ? true : value === 'false' ? false : undefined,
+  )
+}
+
 /** A non-negative integer. */
 export function integerParam(defaultValue = 0): Param<number> {
   return singleParam(defaultValue, (value) => {
@@ -64,11 +71,26 @@ export function listParam(): Param<string[]> {
   return { default: [], parse: (values) => values, serialize: (value) => value }
 }
 
+/**
+ * Any number of `options`, repeated once per value, and none by default. Values that are not
+ * options are dropped, and the rest are kept once each, in the order of `options`.
+ */
+export function enumListParam<const T extends string>(options: readonly T[]): Param<T[]> {
+  return {
+    default: [],
+    parse: (values) => options.filter((option) => values.includes(option)),
+    serialize: (value) => options.filter((option) => value.includes(option)),
+  }
+}
+
+/** Whether `value` is `param`'s default, and so absent from the URL. */
+export function isDefault<T>(param: Param<T>, value: T): boolean {
+  return sameValues(param.serialize(value), param.serialize(param.default))
+}
+
 /** How `value` is spelled in the URL: not at all at its default. */
 function canonical<T>(param: Param<T>, value: T): string[] {
-  const serialized = param.serialize(value)
-  const atDefault = sameValues(serialized, param.serialize(param.default))
-  return atDefault ? [] : serialized
+  return isDefault(param, value) ? [] : param.serialize(value)
 }
 
 function sameValues(a: string[], b: string[]): boolean {

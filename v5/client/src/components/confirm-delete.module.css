@@ -1,0 +1,35 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  padding: var(--lnt-space-3);
+  margin-bottom: var(--lnt-space-3);
+  border: 1px solid var(--lnt-danger-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-danger-bg);
+}
+
+/* What the prompt says comes from its owner, as paragraphs, whose outer margins it leaves out. */
+.message > :first-child {
+  margin-top: 0;
+}
+
+.message > :last-child {
+  margin-bottom: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-2);
+}
+
+.hint {
+  margin: 0;
+  color: var(--lnt-muted);
+}
+
+/* An error shown last, whose margin would add to the prompt's padding. */
+.root > :last-child {
+  margin-bottom: 0;
+}

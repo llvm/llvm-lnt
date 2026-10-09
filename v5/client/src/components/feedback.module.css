@@ -3,6 +3,7 @@
   border: 1px solid var(--lnt-danger-border);
   border-radius: var(--lnt-radius);
   background: var(--lnt-danger-bg);
+  margin-bottom: var(--lnt-space-3);
   color: var(--lnt-danger);
 }
 

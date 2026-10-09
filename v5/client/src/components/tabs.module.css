@@ -1,0 +1,34 @@
+.bar {
+  display: flex;
+  border-bottom: 1px solid var(--lnt-border-strong);
+  margin-bottom: var(--lnt-space-4);
+}
+
+.tab {
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--lnt-muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.tab[data-hovered] {
+  color: var(--lnt-fg);
+}
+
+.tab[data-focus-visible] {
+  outline: 2px solid var(--lnt-accent);
+  outline-offset: -2px;
+}
+
+.tab[data-selected] {
+  border-bottom-color: var(--lnt-accent);
+  /* Not bold: a wider label would shift the tabs after it. */
+  color: var(--lnt-accent);
+}
+
+.panel {
+  outline: none;
+}

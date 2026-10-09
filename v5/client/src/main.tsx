@@ -16,7 +16,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider tokens={tokens}>
-        <BrowserRouter>
+        {/* Without transitions, a control kept in the URL shows a change on the click that makes
+            it, rather than once the navigation it triggers has rendered in the background. */}
+        <BrowserRouter useTransitions={false}>
           <UrlStateProvider>
             <App />
           </UrlStateProvider>

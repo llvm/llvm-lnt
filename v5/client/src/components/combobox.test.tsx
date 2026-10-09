@@ -196,6 +196,18 @@ describe('Combobox with local suggestions', () => {
     await waitFor(() => expect(value()).toBe('macos-arm64'))
   })
 
+  it('shows why its suggestions could not be loaded, rather than loading for ever', async () => {
+    const user = userEvent.setup()
+    function Failed() {
+      const suggestions = useLocalSuggestions(undefined, new Error('The machines failed to load'))
+      return <Combobox label="Machine" value={null} onChange={() => {}} suggestions={suggestions} />
+    }
+    renderWithProviders(<Failed />)
+
+    await openList(user)
+    expect(within(listbox()!).getByText('The machines failed to load')).toBeInTheDocument()
+  })
+
   it('picks nothing on Enter when several suggestions are exactly the text', async () => {
     const user = userEvent.setup()
     renderWithProviders(<MachinePicker machines={TWINS} />)
@@ -276,7 +288,7 @@ function toSuggestion(c: Commit): Suggestion {
     : { key: c.value, text: c.value }
 }
 
-function CommitPicker({ initial = null, delayMs }: { initial?: Suggestion | null; delayMs?: number }) {
+function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion | null; delayMs?: number }) {
   const [picked, setPicked] = useState(initial)
   const suggestions = useServerSuggestions({
     queryKey: ['commits', 'nts'],
@@ -306,7 +318,7 @@ describe('Combobox with server-side suggestions', () => {
   it('offers the first page of suggestions, and loads more at the end of the list', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() => expect(options()).toEqual(['45c4124', '8bb5e21']))
@@ -328,7 +340,7 @@ describe('Combobox with server-side suggestions', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))
@@ -348,7 +360,7 @@ describe('Combobox with server-side suggestions', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))
@@ -363,7 +375,7 @@ describe('Combobox with server-side suggestions', () => {
   it('searches once the user stops typing, for the whole text', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await user.type(input(), '8bb')
     await waitFor(() => expect(options()).toEqual(['8bb5e21']))
@@ -373,7 +385,7 @@ describe('Combobox with server-side suggestions', () => {
   it('says that it is loading until the first suggestions arrive', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     expect(within(listbox()!).getByText('Loading...')).toBeInTheDocument()
@@ -388,7 +400,7 @@ describe('Combobox with server-side suggestions', () => {
       ),
     )
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() =>
@@ -400,7 +412,7 @@ describe('Combobox with server-side suggestions', () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
     // Long enough that only the search Enter sends at once can be sent within the test.
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.click(input())
     await user.paste(COMMITS[2].value)
@@ -417,7 +429,7 @@ describe('Combobox with server-side suggestions', () => {
   it('searches a held Enter at once, even for typed text', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.type(input(), 'experiment-vectorizer-v2{Enter}')
     await waitFor(() => expect(value()).toBe('experiment-vectorizer-v2'))
@@ -427,7 +439,7 @@ describe('Combobox with server-side suggestions', () => {
   it('leaves the text as it is when a held Enter finds no exact match', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker initial={toSuggestion(COMMITS[0])} delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker initial={toSuggestion(COMMITS[0])} delayMs={60_000} />)
 
     await user.tripleClick(input())
     await user.paste('8bb')
@@ -442,7 +454,7 @@ describe('Combobox with server-side suggestions', () => {
   it('drops a held Enter when the user leaves before the search answers', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.click(input())
     await user.paste(COMMITS[1].value)
@@ -458,7 +470,7 @@ describe('Combobox with server-side suggestions', () => {
   it('drops a held Enter when the text changes before the search answers', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.click(input())
     await user.paste(COMMITS[1].value)
@@ -476,7 +488,7 @@ describe('Combobox with server-side suggestions', () => {
     const user = userEvent.setup()
     // Not on the first page, as a commit restored from the URL need not be.
     const restored = toSuggestion(COMMITS[3])
-    renderWithProviders(<CommitPicker initial={restored} />)
+    renderWithProviders(<ServerCommitPicker initial={restored} />)
 
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))

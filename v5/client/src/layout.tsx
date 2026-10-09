@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { SettingsMenu } from './auth/settings-menu'
 import { Loading } from './components/feedback'
 import { PageErrorBoundary } from './components/page-error-boundary'
+import { suitePath } from './paths'
 import styles from './layout.module.css'
 
 /** `path`, with the suite of a suite-scoped page passed on as `param` (AR4). */
@@ -23,7 +24,7 @@ export function Layout() {
             LNT
           </NavLink>
           <NavLink
-            to={suite === undefined ? '/suites' : `/suites/${encodeURIComponent(suite)}`}
+            to={suite === undefined ? '/suites' : suitePath(suite)}
             className={styles.link}
           >
             Test Suites

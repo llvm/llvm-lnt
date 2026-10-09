@@ -71,6 +71,8 @@ otherwise.
 - Timestamps are shown in the browser's local time zone.
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
+- A regression's bug is a link opening in a new tab when it is an `http` or
+  `https` URL, and plain text otherwise, since the API stores any string.
 
 **Paginated tables**: A table that shows a cursor-paginated endpoint (see I2) a
 page at a time has `[<- Previous]` and `[Next ->]` below it. Pagination is
