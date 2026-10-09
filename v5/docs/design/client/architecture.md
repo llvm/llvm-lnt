@@ -149,9 +149,11 @@ given rather than chosen -- restored from the URL, for instance -- need not be
 among its suggestions, so its display value is resolved through
 `POST commits/resolve`.
 
-A form holding a commit picker whose text is not the text of its value --
-typed, but not picked -- cannot be submitted, and says why. An empty picker
-holds no commit, which a form may well accept.
+If the user types in a commit picker but does not pick one of its suggestions,
+the form containing the picker cannot be submitted until they do, or clear the
+picker, and the form says so. Otherwise, the form would be submitted with a
+commit other than the one the text shows. An empty picker is fine: it means no
+commit, which a form may accept.
 
 **Deletions**: Deleting a suite, a machine, a run or a regression is confirmed
 by typing its identifier -- the name of a suite or a machine, the first 8
