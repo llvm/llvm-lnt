@@ -429,8 +429,7 @@ and only for runs not already in the cache.
 ### CP7: URL State
 
 All selection state is encoded as query parameters for shareability:
-- `suite_a`, `commit_a`, `machine_a`, `runs_a` (comma-separated UUIDs),
-  `run_agg_a`
+- `suite_a`, `commit_a`, `machine_a`, `runs_a`, `run_agg_a`
 - `suite_b`, `commit_b`, `machine_b`, `runs_b`, `run_agg_b`
 - `metric`, `sample_agg`
 - `noise_pct`, `noise_pval`, `noise_floor` (knob values; omitted when at
@@ -439,8 +438,8 @@ All selection state is encoded as query parameters for shareability:
   only appear as `1` when enabled), `hide_noise`
 - `test_filter`, and `test_filter_regex`: `1` when the test filter's regex mode
   is on (see AR2), omitted otherwise
-- `columns`: the keys of the optional columns shown (see CP2), comma-separated;
-  omitted when none is shown
+- `columns`: the keys of the optional columns shown (see CP2), omitted when
+  none is shown
 - `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,
   `delta`, `delta_pct`, `ratio` or `status`, or the key of an optional column
   shown, suffixed with `_a` or `_b` for a per-side one), prefixed with `-` for

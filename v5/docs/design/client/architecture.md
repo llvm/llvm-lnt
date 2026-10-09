@@ -48,7 +48,9 @@ the UI causes a full page reload.
   as soon as the page loads. A value the page cannot use (a machine or test
   that does not exist, a metric the page does not offer) is dropped, and the
   page uses its default for that setting instead. Only a successful response
-  can show that a value is unusable: a failed request drops nothing.
+  can show that a value is unusable: a failed request drops nothing. A setting
+  holding several values repeats its parameter once per value, as the API does
+  (see I3).
 
 **Design consistency**: All pages should share a consistent look and feel --
 comboboxes, metric selectors, table styling, progress/error feedback, color
