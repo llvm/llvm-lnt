@@ -1,12 +1,33 @@
+import type { ReactNode } from 'react'
 import { errorMessage } from '../api/client'
 import styles from './feedback.module.css'
 
-/** A failure, as the user should see it (see `errorMessage`). */
-export function ErrorMessage({ error }: { error: unknown }) {
+/** Something went wrong, in the page's own words. */
+export function Alert({ children }: { children: ReactNode }) {
   return (
     <div className={styles.error} role="alert">
-      {errorMessage(error)}
+      {children}
     </div>
+  )
+}
+
+interface ErrorMessageProps {
+  error: unknown
+  /** Offer to try again, with a button calling it. */
+  onRetry?: () => void
+}
+
+/** A failure, as the user should see it (see `errorMessage`). */
+export function ErrorMessage({ error, onRetry }: ErrorMessageProps) {
+  return (
+    <Alert>
+      {errorMessage(error)}
+      {onRetry && (
+        <button type="button" className={styles.retry} onClick={onRetry}>
+          Retry
+        </button>
+      )}
+    </Alert>
   )
 }
 

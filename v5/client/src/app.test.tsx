@@ -1,7 +1,11 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import App from './app'
+import { mockSuites } from './test/page'
 import { renderWithProviders } from './test/render'
+
+// The Test Suites page lists the suites; no other page asks for anything yet.
+beforeEach(() => mockSuites([]))
 
 function renderAt(url: string) {
   return renderWithProviders(<App />, { url })

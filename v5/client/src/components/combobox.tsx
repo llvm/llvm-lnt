@@ -14,6 +14,7 @@ import {
 import { errorMessage } from '../api/client'
 import { Popover } from './popover'
 import type { Suggestion, Suggestions } from './suggestions'
+import shared from './dropdown.module.css'
 import styles from './combobox.module.css'
 
 interface Props {
@@ -25,6 +26,11 @@ interface Props {
   suggestions: Suggestions
   placeholder?: string
   isDisabled?: boolean
+  /**
+   * Called with whether the input holds text that is not the value's -- typed, but not picked --
+   * whenever that changes: a form holding the combobox is not submitted meanwhile (AR2).
+   */
+  onPendingChange?: (pending: boolean) => void
 }
 
 function sameSuggestion(a: Suggestion | null, b: Suggestion | null): boolean {
@@ -50,7 +56,15 @@ function exactMatch(items: readonly Suggestion[], text: string): Suggestion | nu
  * be among the suggestions loaded, which is the case for a commit restored from the URL that is not
  * on the first page of the picker's suggestions.
  */
-export function Combobox({ label, value, onChange, suggestions, placeholder, isDisabled }: Props) {
+export function Combobox({
+  label,
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  isDisabled,
+  onPendingChange,
+}: Props) {
   const [text, setText] = useState(value?.text ?? '')
 
   // A value set from outside -- or one whose text arrived later, like a commit's display value --
@@ -61,6 +75,9 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
     if (text === (shown?.text ?? '')) setText(value?.text ?? '')
   }
 
+  const pending = text !== (value?.text ?? '')
+  useEffect(() => onPendingChange?.(pending), [pending, onPendingChange])
+
   const query = searchText(text, value)
   const { search } = suggestions
   useEffect(() => search(query), [query, search])
@@ -68,6 +85,13 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
   const onInputChange = (next: string) => {
     setText(next)
     if (next === '' && value !== null) onChange(null)
+  }
+
+  // The clear button empties the input, which clears the value, and leaves the focus in it.
+  const inputRef = useRef<HTMLInputElement>(null)
+  const clear = () => {
+    onInputChange('')
+    inputRef.current?.focus()
   }
 
   const restore = () => setText(value?.text ?? '')
@@ -90,7 +114,7 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
 
   return (
     <ComboBox
-      className={styles.root}
+      className={shared.root}
       value={value?.key ?? null}
       onChange={onKeyChange}
       inputValue={text}
@@ -105,16 +129,34 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
     >
       <Label>{label}</Label>
       <Field query={query} suggestions={suggestions} value={value} pick={pick}>
-        <Input placeholder={placeholder} className={styles.input} />
+        <div className={styles.inputBox}>
+          <Input ref={inputRef} placeholder={placeholder} className={styles.input} />
+          {text !== '' && !isDisabled && (
+            <button
+              type="button"
+              className={styles.clear}
+              aria-label={`Clear ${label}`}
+              // Out of the tab order, like the button opening the list: the input can be emptied
+              // from the keyboard. Kept from taking the focus, which would leave the combobox, and
+              // so put back the text of its value before the click empties it.
+              tabIndex={-1}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clear}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </Field>
-      <Popover className={styles.popover}>
+      {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
+      <Popover className={shared.popover} maxHeight={320}>
         <ListBox
-          className={styles.list}
+          className={shared.list}
           renderEmptyState={() => <EmptyState suggestions={suggestions} />}
         >
           <Collection items={suggestions.items}>
             {(item) => (
-              <ListBoxItem id={item.key} textValue={item.text} className={styles.option}>
+              <ListBoxItem id={item.key} textValue={item.text} className={shared.option}>
                 {item.text}
               </ListBoxItem>
             )}

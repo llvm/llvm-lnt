@@ -12,12 +12,14 @@ tabbed content for that suite.
 **Suite picker**: A row of prominent card/button elements, one per test suite.
 Clicking a card selects it (highlighted) and shows the tab bar below, navigating
 to `/suites/{name}`. When no suite is selected (`/suites`), only the suite
-picker is visible.
+picker is visible. When `{ts}` names no suite, the page shows the suite picker and
+says that the suite was not found.
 
 **Tabs**: [Runs] [Machines] [Commits] [Regressions]. Default tab is Runs.
+Switching tabs clears the search, the filters and the pagination position.
 
 **URL state**: the suite is a path segment (`/suites/{ts}`); the remaining state
-is in query params (`?tab=machines&search=foo&offset=0`). On mount, reads the
+is in query params (`?tab=machines&search=foo`). On mount, reads the
 path and params to restore state. On changes, updates the URL.
 
 | Tab | Content | API | Search/Filter |
@@ -103,13 +105,16 @@ Suites page.
 - State: multi-select chips (detected, active, not_to_be_fixed, fixed,
   false_positive) -- toggleable, none selected by default; with none
   selected, every state is shown
-- Machine: combobox with typeahead
-- Metric: dropdown
+- Machine: a combobox over the suite's machines
+- Metric: dropdown over the suite's metrics, or any metric
 - "No commit set": checkbox. When checked, only regressions without a commit
   are shown (`has_commit=false`); when unchecked, regressions are shown whether
   or not they have one.
 - Free-text search on the title or a UUID prefix: server-side `search=` (see
   AR2 and O4)
+
+The filters are kept in the URL, as the API names them: `state` (repeated),
+`machine`, `metric` and `has_commit=false`.
 
 **Actions** (each requires `triage` scope):
 - "New Regression" button -> toggles an inline create form with title, bug,
@@ -124,11 +129,16 @@ The table lists regressions newest first (`sort=-created_at`), so that newly
 recorded regressions are on the first page. It looks like this:
 
 ```
-Title                 State       Commit        Machines      Tests         Created                   Bug
------------------------------------------------------------------------------------------------------------------------------------------------
-find_if slowdown      detected    abc123        2             12            2026-08-31, 3:03:36 PM    https://github.com/llvm/.../issues/1234
+UUID          Title                 State       Commit        Machines      Tests         Created                   Bug
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+3f0ac112...   find_if slowdown      detected    abc123        2             12            2026-08-31, 3:03:36 PM    https://github.com/llvm/.../issues/1234
+9b27d4e0...   (untitled)            active      --            1             3             2026-08-30, 9:12:44 AM
 etc...
 ```
+
+UUID is the regression's shortened UUID, linking to its detail page like Title. It is the
+only way to tell regressions without a title apart, and it shows the prefix by which the
+search can find a regression.
 
 Machines and Tests are the `machine_count` and `test_count` the list endpoint returns
 for each regression. They count the whole regression even when the table is filtered.

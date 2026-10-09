@@ -43,9 +43,13 @@ function noMore() {}
 
 /**
  * Suggestions from `all`, filtered by case-insensitive substring (AR2). Undefined while `all` is
- * still being loaded. Memoize `all`, as the suggestions are filtered again when it changes.
+ * still being loaded, or if loading it failed with `error`. Memoize `all`, as the suggestions are
+ * filtered again when it changes.
  */
-export function useLocalSuggestions(all: readonly Suggestion[] | undefined): Suggestions {
+export function useLocalSuggestions(
+  all: readonly Suggestion[] | undefined,
+  error: Error | null = null,
+): Suggestions {
   const [text, setText] = useState('')
   const lowered = useMemo(
     () =>
@@ -61,17 +65,17 @@ export function useLocalSuggestions(all: readonly Suggestion[] | undefined): Sug
   }, [lowered, text])
   return {
     items,
-    isLoading: all === undefined,
+    isLoading: all === undefined && error === null,
     hasMore: false,
     isLoadingMore: false,
     loadMore: noMore,
-    error: null,
+    error,
     search: setText,
   }
 }
 
-/** How long typing must pause before a server-side search is sent. */
-const SEARCH_DELAY_MS = 250
+/** How long typing must pause before a server-side search is sent, here or by `useServerSearch`. */
+export const SEARCH_DELAY_MS = 250
 
 interface ServerOptions<Item> {
   /** Must cover everything `fetchPage` depends on but the search term. */

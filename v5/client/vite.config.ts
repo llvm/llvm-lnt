@@ -14,5 +14,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
+    // Timestamps are shown in local time (AR2), so the tests fix the time zone they run in.
+    env: { TZ: 'UTC' },
+    // CSS Module classes keep their own names, so that a test can check which one an element has.
+    css: { modules: { classNameStrategy: 'non-scoped' } },
   },
 })

@@ -71,6 +71,8 @@ otherwise.
 - Timestamps are shown in the browser's local time zone.
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
+- A regression's bug is a link opening in a new tab when it is an `http` or
+  `https` URL, and plain text otherwise, since the API stores any string.
 
 **Paginated tables**: A table that shows a cursor-paginated endpoint (see I2) a
 page at a time has `[<- Previous]` and `[Next ->]` below it. Pagination is
@@ -78,6 +80,10 @@ forward-only, so Previous returns to pages the user has already visited. The
 position is not kept in the URL: reloading the page shows the first page again.
 A table over an offset-paginated endpoint keeps its `offset` in the URL
 instead.
+
+When the rows a table should show cannot be fetched -- for another page, search
+or filter -- the table and its pager give way to the error, with a way to try
+again, rather than leave up the rows of another page or search.
 
 **Text filtering**: A client-side text filter -- one that narrows data already
 loaded in the browser -- matches its text as a case-insensitive substring.
@@ -110,7 +116,9 @@ conventions, with manual selection: typing narrows the suggestions, and the
 value changes only when the user picks a suggestion, by clicking it or by moving
 to it with ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without
 picking one puts back the text of its current value, and emptying the input
-clears the value. When no suggestion matches the typed text, the list says so.
+clears the value. While the input holds text, a button in it empties it, so
+that a value can be cleared without editing the text. When no suggestion
+matches the typed text, the list says so.
 The list closes on Escape, on blur, on a click outside it and once a suggestion
 is picked.
 
@@ -140,6 +148,12 @@ the suggestions loads the next page. A commit the picker is
 given rather than chosen -- restored from the URL, for instance -- need not be
 among its suggestions, so its display value is resolved through
 `POST commits/resolve`.
+
+If the user types in a commit picker but does not pick one of its suggestions,
+the form containing the picker cannot be submitted until they do, or clear the
+picker, and the form says so. Otherwise, the form would be submitted with a
+commit other than the one the text shows. An empty picker is fine: it means no
+commit, which a form may accept.
 
 **Deletions**: Deleting a suite, a machine, a run or a regression is confirmed
 by typing its identifier -- the name of a suite or a machine, the first 8

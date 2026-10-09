@@ -20,6 +20,7 @@ interface PickerProps {
   machines?: Suggestion[]
   initial?: Suggestion | null
   onSubmit?: () => void
+  onPendingChange?: (pending: boolean) => void
 }
 
 /** What the picker holds, which outside elements' roles hide while its list is open. */
@@ -44,7 +45,12 @@ async function openList(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /Show suggestions/ }))
 }
 
-function MachinePicker({ machines = MACHINES, initial = null, onSubmit }: PickerProps) {
+function MachinePicker({
+  machines = MACHINES,
+  initial = null,
+  onSubmit,
+  onPendingChange,
+}: PickerProps) {
   const [picked, setPicked] = useState(initial)
   const suggestions = useLocalSuggestions(machines)
   return (
@@ -54,7 +60,13 @@ function MachinePicker({ machines = MACHINES, initial = null, onSubmit }: Picker
         onSubmit?.()
       }}
     >
-      <Combobox label="Machine" value={picked} onChange={setPicked} suggestions={suggestions} />
+      <Combobox
+        label="Machine"
+        value={picked}
+        onChange={setPicked}
+        suggestions={suggestions}
+        onPendingChange={onPendingChange}
+      />
       <p data-testid="value">{picked?.key ?? 'none'}</p>
       <p>Elsewhere</p>
     </form>
@@ -122,6 +134,37 @@ describe('Combobox with local suggestions', () => {
     expect(value()).toBe('none')
     await user.click(screen.getByText('Elsewhere'))
     expect(input()).toHaveValue('')
+  })
+
+  it('clears its value with its clear button, keeping the focus in the input', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker initial={MACHINES[0]} />)
+
+    await user.click(screen.getByRole('button', { name: 'Clear Machine' }))
+
+    expect(value()).toBe('none')
+    expect(input()).toHaveValue('')
+    expect(input()).toHaveFocus()
+    expect(listbox()).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+  })
+
+  it('empties text typed but not picked with its clear button', async () => {
+    const user = userEvent.setup()
+    const onPendingChange = vi.fn()
+    renderWithProviders(<MachinePicker onPendingChange={onPendingChange} />)
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+
+    await user.type(input(), 'linux')
+    // While the list is open, React Aria hides the button from assistive technology, which takes
+    // its name away; a mouse can still click it.
+    await user.click(screen.getByLabelText('Clear Machine'))
+
+    expect(input()).toHaveValue('')
+    expect(value()).toBe('none')
+    expect(onPendingChange).toHaveBeenLastCalledWith(false)
+    // As when the text is deleted, the list stays open, with every suggestion.
+    expect(options()).toEqual(['linux-x86_64', 'linux-aarch64', 'macos-arm64'])
   })
 
   it('says so when no suggestion matches', async () => {
@@ -194,6 +237,42 @@ describe('Combobox with local suggestions', () => {
     expect(value()).toBe('none')
     rerender(<Loading machines={MACHINES} />)
     await waitFor(() => expect(value()).toBe('macos-arm64'))
+  })
+
+  it('shows why its suggestions could not be loaded, rather than loading for ever', async () => {
+    const user = userEvent.setup()
+    function Failed() {
+      const suggestions = useLocalSuggestions(undefined, new Error('The machines failed to load'))
+      return <Combobox label="Machine" value={null} onChange={() => {}} suggestions={suggestions} />
+    }
+    renderWithProviders(<Failed />)
+
+    await openList(user)
+    expect(within(listbox()!).getByText('The machines failed to load')).toBeInTheDocument()
+  })
+
+  it('says whether its input holds text that is not its value', async () => {
+    const user = userEvent.setup()
+    const onPendingChange = vi.fn()
+    renderWithProviders(<MachinePicker initial={MACHINES[0]} onPendingChange={onPendingChange} />)
+    const pending = () => onPendingChange.mock.lastCall?.[0]
+    expect(pending()).toBe(false)
+
+    await user.tripleClick(input())
+    await user.keyboard('mac')
+    expect(pending()).toBe(true)
+    await user.click(screen.getByRole('option', { name: 'macos-arm64' }))
+    expect(pending()).toBe(false)
+
+    await user.type(input(), 'x')
+    expect(pending()).toBe(true)
+    await user.keyboard('{Backspace}')
+    expect(pending()).toBe(false)
+    await user.type(input(), 'x')
+    await user.click(screen.getByText('Elsewhere'))
+    expect(pending()).toBe(false)
+    await user.clear(input())
+    expect(pending()).toBe(false)
   })
 
   it('picks nothing on Enter when several suggestions are exactly the text', async () => {
@@ -276,7 +355,7 @@ function toSuggestion(c: Commit): Suggestion {
     : { key: c.value, text: c.value }
 }
 
-function CommitPicker({ initial = null, delayMs }: { initial?: Suggestion | null; delayMs?: number }) {
+function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion | null; delayMs?: number }) {
   const [picked, setPicked] = useState(initial)
   const suggestions = useServerSuggestions({
     queryKey: ['commits', 'nts'],
@@ -306,7 +385,7 @@ describe('Combobox with server-side suggestions', () => {
   it('offers the first page of suggestions, and loads more at the end of the list', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() => expect(options()).toEqual(['45c4124', '8bb5e21']))
@@ -328,7 +407,7 @@ describe('Combobox with server-side suggestions', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))
@@ -348,7 +427,7 @@ describe('Combobox with server-side suggestions', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))
@@ -363,7 +442,7 @@ describe('Combobox with server-side suggestions', () => {
   it('searches once the user stops typing, for the whole text', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await user.type(input(), '8bb')
     await waitFor(() => expect(options()).toEqual(['8bb5e21']))
@@ -373,7 +452,7 @@ describe('Combobox with server-side suggestions', () => {
   it('says that it is loading until the first suggestions arrive', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     expect(within(listbox()!).getByText('Loading...')).toBeInTheDocument()
@@ -388,7 +467,7 @@ describe('Combobox with server-side suggestions', () => {
       ),
     )
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker />)
+    renderWithProviders(<ServerCommitPicker />)
 
     await openList(user)
     await waitFor(() =>
@@ -400,7 +479,7 @@ describe('Combobox with server-side suggestions', () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
     // Long enough that only the search Enter sends at once can be sent within the test.
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.click(input())
     await user.paste(COMMITS[2].value)
@@ -417,7 +496,7 @@ describe('Combobox with server-side suggestions', () => {
   it('searches a held Enter at once, even for typed text', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.type(input(), 'experiment-vectorizer-v2{Enter}')
     await waitFor(() => expect(value()).toBe('experiment-vectorizer-v2'))
@@ -427,7 +506,7 @@ describe('Combobox with server-side suggestions', () => {
   it('leaves the text as it is when a held Enter finds no exact match', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker initial={toSuggestion(COMMITS[0])} delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker initial={toSuggestion(COMMITS[0])} delayMs={60_000} />)
 
     await user.tripleClick(input())
     await user.paste('8bb')
@@ -442,7 +521,7 @@ describe('Combobox with server-side suggestions', () => {
   it('drops a held Enter when the user leaves before the search answers', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.click(input())
     await user.paste(COMMITS[1].value)
@@ -458,7 +537,7 @@ describe('Combobox with server-side suggestions', () => {
   it('drops a held Enter when the text changes before the search answers', async () => {
     const requests = serveCommits({ hold: true })
     const user = userEvent.setup()
-    renderWithProviders(<CommitPicker delayMs={60_000} />)
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
 
     await user.click(input())
     await user.paste(COMMITS[1].value)
@@ -476,7 +555,7 @@ describe('Combobox with server-side suggestions', () => {
     const user = userEvent.setup()
     // Not on the first page, as a commit restored from the URL need not be.
     const restored = toSuggestion(COMMITS[3])
-    renderWithProviders(<CommitPicker initial={restored} />)
+    renderWithProviders(<ServerCommitPicker initial={restored} />)
 
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))

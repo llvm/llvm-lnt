@@ -1,0 +1,11 @@
+.danger:not(:disabled) {
+  border-color: var(--lnt-danger);
+  background: var(--lnt-danger);
+  color: var(--lnt-bg);
+}
+
+.danger:hover:not(:disabled) {
+  border-color: var(--lnt-danger-strong);
+  background: var(--lnt-danger-strong);
+  color: var(--lnt-bg);
+}

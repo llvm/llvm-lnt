@@ -30,6 +30,7 @@
   --lnt-accent: #2563eb;
   --lnt-panel: #f7f8fa;
   --lnt-danger: #b91c1c;
+  --lnt-danger-strong: #991b1b;
   --lnt-danger-bg: #fef2f2;
   --lnt-danger-border: #fca5a5;
 
@@ -64,7 +65,6 @@
   /* Form controls, shared by every page (AR2 "Design consistency"). */
   button,
   input,
-  select,
   textarea {
     font: inherit;
     font-size: 0.9rem;
@@ -79,19 +79,19 @@
     cursor: pointer;
   }
 
-  button:hover:not(:disabled) {
+  button:hover:not(:disabled, [aria-disabled='true']) {
     border-color: var(--lnt-accent);
     color: var(--lnt-accent);
   }
 
-  button:disabled {
+  button:disabled,
+  button[aria-disabled='true'] {
     color: var(--lnt-muted);
     background: var(--lnt-panel);
     cursor: not-allowed;
   }
 
   input,
-  select,
   textarea {
     padding: var(--lnt-space-1) var(--lnt-space-2);
     border: 1px solid var(--lnt-border-strong);

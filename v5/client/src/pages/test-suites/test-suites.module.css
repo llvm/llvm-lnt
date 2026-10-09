@@ -1,0 +1,126 @@
+.suitePicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: var(--lnt-space-4);
+}
+
+.suiteCard {
+  min-width: 8rem;
+  padding: 0.75rem var(--lnt-space-4);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: 6px;
+  background: var(--lnt-bg);
+  color: var(--lnt-fg);
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.suiteCard:hover {
+  border-color: var(--lnt-accent);
+  color: var(--lnt-accent);
+}
+
+.suiteCard[aria-current='page'] {
+  border-color: var(--lnt-accent);
+  background: var(--lnt-accent);
+  color: var(--lnt-bg);
+}
+
+/* What the page says when there is nothing to show. */
+.note {
+  color: var(--lnt-muted);
+}
+
+/* A machine's `untracked` label. */
+.badge {
+  display: inline-block;
+  padding: 0 var(--lnt-space-2);
+  border-radius: 999px;
+  background: var(--lnt-border);
+  color: var(--lnt-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  vertical-align: middle;
+  cursor: help;
+}
+
+/* A labelled control of the controls panel, its label above it as a combobox has its own. */
+.control {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+  /* Level with the inputs beside it, rather than with their labels. */
+  min-height: 2rem;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--lnt-space-2);
+  margin-bottom: var(--lnt-space-3);
+}
+
+.createForm {
+  padding: var(--lnt-space-3);
+  margin-bottom: var(--lnt-space-3);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
+}
+
+.wide {
+  width: 18rem;
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+  margin-top: var(--lnt-space-3);
+}
+
+/* Why the form cannot be submitted yet. */
+.reason {
+  color: var(--lnt-danger);
+  font-size: 0.9rem;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.deleting {
+  background: var(--lnt-danger-bg);
+}
+
+/* Cells may break anywhere (see data-table.module.css), which would let the other columns squeeze
+   the title to a few characters a line. The bug, cut short below, leaves it the room. */
+.title {
+  min-width: 10rem;
+}
+
+/* A bug URL can be long: it is cut short, and shown whole on hover. */
+.bug {
+  display: inline-block;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

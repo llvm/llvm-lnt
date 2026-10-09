@@ -99,13 +99,17 @@ export function useRestartOnRejectedCursor(
   useEffect(() => {
     if (settled) {
       restarted.current = null
-    } else if (rejectsCursor(isFetchNextPageError, error) && restarted.current !== key) {
+    } else if (isFetchNextPageError && rejectsCursor(error) && restarted.current !== key) {
       restarted.current = key
       void refetch()
     }
   }, [settled, isFetchNextPageError, error, key, refetch])
 }
 
-function rejectsCursor(isFetchNextPageError: boolean, error: Error | null): boolean {
-  return isFetchNextPageError && error instanceof ApiError && error.status === 400
+/**
+ * Whether `error`, from a request for a page after the first, is the server rejecting its cursor,
+ * which may only mean that the server or the suite's schema changed since it was issued (I2).
+ */
+export function rejectsCursor(error: Error | null): boolean {
+  return error instanceof ApiError && error.status === 400
 }

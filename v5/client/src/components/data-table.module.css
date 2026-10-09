@@ -1,0 +1,74 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  transition: opacity 0.15s;
+}
+
+.table[aria-busy='true'] {
+  opacity: 0.55;
+}
+
+.header,
+.cell {
+  padding: var(--lnt-space-2) 0.75rem;
+  border-bottom: 1px solid var(--lnt-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.header {
+  border-bottom-color: var(--lnt-border-strong);
+  color: var(--lnt-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* A long name, such as a test's, breaks where it must rather than widen the table past the page. */
+.cell {
+  overflow-wrap: anywhere;
+}
+
+.row:hover {
+  background: var(--lnt-panel);
+}
+
+/*
+ * What a cell holds comes from the table's callers, so its links and buttons are styled from here,
+ * the exception to giving each element a class of its own (see index.css).
+ */
+.cell a {
+  text-decoration: none;
+}
+
+.cell a:hover {
+  text-decoration: underline;
+}
+
+/* A row's own action, as compact as the text beside it, and never broken. */
+.cell > button {
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+/* The looks of a column (`CellLook`), after `.header` and `.cell` so that they win over them. */
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.empty {
+  color: var(--lnt-muted);
+  text-align: center;
+}

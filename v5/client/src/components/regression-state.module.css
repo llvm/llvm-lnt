@@ -1,0 +1,50 @@
+/* The colours of the states (GR14): red for active, yellow for detected, grey once resolved. */
+.active {
+  --state-bg: #fde2e2;
+  --state-fg: #991b1b;
+  --state-border: #f5a3a3;
+}
+
+.detected {
+  --state-bg: #fef3c7;
+  --state-fg: #854d0e;
+  --state-border: #f3d37a;
+}
+
+.notToBeFixed,
+.fixed,
+.falsePositive {
+  --state-bg: #eceef1;
+  --state-fg: #4b5563;
+  --state-border: #c4c9d0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0 var(--lnt-space-2);
+  border-radius: var(--lnt-radius);
+  background: var(--state-bg);
+  color: var(--state-fg);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-1);
+}
+
+.chip {
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.chip[aria-pressed='true'],
+.chip[aria-pressed='true']:hover:not(:disabled) {
+  border-color: var(--state-border);
+  background: var(--state-bg);
+  /* Not bold: a wider label would shift the chips after it. */
+  color: var(--state-fg);
+}

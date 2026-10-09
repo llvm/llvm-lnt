@@ -8,10 +8,13 @@ import { errorResponse, mockApi } from './test/mock-api'
 import { providers } from './test/render'
 import { server } from './test/server'
 import {
+  booleanParam,
+  enumListParam,
   enumParam,
   integerParam,
   listParam,
   stringParam,
+  trimmedStringParam,
   useDropUnusable,
   useUrlState,
 } from './url-state'
@@ -22,6 +25,9 @@ const PARAMS = {
   agg: enumParam(['median', 'mean', 'min', 'max'], 'median'),
   offset: integerParam(),
 }
+
+const STATES = { state: enumListParam(['detected', 'active', 'fixed']) }
+const FLAGS = { on: booleanParam(true), off: booleanParam(false) }
 
 /** The settings, the URL they come from, and `navigate`, starting at `url`. */
 function renderSettings(url: string) {
@@ -101,6 +107,55 @@ describe('useUrlState', () => {
 
     expect(result.current.state.offset).toBe(50)
     expect(result.current.url).toBe('/graph?offset=50')
+  })
+
+  it('keeps the known values of an enumeration list, once each, in the order of its options', () => {
+    const { result } = renderHook(
+      () => {
+        const [state, setState] = useUrlState(STATES)
+        const { pathname, search } = useLocation()
+        return { state, setState, url: pathname + search }
+      },
+      providers({ url: '/suites/nts?state=fixed&state=bogus&state=active&state=fixed' }),
+    )
+
+    expect(result.current.state.state).toEqual(['active', 'fixed'])
+    expect(result.current.url).toBe('/suites/nts?state=active&state=fixed')
+
+    act(() => result.current.setState({ state: ['fixed', 'detected'] }))
+    expect(result.current.url).toBe('/suites/nts?state=detected&state=fixed')
+    act(() => result.current.setState({ state: [] }))
+    expect(result.current.url).toBe('/suites/nts')
+  })
+
+  it('reads a boolean spelled true or false, and drops any other spelling', () => {
+    const { result } = renderHook(
+      () => {
+        const [state, setState] = useUrlState(FLAGS)
+        const { pathname, search } = useLocation()
+        return { state, setState, url: pathname + search }
+      },
+      providers({ url: '/x?on=false&off=yes' }),
+    )
+
+    expect(result.current.state).toEqual({ on: false, off: false })
+    expect(result.current.url).toBe('/x?on=false')
+    act(() => result.current.setState({ on: true, off: true }))
+    expect(result.current.url).toBe('/x?off=true')
+  })
+
+  it('reads a trimmed text without the spaces around it, and rewrites it so', () => {
+    const { result } = renderHook(
+      () => {
+        const [state] = useUrlState({ search: trimmedStringParam() })
+        const { pathname, search } = useLocation()
+        return { state, url: pathname + search }
+      },
+      providers({ url: '/x?search=%20linux%20x86%20' }),
+    )
+
+    expect(result.current.state).toEqual({ search: 'linux x86' })
+    expect(result.current.url).toBe('/x?search=linux+x86')
   })
 
   it('keeps the hash', () => {

@@ -36,7 +36,7 @@ export function providers({ url = '/' }: Options = {}) {
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider tokens={tokens}>
-          <MemoryRouter initialEntries={[url]}>
+          <MemoryRouter initialEntries={[url]} useTransitions={false}>
             <UrlStateProvider>{children}</UrlStateProvider>
           </MemoryRouter>
         </AuthProvider>

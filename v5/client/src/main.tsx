@@ -16,7 +16,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider tokens={tokens}>
-        <BrowserRouter>
+        {/* Without transitions, a control kept in the URL shows a change on the click that makes
+            it, rather than once the navigation it triggers has rendered in the background. On the
+            other hand, going to a page whose code has not loaded yet shows the loading fallback
+            in place of the page left, rather than keep it up until the new one is ready. */}
+        <BrowserRouter useTransitions={false}>
           <UrlStateProvider>
             <App />
           </UrlStateProvider>
