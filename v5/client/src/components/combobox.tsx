@@ -87,6 +87,13 @@ export function Combobox({
     if (next === '' && value !== null) onChange(null)
   }
 
+  // The clear button empties the input, which clears the value, and leaves the focus in it.
+  const inputRef = useRef<HTMLInputElement>(null)
+  const clear = () => {
+    onInputChange('')
+    inputRef.current?.focus()
+  }
+
   const restore = () => setText(value?.text ?? '')
   const pick = (picked: Suggestion) => {
     if (picked.key === value?.key) {
@@ -122,7 +129,24 @@ export function Combobox({
     >
       <Label>{label}</Label>
       <Field query={query} suggestions={suggestions} value={value} pick={pick}>
-        <Input placeholder={placeholder} className={styles.input} />
+        <div className={styles.inputBox}>
+          <Input ref={inputRef} placeholder={placeholder} className={styles.input} />
+          {text !== '' && !isDisabled && (
+            <button
+              type="button"
+              className={styles.clear}
+              aria-label={`Clear ${label}`}
+              // Out of the tab order, like the button opening the list: the input can be emptied
+              // from the keyboard. Kept from taking the focus, which would leave the combobox, and
+              // so put back the text of its value before the click empties it.
+              tabIndex={-1}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clear}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </Field>
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
       <Popover className={shared.popover} maxHeight={320}>

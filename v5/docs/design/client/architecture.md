@@ -116,7 +116,9 @@ conventions, with manual selection: typing narrows the suggestions, and the
 value changes only when the user picks a suggestion, by clicking it or by moving
 to it with ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without
 picking one puts back the text of its current value, and emptying the input
-clears the value. When no suggestion matches the typed text, the list says so.
+clears the value. While the input holds text, a button beside it empties it, so
+that a value can be cleared without editing the text. When no suggestion
+matches the typed text, the list says so.
 The list closes on Escape, on blur, on a click outside it and once a suggestion
 is picked.
 

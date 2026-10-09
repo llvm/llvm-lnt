@@ -196,6 +196,17 @@ describe('the Regressions tab', () => {
     await waitFor(() => expect(regressions.at(-1)?.has('machine')).toBe(false))
   })
 
+  it('clears the machine filter with its clear button', async () => {
+    const { regressions } = renderTab('&machine=linux-x86_64')
+    await table('Regressions')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Machine' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+    await waitFor(() => expect(regressions.at(-1)?.has('machine')).toBe(false))
+    expect(machineInput()).toHaveValue('')
+  })
+
   it('drops a metric the suite does not have, without asking for it', async () => {
     const { regressions } = renderTab('&metric=nope')
 

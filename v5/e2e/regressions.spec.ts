@@ -78,6 +78,10 @@ test.describe('filtering', () => {
           'Hardening overhead in std::find_if',
         ]),
       )
+
+    await page.getByRole('button', { name: 'Clear Machine' }).click()
+    await expect(page).toHaveURL('/suites/libcxx?tab=regressions')
+    await expect(machine).toHaveValue('')
   })
 
   test('by metric, and by commit', async ({ page }) => {

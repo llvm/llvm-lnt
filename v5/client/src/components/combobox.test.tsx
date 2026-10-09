@@ -136,6 +136,37 @@ describe('Combobox with local suggestions', () => {
     expect(input()).toHaveValue('')
   })
 
+  it('clears its value with its clear button, keeping the focus in the input', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker initial={MACHINES[0]} />)
+
+    await user.click(screen.getByRole('button', { name: 'Clear Machine' }))
+
+    expect(value()).toBe('none')
+    expect(input()).toHaveValue('')
+    expect(input()).toHaveFocus()
+    expect(listbox()).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+  })
+
+  it('empties text typed but not picked with its clear button', async () => {
+    const user = userEvent.setup()
+    const onPendingChange = vi.fn()
+    renderWithProviders(<MachinePicker onPendingChange={onPendingChange} />)
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+
+    await user.type(input(), 'linux')
+    // While the list is open, React Aria hides the button from assistive technology, which takes
+    // its name away; a mouse can still click it.
+    await user.click(screen.getByLabelText('Clear Machine'))
+
+    expect(input()).toHaveValue('')
+    expect(value()).toBe('none')
+    expect(onPendingChange).toHaveBeenLastCalledWith(false)
+    // As when the text is deleted, the list stays open, with every suggestion.
+    expect(options()).toEqual(['linux-x86_64', 'linux-aarch64', 'macos-arm64'])
+  })
+
   it('says so when no suggestion matches', async () => {
     const user = userEvent.setup()
     renderWithProviders(<MachinePicker />)

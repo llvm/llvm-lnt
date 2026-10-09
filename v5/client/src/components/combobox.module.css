@@ -2,11 +2,38 @@
   display: flex;
 }
 
+/* The input, and the clear button laid over its right end. */
+.inputBox {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .input {
   flex: 1;
   min-width: 0;
+  /* Room for the clear button, kept whether or not it is shown, so that the text does not move. */
+  padding-right: 1.75rem;
   border-right: none;
   border-radius: var(--lnt-radius) 0 0 var(--lnt-radius);
+}
+
+.clear {
+  position: absolute;
+  top: 50%;
+  right: var(--lnt-space-1);
+  transform: translateY(-50%);
+  padding: 0 var(--lnt-space-1);
+  border: none;
+  background: none;
+  color: var(--lnt-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.clear:hover:not(:disabled) {
+  color: var(--lnt-fg);
 }
 
 .button {
