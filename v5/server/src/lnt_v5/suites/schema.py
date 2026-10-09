@@ -21,6 +21,7 @@ from typing import Annotated, ClassVar, Self
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from lnt_v5 import examples
+from lnt_v5.strings import Storable
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 
 # D4: a suite name is also the name of the namespace holding its tables, and an entry name is also
@@ -50,6 +51,11 @@ RESERVED_SUITE_PREFIX = "pg_"
 RESERVED_TEST_ENTRY_KEYS = frozenset({"name", "profile"})
 
 Name = Annotated[str, StringConstraints(pattern=NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)]
+
+# D4: the free text an entry carries for the UI -- `display_name`, `unit` and `unit_abbrev` -- which
+# is either absent (null) or a non-empty string. An empty one would only be a second spelling of
+# null. Unlike names, nothing restricts its characters, so it needs D3's NUL check.
+Label = Annotated[str, StringConstraints(min_length=1), Storable]
 
 # The docstrings of the enum and of the four models without a leading underscore below are
 # published, as the descriptions I8's document gives them, so they are written for API users. The
@@ -113,7 +119,7 @@ class Entry(BaseModel):
         )
     )
     type: AttributeType
-    display_name: str | None = Field(
+    display_name: Label | None = Field(
         default=None,
         description=(
             "A friendlier name for the UI to show instead of `name`. Null if there is none."
@@ -171,11 +177,11 @@ class Metric(Entry):
         "test_coverage": frozenset({"machine_id", "test_id"}),
     }
 
-    unit: str | None = Field(
+    unit: Label | None = Field(
         default=None,
         description="The unit of the values, such as `seconds`. Null if there is none.",
     )
-    unit_abbrev: str | None = Field(
+    unit_abbrev: Label | None = Field(
         default=None, description="The unit's abbreviation, such as `s`. Null if there is none."
     )
     bigger_is_better: bool = Field(

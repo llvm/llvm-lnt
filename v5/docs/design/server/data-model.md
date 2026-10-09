@@ -103,9 +103,10 @@ both machines and commits (see O2).
 
 In an `update` entry, an omitted key leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`,
-`unit_abbrev`). The boolean keys (`bigger_is_better`, `searchable`, `display`)
-are not nullable, because D4 normalizes them to `false` rather than to null, so
-`null` for one of them is rejected with 400.
+`unit_abbrev`); an empty string does not, and is rejected with 400 (see D4).
+The boolean keys (`bigger_is_better`, `searchable`, `display`) are not
+nullable, because D4 normalizes them to `false` rather than to null, so `null`
+for one of them is rejected with 400.
 
 Notes:
 - Renaming is not supported: it is semantically a remove plus an add.
@@ -260,6 +261,10 @@ another, so these defaults are part of the wire contract.
 
 A schema that omits one of the three lists entirely gets it back as an empty
 list.
+
+`display_name`, `unit` and `unit_abbrev` are each either `null`, meaning the
+entry has none, or a non-empty string. An empty string is rejected with 400
+rather than read as `null`: it would only be a second spelling of `null`.
 
 **Suite name.** `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
 characters; anything else is rejected with 400. The name is also the name of
@@ -751,7 +756,8 @@ that applies them must meet these requirements:
 
 Stored schemas are data in a global table. If the schema format (D4) changes
 in a way that existing `schema_json` values no longer satisfy, rewriting them
-is a global migration.
+is a global migration, which bumps `schema_version` like any other change to a
+stored schema (see D2 and D5).
 
 The server applies all of this at startup, before it begins serving, and
 refuses to serve if any of it fails: a server whose tables are not the ones its

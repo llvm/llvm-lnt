@@ -22,7 +22,15 @@ from sqlalchemy import Connection, update
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, Name, SuiteSchema
+from lnt_v5.suites.schema import (
+    CommitField,
+    Entry,
+    Label,
+    MachineField,
+    Metric,
+    Name,
+    SuiteSchema,
+)
 from lnt_v5.suites.store import bump, normalized_json
 from lnt_v5.tables import schema as schema_table
 
@@ -40,7 +48,7 @@ class _EntryUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
     name: Name = Field(description="The name of the metric or field to change.")
-    display_name: str | None = Field(
+    display_name: Label | None = Field(
         default=None,
         description="A friendlier name for the UI to show instead of `name`. Null removes it.",
     )
@@ -71,11 +79,11 @@ class MetricUpdate(_EntryUpdate):
     """Changes to an existing metric's display settings. Only include the keys you want to change.
     The metric's type can't be changed."""
 
-    unit: str | None = Field(
+    unit: Label | None = Field(
         default=None,
         description="The unit of the values, such as `seconds`. Null removes it.",
     )
-    unit_abbrev: str | None = Field(
+    unit_abbrev: Label | None = Field(
         default=None, description="The unit's abbreviation, such as `s`. Null removes it."
     )
     bigger_is_better: bool = Field(

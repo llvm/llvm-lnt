@@ -197,6 +197,17 @@ class TestCreate:
         assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize("value", ["", "a\x00b"])
+    def test_refuses_a_label_that_is_empty_or_holds_a_nul(
+        self, api_client: TestClient, create: Callable[..., Any], value: str
+    ) -> None:
+        # Every label, in every list, is checked alike; see test_suite_schema.py.
+        response = create(metrics=[{"name": "execution_time", "type": "real", "unit": value}])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+        assert api_client.get(f"{SUITES}/nts").status_code == 404
+
     def test_reserves_no_name_for_routing(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
@@ -335,6 +346,45 @@ class TestEvolve:
         assert (
             next(m for m in body["metrics"] if m["name"] == "compile_time")["display_name"] is None
         )
+
+    def test_refuses_to_add_an_entry_with_an_empty_label(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create()
+
+        response = patch_request(
+            api_client,
+            manage,
+            {"machine_fields": {"add": [{"name": "os", "type": "text", "display_name": ""}]}},
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize("key", ["display_name", "unit", "unit_abbrev"])
+    @pytest.mark.parametrize("value", ["", "a\x00b"])
+    def test_refuses_to_set_a_label_that_is_empty_or_holds_a_nul(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        key: str,
+        value: str,
+    ) -> None:
+        # D2: only null clears a label; an empty string is rejected as it is everywhere else.
+        create()
+        before = stored_schema(db_engine, "nts")
+
+        response = patch_request(
+            api_client, manage, {"metrics": {"update": [{"name": "compile_time", key: value}]}}
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+        # Refused as the request's own field, rather than as an invalid resulting schema.
+        assert f"update.0.{key}" in response.json()["error"]["message"]
+        assert stored_schema(db_engine, "nts") == before
 
     def test_refuses_a_boolean_key_sent_as_null(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]

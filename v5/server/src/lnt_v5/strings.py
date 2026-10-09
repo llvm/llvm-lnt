@@ -11,6 +11,10 @@ rather than any one endpoint's, and a per-endpoint check is one endpoint away fr
 `run_parameters` has no declared shape to hang a validator on, so it gets the same rule by a walk of
 its own (see `suites/submission.py`), which is what `NUL` is exported for.
 
+A schema entry's display name, unit and unit abbreviation are checked too, although they would not
+fail: they are stored inside a schema's JSON text, where a NUL is written as the escape `\\u0000`.
+They are checked because D3 rejects a NUL in every value of a request.
+
 psycopg refuses to bind a NUL into any statement, not only into a stored value, so the same holds
 for a string a request only looks up by. In a body that is still this check, applied where the
 body's types are declared. A URL has no such single declaration -- each path segment and each
