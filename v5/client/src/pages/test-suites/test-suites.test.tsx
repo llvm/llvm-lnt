@@ -303,14 +303,17 @@ describe('the Runs tab', () => {
     expect(queries).toHaveLength(2)
   })
 
-  it('keeps the page shown, and its pager, when the next one fails to load', async () => {
+  it('shows the error in place of the table when the next page fails, and retries', async () => {
     mockSuites()
+    let failures = 1
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) =>
-        new URL(request.url).searchParams.get('cursor') === 'page2'
-          ? errorResponse(500, 'internal_error', 'The server failed')
-          : HttpResponse.json(cursorPage([run('a', { machine: 'first' })], 'page2')),
-      ),
+      mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
+        if (new URL(request.url).searchParams.get('cursor') !== 'page2') {
+          return HttpResponse.json(cursorPage([run('a', { machine: 'first' })], 'page2'))
+        }
+        if (failures-- > 0) return errorResponse(500, 'internal_error', 'The server failed')
+        return HttpResponse.json(cursorPage([run('b', { machine: 'second' })]))
+      }),
     )
     mockResolve()
     renderPage('/suites/libcxx')
@@ -319,12 +322,30 @@ describe('the Runs tab', () => {
     fireEvent.click(screen.getByRole('button', { name: /Next/ }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
-    expect(screen.getByRole('link', { name: 'first' })).toBeInTheDocument()
-    const pager = screen.getByRole('navigation', { name: 'Runs pagination' })
-    expect(within(pager).getByRole('button', { name: /Next/ })).toBeDisabled()
-    fireEvent.click(within(pager).getByRole('button', { name: /Previous/ }))
-    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-    expect(within(pager).getByRole('button', { name: /Next/ })).toBeEnabled()
+    expect(screen.queryByRole('table', { name: 'Runs' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Runs pagination' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('link', { name: 'second' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the error of a failed search rather than the results of the previous one', async () => {
+    mockSuites()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) =>
+        new URL(request.url).searchParams.get('search') === 'linux-x'
+          ? errorResponse(500, 'internal_error', 'The server failed')
+          : HttpResponse.json(cursorPage([run('a', { machine: 'linux-x86_64' })])),
+      ),
+    )
+    mockResolve()
+    renderPage('/suites/libcxx?search=linux')
+    await screen.findByRole('link', { name: 'linux-x86_64' })
+
+    search('Search runs by machine, commit or UUID', 'linux-x')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
+    expect(screen.queryByRole('link', { name: 'linux-x86_64' })).not.toBeInTheDocument()
   })
 
   it('searches the server once typing pauses, from the first page', async () => {
@@ -469,7 +490,7 @@ describe('the Machines tab', () => {
     expect(currentUrl()).toBe('/suites/libcxx?tab=machines')
   })
 
-  it('keeps the page shown, and its pager, when the next one fails to load', async () => {
+  it('shows the error in place of the table when the next page fails, and retries', async () => {
     mockSuites()
     let failures = 1
     const offsets: string[] = []
@@ -490,12 +511,9 @@ describe('the Machines tab', () => {
     fireEvent.click(screen.getByRole('button', { name: /Next/ }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
-    expect(screen.getByRole('link', { name: 'm0' })).toBeInTheDocument()
-    expect(screen.getByText('1-25 of 30')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Machines' })).not.toBeInTheDocument()
     expect(currentUrl()).toBe('/suites/libcxx?tab=machines&offset=25')
-
-    // Asking for the page that failed again retries it.
-    fireEvent.click(screen.getByRole('button', { name: /Next/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByRole('link', { name: 'm25' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(offsets).toEqual(['0', '25', '25'])

@@ -109,9 +109,9 @@ describe('useCursorPager', () => {
     expect(fetch.mock.calls.at(-1)).toEqual(['c1'])
   })
 
-  it('keeps the last page that loaded next to a failure, with the way back', async () => {
+  it('shows no page once one fails to load, and asks for it again on retry', async () => {
     let failures = 1
-    const { result } = renderPager(async (cursor) => {
+    const { result, fetch } = renderPager(async (cursor) => {
       if (cursor === 'c1' && failures-- > 0) {
         throw new ApiError(500, 'internal_error', 'The server failed')
       }
@@ -121,15 +121,29 @@ describe('useCursorPager', () => {
 
     act(() => result.current.next())
     await waitFor(() => expect(result.current.error?.message).toBe('The server failed'))
-    expect(result.current.page?.items).toEqual(['a', 'b'])
-    expect(result.current.hasPrevious).toBe(true)
+    expect(result.current.page).toBeUndefined()
     expect(result.current.hasNext).toBe(false)
 
-    // Back, then forward again, asks for the page that failed again.
-    act(() => result.current.previous())
-    await waitFor(() => expect(result.current.hasNext).toBe(true))
-    expect(result.current.error).toBeNull()
-    act(() => result.current.next())
+    act(() => result.current.retry())
     await waitFor(() => expect(result.current.page?.items).toEqual(['c', 'd']))
+    expect(result.current.error).toBeNull()
+    expect(fetch.mock.calls).toEqual([[null], ['c1'], ['c1']])
+  })
+
+  it('shows no page once the first page of another query fails to load', async () => {
+    let search = ''
+    const { result, rerender } = renderPager(async (cursor) => {
+      if (cursor === null && search === 'broken') {
+        throw new ApiError(500, 'internal_error', 'The server failed')
+      }
+      return PAGES[cursor ?? 'first']
+    })
+    await waitFor(() => expect(result.current.page?.items).toEqual(['a', 'b']))
+
+    search = 'broken'
+    rerender({ search })
+
+    await waitFor(() => expect(result.current.error?.message).toBe('The server failed'))
+    expect(result.current.page).toBeUndefined()
   })
 })

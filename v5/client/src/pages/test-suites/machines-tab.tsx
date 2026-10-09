@@ -2,7 +2,6 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { api, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import { useLastData } from '../../api/use-last-data'
 import type { SuiteSchema } from '../../api/suites'
 import { DataTable, type Column } from '../../components/data-table'
 import { OffsetPager, PAGE_SIZE } from '../../components/pagination'
@@ -50,11 +49,8 @@ export function MachinesTab({ schema, search, onSearch, offset, onOffset }: Prop
     (page) => offset === 0 || page.items.length > 0,
     () => onOffset(0),
   )
-  // The page shown: the previous one while the one asked for loads, or the last one that loaded
-  // when it failed, next to the error.
-  const page = useLastData(machines.data)
-  // Asking again for the page that failed retries it.
-  const goTo = (to: number) => (to === offset ? void machines.refetch() : onOffset(to))
+  // The page shown: the previous one while the one asked for loads, and none when it failed.
+  const page = machines.data
 
   return (
     <TabContent
@@ -63,6 +59,8 @@ export function MachinesTab({ schema, search, onSearch, offset, onOffset }: Prop
       placeholder="Search machines..."
       isPending={machines.isPending}
       error={machines.error}
+      onRetry={() => void machines.refetch()}
+      retrying={machines.isFetching}
     >
       {page && (
         <>
@@ -81,7 +79,7 @@ export function MachinesTab({ schema, search, onSearch, offset, onOffset }: Prop
             count={page.items.length}
             total={page.total}
             disabled={machines.isPlaceholderData}
-            onChange={goTo}
+            onChange={onOffset}
           />
         </>
       )}

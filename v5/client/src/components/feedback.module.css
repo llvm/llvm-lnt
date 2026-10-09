@@ -7,6 +7,10 @@
   color: var(--lnt-danger);
 }
 
+.retry {
+  margin-left: var(--lnt-space-2);
+}
+
 .loading {
   color: var(--lnt-muted);
 }

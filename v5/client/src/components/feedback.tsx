@@ -11,9 +11,26 @@ export function Alert({ children }: { children: ReactNode }) {
   )
 }
 
+interface ErrorMessageProps {
+  error: unknown
+  /** Offer to try again, with a button calling it. */
+  onRetry?: () => void
+  /** Trying again is under way. */
+  retrying?: boolean
+}
+
 /** A failure, as the user should see it (see `errorMessage`). */
-export function ErrorMessage({ error }: { error: unknown }) {
-  return <Alert>{errorMessage(error)}</Alert>
+export function ErrorMessage({ error, onRetry, retrying = false }: ErrorMessageProps) {
+  return (
+    <Alert>
+      {errorMessage(error)}
+      {onRetry && (
+        <button type="button" className={styles.retry} onClick={onRetry} disabled={retrying}>
+          {retrying ? 'Retrying...' : 'Retry'}
+        </button>
+      )}
+    </Alert>
+  )
 }
 
 /** Something is on its way. */

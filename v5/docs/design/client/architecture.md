@@ -81,6 +81,10 @@ position is not kept in the URL: reloading the page shows the first page again.
 A table over an offset-paginated endpoint keeps its `offset` in the URL
 instead.
 
+When the rows a table should show cannot be fetched -- for another page, search
+or filter -- the table and its pager give way to the error, with a way to try
+again, rather than leave up the rows of another page or search.
+
 **Text filtering**: A client-side text filter -- one that narrows data already
 loaded in the browser -- matches its text as a case-insensitive substring.
 

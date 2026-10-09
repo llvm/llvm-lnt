@@ -38,6 +38,8 @@ export function CommitsTab({ schema, search, onSearch }: Props) {
       placeholder="Search commits..."
       isPending={pager.isPending}
       error={pager.error}
+      onRetry={pager.retry}
+      retrying={pager.isRetrying}
     >
       {page && (
         <>
