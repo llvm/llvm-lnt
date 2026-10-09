@@ -71,6 +71,9 @@ otherwise.
 - A metric, machine field or commit field is labelled with its `display_name`
   when the schema sets one, and with its `name` otherwise.
 - Timestamps are shown in the browser's local time zone.
+- A measured `real` value is shown to at most 6 significant digits, but never
+  with fewer digits than its integer part has (`1.26432`, `66655.7`,
+  `4123456789`).
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
 - A regression's bug is a link opening in a new tab when it is an `http` or
@@ -85,9 +88,18 @@ When the rows a table should show cannot be fetched -- for another page, search
 or filter -- the table and its pager give way to the error, with a way to try
 again, rather than leave up the rows of another page or search.
 
+A table that loads every page of a paginated endpoint, showing the rows as they
+arrive, gives way to the error in the same way if the first page cannot be
+fetched. If a later page cannot be, it keeps the rows it has, says that they are
+incomplete, and offers to load the rest.
+
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
 get the same answer.
+
+**Disabled links**: A link that leads nowhere for now -- to a comparison with a
+commit that does not exist, say -- is shown as disabled text rather than as a
+link, so that no click leads anywhere, modified or not, and hovering it says why.
 
 **Text filtering**: A client-side text filter -- one that narrows data already
 loaded in the browser -- matches its text as a case-insensitive substring.
@@ -105,11 +117,10 @@ picker (CP9) -- ask the server again as the user types (debounced), from the
 first page. A response for earlier text never replaces the one for the current
 text, though the previous results may stay up until the current ones arrive.
 
-**Text filtering performance**: Typing in a client-side filter must update the
-rows it filters within a single animation frame, even over thousands of rows --
-the test tables of the Graph and Compare pages, or a run's samples. A chart
-that depends on the filter may update after the table, so as not to block the
-input.
+**Text filtering performance**: Typing in a client-side filter must never lag
+behind the keyboard, even over thousands of rows -- the test tables of the Graph
+and Compare pages, or a run's samples. The rows it filters, and any chart that
+depends on them, may update just after.
 
 **Invalid input**: An input whose text is invalid -- an invalid regex in a test
 filter, a name the schema editor rejects (AD3) -- shows a red halo (red border

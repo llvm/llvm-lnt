@@ -7,7 +7,7 @@ import { NotFound } from './pages/not-found'
 const Dashboard = lazy(() => import('./pages/dashboard'))
 const TestSuites = lazy(() => import('./pages/test-suites'))
 const MachineDetail = lazy(() => import('./pages/details/machine-detail'))
-const RunDetail = lazy(() => import('./pages/run-detail'))
+const RunDetail = lazy(() => import('./pages/details/run-detail'))
 const CommitDetail = lazy(() => import('./pages/commit-detail'))
 const RegressionDetail = lazy(() => import('./pages/regression-detail'))
 const Graph = lazy(() => import('./pages/graph'))

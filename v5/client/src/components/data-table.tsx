@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode, Ref } from 'react'
+import { memo, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import clsx from 'clsx'
 import styles from './data-table.module.css'
 
@@ -46,8 +46,17 @@ interface Props<Row> {
   ref?: Ref<HTMLTableElement>
 }
 
-/** A table of entities, styled the same on every page (AR2 "Design consistency"). */
-export function DataTable<Row>({
+/**
+ * A table of entities, styled the same on every page (AR2 "Design consistency").
+ *
+ * It renders again only when one of its props changes, so that a page can render again around a
+ * table of thousands of rows -- on every keystroke in a filter, say -- without rendering them. Such
+ * a page passes it props that keep their identity: memoized rows and columns, and functions that
+ * are not created anew on each render.
+ */
+export const DataTable = memo(DataTableImpl) as typeof DataTableImpl
+
+function DataTableImpl<Row>({
   label,
   columns,
   rows,

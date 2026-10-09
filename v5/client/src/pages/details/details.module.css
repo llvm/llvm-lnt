@@ -25,3 +25,10 @@
   text-underline-offset: 3px;
   cursor: help;
 }
+
+/* A line saying how much a table holds, above it. */
+.summary {
+  margin: 0 0 var(--lnt-space-2);
+  color: var(--lnt-muted);
+  font-size: 0.9rem;
+}

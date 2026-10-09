@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatTimestamp, regressionTitle, shortUuid, truncate } from './format'
+import {
+  formatNumber,
+  formatTimestamp,
+  plural,
+  regressionTitle,
+  shortUuid,
+  truncate,
+} from './format'
 
 // The tests run in UTC (see vite.config.ts).
 describe('formatTimestamp', () => {
@@ -46,5 +53,27 @@ describe('regressionTitle', () => {
   it('is the title, or (untitled) without one', () => {
     expect(regressionTitle({ title: 'slow' })).toBe('slow')
     expect(regressionTitle({ title: null })).toBe('(untitled)')
+  })
+})
+
+describe('formatNumber', () => {
+  it.each([
+    [1.2643218, '1.26432'],
+    [66655.7123, '66655.7'],
+    [1.264, '1.264'],
+    [0, '0'],
+    [-0.000123456789, '-0.000123457'],
+    [4123456789.4, '4123456789'],
+    [123456.7, '123457'],
+  ])('shows %s as %s', (value, shown) => {
+    expect(formatNumber(value)).toBe(shown)
+  })
+})
+
+describe('plural', () => {
+  it('puts the noun in the plural unless there is exactly one', () => {
+    expect(plural(0, 'run')).toBe('0 runs')
+    expect(plural(1, 'run')).toBe('1 run')
+    expect(plural(12, 'run')).toBe('12 runs')
   })
 })

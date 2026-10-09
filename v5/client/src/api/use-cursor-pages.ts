@@ -33,6 +33,10 @@ export interface CursorPages<Item> {
   isComplete: boolean
   /** Why fetching stopped, if it failed. The pages fetched before then are still in `items`. */
   error: Error | null
+  /** Whether any page has been fetched, even an empty one: when not, an error is the first page's. */
+  hasPages: boolean
+  /** Fetch again what failed: the rest of the pages from the one that failed, if it can be. */
+  retry(): void
 }
 
 /**
@@ -58,7 +62,17 @@ export function useCursorPages<Item>({
     queryFn: ({ pageParam, signal }) => fetchPage(pageParam, signal),
     ...cursorPaging,
   })
-  const { data, error, hasNextPage, isFetching, isError, isPending, fetchNextPage } = query
+  const {
+    data,
+    error,
+    hasNextPage,
+    isFetching,
+    isError,
+    isFetchNextPageError,
+    isPending,
+    fetchNextPage,
+    refetch,
+  } = query
   const isComplete = !isPending && !hasNextPage && !isError
 
   // Keyed on `data` too: a page can arrive within the render that started fetching it, so that
@@ -70,7 +84,13 @@ export function useCursorPages<Item>({
   useRestartOnRejectedCursor(query, options.queryKey, isComplete)
 
   const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data])
-  return { items, isPending, isComplete, error }
+  // A rejected cursor, which the restart above did not recover from, would only be rejected again:
+  // that case starts from the first page, like a failure of the first page itself.
+  const retry = () => {
+    if (isFetchNextPageError && !rejectsCursor(error)) void fetchNextPage()
+    else void refetch()
+  }
+  return { items, isPending, isComplete, error, hasPages: data !== undefined, retry }
 }
 
 /** The parts of an infinite query that restarting it after a rejected cursor needs. */

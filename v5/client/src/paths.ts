@@ -41,15 +41,37 @@ export function graphPath({ suite, machine }: { suite?: string; machine?: string
   ])
 }
 
-/** The Compare page (CP7), with side A set to `suite` and `machine`, as far as they are given. */
-export function comparePath({ suite, machine }: { suite?: string; machine?: string } = {}): string {
-  return withQuery('/compare', [
-    ['suite_a', suite],
-    ['machine_a', machine],
-  ])
+/** One side of the Compare page (CP7), as far as it is given. */
+interface CompareSide {
+  suite?: string
+  machine?: string
+  commit?: string
+  /** The runs selected among those of `machine` at `commit`: every one of them when not given. */
+  runs?: string[]
 }
 
-/** The Profiles page (PF9), with side A set to `suite`, if given. */
-export function profilesPath({ suite }: { suite?: string } = {}): string {
-  return withQuery('/profiles', [['suite_a', suite]])
+/** The Compare page (CP7), with side A and side B set as far as they are given, and `metric`. */
+export function comparePath(a: CompareSide = {}, b: CompareSide = {}, metric?: string): string {
+  type Param = [string, string | undefined]
+  const side = (suffix: string, { suite, machine, commit, runs = [] }: CompareSide): Param[] => [
+    [`suite_${suffix}`, suite],
+    [`machine_${suffix}`, machine],
+    [`commit_${suffix}`, commit],
+    // Repeated once per run, as a setting holding several values is (AR2 "State").
+    ...runs.map((run): Param => [`runs_${suffix}`, run]),
+  ]
+  return withQuery('/compare', [...side('a', a), ...side('b', b), ['metric', metric]])
+}
+
+/** The Profiles page (PF9), with side A set to the profile of `test` in `run`, as far as given. */
+export function profilesPath({
+  suite,
+  run,
+  test,
+}: { suite?: string; run?: string; test?: string } = {}): string {
+  return withQuery('/profiles', [
+    ['suite_a', suite],
+    ['run_a', run],
+    ['test_a', test],
+  ])
 }

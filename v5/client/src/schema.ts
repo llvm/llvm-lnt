@@ -4,9 +4,10 @@
 
 import type { Schemas } from './api/client'
 import type { SuiteSchema } from './api/suites'
-import { formatTimestamp, MISSING } from './format'
+import { formatNumber, formatTimestamp, MISSING } from './format'
 
 export type Commit = Schemas['Commit']
+export type Metric = SuiteSchema['metrics'][number]
 
 type FieldValue = string | number | null | undefined
 
@@ -20,6 +21,27 @@ export function formatFieldValue(value: FieldValue, type: Schemas['AttributeType
   if (value === null || value === undefined) return MISSING
   if (type === 'datetime' && typeof value === 'string') return formatTimestamp(value)
   return String(value)
+}
+
+/** Whether `metric` is numeric (D3): what a value axis, or a number's formatting, needs. */
+export function isNumeric(metric: Metric): boolean {
+  return metric.type === 'real' || metric.type === 'integer'
+}
+
+/** The metric a page shows unless told otherwise: the first numeric one, else the first (DT2). */
+export function defaultMetric(schema: SuiteSchema): Metric | undefined {
+  return schema.metrics.find(isNumeric) ?? schema.metrics[0]
+}
+
+/** A metric's value, as shown: a `real` to 6 significant digits (AR2), anything else in full. */
+export function formatMetricValue(value: FieldValue, metric: Metric): string {
+  if (typeof value === 'number' && metric.type === 'real') return formatNumber(value)
+  return formatFieldValue(value, metric.type)
+}
+
+/** The suite's metrics, in schema order and by label, as the options of a `Select`. */
+export function metricOptions(schema: SuiteSchema): { value: string; label: string }[] {
+  return schema.metrics.map((entry) => ({ value: entry.name, label: labelOf(entry) }))
 }
 
 /**

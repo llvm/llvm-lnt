@@ -18,7 +18,7 @@ export type RegressionCreate = Schemas['RegressionCreate']
 type ProfileDocument = Schemas['ProfileDocument']
 
 // The real machines (see server/tests/data/libcxx/README.md).
-const LINUX = 'linux-x86_64-20260812'
+export const LINUX = 'linux-x86_64-20260812'
 export const MACOS = 'macos-26.5-arm64-20260812'
 export const HARDENED = 'macos-26.5-arm64-hardenedfast-20260821'
 const TRACKED = [LINUX, MACOS, HARDENED]
@@ -378,6 +378,9 @@ const CODE: Record<Isa, Code> = {
   },
 }
 
+/** One of the tests that carry a profile (see FUNCTIONS). */
+export const PROFILED_TEST = 'std::stable_sort(vector<int>)_(heap)/8192'
+
 /**
  * The tests that carry a profile on the newest commit and in the experiment, with their
  * functions, hottest first: each one's share of the counters, and the length of its loop.
@@ -392,7 +395,7 @@ const FUNCTIONS: Record<string, [name: string, share: number, body: number][]> =
     ['memcpy', 0.04, 4],
     ['main', 0.01, 2],
   ],
-  'std::stable_sort(vector<int>)_(heap)/8192': [
+  [PROFILED_TEST]: [
     ['std::__1::__stable_sort<_ClassicAlgPolicy, __less<>&, int*>(int*, int*, long)', 0.47, 12],
     ['std::__1::__merge_move_assign<_ClassicAlgPolicy, __less<>&, int*>(int*, int*)', 0.31, 10],
     ['std::__1::__insertion_sort<_ClassicAlgPolicy, __less<>&, int*>(int*, int*)', 0.12, 6],

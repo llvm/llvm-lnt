@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
-import { forgetSuite, queryKeys } from '../../api/keys'
+import { queryKeys } from '../../api/keys'
 import { machineKey, useMachine } from '../../api/machines'
 import { fetchRegressions } from '../../api/regressions'
 import { fetchRunPage } from '../../api/runs'
@@ -11,8 +11,6 @@ import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
 import { ButtonLink } from '../../components/button-link'
-import { ConfirmDelete } from '../../components/confirm-delete'
-import { DangerButton } from '../../components/danger-button'
 import { DataTable } from '../../components/data-table'
 import { ErrorMessage, Loaded } from '../../components/feedback'
 import { InfoBox, InfoRow } from '../../components/info-box'
@@ -24,6 +22,7 @@ import { comparePath, graphPath } from '../../paths'
 import type { RegressionState } from '../../regression-states'
 import { formatFieldValue, labelOf, type Commit } from '../../schema'
 import { suiteTabPath } from '../test-suites/settings'
+import { ActionRow } from './action-row'
 import { RegressionsTable } from './regressions-table'
 import styles from './details.module.css'
 
@@ -142,65 +141,33 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
 
 /** View Graph, Compare, and Delete Machine, with its confirmation below them (DT1). */
 function Actions({ suite, name }: { suite: string; name: string }) {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const manage = useScopeGate('manage')
-  const [confirming, setConfirming] = useState(false)
-  const deleteButton = useRef<HTMLButtonElement>(null)
-  // Whether the page is still shown once the deletion is done: if not, it must not leave (AR2).
-  const shown = useRef(false)
-  useEffect(() => {
-    shown.current = true
-    return () => {
-      shown.current = false
-    }
-  }, [])
-
-  const remove = async () => {
-    await unwrap(
-      authedApi.DELETE('/api/suites/{testsuite}/machines/{machine_name}', {
-        params: { path: { testsuite: suite, machine_name: name } },
-      }),
-    )
-    // Its runs, their commits' and tests' lists, and the regressions it had indicators on, change.
-    const leaving = shown.current
-    await forgetSuite(queryClient, suite, { leaving })
-    if (leaving) navigate(suiteTabPath(suite, 'machines'), { replace: true })
-  }
-
   return (
-    <>
-      <div className={styles.actions}>
-        <ButtonLink to={graphPath({ suite, machine: name })}>View Graph</ButtonLink>
-        <ButtonLink to={comparePath({ suite, machine: name })}>Compare</ButtonLink>
-        <DangerButton
-          type="button"
-          ref={deleteButton}
-          {...manage}
-          aria-expanded={confirming}
-          onClick={() => setConfirming(true)}
-        >
-          Delete Machine
-        </DangerButton>
-      </div>
-      {confirming && (
-        <ConfirmDelete
-          expected={name}
-          busyMessage="Deleting a machine with many runs may take a while."
-          onConfirm={remove}
-          onCancel={() => {
-            setConfirming(false)
-            deleteButton.current?.focus()
-          }}
-        >
+    <ActionRow
+      deletion={{
+        suite,
+        label: 'Delete Machine',
+        scope: 'manage',
+        expected: name,
+        message: (
           <p>
             Delete the machine <strong>{name}</strong>, all of its runs with their samples and
             profiles, and every regression indicator naming it? Regressions left with no indicators
             are kept. This cannot be undone.
           </p>
-        </ConfirmDelete>
-      )}
-    </>
+        ),
+        busyMessage: 'Deleting a machine with many runs may take a while.',
+        onDelete: () =>
+          unwrap(
+            authedApi.DELETE('/api/suites/{testsuite}/machines/{machine_name}', {
+              params: { path: { testsuite: suite, machine_name: name } },
+            }),
+          ),
+        leaveTo: suiteTabPath(suite, 'machines'),
+      }}
+    >
+      <ButtonLink to={graphPath({ suite, machine: name })}>View Graph</ButtonLink>
+      <ButtonLink to={comparePath({ suite, machine: name })}>Compare</ButtonLink>
+    </ActionRow>
   )
 }
 

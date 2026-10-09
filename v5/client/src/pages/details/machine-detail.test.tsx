@@ -9,6 +9,7 @@ import {
   currentUrl,
   gate,
   infoRows,
+  main,
   mockMachines,
   mockResolve,
   mockSuites,
@@ -107,11 +108,6 @@ function trackedBox() {
 
 function deleteButton() {
   return screen.getByRole('button', { name: 'Delete Machine' })
-}
-
-/** Queries within the page's content, rather than the navbar, which has a Compare link too. */
-function main() {
-  return within(screen.getByRole('main'))
 }
 
 describe('the Machine Detail page', () => {

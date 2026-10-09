@@ -104,10 +104,13 @@ Metric [metric dropdown]
 
 Test                                                                                  Value
 -------------------------------------------------------------------------------------------
-BM_align/1                                                                            1.264
+BM_align/1                                                                          1.26432
 BM_ascii_text<char>                                                                 66655.7
 BM_BitsetToString<1048576>/Dense_(90%)/90                                           59242.7
 ```
+
+The info box has one row per top-level key of the run's `run_parameters`, ordered by key: a
+string value as it is, and any other value as compact JSON.
 
 ### Action buttons
 
@@ -122,9 +125,11 @@ run selected (`runs_b={uuid}`), and the metric is the one selected on this page.
 commit is the one with the nearest lower ordinal at which this machine has runs
 (`GET commits?machine={name}&before_commit={value}&sort=-ordinal&limit=1`), not the commit's
 `previous` neighbour, which may have no runs on this machine. The button is disabled, with a
-tooltip saying why, when the run's commit has no ordinal or the machine has no earlier commit.
+tooltip saying why, when the run's commit has no ordinal or the machine has no earlier commit,
+and while the previous commit is being looked up or could not be.
 
-Both are links, so a modified click opens the comparison in a new tab (see AR2).
+Both are links, so a modified click opens the comparison in a new tab (see AR2), unless they
+are disabled (see "Disabled links" in AR2).
 
 Clicking "Delete run" shows its confirmation prompt (see AR2) below the action row.
 Deletion requires `manage` scope. On success, navigates to the machine detail page.
@@ -140,15 +145,20 @@ offer (see AR2).
 
 ### Test filter
 
-Text input for substring matching on test names (client-side).
+Text input for substring matching on test names (client-side), kept in the URL as
+`?test_filter={text}`.
 
 ### Samples table
 
-All samples + selected metric value, sorted by test name.
+All samples + selected metric value, sorted by test name, with no control to sort them
+otherwise. The value column is headed by the selected metric's label (see AR2).
 
 Samples are loaded progressively -- the table renders immediately with the first
 page and grows as more pages arrive, with a progress indicator showing the
-count. Multiple samples for the same test (repetitions) appear as separate rows.
+count (see "Paginated tables" in AR2). Once they are all loaded, the count reflects the
+filter (e.g. "2 of 25 samples matching"). Multiple samples for the same test (repetitions)
+appear as separate rows. The table says `This run has no samples.` when there are none, and
+`No tests match the filter.` when the filter keeps none.
 
 Tests with profiles show a "Profile" link/icon in the samples table. The link navigates
 to `/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.

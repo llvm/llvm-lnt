@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
 import { api, unwrap } from './client'
+import { queryKeys } from './keys'
 import type { paths } from './schema'
 import type { Commit } from '../schema'
 
@@ -60,7 +62,12 @@ export async function lookUpCommit(
   value: string,
   signal?: AbortSignal,
 ): Promise<Commit | null> {
-  const page = await fetchCommitPage(suite, { ...filters, commit: value, limit: 1 }, signal)
+  return firstCommit(suite, { ...filters, commit: value }, signal)
+}
+
+/** The first commit `GET /commits` lists for `query` (E3), or null if it lists none. */
+async function firstCommit(suite: string, query: CommitListQuery, signal?: AbortSignal) {
+  const page = await fetchCommitPage(suite, { ...query, limit: 1 }, signal)
   return page.items[0] ?? null
 }
 
@@ -83,4 +90,56 @@ export async function withCommits<Page>(
     if (signal?.aborted) throw error
   }
   return { ...page, commits }
+}
+
+/**
+ * The commit `value`, resolved on its own for its display value and ordinal (E3), or null once it
+ * shows that no commit has that value.
+ */
+export function useResolvedCommit(suite: string, value: string) {
+  return useQuery({
+    queryKey: [...queryKeys.suite(suite), 'commits', 'resolve', value],
+    queryFn: async ({ signal }) =>
+      (await resolveCommits(suite, [value], signal)).get(value) ?? null,
+  })
+}
+
+/**
+ * What is known of the commit before a run's on its machine (see `usePreviousCommit`): whether it
+ * is still being looked up, could not be, does not exist, or was found.
+ */
+export type PreviousCommit =
+  | { state: 'pending' }
+  | { state: 'failed'; error: unknown }
+  /** The run's commit has no ordinal, so no commit comes before it. */
+  | { state: 'unordered' }
+  /** The machine has no run at an earlier commit. */
+  | { state: 'none' }
+  | { state: 'found'; commit: Commit }
+
+/**
+ * The commit before `value` at which `machine` has runs: the one with the nearest lower ordinal
+ * among the machine's commits (DT2), which the commit's own `previous` neighbour need not be. The
+ * commit is resolved first, since only one with an ordinal has a commit before it (the API refuses
+ * the others), and the lookup is made once per machine and commit, however many runs ask for it.
+ */
+export function usePreviousCommit(suite: string, value: string, machine: string): PreviousCommit {
+  const commit = useResolvedCommit(suite, value)
+  const ordered = commit.data?.ordinal != null
+  const lookup = useQuery({
+    queryKey: [...queryKeys.suite(suite), 'commits', 'previous', { machine, commit: value }],
+    queryFn: ({ signal }) =>
+      firstCommit(suite, { machine, before_commit: value, sort: '-ordinal' }, signal),
+    enabled: ordered,
+  })
+  if (commit.isError) return { state: 'failed', error: commit.error }
+  if (commit.isPending) return { state: 'pending' }
+  // Deleted since the run was read.
+  if (commit.data === null) {
+    return { state: 'failed', error: new Error(`Commit '${value}' no longer exists.`) }
+  }
+  if (!ordered) return { state: 'unordered' }
+  if (lookup.isError) return { state: 'failed', error: lookup.error }
+  if (lookup.isPending) return { state: 'pending' }
+  return lookup.data ? { state: 'found', commit: lookup.data } : { state: 'none' }
 }

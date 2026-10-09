@@ -4,6 +4,7 @@
  */
 
 import type { APIRequestContext, TestInfo } from '@playwright/test'
+import type { components } from '../client/src/api/schema.d.ts'
 import type { Submission } from '../tools/synthetic.ts'
 import { expect, type Scope } from './fixtures.ts'
 
@@ -17,15 +18,15 @@ export interface OwnRun {
 
 /**
  * Create a suite named after the test, with the metric `execution_time` and the machine field
- * `hardware`, submit `runs` to it, and call `use` with its name. The suite is deleted once `use`
- * returns.
+ * `hardware`, submit `runs` to it, and call `use` with its name and the UUIDs of the runs, in
+ * order. The suite is deleted once `use` returns.
  */
 export async function ownSuite(
   request: APIRequestContext,
   tokenFor: (scope: Scope) => Promise<string>,
   testInfo: TestInfo,
   runs: OwnRun[],
-  use: (suite: string) => Promise<void>,
+  use: (suite: string, runs: string[]) => Promise<void>,
 ) {
   const suite = `e2e_${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 63)
   const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
@@ -39,6 +40,7 @@ export async function ownSuite(
   })
   expect(created.status(), await created.text()).toBe(201)
   try {
+    const uuids: string[] = []
     for (const { machine, commit, ordinal, tests } of runs) {
       const response = await request.post(`/api/suites/${suite}/runs`, {
         headers,
@@ -50,8 +52,9 @@ export async function ownSuite(
         },
       })
       expect(response.status(), await response.text()).toBe(201)
+      uuids.push(((await response.json()) as components['schemas']['RunDetail']).uuid)
     }
-    await use(suite)
+    await use(suite, uuids)
   } finally {
     await request.delete(`/api/suites/${suite}?confirm=true`, { headers })
   }

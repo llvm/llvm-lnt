@@ -10,7 +10,14 @@
   text-decoration: none;
 }
 
-.button:hover {
+.button:hover:not(.disabled) {
   border-color: var(--lnt-accent);
   color: var(--lnt-accent);
+}
+
+/* As a disabled button looks. */
+.disabled {
+  background: var(--lnt-panel);
+  color: var(--lnt-muted);
+  cursor: not-allowed;
 }
