@@ -156,6 +156,8 @@ function Actions({ suite, name }: { suite: string; name: string }) {
           </p>
         ),
         busyMessage: 'Deleting a machine with many runs may take a while.',
+        // Its runs, their commits' and tests' lists, and the regressions it had indicators on all
+        // change, which is why the whole suite is forgotten (see ActionRow).
         onDelete: () =>
           unwrap(
             authedApi.DELETE('/api/suites/{testsuite}/machines/{machine_name}', {

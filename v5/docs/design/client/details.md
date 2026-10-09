@@ -128,8 +128,8 @@ commit is the one with the nearest lower ordinal at which this machine has runs
 tooltip saying why, when the run's commit has no ordinal or the machine has no earlier commit,
 and while the previous commit is being looked up or could not be.
 
-Both are links, so a modified click opens the comparison in a new tab (see AR2), unless they
-are disabled (see "Disabled links" in AR2).
+Both are links, so a modified click opens the comparison in a new tab (see AR2), unless
+"Compare with previous commit" is disabled (see "Disabled links" in AR2).
 
 Clicking "Delete run" shows its confirmation prompt (see AR2) below the action row.
 Deletion requires `manage` scope. On success, navigates to the machine detail page.
@@ -141,7 +141,7 @@ samples table. It offers every metric of the suite, and defaults to the first
 numeric metric (see D3) in schema order, or to the first metric if none is
 numeric. The selected metric is kept in the URL as `?metric={name}`, and is
 passed on by the Compare links above; Compare drops a metric it does not
-offer (see AR2).
+offer (see AR2). A suite with no metrics has no selector, and no value column.
 
 ### Test filter
 

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import clsx from 'clsx'
 import styles from './button-link.module.css'
 
 interface Props {
@@ -30,7 +29,7 @@ export function ButtonLink({ to, title, children }: Props) {
       role="link"
       aria-disabled="true"
       tabIndex={0}
-      className={clsx(styles.button, styles.disabled)}
+      className={styles.button}
       title={title}
     >
       {children}

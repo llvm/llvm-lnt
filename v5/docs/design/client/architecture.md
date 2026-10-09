@@ -98,8 +98,8 @@ asked for does not exist (I4's `not_found`) does not, since trying again would
 get the same answer.
 
 **Disabled links**: A link that leads nowhere for now -- to a comparison with a
-commit that does not exist, say -- is shown as disabled text rather than as a
-link, so that no click leads anywhere, modified or not, and hovering it says why.
+commit that does not exist, say -- is shown disabled: no click follows it,
+modified or not, and it says why on hover and to assistive technology.
 
 **Text filtering**: A client-side text filter -- one that narrows data already
 loaded in the browser -- matches its text as a case-insensitive substring.

@@ -10,13 +10,13 @@
   text-decoration: none;
 }
 
-.button:hover:not(.disabled) {
+.button:hover:not([aria-disabled='true']) {
   border-color: var(--lnt-accent);
   color: var(--lnt-accent);
 }
 
 /* As a disabled button looks. */
-.disabled {
+.button[aria-disabled='true'] {
   background: var(--lnt-panel);
   color: var(--lnt-muted);
   cursor: not-allowed;

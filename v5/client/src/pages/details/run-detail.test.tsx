@@ -52,12 +52,12 @@ interface Options {
   url?: string
   suite?: SuiteSchema
   run?: () => Response | Promise<Response>
-  /** The run's commit, as `commits/resolve` knows it. */
-  commit?: Schemas['Commit']
+  /** The run's commit, as `commits/resolve` knows it: null if it no longer exists. */
+  commit?: Schemas['Commit'] | null
   /** The answer to the lookup of the commit before the run's on its machine. */
   previous?: Respond
   /** The answer to each request for samples; by default, `samples` on one page. */
-  samplePages?: Respond
+  samplePages?: (query: URLSearchParams, request: Request) => Response | Promise<Response>
   samples?: Schemas['Sample'][]
   /** The answer to the list of the run's profiles; by default, none. */
   profiles?: () => Response
@@ -84,19 +84,21 @@ function renderRun({
   profiles = profilesOf(),
 }: Options = {}) {
   const lookups = recording(previous)
-  const samplePageList = recording(samplePages)
+  const sampleQueries: URLSearchParams[] = []
   mockSuites([suite])
-  mockResolve([commit])
+  mockResolve(commit ? [commit] : [])
   server.use(
     mockApi('get', '/api/suites/{testsuite}/runs/{uuid}', () => run()),
     mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => lookups.answer(request)),
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', ({ request }) =>
-      samplePageList.answer(request),
-    ),
+    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', ({ request }) => {
+      const query = new URL(request.url).searchParams
+      sampleQueries.push(query)
+      return samplePages(query, request)
+    }),
     mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', () => profiles()),
   )
   renderPage(url)
-  return { lookups: lookups.queries, sampleQueries: samplePageList.queries }
+  return { lookups: lookups.queries, sampleQueries }
 }
 
 /** The query of `link`, as an object. */
@@ -217,6 +219,11 @@ describe('the Run Detail page', () => {
         'This commit has no ordinal, so no commit comes before it.',
       ],
       [
+        'the commit was deleted meanwhile',
+        { commit: null },
+        "The previous commit could not be looked up: Commit 'abc123' no longer exists.",
+      ],
+      [
         'the lookup fails',
         { previous: () => errorResponse(500, 'internal_error', 'Boom') },
         'The previous commit could not be looked up: Boom',
@@ -230,7 +237,28 @@ describe('the Run Detail page', () => {
       expect(link).not.toHaveAttribute('href')
       expect(link).toHaveAccessibleDescription(why)
       // The API refuses to look up the commit before one that has no ordinal.
-      if (options.commit) expect(lookups).toEqual([])
+      if (options.commit !== undefined) expect(lookups).toEqual([])
+    })
+
+    it('cannot compare with the previous commit while it is being looked up', async () => {
+      const answer = gate()
+      renderRun({
+        previous: async () => {
+          await answer.promise
+          return HttpResponse.json(cursorPage([PREVIOUS]))
+        },
+      })
+
+      const link = await main().findByRole('link', { name: 'Compare with previous commit' })
+      await waitFor(() => expect(link).toHaveAttribute('title', 'Looking up the previous commit...'))
+      expect(link).toHaveAttribute('aria-disabled', 'true')
+      act(() => answer.open())
+
+      await waitFor(() =>
+        expect(main().getByRole('link', { name: 'Compare with previous commit' })).toHaveAttribute(
+          'href',
+        ),
+      )
     })
   })
 
@@ -274,6 +302,44 @@ describe('the Run Detail page', () => {
       await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/machines/linux-x86_64'))
       expect(deleted).toEqual([`Bearer ${TOKEN}`])
       expect(await screen.findByText('No runs on this machine yet.')).toBeInTheDocument()
+    })
+
+    it('stops loading the run’s samples once the page is left', async () => {
+      signIn('manage')
+      const aborted: string[] = []
+      const { sampleQueries } = renderRun({
+        // A second page that never arrives.
+        samplePages: async (query, request) => {
+          const cursor = query.get('cursor')
+          if (cursor === null) return HttpResponse.json(cursorPage([sample('a')], 'p2'))
+          request.signal.addEventListener('abort', () => aborted.push(cursor))
+          return new Promise<Response>(() => {})
+        },
+      })
+      const cursors = () => sampleQueries.map((query) => query.get('cursor'))
+      server.use(
+        mockApi(
+          'delete',
+          '/api/suites/{testsuite}/runs/{uuid}',
+          () => new HttpResponse(null, { status: 204 }),
+        ),
+        mockApi('get', '/api/suites/{testsuite}/machines/{machine_name}', ({ params }) =>
+          HttpResponse.json(machine(params.machine_name)),
+        ),
+      )
+      mockRegressions()
+      mockRuns(() => cursorPage([]))
+      const button = await screen.findByRole('button', { name: 'Delete run' })
+      await waitFor(() => expect(button).toBeEnabled())
+      await waitFor(() => expect(cursors()).toEqual([null, 'p2']))
+
+      fireEvent.click(button)
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'aaaaaaaa' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/machines/linux-x86_64'))
+      await waitFor(() => expect(aborted).toEqual(['p2']))
+      expect(cursors()).toEqual([null, 'p2'])
     })
   })
 
@@ -375,6 +441,29 @@ describe('the Run Detail page', () => {
       expect(within(samples).getAllByRole('columnheader')).toHaveLength(2)
     })
 
+    it('never say the run has none while they are arriving', async () => {
+      const answer = gate()
+      const seen = new Set<string>()
+      const observer = new MutationObserver(() => {
+        for (const text of ['This run has no samples.', '0 samples']) {
+          if (document.body.textContent?.includes(text)) seen.add(text)
+        }
+      })
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      renderRun({
+        samplePages: async () => {
+          await answer.promise
+          return HttpResponse.json(cursorPage([sample('a')]))
+        },
+      })
+      await screen.findByRole('heading', { name: 'Samples' })
+      act(() => answer.open())
+
+      expect(await screen.findByText('1 sample')).toBeInTheDocument()
+      observer.disconnect()
+      expect([...seen]).toEqual([])
+    })
+
     it('are shown as they arrive, with a count of those so far', async () => {
       const second = gate()
       const { sampleQueries } = renderRun({
@@ -421,6 +510,7 @@ describe('the Run Detail page', () => {
       const filter = screen.getByRole('searchbox', { name: 'Filter tests' })
       expect(filter).toHaveValue('find')
       expect(testsOf(samples)).toEqual(['std::find/8'])
+      expect(main().getByRole('status')).toHaveTextContent('1 of 3 samples matching')
 
       fireEvent.change(filter, { target: { value: 'sort/ ' } })
       // The input follows the keyboard at once, the rows just after, and the URL once typing
@@ -488,6 +578,7 @@ describe('the Run Detail page', () => {
         'The profiles could not be listed: No profiles today',
       )
       expect(rowsOf(await table('Samples'))).toEqual(['a | 1'])
+      expect(main().getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     })
   })
 })

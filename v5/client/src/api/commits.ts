@@ -121,7 +121,8 @@ export type PreviousCommit =
  * The commit before `value` at which `machine` has runs: the one with the nearest lower ordinal
  * among the machine's commits (DT2), which the commit's own `previous` neighbour need not be. The
  * commit is resolved first, since only one with an ordinal has a commit before it (the API refuses
- * the others), and the lookup is made once per machine and commit, however many runs ask for it.
+ * the others). The lookup is cached per machine and commit, so that runs of the same machine at
+ * the same commit share it.
  */
 export function usePreviousCommit(suite: string, value: string, machine: string): PreviousCommit {
   const commit = useResolvedCommit(suite, value)

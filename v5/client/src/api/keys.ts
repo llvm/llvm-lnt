@@ -24,7 +24,7 @@ export const queryKeys = {
  * "Deletions"). What no page shows is dropped rather than marked stale, so that the page shown
  * next does not list the deleted entity while it fetches its data again. What a page shows is
  * fetched again, unless `leaving` says that it is the page about to leave the entity it deleted,
- * which must not ask for the entity again, nor go on fetching it.
+ * which must not ask for the entity again.
  */
 export async function forgetSuite(
   queryClient: QueryClient,
@@ -32,7 +32,6 @@ export async function forgetSuite(
   { leaving }: { leaving: boolean },
 ): Promise<void> {
   const queryKey = queryKeys.suite(suite)
-  if (leaving) await queryClient.cancelQueries({ queryKey })
   queryClient.removeQueries({ queryKey, type: 'inactive' })
   await queryClient.invalidateQueries({ queryKey, refetchType: leaving ? 'none' : 'active' })
 }

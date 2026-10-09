@@ -9,11 +9,11 @@ import { ButtonLink } from '../../components/button-link'
 import { CommitLink } from '../../components/commit-link'
 import { ControlsPanel } from '../../components/controls-panel'
 import { DataTable, type Column } from '../../components/data-table'
-import { Alert, ErrorMessage, Loaded, Loading } from '../../components/feedback'
+import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { SearchInput } from '../../components/search-input'
 import { Select } from '../../components/select'
-import { useTextFilter } from '../../components/text-filter'
+import { useTextFilter } from '../../components/use-text-filter'
 import { WithSchema } from '../../components/with-schema'
 import { compareStrings, formatTimestamp, plural, uuidPrefix } from '../../format'
 import { comparePath, machinePath, profilesPath } from '../../paths'
@@ -99,8 +99,7 @@ function RunContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
             schema={schema}
             uuid={uuid}
             samples={samples}
-            profiles={profiles.data}
-            profilesError={profiles.error}
+            profiles={profiles}
             metric={metric}
             onMetric={(name) => update({ metric: name === fallback?.name ? '' : name })}
             filterText={settings.test_filter}
@@ -189,9 +188,8 @@ interface SamplesProps {
   schema: SuiteSchema
   uuid: string
   samples: CursorPages<Sample>
-  /** The tests of the run that have a profile, once known. */
-  profiles: Schemas['RunProfile'][] | undefined
-  profilesError: Error | null
+  /** The tests of the run that have a profile. */
+  profiles: ReturnType<typeof useRunProfiles>
   /** The metric shown, or none when the suite has no metrics. */
   metric: Metric | undefined
   onMetric(name: string): void
@@ -206,7 +204,7 @@ interface SamplesProps {
  * They are shown as they arrive, page after page, and filtered by test name locally (DT2).
  */
 function Samples(props: SamplesProps) {
-  const { schema, uuid, samples, profiles, profilesError, metric, onMetric } = props
+  const { schema, uuid, samples, profiles, metric, onMetric } = props
   const suite = schema.name
   // Sorted, filtered and rendered once React has had the time, so that pages arriving, and a new
   // metric, do not hold up typing in the filter either.
@@ -214,17 +212,24 @@ function Samples(props: SamplesProps) {
   const rows = useMemo(() => sortedRows(items), [items])
   const filter = useTextFilter(rows, testOf, props.filterText, props.onFilter)
   const columns = useDeferredValue(
-    useMemo(() => sampleColumns(suite, uuid, metric, profiles), [suite, uuid, metric, profiles]),
+    useMemo(
+      () => sampleColumns(suite, uuid, metric, profiles.data),
+      [suite, uuid, metric, profiles.data],
+    ),
   )
+
+  // The rows shown are not all of those fetched yet: until they are, an empty table or a final count
+  // would say something about the run that is not so.
+  const behind = items !== samples.items
 
   let content
   if (samples.error && !samples.hasPages) {
     content = <ErrorMessage error={samples.error} onRetry={samples.retry} />
-  } else if (samples.isPending) {
+  } else if (samples.isPending || (behind && rows.length === 0)) {
     content = <Loading />
   } else {
     let summary
-    if (!samples.isComplete && !samples.error) {
+    if (behind || (!samples.isComplete && !samples.error)) {
       summary = `Loading samples... ${rows.length} so far.`
     } else {
       summary = filter.active
@@ -263,8 +268,11 @@ function Samples(props: SamplesProps) {
         )}
         <SearchInput search={filter.input} label="Filter tests" placeholder="Filter tests..." />
       </ControlsPanel>
-      {profilesError && (
-        <Alert>The profiles could not be listed: {errorMessage(profilesError)}</Alert>
+      {profiles.error && (
+        <ErrorMessage
+          error={new Error(`The profiles could not be listed: ${errorMessage(profiles.error)}`)}
+          onRetry={() => void profiles.refetch()}
+        />
       )}
       {content}
     </>
