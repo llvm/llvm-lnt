@@ -113,4 +113,25 @@ describe('useServerSearch', () => {
 
     expect(onSearch.mock.calls).toEqual([['']])
   })
+
+  it('searches for the text without the spaces around it, keeping them in the input', () => {
+    const { result, onSearch } = renderSearch()
+
+    act(() => result.current.setText(' linux '))
+    act(() => vi.advanceTimersByTime(SEARCH_DELAY_MS))
+
+    expect(onSearch.mock.calls).toEqual([['linux']])
+    expect(result.current.text).toBe(' linux ')
+    expect(result.current.pending).toBe(false)
+  })
+
+  it('does not search again for spaces typed around the text searched for', () => {
+    const { result, onSearch } = renderSearch('linux')
+
+    act(() => result.current.setText('linux '))
+    act(() => vi.advanceTimersByTime(SEARCH_DELAY_MS))
+
+    expect(onSearch).not.toHaveBeenCalled()
+    expect(result.current.pending).toBe(false)
+  })
 })

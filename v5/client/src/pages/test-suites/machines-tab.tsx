@@ -1,7 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { api, unwrap, type Schemas } from '../../api/client'
+import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
+import { fetchMachinePage } from '../../api/machines'
 import type { SuiteSchema } from '../../api/suites'
 import { DataTable, type Column } from '../../components/data-table'
 import { OffsetPager, PAGE_SIZE } from '../../components/pagination'
@@ -34,13 +35,7 @@ export function MachinesTab({ schema, search, onSearch, offset, onOffset }: Prop
   const machines = useQuery({
     queryKey: [...queryKeys.suite(suite), 'machines', params],
     // With its offset, so that a page shown in place of another (see below) says where it is.
-    queryFn: async ({ signal }) => {
-      const request = api.GET('/api/suites/{testsuite}/machines', {
-        params: { path: { testsuite: suite }, query: params },
-        signal,
-      })
-      return { ...(await unwrap(request)), offset }
-    },
+    queryFn: async ({ signal }) => ({ ...(await fetchMachinePage(suite, params, signal)), offset }),
     placeholderData: keepPreviousData,
   })
   // An offset past the last machine is one the page cannot use (AR2 "State").
