@@ -8,6 +8,12 @@ export interface CursorPage<Item> {
   cursor: { next: string | null }
 }
 
+/** What an infinite query over I2's cursor pages needs to go from one page to the next. */
+export const cursorPaging = {
+  initialPageParam: null as string | null,
+  getNextPageParam: (last: CursorPage<unknown>) => last.cursor.next,
+}
+
 interface Options<Item> {
   /** Must cover everything `fetchPage` depends on, since the pages are cached under it. */
   queryKey: QueryKey
@@ -35,10 +41,8 @@ export interface CursorPages<Item> {
  *
  * The pages are cached under `queryKey` like any query: a page that unmounts part-way through
  * cancels the request in flight, and resumes from the pages already fetched when it mounts again.
- * A page that fails stops the sequence, and the pages before it are kept. The exception is a
- * cursor the server rejects (a 400 on a page after the first), which may only mean that the server
- * or the suite's schema changed since it was issued: the sequence starts again from the first page,
- * once (I2).
+ * A page that fails stops the sequence, and the pages before it are kept, except that a rejected
+ * cursor starts it again (see `useRestartOnRejectedCursor`).
  *
  * `items` is rebuilt as each page arrives, so fetch large pages (up to I2's maximum of 10 000) when
  * there may be many items: with small ones, the copying grows with the square of their number.
@@ -52,11 +56,9 @@ export function useCursorPages<Item>({
     // default for it rather than leaving it in place.
     ...options,
     queryFn: ({ pageParam, signal }) => fetchPage(pageParam, signal),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.cursor.next,
+    ...cursorPaging,
   })
-  const { data, error, hasNextPage, isFetching, isError, isPending } = query
-  const { isFetchNextPageError, fetchNextPage, refetch } = query
+  const { data, error, hasNextPage, isFetching, isError, isPending, fetchNextPage } = query
   const isComplete = !isPending && !hasNextPage && !isError
 
   // Keyed on `data` too: a page can arrive within the render that started fetching it, so that
@@ -65,21 +67,43 @@ export function useCursorPages<Item>({
     if (hasNextPage && !isFetching && !isError) void fetchNextPage()
   }, [data, hasNextPage, isFetching, isError, fetchNextPage])
 
-  // The query whose sequence has been restarted since it last completed, if any. A refetch starts
-  // from the first page again, and takes each later cursor from the page before it.
+  useRestartOnRejectedCursor(query, options.queryKey, isComplete)
+
+  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data])
+  return { items, isPending, isComplete, error }
+}
+
+/** The parts of an infinite query that restarting it after a rejected cursor needs. */
+interface Restartable {
+  error: Error | null
+  isFetchNextPageError: boolean
+  refetch: () => unknown
+}
+
+/**
+ * Start the pages of `query` again from the first one when the server rejects the cursor of a
+ * later one (a 400), which may only mean that the server or the suite's schema changed since it was
+ * issued (I2). A refetch starts from the first page, and takes each later cursor from the page
+ * before it. The query is restarted once until `settled` says that its pages are good again, so
+ * that a cursor rejected for any other reason is reported rather than retried forever.
+ */
+export function useRestartOnRejectedCursor(
+  query: Restartable,
+  queryKey: QueryKey,
+  settled: boolean,
+): void {
+  const { error, isFetchNextPageError, refetch } = query
+  // The query restarted since it last settled, if any.
   const restarted = useRef<string | null>(null)
-  const key = hashKey(options.queryKey)
+  const key = hashKey(queryKey)
   useEffect(() => {
-    if (isComplete) {
+    if (settled) {
       restarted.current = null
     } else if (rejectsCursor(isFetchNextPageError, error) && restarted.current !== key) {
       restarted.current = key
       void refetch()
     }
-  }, [isComplete, isFetchNextPageError, error, key, refetch])
-
-  const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data])
-  return { items, isPending, isComplete, error }
+  }, [settled, isFetchNextPageError, error, key, refetch])
 }
 
 function rejectsCursor(isFetchNextPageError: boolean, error: Error | null): boolean {

@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { PERMISSION_DENIED, authedApi, errorMessage, unwrap } from '../api/client'
@@ -17,7 +18,15 @@ function renderMenu() {
 
 function openPanel() {
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
-  return screen.getByRole('region', { name: 'Settings' })
+  return panel()
+}
+
+function panel() {
+  return screen.getByRole('dialog', { name: 'Settings' })
+}
+
+function queryPanel() {
+  return screen.queryByRole('dialog', { name: 'Settings' })
 }
 
 function enterToken(token: string) {
@@ -41,67 +50,46 @@ function deleteRun() {
 }
 
 describe('Settings panel', () => {
-  it('opens and closes from the navbar button', () => {
+  it('opens and closes from the navbar button', async () => {
+    const user = userEvent.setup()
     renderMenu()
     const button = screen.getByRole('button', { name: 'Settings' })
     expect(button).toHaveAttribute('aria-expanded', 'false')
 
-    openPanel()
+    await user.click(button)
+    expect(panel()).toBeInTheDocument()
     expect(button).toHaveAttribute('aria-expanded', 'true')
 
-    fireEvent.click(button)
-    expect(screen.queryByRole('region', { name: 'Settings' })).toBeNull()
+    await user.click(button)
+    await waitFor(() => expect(queryPanel()).toBeNull())
+    expect(button).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('names the panel it controls only while the panel is there', () => {
-    renderMenu()
-    const button = screen.getByRole('button', { name: 'Settings' })
-    expect(button).not.toHaveAttribute('aria-controls')
-
-    const panel = openPanel()
-    expect(button).toHaveAttribute('aria-controls', panel.id)
-  })
-
-  it('closes on Escape within it, returning focus to its button', () => {
+  it('closes on Escape, returning focus to its button', async () => {
+    const user = userEvent.setup()
     renderMenu()
 
-    openPanel()
-    fireEvent.keyDown(document.body, { key: 'Escape' })
-    expect(screen.getByRole('region', { name: 'Settings' })).toBeInTheDocument()
-
-    fireEvent.keyDown(screen.getByLabelText('API token'), { key: 'Escape' })
-    expect(screen.queryByRole('region', { name: 'Settings' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByLabelText('API token')).toHaveFocus()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(queryPanel()).toBeNull())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus())
   })
 
-  it('closes on a click outside it, but not on one inside it', () => {
-    renderMenu()
-
-    const panel = openPanel()
-    fireEvent.pointerDown(panel)
-    expect(screen.getByRole('region', { name: 'Settings' })).toBeInTheDocument()
-    fireEvent.pointerDown(document.body)
-    expect(screen.queryByRole('region', { name: 'Settings' })).toBeNull()
-  })
-
-  it('closes when keyboard focus leaves it, and only then', () => {
+  it('closes on a click outside it, but not on one inside it', async () => {
+    const user = userEvent.setup()
     renderWithProviders(
       <>
         <SettingsMenu />
-        <button type="button">Elsewhere</button>
+        <p>Elsewhere</p>
       </>,
     )
-    openPanel()
-    const input = screen.getByLabelText('API token')
 
-    fireEvent.blur(input, { relatedTarget: screen.getByRole('button', { name: 'Save' }) })
-    fireEvent.blur(input, { relatedTarget: null })
-    expect(screen.getByRole('region', { name: 'Settings' })).toBeInTheDocument()
-
-    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' })
-    fireEvent.blur(input, { relatedTarget: elsewhere })
-    expect(screen.queryByRole('region', { name: 'Settings' })).toBeNull()
-    expect(elsewhere).not.toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByText('API token'))
+    expect(panel()).toBeInTheDocument()
+    await user.click(screen.getByText('Elsewhere'))
+    await waitFor(() => expect(queryPanel()).toBeNull())
   })
 
   it('masks the token input', () => {

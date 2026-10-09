@@ -1,21 +1,16 @@
-.settings-menu {
-  position: relative;
+/* React Aria positions the popover under its button, in a portal at the end of the page. */
+.settings-popover {
+  z-index: 10;
+  width: 28rem;
 }
 
 .settings-panel {
-  position: absolute;
-  top: calc(100% + var(--lnt-space-2));
-  right: 0;
-  z-index: 10;
-  width: 28rem;
   display: flex;
   flex-direction: column;
   gap: var(--lnt-space-2);
   padding: var(--lnt-space-3);
-  border: 1px solid var(--lnt-border);
-  border-radius: var(--lnt-radius);
-  background: var(--lnt-bg);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+  /* Focus starts on the token input, which shows it; the dialog itself needs no ring. */
+  outline: none;
 }
 
 .settings-panel label {

@@ -1,63 +1,24 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FocusEvent,
-  type FormEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { Button, Dialog, DialogTrigger, Popover } from 'react-aria-components'
 import { errorMessage } from '../api/client'
 import { useAuth, type TokenStatus } from './use-auth'
 import './settings-menu.css'
 
 /** The navbar's Settings button, and the panel it opens, which holds the API token (AR2). */
 export function SettingsMenu() {
-  const [open, setOpen] = useState(false)
-  const menu = useRef<HTMLDivElement>(null)
-  const button = useRef<HTMLButtonElement>(null)
-  const panelId = useId()
-
-  // The panel closes on a click outside the menu, on Escape within it, and when keyboard focus
-  // leaves it. Focus that goes nowhere (a click on the panel's text) is not leaving it.
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (event: Event) => {
-      if (!menu.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [open])
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || !open) return
-    setOpen(false)
-    button.current?.focus()
-  }
-  const onBlur = (event: FocusEvent) => {
-    const next = event.relatedTarget
-    if (next !== null && !event.currentTarget.contains(next)) setOpen(false)
-  }
-
   return (
-    <div className="settings-menu" ref={menu} onKeyDown={onKeyDown} onBlur={onBlur}>
-      <button
-        ref={button}
-        type="button"
-        className="navbar-button"
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen(!open)}
-      >
-        Settings
-      </button>
-      {open && <SettingsPanel id={panelId} />}
-    </div>
+    <DialogTrigger>
+      <Button className="navbar-button">Settings</Button>
+      <Popover placement="bottom end" className="popover settings-popover">
+        <Dialog className="settings-panel" aria-label="Settings">
+          <SettingsPanel />
+        </Dialog>
+      </Popover>
+    </DialogTrigger>
   )
 }
 
-function SettingsPanel({ id }: { id: string }) {
+function SettingsPanel() {
   const { status, setToken, clearToken, recheck } = useAuth()
   const [draft, setDraft] = useState('')
   const inputId = useId()
@@ -69,7 +30,7 @@ function SettingsPanel({ id }: { id: string }) {
   }
 
   return (
-    <section id={id} className="settings-panel" aria-label="Settings">
+    <>
       <form onSubmit={save}>
         <label htmlFor={inputId}>API token</label>
         <div className="settings-row">
@@ -101,7 +62,7 @@ function SettingsPanel({ id }: { id: string }) {
           </button>
         )}
       </div>
-    </section>
+    </>
   )
 }
 

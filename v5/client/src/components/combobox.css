@@ -1,0 +1,53 @@
+.combobox {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+}
+
+.combobox-field {
+  display: flex;
+}
+
+.combobox-field input {
+  flex: 1;
+  min-width: 0;
+  border-right: none;
+  border-radius: var(--lnt-radius) 0 0 var(--lnt-radius);
+}
+
+.combobox-button {
+  padding: 0 var(--lnt-space-2);
+  border-radius: 0 var(--lnt-radius) var(--lnt-radius) 0;
+}
+
+/* React Aria sizes the popover to fit the screen, and gives it the combobox's width to use. */
+.combobox-popover {
+  min-width: var(--trigger-width);
+  overflow: auto;
+}
+
+.combobox-list {
+  outline: none;
+}
+
+.combobox-list [role='option'] {
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.combobox-list [role='option'][data-focused] {
+  background: var(--lnt-panel);
+  color: var(--lnt-accent);
+}
+
+.combobox-list [role='option'][data-selected] {
+  font-weight: 600;
+}
+
+.combobox-status {
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  font-size: 0.9rem;
+  color: var(--lnt-muted);
+}

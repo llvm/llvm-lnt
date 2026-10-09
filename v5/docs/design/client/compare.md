@@ -21,8 +21,8 @@ Each side (A and B) has independent controls:
   selected suite is fetched once and filtered locally by case-insensitive
   substring as the user types (instant, no per-keystroke API calls). **Disabled
   until a suite is selected** -- shows "Select a suite first" placeholder.
-  Clearing the machine text and blurring resets downstream state (commit, runs)
-  and disables the commit input.
+  Clearing the machine resets downstream state (commit, runs) and disables the
+  commit input.
 - **Commit**: a commit picker (see AR2) over the commits where the selected
   machine has runs. When a machine is pre-selected from URL state, its commits
   are fetched on creation so the dropdown is correctly filtered from the start.
@@ -104,8 +104,8 @@ Global controls (shared across both sides):
     pooled sample set for the p-value calculation. Samples are pooled across all
     selected runs per side, before any aggregation.
 
-- **Test filter**: text input for substring matching on test names, applied to
-  both table and chart
+- **Test filter**: a text filter on test names, with regex mode (see AR2),
+  applied to both table and chart
 
 There is no Compare button. The comparison triggers automatically whenever the
 state becomes valid (both sides have runs and a metric is selected). Changing
@@ -437,7 +437,8 @@ All selection state is encoded as query parameters for shareability:
   defaults: 1, 0.05, 0 respectively), `noise_pct_on`, `noise_pval_on`,
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
-- `test_filter`
+- `test_filter`, and `test_filter_regex`: `1` when the test filter's regex mode
+  is on (see AR2), omitted otherwise
 - `columns`: the keys of the optional columns shown (see CP2), comma-separated;
   omitted when none is shown
 - `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,
@@ -550,10 +551,7 @@ indicators (I2's maximum page size; see E8). When expanded, it offers:
   first page of `GET regressions?sort=-created_at` and narrows it with
   `search=`, which matches the title or a prefix of the UUID. Each suggestion
   shows the regression's title, or `(untitled)` and its shortened UUID when it
-  has none. On selection, the input shows the suggestion's label; editing the
-  text afterwards clears the selection. Enter with no suggestion focused does
-  nothing: the user must select from the list, since regressions are
-  identified by UUID.
+  has none.
 
 On successful creation, the feedback shows "Regression created: " followed by a
 clickable link to the new regression's detail page. The link text is the
