@@ -8,6 +8,7 @@ import { useScopeGate } from '../../auth/scope'
 import { CommitPicker } from '../../components/commit-picker'
 import { ErrorMessage } from '../../components/feedback'
 import { pendingGuard } from '../../components/pending-guard'
+import { Select } from '../../components/select'
 import { regressionPath } from '../../paths'
 import { REGRESSION_STATES, stateLabel, type RegressionState } from '../../regression-states'
 import styles from './test-suites.module.css'
@@ -92,19 +93,12 @@ export function CreateRegression({ schema, onCancel }: Props) {
             onChange={(event) => setBug(event.target.value)}
           />
         </label>
-        <label className={styles.control}>
-          State
-          <select
-            value={state}
-            onChange={(event) => setState(event.target.value as RegressionState)}
-          >
-            {REGRESSION_STATES.map((option) => (
-              <option key={option} value={option}>
-                {stateLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="State"
+          options={REGRESSION_STATES.map((option) => ({ value: option, label: stateLabel(option) }))}
+          value={state}
+          onChange={setState}
+        />
         <CommitPicker
           label="Commit"
           schema={schema}

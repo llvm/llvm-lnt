@@ -18,5 +18,16 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='select']",
+          message:
+            'Use the Select component (src/components/select.tsx): after a native <select>, Safari ' +
+            'loses the next click on a React Aria control.',
+        },
+      ],
+    },
   },
 ])

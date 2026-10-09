@@ -65,7 +65,6 @@
   /* Form controls, shared by every page (AR2 "Design consistency"). */
   button,
   input,
-  select,
   textarea {
     font: inherit;
     font-size: 0.9rem;
@@ -93,7 +92,6 @@
   }
 
   input,
-  select,
   textarea {
     padding: var(--lnt-space-1) var(--lnt-space-2);
     border: 1px solid var(--lnt-border-strong);

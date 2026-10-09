@@ -14,6 +14,7 @@ import {
 import { errorMessage } from '../api/client'
 import { Popover } from './popover'
 import type { Suggestion, Suggestions } from './suggestions'
+import listStyles from './list-box.module.css'
 import styles from './combobox.module.css'
 
 interface Props {
@@ -126,12 +127,12 @@ export function Combobox({
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
       <Popover className={styles.popover} maxHeight={320}>
         <ListBox
-          className={styles.list}
+          className={listStyles.list}
           renderEmptyState={() => <EmptyState suggestions={suggestions} />}
         >
           <Collection items={suggestions.items}>
             {(item) => (
-              <ListBoxItem id={item.key} textValue={item.text} className={styles.option}>
+              <ListBoxItem id={item.key} textValue={item.text} className={listStyles.option}>
                 {item.text}
               </ListBoxItem>
             )}

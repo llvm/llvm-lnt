@@ -1,0 +1,21 @@
+/* The list of options of a combobox or a select, shared so that the two look alike. */
+
+.list {
+  outline: none;
+}
+
+.option {
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.option[data-focused] {
+  background: var(--lnt-panel);
+  color: var(--lnt-accent);
+}
+
+.option[data-selected] {
+  font-weight: 600;
+}

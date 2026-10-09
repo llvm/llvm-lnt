@@ -16,6 +16,7 @@ import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
 import { CursorPager, PAGE_SIZE } from '../../components/pagination'
 import { StateBadge, StateChips } from '../../components/regression-state'
+import { Select } from '../../components/select'
 import { useLocalSuggestions } from '../../components/suggestions'
 import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
@@ -129,17 +130,15 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
         suggestions={machineSuggestions}
         placeholder={machines.isPending ? 'Loading machines...' : 'Any machine'}
       />
-      <label className={styles.control}>
-        Metric
-        <select value={metric} onChange={(event) => update({ metric: event.target.value })}>
-          <option value="">Any metric</option>
-          {schema.metrics.map((entry) => (
-            <option key={entry.name} value={entry.name}>
-              {labelOf(entry)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label="Metric"
+        options={[
+          { value: '', label: 'Any metric' },
+          ...schema.metrics.map((entry) => ({ value: entry.name, label: labelOf(entry) })),
+        ]}
+        value={metric}
+        onChange={(value) => update({ metric: value })}
+      />
       <label className={styles.checkbox}>
         <input
           type="checkbox"

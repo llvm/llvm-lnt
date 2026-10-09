@@ -11,6 +11,7 @@ import type { APIRequestContext, TestInfo } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { HARDENED, TAG, uuidFor } from '../tools/synthetic.ts'
 import { adminToken, expect, test } from './fixtures.ts'
+import { pickOption } from './select.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 type RegressionDetail = components['schemas']['RegressionDetail']
@@ -84,13 +85,13 @@ test.describe('filtering', () => {
     const list = table(page, 'Regressions')
 
     // Only the std::format regression has indicators on `cycles`.
-    await page.getByLabel('Metric').selectOption({ label: 'Cycles Elapsed' })
+    await pickOption(page, 'Metric', 'Cycles Elapsed')
     await expect(page).toHaveURL('/suites/libcxx?tab=regressions&metric=cycles')
     await settled(list)
     await expect.poll(() => column(list, COLUMN.title)).toEqual(['std::format slowdown'])
     await expect(rows(list).first().locator('td').nth(COLUMN.commit)).toHaveText(/^r\d+$/)
 
-    await page.getByLabel('Metric').selectOption({ label: 'Any metric' })
+    await pickOption(page, 'Metric', 'Any metric')
     await page.getByLabel('No commit set').check()
     await expect(page).toHaveURL('/suites/libcxx?tab=regressions&has_commit=false')
     await settled(list)
@@ -203,7 +204,7 @@ test('creates a regression with a commit picked through the picker', async ({
     await create.click()
     const form = page.getByRole('form', { name: 'New regression' })
     await form.getByLabel('Title').fill(title)
-    await form.getByLabel('State').selectOption('active')
+    await pickOption(form, 'State', 'active')
     const picker = form.getByRole('combobox', { name: 'Commit' })
     // The tag is searched, and only one commit has it.
     await picker.fill(TAG)

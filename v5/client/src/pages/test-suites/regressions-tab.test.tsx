@@ -24,6 +24,7 @@ import {
   type Page,
   type Respond,
 } from '../../test/page'
+import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 
 type Regression = Schemas['Regression']
@@ -144,7 +145,7 @@ describe('the Regressions tab', () => {
     const user = userEvent.setup()
     await user.type(machineInput(), 'macos')
     await user.click(await screen.findByRole('option', { name: 'macos-arm64' }))
-    fireEvent.change(screen.getByLabelText('Metric'), { target: { value: 'execution_time' } })
+    await pickOption('Metric', 'Execution Time')
     fireEvent.click(screen.getByLabelText('No commit set'))
     search(SEARCH, 'slow')
 
@@ -173,7 +174,7 @@ describe('the Regressions tab', () => {
     expect(screen.getByRole('button', { name: 'detected' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'active' })).toHaveAttribute('aria-pressed', 'false')
     expect(machineInput()).toHaveValue('linux-x86_64')
-    expect(screen.getByLabelText('Metric')).toHaveValue('execution_time')
+    expect(selectButton('Metric')).toHaveTextContent('Execution Time')
     expect(screen.getByLabelText('No commit set')).toBeChecked()
     expect(screen.getByRole('searchbox', { name: SEARCH })).toHaveValue('slow')
     expect(Object.fromEntries(regressions[0])).toMatchObject({
@@ -201,7 +202,7 @@ describe('the Regressions tab', () => {
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
     await table('Regressions')
     expect(regressions.every((query) => !query.has('metric'))).toBe(true)
-    expect(screen.getByLabelText('Metric')).toHaveValue('')
+    expect(selectButton('Metric')).toHaveTextContent('Any metric')
   })
 
   it('drops a machine once the machine list shows it does not exist', async () => {
@@ -365,7 +366,7 @@ describe('creating a regression', () => {
 
     fireEvent.change(within(form).getByLabelText('Title'), { target: { value: ' find_if slow ' } })
     fireEvent.change(within(form).getByLabelText('Bug'), { target: { value: 'https://bugs/1' } })
-    fireEvent.change(within(form).getByLabelText('State'), { target: { value: 'active' } })
+    await pickOption('State', 'active', form)
     const picker = within(form).getByRole('combobox', { name: 'Commit' })
     const user = userEvent.setup()
     await user.type(picker, 'abc')
