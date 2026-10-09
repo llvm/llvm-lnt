@@ -38,6 +38,16 @@ EXAMPLE: dict[str, Any] = {
 }
 
 
+# Every key of a schema entry holding free text for the UI (D4), with the list it belongs to.
+LABELS = [
+    ("metrics", "display_name"),
+    ("metrics", "unit"),
+    ("metrics", "unit_abbrev"),
+    ("commit_fields", "display_name"),
+    ("machine_fields", "display_name"),
+]
+
+
 def schema(**overrides: Any) -> dict[str, Any]:
     """A minimal valid schema, with whichever keys a test cares about replaced."""
     return {"name": "nts"} | overrides
@@ -195,6 +205,27 @@ class TestPresentationKeys:
         entry = {"name": "entry", "type": "text", key: value}
         with pytest.raises(ValidationError):
             SuiteSchema.model_validate(schema(**{list_name: [entry]}))
+
+    @pytest.mark.parametrize(("list_name", "key"), LABELS)
+    @pytest.mark.parametrize("value", ["", "a\x00b"])
+    def test_a_label_is_refused_when_empty_or_holding_a_nul(
+        self, list_name: str, key: str, value: str
+    ) -> None:
+        # D4: null says there is none, and an empty string could only say the same. D3: a NUL
+        # cannot be in any value.
+        entry = {"name": "entry", "type": "text", key: value}
+        with pytest.raises(ValidationError):
+            SuiteSchema.model_validate(schema(**{list_name: [entry]}))
+
+    @pytest.mark.parametrize(("list_name", "key"), LABELS)
+    @pytest.mark.parametrize("value", [None, " "])
+    def test_a_label_may_be_null_or_only_spaces(
+        self, list_name: str, key: str, value: str | None
+    ) -> None:
+        # Spaces are not rejected, nor turned into null: only the empty string is redundant.
+        entry = {"name": "entry", "type": "text", key: value}
+        parsed = SuiteSchema.model_validate(schema(**{list_name: [entry]}))
+        assert getattr(getattr(parsed, list_name)[0], key) == value
 
     def test_an_unknown_key_is_refused(self) -> None:
         with pytest.raises(ValidationError):
