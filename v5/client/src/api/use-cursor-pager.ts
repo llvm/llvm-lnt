@@ -12,6 +12,8 @@ interface Options<Page extends Paged> {
   queryKey: QueryKey
   /** Fetch the page at `cursor`, the first one when it is null. */
   fetchPage: (cursor: string | null, signal: AbortSignal) => Promise<Page>
+  /** While false, nothing is fetched, and `isPending` stays true. */
+  enabled?: boolean
 }
 
 export interface CursorPagerState<Page> {
@@ -47,6 +49,7 @@ export interface CursorPagerState<Page> {
 export function useCursorPager<Page extends Paged>({
   queryKey,
   fetchPage,
+  enabled = true,
 }: Options<Page>): CursorPagerState<Page> {
   // The cursors of the pages after the first that lead to the one shown, for the query `identity`,
   // and how many times the pager started again from scratch, which every page's key includes.
@@ -63,6 +66,7 @@ export function useCursorPager<Page extends Paged>({
     queryFn: ({ signal }) => fetchPage(cursor, signal),
     // Keep the page shown until the next one arrives, rather than flash a loading state.
     placeholderData: keepPreviousData,
+    enabled,
   })
   // A failed query has no placeholder: `data` is the page asked for, or none.
   const { data, error, isPending, isPlaceholderData, isFetching, refetch } = query

@@ -214,14 +214,17 @@ describe('the Regressions tab', () => {
         return HttpResponse.json({ items: [machine('linux-x86_64')], total: 1 })
       }),
     )
-    mockRegressions()
+    const regressions = mockRegressions()
     renderPage('/suites/libcxx?tab=regressions&machine=gone')
-    await table('Regressions')
+    await screen.findByRole('tab', { name: 'Regressions' })
     expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=gone')
 
     act(() => list.open())
 
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+    await table('Regressions')
+    // Never asked for with the machine, which the API would answer with a 404.
+    expect(regressions.map((query) => query.has('machine'))).toEqual([false])
   })
 
   it('keeps the machine when the machine list fails, and says so', async () => {
@@ -231,11 +234,13 @@ describe('the Regressions tab', () => {
         errorResponse(500, 'internal_error', 'The server failed'),
       ),
     )
-    mockRegressions()
+    const regressions = mockRegressions()
     renderPage('/suites/libcxx?tab=regressions&machine=linux-x86_64')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
     expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=linux-x86_64')
+    await table('Regressions')
+    expect(regressions[0].get('machine')).toBe('linux-x86_64')
   })
 
   it('drops its filters on another tab, and clears them when switching tabs', async () => {

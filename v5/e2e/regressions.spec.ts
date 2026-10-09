@@ -111,6 +111,23 @@ test.describe('filtering', () => {
       .poll(async () => new Set(await column(table(page, 'Regressions'), COLUMN.title)))
       .toEqual(new Set(['std::format slowdown', 'Everything slower in hardened mode']))
   })
+
+  test('a deep link to a machine that does not exist drops it, without asking for it', async ({
+    page,
+  }) => {
+    const asked: string[] = []
+    page.on('request', (request) => {
+      const url = new URL(request.url())
+      if (url.pathname === '/api/suites/libcxx/regressions') asked.push(url.search)
+    })
+    await page.goto('/suites/libcxx?tab=regressions&machine=no-such-machine')
+
+    await expect(page).toHaveURL('/suites/libcxx?tab=regressions')
+    await expect(rows(table(page, 'Regressions')).first()).toBeVisible()
+    // The API would answer it with a 404, shown as an error until the machine is dropped.
+    expect(asked.filter((search) => search.includes('no-such-machine'))).toEqual([])
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  })
 })
 
 test.describe('searching', () => {

@@ -61,11 +61,12 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
     useMemo(() => machines.data?.map((name) => ({ key: name, text: name })), [machines.data]),
     machines.error,
   )
-  useDropUnusable(
-    machines,
-    (names) => filters.machine === '' || names.includes(filters.machine),
-    () => update({ machine: '' }),
-  )
+  const knownMachine = (names: string[]) =>
+    filters.machine === '' || names.includes(filters.machine)
+  useDropUnusable(machines, knownMachine, () => update({ machine: '' }))
+  // The API answers an unknown machine with a 404, so the regressions are not asked for until the
+  // machine list has confirmed the machine. If the list fails, they are asked for anyway.
+  const machineReady = machines.isError || (machines.data !== undefined && knownMachine(machines.data))
   const knownMetric =
     filters.metric === '' || schema.metrics.some((entry) => entry.name === filters.metric)
   useEffect(() => {
@@ -86,6 +87,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   const pager = useCursorPager({
     queryKey: [...queryKeys.regressions(suite), query],
     fetchPage: (cursor, signal) => fetchRegressionPage(suite, { ...query, cursor }, signal),
+    enabled: filters.machine === '' || machineReady,
   })
   const page = pager.page
 
