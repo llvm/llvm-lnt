@@ -4,9 +4,3 @@
   gap: 0.75rem;
   margin-top: var(--lnt-space-3);
 }
-
-.range {
-  color: var(--lnt-muted);
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-}

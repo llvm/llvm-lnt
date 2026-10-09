@@ -7,7 +7,6 @@ import {
   booleanParam,
   enumListParam,
   enumParam,
-  integerParam,
   isDefault,
   stringParam,
   trimmedStringParam,
@@ -46,8 +45,6 @@ export const PARAMS = {
     'runs',
   ),
   search: trimmedStringParam(),
-  // Only the Machines tab is offset-paginated; the others keep their position out of the URL (AR2).
-  offset: integerParam(),
   ...REGRESSION_PARAMS,
 }
 
@@ -60,7 +57,7 @@ export type Setting = Exclude<keyof Settings, 'tab'>
  */
 const TAB_SETTINGS: Record<TabId, readonly Setting[]> = {
   runs: ['search'],
-  machines: ['search', 'offset'],
+  machines: ['search'],
   commits: ['search'],
   regressions: ['search', 'state', 'machine', 'metric', 'has_commit'],
 }

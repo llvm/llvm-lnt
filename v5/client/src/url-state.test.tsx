@@ -11,7 +11,6 @@ import {
   booleanParam,
   enumListParam,
   enumParam,
-  integerParam,
   listParam,
   stringParam,
   trimmedStringParam,
@@ -23,7 +22,7 @@ const PARAMS = {
   metric: stringParam(),
   machine: listParam(),
   agg: enumParam(['median', 'mean', 'min', 'max'], 'median'),
-  offset: integerParam(),
+  filter: trimmedStringParam(),
 }
 
 const STATES = { state: enumListParam(['detected', 'active', 'fixed']) }
@@ -44,20 +43,20 @@ function renderSettings(url: string) {
 
 describe('useUrlState', () => {
   it('reads every setting from the URL', () => {
-    const result = renderSettings('/graph?metric=compile_time&machine=a&machine=b&agg=min&offset=50')
+    const result = renderSettings('/graph?metric=compile_time&machine=a&machine=b&agg=min&filter=x')
 
     expect(result.current.state).toEqual({
       metric: 'compile_time',
       machine: ['a', 'b'],
       agg: 'min',
-      offset: 50,
+      filter: 'x',
     })
   })
 
   it('uses the defaults for settings the URL leaves out', () => {
     const result = renderSettings('/graph')
 
-    expect(result.current.state).toEqual({ metric: '', machine: [], agg: 'median', offset: 0 })
+    expect(result.current.state).toEqual({ metric: '', machine: [], agg: 'median', filter: '' })
   })
 
   it('writes a setting to the URL, leaving out the ones at their default', () => {
@@ -74,10 +73,10 @@ describe('useUrlState', () => {
 
     act(() => {
       result.current.setState({ metric: 'compile_time' })
-      result.current.setState({ offset: 25 })
+      result.current.setState({ filter: 'x' })
     })
 
-    expect(result.current.url).toBe('/graph?metric=compile_time&offset=25')
+    expect(result.current.url).toBe('/graph?metric=compile_time&filter=x')
   })
 
   it('leaves alone the parameters it does not declare', () => {
@@ -89,24 +88,17 @@ describe('useUrlState', () => {
   })
 
   it('drops a malformed value and uses the default instead', () => {
-    const result = renderSettings('/graph?agg=geomean&offset=-3&metric=a&metric=b&machine=m')
+    const result = renderSettings('/graph?agg=geomean&metric=a&metric=b&machine=m')
 
-    expect(result.current.state).toEqual({ metric: '', machine: ['m'], agg: 'median', offset: 0 })
+    expect(result.current.state).toEqual({ metric: '', machine: ['m'], agg: 'median', filter: '' })
     expect(result.current.url).toBe('/graph?machine=m')
   })
 
-  it('drops an integer too large to be exact', () => {
-    const result = renderSettings('/graph?offset=9007199254740993')
-
-    expect(result.current.state.offset).toBe(0)
-    expect(result.current.url).toBe('/graph')
-  })
-
   it('rewrites a value spelled unusually, or at its default, the way it would write it', () => {
-    const result = renderSettings('/graph?offset=050&agg=median')
+    const result = renderSettings('/graph?filter=%20x%20&agg=median')
 
-    expect(result.current.state.offset).toBe(50)
-    expect(result.current.url).toBe('/graph?offset=50')
+    expect(result.current.state.filter).toBe('x')
+    expect(result.current.url).toBe('/graph?filter=x')
   })
 
   it('keeps the known values of an enumeration list, once each, in the order of its options', () => {
@@ -177,17 +169,17 @@ describe('useUrlState', () => {
     const OTHER = { search: stringParam() }
     const { result } = renderHook(
       () => {
-        const [, setOffset] = useUrlState(PARAMS)
+        const [, setFilter] = useUrlState(PARAMS)
         const [, setSearch] = useUrlState(OTHER)
         const { pathname, search } = useLocation()
-        return { setOffset, setSearch, url: pathname + search }
+        return { setFilter, setSearch, url: pathname + search }
       },
-      providers({ url: '/suites/nts?offset=50' }),
+      providers({ url: '/suites/nts?filter=y' }),
     )
 
     act(() => {
       result.current.setSearch({ search: 'x' })
-      result.current.setOffset({ offset: 0 })
+      result.current.setFilter({ filter: '' })
     })
 
     expect(result.current.url).toBe('/suites/nts?search=x')

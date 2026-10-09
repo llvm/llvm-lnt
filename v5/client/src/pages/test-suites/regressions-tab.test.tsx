@@ -36,7 +36,7 @@ const TAGGED = commit('abc123', { tag: 'v1', fields: { svn_revision: 'r100', com
 
 /** The suite's machines, for the machine combobox; returns the queries it was listed with. */
 function mockMachineNames(names = MACHINES) {
-  return mockMachines(() => ({ items: names.map((name) => machine(name)), total: names.length }))
+  return mockMachines(() => ({ items: names.map((name) => machine(name)) }))
 }
 
 /** The page on the Regressions tab at `query`, with the suites, machines and commits it reads. */
@@ -222,7 +222,7 @@ describe('the Regressions tab', () => {
     server.use(
       mockApi('get', '/api/suites/{testsuite}/machines', async () => {
         await list.promise
-        return HttpResponse.json({ items: [machine('linux-x86_64')], total: 1 })
+        return HttpResponse.json({ items: [machine('linux-x86_64')] })
       }),
     )
     const regressions = mockRegressions()

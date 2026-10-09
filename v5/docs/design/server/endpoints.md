@@ -47,7 +47,7 @@ that.
 ## E2: Machines
 
 ```
-GET    /api/suites/{testsuite}/machines                     -- List (searchable, offset-paginated)
+GET    /api/suites/{testsuite}/machines                     -- List (searchable)
 POST   /api/suites/{testsuite}/machines                     -- Create machine independently
 GET    /api/suites/{testsuite}/machines/{machine_name}      -- Detail
 PATCH  /api/suites/{testsuite}/machines/{machine_name}      -- Update fields/tracked (including rename)
@@ -104,7 +104,10 @@ indicators are kept.
 **Sort:** `sort=name` (the default, ascending), `-name`, `last_run_at`, and
 `-last_run_at`. Machines with no runs sort after every machine that has one, in
 both directions. Ties are broken by `name` ascending whatever the primary
-direction, so that page boundaries are reproducible.
+direction, so that the order is deterministic.
+
+Not paginated: every matching machine, in I2's unpaginated envelope (a suite
+has few machines; see D5).
 
 
 ## E3: Commits

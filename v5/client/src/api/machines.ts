@@ -1,42 +1,36 @@
-import { useQuery } from '@tanstack/react-query'
-import { api, unwrap } from './client'
+import { queryOptions, useQuery } from '@tanstack/react-query'
+import { api, unwrap, type Schemas } from './client'
 import { queryKeys } from './keys'
-import type { paths } from './schema'
 
-type MachineListQuery = NonNullable<
-  paths['/api/suites/{testsuite}/machines']['get']['parameters']['query']
->
+type Machine = Schemas['Machine']
 
-/** One page of `GET /machines` (E2), by name unless `query` sorts otherwise. */
-export function fetchMachinePage(suite: string, query: MachineListQuery, signal?: AbortSignal) {
-  return unwrap(
-    api.GET('/api/suites/{testsuite}/machines', {
-      params: { path: { testsuite: suite }, query },
-      signal,
-    }),
-  )
+/**
+ * The machines of the suite whose name or searchable fields contain `search`, by name, or every
+ * machine without one (E2). One query for every page that needs them, so that the same list is
+ * fetched and cached once.
+ */
+export function machinesQuery(suite: string, search = '') {
+  const query = { search: search || undefined }
+  return queryOptions({
+    queryKey: [...queryKeys.suite(suite), 'machines', query],
+    queryFn: async ({ signal }) => {
+      const { items } = await unwrap(
+        api.GET('/api/suites/{testsuite}/machines', {
+          params: { path: { testsuite: suite }, query },
+          signal,
+        }),
+      )
+      return items
+    },
+  })
 }
 
-/** I2's largest page, so that one request is enough for any suite of reasonable size. */
-const PAGE = 10_000
-
-/** The names of every machine of the suite, by name, however many pages they take. */
-async function fetchMachineNames(suite: string, signal: AbortSignal): Promise<string[]> {
-  const names: string[] = []
-  for (;;) {
-    const page = await fetchMachinePage(suite, { limit: PAGE, offset: names.length }, signal)
-    names.push(...page.items.map((machine) => machine.name))
-    if (page.items.length === 0 || names.length >= page.total) return names
-  }
-}
+const namesOf = (machines: Machine[]) => machines.map((machine) => machine.name)
 
 /**
  * The names of the suite's machines, fetched once for a combobox to filter locally: a suite has few
  * machines (D5), unlike commits, which a commit picker searches on the server instead (AR2).
  */
 export function useMachineNames(suite: string) {
-  return useQuery({
-    queryKey: [...queryKeys.suite(suite), 'machines', 'names'],
-    queryFn: ({ signal }) => fetchMachineNames(suite, signal),
-  })
+  return useQuery({ ...machinesQuery(suite), select: namesOf })
 }

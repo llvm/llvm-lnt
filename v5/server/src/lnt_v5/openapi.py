@@ -221,16 +221,12 @@ def _drop_unreferenced_validation_schemas(document: dict[str, Any]) -> None:
 # The envelopes in `responses.py`, as FastAPI names a parametrization of each, what they are called
 # instead (`CursorPage_Run_` becomes `RunCursorPage`), and how they are described, which pydantic
 # does not carry over from the generic class.
-_ENVELOPE = re.compile(r"(CursorPage|OffsetPage|Items)_([A-Za-z0-9]+)_")
+_ENVELOPE = re.compile(r"(CursorPage|Items)_([A-Za-z0-9]+)_")
 _ENVELOPES = {
     "CursorPage": (
         "{}CursorPage",
         "One page of results. To get the next page, repeat the request with `cursor` set to "
         "`cursor.next`.",
-    ),
-    "OffsetPage": (
-        "{}OffsetPage",
-        "One page of results, with the total number of results across all pages.",
     ),
     "Items": ("{}List", "All the results."),
 }

@@ -6,7 +6,7 @@
  */
 
 import { EXPERIMENT, HARDENED, MACOS, TAG, UNTRACKED } from '../tools/synthetic.ts'
-import { adminToken, expect, test } from './fixtures.ts'
+import { expect, test } from './fixtures.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 /** The accessible name of the Runs tab's search. */
@@ -131,7 +131,10 @@ test.describe('the Runs tab', () => {
 })
 
 test.describe('the Machines tab', () => {
-  test('shows the machines with their fields, marking the untracked one', async ({ page }) => {
+  test('shows every machine with its fields, marking the untracked one', async ({
+    page,
+    request,
+  }) => {
     await page.goto('/suites/libcxx?tab=machines')
     const machines = table(page, 'Machines')
 
@@ -143,8 +146,12 @@ test.describe('the Machines tab', () => {
       /Dashboard/,
     )
     await expect(macos.getByText('untracked', { exact: true })).toHaveCount(0)
-    const pager = page.getByRole('navigation', { name: 'Machines pagination' })
-    await expect(pager).toContainText(/1-\d+ of \d+/)
+
+    // Every machine of the suite, in one table with no pager (E2).
+    const listed = await request.get('/api/suites/libcxx/machines')
+    expect(listed.status()).toBe(200)
+    await expect(rows(machines)).toHaveCount((await listed.json()).items.length)
+    await expect(page.getByRole('navigation', { name: /pagination/ })).toHaveCount(0)
   })
 
   test('a deep link restores the tab and the search', async ({ page }) => {
@@ -158,51 +165,6 @@ test.describe('the Machines tab', () => {
       'hardenedfast',
     )
     await expect.poll(() => column(table(page, 'Machines'), 0)).toEqual([HARDENED])
-  })
-
-  test('pages by offset, kept in the URL, and searches from the first page', async ({
-    page,
-    request,
-    tokenFor,
-  }, testInfo) => {
-    // A suite of its own, since no seeded one has more than a page of machines.
-    const suite = `e2e_${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 63)
-    const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
-    const created = await request.post('/api/suites', {
-      headers,
-      data: { name: suite, machine_fields: [{ name: 'arch', type: 'text', searchable: true }] },
-    })
-    expect(created.status(), await created.text()).toBe(201)
-    try {
-      for (let i = 0; i < 30; i++) {
-        const name = `m${String(i).padStart(2, '0')}`
-        const arch = i % 2 === 0 ? 'arm64' : 'x86_64'
-        const response = await request.post(`/api/suites/${suite}/machines`, {
-          headers,
-          data: { name, fields: { arch } },
-        })
-        expect(response.status(), await response.text()).toBe(201)
-      }
-
-      await page.goto(`/suites/${suite}?tab=machines`)
-      const pager = page.getByRole('navigation', { name: 'Machines pagination' })
-      await expect(pager).toContainText('1-25 of 30')
-
-      await pager.getByRole('button', { name: /Next/ }).click()
-      await expect(pager).toContainText('26-30 of 30')
-      await expect(page).toHaveURL(`/suites/${suite}?tab=machines&offset=25`)
-      await page.reload()
-      await expect(pager).toContainText('26-30 of 30')
-      expect(await column(table(page, 'Machines'), 0)).toEqual(['m25', 'm26', 'm27', 'm28', 'm29'])
-
-      await page.getByRole('searchbox', { name: 'Search machines' }).fill('arm64')
-      await expect(page).toHaveURL(`/suites/${suite}?tab=machines&search=arm64`)
-      await expect(pager).toContainText('1-15 of 15')
-    } finally {
-      await request.delete(`/api/suites/${suite}?confirm=true`, {
-        headers: { Authorization: `Bearer ${adminToken()}` },
-      })
-    }
   })
 })
 

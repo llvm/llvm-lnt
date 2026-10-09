@@ -42,10 +42,10 @@ from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.responses import CursorPage
 from lnt_v5.strings import storable
 from lnt_v5.suites.schema import CommitField, MachineField
-from lnt_v5.suites.tables import INT32_MAX, INT32_MIN, INTEGER_MAX
+from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
 # I2's page size: 25 by default, never more than 10 000, and never zero -- an endpoint has no reason
-# to serve a page of nothing, and `total` is available from any page.
+# to serve a page of nothing.
 DEFAULT_LIMIT = 25
 MAX_LIMIT = 10_000
 
@@ -61,10 +61,6 @@ _CURSOR = (
 )
 
 Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
-
-# Bounded by what PostgreSQL's OFFSET takes, a BIGINT, so that a larger one is a 400 rather than
-# failing in the database.
-Offset = Annotated[int, Query(ge=0, le=INTEGER_MAX, description="The number of results to skip.")]
 
 # A cursor is scoped to the list that issued it by `cursor_page`, from the statement that list runs,
 # so neither carrier needs to know which of the request's other parameters are filters.

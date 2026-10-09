@@ -28,7 +28,6 @@ from sqlalchemy import (
     Table,
     UnaryExpression,
     delete,
-    func,
     insert,
     nulls_last,
     select,
@@ -41,8 +40,8 @@ from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.patching import omit_defaults
-from lnt_v5.querying import DEFAULT_LIMIT, Limit, Offset, search_condition, sort_order
-from lnt_v5.responses import OffsetPage
+from lnt_v5.querying import search_condition, sort_order
+from lnt_v5.responses import Items
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import (
@@ -157,7 +156,7 @@ class Machines:
     recomputed whenever a run was deleted, and synchronized on submission. The LATERAL probe below
     is what D5 asks for -- the compound index on `{suite}.run(machine_id, submitted_at)` makes it a
     single-row backward index scan per machine, where `max(submitted_at) ... GROUP BY machine_id`
-    would read every run in the suite to answer a question about a handful of machines.
+    would read every run in the suite, which has far more runs than machines.
     """
 
     def __init__(self, suite: Suite) -> None:
@@ -191,7 +190,7 @@ class Machines:
             return [ordered]
         # endpoints.md: a machine with no runs sorts after every machine that has one *in both
         # directions*, so NULLS LAST is stated rather than left to PostgreSQL, which defaults to it
-        # only for an ascending sort. `name` breaks ties, so a page boundary is reproducible.
+        # only for an ascending sort. `name` breaks ties, so the order is deterministic.
         return [nulls_last(ordered), self.table.c.name.asc()]
 
     def search(self, term: str) -> ColumnElement[bool]:
@@ -338,10 +337,8 @@ def list_machines(
             )
         ),
     ] = "name",
-    limit: Limit = DEFAULT_LIMIT,
-    offset: Offset = 0,
-) -> OffsetPage[Machine]:
-    """The machines in the suite, one page at a time. To list a machine's runs, use
+) -> Items[Machine]:
+    """Every machine in the suite that matches the filters. To list a machine's runs, use
     `GET /api/suites/{testsuite}/runs?machine={name}`."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         machines = Machines(suite)
@@ -350,20 +347,10 @@ def list_machines(
             conditions.append(machines.search(search))
         if tracked is not None:
             conditions.append(machines.table.c.tracked.is_(tracked))
-
-        # I2: the count ignores `limit` and `offset`, and needs no `last_run_at`, so it is a count
-        # over the machine table alone rather than over the join.
-        total = connection.execute(
-            select(func.count()).select_from(machines.table).where(*conditions)
-        ).scalar_one()
         rows = connection.execute(
-            machines.select()
-            .where(*conditions)
-            .order_by(*machines.order(sort))
-            .limit(limit)
-            .offset(offset)
+            machines.select().where(*conditions).order_by(*machines.order(sort))
         ).all()
-        return OffsetPage(items=[machines.read(row) for row in rows], total=total)
+        return Items(items=[machines.read(row) for row in rows])
 
 
 @router.post(

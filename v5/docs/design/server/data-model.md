@@ -425,6 +425,9 @@ as `{suite}.commit`, and the tables below are named that way.
 | _(dynamic)_ | per machine_fields | nullable |
 
 - `name` is unique.
+- A suite is expected to have few machines: at most a few thousand, retired ones
+  included. The machine list (E2) is not paginated, and `last_run_at` (below) is
+  computed per machine, on that assumption.
 - `tracked` marks whether the machine is part of the set LNT monitors over
   time. It only affects *automatic* machine selection: untracked machines are
   left out when the server or the UI picks machines on the user's behalf (like
@@ -443,7 +446,7 @@ as `{suite}.commit`, and the tables below are named that way.
   machine endpoints return it and can sort on it. It is deliberately not
   stored: a stored copy would have to be recomputed whenever a run is deleted,
   and would need extra synchronization on submission. Computing it is cheap
-  because a suite has few machines, and the compound index on
+  because a suite has few machines (see above), and the compound index on
   `{suite}.run(machine_id, submitted_at)` reduces it to one index probe per
   machine. An implementation must not compute it by aggregating over the whole
   run table.

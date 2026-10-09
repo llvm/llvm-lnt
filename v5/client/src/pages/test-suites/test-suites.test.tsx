@@ -9,6 +9,7 @@ import {
   gate,
   mockCommits,
   mockMachines,
+  mockRegressions,
   mockResolve,
   mockRuns,
   mockSuites,
@@ -58,7 +59,7 @@ describe('the Test Suites page', () => {
 
   it('selects another suite by its card, starting again from its Runs tab', async () => {
     mockSuites()
-    mockMachines(() => ({ items: [], total: 0 }))
+    mockMachines(() => ({ items: [] }))
     mockRuns(() => cursorPage([]))
     renderPage('/suites/libcxx?tab=machines&search=linux')
 
@@ -150,7 +151,7 @@ describe('the Test Suites page', () => {
 
   it('restores the tab and the search from the URL', async () => {
     mockSuites()
-    const queries = mockMachines(() => ({ items: [machine('linux-x86_64')], total: 1 }))
+    const queries = mockMachines(() => ({ items: [machine('linux-x86_64')] }))
     renderPage('/suites/libcxx?tab=machines&search=linux')
 
     expect(await table('Machines')).toBeInTheDocument()
@@ -159,11 +160,11 @@ describe('the Test Suites page', () => {
     expect(queries[0].get('search')).toBe('linux')
   })
 
-  it('switches tabs without a search or a page position', async () => {
+  it('switches tabs without a search', async () => {
     mockSuites()
-    mockMachines(() => ({ items: [machine('linux-x86_64')], total: 40 }))
+    mockMachines(() => ({ items: [machine('linux-x86_64')] }))
     const queries = mockCommits(() => cursorPage([]))
-    renderPage('/suites/libcxx?tab=machines&search=linux&offset=25')
+    renderPage('/suites/libcxx?tab=machines&search=linux')
     await table('Machines')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Commits' }))
@@ -189,16 +190,6 @@ describe('the Test Suites page', () => {
     expect(currentUrl()).toBe('/suites/libcxx?search=linux')
     const input = screen.getByRole('searchbox', { name: RUNS_SEARCH })
     expect(input).toHaveValue('linux')
-  })
-
-  it('drops an offset from the URL on a tab that has no use for it', async () => {
-    mockSuites()
-    const queries = mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?offset=25')
-
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
-    await table('Runs')
-    expect(queries.every((query) => !query.has('offset'))).toBe(true)
   })
 })
 
@@ -482,7 +473,6 @@ describe('the Machines tab', () => {
         }),
         machine('bare'),
       ],
-      total: 3,
     }))
     renderPage('/suites/libcxx?tab=machines')
 
@@ -501,100 +491,71 @@ describe('the Machines tab', () => {
       "Untracked machines are left out of the Dashboard's trend overview, but are listed and " +
         'usable everywhere else.',
     )
-    expect(queries[0].get('limit')).toBe('25')
-    expect(queries[0].get('offset')).toBe('0')
-    expect(screen.getByText('1-3 of 3')).toBeInTheDocument()
+    // Every machine, in one request, with no page to ask for or move between (E2).
+    expect([...queries[0].keys()]).toEqual([])
+    expect(screen.queryByRole('navigation', { name: /pagination/ })).not.toBeInTheDocument()
   })
 
-  it('pages with an offset kept in the URL', async () => {
-    mockSuites()
-    const names = Array.from({ length: 30 }, (_, i) => `m${String(i).padStart(2, '0')}`)
-    const queries = mockMachines((query) => {
-      const offset = Number(query.get('offset'))
-      return { items: names.slice(offset, offset + 25).map((name) => machine(name)), total: 30 }
-    })
-    renderPage('/suites/libcxx?tab=machines')
-    expect(await screen.findByText('1-25 of 30')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Next/ }))
-
-    expect(await screen.findByText('26-30 of 30')).toBeInTheDocument()
-    expect(rowsOf(screen.getByRole('table', { name: 'Machines' }))[0]).toBe('m25 | ')
-    expect(currentUrl()).toBe('/suites/libcxx?tab=machines&offset=25')
-    expect(queries.at(-1)?.get('offset')).toBe('25')
-
-    fireEvent.click(screen.getByRole('button', { name: /Previous/ }))
-    expect(await screen.findByText('1-25 of 30')).toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/libcxx?tab=machines')
-  })
-
-  it('shows the error in place of the table when the next page fails, and retries', async () => {
+  it('shows the error of a failed search in place of the table, and retries', async () => {
     mockSuites()
     let failures = 1
     const retry = gate()
-    const offsets: string[] = []
+    const searches: (string | null)[] = []
     server.use(
       mockApi('get', '/api/suites/{testsuite}/machines', async ({ request }) => {
-        const offset = new URL(request.url).searchParams.get('offset')!
-        offsets.push(offset)
-        if (offset === '25' && failures-- > 0) {
+        const term = new URL(request.url).searchParams.get('search')
+        searches.push(term)
+        if (term === 'arm' && failures-- > 0) {
           return errorResponse(500, 'internal_error', 'The server failed')
         }
-        if (offset === '25') await retry.promise
-        const items = Array.from({ length: offset === '0' ? 25 : 5 }, (_, i) => i + Number(offset))
-        return HttpResponse.json({ items: items.map((i) => machine(`m${i}`)), total: 30 })
+        if (term === 'arm') await retry.promise
+        return HttpResponse.json({ items: [machine(term === 'arm' ? 'arm64' : 'x86_64')] })
       }),
     )
     renderPage('/suites/libcxx?tab=machines')
-    expect(await screen.findByText('1-25 of 30')).toBeInTheDocument()
+    await screen.findByRole('link', { name: 'x86_64' })
 
-    fireEvent.click(screen.getByRole('button', { name: /Next/ }))
+    search('Search machines', 'arm')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
     expect(screen.queryByRole('table', { name: 'Machines' })).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/libcxx?tab=machines&offset=25')
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
+    // Loading, rather than the machines of the previous search again, until the retry answers.
     expect(await screen.findByText('Loading...')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'm0' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'x86_64' })).not.toBeInTheDocument()
     act(() => retry.open())
-    expect(await screen.findByRole('link', { name: 'm25' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'arm64' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(offsets).toEqual(['0', '25', '25'])
+    expect(searches).toEqual([null, 'arm', 'arm'])
   })
 
-  it('restores the offset from the URL', async () => {
+  it('shares the machine list with the Regressions tab, rather than fetching it again', async () => {
     mockSuites()
-    const queries = mockMachines(() => ({ items: [machine('m25')], total: 26 }))
-    renderPage('/suites/libcxx?tab=machines&offset=25')
+    const queries = mockMachines(() => ({ items: [machine('linux-x86_64')] }))
+    mockRegressions()
+    mockResolve()
+    renderPage('/suites/libcxx?tab=machines')
+    await screen.findByRole('link', { name: 'linux-x86_64' })
 
-    expect(await screen.findByText('26-26 of 26')).toBeInTheDocument()
-    expect(queries[0].get('offset')).toBe('25')
+    fireEvent.click(screen.getByRole('tab', { name: 'Regressions' }))
+
+    // The machine combobox is ready at once, from the list the Machines tab fetched.
+    const combobox = await screen.findByRole('combobox', { name: 'Machine' })
+    await waitFor(() => expect(combobox).toHaveAttribute('placeholder', 'Any machine'))
+    expect(queries).toHaveLength(1)
   })
 
-  it('drops an offset past the last machine', async () => {
+  it('searches the server', async () => {
     mockSuites()
-    const queries = mockMachines((query) =>
-      query.get('offset') === '0' ? { items: [machine('m0')], total: 1 } : { items: [], total: 1 },
-    )
-    renderPage('/suites/libcxx?tab=machines&offset=100')
-
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
-    expect(await screen.findByText('1-1 of 1')).toBeInTheDocument()
-    expect(queries.map((query) => query.get('offset'))).toEqual(['100', '0'])
-  })
-
-  it('searches from the first page', async () => {
-    mockSuites()
-    const queries = mockMachines(() => ({ items: [machine('m0')], total: 40 }))
-    renderPage('/suites/libcxx?tab=machines&offset=25')
+    const queries = mockMachines(() => ({ items: [machine('m0')] }))
+    renderPage('/suites/libcxx?tab=machines')
     await table('Machines')
 
     search('Search machines', 'arm')
 
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines&search=arm'))
     await waitFor(() => expect(queries.at(-1)?.get('search')).toBe('arm'))
-    expect(queries.at(-1)?.get('offset')).toBe('0')
   })
 })
 

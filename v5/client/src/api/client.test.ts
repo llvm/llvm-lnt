@@ -123,7 +123,7 @@ describe('query parameters', () => {
     server.use(
       mockApi('get', '/api/suites/{testsuite}/machines', ({ request }) => {
         query = new URL(request.url).search
-        return HttpResponse.json({ items: [], total: 0 })
+        return HttpResponse.json({ items: [] })
       }),
     )
 

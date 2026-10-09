@@ -204,7 +204,7 @@ export interface paths {
         };
         /**
          * List machines
-         * @description The machines in the suite, one page at a time. To list a machine's runs, use
+         * @description Every machine in the suite that matches the filters. To list a machine's runs, use
          *     `GET /api/suites/{testsuite}/runs?machine={name}`.
          *
          *     **Authorization:** no API key needed.
@@ -1665,6 +1665,17 @@ export interface components {
             searchable?: boolean;
         };
         /**
+         * MachineList
+         * @description All the results.
+         */
+        MachineList: {
+            /**
+             * Items
+             * @description The results.
+             */
+            items: components["schemas"]["Machine"][];
+        };
+        /**
          * MachineObject
          * @description A machine: its name, whether it is tracked, and its fields.
          */
@@ -1688,22 +1699,6 @@ export interface components {
              * @default true
              */
             tracked?: boolean;
-        };
-        /**
-         * MachineOffsetPage
-         * @description One page of results, with the total number of results across all pages.
-         */
-        MachineOffsetPage: {
-            /**
-             * Items
-             * @description The results on this page.
-             */
-            items: components["schemas"]["Machine"][];
-            /**
-             * Total
-             * @description The number of results across all pages.
-             */
-            total: number;
         };
         /**
          * MachineUpdate
@@ -3478,10 +3473,6 @@ export interface operations {
                 tracked?: boolean | null;
                 /** @description Sort by name, or by the time of each machine's most recent run. Machines without runs always come last, and ties are sorted by name. */
                 sort?: "name" | "-name" | "last_run_at" | "-last_run_at";
-                /** @description The maximum number of results to return. */
-                limit?: number;
-                /** @description The number of results to skip. */
-                offset?: number;
             };
             header?: never;
             path: {
@@ -3498,7 +3489,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MachineOffsetPage"];
+                    "application/json": components["schemas"]["MachineList"];
                 };
             };
             /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */

@@ -271,7 +271,7 @@ class TestReadBack:
 
         body = body_of(api_client.get(dataset.url(MACHINES_PATH)))
 
-        assert body["total"] == len(dataset.machine_names)
+        assert len(body["items"]) == len(dataset.machine_names)
         assert all(machine["last_run_at"] is not None for machine in body["items"])
         served = [{k: v for k, v in m.items() if k != "last_run_at"} for m in body["items"]]
         assert served == [

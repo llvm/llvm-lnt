@@ -74,12 +74,10 @@ otherwise.
 - A regression's bug is a link opening in a new tab when it is an `http` or
   `https` URL, and plain text otherwise, since the API stores any string.
 
-**Paginated tables**: A table that shows a cursor-paginated endpoint (see I2) a
+**Paginated tables**: A table that shows a paginated endpoint (see I2) a
 page at a time has `[<- Previous]` and `[Next ->]` below it. Pagination is
 forward-only, so Previous returns to pages the user has already visited. The
 position is not kept in the URL: reloading the page shows the first page again.
-A table over an offset-paginated endpoint keeps its `offset` in the URL
-instead.
 
 When the rows a table should show cannot be fetched -- for another page, search
 or filter -- the table and its pager give way to the error, with a way to try

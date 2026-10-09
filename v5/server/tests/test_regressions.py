@@ -1944,10 +1944,6 @@ class TestPagination:
 
         assert response.status_code == 200, response.text
 
-    def test_takes_no_offset(self, api_client: TestClient) -> None:
-        # I2 pairs `offset` with `total`, and a cursor-paginated list has neither.
-        assert "total" not in listed(api_client).json()
-
 
 class TestAuthorization:
     """I5: `read` for the GETs, `triage` for everything else."""
