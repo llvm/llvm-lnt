@@ -142,12 +142,18 @@ test.describe('searching', () => {
   test('finds a regression by the UUID prefix its row shows', async ({ page }) => {
     await page.goto('/suites/libcxx?tab=regressions')
     const list = table(page, 'Regressions')
-    const link = rows(list).first().locator('td').nth(COLUMN.uuid).getByRole('link')
-    await expect(link).toHaveText(/^[0-9a-f]{8}…$/)
-    const shown = (await link.textContent())!
-    const uuid = (await link.getAttribute('title'))!
+    // A seeded row, rather than the newest, which may be one that another test is about to delete.
+    const row = rows(list).filter({ hasText: 'std::format slowdown' })
+    const link = row.locator('td').nth(COLUMN.uuid).getByRole('link')
+    // Read at once, so that all three come from the same row.
+    const { shown, uuid, href } = await link.evaluate((a) => ({
+      shown: a.textContent!,
+      uuid: a.getAttribute('title')!,
+      href: a.getAttribute('href'),
+    }))
+    expect(shown).toMatch(/^[0-9a-f]{8}…$/)
     expect(uuid.startsWith(shown.replace('…', ''))).toBe(true)
-    await expect(link).toHaveAttribute('href', `/suites/libcxx/regressions/${uuid}`)
+    expect(href).toBe(`/suites/libcxx/regressions/${uuid}`)
 
     await page
       .getByRole('searchbox', { name: 'Search regressions by title or UUID prefix' })
