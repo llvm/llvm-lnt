@@ -80,12 +80,13 @@
     cursor: pointer;
   }
 
-  button:hover:not(:disabled) {
+  button:hover:not(:disabled, [aria-disabled='true']) {
     border-color: var(--lnt-accent);
     color: var(--lnt-accent);
   }
 
-  button:disabled {
+  button:disabled,
+  button[aria-disabled='true'] {
     color: var(--lnt-muted);
     background: var(--lnt-panel);
     cursor: not-allowed;

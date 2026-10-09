@@ -393,18 +393,81 @@ describe('creating a regression', () => {
     expect(bodies[0]).toEqual({ title: null, bug: null, state: 'detected', commit: null })
   })
 
-  it('creates one without a commit typed into the picker but not picked', async () => {
-    const { form } = await openForm()
-    const { bodies } = mockCreate()
+  describe('while the commit picker holds text that was not picked', () => {
+    const REASON = 'Pick a commit from the list, or clear the field.'
 
-    const user = userEvent.setup()
-    await user.type(within(form).getByRole('combobox', { name: 'Commit' }), 'abc')
-    await screen.findByRole('option', { name: 'r100 (v1)' })
-    // Hidden from the accessibility tree while the list is open, but there to be clicked.
-    await user.click(within(form).getByRole('button', { name: 'Create', hidden: true }))
+    /** Open the form, and type `text` into its commit picker without picking anything. */
+    async function typeCommit(text: string) {
+      const { form } = await openForm()
+      const user = userEvent.setup()
+      const picker = within(form).getByRole('combobox', { name: 'Commit' })
+      await user.type(picker, text)
+      // Hidden from the accessibility tree while the list is open, but there to be clicked.
+      const create = within(form).getByRole('button', { name: 'Create', hidden: true })
+      return { form, user, picker, create }
+    }
 
-    await waitFor(() => expect(bodies).toHaveLength(1))
-    expect(bodies[0].commit).toBeNull()
+    it('cannot create, and says why', async () => {
+      const { form, create } = await typeCommit('abc')
+
+      expect(create).toHaveAttribute('aria-disabled', 'true')
+      const reason = within(form).getByText(REASON)
+      expect(create).toHaveAttribute('aria-describedby', reason.id)
+    })
+
+    it('creates nothing on a click on Create, which keeps the text in the picker', async () => {
+      const { user, picker, create } = await typeCommit('abc')
+      const { bodies } = mockCreate()
+
+      await user.click(create)
+
+      expect(picker).toHaveFocus()
+      expect(picker).toHaveValue('abc')
+      expect(create).toHaveAttribute('aria-disabled', 'true')
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(bodies).toEqual([])
+    })
+
+    it('can create once a commit is picked', async () => {
+      const { form, user, create } = await typeCommit('abc')
+
+      await user.click(await screen.findByRole('option', { name: 'r100 (v1)' }))
+
+      expect(create).not.toHaveAttribute('aria-disabled')
+      expect(create).not.toHaveAttribute('aria-describedby')
+      expect(within(form).queryByText(REASON)).toBeNull()
+    })
+
+    it('can create once the picker is cleared, for no commit', async () => {
+      const { form, user, picker, create } = await typeCommit('abc')
+
+      await user.clear(picker)
+
+      expect(create).not.toHaveAttribute('aria-disabled')
+      expect(within(form).queryByText(REASON)).toBeNull()
+    })
+
+    it('can create once it is left, which puts back the text of its value', async () => {
+      const { form, user, picker, create } = await typeCommit('abc')
+
+      await user.click(within(form).getByLabelText('Title'))
+
+      expect(picker).toHaveValue('')
+      expect(create).not.toHaveAttribute('aria-disabled')
+    })
+
+    it('takes the text of the commit picked, typed back, as nothing pending', async () => {
+      const { user, picker, create } = await typeCommit('abc')
+      await user.click(await screen.findByRole('option', { name: 'r100 (v1)' }))
+
+      await user.tripleClick(picker)
+      await user.keyboard('r100')
+      expect(create).toHaveAttribute('aria-disabled', 'true')
+      await user.keyboard(' (v1)')
+
+      expect(picker).toHaveValue('r100 (v1)')
+      expect(create).not.toHaveAttribute('aria-disabled')
+    })
   })
 
   it('stays open with what was entered when the creation fails', async () => {

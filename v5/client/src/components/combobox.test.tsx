@@ -20,6 +20,7 @@ interface PickerProps {
   machines?: Suggestion[]
   initial?: Suggestion | null
   onSubmit?: () => void
+  onPendingChange?: (pending: boolean) => void
 }
 
 /** What the picker holds, which outside elements' roles hide while its list is open. */
@@ -44,7 +45,12 @@ async function openList(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /Show suggestions/ }))
 }
 
-function MachinePicker({ machines = MACHINES, initial = null, onSubmit }: PickerProps) {
+function MachinePicker({
+  machines = MACHINES,
+  initial = null,
+  onSubmit,
+  onPendingChange,
+}: PickerProps) {
   const [picked, setPicked] = useState(initial)
   const suggestions = useLocalSuggestions(machines)
   return (
@@ -54,7 +60,13 @@ function MachinePicker({ machines = MACHINES, initial = null, onSubmit }: Picker
         onSubmit?.()
       }}
     >
-      <Combobox label="Machine" value={picked} onChange={setPicked} suggestions={suggestions} />
+      <Combobox
+        label="Machine"
+        value={picked}
+        onChange={setPicked}
+        suggestions={suggestions}
+        onPendingChange={onPendingChange}
+      />
       <p data-testid="value">{picked?.key ?? 'none'}</p>
       <p>Elsewhere</p>
     </form>
@@ -206,6 +218,30 @@ describe('Combobox with local suggestions', () => {
 
     await openList(user)
     expect(within(listbox()!).getByText('The machines failed to load')).toBeInTheDocument()
+  })
+
+  it('says whether its input holds text that is not its value', async () => {
+    const user = userEvent.setup()
+    const onPendingChange = vi.fn()
+    renderWithProviders(<MachinePicker initial={MACHINES[0]} onPendingChange={onPendingChange} />)
+    const pending = () => onPendingChange.mock.lastCall?.[0]
+    expect(pending()).toBe(false)
+
+    await user.tripleClick(input())
+    await user.keyboard('mac')
+    expect(pending()).toBe(true)
+    await user.click(screen.getByRole('option', { name: 'macos-arm64' }))
+    expect(pending()).toBe(false)
+
+    await user.type(input(), 'x')
+    expect(pending()).toBe(true)
+    await user.keyboard('{Backspace}')
+    expect(pending()).toBe(false)
+    await user.type(input(), 'x')
+    await user.click(screen.getByText('Elsewhere'))
+    expect(pending()).toBe(false)
+    await user.clear(input())
+    expect(pending()).toBe(false)
   })
 
   it('picks nothing on Enter when several suggestions are exactly the text', async () => {

@@ -20,6 +20,8 @@ interface Props {
   onChange(value: string | null): void
   placeholder?: string
   isDisabled?: boolean
+  /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
+  onPendingChange?: (pending: boolean) => void
 }
 
 /** A commit as a suggestion: shown by its display value, and entered by its commit string too. */
@@ -47,6 +49,7 @@ export function CommitPicker({
   onChange,
   placeholder,
   isDisabled = false,
+  onPendingChange,
 }: Props) {
   const suite = schema.name
   const toSuggestion = useCallback((commit: Commit) => suggestionOf(commit, schema), [schema])
@@ -86,6 +89,7 @@ export function CommitPicker({
       suggestions={suggestions}
       placeholder={placeholder}
       isDisabled={isDisabled}
+      onPendingChange={onPendingChange}
     />
   )
 }

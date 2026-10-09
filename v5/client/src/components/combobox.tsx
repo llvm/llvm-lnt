@@ -25,6 +25,11 @@ interface Props {
   suggestions: Suggestions
   placeholder?: string
   isDisabled?: boolean
+  /**
+   * Called with whether the input holds text that is not the value's -- typed, but not picked --
+   * whenever that changes: a form holding the combobox is not submitted meanwhile (AR2).
+   */
+  onPendingChange?: (pending: boolean) => void
 }
 
 function sameSuggestion(a: Suggestion | null, b: Suggestion | null): boolean {
@@ -50,7 +55,15 @@ function exactMatch(items: readonly Suggestion[], text: string): Suggestion | nu
  * be among the suggestions loaded, which is the case for a commit restored from the URL that is not
  * on the first page of the picker's suggestions.
  */
-export function Combobox({ label, value, onChange, suggestions, placeholder, isDisabled }: Props) {
+export function Combobox({
+  label,
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  isDisabled,
+  onPendingChange,
+}: Props) {
   const [text, setText] = useState(value?.text ?? '')
 
   // A value set from outside -- or one whose text arrived later, like a commit's display value --
@@ -60,6 +73,9 @@ export function Combobox({ label, value, onChange, suggestions, placeholder, isD
     setShown(value)
     if (text === (shown?.text ?? '')) setText(value?.text ?? '')
   }
+
+  const pending = text !== (value?.text ?? '')
+  useEffect(() => onPendingChange?.(pending), [pending, onPendingChange])
 
   const query = searchText(text, value)
   const { search } = suggestions

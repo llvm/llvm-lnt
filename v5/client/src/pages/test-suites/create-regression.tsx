@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { authedApi, unwrap } from '../../api/client'
@@ -7,6 +7,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { CommitPicker } from '../../components/commit-picker'
 import { ErrorMessage } from '../../components/feedback'
+import { pendingGuard } from '../../components/pending-guard'
 import { regressionPath } from '../../paths'
 import { REGRESSION_STATES, stateLabel, type RegressionState } from '../../regression-states'
 import styles from './test-suites.module.css'
@@ -32,6 +33,9 @@ export function CreateRegression({ schema, onCancel }: Props) {
   const [bug, setBug] = useState('')
   const [state, setState] = useState<RegressionState>('detected')
   const [commit, setCommit] = useState<string | null>(null)
+  // The commit picker holds text that is not the commit picked (AR2 "Commit pickers").
+  const [commitPending, setCommitPending] = useState(false)
+  const reasonId = useId()
 
   const create = useMutation({
     mutationFn: () =>
@@ -61,7 +65,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
     event.preventDefault()
     if (!blocked) create.mutate()
   }
-  const blocked = triage.disabled || create.isPending
+  const blocked = triage.disabled || commitPending || create.isPending
 
   return (
     <form className={styles.createForm} aria-label="New regression" onSubmit={submit}>
@@ -106,17 +110,29 @@ export function CreateRegression({ schema, onCancel }: Props) {
           schema={schema}
           value={commit}
           onChange={setCommit}
+          onPendingChange={setCommitPending}
           placeholder="None"
         />
       </div>
       {create.isError && <ErrorMessage error={create.error} />}
       <div className={styles.formActions}>
-        <button type="submit" disabled={blocked} title={triage.title}>
+        <button
+          type="submit"
+          disabled={triage.disabled || create.isPending}
+          title={triage.title}
+          aria-describedby={commitPending ? reasonId : undefined}
+          {...pendingGuard(commitPending)}
+        >
           {create.isPending ? 'Creating...' : 'Create'}
         </button>
         <button type="button" onClick={onCancel}>
           Cancel
         </button>
+        {commitPending && (
+          <span id={reasonId} className={styles.reason}>
+            Pick a commit from the list, or clear the field.
+          </span>
+        )}
       </div>
     </form>
   )
