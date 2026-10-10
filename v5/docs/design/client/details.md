@@ -50,9 +50,9 @@ may take a while for machines with many runs.
 ### Tracked toggle
 
 The info box shows a `Tracked` checkbox reflecting the machine's `tracked` flag.
-Toggling it issues `PATCH /machines/{name}`, which saves it at once (see
-"Controls saving on change" in AR2), and requires `manage` scope. Unchecking it
-excludes the machine from the Dashboard's trend overview -- it stays fully
+Toggling it saves the change at once with `PATCH /machines/{name}` (see
+"Controls saving on change" in AR2), which requires `manage` scope. Unchecking
+it excludes the machine from the Dashboard's trend overview -- it stays fully
 available in Graph, Compare, Profiles, and every listing. The label carries a
 help tooltip saying so, and makes clear that the flag is not a lifetime policy:
 untracked machines are kept indefinitely.
@@ -295,31 +295,32 @@ This will add 2 indicators.  [Add]
 
 ### Page header
 
-The header shows "Regression: {title}" when the regression has a title, and
-"Regression: {shortened UUID}" otherwise. It follows the title once an edit to
-it is saved.
+The header shows "Regression: {title}", or "Regression: {shortened UUID}" when
+the regression has no title. After the title is edited, the header changes once
+the new title is saved.
 
 ### Info box
 
-The info box shows the regression's title, state, bug, commit and notes, which
-can be edited with `triage` scope, and, read-only, when it was created
-(`created_at`). A field with no value shows `--`, the title included.
+The info box shows the regression's title, state, bug, commit and notes, and
+when it was created (`created_at`). Everything but the creation time can be
+edited with `triage` scope. An empty field shows `--`, the title included.
 
 - Title, Bug and Notes are edited in place (see "Inline editing" in AR2). The
-  bug is shown as AR2 describes. The notes are edited on several lines, and
-  shown with their line breaks.
-- State shows the state's colored badge, followed by a dropdown over every state
-  that saves the state picked (see "Controls saving on change" in AR2).
-- Commit is a link to the commit's detail page, showing its display value. It is
-  edited in place with a commit picker over every commit of the suite (see AR2),
-  and emptying the picker clears it.
+  bug is displayed as AR2 describes. The notes are edited in a multi-line input,
+  and displayed with their line breaks.
+- State shows the state's colored badge, then a dropdown listing every state.
+  Picking a state saves it (see "Controls saving on change" in AR2).
+- Commit links to the commit's detail page, showing its display value. It is
+  edited in place with a commit picker that offers every commit of the suite
+  (see AR2). Clearing the picker removes the commit.
 
 ### Delete regression
 
-A red "Delete regression" button follows the info box. Clicking it shows its
-confirmation prompt (see AR2) below it, saying that the regression's indicators
-are deleted with it. Deletion requires `triage` scope. On success, navigates to
-the Regressions tab of the Test Suites page (`/suites/{ts}?tab=regressions`).
+A red "Delete regression" button follows the info box. Clicking it opens its
+confirmation prompt (see AR2) below the button, which says that the regression's
+indicators are deleted too. Deleting requires `triage` scope. Afterwards, the
+page goes to the Regressions tab of the Test Suites page
+(`/suites/{ts}?tab=regressions`).
 
 ### Add indicators panel
 
