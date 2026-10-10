@@ -12,7 +12,7 @@ import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
 import type { Commit } from '../schema'
 import { BARE_SUITE, SUITE, cursorPage } from './fixtures'
-import { mockApi } from './mock-api'
+import { mockApi, type Operation, type PathWith, type RequestBody } from './mock-api'
 import { renderWithProviders } from './render'
 import { server } from './server'
 
@@ -57,6 +57,26 @@ export function mockSuites(items: SuiteSchema[] = [SUITE, BARE_SUITE]) {
   server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items })))
 }
 
+/**
+ * Answer every `method path` request with `respond`; returns the body each was sent with, and the
+ * `Authorization` header, in order.
+ */
+export function mockSent<M extends 'post' | 'patch' | 'delete', P extends PathWith<M>>(
+  method: M,
+  path: P,
+  respond: (body: RequestBody<Operation<M, P>>) => Response | Promise<Response>,
+) {
+  const sent: { body: RequestBody<Operation<M, P>>; auth: string | null }[] = []
+  server.use(
+    mockApi(method, path, async ({ request }) => {
+      const body = await request.json()
+      sent.push({ body, auth: request.headers.get('Authorization') })
+      return respond(body)
+    }),
+  )
+  return sent
+}
+
 /** The query of every request `mock` answers, in order. */
 export function recording<Body>(respond: Respond<Body>) {
   const queries: URLSearchParams[] = []
@@ -82,6 +102,16 @@ export function mockMachines(respond: Respond<Schemas['MachineList']>) {
   const { queries, answer } = recording(respond)
   server.use(
     mockApi('get', '/api/suites/{testsuite}/machines', async ({ request }) =>
+      HttpResponse.json(await answer(request)),
+    ),
+  )
+  return queries
+}
+
+export function mockTests(respond: Respond<Page<Schemas['Test']>>) {
+  const { queries, answer } = recording(respond)
+  server.use(
+    mockApi('get', '/api/suites/{testsuite}/tests', async ({ request }) =>
       HttpResponse.json(await answer(request)),
     ),
   )

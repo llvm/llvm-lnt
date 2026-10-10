@@ -20,6 +20,8 @@ export const queryKeys = {
   commits: (suite: string) => ['suite', suite, 'commits'] as const,
   /** Everything read about the suite's runs: lists, whatever their filters, and details. */
   runs: (suite: string) => ['suite', suite, 'runs'] as const,
+  /** The names of the suite's tests, as listed for a machine and a metric. */
+  tests: (suite: string) => ['suite', suite, 'tests'] as const,
   /** Everything read about the suite's regressions: lists, whatever their filters, and details. */
   regressions: (suite: string) => ['suite', suite, 'regressions'] as const,
 }

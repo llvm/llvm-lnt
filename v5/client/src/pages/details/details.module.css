@@ -40,3 +40,69 @@
   align-items: center;
   gap: var(--lnt-space-2);
 }
+
+/* The Add indicators panel (DT4): its two lists side by side, as far as the page is wide. */
+.lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--lnt-space-4);
+  margin-top: var(--lnt-space-3);
+}
+
+.checkboxList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  min-width: 0;
+}
+
+.listHeading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.count {
+  color: var(--lnt-muted);
+  font-weight: normal;
+}
+
+/* What a list says in place of its names, or above them. */
+.note {
+  color: var(--lnt-muted);
+  font-size: 0.9rem;
+}
+
+/* A list of thousands of names scrolls in a box of its own, rather than stretch the page. */
+.scroller {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+/* A whole row toggles its checkbox, and Shift+click selects a range rather than text. */
+.checkboxLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lnt-space-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+  margin: var(--lnt-space-3) 0;
+}
+
+.report {
+  margin: 0 0 var(--lnt-space-3);
+}
+
+/* The button removing one indicator: as compact as the row it is in. */
+.removeButton {
+  padding: 0 var(--lnt-space-2);
+  line-height: 1.2;
+}

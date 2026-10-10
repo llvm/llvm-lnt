@@ -14,6 +14,7 @@ import {
   main,
   mockCommits,
   mockResolve,
+  mockSent,
   mockSuites,
   queryOf,
   ready,
@@ -98,19 +99,6 @@ function renderCommit({
     lookups: lookups.queries,
     resolved,
   }
-}
-
-/** Answer `PATCH /commits/{value}` with `respond`, recording the bodies and headers it got. */
-function mockPatch(respond: (body: Schemas['CommitUpdate']) => Response | Promise<Response>) {
-  const sent: { body: Schemas['CommitUpdate']; auth: string | null }[] = []
-  server.use(
-    mockApi('patch', COMMIT_ROUTE, async ({ request }) => {
-      const body = await request.json()
-      sent.push({ body, auth: request.headers.get('Authorization') })
-      return respond(body)
-    }),
-  )
-  return sent
 }
 
 /** The commit `DETAIL` becomes once `body` is applied, as the API answers a PATCH. */
@@ -286,7 +274,7 @@ describe('the Commit Detail page', () => {
     it('are changed with PATCH, sent with the token, showing what the API answered', async () => {
       signIn('manage')
       const answer = gate()
-      const sent = mockPatch(async (body) => {
+      const sent = mockSent('patch', COMMIT_ROUTE, async (body) => {
         await answer.promise
         return HttpResponse.json({ ...patched(body), previous: BEFORE, next: null })
       })
@@ -307,7 +295,7 @@ describe('the Commit Detail page', () => {
 
     it('do not accept an ordinal that is not an integer its column can hold', async () => {
       signIn('manage')
-      const sent = mockPatch((body) => HttpResponse.json(patched(body)))
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
       renderCommit()
       await ready('Commit', () => editButton('Ordinal'))
       save('Ordinal', '4.5')
@@ -328,7 +316,7 @@ describe('the Commit Detail page', () => {
 
     it('are cleared when emptied', async () => {
       signIn('manage')
-      const sent = mockPatch((body) => HttpResponse.json(patched(body)))
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
       renderCommit()
       await ready('Commit', () => editButton('Tag'))
 
@@ -340,7 +328,7 @@ describe('the Commit Detail page', () => {
 
     it('report a change the API refuses, keeping the editor open with its text', async () => {
       signIn('manage')
-      mockPatch(() =>
+      mockSent('patch', COMMIT_ROUTE, () =>
         errorResponse(409, 'conflict', "Ordinal 99 is already used by commit 'prev99'"),
       )
       renderCommit()
@@ -358,7 +346,7 @@ describe('the Commit Detail page', () => {
       const first = gate()
       const order: string[] = []
       let stored = DETAIL
-      mockPatch(async (body) => {
+      mockSent('patch', COMMIT_ROUTE, async (body) => {
         order.push(Object.keys(body)[0])
         if ('ordinal' in body) await first.promise
         stored = { ...stored, ...body }
@@ -384,7 +372,7 @@ describe('the Commit Detail page', () => {
 
     it('do not fetch the runs or the regressions again once changed', async () => {
       signIn('manage')
-      mockPatch((body) => HttpResponse.json(patched(body)))
+      mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
       const { runQueries, regressionQueries, detailCalls } = renderCommit({ runs: RUNS })
       await table('Runs')
       await ready('Commit', () => editButton('Tag'))
@@ -398,7 +386,7 @@ describe('the Commit Detail page', () => {
 
     it('look up the commit before this one on each machine again once the ordinal changes', async () => {
       signIn('manage')
-      mockPatch((body) => HttpResponse.json(patched(body)))
+      mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
       const { lookups } = renderCommit({ runs: RUNS })
       const runs = await table('Runs')
       await waitFor(() => expect(compareLinks(runs)[0]).toHaveAttribute('href'))
@@ -415,7 +403,9 @@ describe('the Commit Detail page', () => {
 
     it('leave every run without a previous commit once the ordinal is cleared', async () => {
       signIn('manage')
-      mockPatch((body) => HttpResponse.json({ ...patched(body), previous: null, next: null }))
+      mockSent('patch', COMMIT_ROUTE, (body) =>
+        HttpResponse.json({ ...patched(body), previous: null, next: null }),
+      )
       const { lookups } = renderCommit({ runs: RUNS })
       const runs = await table('Runs')
       await waitFor(() => expect(compareLinks(runs)[0]).toHaveAttribute('href'))
@@ -437,7 +427,7 @@ describe('the Commit Detail page', () => {
     it('are shown changed by the commit list, once fetched again', async () => {
       signIn('manage')
       let stored: Schemas['Commit'] = withoutNeighbours(DETAIL)
-      mockPatch((body) => {
+      mockSent('patch', COMMIT_ROUTE, (body) => {
         stored = { ...stored, ...body }
         return HttpResponse.json(patched(body))
       })

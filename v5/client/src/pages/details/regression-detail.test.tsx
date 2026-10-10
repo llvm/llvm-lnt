@@ -3,9 +3,18 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { Schemas } from '../../api/client'
+import type { SuiteSchema } from '../../api/suites'
 import { formatTimestamp } from '../../format'
 import { signIn, TOKEN } from '../../test/auth'
-import { commit, cursorPage, regression, regressionDetail, uuidOf } from '../../test/fixtures'
+import {
+  commit,
+  cursorPage,
+  machine,
+  SUITE,
+  regression,
+  regressionDetail,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -17,10 +26,15 @@ import {
   mockMachines,
   mockRegressions,
   mockResolve,
+  mockSent,
   mockSuites,
+  mockTests,
   ready,
   renderPage,
+  rowsOf,
   save,
+  search,
+  table,
 } from '../../test/page'
 import { selectButton } from '../../test/select'
 import { server } from '../../test/server'
@@ -49,6 +63,9 @@ const DETAIL = regressionDetail('a', {
 
 interface Options {
   url?: string
+  suites?: SuiteSchema[]
+  /** The suite's machines, `linux` and `macos` by default. */
+  machines?: string[]
   /** The answer to `GET /regressions/{uuid}`: `detail` by default. */
   respond?: () => Response | Promise<Response>
   detail?: Regression
@@ -57,11 +74,14 @@ interface Options {
 /** The page at `url`, that of `DETAIL` or `detail` by default, with what it reads mocked. */
 function renderRegression({
   url = PAGE,
+  suites,
+  machines = ['linux', 'macos'],
   detail = DETAIL,
   respond = () => HttpResponse.json(detail),
 }: Options = {}) {
   const calls = { count: 0 }
-  mockSuites()
+  mockSuites(suites)
+  mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
   mockResolve([TAGGED, PLAIN])
   mockCommits((query) => {
     const text = query.get('search') ?? ''
@@ -80,19 +100,6 @@ function renderRegression({
   )
   renderPage(url)
   return calls
-}
-
-/** Answer `PATCH /regressions/{uuid}` with `respond`, recording the bodies and headers it got. */
-function mockPatch(respond: (body: Schemas['RegressionUpdate']) => Response | Promise<Response>) {
-  const sent: { body: Schemas['RegressionUpdate']; auth: string | null }[] = []
-  server.use(
-    mockApi('patch', ROUTE, async ({ request }) => {
-      const body = await request.json()
-      sent.push({ body, auth: request.headers.get('Authorization') })
-      return respond(body)
-    }),
-  )
-  return sent
 }
 
 /** `base` once `body` is applied, as the API answers a PATCH. */
@@ -224,7 +231,7 @@ describe('the Regression Detail page', () => {
     it('are changed with PATCH, sent with the token, shown once the API accepts them', async () => {
       signIn('triage')
       const answer = gate()
-      const sent = mockPatch(async (body) => {
+      const sent = mockSent('patch', ROUTE, async (body) => {
         await answer.promise
         return HttpResponse.json(patched(body))
       })
@@ -244,7 +251,7 @@ describe('the Regression Detail page', () => {
 
     it('are cleared when emptied', async () => {
       signIn('triage')
-      const sent = mockPatch((body) => HttpResponse.json(patched(body)))
+      const sent = mockSent('patch', ROUTE, (body) => HttpResponse.json(patched(body)))
       renderRegression()
       await ready('Regression', () => editButton('Bug'))
 
@@ -268,7 +275,7 @@ describe('the Regression Detail page', () => {
 
     it('edit the notes on several lines, saved with Cmd+Enter', async () => {
       signIn('triage')
-      const sent = mockPatch((body) => HttpResponse.json(patched(body)))
+      const sent = mockSent('patch', ROUTE, (body) => HttpResponse.json(patched(body)))
       renderRegression()
       await ready('Regression', () => editButton('Notes'))
 
@@ -284,7 +291,7 @@ describe('the Regression Detail page', () => {
 
     it('report a change the API refuses, keeping the editor open with its text', async () => {
       signIn('triage')
-      mockPatch(() => errorResponse(400, 'invalid_request', 'Title is too long'))
+      mockSent('patch', ROUTE, () => errorResponse(400, 'invalid_request', 'Title is too long'))
       renderRegression()
       await ready('Regression', () => editButton('Title'))
 
@@ -306,7 +313,7 @@ describe('the Regression Detail page', () => {
         HttpResponse.json(patched(body, detail)),
     ) {
       signIn('triage')
-      const sent = mockPatch(respond)
+      const sent = mockSent('patch', ROUTE, respond)
       renderRegression({ detail })
       await ready('Regression', () => editButton('Commit'))
       fireEvent.click(editButton('Commit'))
@@ -403,7 +410,7 @@ describe('the Regression Detail page', () => {
     it('is saved as soon as another is picked, and shown once the API accepts it', async () => {
       signIn('triage')
       const answer = gate()
-      const sent = mockPatch(async (body) => {
+      const sent = mockSent('patch', ROUTE, async (body) => {
         await answer.promise
         return HttpResponse.json(patched(body))
       })
@@ -428,7 +435,7 @@ describe('the Regression Detail page', () => {
 
     it('is not changed by the keys that step through the options of the closed dropdown', async () => {
       signIn('triage')
-      const sent = mockPatch((body) => HttpResponse.json(patched(body)))
+      const sent = mockSent('patch', ROUTE, (body) => HttpResponse.json(patched(body)))
       renderRegression()
       await ready('Regression', stateButton)
       const user = userEvent.setup()
@@ -442,7 +449,7 @@ describe('the Regression Detail page', () => {
 
     it('reports a change the API refuses, still showing the stored state', async () => {
       signIn('triage')
-      mockPatch(() => errorResponse(403, 'forbidden', 'No'))
+      mockSent('patch', ROUTE, () => errorResponse(403, 'forbidden', 'No'))
       renderRegression()
       await ready('Regression', stateButton)
       const user = userEvent.setup()
@@ -460,7 +467,7 @@ describe('the Regression Detail page', () => {
     const first = gate()
     const order: string[] = []
     let stored = DETAIL
-    mockPatch(async (body) => {
+    mockSent('patch', ROUTE, async (body) => {
       order.push(Object.keys(body)[0])
       if ('title' in body) await first.promise
       stored = { ...stored, ...body }
@@ -485,7 +492,7 @@ describe('the Regression Detail page', () => {
   it('is shown changed by the Regressions tab, once fetched again', async () => {
     signIn('triage')
     let stored = DETAIL
-    mockPatch((body) => {
+    mockSent('patch', ROUTE, (body) => {
       stored = { ...stored, ...body }
       return HttpResponse.json(stored)
     })
@@ -534,5 +541,408 @@ describe('the Regression Detail page', () => {
       // The deleted regression is not asked for again on the way out.
       expect(calls.count).toBe(1)
     })
+  })
+})
+
+/** The tests with a value for the metric on each machine, as `GET tests` lists them, unsorted. */
+const TESTS: Record<string, string[]> = { linux: ['b', 'a'], macos: ['c', 'a'] }
+
+/** Answer `GET tests` with the tests of the machine asked for; returns the queries. */
+function mockMachineTests(tests = TESTS) {
+  return mockTests((query) =>
+    cursorPage((tests[query.get('machine')!] ?? []).map((name) => ({ name }))),
+  )
+}
+
+const checkbox = (name: string) => screen.getByRole('checkbox', { name })
+const addButton = () => screen.getByRole('button', { name: /^Add/ })
+const list = (name: string) => screen.getByRole('group', { name: new RegExp(`^${name}`) })
+const preview = () => within(panel()).getAllByRole('status')[0]
+const panel = () => screen.getByRole('region', { name: 'Add indicators' })
+
+/** The names a checkbox list shows, in order. */
+function namesIn(name: string) {
+  return within(list(name))
+    .queryAllByRole('checkbox')
+    .slice(1)
+    .map((box) => box.getAttribute('aria-label'))
+}
+
+/** Click the checkboxes of `names` in turn. */
+async function pick(...names: string[]) {
+  const user = userEvent.setup()
+  for (const name of names) await user.click(checkbox(name))
+}
+
+describe('the Add indicators panel', () => {
+  it('lists the machines, and the tests of those selected on the metric, merged and sorted', async () => {
+    const queries = mockMachineTests()
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    expect(selectButton('Metric')).toHaveTextContent('Execution Time')
+    expect(list('Tests')).toHaveTextContent('Select one or more machines first.')
+
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('macos')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b', 'c']))
+
+    // Each machine's tests are asked for once, on the metric.
+    expect(queries.map((query) => [query.get('machine'), query.get('metric')])).toEqual([
+      ['linux', 'execution_time'],
+      ['macos', 'execution_time'],
+    ])
+  })
+
+  it('previews and adds an indicator for each machine and test, then says what was added', async () => {
+    signIn('triage')
+    mockMachineTests()
+    const sent = mockSent('post', `${ROUTE}/indicators`, () =>
+      HttpResponse.json({
+        added: 3,
+        indicators: [
+          ...DETAIL.indicators,
+          { uuid: uuidOf('3'), machine: 'linux', test: 'a', metric: 'execution_time' },
+        ],
+      }),
+    )
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+
+    await pick('linux', 'macos')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b', 'c']))
+    await pick('a', 'b')
+    expect(preview()).toHaveTextContent('This will add 4 indicators.')
+    expect(list('Tests')).toHaveTextContent('(2 of 3 tests selected)')
+    await waitFor(() => expect(addButton()).toBeEnabled())
+    fireEvent.click(addButton())
+
+    expect(await within(panel()).findByText(/^Added 3 indicators/)).toHaveTextContent(
+      'Added 3 indicators. 1 indicator already existed.',
+    )
+    expect(sent).toEqual([
+      {
+        auth: `Bearer ${TOKEN}`,
+        body: {
+          indicators: [
+            { machine: 'linux', test: 'a', metric: 'execution_time' },
+            { machine: 'linux', test: 'b', metric: 'execution_time' },
+            { machine: 'macos', test: 'a', metric: 'execution_time' },
+            { machine: 'macos', test: 'b', metric: 'execution_time' },
+          ],
+        },
+      },
+    ])
+    // The tests added are deselected, and the table shows what the API answered.
+    expect(list('Tests')).toHaveTextContent('(0 of 3 tests selected)')
+    expect(rowsOf(await table('Indicators'))).toHaveLength(3)
+  })
+
+  it('keeps what its filter hides selected, and says so', async () => {
+    mockMachineTests()
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('a')
+
+    search('Filter tests', 'b')
+
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['b']))
+    expect(list('Tests')).toHaveTextContent('(1 of 2 tests selected, 1 hidden by the filter)')
+    expect(preview()).toHaveTextContent('This will add 1 indicator.')
+  })
+
+  it('deselects the tests no longer offered, once the tests are listed', async () => {
+    mockMachineTests()
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('macos')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'c']))
+    await pick('a', 'c')
+
+    await pick('linux', 'macos')
+
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    expect(list('Tests')).toHaveTextContent('(1 of 2 tests selected)')
+    expect(checkbox('a')).toBeChecked()
+  })
+
+  it('selects a range of tests with Shift held, and every test shown at once', async () => {
+    mockMachineTests({ linux: ['a', 'b', 'c', 'd'] })
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toHaveLength(4))
+    const user = userEvent.setup()
+
+    await user.click(checkbox('a'))
+    await user.keyboard('{Shift>}')
+    await user.click(checkbox('c'))
+    await user.keyboard('{/Shift}')
+    expect(list('Tests')).toHaveTextContent('(3 of 4 tests selected)')
+
+    await user.click(checkbox('Select all tests shown'))
+    expect(list('Tests')).toHaveTextContent('(4 of 4 tests selected)')
+  })
+
+  it('cannot add while the tests are not all listed, and offers to list them again', async () => {
+    signIn('triage')
+    let fail = true
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/tests', ({ request }) => {
+        const machine = new URL(request.url).searchParams.get('machine')!
+        if (machine === 'linux' && fail) return errorResponse(500, 'internal_error', 'Boom')
+        return HttpResponse.json(cursorPage(TESTS[machine].map((name) => ({ name }))))
+      }),
+    )
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('macos')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'c']))
+    await pick('c', 'linux', 'macos')
+
+    expect(await within(list('Tests')).findByRole('alert')).toHaveTextContent('Boom')
+    expect(addButton()).toBeDisabled()
+    expect(addButton()).toHaveAttribute('title', 'The tests are not listed yet.')
+    // What was selected stays selected, since no list shows that it is no longer offered.
+    expect(preview()).toHaveTextContent('This will add 1 indicator.')
+
+    fail = false
+    fireEvent.click(within(list('Tests')).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    // Now listed, the tests show that `c` is not offered on linux.
+    expect(list('Tests')).toHaveTextContent('(0 of 2 tests selected)')
+    expect(preview()).toHaveTextContent('This will add 0 indicators.')
+  })
+
+  it('cannot add more indicators than one request can carry', async () => {
+    signIn('triage')
+    // 11 machines and 910 tests: 10010 indicators.
+    const machines = Array.from({ length: 11 }, (_, i) => `m${String(i).padStart(2, '0')}`)
+    const names = Array.from({ length: 910 }, (_, i) => `t${String(i).padStart(3, '0')}`)
+    mockMachineTests(Object.fromEntries(machines.map((name) => [name, names])))
+    renderRegression({ machines })
+    await waitFor(() => expect(namesIn('Machines')).toHaveLength(11))
+
+    fireEvent.click(checkbox('Select all machines shown'))
+    await waitFor(() => expect(list('Tests')).toHaveTextContent('of 910 tests'))
+    fireEvent.click(checkbox('Select all tests shown'))
+
+    expect(preview()).toHaveTextContent(
+      'This will add 10010 indicators, more than the 10000 one request can carry.',
+    )
+    await waitFor(() =>
+      expect(addButton()).toHaveAttribute('title', expect.stringMatching(/at most 10000/)),
+    )
+    expect(addButton()).toBeDisabled()
+  })
+
+  it('cannot add without triage scope, but can be browsed', async () => {
+    signIn('submit')
+    mockMachineTests()
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('a')
+
+    await waitFor(() =>
+      expect(addButton()).toHaveAttribute('title', expect.stringMatching(/'triage' scope/)),
+    )
+    expect(addButton()).toBeDisabled()
+  })
+
+  it('says why a suite offers nothing to add', async () => {
+    renderRegression({ suites: [{ ...SUITE, metrics: [] }], machines: [] })
+
+    await screen.findByRole('region', { name: 'Add indicators' })
+    expect(await within(panel()).findByText('This suite has no machines.')).toBeInTheDocument()
+    expect(list('Tests')).toHaveTextContent('This suite has no metrics.')
+    expect(within(panel()).queryByRole('button', { name: /Metric$/ })).not.toBeInTheDocument()
+  })
+})
+
+/** A suite with a metric that is not numeric, as well as `SUITE`'s. */
+const WITH_TEXT: SuiteSchema = {
+  ...SUITE,
+  metrics: [
+    ...SUITE.metrics,
+    {
+      name: 'status',
+      type: 'text',
+      display_name: 'Status',
+      unit: null,
+      unit_abbrev: null,
+      bigger_is_better: false,
+    },
+  ],
+}
+
+/** Indicators on two machines, two tests and two metrics, oldest first. */
+const INDICATORS: Schemas['Indicator'][] = [
+  { uuid: uuidOf('1'), machine: 'linux', test: 'BM_find', metric: 'execution_time' },
+  { uuid: uuidOf('2'), machine: 'linux', test: 'BM_sort', metric: 'execution_time' },
+  { uuid: uuidOf('3'), machine: 'macos', test: 'BM_find', metric: 'execution_time' },
+  { uuid: uuidOf('4'), machine: 'macos', test: 'BM_find', metric: 'status' },
+]
+const WITH_INDICATORS = { ...DETAIL, indicators: INDICATORS }
+
+const removeButton = (row: string) => screen.getByRole('button', { name: `Remove ${row}` })
+
+describe('the Indicators table', () => {
+  it('lists the indicators, oldest first, with links to their machine and the Graph page', async () => {
+    renderRegression({ detail: WITH_INDICATORS, suites: [WITH_TEXT] })
+
+    const indicators = await table('Indicators')
+    expect(screen.getByRole('heading', { level: 2, name: /^Indicators/ })).toHaveTextContent(
+      'Indicators (2 tests across 2 machines across 2 metrics)',
+    )
+    expect(rowsOf(indicators)).toEqual([
+      ' | linux | BM_find | Execution Time | View on graph | ×',
+      ' | linux | BM_sort | Execution Time | View on graph | ×',
+      ' | macos | BM_find | Execution Time | View on graph | ×',
+      ' | macos | BM_find | Status | View on graph | ×',
+    ])
+    expect(within(indicators).getAllByRole('link', { name: 'linux' })[0]).toHaveAttribute(
+      'href',
+      '/suites/libcxx/machines/linux',
+    )
+    const graphs = within(indicators).getAllByRole('link', { name: 'View on graph' })
+    expect(graphs[1]).toHaveAttribute(
+      'href',
+      '/graph?suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+    )
+    // The Graph page plots only numeric metrics.
+    expect(graphs[3]).not.toHaveAttribute('href')
+    expect(graphs[3]).toHaveAttribute('aria-disabled', 'true')
+    expect(graphs[3]).toHaveAttribute('title', 'The Graph page only plots numeric metrics.')
+  })
+
+  it('says when there are none, with no filter', async () => {
+    renderRegression({ detail: { ...DETAIL, indicators: [] } })
+
+    expect(await screen.findByText('This regression has no indicators.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Indicators' })).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox', { name: 'Filter indicators' })).not.toBeInTheDocument()
+  })
+
+  it('is filtered by machine, test or metric label, kept in the URL', async () => {
+    renderRegression({ detail: WITH_INDICATORS, suites: [WITH_TEXT] })
+    const indicators = await table('Indicators')
+
+    search('Filter indicators', 'status')
+
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(1))
+    expect(screen.getByRole('heading', { level: 2, name: /^Indicators/ })).toHaveTextContent(
+      'Indicators (showing 1 of 2 tests across 1 of 2 machines across 1 of 2 metrics)',
+    )
+    await waitFor(() => expect(currentUrl()).toBe(`${PAGE}?indicator_filter=status`))
+  })
+
+  it('deselects the rows its filter hides', async () => {
+    signIn('triage')
+    renderRegression({ detail: WITH_INDICATORS })
+    await table('Indicators')
+    fireEvent.click(checkbox('Select all indicators shown'))
+    expect(screen.getByRole('button', { name: 'Remove 4 selected' })).toBeInTheDocument()
+
+    search('Filter indicators', 'macos')
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Remove 2 selected' })).toBeInTheDocument(),
+    )
+  })
+
+  it('removes one indicator, then focuses the remove button of the row in its place', async () => {
+    signIn('triage')
+    const sent = mockSent('delete', `${ROUTE}/indicators`, ({ indicator_uuids }) =>
+      HttpResponse.json({
+        removed: 1,
+        indicators: INDICATORS.filter((indicator) => !indicator_uuids.includes(indicator.uuid)),
+      }),
+    )
+    renderRegression({ detail: WITH_INDICATORS })
+    const indicators = await table('Indicators')
+    const row = 'linux, BM_sort, Execution Time'
+    await waitFor(() => expect(removeButton(row)).toBeEnabled())
+
+    fireEvent.click(removeButton(row))
+
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(3))
+    expect(sent.map(({ body }) => body)).toEqual([{ indicator_uuids: [uuidOf('2')] }])
+    await waitFor(() => expect(removeButton('macos, BM_find, Execution Time')).toHaveFocus())
+  })
+
+  it('focuses the row before the last one removed, and the table once none is left', async () => {
+    signIn('triage')
+    let stored = INDICATORS.slice(2)
+    mockSent('delete', `${ROUTE}/indicators`, ({ indicator_uuids }) => {
+      stored = stored.filter((indicator) => !indicator_uuids.includes(indicator.uuid))
+      return HttpResponse.json({ removed: 1, indicators: stored })
+    })
+    renderRegression({ detail: { ...DETAIL, indicators: stored }, suites: [WITH_TEXT] })
+    const indicators = await table('Indicators')
+    await waitFor(() => expect(removeButton('macos, BM_find, Status')).toBeEnabled())
+
+    // The last row: the row before it takes the focus.
+    fireEvent.click(removeButton('macos, BM_find, Status'))
+    await waitFor(() => expect(removeButton('macos, BM_find, Execution Time')).toHaveFocus())
+
+    fireEvent.click(removeButton('macos, BM_find, Execution Time'))
+    await waitFor(() => expect(indicators).toHaveFocus())
+  })
+
+  it('removes the indicators selected, a range of them selected with Shift', async () => {
+    signIn('triage')
+    const sent = mockSent('delete', `${ROUTE}/indicators`, ({ indicator_uuids }) =>
+      HttpResponse.json({
+        removed: indicator_uuids.length,
+        indicators: INDICATORS.filter((indicator) => !indicator_uuids.includes(indicator.uuid)),
+      }),
+    )
+    renderRegression({ detail: WITH_INDICATORS, suites: [WITH_TEXT] })
+    const indicators = await table('Indicators')
+    const user = userEvent.setup()
+
+    await user.click(checkbox('Select linux, BM_sort, Execution Time'))
+    await user.keyboard('{Shift>}')
+    await user.click(checkbox('Select macos, BM_find, Status'))
+    await user.keyboard('{/Shift}')
+    const removeSelected = screen.getByRole('button', { name: 'Remove 3 selected' })
+    await waitFor(() => expect(removeSelected).toBeEnabled())
+    fireEvent.click(removeSelected)
+
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(1))
+    expect(sent.map(({ body }) => body)).toEqual([
+      { indicator_uuids: [uuidOf('2'), uuidOf('3'), uuidOf('4')] },
+    ])
+    expect(screen.getByRole('button', { name: 'Remove selected' })).toBeDisabled()
+    await waitFor(() => expect(indicators).toHaveFocus())
+  })
+
+  it('cannot remove without triage scope, and says why', async () => {
+    signIn('submit')
+    renderRegression({ detail: WITH_INDICATORS })
+    await table('Indicators')
+    fireEvent.click(checkbox('Select all indicators shown'))
+
+    for (const button of [
+      removeButton('linux, BM_find, Execution Time'),
+      screen.getByRole('button', { name: 'Remove 4 selected' }),
+    ]) {
+      await waitFor(() =>
+        expect(button).toHaveAttribute('title', expect.stringMatching(/'triage' scope/)),
+      )
+      expect(button).toBeDisabled()
+    }
+  })
+
+  it('drops its filter from the URL when the regression has no indicators', async () => {
+    renderRegression({ detail: { ...DETAIL, indicators: [] }, url: `${PAGE}?indicator_filter=x` })
+
+    await screen.findByText('This regression has no indicators.')
+    await waitFor(() => expect(currentUrl()).toBe(PAGE))
   })
 })
