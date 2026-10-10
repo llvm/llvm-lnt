@@ -211,13 +211,13 @@ describe('the Regression Detail page', () => {
       stateButton(),
       deleteButton(),
     ]
+    const why = /'triage' scope.*has the 'submit' scope/
     for (const control of controls) {
       await waitFor(() => expect(control).toBeDisabled())
-      expect(control.closest('[title]')).toHaveAttribute(
-        'title',
-        expect.stringMatching(/'triage' scope.*has the 'submit' scope/),
-      )
+      expect(control.closest('[title]')).toHaveAttribute('title', expect.stringMatching(why))
     }
+    // The dropdown's reason is not on the button itself, so it is given as its description.
+    expect(stateButton()).toHaveAccessibleDescription(why)
   })
 
   describe('its title, bug and notes', () => {
@@ -415,11 +415,12 @@ describe('the Regression Detail page', () => {
       await user.click(await screen.findByRole('option', { name: 'fixed' }))
 
       expect(sent).toEqual([{ body: { state: 'fixed' }, auth: `Bearer ${TOKEN}` }])
-      // Not optimistic, and a pick meanwhile is ignored.
+      // Not optimistic, and not opened meanwhile, though it keeps the focus.
       expect(stateButton()).toHaveTextContent('active')
+      expect(stateButton()).toHaveAttribute('aria-disabled', 'true')
+      expect(stateButton()).not.toBeDisabled()
       await user.click(stateButton())
-      await user.click(await screen.findByRole('option', { name: 'detected' }))
-      expect(stateButton()).toBeEnabled()
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
       act(() => answer.open())
       await waitFor(() => expect(stateButton()).toHaveTextContent('fixed'))
       expect(sent).toHaveLength(1)

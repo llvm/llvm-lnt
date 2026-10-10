@@ -121,6 +121,19 @@ describe('Select', () => {
     expect(selectButton('Metric')).toBeInTheDocument()
     expect(screen.getByText('Metric').closest('[style]')).toHaveStyle({ position: 'absolute' })
     expect(selectButton('Metric').closest('[title]')).toHaveAttribute('title', 'Needs a token.')
+    expect(selectButton('Metric')).toHaveAccessibleDescription('Needs a token.')
+  })
+
+  it('cannot be opened while pending, but can take the focus', async () => {
+    render(<Select label="Metric" options={OPTIONS} value="" onChange={() => {}} isPending />)
+    const user = userEvent.setup()
+
+    await user.click(selectButton('Metric'))
+    await user.keyboard('{ArrowDown}')
+
+    expect(selectButton('Metric')).toHaveFocus()
+    expect(selectButton('Metric')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('opens nothing while disabled', async () => {

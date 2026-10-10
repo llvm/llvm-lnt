@@ -105,7 +105,8 @@ test('every field is edited by a holder of triage scope', async ({
     await notes.pressSequentially('Only on m1.')
     await notes.press('ControlOrMeta+Enter')
     await expect(notes).toHaveCount(0)
-    await expect(info(page)).toContainText('Bisected.\nOnly on m1.')
+    // Shown with its line break: the rendered text keeps it, unlike the text content.
+    expect(await info(page).innerText()).toContain('Bisected.\nOnly on m1.')
 
     const stored = await json<RegressionDetail>(request, `/api/suites/${suite}/regressions/${uuid}`)
     expect(stored).toMatchObject({

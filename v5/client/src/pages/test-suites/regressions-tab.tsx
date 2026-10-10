@@ -106,8 +106,8 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   const remove = useMutation({
     mutationFn: (regression: Regression) => deleteRegression(suite, regression.uuid),
     onSuccess: async () => {
-      // What no page shows, such as the regression's detail, is not to show it again (AR2
-      // "Deletions").
+      // Drop what no page shows, such as the regression's detail, so that it is not shown again
+      // (AR2 "Deletions").
       queryClient.removeQueries({ queryKey: queryKeys.regressions(suite), type: 'inactive' })
       await queryClient.invalidateQueries({ queryKey: queryKeys.regressions(suite) })
       setDeleting(null)

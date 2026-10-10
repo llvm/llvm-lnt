@@ -81,11 +81,10 @@ export function useRegression(suite: string, uuid: string, { fetch = true } = {}
 
 /**
  * Store what a change to the regression `uuid` returned, applied by `change` to the regression as
- * stored when the answer arrives, and mark stale what shows the suite's regressions elsewhere --
- * lists, with their titles, states, commits and counts -- to be fetched again when next shown.
- *
- * Each answer changes only what its request changed: a change to the regression's fields returns
- * its indicators too, which a change to them made since must not be undone.
+ * stored -- an answer may hold only part of it, such as its indicators -- and mark stale what shows
+ * the suite's regressions elsewhere -- lists, with their titles, states, commits and counts -- to
+ * be fetched again when next shown. The changes run one after the other (see `regressionScope`),
+ * so that each answer is to a request made after the previous one was answered.
  */
 export async function regressionChanged(
   queryClient: QueryClient,

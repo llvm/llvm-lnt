@@ -1,10 +1,11 @@
-import { useRef } from 'react'
+import { useId, useRef } from 'react'
 import {
   Button,
   ListBox,
   ListBoxItem,
   Select as AriaSelect,
   SelectValue,
+  VisuallyHidden,
 } from 'react-aria-components'
 import { FieldLabel } from './field-label'
 import { Popover } from './popover'
@@ -23,8 +24,13 @@ interface Props<Value extends string> {
   value: Value
   onChange(value: NoInfer<Value>): void
   isDisabled?: boolean
-  /** Shown on hover, such as why the dropdown is disabled (see `useScopeGate`). */
+  /**
+   * Why the dropdown is disabled (see `useScopeGate`), shown on hover and given to assistive
+   * technology.
+   */
   title?: string
+  /** A change is under way: the dropdown cannot be opened, but keeps the focus. */
+  isPending?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
   /**
@@ -48,9 +54,11 @@ export function Select<Value extends string>({
   onChange,
   isDisabled,
   title,
+  isPending,
   hideLabel,
   listPicksOnly,
 }: Props<Value>) {
+  const titleId = useId()
   // Whether the list is open. React Aria reports a pick before it closes the list.
   const open = useRef(false)
   return (
@@ -69,10 +77,15 @@ export function Select<Value extends string>({
         isDisabled={isDisabled}
       >
         <FieldLabel label={label} hidden={hideLabel} />
-        <Button className={styles.button}>
+        <Button
+          className={styles.button}
+          isPending={isPending}
+          aria-describedby={title === undefined ? undefined : titleId}
+        >
           <SelectValue />
           <span aria-hidden="true">▾</span>
         </Button>
+        {title !== undefined && <VisuallyHidden id={titleId}>{title}</VisuallyHidden>}
         <Popover className={shared.popover} maxHeight={320}>
           <ListBox className={shared.list} items={options}>
             {(option) => (

@@ -82,12 +82,7 @@ function useUpdateRegression(suite: string, uuid: string) {
           body,
         }),
       ),
-    // A PATCH does not touch the indicators (E8): those stored are kept.
-    onSuccess: (updated) =>
-      regressionChanged(queryClient, suite, uuid, (stored) => ({
-        ...updated,
-        indicators: stored.indicators,
-      })),
+    onSuccess: (updated) => regressionChanged(queryClient, suite, uuid, () => updated),
   })
 }
 
@@ -179,12 +174,13 @@ function StateRow({ suite, regression }: { suite: string; regression: Regression
           hideLabel
           options={STATE_OPTIONS}
           value={regression.state}
-          // Not optimistic: the dropdown shows the state the API holds. A pick made while a change
-          // is under way is ignored, rather than the dropdown disabled, which would lose the focus.
+          // Not optimistic: the dropdown shows the state the API holds. While a change is under
+          // way, it cannot be opened, but is not disabled either, which would lose the focus.
           onChange={(state) => {
             if (!update.isPending) update.mutate({ state })
           }}
           listPicksOnly
+          isPending={update.isPending}
           isDisabled={triage.disabled}
           title={triage.title}
         />

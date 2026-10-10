@@ -19,7 +19,10 @@ import { server } from './server'
 export type Page<Item> = ReturnType<typeof cursorPage<Item>>
 export type Respond<Body> = (query: URLSearchParams) => Body | Promise<Body>
 
-/** The app at `url`, with the URL it is at shown, as `currentUrl` reads it, and a Back button. */
+/**
+ * The app at `url`, with the URL it is at shown, as `currentUrl` reads it, and Back and Forward
+ * buttons.
+ */
 export function renderPage(url: string) {
   function ShowUrl() {
     const { pathname, search } = useLocation()
@@ -28,6 +31,7 @@ export function renderPage(url: string) {
       <>
         <output data-testid="url">{pathname + search}</output>
         <button onClick={() => navigate(-1)}>Browser back</button>
+        <button onClick={() => navigate(1)}>Browser forward</button>
       </>
     )
   }

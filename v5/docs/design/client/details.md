@@ -49,12 +49,13 @@ may take a while for machines with many runs.
 
 ### Tracked toggle
 
-The info box shows a `Tracked` checkbox reflecting the machine's `tracked`
-flag. Toggling it issues `PATCH /machines/{name}`, which saves it at once (see
-"Controls saving on change" in AR2), and requires `manage` scope. Unchecking it excludes the machine from the Dashboard's trend overview -- it
-stays fully available in Graph, Compare, Profiles, and every listing. The label
-carries a help tooltip saying so, and makes clear that the flag is not a
-lifetime policy: untracked machines are kept indefinitely.
+The info box shows a `Tracked` checkbox reflecting the machine's `tracked` flag.
+Toggling it issues `PATCH /machines/{name}`, which saves it at once (see
+"Controls saving on change" in AR2), and requires `manage` scope. Unchecking it
+excludes the machine from the Dashboard's trend overview -- it stays fully
+available in Graph, Compare, Profiles, and every listing. The label carries a
+help tooltip saying so, and makes clear that the flag is not a lifetime policy:
+untracked machines are kept indefinitely.
 
 ### Active regressions table
 

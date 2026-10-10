@@ -576,6 +576,43 @@ describe('deleting a regression', () => {
     expect(checks).toHaveLength(1)
   })
 
+  it('does not show it again from what was read of it before (AR2 "Deletions")', async () => {
+    const { markDeleted } = await openPrompt()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    let deleted = false
+    const answer = gate()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/regressions/{uuid}', async () => {
+        if (!deleted) return HttpResponse.json(regressionDetail('5', { title: 'slow' }))
+        await answer.promise
+        return errorResponse(404, 'not_found', 'Regression not found')
+      }),
+      mockApi('delete', '/api/suites/{testsuite}/regressions/{uuid}', () => {
+        deleted = true
+        markDeleted()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    // Its detail is read by a page that is then left.
+    fireEvent.click(screen.getByRole('link', { name: 'slow' }))
+    await screen.findByRole('group', { name: 'Regression' })
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    const button = within(await table('Regressions')).getByRole('button', { name: /Delete/ })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
+    const prompt = screen.getByRole('form', { name: 'Confirmation' })
+    fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: '55555555' } })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Delete' }))
+    await screen.findByText('No regressions yet.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser forward' }))
+
+    expect(await screen.findByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Regression' })).not.toBeInTheDocument()
+    act(() => answer.open())
+    expect(await screen.findByRole('alert')).toHaveTextContent('Regression not found')
+  })
+
   it('reports a refusal in the prompt, which stays open', async () => {
     await openPrompt()
     server.use(

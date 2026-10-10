@@ -121,7 +121,8 @@ export function InlineEdit({
   // cancelling -- except while the editor has a popup expanded, such as a combobox's list, which
   // the Escape closes instead.
   const onKeyDownCapture = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape') return
+    // An Escape ending an input method's composition belongs to it.
+    if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
     if ((event.target as Element).getAttribute('aria-expanded') === 'true') return
     if (!saving) close()
   }
@@ -168,7 +169,8 @@ export function InlineEdit({
         rows={5}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) void save(event)
+          if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+          if (event.ctrlKey || event.metaKey) void save(event)
         }}
       />
     )
@@ -194,7 +196,7 @@ export function InlineEdit({
           disabled={gate.disabled || reason !== undefined}
           aria-disabled={busy}
           title={gate.title ?? reason}
-          aria-describedby={pending ? pendingId : undefined}
+          aria-describedby={pending && pendingReason !== undefined ? pendingId : undefined}
           {...pendingGuard(pending)}
         >
           {saving ? 'Saving...' : 'Save'}
