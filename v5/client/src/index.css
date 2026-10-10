@@ -43,6 +43,9 @@
   /* Borders */
   --lnt-radius: 4px;
 
+  /* Identifiers, such as a commit string or a UUID */
+  --lnt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   color: var(--lnt-fg);

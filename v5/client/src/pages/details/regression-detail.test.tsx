@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import { formatTimestamp } from '../../format'
@@ -38,6 +38,12 @@ import {
 } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
+
+// So that the tests of the batch limit need not render ten thousand rows.
+vi.mock('../../api/regressions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/regressions')>()),
+  INDICATOR_BATCH: 5,
+}))
 
 const UUID = uuidOf('a')
 const PAGE = `/suites/libcxx/regressions/${UUID}`
@@ -249,16 +255,29 @@ describe('the Regression Detail page', () => {
       expect(sent).toEqual([{ body: { title: 'memchr slowdown' }, auth: `Bearer ${TOKEN}` }])
     })
 
-    it('are cleared when emptied', async () => {
+    it('are cleared when emptied, the heading falling back to the UUID', async () => {
       signIn('triage')
-      const sent = mockSent('patch', ROUTE, (body) => HttpResponse.json(patched(body)))
+      let stored = DETAIL
+      const sent = mockSent('patch', ROUTE, (body) => {
+        stored = patched(body, stored)
+        return HttpResponse.json(stored)
+      })
       renderRegression()
       await ready('Regression', () => editButton('Bug'))
 
       save('Bug', '  ')
-
       await expectRow('Bug', '--Edit')
-      expect(sent.map(({ body }) => body)).toEqual([{ bug: null }])
+      save('Title', '')
+      await expectRow('Title', '--Edit')
+      save('Notes', '')
+      await expectRow('Notes', '--Edit')
+
+      expect(heading()).toHaveTextContent('Regression: aaaaaaaa…')
+      expect(sent.map(({ body }) => body)).toEqual([
+        { bug: null },
+        { title: null },
+        { notes: null },
+      ])
     })
 
     it('are bounded in length, as the API bounds the title and the bug', async () => {
@@ -608,6 +627,9 @@ describe('the Add indicators panel', () => {
     )
     renderRegression()
     await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await waitFor(() =>
+      expect(addButton()).toHaveAttribute('title', 'Select one or more machines and tests first.'),
+    )
 
     await pick('linux', 'macos')
     await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b', 'c']))
@@ -674,6 +696,29 @@ describe('the Add indicators panel', () => {
 
     await waitFor(() => expect(namesIn('Tests')).toEqual(['b']))
     expect(list('Tests')).toHaveTextContent('(1 of 2 tests selected, 1 hidden by the filter)')
+    expect(preview()).toHaveTextContent('This will add 1 indicator.')
+
+    search('Filter tests', 'zzz')
+    expect(await within(list('Tests')).findByText('No tests match the filter.')).toBeInTheDocument()
+  })
+
+  it('reports an addition the API refuses, keeping what is selected', async () => {
+    signIn('triage')
+    mockMachineTests()
+    mockSent('post', `${ROUTE}/indicators`, () =>
+      errorResponse(404, 'not_found', "Machine 'linux' not found in test suite 'libcxx'"),
+    )
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('a')
+    await waitFor(() => expect(addButton()).toBeEnabled())
+
+    fireEvent.click(addButton())
+
+    expect(await within(panel()).findByRole('alert')).toHaveTextContent("Machine 'linux' not found")
+    expect(checkbox('a')).toBeChecked()
     expect(preview()).toHaveTextContent('This will add 1 indicator.')
   })
 
@@ -803,24 +848,30 @@ describe('the Add indicators panel', () => {
 
   it('cannot add more indicators than one request can carry', async () => {
     signIn('triage')
-    // 11 machines and 910 tests: 10010 indicators.
-    const machines = Array.from({ length: 11 }, (_, i) => `m${String(i).padStart(2, '0')}`)
-    const names = Array.from({ length: 910 }, (_, i) => `t${String(i).padStart(3, '0')}`)
-    mockMachineTests(Object.fromEntries(machines.map((name) => [name, names])))
-    renderRegression({ machines })
-    await waitFor(() => expect(namesIn('Machines')).toHaveLength(11))
-
-    fireEvent.click(checkbox('Select all machines shown'))
-    await waitFor(() => expect(list('Tests')).toHaveTextContent('of 910 tests'))
+    // The 5 mocked above, then 10.
+    const names = ['a', 'b', 'c', 'd', 'e']
+    mockMachineTests({ linux: names, macos: names })
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(names))
     fireEvent.click(checkbox('Select all tests shown'))
 
-    expect(preview()).toHaveTextContent(
-      'This will add 10010 indicators, more than the 10000 one request can carry.',
-    )
+    expect(preview()).toHaveTextContent('This will add 5 indicators.')
+    await waitFor(() => expect(addButton()).toBeEnabled())
+    expect(addButton()).not.toHaveAttribute('title')
+
+    await pick('macos')
     await waitFor(() =>
-      expect(addButton()).toHaveAttribute('title', expect.stringMatching(/at most 10000/)),
+      expect(preview()).toHaveTextContent(
+        'This will add 10 indicators, more than the 5 one request can carry.',
+      ),
     )
     expect(addButton()).toBeDisabled()
+    expect(addButton()).toHaveAttribute(
+      'title',
+      'One request can add at most 5 indicators: select fewer.',
+    )
   })
 
   it('cannot add without triage scope, but can be browsed', async () => {
@@ -924,6 +975,58 @@ describe('the Indicators table', () => {
       'Indicators (showing 1 of 2 tests across 1 of 2 machines across 1 of 2 metrics)',
     )
     await waitFor(() => expect(currentUrl()).toBe(`${PAGE}?indicator_filter=status`))
+  })
+
+  it('is filtered from the URL when the page loads', async () => {
+    renderRegression({
+      detail: WITH_INDICATORS,
+      suites: [WITH_TEXT],
+      url: `${PAGE}?indicator_filter=status`,
+    })
+
+    const indicators = await table('Indicators')
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(1))
+    expect(screen.getByRole('searchbox', { name: 'Filter indicators' })).toHaveValue('status')
+  })
+
+  it('cannot remove more indicators than one request can carry', async () => {
+    signIn('triage')
+    // 6 indicators: the 5 mocked above, then one more.
+    const indicators = [
+      ...INDICATORS,
+      { uuid: uuidOf('5'), machine: 'linux', test: 'BM_copy', metric: 'execution_time' },
+      { uuid: uuidOf('6'), machine: 'macos', test: 'BM_copy', metric: 'execution_time' },
+    ]
+    renderRegression({ detail: { ...DETAIL, indicators } })
+    await table('Indicators')
+    fireEvent.click(checkbox('Select all indicators shown'))
+    fireEvent.click(checkbox('Select macos, BM_copy, Execution Time'))
+
+    const fiveSelected = screen.getByRole('button', { name: 'Remove 5 selected' })
+    await waitFor(() => expect(fiveSelected).toBeEnabled())
+    expect(fiveSelected).not.toHaveAttribute('title')
+
+    fireEvent.click(checkbox('Select macos, BM_copy, Execution Time'))
+    const sixSelected = screen.getByRole('button', { name: 'Remove 6 selected' })
+    expect(sixSelected).toBeDisabled()
+    expect(sixSelected).toHaveAttribute(
+      'title',
+      'One request can remove at most 5 indicators: select fewer.',
+    )
+  })
+
+  it('reports a removal the API refuses, keeping the indicator', async () => {
+    signIn('triage')
+    mockSent('delete', `${ROUTE}/indicators`, () => errorResponse(403, 'forbidden', 'No'))
+    renderRegression({ detail: WITH_INDICATORS })
+    const indicators = await table('Indicators')
+    await waitFor(() => expect(removeButton('linux, BM_find, Execution Time')).toBeEnabled())
+
+    fireEvent.click(removeButton('linux, BM_find, Execution Time'))
+
+    const section = within(screen.getByRole('region', { name: 'Indicators' }))
+    expect(await section.findByRole('alert')).toHaveTextContent('Permission denied')
+    expect(rowsOf(indicators)).toHaveLength(4)
   })
 
   it('deselects the rows its filter hides', async () => {

@@ -149,7 +149,9 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
   const manage = useScopeGate('manage')
   return (
     <InfoBox label="Commit">
-      <InfoRow label="Commit">{commit.value}</InfoRow>
+      <InfoRow label="Commit" mono>
+        {commit.value}
+      </InfoRow>
       <InfoRow label="Ordinal">
         <InlineEdit
           label="Ordinal"

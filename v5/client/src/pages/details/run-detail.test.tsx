@@ -137,6 +137,10 @@ describe('the Run Detail page', () => {
       'href',
       '/suites/libcxx/commits/abc123',
     )
+    // The UUID is an identifier, set as a table sets one; the commit's display value is not.
+    const info = within(screen.getByRole('group', { name: 'Run' }))
+    expect(info.getByText(UUID)).toHaveClass('mono')
+    expect(info.getByText('r100 (v1)').closest('dd')).not.toHaveClass('mono')
   })
 
   it('shows only the error for a run that does not exist', async () => {

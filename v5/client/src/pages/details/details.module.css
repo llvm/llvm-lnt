@@ -98,6 +98,9 @@
   top: 0;
   z-index: 1;
   background: var(--lnt-bg);
+  /* A collapsed border stays behind with the first row, so the line is drawn as a shadow. */
+  border-bottom-color: transparent;
+  box-shadow: inset 0 -1px 0 var(--lnt-border-strong);
 }
 
 /* The header and five rows of about 2.4rem each, when no name spans two lines. */

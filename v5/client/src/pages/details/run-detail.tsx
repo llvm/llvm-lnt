@@ -117,7 +117,9 @@ function RunInfo({ schema, run }: { schema: SuiteSchema; run: Run }) {
   const parameters = Object.entries(run.run_parameters).sort(([a], [b]) => compareStrings(a, b))
   return (
     <InfoBox label="Run">
-      <InfoRow label="UUID">{run.uuid}</InfoRow>
+      <InfoRow label="UUID" mono>
+        {run.uuid}
+      </InfoRow>
       <InfoRow label="Machine">
         <Link to={machinePath(suite, run.machine)}>{run.machine}</Link>
       </InfoRow>
