@@ -312,17 +312,25 @@ describe('the Commit Detail page', () => {
       expect(link('Next commit →')).not.toHaveAttribute('href')
     })
 
-    it('do not accept an ordinal that is not a whole number', async () => {
+    it('do not accept an ordinal that is not an integer its column can hold', async () => {
       signIn('manage')
       const sent = mockPatch((body) => HttpResponse.json(patched(body)))
       renderCommit()
       await ready('Commit', () => editButton('Ordinal'))
-
       save('Ordinal', '4.5')
-
       const input = screen.getByRole('textbox', { name: 'Ordinal' })
-      expect(input).toHaveAccessibleDescription('An ordinal is a whole number.')
+      const why = 'An ordinal is an integer from -2147483648 to 2147483647.'
+
+      // Long enough, a number becomes Infinity, which a request would send as null.
+      for (const text of ['4.5', '1e3', '2147483648', '-2147483649', '9'.repeat(400)]) {
+        fireEvent.change(input, { target: { value: text } })
+        fireEvent.submit(input)
+        expect(input).toHaveAccessibleDescription(why)
+      }
       expect(sent).toEqual([])
+
+      fireEvent.change(input, { target: { value: '-2147483648' } })
+      expect(input).not.toHaveAccessibleDescription(why)
     })
 
     it('are cleared when emptied', async () => {

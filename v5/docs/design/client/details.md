@@ -209,8 +209,8 @@ etc...
 The page header and the `Commit` row show the commit string itself rather than its
 display value. The various commit fields are displayed prominently. The ordinal and the
 tag are edited in place (see "Inline editing" in AR2) through `PATCH /commits/{value}`,
-which requires `manage` scope. Emptying either clears it. An ordinal is a whole number:
-any other text is invalid (see "Invalid input" in AR2).
+which requires `manage` scope. Emptying either clears it. An ordinal is an integer that its
+column can hold (see D3 and D5): any other text is invalid (see "Invalid input" in AR2).
 
 ### Navigation
 

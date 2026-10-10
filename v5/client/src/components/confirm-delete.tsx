@@ -6,7 +6,10 @@ import styles from './confirm-delete.module.css'
 interface Props {
   /** What is about to happen, and what it destroys. */
   children: ReactNode
-  /** The text to type to confirm (AR2 "Deletions"): a name, or the first 8 characters of a UUID. */
+  /**
+   * The text to type to confirm (AR2 "Deletions"): a name, a commit string, or the first 8
+   * characters of a UUID.
+   */
   expected: string
   /** The confirming button's label. */
   confirmLabel?: string

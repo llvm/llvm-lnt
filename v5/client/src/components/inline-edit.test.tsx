@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, PERMISSION_DENIED } from '../api/client'
@@ -104,6 +104,19 @@ describe('InlineEdit', () => {
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('leaves a value with surrounding spaces as it is, unless its text is edited', async () => {
+    const { onSave } = renderEditor({ value: ' v1 ' })
+
+    edit()
+    fireEvent.submit(input())
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+
+    edit(' v1')
+    fireEvent.submit(input())
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith('v1'))
   })
 
   it('is cancelled with Cancel or Escape, keeping the value, and focuses Edit', () => {

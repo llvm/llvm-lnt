@@ -129,9 +129,18 @@ function useUpdateCommit(suite: string, value: string) {
   return update.mutateAsync
 }
 
-/** Why `text` is not an ordinal, which is a whole number (DT3), if it is not. */
+/** The range of an ordinal: D5's INTEGER column. */
+const ORDINAL_MIN = -(2 ** 31)
+const ORDINAL_MAX = 2 ** 31 - 1
+
+/** Why `text` is not an ordinal, which is an integer its column can hold (DT3), if it is not. */
 function invalidOrdinal(text: string): string | undefined {
-  return /^-?\d+$/.test(text) ? undefined : 'An ordinal is a whole number.'
+  // Checked as digits first: `Number` reads more than an integer (`1e3`, `0x10`), and makes a
+  // long enough one `Infinity`, which a request would send as null, clearing the ordinal.
+  const ordinal = Number(text)
+  return /^-?\d+$/.test(text) && ordinal >= ORDINAL_MIN && ordinal <= ORDINAL_MAX
+    ? undefined
+    : `An ordinal is an integer from ${ORDINAL_MIN} to ${ORDINAL_MAX}.`
 }
 
 /** The commit, its ordinal and tag, which a holder of `manage` scope can edit, and its fields. */

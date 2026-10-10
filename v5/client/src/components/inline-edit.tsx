@@ -53,8 +53,9 @@ export function InlineEdit({ label, value, gate, invalid, maxLength, onSave }: P
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (saving || gate.disabled || reason !== undefined) return
-    // Nothing to change: no request.
-    if (term === (value ?? '')) return close()
+    // Nothing to change -- the text the input opened with, or the value itself -- so no request,
+    // which for a value stored with surrounding spaces would replace it with its trimmed form.
+    if (text === (value ?? '') || term === (value ?? '')) return close()
     setSaving(true)
     setError(null)
     try {
