@@ -213,3 +213,67 @@ test('indicators are added across machines, filtered and removed', async ({
     ])
   })
 })
+
+/**
+ * Tests measured on `m1` and `m2`, which share only `shared`, with a compile time on `m1` alone
+ * for `built`.
+ */
+const DIFFERENT: OwnRun[] = [
+  {
+    machine: 'm1',
+    commit: 'c1',
+    ordinal: 1,
+    tests: [
+      { name: 'shared', execution_time: 1 },
+      { name: 'only-m1', execution_time: 2 },
+      { name: 'built', execution_time: 3, compile_time: 4 },
+    ],
+  },
+  {
+    machine: 'm2',
+    commit: 'c2',
+    ordinal: 2,
+    tests: [
+      { name: 'shared', execution_time: 1 },
+      { name: 'only-m2', execution_time: 2 },
+    ],
+  },
+]
+
+test('the tests offered are those of the machines selected, on the metric selected', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, DIFFERENT, async (suite) => {
+    const token = await signIn(page, 'triage')
+    const uuid = await createRegression(request, suite, token, { title: 'Slow' })
+    await page.goto(`/suites/${suite}/regressions/${uuid}`)
+    const panel = page.getByRole('region', { name: 'Add indicators' })
+    const tests = panel.getByRole('table', { name: 'Tests' })
+    const names = () => rows(tests).allTextContents()
+
+    await panel.getByRole('checkbox', { name: 'm1', exact: true }).click()
+    await expect.poll(names).toEqual(['built', 'only-m1', 'shared'])
+    await panel.getByRole('checkbox', { name: 'm2', exact: true }).click()
+    await expect.poll(names).toEqual(['built', 'only-m1', 'only-m2', 'shared'])
+
+    // Only `built` has a compile time, on `m1`.
+    await pickOption(panel, 'Metric', 'compile_time')
+    await expect.poll(names).toEqual(['built'])
+    await tests.getByRole('checkbox', { name: 'built', exact: true }).click()
+    await panel.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(panel.getByText('Added 2 indicators.')).toBeVisible()
+
+    // The one on `m1` leads to the Graph page.
+    const indicators = table(page, 'Indicators')
+    await rows(indicators)
+      .filter({ hasText: 'm1' })
+      .getByRole('link', { name: 'View on graph' })
+      .click()
+    await expect(page).toHaveURL(
+      `/graph?suite=${suite}&machine=m1&metric=compile_time&test=built&regressions=all`,
+    )
+  })
+})

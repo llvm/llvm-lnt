@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
-import { authedApi, MAX_PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
-import { useRegressionMutation, withIndicators } from '../../api/regressions'
+import { authedApi, unwrap, type Schemas } from '../../api/client'
+import { INDICATOR_BATCH, useRegressionMutation, withIndicators } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate, type ScopeGate } from '../../auth/scope'
 import { DisabledLink } from '../../components/button-link'
@@ -153,7 +153,7 @@ export function RegressionIndicators({
   )
 
   const selected = selection.selected.size
-  const tooMany = selected > MAX_PAGE_SIZE
+  const tooMany = selected > INDICATOR_BATCH
   const totals = useMemo(() => counts(all), [all])
   const title = useMemo(
     () => heading(totals, filter.active ? counts(shown) : undefined),
@@ -176,7 +176,7 @@ export function RegressionIndicators({
             title={
               triage.title ??
               (tooMany
-                ? `One request can remove at most ${MAX_PAGE_SIZE} indicators: select fewer.`
+                ? `One request can remove at most ${INDICATOR_BATCH} indicators: select fewer.`
                 : undefined)
             }
             onClick={() => mutate({ uuids: [...selection.selected], focusNext: [] })}

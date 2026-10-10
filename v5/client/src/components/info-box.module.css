@@ -27,3 +27,7 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
+.mono {
+  composes: mono from './data-table.module.css';
+}

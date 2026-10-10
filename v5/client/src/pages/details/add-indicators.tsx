@@ -1,8 +1,8 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { authedApi, MAX_PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
+import { authedApi, unwrap, type Schemas } from '../../api/client'
 import { useMachineNames } from '../../api/machines'
-import { useRegressionMutation, withIndicators } from '../../api/regressions'
+import { INDICATOR_BATCH, useRegressionMutation, withIndicators } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { useScopeGate } from '../../auth/scope'
@@ -92,8 +92,8 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   else if (!machineNames.isSuccess) why = 'The machines are not listed yet.'
   else if (!testsKnown) why = 'The tests are not listed yet.'
   else if (count === 0) why = 'Select one or more machines and tests first.'
-  else if (count > MAX_PAGE_SIZE) {
-    why = `One request can add at most ${MAX_PAGE_SIZE} indicators: select fewer.`
+  else if (count > INDICATOR_BATCH) {
+    why = `One request can add at most ${INDICATOR_BATCH} indicators: select fewer.`
   }
 
   let machineStatus: ReactNode
@@ -146,7 +146,7 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
       <div className={styles.submit}>
         <span role="status">
           This will add {plural(count, 'indicator')}
-          {count > MAX_PAGE_SIZE && `, more than the ${MAX_PAGE_SIZE} one request can carry`}.
+          {count > INDICATOR_BATCH && `, more than the ${INDICATOR_BATCH} one request can carry`}.
         </span>
         <button
           type="button"

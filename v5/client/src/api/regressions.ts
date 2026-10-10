@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { api, authedApi, unwrap, type Schemas } from './client'
+import { api, authedApi, MAX_PAGE_SIZE, unwrap, type Schemas } from './client'
 import { withCommits } from './commits'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
@@ -12,6 +12,9 @@ type Indicator = Schemas['Indicator']
 
 /** E8's limit on a regression's title or bug (D5's column). */
 export const TEXT_LENGTH = 256
+
+/** The most indicators one request adds to or removes from a regression: I2's largest page (E8). */
+export const INDICATOR_BATCH = MAX_PAGE_SIZE
 
 /** One page of `GET /regressions` (E8). */
 export function fetchRegressions(suite: string, query: RegressionListQuery, signal?: AbortSignal) {

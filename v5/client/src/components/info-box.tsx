@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import clsx from 'clsx'
 import styles from './info-box.module.css'
 
 /**
@@ -14,11 +15,18 @@ export function InfoBox({ label, children }: { label: string; children: ReactNod
   )
 }
 
-export function InfoRow({ label, children }: { label: ReactNode; children: ReactNode }) {
+interface InfoRowProps {
+  label: ReactNode
+  children: ReactNode
+  /** Set the value in a fixed-width font, as a table sets an identifier (see `CellLook`). */
+  mono?: boolean
+}
+
+export function InfoRow({ label, children, mono = false }: InfoRowProps) {
   return (
     <div className={styles.row}>
       <dt className={styles.label}>{label}</dt>
-      <dd className={styles.value}>{children}</dd>
+      <dd className={clsx(styles.value, mono && styles.mono)}>{children}</dd>
     </div>
   )
 }

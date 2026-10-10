@@ -17,9 +17,9 @@ export interface OwnRun {
 }
 
 /**
- * Create a suite named after the test, with the metric `execution_time` and the machine field
- * `hardware`, submit `runs` to it, and call `use` with its name and the UUIDs of the runs, in
- * order. The suite is deleted once `use` returns.
+ * Create a suite named after the test, with the metrics `execution_time` and `compile_time`, and
+ * the machine field `hardware`, submit `runs` to it, and call `use` with its name and the UUIDs of
+ * the runs, in order. The suite is deleted once `use` returns.
  */
 export async function ownSuite(
   request: APIRequestContext,
@@ -34,7 +34,10 @@ export async function ownSuite(
     headers,
     data: {
       name: suite,
-      metrics: [{ name: 'execution_time', type: 'real' }],
+      metrics: [
+        { name: 'execution_time', type: 'real' },
+        { name: 'compile_time', type: 'real' },
+      ],
       machine_fields: [{ name: 'hardware', type: 'text' }],
     },
   })

@@ -132,9 +132,10 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
     await page.goto(`/suites/${suite}/commits/c2`)
     const info = page.getByRole('group', { name: 'Commit', exact: true })
 
+    const tag = page.getByRole('textbox', { name: 'Tag' })
     await page.getByRole('button', { name: 'Edit Tag' }).click()
-    await page.getByRole('textbox', { name: 'Tag' }).fill(' release-1 ')
-    await page.getByRole('textbox', { name: 'Tag' }).press('Enter')
+    await tag.fill(' release-1 ')
+    await tag.press('Enter')
     await expect(info).toContainText('release-1')
 
     // An ordinal another commit holds is refused, and the editor stays open.
@@ -157,6 +158,15 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
 
     const stored = await json<Schemas['CommitDetail']>(request, `/api/suites/${suite}/commits/c2`)
     expect([stored.ordinal, stored.tag]).toEqual([10, 'release-1'])
+
+    // Emptied, the tag is cleared.
+    await page.getByRole('button', { name: 'Edit Tag' }).click()
+    await tag.fill('')
+    await tag.press('Enter')
+    await expect(tag).toHaveCount(0)
+    await expect(info).not.toContainText('release-1')
+    const cleared = await json<Schemas['CommitDetail']>(request, `/api/suites/${suite}/commits/c2`)
+    expect(cleared.tag).toBeNull()
   })
 })
 
