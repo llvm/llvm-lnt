@@ -3,17 +3,21 @@
  *
  * - the `libcxx` and `nts` suites, with their real runs from server/tests/data;
  * - a synthetic libcxx history, with regressions and profiles, and machines beyond the real ones
- *   (see synthetic.ts).
+ *   (see synthetic.ts);
+ * - API keys of every scope, one of them revoked, for the Admin page to list. Their tokens are
+ *   thrown away, so that nothing can authenticate with them.
  *
  *     node tools/seed.ts [--url URL] [--token TOKEN]
  *
  * `--url` defaults to the dev server, http://localhost:3000. The token needs `manage` scope to
- * create the suites and `triage` for the regressions; it defaults to `$LNT_SEED_TOKEN`. Without
- * either, and only for the dev server, an admin key is created for the dev database (the one in
- * `.env`) with `lnt-v5 server create-key`.
+ * create the suites, `triage` for the regressions, and `admin` for the keys, which a token without
+ * it skips; it defaults to `$LNT_SEED_TOKEN`. Without either, and only for the dev server, an admin
+ * key is created for the dev database (the one in `.env`) with `lnt-v5 server create-key`.
  *
  * It never changes anything that exists: a suite that is already there is skipped whole, whatever
- * it holds. To seed one again, delete it first.
+ * it holds, and a key is created only if no key has its name. To seed a suite again, delete it
+ * first. The keys are seeded along with a suite, so that seeding an instance that has every suite
+ * asks for no token, and writes nothing.
  */
 
 import { readdirSync, readFileSync } from 'node:fs'
@@ -48,6 +52,16 @@ const SUITES: Suite[] = [
     },
   },
   { name: 'nts' },
+]
+
+/** The keys to seed, each never used: the Admin page shows every scope, and a revoked key. */
+export const KEYS: { name: string; scope: components['schemas']['Scope']; revoked?: true }[] = [
+  { name: 'dashboard-reader', scope: 'read' },
+  { name: 'ci-submitter', scope: 'submit' },
+  { name: 'triage-bot', scope: 'triage' },
+  { name: 'release-manager', scope: 'manage' },
+  { name: 'ops-admin', scope: 'admin' },
+  { name: 'retired-bot', scope: 'submit', revoked: true },
 ]
 
 function readJson(file: string): unknown {
@@ -130,8 +144,30 @@ export async function seed({ url, token, log = console.log }: SeedOptions) {
       await populate(api, url, suite)
       log(`Seeded suite '${suite.name}' in ${((Date.now() - started) / 1000).toFixed(1)}s.`)
     }
+    await seedKeys(api, log)
   }
   return { seeded: missing.map((suite) => suite.name), skipped }
+}
+
+/** Create the keys of `KEYS` that no key is named after, if `api`'s token has `admin` scope. */
+async function seedKeys(api: Api, log: (message: string) => void): Promise<void> {
+  const auth = await api.GET('/api/auth')
+  check(auth)
+  if (auth.data?.key?.scope !== 'admin') {
+    log('Skipping the API keys, which seeding needs a token with admin scope for.')
+    return
+  }
+  const listed = await api.GET('/api/admin/api-keys')
+  check(listed)
+  const existing = new Set(listed.data!.items.map((key) => key.name))
+  for (const { name, scope, revoked } of KEYS.filter((key) => !existing.has(key.name))) {
+    const created = await api.POST('/api/admin/api-keys', { body: { name, scope } })
+    check(created)
+    if (revoked) {
+      const params = { path: { prefix: created.data!.prefix } }
+      check(await api.DELETE('/api/admin/api-keys/{prefix}', { params }))
+    }
+  }
 }
 
 /**

@@ -13,6 +13,12 @@ export type TokenStatus =
   /** The check itself failed, so the token may or may not be valid. */
   | { state: 'failed'; error: unknown }
 
+/** The key of the token once a check has accepted it: null without one, undefined while checked. */
+export function acceptedKey(status: TokenStatus): ApiKey | null | undefined {
+  if (status.state === 'checking') return undefined
+  return status.state === 'valid' ? status.key : null
+}
+
 export interface Auth {
   status: TokenStatus
   /** Store the token, and check it, even if it is the one already stored. */

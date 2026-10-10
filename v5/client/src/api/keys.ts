@@ -4,12 +4,14 @@ import type { QueryClient } from '@tanstack/react-query'
  * The roots of the query keys, so that a change can invalidate exactly the queries it affects:
  *
  * - `suites`: the list of test suites, with their schemas.
+ * - `apiKeys`: the list of API keys (E11), which only an `admin` token can read.
  * - `suite(name)`: everything read from inside one suite, under `['suite', name, <what>, ...]`, so
  *   that a write to a suite can invalidate its data without touching any other query -- notably
  *   the token check (see auth/credentials.ts), which re-running would make gated controls flicker.
  */
 export const queryKeys = {
   suites: ['suites'] as const,
+  apiKeys: ['api-keys'] as const,
   suite: (name: string) => ['suite', name] as const,
   /** Everything read about the suite's machines: lists, whatever their filters, and details. */
   machines: (suite: string) => ['suite', suite, 'machines'] as const,

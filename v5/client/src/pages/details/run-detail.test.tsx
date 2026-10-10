@@ -9,6 +9,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
+  headersOf,
   infoRows,
   main,
   mockMachines,
@@ -399,9 +400,7 @@ describe('the Run Detail page', () => {
       })
 
       const samples = await table('Samples')
-      expect(within(samples).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
-        'Test',
-      ])
+      expect(headersOf(samples)).toEqual(['Test'])
       expect(screen.queryByRole('button', { name: / Metric$/ })).not.toBeInTheDocument()
     })
   })

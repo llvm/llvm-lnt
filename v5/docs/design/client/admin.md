@@ -12,6 +12,10 @@ This page provides various tabs with different tools.
 | API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys` |
 | Test Suites | Suite selector, schema viewer and editor, create and delete suites | `GET/POST/DELETE suites`, `PATCH suites/{name}/schema` |
 
+The URL keeps the selected tab as `tab` (`suites` for Test Suites, and nothing for API Keys,
+the default), and the sort of the API Keys tab's table as `sort` (see AD1). Switching tabs
+clears the setting of the tab left.
+
 ### AD1: API Keys tab detail
 
 This tab requires `admin` scope -- listing keys needs `admin` just as creating and
@@ -19,9 +23,17 @@ revoking them do. Otherwise, a red banner saying
 `Permission denied. Set an API token with the required scope in Settings.` is shown in
 place of the tab's content.
 
+While the token is being checked (see AR2), the tab says so, unless it is already showing its
+content. It then keeps it until the check settles, so that a check that accepts the token again
+loses nothing the tab shows, such as a token shown only once, but disables the actions that need
+the token meanwhile, as AR2 gates them. This is an exception to AR2's rule that the SPA behaves as
+if no token were set until a check succeeds, whether the check is of a new token or of the same
+one again. A check that does not accept a token with `admin` scope replaces the content with the
+banner.
+
 A "Create API Key" form has a text input for the key name, a dropdown to select the
-scope of the key, and a "Create key" button to create the new key. On creation, a
-banner shows:
+scope of the key, starting on `read`, the lowest, and a "Create key" button to create
+the new key. On creation, a banner shows:
 
 ```
   Key created. Copy the token now -- it will not be shown again:
@@ -29,6 +41,9 @@ banner shows:
   | KEY HERE                                     [copy to clipboard button]   |
   +---------------------------------------------------------------------------+
 ```
+
+The token stays shown until the user asks for another key, whether or not that succeeds, or the
+tab stops showing its content: when the user leaves it, say.
 
 Below the creation widget, a table like this shows the existing API keys:
 
@@ -49,12 +64,18 @@ best-effort value that may lag actual use (see D5).
 Column headers are click-to-sort, applied client-side over the already-loaded keys -- the
 list endpoint is unpaginated, so sorting issues no request. Sorting by `Last Used` is how
 to surface the most- and least-recently-active keys; keys that have never been used sort
-after every key carrying a timestamp, in both directions. The default order is
-`Created` descending, which is also the order the API returns.
+after every key carrying a timestamp, in both directions. `Scope` sorts by I5's
+hierarchy, from `read` to `admin`, rather than alphabetically. Keys with the same value keep
+the default order, which is `Created` descending, also the order the API returns. The URL
+names the sort column after its key in the API, prefixed with `-` for descending order
+(`sort=-last_used_at`), and leaves out the default order.
 
 Clicking Revoke asks for a plain confirmation (see AR2) before the request is sent. On
 success the row's `Active` flips to `No` in place and its Revoke button disappears --
-the row is not removed.
+the row is not removed. Revoking the key of the token set in Settings checks the token again at
+once, so that the Settings panel, this tab and every control gated on the token show straight
+away that it is no longer valid. The confirmation of that revocation warns that the tab will no
+longer be available, and that a token shown and not copied yet will be lost.
 
 ### AD2: Test Suites tab detail
 

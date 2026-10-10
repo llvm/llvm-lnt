@@ -32,8 +32,12 @@ export function adminToken(): string {
 }
 
 /** The body of a successful `GET path`, failing the test with the API's answer otherwise. */
-export async function json<T>(request: APIRequestContext, path: string): Promise<T> {
-  const response = await request.get(path)
+export async function json<T>(
+  request: APIRequestContext,
+  path: string,
+  headers?: Record<string, string>,
+): Promise<T> {
+  const response = await request.get(path, { headers })
   expect(response.status(), await response.text()).toBe(200)
   return (await response.json()) as T
 }

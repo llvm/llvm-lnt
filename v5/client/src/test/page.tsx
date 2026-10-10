@@ -168,6 +168,13 @@ export function table(name: string) {
   return screen.findByRole('table', { name })
 }
 
+/** The text of each header of `table`. */
+export function headersOf(table: HTMLElement) {
+  return within(table)
+    .getAllByRole('columnheader')
+    .map((header) => header.textContent)
+}
+
 /** The text of each body row of `table`, one string per row, its cells separated by ` | `. */
 export function rowsOf(table: HTMLElement) {
   return within(table)

@@ -85,6 +85,34 @@ export function isDefault<T>(param: Param<T>, value: T): boolean {
   return sameValues(param.serialize(value), param.serialize(param.default))
 }
 
+/**
+ * The settings of a page with tabs (AR2 "State"). `params` declares the tab, as `tab`, and the
+ * settings of every tab; `perTab` lists the settings each tab uses. Two functions give settings
+ * their defaults, as changes for `useUrlState`:
+ *
+ * - `reset()`: every setting, for switching to another tab, which starts afresh.
+ * - `unused(values)`: the settings the URL holds but the tab of `values` does not use, for the page
+ *   to drop them.
+ */
+export function tabSettings<P extends Params & { tab: Param<string> }>(
+  params: P,
+  perTab: Record<ValuesOf<P>['tab'], readonly Exclude<keyof P, 'tab'>[]>,
+) {
+  type Setting = Exclude<keyof P, 'tab'>
+  const settings = Object.keys(params).filter((key) => key !== 'tab') as Setting[]
+  const defaults = (keys: readonly Setting[]) =>
+    Object.fromEntries(keys.map((key) => [key, params[key].default])) as Partial<ValuesOf<P>>
+  return {
+    reset: () => defaults(settings),
+    unused: (values: ValuesOf<P>) => {
+      const used = perTab[values.tab as ValuesOf<P>['tab']]
+      return defaults(
+        settings.filter((key) => !used.includes(key) && !isDefault(params[key], values[key])),
+      )
+    },
+  }
+}
+
 /** How `value` is spelled in the URL: not at all at its default. */
 function canonical<T>(param: Param<T>, value: T): string[] {
   return isDefault(param, value) ? [] : param.serialize(value)

@@ -1,5 +1,6 @@
-import { memo, type HTMLAttributes, type ReactNode, type Ref } from 'react'
+import { memo, useMemo, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import clsx from 'clsx'
+import { nextSort, sortRows, type SortKey, type TableSort } from './table-sort'
 import styles from './data-table.module.css'
 
 /**
@@ -18,6 +19,8 @@ export interface Column<Row> {
   looks?: readonly CellLook[]
   /** A class of the page's own for the column's cells, header included. */
   className?: string
+  /** What a row is sorted by in this column, in a table whose rows can be sorted (see `sort`). */
+  sortKey?: (row: Row) => SortKey
 }
 
 /** The classes of a cell of `column`: one of its body cells, or its header. */
@@ -44,6 +47,15 @@ interface Props<Row> {
   busy?: boolean
   /** Makes the table focusable from script: where focus goes once a row it held is deleted. */
   ref?: Ref<HTMLTableElement>
+  /**
+   * For a table whose rows can be sorted by the columns with a `sortKey`: the sort to show them in,
+   * which the table applies, and what to call when a click on a header asks for another. Its owner
+   * keeps the sort, in the URL say.
+   */
+  sort?: TableSort
+  onSort?(sort: TableSort): void
+  /** Whether the row is the one whose deletion, or revocation, is being confirmed. */
+  confirming?: (row: Row) => boolean
 }
 
 /**
@@ -65,7 +77,16 @@ function DataTableImpl<Row>({
   empty,
   busy = false,
   ref,
+  sort,
+  onSort,
+  confirming,
 }: Props<Row>) {
+  const sortKey = columns.find((column) => column.id === sort?.column)?.sortKey
+  const direction = sort?.direction
+  const sorted = useMemo(
+    () => (sortKey && direction ? sortRows(rows, sortKey, direction) : rows),
+    [rows, sortKey, direction],
+  )
   return (
     <table
       ref={ref}
@@ -76,25 +97,54 @@ function DataTableImpl<Row>({
     >
       <thead>
         <tr>
-          {columns.map((column) => (
-            <th key={column.id} scope="col" className={cellClass(column, true)}>
-              {column.header}
-            </th>
-          ))}
+          {columns.map((column) => {
+            const sortedBy = sort?.column === column.id ? sort.direction : undefined
+            return (
+              <th
+                key={column.id}
+                scope="col"
+                className={cellClass(column, true)}
+                aria-sort={sortedBy}
+              >
+                {sort && onSort && column.sortKey ? (
+                  <button
+                    type="button"
+                    className={styles.sortButton}
+                    onClick={() => onSort(nextSort(sort, column.id))}
+                  >
+                    {column.header}
+                    <span className={styles.sortIndicator} aria-hidden="true">
+                      {sortedBy === 'ascending' ? '▲' : sortedBy === 'descending' ? '▼' : ''}
+                    </span>
+                  </button>
+                ) : (
+                  column.header
+                )}
+              </th>
+            )
+          })}
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 ? (
+        {sorted.length === 0 ? (
           <tr>
             <td colSpan={columns.length} className={clsx(styles.cell, styles.empty)}>
               {empty}
             </td>
           </tr>
         ) : (
-          rows.map((row) => {
+          sorted.map((row) => {
             const props = rowProps?.(row)
             return (
-              <tr key={rowKey(row)} {...props} className={clsx(styles.row, props?.className)}>
+              <tr
+                key={rowKey(row)}
+                {...props}
+                className={clsx(
+                  styles.row,
+                  confirming?.(row) && styles.confirming,
+                  props?.className,
+                )}
+              >
                 {columns.map((column) => (
                   <td key={column.id} className={cellClass(column, false)}>
                     {column.cell(row)}

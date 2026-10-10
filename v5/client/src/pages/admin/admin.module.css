@@ -1,0 +1,65 @@
+/* What a tab says in place of what it cannot show. */
+.note {
+  color: var(--lnt-muted);
+}
+
+/* The form creating an API key (AD1). */
+.createForm {
+  padding: var(--lnt-space-3);
+  margin-bottom: var(--lnt-space-3);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+.formTitle {
+  display: block;
+  margin-bottom: var(--lnt-space-2);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
+}
+
+/* A labelled control, its label above it as a dropdown has its own. */
+.control {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+}
+
+.nameInput {
+  width: 18rem;
+}
+
+/* The token of the key just created, shown this once (AD1). */
+.created {
+  padding: var(--lnt-space-3);
+  margin-bottom: var(--lnt-space-3);
+  border: 1px solid var(--lnt-accent);
+  border-radius: var(--lnt-radius);
+  background: color-mix(in srgb, var(--lnt-accent) 6%, var(--lnt-bg));
+}
+
+.createdText {
+  margin: 0 0 var(--lnt-space-2);
+}
+
+.tokenBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+}
+
+.token {
+  composes: mono from '../../components/data-table.module.css';
+  overflow-wrap: anywhere;
+}

@@ -33,6 +33,32 @@
   background: var(--lnt-panel);
 }
 
+/* The row whose deletion, or revocation, is being confirmed. */
+.confirming,
+.confirming:hover {
+  background: var(--lnt-danger-bg);
+}
+
+/* The header of a column the rows can be sorted by: as plain as the headers that cannot. */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.sortButton:hover {
+  color: var(--lnt-accent);
+}
+
+.sortIndicator {
+  font-size: 0.7em;
+}
+
 /*
  * What a cell holds comes from the table's callers, so its links and buttons are styled from here,
  * the exception to giving each element a class of its own (see index.css).
