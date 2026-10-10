@@ -267,13 +267,14 @@ test('the tests offered are those of the machines selected, on the metric select
     await expect(panel.getByText('Added 2 indicators.')).toBeVisible()
 
     // The one on `m1` leads to the Graph page.
-    const indicators = table(page, 'Indicators')
-    await rows(indicators)
+    const graph = rows(table(page, 'Indicators'))
       .filter({ hasText: 'm1' })
       .getByRole('link', { name: 'View on graph' })
-      .click()
-    await expect(page).toHaveURL(
+    await expect(graph).toHaveAttribute(
+      'href',
       `/graph?suite=${suite}&machine=m1&metric=compile_time&test=built&regressions=all`,
     )
+    await graph.click()
+    await expect(page).toHaveURL(/^[^?]*\/graph\?/)
   })
 })

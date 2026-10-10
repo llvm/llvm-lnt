@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import tableStyles from './data-table.module.css'
 import styles from './info-box.module.css'
 
 /**
@@ -26,7 +27,7 @@ export function InfoRow({ label, children, mono = false }: InfoRowProps) {
   return (
     <div className={styles.row}>
       <dt className={styles.label}>{label}</dt>
-      <dd className={clsx(styles.value, mono && styles.mono)}>{children}</dd>
+      <dd className={clsx(styles.value, mono && tableStyles.mono)}>{children}</dd>
     </div>
   )
 }

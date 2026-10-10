@@ -848,25 +848,30 @@ describe('the Add indicators panel', () => {
 
   it('cannot add more indicators than one request can carry', async () => {
     signIn('triage')
-    // 2 machines and 3 tests: 6 indicators, more than the 5 mocked above.
-    mockMachineTests({ linux: ['a', 'b', 'c'], macos: ['a', 'b', 'c'] })
+    // The 5 mocked above, then 10.
+    const names = ['a', 'b', 'c', 'd', 'e']
+    mockMachineTests({ linux: names, macos: names })
     renderRegression()
     await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
-
-    await pick('linux', 'macos')
-    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b', 'c']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(names))
     fireEvent.click(checkbox('Select all tests shown'))
 
-    expect(preview()).toHaveTextContent(
-      'This will add 6 indicators, more than the 5 one request can carry.',
-    )
+    expect(preview()).toHaveTextContent('This will add 5 indicators.')
+    await waitFor(() => expect(addButton()).toBeEnabled())
+    expect(addButton()).not.toHaveAttribute('title')
+
+    await pick('macos')
     await waitFor(() =>
-      expect(addButton()).toHaveAttribute(
-        'title',
-        'One request can add at most 5 indicators: select fewer.',
+      expect(preview()).toHaveTextContent(
+        'This will add 10 indicators, more than the 5 one request can carry.',
       ),
     )
     expect(addButton()).toBeDisabled()
+    expect(addButton()).toHaveAttribute(
+      'title',
+      'One request can add at most 5 indicators: select fewer.',
+    )
   })
 
   it('cannot add without triage scope, but can be browsed', async () => {
@@ -986,7 +991,7 @@ describe('the Indicators table', () => {
 
   it('cannot remove more indicators than one request can carry', async () => {
     signIn('triage')
-    // 6 indicators, more than the 5 mocked above.
+    // 6 indicators: the 5 mocked above, then one more.
     const indicators = [
       ...INDICATORS,
       { uuid: uuidOf('5'), machine: 'linux', test: 'BM_copy', metric: 'execution_time' },
@@ -994,17 +999,20 @@ describe('the Indicators table', () => {
     ]
     renderRegression({ detail: { ...DETAIL, indicators } })
     await table('Indicators')
-
     fireEvent.click(checkbox('Select all indicators shown'))
+    fireEvent.click(checkbox('Select macos, BM_copy, Execution Time'))
 
-    const removeSelected = screen.getByRole('button', { name: 'Remove 6 selected' })
-    await waitFor(() =>
-      expect(removeSelected).toHaveAttribute(
-        'title',
-        'One request can remove at most 5 indicators: select fewer.',
-      ),
+    const fiveSelected = screen.getByRole('button', { name: 'Remove 5 selected' })
+    await waitFor(() => expect(fiveSelected).toBeEnabled())
+    expect(fiveSelected).not.toHaveAttribute('title')
+
+    fireEvent.click(checkbox('Select macos, BM_copy, Execution Time'))
+    const sixSelected = screen.getByRole('button', { name: 'Remove 6 selected' })
+    expect(sixSelected).toBeDisabled()
+    expect(sixSelected).toHaveAttribute(
+      'title',
+      'One request can remove at most 5 indicators: select fewer.',
     )
-    expect(removeSelected).toBeDisabled()
   })
 
   it('reports a removal the API refuses, keeping the indicator', async () => {
@@ -1016,7 +1024,8 @@ describe('the Indicators table', () => {
 
     fireEvent.click(removeButton('linux, BM_find, Execution Time'))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied')
+    const section = within(screen.getByRole('region', { name: 'Indicators' }))
+    expect(await section.findByRole('alert')).toHaveTextContent('Permission denied')
     expect(rowsOf(indicators)).toHaveLength(4)
   })
 

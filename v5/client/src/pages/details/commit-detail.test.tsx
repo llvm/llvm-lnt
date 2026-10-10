@@ -142,6 +142,10 @@ describe('the Commit Detail page', () => {
       ['svn_revision', 'r100'],
       ['commit_info', 'Fix the vectorizer'],
     ])
+    // An identifier, set as a table sets one.
+    expect(within(screen.getByRole('group', { name: 'Commit' })).getByText(VALUE)).toHaveClass(
+      'mono',
+    )
   })
 
   it('shows a missing ordinal and tag as such', async () => {
