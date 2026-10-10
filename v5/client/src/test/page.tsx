@@ -39,6 +39,11 @@ export function renderPage(url: string) {
   )
 }
 
+/** Queries within the page's content, rather than the navbar, which has links of its own. */
+export function main() {
+  return within(screen.getByRole('main'))
+}
+
 export function currentUrl() {
   return screen.getByTestId('url').textContent
 }

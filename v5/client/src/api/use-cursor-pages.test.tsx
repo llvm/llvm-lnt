@@ -4,6 +4,7 @@ import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { api, errorMessage, unwrap } from './client'
 import { useCursorPages } from './use-cursor-pages'
+import { sample as fixtureSample } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
@@ -11,7 +12,7 @@ import { server } from '../test/server'
 const SAMPLES = '/api/suites/{testsuite}/runs/{uuid}/samples' as const
 const RUN = '573af861-8303-4a5b-a643-b8321e0142c4'
 
-const sample = (test: string) => ({ test, metrics: { execution_time: 1 } })
+const sample = (test: string) => fixtureSample(test, { execution_time: 1 })
 
 /** Pages of samples, `a` then `b` then `c`, each fetched by the cursor the previous one gave. */
 const PAGES: Record<string, { items: ReturnType<typeof sample>[]; next: string | null }> = {
@@ -23,7 +24,7 @@ const PAGES: Record<string, { items: ReturnType<typeof sample>[]; next: string |
 const OTHER_RUN = '2cb00c2d-8303-4a5b-a643-b8321e0142c4'
 
 function Samples({ run = RUN }: { run?: string }) {
-  const { items, isPending, isComplete, error } = useCursorPages({
+  const { items, isPending, isComplete, error, hasPages, retry } = useCursorPages({
     queryKey: ['samples', run],
     fetchPage: (cursor, signal) =>
       unwrap(
@@ -39,12 +40,17 @@ function Samples({ run = RUN }: { run?: string }) {
       <p>{items.map((item) => item.test).join(',')}</p>
       <p>{isComplete ? 'complete' : 'loading more'}</p>
       {error && <p>{errorMessage(error)}</p>}
+      {error && <p>{hasPages ? 'some pages' : 'no page'}</p>}
+      <button onClick={retry}>retry</button>
     </>
   )
 }
 
-/** Serves PAGES, holding back the cursors in `held` until they are released. */
-function servePages(held: Set<string> = new Set()) {
+/**
+ * Serves PAGES, holding back the cursors in `held` until they are released, and failing those in
+ * `failing` for as long as they are in it.
+ */
+function servePages(held: Set<string> = new Set(), failing: Set<string> = new Set()) {
   const requested: string[] = []
   const aborted: string[] = []
   const waiting = new Map<string, () => void>()
@@ -52,6 +58,7 @@ function servePages(held: Set<string> = new Set()) {
     mockApi('get', SAMPLES, async ({ request }) => {
       const cursor = new URL(request.url).searchParams.get('cursor') ?? 'first'
       requested.push(cursor)
+      if (failing.has(cursor)) return errorResponse(500, 'internal_error', 'Boom')
       if (held.has(cursor)) {
         request.signal.addEventListener('abort', () => aborted.push(cursor))
         await new Promise<void>((resolve) => waiting.set(cursor, resolve))
@@ -160,6 +167,61 @@ describe('useCursorPages', () => {
     expect(await screen.findByText('Invalid cursor')).toBeInTheDocument()
     expect(screen.getByText('loading more')).toBeInTheDocument()
     expect(requested).toHaveLength(4)
+  })
+
+  describe('retry', () => {
+    it('resumes from the page that failed, keeping the pages before it', async () => {
+      const failing = new Set(['p2'])
+      const { requested } = servePages(undefined, failing)
+      renderWithProviders(<Samples />)
+      expect(await screen.findByText('some pages')).toBeInTheDocument()
+
+      failing.clear()
+      fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+
+      expect(await screen.findByText('a,b,c')).toBeInTheDocument()
+      expect(requested).toEqual(['first', 'p2', 'p2', 'p3'])
+    })
+
+    it('fetches the first page again when it is the one that failed', async () => {
+      const failing = new Set(['first'])
+      const { requested } = servePages(undefined, failing)
+      renderWithProviders(<Samples />)
+      expect(await screen.findByText('no page')).toBeInTheDocument()
+
+      failing.clear()
+      fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+
+      expect(await screen.findByText('a,b,c')).toBeInTheDocument()
+      expect(requested).toEqual(['first', 'first', 'p2', 'p3'])
+    })
+
+    it('starts from the first page when a cursor is still rejected', async () => {
+      const requested: string[] = []
+      let accepted = false
+      server.use(
+        mockApi('get', SAMPLES, ({ request }) => {
+          const cursor = new URL(request.url).searchParams.get('cursor')
+          requested.push(cursor ?? 'first')
+          if (cursor === null) {
+            const next = accepted ? 'good' : 'bad'
+            return HttpResponse.json({ items: [sample('a')], cursor: { next, previous: null } })
+          }
+          if (cursor === 'bad') return errorResponse(400, 'invalid_request', 'Invalid cursor')
+          return HttpResponse.json({ items: [sample('b')], cursor: { next: null, previous: null } })
+        }),
+      )
+      renderWithProviders(<Samples />)
+      // Once the automatic restart has been rejected too.
+      await waitFor(() => expect(requested).toHaveLength(4))
+      expect(await screen.findByText('Invalid cursor')).toBeInTheDocument()
+
+      accepted = true
+      fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+
+      expect(await screen.findByText('a,b')).toBeInTheDocument()
+      expect(requested).toEqual(['first', 'bad', 'first', 'bad', 'first', 'good'])
+    })
   })
 
   it('drops the sequence in flight when the query changes', async () => {

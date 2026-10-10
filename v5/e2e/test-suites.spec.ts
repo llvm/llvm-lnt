@@ -72,8 +72,9 @@ test.describe('the Runs tab', () => {
     await expect(links.nth(0)).toHaveAttribute('href', /^\/suites\/libcxx\/runs\/[0-9a-f-]{36}$/)
     await expect(links.nth(1)).toHaveAttribute('href', /^\/suites\/libcxx\/machines\/[^/]+$/)
     await expect(links.nth(2)).toHaveAttribute('href', /^\/suites\/libcxx\/commits\/[^/]+$/)
+    const uuid = (await links.nth(0).getAttribute('href'))!.split('/').at(-1)
     await links.nth(0).click()
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Run Detail')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Run: ${uuid}`)
   })
 
   test('searches on the machine', async ({ page }) => {

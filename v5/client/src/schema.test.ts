@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { commitDisplayValue, formatFieldValue, labelOf } from './schema'
+import {
+  commitDisplayValue,
+  defaultMetric,
+  formatFieldValue,
+  formatMetricValue,
+  labelOf,
+  metricOptions,
+  type Metric,
+} from './schema'
 import { BARE_SUITE, SUITE, commit } from './test/fixtures'
 
 describe('labelOf', () => {
@@ -49,5 +57,47 @@ describe('commitDisplayValue', () => {
     })
     expect(commitDisplayValue(c, SUITE)).toBe('r554973 (llvmorg-22.1.0)')
     expect(commitDisplayValue(c, SUITE, { withTag: false })).toBe('r554973')
+  })
+})
+
+function metric(name: string, type: Metric['type'], display_name: string | null = null): Metric {
+  return { name, type, display_name, unit: null, unit_abbrev: null, bigger_is_better: false }
+}
+
+describe('defaultMetric', () => {
+  it('is the first numeric metric, in schema order', () => {
+    const metrics = [metric('status', 'text'), metric('size', 'integer'), metric('time', 'real')]
+    expect(defaultMetric({ ...BARE_SUITE, metrics })?.name).toBe('size')
+  })
+
+  it('is the first metric when none is numeric, and none without metrics', () => {
+    const metrics = [metric('status', 'text'), metric('when', 'datetime')]
+    expect(defaultMetric({ ...BARE_SUITE, metrics })?.name).toBe('status')
+    expect(defaultMetric(BARE_SUITE)).toBeUndefined()
+  })
+})
+
+describe('formatMetricValue', () => {
+  it('shows a real to 6 significant digits, and an integer in full', () => {
+    expect(formatMetricValue(1.2643218, metric('time', 'real'))).toBe('1.26432')
+    expect(formatMetricValue(1234567891, metric('size', 'integer'))).toBe('1234567891')
+  })
+
+  it('shows text as it is, a timestamp in local time, and a missing value as such', () => {
+    expect(formatMetricValue('ok', metric('status', 'text'))).toBe('ok')
+    expect(formatMetricValue('2026-08-25T14:22:41Z', metric('when', 'datetime'))).toBe(
+      '2026-08-25, 2:22:41 PM',
+    )
+    expect(formatMetricValue(undefined, metric('time', 'real'))).toBe('--')
+  })
+})
+
+describe('metricOptions', () => {
+  it('offers every metric, in schema order, by label', () => {
+    const metrics = [metric('time', 'real', 'Time'), metric('size', 'integer')]
+    expect(metricOptions({ ...BARE_SUITE, metrics })).toEqual([
+      { value: 'time', label: 'Time' },
+      { value: 'size', label: 'size' },
+    ])
   })
 })

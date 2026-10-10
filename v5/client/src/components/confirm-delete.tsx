@@ -30,7 +30,7 @@ export function ConfirmDelete({
   onConfirm,
   onCancel,
 }: Props) {
-  const inputId = useId()
+  const promptId = useId()
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -52,12 +52,14 @@ export function ConfirmDelete({
   return (
     <form className={styles.root} aria-label="Confirmation" onSubmit={confirm}>
       <div className={styles.message}>{children}</div>
-      <label htmlFor={inputId}>
+      {/* Not a <label>: a click on one, which selecting its text ends with, focuses the input, and
+          Safari then drops the selection, so that the text could not be copied. */}
+      <p id={promptId} className={styles.prompt}>
         Type <code>{expected}</code> to confirm:
-      </label>
+      </p>
       <div className={styles.row}>
         <input
-          id={inputId}
+          aria-labelledby={promptId}
           type="text"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}

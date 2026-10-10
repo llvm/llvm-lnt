@@ -13,7 +13,7 @@ export const queryKeys = {
   suite: (name: string) => ['suite', name] as const,
   /** Everything read about the suite's machines: lists, whatever their filters, and details. */
   machines: (suite: string) => ['suite', suite, 'machines'] as const,
-  /** Every list of the suite's runs, whatever its filters. */
+  /** Everything read about the suite's runs: lists, whatever their filters, and details. */
   runs: (suite: string) => ['suite', suite, 'runs'] as const,
   /** Every list of the suite's regressions, whatever its filters. */
   regressions: (suite: string) => ['suite', suite, 'regressions'] as const,

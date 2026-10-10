@@ -21,6 +21,9 @@ export { expect }
 
 export type Scope = components['schemas']['Scope']
 
+/** A real libcxx run (server/tests/data/libcxx/runs/r552558-linux-1.json): 25 tests, once each. */
+export const REAL_RUN = '5f85edeb-a65b-4b2f-ab83-9152007dc703'
+
 /** The token of the admin key the stack was seeded with (see global-setup.ts). */
 export function adminToken(): string {
   const token = process.env.E2E_ADMIN_TOKEN

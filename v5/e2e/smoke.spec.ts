@@ -2,15 +2,12 @@
  * Smoke tests of the stack as a whole: routing, serving, and what sits outside the SPA.
  */
 
-import { expect, test } from './fixtures.ts'
-
-/** A real libcxx run (server/tests/data/libcxx/runs/r552558-linux-1.json). */
-const RUN = '5f85edeb-a65b-4b2f-ab83-9152007dc703'
+import { expect, REAL_RUN, test } from './fixtures.ts'
 
 test.describe('routing', () => {
   for (const [url, heading] of [
     ['/suites/libcxx', 'Test Suites'],
-    [`/suites/libcxx/runs/${RUN}`, 'Run Detail'],
+    [`/suites/libcxx/runs/${REAL_RUN}`, `Run: ${REAL_RUN}`],
     ['/graph?suite=libcxx', 'Graph'],
   ]) {
     test(`a deep link to ${url} survives a hard refresh`, async ({ page }) => {

@@ -9,8 +9,8 @@ interface Props {
 }
 
 /**
- * The input of a server-side search (see `useServerSearch`). It matches plain substrings, so it
- * has no regex mode, unlike the client-side text filters (AR2).
+ * The input of a search: of the server (see `useServerSearch`), or of rows already loaded (see
+ * `useTextFilter`). It matches plain substrings, with no regex mode (AR2 "Text filtering").
  */
 export function SearchInput({ search, label, placeholder }: Props) {
   return (

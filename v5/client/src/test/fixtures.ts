@@ -79,6 +79,22 @@ export function run(hex: string, overrides: Partial<Schemas['Run']> = {}): Schem
   }
 }
 
+/** A run's detail (E4), with its `run_parameters`, none unless given. */
+export function runDetail(
+  hex: string,
+  overrides: Partial<Schemas['RunDetail']> = {},
+): Schemas['RunDetail'] {
+  return { ...run(hex), run_parameters: {}, ...overrides }
+}
+
+/** A sample of `test` (E6), with a value for each of `metrics`, and none by default. */
+export function sample(
+  test: string,
+  metrics: Schemas['Sample']['metrics'] = {},
+): Schemas['Sample'] {
+  return { test, metrics }
+}
+
 /** A regression in a list (E8), whose UUID is `hex` repeated (see `uuidOf`). */
 export function regression(
   hex: string,

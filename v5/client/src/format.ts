@@ -46,3 +46,31 @@ export function truncate(text: string, max: number): string {
   const characters = Array.from(text)
   return characters.length <= max ? text : `${characters.slice(0, max - 1).join('')}…`
 }
+
+// Fixed to one locale, so that a value reads the same in every browser. No grouping, so that a
+// value can be copied as a number. Of the two limits, the one keeping more digits applies, so that
+// the integer part is never rounded.
+const NUMBER = new Intl.NumberFormat('en-US', {
+  maximumSignificantDigits: 6,
+  maximumFractionDigits: 0,
+  roundingPriority: 'morePrecision',
+  useGrouping: false,
+})
+
+/**
+ * A measured number, to at most 6 significant digits but with its whole integer part (AR2 "Display
+ * conventions"): `1.26432`, `66655.7`, `4123456789`.
+ */
+export function formatNumber(value: number): string {
+  return NUMBER.format(value)
+}
+
+/** `count noun`, with the noun in the plural unless the count is one: `1 run`, `3 runs`. */
+export function plural(count: number, noun: string): string {
+  return `${count} ${count === 1 ? noun : `${noun}s`}`
+}
+
+/** Orders strings as `Array.prototype.sort` does by default, by UTF-16 code units. */
+export function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}

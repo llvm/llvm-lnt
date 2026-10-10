@@ -22,7 +22,7 @@ import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
 import { formatTimestamp, MISSING, regressionTitle, uuidPrefix } from '../../format'
 import { commitPath, regressionPath } from '../../paths'
-import { displayValueOf, labelOf } from '../../schema'
+import { displayValueOf, metricOptions } from '../../schema'
 import { useDropUnusable } from '../../url-state'
 import { CreateRegression } from './create-regression'
 import { isFiltered, type RegressionFilters } from './settings'
@@ -139,10 +139,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       />
       <Select
         label="Metric"
-        options={[
-          { value: '', label: 'Any metric' },
-          ...schema.metrics.map((entry) => ({ value: entry.name, label: labelOf(entry) })),
-        ]}
+        options={[{ value: '', label: 'Any metric' }, ...metricOptions(schema)]}
         value={metric}
         onChange={(value) => update({ metric: value })}
       />
