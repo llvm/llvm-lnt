@@ -343,14 +343,15 @@ in the URL, as with CP9's panel.
   filter hides.
 - A machine or test that its list no longer offers, because the metric or the
   machines selected have changed, is deselected, but only once every list it
-  depends on has loaded (see "State" in AR2). Until then, nothing can be added.
+  depends on has loaded: a list that is still loading, or has failed to load,
+  deselects nothing. Until then, nothing can be added.
 - Preview: "This will add N indicators", for every machine and test selected.
 - "Add" adds them all in one request. It is disabled, and says why on hover,
   without `triage` scope, while a list is loading or has failed to load, when
   nothing is selected, and when there are more indicators than one request can
   carry (I2's maximum page size; see E8), as in CP9.
 - Once they are added, the panel says how many were added, and how many of those
-  selected already existed and were not added again. The tests added are
+  selected already existed and were not added again. The tests sent are
   deselected.
 
 ### Indicators table
@@ -363,9 +364,9 @@ in the URL, as with CP9's panel.
 - Order: as E8 returns them, oldest first.
 - Filter: a text input above the table, keeping the indicators whose machine,
   test or metric (by name or label) contains the text, case-insensitive. It is
-  kept in the URL as `?indicator_filter={text}`, and is not shown when there are
-  no indicators. Unlike the panel's filters, it deselects the rows it hides, so
-  that only rows shown are ever removed.
+  kept in the URL as `?indicator_filter={text}`. When there are no indicators,
+  it is neither shown nor kept in the URL. Unlike the panel's filters, it
+  deselects the rows it hides, so that only rows shown are ever removed.
 - Columns: a checkbox, the machine (a link to its detail page), the test, the
   metric (by label), a "View on graph" link, and a remove button (×).
 - Checkboxes: rows are selected one at a time, a range at a time with Shift, or
@@ -374,9 +375,10 @@ in the URL, as with CP9's panel.
   many are selected. It is disabled when none is, and when more are selected
   than one request can carry (see E8).
 - Removing indicators, one or many, is not confirmed (see "Deletions" in AR2).
-  After one is removed with its ×, the focus moves to the × of the row that
-  takes its place, or of the row before it if it was the last, or to the table
-  if no row is left. After "Remove selected", it moves to the table.
+  Once one is removed with its ×, the focus moves to the × of the nearest row
+  after it still shown, or else before it, or to the table if no row is left.
+  After "Remove selected", it moves to the table. If the user has moved the
+  focus out of the table meanwhile, it stays where it is.
 - "View on graph" opens the Graph page with the regression's suite and the
   indicator's machine, metric and test selected, and regression annotations
   showing every state (`regressions=all`; see GR15), which marks this

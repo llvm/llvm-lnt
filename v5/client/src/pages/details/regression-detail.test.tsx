@@ -36,7 +36,7 @@ import {
   search,
   table,
 } from '../../test/page'
-import { selectButton } from '../../test/select'
+import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 
 const UUID = uuidOf('a')
@@ -638,6 +638,30 @@ describe('the Add indicators panel', () => {
     expect(rowsOf(await table('Indicators'))).toHaveLength(3)
   })
 
+  it('keeps a test selected while the indicators are added, if it was not sent', async () => {
+    signIn('triage')
+    mockMachineTests()
+    const answer = gate()
+    mockSent('post', `${ROUTE}/indicators`, async () => {
+      await answer.promise
+      return HttpResponse.json({ added: 1, indicators: DETAIL.indicators })
+    })
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('a')
+    await waitFor(() => expect(addButton()).toBeEnabled())
+
+    fireEvent.click(addButton())
+    await pick('b')
+    act(() => answer.open())
+
+    expect(await within(panel()).findByText(/^Added 1 indicator/)).toBeInTheDocument()
+    expect(checkbox('a')).not.toBeChecked()
+    expect(checkbox('b')).toBeChecked()
+  })
+
   it('keeps what its filter hides selected, and says so', async () => {
     mockMachineTests()
     renderRegression()
@@ -654,7 +678,14 @@ describe('the Add indicators panel', () => {
   })
 
   it('deselects the tests no longer offered, once the tests are listed', async () => {
-    mockMachineTests()
+    const linux = gate()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/tests', async ({ request }) => {
+        const machine = new URL(request.url).searchParams.get('machine')!
+        if (machine === 'linux') await linux.promise
+        return HttpResponse.json(cursorPage(TESTS[machine].map((name) => ({ name }))))
+      }),
+    )
     renderRegression()
     await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
     await pick('macos')
@@ -662,10 +693,64 @@ describe('the Add indicators panel', () => {
     await pick('a', 'c')
 
     await pick('linux', 'macos')
+    // While linux's tests are not listed, nothing shows that `a` and `c` are no longer offered.
+    expect(list('Tests')).toHaveTextContent('Loading tests...')
+    expect(addButton()).toBeDisabled()
+    act(() => linux.open())
 
     await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
     expect(list('Tests')).toHaveTextContent('(1 of 2 tests selected)')
     expect(checkbox('a')).toBeChecked()
+  })
+
+  it('lists the tests of the metric selected, keeping those still offered selected', async () => {
+    const queries = mockTests((query) => {
+      const names = query.get('metric') === 'status' ? ['a', 'z'] : ['a', 'b']
+      return cursorPage(names.map((name) => ({ name })))
+    })
+    renderRegression({ suites: [WITH_TEXT] })
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('a', 'b')
+
+    await pickOption('Metric', 'Status')
+
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'z']))
+    expect(list('Tests')).toHaveTextContent('(1 of 2 tests selected)')
+    expect(queries.map((query) => query.get('metric'))).toEqual(['execution_time', 'status'])
+  })
+
+  it('deselects every test once no machine is selected', async () => {
+    mockMachineTests()
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+    await pick('linux')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    await pick('a')
+
+    await pick('linux')
+    expect(list('Tests')).toHaveTextContent('Select one or more machines first.')
+    await pick('linux')
+
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    expect(checkbox('a')).not.toBeChecked()
+  })
+
+  it("lists every page of a machine's tests", async () => {
+    const queries = mockTests((query) =>
+      query.get('cursor') === null
+        ? cursorPage([{ name: 'a' }], 'page2')
+        : cursorPage([{ name: 'b' }]),
+    )
+    renderRegression()
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
+
+    await pick('linux')
+
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
+    expect(queries.map((query) => query.get('cursor'))).toEqual([null, 'page2'])
+    expect(queries[0].get('limit')).toBe('10000')
   })
 
   it('selects a range of tests with Shift held, and every test shown at once', async () => {
@@ -689,11 +774,12 @@ describe('the Add indicators panel', () => {
   it('cannot add while the tests are not all listed, and offers to list them again', async () => {
     signIn('triage')
     let fail = true
+    const tests: Record<string, string[]> = { linux: ['a', 'b', 'c'], macos: ['a', 'c'] }
     server.use(
       mockApi('get', '/api/suites/{testsuite}/tests', ({ request }) => {
         const machine = new URL(request.url).searchParams.get('machine')!
         if (machine === 'linux' && fail) return errorResponse(500, 'internal_error', 'Boom')
-        return HttpResponse.json(cursorPage(TESTS[machine].map((name) => ({ name }))))
+        return HttpResponse.json(cursorPage(tests[machine].map((name) => ({ name }))))
       }),
     )
     renderRegression()
@@ -705,15 +791,14 @@ describe('the Add indicators panel', () => {
     expect(await within(list('Tests')).findByRole('alert')).toHaveTextContent('Boom')
     expect(addButton()).toBeDisabled()
     expect(addButton()).toHaveAttribute('title', 'The tests are not listed yet.')
-    // What was selected stays selected, since no list shows that it is no longer offered.
-    expect(preview()).toHaveTextContent('This will add 1 indicator.')
 
     fail = false
     fireEvent.click(within(list('Tests')).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b']))
-    // Now listed, the tests show that `c` is not offered on linux.
-    expect(list('Tests')).toHaveTextContent('(0 of 2 tests selected)')
-    expect(preview()).toHaveTextContent('This will add 0 indicators.')
+    await waitFor(() => expect(namesIn('Tests')).toEqual(['a', 'b', 'c']))
+    // No list showed that `c` was no longer offered, so it stayed selected throughout.
+    expect(list('Tests')).toHaveTextContent('(1 of 3 tests selected)')
+    expect(checkbox('c')).toBeChecked()
+    await waitFor(() => expect(addButton()).toBeEnabled())
   })
 
   it('cannot add more indicators than one request can carry', async () => {
@@ -892,6 +977,51 @@ describe('the Indicators table', () => {
 
     fireEvent.click(removeButton('macos, BM_find, Execution Time'))
     await waitFor(() => expect(indicators).toHaveFocus())
+  })
+
+  it('focuses the row after the last of removals one after the other', async () => {
+    signIn('triage')
+    const first = gate()
+    let stored = INDICATORS
+    mockSent('delete', `${ROUTE}/indicators`, async ({ indicator_uuids }) => {
+      if (indicator_uuids.includes(uuidOf('1'))) await first.promise
+      stored = stored.filter((indicator) => !indicator_uuids.includes(indicator.uuid))
+      return HttpResponse.json({ removed: 1, indicators: stored })
+    })
+    renderRegression({ detail: WITH_INDICATORS, suites: [WITH_TEXT] })
+    const indicators = await table('Indicators')
+    await waitFor(() => expect(removeButton('linux, BM_find, Execution Time')).toBeEnabled())
+
+    // The second waits for the first.
+    fireEvent.click(removeButton('linux, BM_find, Execution Time'))
+    fireEvent.click(removeButton('linux, BM_sort, Execution Time'))
+    act(() => first.open())
+
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(2))
+    await waitFor(() => expect(removeButton('macos, BM_find, Execution Time')).toHaveFocus())
+  })
+
+  it('leaves the focus where it is if it has moved on during a removal', async () => {
+    signIn('triage')
+    const answer = gate()
+    mockSent('delete', `${ROUTE}/indicators`, async ({ indicator_uuids }) => {
+      await answer.promise
+      return HttpResponse.json({
+        removed: 1,
+        indicators: INDICATORS.filter((indicator) => !indicator_uuids.includes(indicator.uuid)),
+      })
+    })
+    renderRegression({ detail: WITH_INDICATORS })
+    const indicators = await table('Indicators')
+    await waitFor(() => expect(removeButton('linux, BM_find, Execution Time')).toBeEnabled())
+
+    fireEvent.click(removeButton('linux, BM_find, Execution Time'))
+    const filterInput = screen.getByRole('searchbox', { name: 'Filter indicators' })
+    filterInput.focus()
+    act(() => answer.open())
+
+    await waitFor(() => expect(rowsOf(indicators)).toHaveLength(3))
+    expect(filterInput).toHaveFocus()
   })
 
   it('removes the indicators selected, a range of them selected with Shift', async () => {

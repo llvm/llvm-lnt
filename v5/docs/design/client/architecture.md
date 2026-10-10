@@ -122,12 +122,12 @@ behind the keyboard, even over thousands of rows -- the test tables of the Graph
 and Compare pages, or a run's samples. The rows it filters, and any chart that
 depends on them, may update just after.
 
-**Range selection**: In a list whose rows are selected with checkboxes, the
-anchor is the last row toggled with a click. When a row is toggled with Shift
-held, by mouse or from the keyboard, every row shown between the anchor and it
-gets the row's new state, and the row becomes the anchor. A Shift+click never
-changes a row that a filter hides. Without an anchor among the rows shown, a
-Shift+click acts as a plain click. A checkbox in the list's header selects every
+**Range selection**: In a list whose rows are selected with checkboxes, a click
+toggles a row, whether by mouse or from the keyboard, and the anchor is the last
+row clicked. A click with Shift held also gives every row shown from the anchor
+to the clicked one, both included, the clicked row's new state. It never changes
+a row that a filter hides. Without an anchor among the rows shown, a click with
+Shift held acts as a plain click. A checkbox in the list's header selects every
 row shown, or deselects them all if they are all selected already. It, and any
 other change to the selection than a click on a row, leaves the anchor where it
 is.

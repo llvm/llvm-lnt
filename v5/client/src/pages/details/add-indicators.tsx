@@ -46,8 +46,13 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   const testsKnown = tests.complete && tests.error === null
   const testList = useCheckboxList(tests.names, testsKnown ? tests.names : undefined)
 
-  const selectedTests = testList.selection.selected
-  const count = selectedMachines.length * selectedTests.size
+  // Those the list holds: while the tests are listed, some selected may not be listed yet.
+  const heldTests = useMemo(() => new Set(tests.names), [tests.names])
+  const selectedTests = useMemo(
+    () => [...testList.selection.selected].filter((test) => heldTests.has(test)),
+    [testList.selection.selected, heldTests],
+  )
+  const count = selectedMachines.length * selectedTests.length
 
   const add = useRegressionMutation(
     suite,
@@ -64,7 +69,7 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   const submit = () => {
     // Those selected when Add is clicked: the selection may change before the answer.
     const sent = selectedMachines.flatMap((machine) =>
-      [...selectedTests].map((test) => ({ machine, test, metric })),
+      selectedTests.map((test) => ({ machine, test, metric })),
     )
     setReport(null)
     add.mutate(sent, {
@@ -211,12 +216,17 @@ function CheckboxList({ label, noun, list, status }: CheckboxListProps) {
     [rows, shown, noun, header],
   )
 
-  const selected = selection.selected.size
-  // Those the list holds, but its filter hides. Counted over those selected, on every click.
+  // Among those selected, those the list holds, and those of them its filter hides. Counted over
+  // those selected, on every click.
   const held = useMemo(() => new Set(names), [names])
   const visible = useMemo(() => new Set(shown), [shown])
+  let selected = 0
   let hidden = 0
-  for (const name of selection.selected) if (held.has(name) && !visible.has(name)) hidden++
+  for (const name of selection.selected) {
+    if (!held.has(name)) continue
+    selected++
+    if (!visible.has(name)) hidden++
+  }
 
   return (
     <div className={styles.checkboxList} role="group" aria-labelledby={headingId}>

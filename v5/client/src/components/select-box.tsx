@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore, type MouseEvent } from 'react'
+import { useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent } from 'react'
 import { selectedPart, type RowSelection } from './range-selection'
 import styles from './select-box.module.css'
 
@@ -47,7 +47,8 @@ interface SelectAllBoxProps {
 export function SelectAllBox({ rows, shown, label }: SelectAllBoxProps) {
   const part = useSyncExternalStore(rows.subscribe, () => selectedPart(rows.selected(), shown))
   const box = useRef<HTMLInputElement>(null)
-  useEffect(() => {
+  // Before the page is painted, so that the box never shows the wrong state.
+  useLayoutEffect(() => {
     if (box.current) box.current.indeterminate = part === 'some'
   }, [part])
   return (

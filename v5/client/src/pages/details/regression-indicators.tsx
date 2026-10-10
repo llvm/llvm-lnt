@@ -32,10 +32,11 @@ const indicatorKey = (indicator: Indicator) => indicator.uuid
 /** A removal of indicators: their UUIDs, and where the focus goes once they are gone. */
 interface Removal {
   uuids: string[]
-  /** The index among `rows` of the indicator removed alone, or null for several. */
-  index: number | null
-  /** The rows shown when the removal was asked for. */
-  rows: Indicator[]
+  /**
+   * The rows whose remove button takes the focus, the first of them still shown: for an indicator
+   * removed alone, those after it, then those before it, nearest first. None after a batch.
+   */
+  focusNext: string[]
 }
 
 /**
@@ -100,30 +101,32 @@ export function RegressionIndicators({
       ),
     withIndicators,
   )
-  // Where the focus goes once a removal shows, since the button it was on is gone: to the button
-  // of the row that took the removed one's place, or of the row before it if it was the last, and
-  // otherwise, or after a batch, to the table. Not before the rows have changed, and the buttons
-  // are enabled again, and once per removal.
+  // Where the focus goes once a removal shows (DT4), since the button it was on may be gone: to the
+  // first of `focusNext` still shown, or else to the table. Only once the removed rows are gone,
+  // once per removal, and only if the focus was lost, or is still in the table: the user may have
+  // moved on, to the filter say, where a key meant for it must not press a remove button.
   const refocused = useRef<unknown>(null)
-  const { data: removed, variables: removal, isPending: removing } = remove
+  const { data: removed, variables: removal } = remove
   useEffect(() => {
-    if (!removed || !removal || removing || refocused.current === removed) return
-    if (removal.rows === shown) return
+    if (!removed || !removal || refocused.current === removed) return
+    const shownKeys = new Set(keys)
+    if (removal.uuids.some((uuid) => shownKeys.has(uuid))) return
     refocused.current = removed
-    const buttons = table.current?.querySelectorAll<HTMLElement>('tbody button[data-remove]')
-    const at = (index: number) => buttons?.[index]
-    const target = removal.index === null ? null : (at(removal.index) ?? at(removal.index - 1))
-    ;(target ?? table.current)?.focus()
-  }, [removed, removal, removing, shown])
+    const focused = document.activeElement
+    const lost = focused === null || focused === document.body
+    if (!lost && !table.current?.contains(focused)) return
+    const next = removal.focusNext.find((uuid) => shownKeys.has(uuid))
+    const button = next && table.current?.querySelector<HTMLElement>(`[data-remove="${next}"]`)
+    ;(button || table.current)?.focus()
+  }, [removed, removal, keys])
   const { mutate } = remove
-  // `index` is that of the row removed alone, or null for a batch.
-  const removeRows = useCallback(
-    (uuids: string[], index: number | null) => mutate({ uuids, index, rows: shown }),
-    [mutate, shown],
-  )
   const removeOne = useCallback(
-    (uuid: string) => removeRows([uuid], keys.indexOf(uuid)),
-    [removeRows, keys],
+    (uuid: string) => {
+      const index = keys.indexOf(uuid)
+      const focusNext = [...keys.slice(index + 1), ...keys.slice(0, index).reverse()]
+      mutate({ uuids: [uuid], focusNext })
+    },
+    [mutate, keys],
   )
 
   // The remove buttons stay enabled while a removal is under way, so that the table need not render
@@ -176,7 +179,7 @@ export function RegressionIndicators({
                 ? `One request can remove at most ${MAX_PAGE_SIZE} indicators: select fewer.`
                 : undefined)
             }
-            onClick={() => removeRows([...selection.selected], null)}
+            onClick={() => mutate({ uuids: [...selection.selected], focusNext: [] })}
           >
             {selected === 0 ? 'Remove selected' : `Remove ${selected} selected`}
           </button>
@@ -278,7 +281,7 @@ function indicatorColumns({
         <button
           type="button"
           className={styles.removeButton}
-          data-remove
+          data-remove={indicator.uuid}
           aria-label={`Remove ${describe(indicator)}`}
           disabled={removeGate.disabled}
           title={removeGate.title ?? 'Remove this indicator'}
