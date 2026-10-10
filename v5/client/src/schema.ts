@@ -16,6 +16,16 @@ export function labelOf(entry: { name: string; display_name: string | null }): s
   return entry.display_name ?? entry.name
 }
 
+/**
+ * A metric's unit as AR2 writes it: the unit and its abbreviation in parentheses, as much of
+ * either as is set, and once when they are identical. Null when neither is set.
+ */
+export function formatUnit({ unit, unit_abbrev }: Metric): string | null {
+  if (unit === null) return unit_abbrev === null ? null : `(${unit_abbrev})`
+  if (unit_abbrev === null || unit_abbrev === unit) return unit
+  return `${unit} (${unit_abbrev})`
+}
+
 /** A value of a declared field, as shown: in its JSON form, except timestamps in local time. */
 export function formatFieldValue(value: FieldValue, type: Schemas['AttributeType']): string {
   if (value === null || value === undefined) return MISSING

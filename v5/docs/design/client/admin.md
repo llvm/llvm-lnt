@@ -13,8 +13,9 @@ This page provides various tabs with different tools.
 | Test Suites | Suite selector, schema viewer and editor, create and delete suites | `GET/POST/DELETE suites`, `PATCH suites/{name}/schema` |
 
 The URL keeps the selected tab as `tab` (`suites` for Test Suites, and nothing for API Keys,
-the default), and the sort of the API Keys tab's table as `sort` (see AD1). Switching tabs
-clears the setting of the tab left.
+the default), the sort of the API Keys tab's table as `sort` (see AD1), and the suite selected
+in the Test Suites tab as `suite` (see AR2 "State"). Switching tabs clears the setting of the
+tab left.
 
 ### AD1: API Keys tab detail
 
@@ -80,8 +81,9 @@ longer be available, and that a token shown and not copied yet will be lost.
 ### AD2: Test Suites tab detail
 
 A dropdown switches between test suites, and a "New suite" button opens the schema editor
-(see AD3) to create one. Selecting a suite loads and displays its schema. The schema is
-displayed as follows:
+(see AD3) to create one. Unless the URL names one, no suite is selected until the user selects
+one, which the dropdown prompts for. When the instance has no suites, the tab says so, and
+"New suite" is still offered. Selecting a suite displays its schema, as follows:
 
 ```
 Metrics (subtitle font)
@@ -117,7 +119,8 @@ etc...
 Each table shows exactly the presentation keys its list accepts (see D4), so the three
 tables deliberately differ in their columns. Entries are shown by their `name`, with their
 `display_name` in a column of its own; one that was not set shows `--` rather than
-repeating the name, matching what the API returns.
+repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR2
+writes it, and `--` when it has neither a unit nor an abbreviation.
 
 "Edit schema" opens the schema editor on the selected suite. "Copy as JSON" and "Download
 JSON" export the schema exactly as the API returns it. Another instance can create the same
@@ -125,7 +128,8 @@ suite from it unchanged (see D4).
 
 Clicking the red "Delete This Suite" button shows an inline panel warning that deleting a
 suite permanently destroys all its machines, runs, commits, samples, and regressions, with
-the confirmation prompt AR2 describes. On confirmation, the suite is deleted.
+the confirmation prompt AR2 describes. On confirmation, the suite is deleted, and so is no
+longer selected.
 
 Anyone can view and export a schema. Creating, editing and deleting a suite require `manage`
 scope.

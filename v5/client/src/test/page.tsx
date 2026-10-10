@@ -53,8 +53,30 @@ export function currentUrl() {
   return screen.getByTestId('url').textContent
 }
 
-export function mockSuites(items: SuiteSchema[] = [SUITE, BARE_SUITE]) {
-  server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items })))
+/** The suites the mocked API holds, as it lists them, and how many times it was asked. */
+export interface SuiteStore {
+  suites: SuiteSchema[]
+  requests: number
+}
+
+/**
+ * Answer `GET /api/suites` with the suites the returned store holds when the request arrives,
+ * `items` at first, once `wait` resolves.
+ */
+export function mockSuites(
+  items: SuiteSchema[] = [SUITE, BARE_SUITE],
+  { wait }: { wait?: () => Promise<void> } = {},
+): SuiteStore {
+  const store: SuiteStore = { suites: [...items], requests: 0 }
+  server.use(
+    mockApi('get', '/api/suites', async () => {
+      store.requests++
+      const listed = [...store.suites]
+      await wait?.()
+      return HttpResponse.json({ items: listed })
+    }),
+  )
+  return store
 }
 
 /**

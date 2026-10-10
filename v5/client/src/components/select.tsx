@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react'
+import { useId, useRef, type Ref } from 'react'
 import {
   Button,
   ListBox,
@@ -39,6 +39,8 @@ interface Props<Value extends string> {
    * saves every change would save one after the other.
    */
   listPicksOnly?: boolean
+  /** The button that opens the list, to focus it from script. */
+  ref?: Ref<HTMLButtonElement>
 }
 
 /**
@@ -57,6 +59,7 @@ export function Select<Value extends string>({
   isPending,
   hideLabel,
   listPicksOnly,
+  ref,
 }: Props<Value>) {
   const titleId = useId()
   // Whether the list is open. React Aria reports a pick before it closes the list.
@@ -78,6 +81,7 @@ export function Select<Value extends string>({
       >
         <FieldLabel label={label} hidden={hideLabel} />
         <Button
+          ref={ref}
           className={styles.button}
           isPending={isPending}
           aria-describedby={title === undefined ? undefined : titleId}
