@@ -18,6 +18,10 @@
   margin-bottom: 0;
 }
 
+.prompt {
+  margin: 0;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;
