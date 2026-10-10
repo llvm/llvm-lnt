@@ -335,7 +335,7 @@ settings are kept in the URL, as with CP9's panel.
 - Tests: a list of the tests that have a value for the metric on at least one of
   the machines selected, sorted by name, each with a checkbox. Until a machine
   is selected, the list says so.
-- Each list scrolls in a box of its own: the machines' list shows at most five
+- Each list scrolls in a box of its own: the machines' list shows only a few
   machines at once. Each list also has a text filter, and a checkbox in its
   header that selects every item shown (see "Range selection" in AR2). A filter
   does not change the selection: items can be selected under one filter, then

@@ -195,7 +195,7 @@ interface CheckboxListProps {
   list: CheckboxListState
   /** Shown above the list, or in its place while it has nothing to show: why. */
   status?: ReactNode
-  /** Show at most five names at once, as for a suite's machines (DT4), rather than more. */
+  /** Show only a few names at once, as DT4 asks of the machines' list, rather than more. */
   compact?: boolean
 }
 
