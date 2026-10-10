@@ -20,7 +20,7 @@ import { WithSchema } from '../../components/with-schema'
 import { formatTimestamp, plural, regressionTitle, shortUuid, uuidPrefix } from '../../format'
 import { REGRESSION_STATES, stateLabel } from '../../regression-states'
 import { suiteTabPath } from '../test-suites/settings'
-import { ActionRow } from './action-row'
+import { DetailActionRow } from './action-row'
 import { AddIndicators } from './add-indicators'
 import { RegressionIndicators } from './regression-indicators'
 import styles from './details.module.css'
@@ -190,7 +190,7 @@ function StateRow({ suite, regression }: { suite: string; regression: Regression
 function Actions({ suite, regression }: { suite: string; regression: Regression }) {
   const { uuid } = regression
   return (
-    <ActionRow
+    <DetailActionRow
       deletion={{
         suite,
         label: 'Delete regression',

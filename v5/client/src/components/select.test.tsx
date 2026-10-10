@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createRef, useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -37,6 +37,17 @@ describe('Select', () => {
   it('shows the label of its value, an empty string included', () => {
     render(<MetricSelect />)
     expect(selectButton('Metric')).toHaveTextContent('Any metric')
+  })
+
+  it('gives its button to a ref, to focus it from script', () => {
+    const ref = createRef<HTMLButtonElement>()
+    render(
+      <Select label="Metric" options={OPTIONS} value="" onChange={() => {}} ref={ref} />,
+    )
+
+    ref.current!.focus()
+
+    expect(selectButton('Metric')).toHaveFocus()
   })
 
   it('lists its options, and picks the one clicked', async () => {

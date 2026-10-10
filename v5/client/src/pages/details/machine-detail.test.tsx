@@ -376,6 +376,17 @@ describe('the Machine Detail page', () => {
       expect(screen.getByRole('group', { name: 'Machine' })).toBeInTheDocument()
     })
 
+    it('takes a machine deleted meanwhile, from elsewhere, as deleted, and leaves the page', async () => {
+      signIn('manage')
+      mockDelete(() => errorResponse(404, 'not_found', `Machine '${NAME}' not found`))
+      mockMachines(() => ({ items: [] }))
+      renderMachine()
+
+      await startDeleting()
+
+      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+    })
+
     it('does not leave a page the user has already left, and refreshes the one shown', async () => {
       signIn('manage')
       const deletion = gate()

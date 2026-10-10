@@ -14,6 +14,7 @@ import {
   headersOf,
   main,
   mockSent,
+  mockSuites,
   renderPage,
   rowsOf,
   table,
@@ -189,6 +190,7 @@ async function renderKeys({ url = '/admin', keys }: { url?: string; keys?: ApiKe
 
 describe('the Admin page', () => {
   it('opens on its API Keys tab, and keeps the other in the URL', async () => {
+    mockSuites()
     renderPage('/admin')
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Admin')
@@ -389,6 +391,7 @@ describe('sorting the keys', () => {
   })
 
   it('drops the sort on leaving the tab', async () => {
+    mockSuites()
     renderPage('/admin?sort=name')
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Test Suites' }))
@@ -396,6 +399,7 @@ describe('sorting the keys', () => {
   })
 
   it('drops the sort from the URL of the Test Suites tab', async () => {
+    mockSuites()
     renderPage('/admin?tab=suites&sort=name')
 
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
@@ -446,6 +450,7 @@ describe('creating a key', () => {
 
   it('keeps the token out of every cache once the user leaves the tab', async () => {
     const { queryClient, store } = await renderKeys()
+    mockSuites()
     mockCreate(store)
     createKey('ci-bot')
     await findCreatedKey()

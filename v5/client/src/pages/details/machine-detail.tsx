@@ -22,7 +22,7 @@ import { comparePath, graphPath } from '../../paths'
 import type { RegressionState } from '../../regression-states'
 import { formatFieldValue, labelOf, type Commit } from '../../schema'
 import { suiteTabPath } from '../test-suites/settings'
-import { ActionRow } from './action-row'
+import { DetailActionRow } from './action-row'
 import { RegressionsTable } from './regressions-table'
 import styles from './details.module.css'
 
@@ -142,7 +142,7 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
 /** View Graph, Compare, and Delete Machine, with its confirmation below them (DT1). */
 function Actions({ suite, name }: { suite: string; name: string }) {
   return (
-    <ActionRow
+    <DetailActionRow
       deletion={{
         suite,
         label: 'Delete Machine',
@@ -157,7 +157,7 @@ function Actions({ suite, name }: { suite: string; name: string }) {
         ),
         busyMessage: 'Deleting a machine with many runs may take a while.',
         // Its runs, their commits' and tests' lists, and the regressions it had indicators on all
-        // change, which is why the whole suite is forgotten (see ActionRow).
+        // change, which is why the whole suite is forgotten (see DetailActionRow).
         onDelete: () =>
           unwrap(
             authedApi.DELETE('/api/suites/{testsuite}/machines/{machine_name}', {
@@ -169,7 +169,7 @@ function Actions({ suite, name }: { suite: string; name: string }) {
     >
       <ButtonLink to={graphPath({ suite, machine: name })}>View Graph</ButtonLink>
       <ButtonLink to={comparePath({ suite, machine: name })}>Compare</ButtonLink>
-    </ActionRow>
+    </DetailActionRow>
   )
 }
 

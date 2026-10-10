@@ -13,7 +13,7 @@ import { Alert, ErrorMessage, Loaded, Loading } from '../../components/feedback'
 import { Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useRowConfirm } from '../../components/use-row-confirm'
-import { formatTimestamp } from '../../format'
+import { formatTimestamp, yesNo } from '../../format'
 import { CopyButton } from './copy-button'
 import type { KEY_SORT_COLUMNS } from './settings'
 import tableStyles from '../../components/data-table.module.css'
@@ -198,7 +198,7 @@ const COLUMNS: (Column<ApiKey> & { id: SortColumn })[] = [
   {
     id: 'is_active',
     header: 'Active',
-    cell: (key) => (key.is_active ? 'Yes' : 'No'),
+    cell: (key) => yesNo(key.is_active),
     sortKey: (key) => Number(key.is_active),
   },
 ]
