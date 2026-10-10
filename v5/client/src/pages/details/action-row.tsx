@@ -78,6 +78,7 @@ export function ActionRow({ children, deletion }: Props) {
       {confirming && (
         <ConfirmDelete
           expected={expected}
+          scope={scope}
           busyMessage={busyMessage}
           onConfirm={remove}
           onCancel={() => {

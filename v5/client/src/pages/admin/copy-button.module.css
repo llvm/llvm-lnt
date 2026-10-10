@@ -1,0 +1,17 @@
+/* The label and the outcomes share one cell, which is as wide as the widest of them. */
+.root {
+  display: inline-grid;
+  justify-items: center;
+}
+
+.part {
+  grid-area: 1 / 1;
+}
+
+.hidden {
+  visibility: hidden;
+}
+
+.failed {
+  color: var(--lnt-danger);
+}

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, PERMISSION_DENIED } from '../api/client'
+import { providers } from '../test/render'
 import { ConfirmDelete } from './confirm-delete'
 
 function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve()) {
@@ -9,12 +10,14 @@ function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve(
   render(
     <ConfirmDelete
       expected="573af861"
+      scope="read"
       onConfirm={confirm}
       onCancel={onCancel}
       busyMessage="Hold on."
     >
       <p>Delete the run?</p>
     </ConfirmDelete>,
+    providers(),
   )
   return {
     input: screen.getByLabelText(/to confirm/),
@@ -88,5 +91,46 @@ describe('ConfirmDelete', () => {
     fireEvent.keyDown(input, { key: 'Escape' })
 
     expect(onCancel).toHaveBeenCalledTimes(2)
+  })
+
+  it('confirms at once without a text to type, the focus starting on Cancel', () => {
+    const onConfirm = vi.fn(() => Promise.resolve())
+    const onCancel = vi.fn()
+    render(
+      <ConfirmDelete confirmLabel="Revoke" scope="read" onConfirm={onConfirm} onCancel={onCancel}>
+        <p>Revoke the key?</p>
+      </ConfirmDelete>,
+      providers(),
+    )
+
+    const prompt = screen.getByRole('form', { name: 'Confirmation' })
+    expect(prompt).toHaveAccessibleDescription('Revoke the key?')
+    expect(prompt).not.toHaveTextContent('to confirm')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cancel' }), { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('cannot confirm without the scope the action needs, saying why', () => {
+    const onConfirm = vi.fn(() => Promise.resolve())
+    render(
+      <ConfirmDelete confirmLabel="Revoke" scope="admin" onConfirm={onConfirm} onCancel={() => {}}>
+        <p>Revoke the key?</p>
+      </ConfirmDelete>,
+      providers(),
+    )
+
+    const button = screen.getByRole('button', { name: 'Revoke' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute(
+      'title',
+      "Needs an API token with the 'admin' scope. Set one in Settings.",
+    )
+    fireEvent.submit(screen.getByRole('form', { name: 'Confirmation' }))
+    expect(onConfirm).not.toHaveBeenCalled()
   })
 })

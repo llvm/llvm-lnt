@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
-import clsx from 'clsx'
 import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { useMachineNames } from '../../api/machines'
@@ -19,6 +18,7 @@ import { CursorPager } from '../../components/pagination'
 import { StateBadge, StateChips } from '../../components/regression-state'
 import { Select } from '../../components/select'
 import { useLocalSuggestions } from '../../components/suggestions'
+import { useRowConfirm } from '../../components/use-row-confirm'
 import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
 import { formatTimestamp, MISSING, regressionTitle, uuidPrefix } from '../../format'
@@ -47,12 +47,10 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   const queryClient = useQueryClient()
   const input = useServerSearch(search, onSearch)
   const [creating, setCreating] = useState(false)
-  // The regression whose deletion is being confirmed, with the button that asked for it, which
-  // focus returns to on Cancel.
-  const [deleting, setDeleting] = useState<{ regression: Regression; opener: HTMLElement } | null>(
-    null,
-  )
   const tableRef = useRef<HTMLTableElement>(null)
+  // The regression whose deletion is being confirmed.
+  const rowConfirm = useRowConfirm<Regression>(tableRef)
+  const deleting = rowConfirm.item
   const triage = useScopeGate('triage')
 
   // A machine or a metric the suite does not have is dropped (AR2 "State"): a metric as soon as it
@@ -97,12 +95,6 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   })
   const page = pager.page
 
-  const confirmDelete = (regression: Regression, opener: HTMLElement) =>
-    setDeleting({ regression, opener })
-  const cancelDelete = () => {
-    deleting?.opener.focus()
-    setDeleting(null)
-  }
   const remove = useMutation({
     mutationFn: (regression: Regression) => deleteRegression(suite, regression.uuid),
     onSuccess: async () => {
@@ -110,9 +102,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       // (AR2 "Deletions").
       queryClient.removeQueries({ queryKey: queryKeys.regressions(suite), type: 'inactive' })
       await queryClient.invalidateQueries({ queryKey: queryKeys.regressions(suite) })
-      setDeleting(null)
-      // Its row, and so the button that asked for it, is gone.
-      tableRef.current?.focus()
+      rowConfirm.done()
     },
   })
 
@@ -171,14 +161,15 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       {creating && <CreateRegression schema={schema} onCancel={() => setCreating(false)} />}
       {deleting && (
         <ConfirmDelete
-          key={deleting.regression.uuid}
-          expected={uuidPrefix(deleting.regression.uuid)}
-          onConfirm={() => remove.mutateAsync(deleting.regression)}
-          onCancel={cancelDelete}
+          key={deleting.uuid}
+          expected={uuidPrefix(deleting.uuid)}
+          scope="triage"
+          onConfirm={() => remove.mutateAsync(deleting)}
+          onCancel={rowConfirm.cancel}
         >
           <p>
-            Delete the regression <strong>{regressionTitle(deleting.regression)}</strong>, and its
-            indicators? This cannot be undone.
+            Delete the regression <strong>{regressionTitle(deleting)}</strong>, and its indicators?
+            This cannot be undone.
           </p>
         </ConfirmDelete>
       )}
@@ -204,16 +195,14 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
           <DataTable
             label="Regressions"
             ref={tableRef}
-            columns={columns(schema, page, deleteGate, confirmDelete)}
+            columns={columns(schema, page, deleteGate, rowConfirm.open)}
             rows={page.items}
             rowKey={(regression) => regression.uuid}
             rowProps={(regression) => ({
-              className: clsx(
-                styles.clickable,
-                regression.uuid === deleting?.regression.uuid && styles.deleting,
-              ),
+              className: styles.clickable,
               onClick: openRow(regression),
             })}
+            confirming={(regression) => regression.uuid === deleting?.uuid}
             empty={
               // A later page may only have run out.
               pager.hasPrevious

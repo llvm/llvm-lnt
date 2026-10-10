@@ -13,6 +13,7 @@ import {
   enumParam,
   listParam,
   stringParam,
+  tabSettings,
   trimmedStringParam,
   useDropUnusable,
   useUrlState,
@@ -328,5 +329,24 @@ describe('useDropUnusable', () => {
     )
 
     expect(dropped).toBe(false)
+  })
+})
+
+describe('tabSettings', () => {
+  const params = {
+    tab: enumParam(['one', 'two'], 'one'),
+    search: stringParam(),
+    filter: stringParam('all'),
+  }
+  const { reset, unused } = tabSettings(params, { one: ['search'], two: ['search', 'filter'] })
+
+  it('resets every setting but the tab to its default', () => {
+    expect(reset()).toEqual({ search: '', filter: 'all' })
+  })
+
+  it('gives its default to every setting the tab does not use and the URL holds', () => {
+    expect(unused({ tab: 'one', search: 'x', filter: 'some' })).toEqual({ filter: 'all' })
+    expect(unused({ tab: 'one', search: 'x', filter: 'all' })).toEqual({})
+    expect(unused({ tab: 'two', search: 'x', filter: 'some' })).toEqual({})
   })
 })

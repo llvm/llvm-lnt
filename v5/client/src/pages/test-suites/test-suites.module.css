@@ -105,10 +105,6 @@
   cursor: pointer;
 }
 
-.deleting {
-  background: var(--lnt-danger-bg);
-}
-
 /* Cells may break anywhere (see data-table.module.css), which would let the other columns squeeze
    the title to a few characters a line. The bug, cut short (see BugLink), leaves it the room. */
 .title {

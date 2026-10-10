@@ -1,20 +1,25 @@
 import type { Schemas } from '../api/client'
-import { useAuth, type TokenStatus } from './use-auth'
+import { acceptedKey, useAuth, type TokenStatus } from './use-auth'
 
 export type Scope = Schemas['Scope']
 
-/** I5's hierarchy: a key grants its own scope and every lower one. */
-const RANK: Record<Scope, number> = { read: 0, submit: 1, triage: 2, manage: 3, admin: 4 }
+/** I5's hierarchy, lowest first: a key grants its own scope and every lower one. */
+export const SCOPES = ['read', 'submit', 'triage', 'manage', 'admin'] as const satisfies Scope[]
+
+/** Where `scope` stands in the hierarchy: 0 for `read`, and one more for each scope above it. */
+export function scopeRank(scope: Scope): number {
+  return SCOPES.indexOf(scope)
+}
 
 /** Whether a caller with `granted` (null without a valid token) may do what needs `required`. */
 export function grants(granted: Scope | null, required: Scope): boolean {
-  return required === 'read' || (granted !== null && RANK[granted] >= RANK[required])
+  return required === 'read' || (granted !== null && scopeRank(granted) >= scopeRank(required))
 }
 
 /** The scope a token with `status` grants: null without a valid one, undefined while it is checked. */
 function grantedBy(status: TokenStatus): Scope | null | undefined {
-  if (status.state === 'checking') return undefined
-  return status.state === 'valid' ? status.key.scope : null
+  const key = acceptedKey(status)
+  return key && key.scope
 }
 
 /**
@@ -59,7 +64,8 @@ function reason(required: Scope, status: TokenStatus): string {
  * A control that is also disabled for reasons of its own combines them, as in
  * `disabled={gate.disabled || saving}`.
  *
- * A page that specifies otherwise, such as one showing a banner instead, uses `useGrantedScope`.
+ * A page that specifies otherwise, such as one showing a banner instead, uses `useGrantedScope`, or
+ * `acceptedKey` with `useAuth`.
  */
 export function useScopeGate(required: Scope): ScopeGate {
   const { status } = useAuth()
