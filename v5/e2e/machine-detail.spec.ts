@@ -35,7 +35,7 @@ test('shows the machine and its active regressions, and links to all of them', a
   // Detected and active ones only: not the fixed filesystem::path one, nor the false positive.
   const regressions = table(page, 'Active regressions')
   await expect(regressions).toContainText('std::format slowdown')
-  for (const state of await column(regressions, 1)) expect(['detected', 'active']).toContain(state)
+  for (const state of await column(regressions, 2)) expect(['detected', 'active']).toContain(state)
   await expect(regressions).not.toContainText('filesystem::path')
 
   await page.getByRole('link', { name: 'Show all regressions' }).click()

@@ -13,6 +13,7 @@ import {
   mockMachines,
   mockResolve,
   mockSuites,
+  ready,
   recording,
   renderPage,
   rowsOf,
@@ -94,12 +95,6 @@ function mockDelete(
     new HttpResponse(null, { status: 204 }),
 ) {
   server.use(mockApi('delete', MACHINE_ROUTE, ({ request }) => respond(request)))
-}
-
-/** Wait for the info box, and the token's check, which enables what `manage` scope allows. */
-async function ready(control: () => HTMLElement) {
-  await screen.findByRole('group', { name: 'Machine' })
-  await waitFor(() => expect(control()).toBeEnabled())
 }
 
 function trackedBox() {
@@ -215,7 +210,7 @@ describe('the Machine Detail page', () => {
         return HttpResponse.json({ ...LINUX, tracked: false })
       })
       renderMachine()
-      await ready(trackedBox)
+      await ready('Machine', trackedBox)
 
       trackedBox().focus()
       fireEvent.click(trackedBox())
@@ -240,7 +235,7 @@ describe('the Machine Detail page', () => {
         return HttpResponse.json(LINUX)
       })
       renderMachine()
-      await ready(trackedBox)
+      await ready('Machine', trackedBox)
 
       fireEvent.click(screen.getByText('Tracked'))
 
@@ -252,7 +247,7 @@ describe('the Machine Detail page', () => {
       signIn('manage')
       mockPatch(() => errorResponse(403, 'forbidden', 'Insufficient scope'))
       renderMachine()
-      await ready(trackedBox)
+      await ready('Machine', trackedBox)
 
       fireEvent.click(trackedBox())
 
@@ -272,7 +267,7 @@ describe('the Machine Detail page', () => {
       // From the Machines tab, whose list is then cached.
       renderPage('/suites/libcxx?tab=machines')
       fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
-      await ready(trackedBox)
+      await ready('Machine', trackedBox)
 
       fireEvent.click(trackedBox())
       await waitFor(() => expect(trackedBox()).not.toBeChecked())
@@ -308,7 +303,7 @@ describe('the Machine Detail page', () => {
         return new HttpResponse(null, { status: 204 })
       })
       renderMachine()
-      await ready(deleteButton)
+      await ready('Machine', deleteButton)
       mockMachines(() => ({ items: [] }))
 
       fireEvent.click(deleteButton())
@@ -333,7 +328,7 @@ describe('the Machine Detail page', () => {
       mockMachines(() => ({ items: [LINUX] }))
       renderPage(from)
       fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
-      await ready(deleteButton)
+      await ready('Machine', deleteButton)
       // Once deleted, the machine is no longer listed.
       const machineQueries = mockMachines(() => ({ items: [] }))
 
@@ -363,7 +358,7 @@ describe('the Machine Detail page', () => {
 
     /** Start deleting `NAME` from its page, confirmed. */
     async function startDeleting() {
-      await ready(deleteButton)
+      await ready('Machine', deleteButton)
       fireEvent.click(deleteButton())
       fireEvent.change(screen.getByRole('textbox'), { target: { value: NAME } })
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
@@ -404,7 +399,7 @@ describe('the Machine Detail page', () => {
     it('can be cancelled, giving the focus back to the button', async () => {
       signIn('manage')
       renderMachine()
-      await ready(deleteButton)
+      await ready('Machine', deleteButton)
 
       fireEvent.click(deleteButton())
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -415,7 +410,7 @@ describe('the Machine Detail page', () => {
   })
 
   describe('its active regressions', () => {
-    it('are those detected or active on the machine, newest first', async () => {
+    it('are those detected or active on the machine, newest first, by UUID and title', async () => {
       const long = 'x'.repeat(60)
       const { regressionQueries } = renderMachine({
         regressions: [
@@ -427,10 +422,14 @@ describe('the Machine Detail page', () => {
 
       const list = await table('Active regressions')
       expect(rowsOf(list)).toEqual([
-        'find_if slowdown | active | 12',
-        `${'x'.repeat(49)}… | detected | 1`,
-        '(untitled) | detected | 0',
+        'aaaaaaaa… | find_if slowdown | active | 12',
+        `bbbbbbbb… | ${'x'.repeat(49)}… | detected | 1`,
+        'cccccccc… | (untitled) | detected | 0',
       ])
+      // The UUID tells the regressions without a title apart.
+      const uuid = within(list).getByRole('link', { name: 'cccccccc…' })
+      expect(uuid).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('c')}`)
+      expect(uuid).toHaveAttribute('title', uuidOf('c'))
       expect(within(list).getByRole('link', { name: /^x+…$/ })).toHaveAttribute('title', long)
       const untruncated = within(list).getByRole('link', { name: 'find_if slowdown' })
       expect(untruncated).not.toHaveAttribute('title')
@@ -468,7 +467,9 @@ describe('the Machine Detail page', () => {
       fail = false
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-      expect(rowsOf(await table('Active regressions'))).toEqual(['find_if slowdown | detected | 0'])
+      expect(rowsOf(await table('Active regressions'))).toEqual([
+        'aaaaaaaa… | find_if slowdown | detected | 0',
+      ])
     })
   })
 

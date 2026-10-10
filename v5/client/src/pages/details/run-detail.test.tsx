@@ -16,6 +16,7 @@ import {
   mockResolve,
   mockRuns,
   mockSuites,
+  queryOf,
   recording,
   renderPage,
   rowsOf,
@@ -99,11 +100,6 @@ function renderRun({
   )
   renderPage(url)
   return { lookups: lookups.queries, sampleQueries }
-}
-
-/** The query of `link`, as an object. */
-function queryOf(link: HTMLElement) {
-  return Object.fromEntries(new URL(link.getAttribute('href')!, 'http://x').searchParams)
 }
 
 /** The test names of the rows of `table`. */

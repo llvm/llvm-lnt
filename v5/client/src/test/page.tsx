@@ -3,9 +3,10 @@
  * the URL it is at, and mocks of the suite-scoped endpoints most pages read.
  */
 
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { useLocation, useNavigate } from 'react-router'
+import { expect } from 'vitest'
 import App from '../app'
 import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
@@ -148,6 +149,20 @@ export function rowsOf(table: HTMLElement) {
 
 export function search(label: string, text: string) {
   fireEvent.change(screen.getByRole('searchbox', { name: label }), { target: { value: text } })
+}
+
+/** The query of `link`'s target, as an object. */
+export function queryOf(link: HTMLElement) {
+  return Object.fromEntries(new URL(link.getAttribute('href')!, 'http://x').searchParams)
+}
+
+/**
+ * Wait for the info box named `name` to show, and for `control` to be enabled once the token's
+ * check has accepted the scope it needs.
+ */
+export async function ready(name: string, control: () => HTMLElement) {
+  await screen.findByRole('group', { name })
+  await waitFor(() => expect(control()).toBeEnabled())
 }
 
 /** The rows of the info box named `name` (see InfoBox), once it shows, as label and value text. */

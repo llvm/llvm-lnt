@@ -15,6 +15,9 @@ interface Props {
   children: ReactNode
 }
 
+/** Why a commit has no commit before it, nor after it (DT2, DT3). */
+export const NO_ORDINAL = 'This commit has no ordinal.'
+
 /**
  * A link to the Compare page comparing `run` with every run of its machine at the commit before
  * (DT2 "Compare with previous commit"), disabled, saying why, while there is no such commit.
@@ -45,7 +48,7 @@ function title(previous: PreviousCommit, machine: string, schema: SuiteSchema): 
     case 'failed':
       return `The previous commit could not be looked up: ${errorMessage(previous.error)}`
     case 'unordered':
-      return 'This commit has no ordinal.'
+      return NO_ORDINAL
     case 'none':
       return `${machine} has no runs at an earlier commit.`
     case 'found':

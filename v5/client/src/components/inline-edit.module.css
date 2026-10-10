@@ -1,0 +1,18 @@
+.root {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.button {
+  padding: 0 var(--lnt-space-2);
+  font-size: 0.8rem;
+}
+
+/* The input and its buttons, with why a save failed below them. */
+.editor {
+  display: grid;
+  gap: var(--lnt-space-1);
+  white-space: normal;
+}

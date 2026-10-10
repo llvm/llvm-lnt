@@ -23,9 +23,9 @@ Deep dive into a single machine. Machine names are guaranteed unique. Layout:
 
 ## Active Regressions
 
-Title                   State             Tests
------------------------------------------------
-find_if slowdown        detected          12
+UUID          Title                   State             Tests
+-------------------------------------------------------------
+3f0ac112...   find_if slowdown        detected          12
 etc...
 
 ## Run History
@@ -64,6 +64,8 @@ indicator on this machine, newest first
 Each row's title links to its regression detail page.
 
 Each row shows:
+- UUID: the regression's shortened UUID, linking to its detail page like Title. As in the
+  Regressions tab (TS5), it tells regressions without a title apart.
 - Title: the regression's title (truncated to 50 chars, whole on hover), link to the regression detail page
 - State: a colored state badge
 - Tests: the regression's `test_count`, which counts the tests across all of its
@@ -175,18 +177,20 @@ Layout:
 +-------------------------------------------------------------+
 | Commit            014621ede7c175aece29796adcaf5000f891cf0c  |
 | Ordinal           593922    [Edit]                          |
-| Tag               (none)    [Edit]                          |
+| Tag               --        [Edit]                          |
 | <commit-fields>                                             |
 +-------------------------------------------------------------+
 
-[<- Previous commit] [Next commit ->]
+[<- Previous commit] [Next commit ->] [Delete commit]
 
 ## Regressions
 
-Title                   State             Tests
------------------------------------------------
-find_if slowdown        detected          12
+UUID          Title                   State             Tests
+-------------------------------------------------------------
+3f0ac112...   find_if slowdown        detected          12
 etc...
+
+[<- Previous] [Next ->]
 
 ## Runs
 
@@ -203,26 +207,44 @@ etc...
 ### Display and edit
 
 The page header and the `Commit` row show the commit string itself rather than its
-display value. The various commit fields are displayed prominently. Inline edit buttons
-allow setting or clearing the tag and ordinal via `PATCH /commits/{value}`. Editing
-requires `manage` scope.
+display value. The various commit fields are displayed prominently. The ordinal and the
+tag are edited in place (see "Inline editing" in AR2) through `PATCH /commits/{value}`,
+which requires `manage` scope. Emptying either clears it. An ordinal is an integer that its
+column can hold (see D3 and D5): any other text is invalid (see "Invalid input" in AR2).
 
 ### Navigation
 
 Previous / next buttons allow navigating to the previous or next commit based on ordinals.
-If the commit has no ordinal, these buttons are greyed out.
+Each is greyed out when there is no such commit: when the commit has no ordinal, and at
+either end of the ordered range.
+
+### Delete commit
+
+A red "Delete commit" button follows the navigation buttons. Clicking it shows its
+confirmation prompt (see AR2) below them, saying that the commit's runs, with their samples
+and profiles, are deleted too, and that a commit a regression is attributed to cannot be
+deleted: the API refuses it (see E3), and the prompt reports why. Deletion requires `manage`
+scope. While it is in progress, a message reassures the user that deletion may take a while
+for commits with many runs. On success, navigates to the Commits tab of the Test Suites page
+(`/suites/{ts}?tab=commits`).
 
 ### Regressions section
 
 Section listing regressions where `commit` matches this commit's value, newest first,
-25 per page (`sort=-created_at`). Each row's title links to its regression detail page. Displays
+25 per page with Previous/Next (`sort=-created_at`; see AR2). Its rows are those of DT1's
+active regressions table: UUID, Title, State and Tests. Displays
 `No regressions at this commit.` if there are no regressions.
 
 ### Runs section
 
-Displays the runs at this commit in a table. Provides a text input for substring matching
-on machine names, filters the runs table. The summary updates to reflect filtered counts
-(e.g. "5 of 12 runs across 2 of 8 machines").
+Displays every run at this commit in a table, sorted by machine name, and on each machine
+newest first. The runs are loaded progressively, as DT2's samples are, with a count of
+those loaded so far (see "Paginated tables" in AR2). A text input for substring matching on
+machine names, kept in the URL as `?machine_filter={text}`, filters the runs table. Once
+every run has loaded, a summary counts them and their machines, and reflects the filter
+(e.g. "12 runs across 8 machines", "5 of 12 runs across 2 of 8 machines"). The table says
+`No runs at this commit.` when there are none, and `No machines match the filter.` when the
+filter keeps none.
 
 Each row has a "Compare with previous" link, which does what the Run Detail page's "Compare
 with previous commit" does for that row's run (see DT2). Since this page has no metric
