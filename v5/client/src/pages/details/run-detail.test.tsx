@@ -216,7 +216,7 @@ describe('the Run Detail page', () => {
       [
         'the commit has no ordinal',
         { commit: commit('abc123') },
-        'This commit has no ordinal, so no commit comes before it.',
+        'This commit has no ordinal.',
       ],
       [
         'the commit was deleted meanwhile',

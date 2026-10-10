@@ -45,7 +45,7 @@ function title(previous: PreviousCommit, machine: string, schema: SuiteSchema): 
     case 'failed':
       return `The previous commit could not be looked up: ${errorMessage(previous.error)}`
     case 'unordered':
-      return 'This commit has no ordinal, so no commit comes before it.'
+      return 'This commit has no ordinal.'
     case 'none':
       return `${machine} has no runs at an earlier commit.`
     case 'found':
