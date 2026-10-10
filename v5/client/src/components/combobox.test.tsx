@@ -381,6 +381,45 @@ function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion 
   )
 }
 
+describe('Combobox options', () => {
+  function renderWith(props: { isReadOnly?: boolean; hideLabel?: boolean }) {
+    function Picker() {
+      const suggestions = useLocalSuggestions(MACHINES)
+      return (
+        <Combobox
+          label="Machine"
+          value={MACHINES[0]}
+          onChange={() => {}}
+          suggestions={suggestions}
+          {...props}
+        />
+      )
+    }
+    renderWithProviders(<Picker />)
+  }
+
+  it('can keep its label for assistive technology only', () => {
+    renderWith({ hideLabel: true })
+
+    expect(screen.getByRole('combobox', { name: 'Machine' })).toBeInTheDocument()
+    expect(screen.getByText('Machine').closest('[style]')).toHaveStyle({ position: 'absolute' })
+  })
+
+  it('can be read-only: shown and focusable, but not changed', async () => {
+    const user = userEvent.setup()
+    renderWith({ isReadOnly: true })
+
+    await user.click(input())
+    await user.keyboard('x{ArrowDown}')
+
+    expect(input()).toHaveFocus()
+    expect(input()).toHaveValue('linux-x86_64')
+    expect(input()).toHaveAttribute('readOnly')
+    expect(listbox()).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+  })
+})
+
 describe('Combobox with server-side suggestions', () => {
   it('offers the first page of suggestions, and loads more at the end of the list', async () => {
     const requests = serveCommits()

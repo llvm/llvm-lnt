@@ -3,13 +3,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import clsx from 'clsx'
-import { authedApi, PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
+import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { useMachineNames } from '../../api/machines'
-import { fetchRegressionPage, type RegressionPage } from '../../api/regressions'
+import { deleteRegression, fetchRegressionPage, type RegressionPage } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
+import { BugLink } from '../../components/bug-link'
 import { Combobox } from '../../components/combobox'
 import { ConfirmDelete } from '../../components/confirm-delete'
 import { DataTable, type Column } from '../../components/data-table'
@@ -103,13 +104,11 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
     setDeleting(null)
   }
   const remove = useMutation({
-    mutationFn: (regression: Regression) =>
-      unwrap(
-        authedApi.DELETE('/api/suites/{testsuite}/regressions/{uuid}', {
-          params: { path: { testsuite: suite, uuid: regression.uuid } },
-        }),
-      ),
+    mutationFn: (regression: Regression) => deleteRegression(suite, regression.uuid),
     onSuccess: async () => {
+      // Drop what no page shows, such as the regression's detail, so that it is not shown again
+      // (AR2 "Deletions").
+      queryClient.removeQueries({ queryKey: queryKeys.regressions(suite), type: 'inactive' })
       await queryClient.invalidateQueries({ queryKey: queryKeys.regressions(suite) })
       setDeleting(null)
       // Its row, and so the button that asked for it, is gone.
@@ -279,7 +278,11 @@ function columns(
       looks: ['nowrap'],
       cell: (regression) => formatTimestamp(regression.created_at),
     },
-    { id: 'bug', header: 'Bug', cell: (regression) => <BugLink bug={regression.bug} /> },
+    {
+      id: 'bug',
+      header: 'Bug',
+      cell: (regression) => <BugLink bug={regression.bug} truncate />,
+    },
     {
       id: 'delete',
       header: <VisuallyHidden>Actions</VisuallyHidden>,
@@ -295,18 +298,4 @@ function columns(
       ),
     },
   ]
-}
-
-/**
- * A regression's bug: a link opening in a new tab when it is a web URL, and plain text otherwise,
- * since the API stores whatever string it is given, and a link must not run a `javascript:` one.
- */
-function BugLink({ bug }: { bug: string | null }) {
-  if (bug === null) return MISSING
-  if (!/^https?:\/\//i.test(bug)) return <span className={styles.bug}>{bug}</span>
-  return (
-    <a className={styles.bug} href={bug} target="_blank" rel="noopener noreferrer" title={bug}>
-      {bug}
-    </a>
-  )
 }

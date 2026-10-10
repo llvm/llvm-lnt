@@ -6,7 +6,14 @@ import type { Schemas } from '../../api/client'
 import { PERMISSION_DENIED } from '../../api/client'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { signIn, TOKEN } from '../../test/auth'
-import { commit, cursorPage, machine, regression, uuidOf } from '../../test/fixtures'
+import {
+  commit,
+  cursorPage,
+  machine,
+  regression,
+  regressionDetail,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -284,9 +291,14 @@ describe('the Regressions tab', () => {
     fireEvent.click(within(rowOf('slow')).getByRole('link', { name: 'https://bugs/1' }))
     expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
 
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/regressions/{uuid}', () =>
+        HttpResponse.json(regressionDetail('a', { title: 'slow' })),
+      ),
+    )
     fireEvent.click(within(rowOf('slow')).getAllByRole('cell')[3])
     await waitFor(() => expect(currentUrl()).toBe(`/suites/libcxx/regressions/${uuidOf('a')}`))
-    expect(await screen.findByRole('heading', { name: 'Regression Detail' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Regression: slow' })).toBeInTheDocument()
   })
 
   it('leaves a modified click on a row, or one ending a text selection, to the browser', async () => {
@@ -377,10 +389,7 @@ describe('creating a regression', () => {
       mockApi('post', '/api/suites/{testsuite}/regressions', async ({ request }) => {
         bodies.push(await request.json())
         headers.push(request.headers.get('Authorization'))
-        return HttpResponse.json(
-          { ...regression('c'), notes: null, indicators: [] },
-          { status: 201 },
-        )
+        return HttpResponse.json(regressionDetail('c'), { status: 201 })
       }),
     )
     return { bodies, headers }
@@ -565,6 +574,43 @@ describe('deleting a regression', () => {
     expect(regressions.length).toBe(before + 1)
     expect(machines).toHaveLength(1)
     expect(checks).toHaveLength(1)
+  })
+
+  it('does not show it again from what was read of it before (AR2 "Deletions")', async () => {
+    const { markDeleted } = await openPrompt()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    let deleted = false
+    const answer = gate()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/regressions/{uuid}', async () => {
+        if (!deleted) return HttpResponse.json(regressionDetail('5', { title: 'slow' }))
+        await answer.promise
+        return errorResponse(404, 'not_found', 'Regression not found')
+      }),
+      mockApi('delete', '/api/suites/{testsuite}/regressions/{uuid}', () => {
+        deleted = true
+        markDeleted()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    // Its detail is read by a page that is then left.
+    fireEvent.click(screen.getByRole('link', { name: 'slow' }))
+    await screen.findByRole('group', { name: 'Regression' })
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    const button = within(await table('Regressions')).getByRole('button', { name: /Delete/ })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
+    const prompt = screen.getByRole('form', { name: 'Confirmation' })
+    fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: '55555555' } })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Delete' }))
+    await screen.findByText('No regressions yet.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser forward' }))
+
+    expect(await screen.findByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Regression' })).not.toBeInTheDocument()
+    act(() => answer.open())
+    expect(await screen.findByRole('alert')).toHaveTextContent('Regression not found')
   })
 
   it('reports a refusal in the prompt, which stays open', async () => {

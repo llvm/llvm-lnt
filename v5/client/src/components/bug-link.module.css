@@ -1,0 +1,9 @@
+/* A bug URL can be long: it is cut short, and shown whole on hover. */
+.truncated {
+  display: inline-block;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

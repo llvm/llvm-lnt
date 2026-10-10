@@ -16,3 +16,14 @@
   gap: var(--lnt-space-1);
   white-space: normal;
 }
+
+.textarea {
+  width: min(40rem, 100%);
+  font: inherit;
+}
+
+/* Why Save is refused for now. */
+.reason {
+  color: var(--lnt-danger);
+  font-size: 0.9rem;
+}

@@ -49,12 +49,13 @@ may take a while for machines with many runs.
 
 ### Tracked toggle
 
-The info box shows a `Tracked` checkbox reflecting the machine's `tracked`
-flag. Toggling it issues `PATCH /machines/{name}` and requires `manage` scope.
-Unchecking it excludes the machine from the Dashboard's trend overview -- it
-stays fully available in Graph, Compare, Profiles, and every listing. The label
-carries a help tooltip saying so, and makes clear that the flag is not a
-lifetime policy: untracked machines are kept indefinitely.
+The info box shows a `Tracked` checkbox reflecting the machine's `tracked` flag.
+Toggling it saves the change at once with `PATCH /machines/{name}`, which
+requires `manage` scope (see "Controls saving on change" in AR2). Unchecking it
+excludes the machine from the Dashboard's trend overview -- it stays fully
+available in Graph, Compare, Profiles, and every listing. The label carries a
+help tooltip saying so, and makes clear that the flag is not a lifetime policy:
+untracked machines are kept indefinitely.
 
 ### Active regressions table
 
@@ -254,28 +255,75 @@ saying why, when this commit has no ordinal or the row's machine has no earlier 
 
 ## DT4: Regression Detail -- `/suites/{ts}/regressions/{uuid}`
 
-Investigation and management page for a single regression.
+Investigation and management page for a single regression. Layout:
 
-**Page header**: Shows "Regression: {title}" when a title is set, or
-"Regression: {shortened UUID}" as fallback. Updates dynamically when the title
-is edited.
+```
+# Regression: find_if slowdown
 
-**Header section** (editable fields):
-- Title: inline-editable text. Enter key saves.
-- State: dropdown selector (detected, active, not_to_be_fixed, fixed,
-  false_positive)
-- Bug: URL input (opens in new tab when set). Enter key saves.
-- Commit: linked to the commit detail page. A commit picker over every commit
-  of the suite for editing (see AR2). Nullable.
-- Notes: text display with Edit button. Edit mode shows textarea + Save/Cancel.
-  Ctrl/Cmd+Enter saves. Display preserves line breaks (pre-wrap).
++---------------------------------------------------------------+
+| Title      find_if slowdown                          [Edit]   |
+| State      (active) [active v]                                |
+| Bug        https://github.com/llvm/llvm-project/...  [Edit]   |
+| Commit     014621ede7c1                              [Edit]   |
+| Created    2026-08-31, 3:03:36 PM                             |
+| Notes      Bisected to the vectorizer change.        [Edit]   |
++---------------------------------------------------------------+
 
-The header also shows, read-only, when the regression was created (`created_at`).
+[Delete regression]
 
-**Delete regression**: Button with a confirmation prompt (see AR2). Requires
-`triage` scope. On success, navigates to the regressions tab.
+## Add indicators
 
-**Add indicators panel**:
+Metric [Execution Time v]
+
+Machines                          Tests
+[Filter machines...]              [Filter tests...]
+[x] linux-x86_64                  [x] BM_find_if/1024
+[ ] macos-26.5-arm64              [x] BM_find_if/4096
+etc...                            etc...
+
+This will add 2 indicators.  [Add]
+
+## Indicators (2 tests across 1 machine across 1 metric)
+
+[Filter indicators...]                                  [Remove selected]
+
+[ ]  Machine          Test                 Metric
+-----------------------------------------------------------------------------
+[ ]  linux-x86_64     BM_find_if/1024      Execution Time    View on graph  x
+[ ]  linux-x86_64     BM_find_if/4096      Execution Time    View on graph  x
+```
+
+### Page header
+
+The header shows "Regression: {title}", or "Regression: {shortened UUID}" when
+the regression has no title. It changes only once an edit to the title is saved.
+
+### Info box
+
+The info box shows the regression's title, state, bug, commit and notes, and
+when it was created (`created_at`). Everything but the creation time can be
+edited with `triage` scope. A field with no value shows `--`, the title
+included.
+
+- Title, Bug and Notes are edited in place (see "Inline editing" in AR2). The
+  bug is displayed as AR2 describes. The notes are edited in a multi-line input,
+  and displayed with their line breaks.
+- State shows the state's colored badge, then a dropdown listing every state.
+  Picking a state saves it (see "Controls saving on change" in AR2).
+- Commit links to the commit's detail page, showing its display value. It is
+  edited in place with a commit picker that offers every commit of the suite
+  (see AR2). Emptying the picker clears the regression's commit.
+
+### Delete regression
+
+A red "Delete regression" button follows the info box. Clicking it shows its
+confirmation prompt (see AR2) below it; the prompt says that the regression's
+indicators are deleted too. Deletion requires `triage` scope. Once the
+regression is deleted, the page goes to the Regressions tab of the Test Suites
+page (`/suites/{ts}?tab=regressions`).
+
+### Add indicators panel
+
 - Metric: dropdown selector
 - Machines: checkbox list with filter input (multi-select, shift+click range)
 - Tests: checkbox list with filter input (multi-select, shift+click range),
@@ -285,7 +333,8 @@ The header also shows, read-only, when the regression was created (`created_at`)
 - Duplicates (same machine+test+metric already on this regression) are silently
   ignored
 
-**Indicators table**:
+### Indicators table
+
 - Heading: "Indicators (X tests across Y machines across Z metrics)" — unique
   counts computed from the indicators. Shows plain "Indicators" when empty. When
   a filter is active: "Indicators (showing N of X tests across ...)".

@@ -113,6 +113,15 @@ export function regression(
   }
 }
 
+/** A regression's detail (E8): `regression(hex)`'s, with its notes and indicators. */
+export function regressionDetail(
+  hex: string,
+  overrides: Partial<Schemas['RegressionDetail']> = {},
+): Schemas['RegressionDetail'] {
+  const { uuid, title, bug, state, commit, created_at } = regression(hex)
+  return { uuid, title, bug, state, commit, created_at, notes: null, indicators: [], ...overrides }
+}
+
 /** I2's cursor envelope. */
 export function cursorPage<Item>(items: Item[], next: string | null = null) {
   return { items, cursor: { next, previous: null } }

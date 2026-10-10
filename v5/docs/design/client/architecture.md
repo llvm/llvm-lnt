@@ -128,17 +128,32 @@ integer its column can hold (DT3) -- shows a red halo (red border and glow) for
 as long as its text stays invalid.
 
 **Inline editing**: A field edited in place shows its value with an Edit button.
-Edit replaces the value with an input, which takes the focus, and Save and
-Cancel buttons. Enter saves and Escape cancels, unless the input uses the key
-itself, as a combobox does. Surrounding whitespace is ignored, and emptying the
-input clears the value. Saving the text as the input opened with changes
-nothing, whatever whitespace the stored value has. While the input's text is
-invalid, it cannot be saved. While a save is under way, neither the input nor
-its buttons can be used. A save that fails leaves the input open with its text,
-and says why it failed. One that succeeds closes the input, and the field shows
-the value the API returned: an edit is never shown before the API has accepted
-it. Once the input closes, the focus goes back to the Edit button. Edit and Save
-need the scope the change needs (see "Authentication").
+Clicking Edit replaces the value with an input, which takes the focus, and Save
+and Cancel buttons. Enter saves and Escape cancels, unless the input uses the
+key itself: a combobox uses them, for example, to pick a suggestion or close its
+list, and in a multi-line input, Enter starts a new line and Ctrl+Enter
+(Cmd+Enter on a Mac) saves.
+
+Whitespace at either end of the text is ignored: it is removed before the text
+is checked or saved, so text that is only whitespace clears the value, like an
+empty input. Saving unchanged text -- the text the input opened with, or the
+stored value once trimmed -- closes the input without sending anything, so a
+stored value with whitespace at either end keeps it. Invalid text cannot be
+saved. While a save is in progress, the input and its buttons cannot be used. If
+the save fails, the input stays open with its text and says why. If it succeeds,
+the input closes and the field shows the value the API returned, so an edit
+never appears before the API has accepted it. When the input closes, the focus
+returns to the Edit button. Edit and Save need the scope that the change needs
+(see "Authentication").
+
+**Controls saving on change**: Some controls, such as a checkbox or a dropdown,
+save as soon as the user changes them. Such a control keeps showing the stored
+value until the API has accepted the change. While a save is in progress, the
+control ignores further changes, but can still be focused. Only picking an
+option from the open list changes a dropdown: a closed dropdown does not step
+through its options, from the keyboard or otherwise, since each step would be
+saved. If the save fails, the control keeps showing the stored value and says
+why. The control needs the scope that the change needs (see "Authentication").
 
 **Comboboxes**: Every combobox follows the standard combobox accessibility
 conventions, with manual selection: typing narrows the suggestions, and the

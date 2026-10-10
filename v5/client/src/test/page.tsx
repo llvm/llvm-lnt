@@ -19,7 +19,10 @@ import { server } from './server'
 export type Page<Item> = ReturnType<typeof cursorPage<Item>>
 export type Respond<Body> = (query: URLSearchParams) => Body | Promise<Body>
 
-/** The app at `url`, with the URL it is at shown, as `currentUrl` reads it, and a Back button. */
+/**
+ * The app at `url`, with the URL it is at shown, as `currentUrl` reads it, and Back and Forward
+ * buttons.
+ */
 export function renderPage(url: string) {
   function ShowUrl() {
     const { pathname, search } = useLocation()
@@ -28,6 +31,7 @@ export function renderPage(url: string) {
       <>
         <output data-testid="url">{pathname + search}</output>
         <button onClick={() => navigate(-1)}>Browser back</button>
+        <button onClick={() => navigate(1)}>Browser forward</button>
       </>
     )
   }
@@ -154,6 +158,19 @@ export function search(label: string, text: string) {
 /** The query of `link`'s target, as an object. */
 export function queryOf(link: HTMLElement) {
   return Object.fromEntries(new URL(link.getAttribute('href')!, 'http://x').searchParams)
+}
+
+/** The Edit button of the field `field`, edited in place (see InlineEdit). */
+export function editButton(field: string) {
+  return screen.getByRole('button', { name: `Edit ${field}` })
+}
+
+/** Edit the field `field`, typing `text`, and save it. */
+export function save(field: string, text: string) {
+  fireEvent.click(editButton(field))
+  const input = screen.getByRole('textbox', { name: field })
+  fireEvent.change(input, { target: { value: text } })
+  fireEvent.submit(input)
 }
 
 /**
