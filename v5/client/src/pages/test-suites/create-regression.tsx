@@ -3,18 +3,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { authedApi, unwrap } from '../../api/client'
 import { queryKeys } from '../../api/keys'
+import { regressionKey, TEXT_LENGTH } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
-import { CommitPicker } from '../../components/commit-picker'
+import { CommitPicker, UNPICKED_COMMIT } from '../../components/commit-picker'
 import { ErrorMessage } from '../../components/feedback'
 import { pendingGuard } from '../../components/pending-guard'
 import { Select } from '../../components/select'
 import { regressionPath } from '../../paths'
 import { REGRESSION_STATES, stateLabel, type RegressionState } from '../../regression-states'
 import styles from './test-suites.module.css'
-
-/** E8's limit on a title or a bug (D5's column). */
-const MAX_LENGTH = 256
 
 interface Props {
   schema: SuiteSchema
@@ -52,12 +50,14 @@ export function CreateRegression({ schema, onCancel }: Props) {
           },
         }),
       ),
-    onSuccess: (created) => {
+    onSuccess: async (created) => {
       // Refetched when it is shown again, rather than now, on the way to another page.
-      void queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: queryKeys.regressions(suite),
         refetchType: 'none',
       })
+      // What the page shown next would fetch, stored after, which leaves it fresh.
+      queryClient.setQueryData(regressionKey(suite, created.uuid), created)
       navigate(regressionPath(suite, created.uuid))
     },
   })
@@ -77,7 +77,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
             type="text"
             className={styles.wide}
             value={title}
-            maxLength={MAX_LENGTH}
+            maxLength={TEXT_LENGTH}
             onChange={(event) => setTitle(event.target.value)}
             autoFocus
           />
@@ -88,7 +88,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
             type="text"
             className={styles.wide}
             value={bug}
-            maxLength={MAX_LENGTH}
+            maxLength={TEXT_LENGTH}
             placeholder="https://..."
             onChange={(event) => setBug(event.target.value)}
           />
@@ -124,7 +124,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
         </button>
         {commitPending && (
           <span id={reasonId} className={styles.reason}>
-            Pick a commit from the list, or clear the field.
+            {UNPICKED_COMMIT}
           </span>
         )}
       </div>

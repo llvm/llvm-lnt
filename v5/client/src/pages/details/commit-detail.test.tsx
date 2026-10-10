@@ -8,6 +8,7 @@ import { commit, cursorPage, regression, run, uuidOf } from '../../test/fixtures
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
+  editButton,
   gate,
   infoRows,
   main,
@@ -19,6 +20,7 @@ import {
   recording,
   renderPage,
   rowsOf,
+  save,
   search,
   table,
   type Respond,
@@ -116,16 +118,7 @@ function patched(body: Schemas['CommitUpdate']): Schemas['CommitDetail'] {
   return { ...DETAIL, ...body }
 }
 
-const editButton = (field: string) => screen.getByRole('button', { name: `Edit ${field}` })
 const deleteButton = () => screen.getByRole('button', { name: 'Delete commit' })
-
-/** Edit `field`, typing `text`, and save it. */
-function save(field: string, text: string) {
-  fireEvent.click(editButton(field))
-  const input = screen.getByRole('textbox', { name: field })
-  fireEvent.change(input, { target: { value: text } })
-  fireEvent.submit(input)
-}
 
 /** The page's link named `name`. */
 function link(name: string) {

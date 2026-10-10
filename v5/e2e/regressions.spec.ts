@@ -196,7 +196,9 @@ test('a click on a row opens the regression', async ({ page }) => {
   await row.locator('td').nth(COLUMN.machines).click()
 
   await expect(page).toHaveURL(/^.*\/suites\/libcxx\/regressions\/[0-9a-f-]{36}$/)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Regression Detail')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    /^Regression: .*filesystem::path/,
+  )
 })
 
 test('creating and deleting are disabled without a token', async ({ page }) => {
@@ -236,7 +238,7 @@ test('creates a regression with a commit picked through the picker', async ({
 
     await expect(page).toHaveURL(/\/suites\/libcxx\/regressions\/[0-9a-f-]{36}$/)
     const uuid = page.url().split('/').at(-1)!
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Regression Detail')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Regression: ${title}`)
     const created = (await (
       await request.get(`/api/suites/libcxx/regressions/${uuid}`)
     ).json()) as RegressionDetail

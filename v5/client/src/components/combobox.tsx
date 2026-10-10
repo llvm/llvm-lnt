@@ -5,13 +5,13 @@ import {
   ComboBox,
   ComboBoxStateContext,
   Input,
-  Label,
   ListBox,
   ListBoxItem,
   ListBoxLoadMoreItem,
   type Key,
 } from 'react-aria-components'
 import { errorMessage } from '../api/client'
+import { FieldLabel } from './field-label'
 import { Popover } from './popover'
 import type { Suggestion, Suggestions } from './suggestions'
 import shared from './dropdown.module.css'
@@ -26,6 +26,10 @@ interface Props {
   suggestions: Suggestions
   placeholder?: string
   isDisabled?: boolean
+  /** Shown as it is, but cannot be changed, and keeps the focus, unlike when disabled. */
+  isReadOnly?: boolean
+  /** Keep the label for assistive technology only, where the page already says what it is. */
+  hideLabel?: boolean
   /**
    * Called with whether the input holds text that is not the value's -- typed, but not picked --
    * whenever that changes: a form holding the combobox is not submitted meanwhile (AR2).
@@ -63,6 +67,8 @@ export function Combobox({
   suggestions,
   placeholder,
   isDisabled,
+  isReadOnly,
+  hideLabel,
   onPendingChange,
 }: Props) {
   const [text, setText] = useState(value?.text ?? '')
@@ -126,12 +132,13 @@ export function Combobox({
       // text of a value that is not among the suggestions shown (on Escape, say).
       menuTrigger="manual"
       isDisabled={isDisabled}
+      isReadOnly={isReadOnly}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} hidden={hideLabel} />
       <Field query={query} suggestions={suggestions} value={value} pick={pick}>
         <div className={styles.inputBox}>
           <Input ref={inputRef} placeholder={placeholder} className={styles.input} />
-          {text !== '' && !isDisabled && (
+          {text !== '' && !isDisabled && !isReadOnly && (
             <button
               type="button"
               className={styles.clear}

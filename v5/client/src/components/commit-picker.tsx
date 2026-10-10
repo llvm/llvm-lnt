@@ -25,9 +25,19 @@ interface Props {
   onChange(value: string | null): void
   placeholder?: string
   isDisabled?: boolean
+  /** See `Combobox`. */
+  isReadOnly?: boolean
+  /** See `Combobox`. */
+  hideLabel?: boolean
   /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
   onPendingChange?: (pending: boolean) => void
 }
+
+/**
+ * Why a form holding a commit picker cannot be submitted while the picker holds text that was not
+ * picked (AR2 "Commit pickers").
+ */
+export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.'
 
 /** A commit as a suggestion: shown by its display value, and entered by its commit string too. */
 function suggestionOf(commit: Commit, schema: SuiteSchema): Suggestion {
@@ -57,6 +67,8 @@ export function CommitPicker({
   onChange,
   placeholder,
   isDisabled = false,
+  isReadOnly,
+  hideLabel,
   onPendingChange,
 }: Props) {
   const suite = schema.name
@@ -109,6 +121,8 @@ export function CommitPicker({
       suggestions={suggestions}
       placeholder={placeholder}
       isDisabled={isDisabled}
+      isReadOnly={isReadOnly}
+      hideLabel={hideLabel}
       onPendingChange={onPendingChange}
     />
   )

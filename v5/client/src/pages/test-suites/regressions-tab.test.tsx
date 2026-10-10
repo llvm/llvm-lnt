@@ -6,7 +6,14 @@ import type { Schemas } from '../../api/client'
 import { PERMISSION_DENIED } from '../../api/client'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { signIn, TOKEN } from '../../test/auth'
-import { commit, cursorPage, machine, regression, uuidOf } from '../../test/fixtures'
+import {
+  commit,
+  cursorPage,
+  machine,
+  regression,
+  regressionDetail,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -284,9 +291,14 @@ describe('the Regressions tab', () => {
     fireEvent.click(within(rowOf('slow')).getByRole('link', { name: 'https://bugs/1' }))
     expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
 
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/regressions/{uuid}', () =>
+        HttpResponse.json(regressionDetail('a', { title: 'slow' })),
+      ),
+    )
     fireEvent.click(within(rowOf('slow')).getAllByRole('cell')[3])
     await waitFor(() => expect(currentUrl()).toBe(`/suites/libcxx/regressions/${uuidOf('a')}`))
-    expect(await screen.findByRole('heading', { name: 'Regression Detail' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Regression: slow' })).toBeInTheDocument()
   })
 
   it('leaves a modified click on a row, or one ending a text selection, to the browser', async () => {
@@ -377,10 +389,7 @@ describe('creating a regression', () => {
       mockApi('post', '/api/suites/{testsuite}/regressions', async ({ request }) => {
         bodies.push(await request.json())
         headers.push(request.headers.get('Authorization'))
-        return HttpResponse.json(
-          { ...regression('c'), notes: null, indicators: [] },
-          { status: 201 },
-        )
+        return HttpResponse.json(regressionDetail('c'), { status: 201 })
       }),
     )
     return { bodies, headers }

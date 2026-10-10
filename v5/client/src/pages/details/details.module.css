@@ -32,3 +32,11 @@
   color: var(--lnt-muted);
   font-size: 0.9rem;
 }
+
+/* Values side by side on one line of an info box, such as a state's badge and its dropdown. */
+.inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}

@@ -8,3 +8,8 @@
   padding: var(--lnt-space-1) var(--lnt-space-2);
   text-align: left;
 }
+
+/* Only there to carry a title: it takes no part in the layout. */
+.titled {
+  display: contents;
+}

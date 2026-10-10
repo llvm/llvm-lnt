@@ -110,17 +110,7 @@
 }
 
 /* Cells may break anywhere (see data-table.module.css), which would let the other columns squeeze
-   the title to a few characters a line. The bug, cut short below, leaves it the room. */
+   the title to a few characters a line. The bug, cut short (see BugLink), leaves it the room. */
 .title {
   min-width: 10rem;
-}
-
-/* A bug URL can be long: it is cut short, and shown whole on hover. */
-.bug {
-  display: inline-block;
-  max-width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
 }

@@ -11,7 +11,13 @@ const OPTIONS = [
   { value: 'code_size', label: 'Code Size' },
 ]
 
-function MetricSelect({ onChange = () => {} }: { onChange?: (value: string) => void }) {
+function MetricSelect({
+  onChange = () => {},
+  listPicksOnly,
+}: {
+  onChange?: (value: string) => void
+  listPicksOnly?: boolean
+}) {
   const [value, setValue] = useState('')
   return (
     <Select
@@ -22,6 +28,7 @@ function MetricSelect({ onChange = () => {} }: { onChange?: (value: string) => v
         setValue(next)
         onChange(next)
       }}
+      listPicksOnly={listPicksOnly}
     />
   )
 }
@@ -71,6 +78,49 @@ describe('Select', () => {
 
     expect(onChange).toHaveBeenLastCalledWith('')
     expect(selectButton('Metric')).toHaveTextContent('Any metric')
+  })
+
+  it('steps through its options with the arrow keys and typing while closed', async () => {
+    const onChange = vi.fn()
+    render(<MetricSelect onChange={onChange} />)
+
+    selectButton('Metric').focus()
+    await userEvent.setup().keyboard('{ArrowRight}')
+
+    expect(onChange).toHaveBeenCalledWith('execution_time')
+  })
+
+  it('changes only on a pick from the open list, with listPicksOnly', async () => {
+    const onChange = vi.fn()
+    render(<MetricSelect onChange={onChange} listPicksOnly />)
+    const user = userEvent.setup()
+
+    selectButton('Metric').focus()
+    await user.keyboard('{ArrowRight}{ArrowLeft}c')
+    expect(onChange).not.toHaveBeenCalled()
+    expect(selectButton('Metric')).toHaveTextContent('Any metric')
+
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{ArrowDown}{Enter}')
+    await pickOption('Metric', 'Code Size')
+    expect(onChange.mock.calls).toEqual([['execution_time'], ['code_size']])
+  })
+
+  it('can keep its label for assistive technology only, and say something on hover', () => {
+    render(
+      <Select
+        label="Metric"
+        options={OPTIONS}
+        value=""
+        onChange={() => {}}
+        hideLabel
+        title="Needs a token."
+      />,
+    )
+
+    expect(selectButton('Metric')).toBeInTheDocument()
+    expect(screen.getByText('Metric').closest('[style]')).toHaveStyle({ position: 'absolute' })
+    expect(selectButton('Metric').closest('[title]')).toHaveAttribute('title', 'Needs a token.')
   })
 
   it('opens nothing while disabled', async () => {

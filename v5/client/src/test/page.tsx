@@ -156,6 +156,19 @@ export function queryOf(link: HTMLElement) {
   return Object.fromEntries(new URL(link.getAttribute('href')!, 'http://x').searchParams)
 }
 
+/** The Edit button of the field `field`, edited in place (see InlineEdit). */
+export function editButton(field: string) {
+  return screen.getByRole('button', { name: `Edit ${field}` })
+}
+
+/** Edit the field `field`, typing `text`, and save it. */
+export function save(field: string, text: string) {
+  fireEvent.click(editButton(field))
+  const input = screen.getByRole('textbox', { name: field })
+  fireEvent.change(input, { target: { value: text } })
+  fireEvent.submit(input)
+}
+
 /**
  * Wait for the info box named `name` to show, and for `control` to be enabled once the token's
  * check has accepted the scope it needs.

@@ -1,11 +1,12 @@
+import { useRef } from 'react'
 import {
   Button,
-  Label,
   ListBox,
   ListBoxItem,
   Select as AriaSelect,
   SelectValue,
 } from 'react-aria-components'
+import { FieldLabel } from './field-label'
 import { Popover } from './popover'
 import shared from './dropdown.module.css'
 import styles from './select.module.css'
@@ -22,6 +23,16 @@ interface Props<Value extends string> {
   value: Value
   onChange(value: NoInfer<Value>): void
   isDisabled?: boolean
+  /** Shown on hover, such as why the dropdown is disabled (see `useScopeGate`). */
+  title?: string
+  /** Keep the label for assistive technology only, where the page already says what it is. */
+  hideLabel?: boolean
+  /**
+   * Change the value only when an option is picked from the open list. Otherwise ArrowLeft,
+   * ArrowRight and typing on the closed dropdown step through the options, which a dropdown that
+   * saves every change would save one after the other.
+   */
+  listPicksOnly?: boolean
 }
 
 /**
@@ -36,29 +47,42 @@ export function Select<Value extends string>({
   value,
   onChange,
   isDisabled,
+  title,
+  hideLabel,
+  listPicksOnly,
 }: Props<Value>) {
+  // Whether the list is open. React Aria reports a pick before it closes the list.
+  const open = useRef(false)
   return (
-    <AriaSelect
-      className={shared.root}
-      value={value}
-      // A single selection that cannot be cleared: React Aria reports a null only for no selection.
-      onChange={(key) => key !== null && onChange(key as Value)}
-      isDisabled={isDisabled}
-    >
-      <Label>{label}</Label>
-      <Button className={styles.button}>
-        <SelectValue />
-        <span aria-hidden="true">▾</span>
-      </Button>
-      <Popover className={shared.popover} maxHeight={320}>
-        <ListBox className={shared.list} items={options}>
-          {(option) => (
-            <ListBoxItem id={option.value} className={shared.option}>
-              {option.label}
-            </ListBoxItem>
-          )}
-        </ListBox>
-      </Popover>
-    </AriaSelect>
+    // On an element of its own, since React Aria does not pass a title on to the button. Always
+    // there, so that the dropdown is not mounted again, losing the focus, when the title goes.
+    <span className={styles.titled} title={title}>
+      <AriaSelect
+        className={shared.root}
+        value={value}
+        // A single selection that cannot be cleared: React Aria reports a null only for no
+        // selection.
+        onChange={(key) => {
+          if (key !== null && (open.current || !listPicksOnly)) onChange(key as Value)
+        }}
+        onOpenChange={(isOpen) => (open.current = isOpen)}
+        isDisabled={isDisabled}
+      >
+        <FieldLabel label={label} hidden={hideLabel} />
+        <Button className={styles.button}>
+          <SelectValue />
+          <span aria-hidden="true">▾</span>
+        </Button>
+        <Popover className={shared.popover} maxHeight={320}>
+          <ListBox className={shared.list} items={options}>
+            {(option) => (
+              <ListBoxItem id={option.value} className={shared.option}>
+                {option.label}
+              </ListBoxItem>
+            )}
+          </ListBox>
+        </Popover>
+      </AriaSelect>
+    </span>
   )
 }

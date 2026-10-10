@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiError, PERMISSION_DENIED } from '../api/client'
 import type { ScopeGate } from '../auth/scope'
 import { gate as settle } from '../test/page'
-import { InlineEdit } from './inline-edit'
+import { InlineEdit, type EditorProps } from './inline-edit'
 
 const ALLOWED: ScopeGate = { disabled: false, title: undefined }
 
@@ -229,5 +229,189 @@ describe('InlineEdit', () => {
 
     expect(saveButton()).toBeDisabled()
     expect(saveButton()).toHaveAttribute('title', 'Needs manage.')
+  })
+
+  it('shows the value as `display` gives it, and a missing one as such', () => {
+    function Owner() {
+      const [value, setValue] = useState<string | null>('v1')
+      return (
+        <>
+          <button onClick={() => setValue(null)}>Unset</button>
+          <InlineEdit
+            label="Tag"
+            value={value}
+            display={(shown) => <a href={`/${shown}`}>the {shown} link</a>}
+            gate={ALLOWED}
+            onSave={() => Promise.resolve()}
+          />
+        </>
+      )
+    }
+    render(<Owner />)
+
+    expect(screen.getByRole('link', { name: 'the v1 link' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Unset' }))
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.getByText('--')).toBeInTheDocument()
+  })
+
+  describe('multiline', () => {
+    function renderNotes(save = vi.fn(() => Promise.resolve())) {
+      render(<InlineEdit label="Notes" value={'a\nb'} gate={ALLOWED} multiline onSave={save} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Notes' }))
+      return { save, area: screen.getByRole('textbox', { name: 'Notes' }) }
+    }
+
+    it('edits in a text area that takes the focus, where Enter starts a new line', () => {
+      const { save, area } = renderNotes()
+
+      expect(area.tagName).toBe('TEXTAREA')
+      expect(area).toHaveValue('a\nb')
+      expect(area).toHaveFocus()
+      fireEvent.change(area, { target: { value: 'a\nb\n' } })
+      fireEvent.keyDown(area, { key: 'Enter' })
+      expect(save).not.toHaveBeenCalled()
+    })
+
+    it.each([['ctrlKey'], ['metaKey']])('saves with Enter and %s', async (modifier) => {
+      const { save, area } = renderNotes()
+      fireEvent.change(area, { target: { value: ' a\nc ' } })
+
+      fireEvent.keyDown(area, { key: 'Enter', [modifier]: true })
+
+      await waitFor(() => expect(save).toHaveBeenCalledWith('a\nc'))
+    })
+
+    it('is cancelled with Escape', () => {
+      const { save, area } = renderNotes()
+
+      fireEvent.keyDown(area, { key: 'Escape' })
+
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(save).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('with an editor of its own', () => {
+    /**
+     * A field edited by an editor of its own: an input whose text is only `text` once committed
+     * with a click on Commit, which keeps Escape to itself while its "list" is open.
+     */
+    function CustomEditor({ label, text, setText, setPending, saving }: EditorProps) {
+      const [typed, setTyped] = useState(text)
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <input
+            aria-label={label}
+            aria-expanded={open}
+            value={typed}
+            readOnly={saving}
+            onChange={(event) => {
+              setTyped(event.target.value)
+              setPending(event.target.value !== text)
+              setOpen(true)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setOpen(false)
+                event.stopPropagation()
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setText(typed)
+              setPending(false)
+            }}
+          >
+            Commit
+          </button>
+        </>
+      )
+    }
+
+    function renderCustom(
+      save: (text: string | null) => Promise<unknown> = () => Promise.resolve(),
+    ) {
+      const onSave = vi.fn(save)
+      render(
+        <InlineEdit
+          label="Commit"
+          value="abc"
+          gate={ALLOWED}
+          editor={(props) => <CustomEditor {...props} />}
+          pendingReason="Pick one first."
+          onSave={onSave}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Commit' }))
+      return { onSave, field: screen.getByRole('textbox', { name: 'Commit' }) }
+    }
+
+    it('focuses the editor, and saves the text it sets', async () => {
+      const { onSave, field } = renderCustom()
+
+      expect(field).toHaveFocus()
+      fireEvent.change(field, { target: { value: 'def' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Commit' }))
+      fireEvent.submit(field)
+
+      await waitFor(() => expect(onSave).toHaveBeenCalledWith('def'))
+    })
+
+    it('refuses to save while the editor reports pending input, saying why', () => {
+      const { onSave, field } = renderCustom()
+
+      fireEvent.change(field, { target: { value: 'def' } })
+      const save = screen.getByRole('button', { name: 'Save' })
+      expect(save).toHaveAttribute('aria-disabled', 'true')
+      expect(save).toHaveAccessibleDescription('Pick one first.')
+      fireEvent.submit(field)
+      expect(onSave).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Commit' }))
+      expect(save).not.toHaveAttribute('aria-disabled')
+      expect(screen.queryByText('Pick one first.')).not.toBeInTheDocument()
+    })
+
+    it('leaves an Escape to an editor whose list is open, and cancels on the next', () => {
+      const { field } = renderCustom()
+
+      fireEvent.change(field, { target: { value: 'def' } })
+      fireEvent.keyDown(field, { key: 'Escape' })
+      expect(field).toHaveAttribute('aria-expanded', 'false')
+      expect(field).toBeInTheDocument()
+
+      // Cancelled, although the editor keeps the Escape from reaching the form.
+      fireEvent.keyDown(field, { key: 'Escape' })
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit Commit' })).toHaveFocus()
+    })
+
+    it('tells the editor while a save is under way', async () => {
+      const pending = settle()
+      const { field } = renderCustom(() => pending.promise)
+
+      fireEvent.change(field, { target: { value: 'def' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Commit' }))
+      fireEvent.submit(field)
+
+      expect(field).toHaveAttribute('readOnly')
+      await act(async () => pending.open())
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    })
+
+    it('starts afresh, with nothing pending, each time it opens', () => {
+      const { field } = renderCustom()
+      fireEvent.change(field, { target: { value: 'def' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Commit' }))
+
+      expect(screen.getByRole('textbox', { name: 'Commit' })).toHaveValue('abc')
+      expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-disabled')
+    })
   })
 })
