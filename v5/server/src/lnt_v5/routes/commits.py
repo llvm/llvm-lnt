@@ -81,11 +81,7 @@ from lnt_v5.suites.scope import (
     suite_scope,
 )
 from lnt_v5.suites.submission import SubmittedCommit
-from lnt_v5.suites.tables import (
-    COMMIT_ORDINAL_CONSTRAINT,
-    COMMIT_VALUE_CONSTRAINT,
-    REGRESSION_COMMIT_CONSTRAINT,
-)
+from lnt_v5.suites.tables import COMMIT_ORDINAL_CONSTRAINT, COMMIT_VALUE_CONSTRAINT
 
 COMMITS_PATH = f"{SUITES_PATH}/{{testsuite}}/commits"
 
@@ -360,12 +356,6 @@ class Commits:
         return (
             f"Ordinal {ordinal} is already held by another commit in test suite "
             f"'{self.schema.name}'"
-        )
-
-    def referenced(self, value: str) -> str:
-        return (
-            f"Commit '{value}' is referenced by a regression in test suite "
-            f"'{self.schema.name}' and cannot be deleted until that reference is removed"
         )
 
     def get_or_create(self, connection: Connection, submitted: SubmittedCommit) -> int:
@@ -764,27 +754,18 @@ def update_commit(
     status_code=204,
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Delete a commit",
-    responses=suite_responses(
-        not_found=_NO_COMMIT,
-        conflict=f"`conflict`: a regression refers to this commit. {SUITE_SCHEMA_CHANGED}",
-    ),
+    responses=suite_responses(not_found=_NO_COMMIT),
 )
 def delete_commit(
     testsuite: SuiteName, value: CommitKey, engine: EngineDep, registry: RegistryDep
 ) -> None:
-    """Delete a commit, along with its runs and their samples and profiles. A commit that a
-    regression refers to can't be deleted: remove it from the regression first."""
+    """Delete a commit, along with its runs and their samples and profiles. The regressions
+    attributed to the commit are kept, with no commit."""
     # One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take
-    # their samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has
-    # no cascade, so a commit a regression still names refuses to go -- reported as I4's `conflict`:
-    # the caller has to detach the regression, and retrying as sent cannot help.
+    # their samples and profiles with them in turn. `{suite}.regression.commit_id` is set to null
+    # instead, so the regressions stay.
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
-        with reporting_violation(
-            REGRESSION_COMMIT_CONSTRAINT, ErrorCode.CONFLICT, commits.referenced(value)
-        ):
-            removed = connection.execute(
-                delete(commits.table).where(commits.table.c.commit == value)
-            )
+        removed = connection.execute(delete(commits.table).where(commits.table.c.commit == value))
         if removed.rowcount == 0:
             raise commits.missing(value)

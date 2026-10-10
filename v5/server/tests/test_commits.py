@@ -2,8 +2,9 @@
 
 Driven over the real application and a real database. What is interesting here is mostly what
 PostgreSQL ends up doing: the unique ordinal that produces I4's `conflict` (O6), the
-neighbour lookups that replace a linked list, a cascade that reaches runs and their samples and
-profiles, and the foreign key that refuses to let a regression's commit go.
+neighbour lookups that replace a linked list, and a cascade that reaches runs and their samples
+and profiles. What deleting a commit does to the regressions attributed to it is checked with the
+other regression cascades, in `test_regressions.py`.
 
 The cursor mechanism itself is covered by `test_querying.py`; what this module checks about it is
 that this endpoint wires it up -- the right order, the filters surviving a page boundary, and an
@@ -1145,31 +1146,6 @@ class TestDelete:
         assert row_count(db_engine, select(suite.sample.c.id)) == 1
         # D5: nothing deletes a test, so the cascade stops at the sample.
         assert row_count(db_engine, select(suite.test.c.id)) == 1
-
-    def test_refuses_a_commit_a_regression_references(
-        self,
-        api_client: TestClient,
-        manage: dict[str, str],
-        db_engine: Engine,
-        suite: SuiteTables,
-        create: Callable[..., Any],
-    ) -> None:
-        # D5 and I4: `conflict` rather than `retry`, because the caller has to detach the
-        # regression first -- sending the same request again cannot help.
-        create("abc")
-        with db_engine.begin() as connection:
-            commit_id = connection.execute(
-                select(suite.commit.c.id).where(suite.commit.c.commit == "abc")
-            ).scalar_one()
-            connection.execute(
-                insert(suite.regression).values(uuid=str(uuid4()), state=0, commit_id=commit_id)
-            )
-
-        response = api_client.delete(f"{COMMITS}/abc", headers=manage)
-
-        assert response.status_code == 409
-        assert code_of(response) == "conflict"
-        assert api_client.get(f"{COMMITS}/abc").status_code == 200
 
     def test_needs_no_confirmation(
         self, api_client: TestClient, manage: dict[str, str], create: Callable[..., Any]

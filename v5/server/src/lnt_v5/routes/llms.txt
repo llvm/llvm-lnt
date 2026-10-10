@@ -137,9 +137,8 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
     chose, an earlier attempt most likely succeeded: do not resend under a fresh
     UUID, which would store it twice.
   - `conflict`: the request contradicts stored state -- metadata a submission
-    disagrees with, an ordinal another commit holds, or a commit a regression
-    still references. Do not retry as sent; change the request or the state
-    first.
+    disagrees with, or an ordinal another commit holds. Do not retry as sent;
+    change the request or the state first.
   - `retry`: a concurrent change to the suite's schema got in the way. Nothing
     was written; send the same request again.
 - **Names that match nothing**: a run submission creates the machine, commit

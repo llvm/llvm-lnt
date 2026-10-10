@@ -345,8 +345,8 @@ export interface paths {
         post?: never;
         /**
          * Delete a commit
-         * @description Delete a commit, along with its runs and their samples and profiles. A commit that a
-         *     regression refers to can't be deleted: remove it from the regression first.
+         * @description Delete a commit, along with its runs and their samples and profiles. The regressions
+         *     attributed to the commit are kept, with no commit.
          *
          *     **Authorization:** requires an API key with the `manage` scope.
          */
@@ -4136,7 +4136,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `conflict`: a regression refers to this commit. `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            /** @description `retry`: the suite's schema changed while the request was being handled. Send it again. */
             409: {
                 headers: {
                     [name: string]: unknown;

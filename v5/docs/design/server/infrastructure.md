@@ -221,7 +221,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a suite name, a schema entry added to a list that already has one of that name |
-| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), deleting a commit that a regression references, a suite name already used by a database namespace |
+| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), a suite name already used by a database namespace |
 | `retry` | 409 | A concurrent change to the suite's schema prevented the request from completing, and nothing was written: the schema changed while the request ran, a schema change could not take its locks in time, or the request and a schema change deadlocked (see D2) |
 | `internal_error` | 500 | The server failed to process the request |
 
