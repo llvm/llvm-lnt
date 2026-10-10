@@ -160,7 +160,7 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
   })
 })
 
-test('deleting a commit shows the commits left, unless a regression is attributed to it', async ({
+test('deleting a commit shows the commits left, and keeps its regressions without it', async ({
   page,
   request,
   tokenFor,
@@ -170,28 +170,25 @@ test('deleting a commit shows the commits left, unless a regression is attribute
     const token = await signIn(page, 'manage')
     const created = await request.post(`/api/suites/${suite}/regressions`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { title: 'At c1', commit: 'c1' },
+      data: { title: 'At c2', commit: 'c2' },
     })
     expect(created.status(), await created.text()).toBe(201)
+    const { uuid } = (await created.json()) as Schemas['RegressionDetail']
+    await page.goto(`/suites/${suite}/commits/c2`)
 
-    /** Delete `commit` from its page, confirming it. */
-    async function deleteCommit(commit: string) {
-      await page.goto(`/suites/${suite}/commits/${commit}`)
-      await page.getByRole('button', { name: 'Delete commit' }).click()
-      await page.getByLabel(/to confirm/).fill(commit)
-      await page.getByRole('button', { name: 'Delete', exact: true }).click()
-    }
+    await page.getByRole('button', { name: 'Delete commit' }).click()
+    await page.getByLabel(/to confirm/).fill('c2')
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
-    await deleteCommit('c1')
-    const prompt = page.getByRole('form', { name: 'Confirmation' })
-    await expect(prompt.getByRole('alert')).toContainText('referenced by a regression')
-    await expect(page).toHaveURL(`/suites/${suite}/commits/c1`)
-
-    await deleteCommit('c2')
     await expect(page).toHaveURL(`/suites/${suite}?tab=commits`)
     const commits = table(page, 'Commits')
     await expect(rows(commits)).toHaveCount(2)
     await expect(commits).not.toContainText('c2')
     expect((await request.get(`/api/suites/${suite}/commits/c2`)).status()).toBe(404)
+    const regression = await json<Schemas['RegressionDetail']>(
+      request,
+      `/api/suites/${suite}/regressions/${uuid}`,
+    )
+    expect([regression.title, regression.commit]).toEqual(['At c2', null])
   })
 })

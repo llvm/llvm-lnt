@@ -222,9 +222,8 @@ either end of the ordered range.
 
 A red "Delete commit" button follows the navigation buttons. Clicking it shows its
 confirmation prompt (see AR2) below them, saying that the commit's runs, with their samples
-and profiles, are deleted too, and that a commit a regression is attributed to cannot be
-deleted: the API refuses it (see E3), and the prompt reports why. Deletion requires `manage`
-scope. While it is in progress, a message reassures the user that deletion may take a while
+and profiles, are deleted too, and that the regressions attributed to it are kept, with no
+commit (see E3). Deletion requires `manage` scope. While it is in progress, a message reassures the user that deletion may take a while
 for commits with many runs. On success, navigates to the Commits tab of the Test Suites page
 (`/suites/{ts}?tab=commits`).
 

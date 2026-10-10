@@ -1857,35 +1857,49 @@ class TestCascades:
         assert response.status_code == 200
         assert len(api_client.get(f"{REGRESSIONS}/{uuid}").json()["indicators"]) == 1
 
-    def test_a_commit_a_regression_references_cannot_be_deleted(
+    def test_deleting_a_commit_keeps_the_regressions_attributed_to_it_without_one(
         self,
         api_client: TestClient,
         manage: dict[str, str],
         create: Callable[..., Any],
         data: None,
     ) -> None:
-        # endpoints.md answers I4's `conflict`, which tells the caller to detach the regression
-        # rather than to retry.
-        create(commit="abc123")
-
-        response = api_client.delete(f"{COMMITS}/abc123", headers=manage)
-
-        assert response.status_code == 409
-        assert code_of(response) == "conflict"
-
-    def test_the_commit_goes_once_the_regression_lets_go_of_it(
-        self,
-        api_client: TestClient,
-        manage: dict[str, str],
-        triage: dict[str, str],
-        create: Callable[..., Any],
-        data: None,
-    ) -> None:
-        uuid = create(commit="abc123")["uuid"]
-
-        api_client.patch(f"{REGRESSIONS}/{uuid}", json={"commit": None}, headers=triage)
+        # D5: only the attribution goes. Nothing else about the regression names the commit.
+        uuid = create(
+            title="kept",
+            bug="b",
+            notes="n",
+            state="active",
+            commit="abc123",
+            indicators=[LINUX_ONE],
+        )["uuid"]
 
         assert api_client.delete(f"{COMMITS}/abc123", headers=manage).status_code == 204
+
+        detail = api_client.get(f"{REGRESSIONS}/{uuid}").json()
+        assert detail["commit"] is None
+        assert (detail["title"], detail["bug"], detail["notes"]) == ("kept", "b", "n")
+        assert detail["state"] == "active"
+        assert len(detail["indicators"]) == 1
+        assert uuids_in(listed(api_client, "has_commit=false")) == [uuid]
+
+    def test_re_creating_a_deleted_commit_brings_none_of_its_regressions_back(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        submitter: dict[str, str],
+        create: Callable[..., Any],
+        data: None,
+    ) -> None:
+        # The commit created again is a new one that happens to share a value, as a metric added
+        # back is (D2).
+        uuid = create(commit="abc123")["uuid"]
+        api_client.delete(f"{COMMITS}/abc123", headers=manage)
+
+        response = api_client.post(COMMITS, json={"value": "abc123"}, headers=submitter)
+
+        assert response.status_code == 201
+        assert api_client.get(f"{REGRESSIONS}/{uuid}").json()["commit"] is None
 
 
 class TestPagination:

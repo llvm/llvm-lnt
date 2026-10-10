@@ -57,7 +57,27 @@ def _run_uuid_collation(op: Operations, suite: SuiteSchema) -> None:
     )
 
 
-STEPS: Sequence[Step] = (_run_uuid_collation,)
+def _regression_commit_set_null(op: Operations, suite: SuiteSchema) -> None:
+    """Version 2: deleting a commit sets `{suite}.regression.commit_id` to null (D5).
+
+    PostgreSQL cannot change a foreign key's action in place, so the key is dropped and created
+    again, which checks the regressions against the commits once.
+    """
+    name = "fk_regression_commit_id_commit"
+    op.drop_constraint(name, "regression", type_="foreignkey", schema=suite.name)
+    op.create_foreign_key(
+        name,
+        "regression",
+        "commit",
+        ["commit_id"],
+        ["id"],
+        ondelete="SET NULL",
+        source_schema=suite.name,
+        referent_schema=suite.name,
+    )
+
+
+STEPS: Sequence[Step] = (_run_uuid_collation, _regression_commit_set_null)
 
 
 def head() -> int:

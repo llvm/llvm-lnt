@@ -201,8 +201,8 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
         message: (
           <p>
             Delete the commit <strong>{value}</strong> and all of its runs, with their samples and
-            profiles? This cannot be undone. A commit that a regression is attributed to cannot be
-            deleted.
+            profiles? Regressions attributed to it are kept, without a commit. This cannot be
+            undone.
           </p>
         ),
         busyMessage: 'Deleting a commit with many runs may take a while.',

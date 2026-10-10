@@ -497,7 +497,7 @@ describe('the Commit Detail page', () => {
       const prompt = screen.getByRole('form', { name: 'Confirmation' })
       expect(prompt).toHaveTextContent(`Type ${VALUE} to confirm`)
       expect(prompt).toHaveTextContent(/all of its runs, with their samples and profiles/)
-      expect(prompt).toHaveTextContent(/regression is attributed to cannot be deleted/)
+      expect(prompt).toHaveTextContent(/Regressions attributed to it are kept, without a commit/)
       fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: VALUE } })
       fireEvent.click(within(prompt).getByRole('button', { name: 'Delete' }))
 
@@ -506,27 +506,6 @@ describe('the Commit Detail page', () => {
       await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=commits'))
       expect(deleted).toEqual([`Bearer ${TOKEN}`])
       expect(await screen.findByText('No commits yet.')).toBeInTheDocument()
-    })
-
-    it('reports that a commit a regression is attributed to cannot be deleted', async () => {
-      signIn('manage')
-      server.use(
-        mockApi('delete', COMMIT_ROUTE, () =>
-          errorResponse(409, 'conflict', `Commit '${VALUE}' is referenced by a regression`),
-        ),
-      )
-      renderCommit()
-      await ready('Commit', deleteButton)
-
-      fireEvent.click(deleteButton())
-      fireEvent.change(screen.getByRole('textbox'), { target: { value: VALUE } })
-      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-
-      const prompt = screen.getByRole('form', { name: 'Confirmation' })
-      expect(await within(prompt).findByRole('alert')).toHaveTextContent(
-        'referenced by a regression',
-      )
-      expect(currentUrl()).toBe(PAGE)
     })
   })
 

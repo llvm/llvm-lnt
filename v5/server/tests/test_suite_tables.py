@@ -810,7 +810,7 @@ class TestRunSummaryAggregation:
 
 
 class TestCascades:
-    def test_deleting_a_commit_takes_its_runs_samples_and_profiles(
+    def test_deleting_a_commit_takes_its_runs_and_keeps_its_regressions(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # D1 and D5. Commonly used to clean up the unordered commits of a throwaway A/B run.
@@ -818,8 +818,6 @@ class TestCascades:
 
         with db_engine.begin() as connection:
             rows = seed(connection, tables)
-            # The regression's reference would otherwise refuse the delete; that is the next test.
-            connection.execute(tables.regression.update().values(commit_id=None))
 
             connection.execute(tables.commit.delete().where(tables.commit.c.id == rows["commit"]))
 
@@ -828,19 +826,12 @@ class TestCascades:
             assert count(connection, tables.profile) == 0
             assert count(connection, tables.profile_function) == 0
             assert count(connection, tables.run_summary) == 0
-
-    def test_a_commit_a_regression_points_at_cannot_be_deleted(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
-    ) -> None:
-        # D5, and the source of the `conflict` 409 that deleting such a commit answers (I4).
-        tables = make_suite("nts")
-
-        with db_engine.begin() as connection:
-            rows = seed(connection, tables)
-            with pytest.raises(IntegrityError):
-                connection.execute(
-                    tables.commit.delete().where(tables.commit.c.id == rows["commit"])
-                )
+            # D5: the regression attributed to the commit stays, with its indicators, and only its
+            # commit is cleared.
+            assert connection.execute(select(tables.regression.c.commit_id)).scalars().all() == [
+                None
+            ]
+            assert count(connection, tables.regression_indicator) == 1
 
     def test_deleting_a_machine_takes_its_runs_and_indicators(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

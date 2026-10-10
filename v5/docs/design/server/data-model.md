@@ -30,9 +30,9 @@ Runs therefore come in two tiers:
 
 **Deletion**: any commit can be deleted through the API, ordered or not.
 Deleting a commit deletes its runs, and in turn their samples and profiles (see
-D5). This is commonly used to clean up unordered commits that are no longer
-needed (e.g. throwaway A/B experiments), but ordered commits can be deleted
-too.
+D5). The regressions attributed to it are kept, with no commit. This is
+commonly used to clean up unordered commits that are no longer needed (e.g.
+throwaway A/B experiments), but ordered commits can be deleted too.
 
 
 ## D2: Schema Storage and Lifecycle
@@ -419,8 +419,9 @@ as `{suite}.commit`, and the tables below are named that way.
 - Dynamic columns are created from the schema's `commit_fields` (see D3 for the
   type-to-column mapping).
 - Commits can be deleted, whether or not `ordinal` is set. Deleting a commit
-  deletes its runs, which in turn deletes their samples and profiles. A commit
-  referenced by a regression's `commit_id` cannot be deleted (409 `conflict`).
+  deletes its runs, which in turn deletes their samples and profiles. The
+  regressions attributed to it are kept, with no commit (see
+  `{suite}.regression`).
 - `commit_fields` names must not collide with the built-in column names (`id`,
   `commit`, `ordinal`, `tag`); the schema parser rejects them.
 
@@ -577,6 +578,9 @@ as `{suite}.commit`, and the tables below are named that way.
 - `created_at` is recorded by the server when the regression is created; a
   request cannot supply it. Like `{suite}.run.submitted_at`, it comes from the
   database's clock at the start of the creating transaction.
+- Deleting a commit sets the `commit_id` of the regressions attributed to it to
+  null, and changes nothing else about them. A commit created later with the
+  same value is a new commit, to which those regressions are not attributed.
 - Compound index on `(created_at, id)`: serves
   `GET /api/suites/{testsuite}/regressions?sort=-created_at`. `id` is the
   cursor's tiebreaker (O5).

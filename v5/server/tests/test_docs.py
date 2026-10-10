@@ -81,7 +81,6 @@ class TestOpenApiDocument:
             (f"{MACHINES_PATH}/{{machine_name}}", "patch"): {"duplicate"},
             (COMMITS_PATH, "post"): {"duplicate", "conflict"},
             (f"{COMMITS_PATH}/{{value}}", "patch"): {"conflict"},
-            (f"{COMMITS_PATH}/{{value}}", "delete"): {"conflict"},
             (RUNS_PATH, "post"): {"duplicate", "conflict"},
             (REGRESSIONS_PATH, "post"): {"duplicate"},
         }

@@ -72,10 +72,8 @@ COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
 REGRESSION_UUID_CONSTRAINT = "uq_regression_uuid"
-# Not a unique constraint but a foreign key, violated from either side. Deleting a commit that a
-# regression references is refused, since D5 makes that commit undeletable (I4's `conflict`).
-# Storing a reference to a commit deleted after the request resolved it is a 404: it is no longer
-# there.
+# Not a unique constraint but a foreign key. Storing a reference to a commit deleted after the
+# request resolved it violates it, which is a 404: the commit is no longer there.
 REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
 # The one named as an `ON CONFLICT` target rather than attributed after the fact: adding an
 # indicator a regression already has is the silent no-op endpoints.md asks for. Named explicitly
@@ -290,10 +288,14 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("bug", String(NAME_LENGTH), nullable=True),
         Column("notes", Text, nullable=True),
         Column("state", Integer, nullable=False, index=True),
-        # No cascade, and deliberately not nullable-on-delete either: D5 makes a commit referenced
-        # by a regression undeletable, and this constraint is what produces that refusal -- which
-        # the API reports as `conflict` (I4).
-        Column("commit_id", ForeignKey("commit.id"), nullable=True, index=True),
+        # Cleared rather than cascaded: deleting a commit keeps the regressions attributed to it,
+        # without a commit (D5).
+        Column(
+            "commit_id",
+            ForeignKey("commit.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
         # The database's clock, as for `run.submitted_at`. A request cannot supply this (D5).
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         # D5 has the database layer validate the state. Restating it as a constraint costs nothing
