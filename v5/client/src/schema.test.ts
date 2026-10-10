@@ -7,6 +7,7 @@ import {
   labelOf,
   metricOptions,
   type Metric,
+  formatUnit,
 } from './schema'
 import { BARE_SUITE, SUITE, commit } from './test/fixtures'
 
@@ -17,6 +18,25 @@ describe('labelOf', () => {
 
   it('falls back to the name', () => {
     expect(labelOf({ name: 'os', display_name: null })).toBe('os')
+  })
+})
+
+describe('formatUnit', () => {
+  const metric = SUITE.metrics[0]
+
+  it('writes the unit and its abbreviation, as much of either as is set', () => {
+    expect(formatUnit(metric)).toBe('seconds (s)')
+    expect(formatUnit({ ...metric, unit_abbrev: null })).toBe('seconds')
+    expect(formatUnit({ ...metric, unit: null })).toBe('(s)')
+  })
+
+  it('writes the unit once when its abbreviation is identical', () => {
+    expect(formatUnit({ ...metric, unit: 'cycles', unit_abbrev: 'cycles' })).toBe('cycles')
+    expect(formatUnit({ ...metric, unit: 'Cycles', unit_abbrev: 'cycles' })).toBe('Cycles (cycles)')
+  })
+
+  it('is null when neither is set', () => {
+    expect(formatUnit({ ...metric, unit: null, unit_abbrev: null })).toBeNull()
   })
 })
 

@@ -26,7 +26,7 @@ import {
   type Metric,
 } from '../../schema'
 import { stringParam, trimmedStringParam, useUrlState } from '../../url-state'
-import { ActionRow } from './action-row'
+import { DetailActionRow } from './action-row'
 import { CompareWithPrevious } from './compare-with-previous'
 import styles from './details.module.css'
 
@@ -148,7 +148,7 @@ function Actions({ schema, run, metric }: ActionsProps) {
   const suite = schema.name
   const alone = { suite, machine: run.machine, commit: run.commit, runs: [run.uuid] }
   return (
-    <ActionRow
+    <DetailActionRow
       deletion={{
         suite,
         label: 'Delete run',
@@ -173,7 +173,7 @@ function Actions({ schema, run, metric }: ActionsProps) {
       <CompareWithPrevious schema={schema} run={run} metric={metric?.name}>
         Compare with previous commit
       </CompareWithPrevious>
-    </ActionRow>
+    </DetailActionRow>
   )
 }
 

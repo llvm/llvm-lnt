@@ -3,12 +3,12 @@ import { Tabs } from '../../components/tabs'
 import { useUrlState } from '../../url-state'
 import { ApiKeysTab } from './api-keys-tab'
 import { PARAMS, TABS, resetSettings, unusedSettings, type TabId } from './settings'
-import styles from './admin.module.css'
+import { SuitesTab } from './suites-tab'
 
 /** The Admin page: its API Keys (AD1) and Test Suites (AD2) tabs. */
 export default function Admin() {
   const [settings, update] = useUrlState(PARAMS)
-  const { tab, sort } = settings
+  const { tab, sort, suite } = settings
 
   // `settings` changes only with the URL.
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function Admin() {
         {tab === 'api-keys' ? (
           <ApiKeysTab sort={sort} onSort={(value) => update({ sort: value })} />
         ) : (
-          <p className={styles.note}>The Test Suites tab is not implemented yet.</p>
+          <SuitesTab selected={suite} onSelect={(name) => update({ suite: name })} />
         )}
       </Tabs>
     </section>

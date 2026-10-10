@@ -70,6 +70,10 @@ otherwise.
   string.
 - A metric, machine field or commit field is labelled with its `display_name`
   when the schema sets one, and with its `name` otherwise.
+- Where a page names a metric's unit, it writes its `unit` followed by its
+  `unit_abbrev` in parentheses, as much of either as is set (`seconds (s)`,
+  `seconds`, `(s)`), and only once when the two are identical (`cycles`, not
+  `cycles (cycles)`). A value shown with its unit is left to the page.
 - Timestamps are shown in the browser's local time zone.
 - A measured `real` value is shown to at most 6 significant digits, but never
   with fewer digits than its integer part has (`1.26432`, `66655.7`,
@@ -220,6 +224,10 @@ typing the suite name, since it destroys their stored values. Revoking an API
 key (AD1), which destroys nothing, asks for a plain confirmation instead.
 Removing indicators from a regression (DT4) is not confirmed at all: it destroys
 no measured data, and the indicators can be added again.
+
+An entity that the API reports as not found when it is deleted (I4's
+`not_found`) was already deleted, from elsewhere, and so counts as deleted: what
+the user asked for is done.
 
 Once the entity a page is about has been deleted, the page leaves for the one its
 spec names, which takes its place in the history rather than adding an entry (an
