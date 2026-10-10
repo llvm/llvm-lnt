@@ -273,14 +273,12 @@ Investigation and management page for a single regression. Layout:
 
 ## Add indicators
 
-Metric [Execution Time v]
-
-Machines (1 of 2 machines selected)  Tests (2 of 1200 tests selected)
-[Filter machines...]                 [Filter tests...]
-[-] Machine                          [-] Test
-[x] linux-x86_64                     [x] BM_find_if/1024
-[ ] macos-26.5-arm64                 [x] BM_find_if/4096
-                                     etc...
+Metric              Machines (1 of 2 selected)     Tests (2 of 1200 selected)
+[Execution Time v]  [Filter machines...]           [Filter tests...]
+                    [-] Machine                    [-] Test
+                    [x] linux-x86_64               [x] BM_find_if/1024
+                    [ ] macos-26.5-arm64           [x] BM_find_if/4096
+                                                   etc...
 
 This will add 2 indicators.  [Add]
 
@@ -326,8 +324,9 @@ page (`/suites/{ts}?tab=regressions`).
 ### Add indicators panel
 
 The panel adds indicators to the regression: one for every machine and test
-selected, on the metric selected. It is a form, so none of its settings are kept
-in the URL, as with CP9's panel.
+selected, on the metric selected. It shows the metric, the machines and the
+tests side by side, in the order they are picked. It is a form, so none of its
+settings are kept in the URL, as with CP9's panel.
 
 - Metric: a dropdown over every metric of the suite, which starts on the metric
   Run Detail selects by default (DT2). A suite with no metrics has no dropdown,

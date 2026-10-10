@@ -1,4 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
+import clsx from 'clsx'
 import { authedApi, MAX_PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
 import { useMachineNames } from '../../api/machines'
 import { useRegressionMutation, withIndicators } from '../../api/regressions'
@@ -116,15 +117,23 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   return (
     <section aria-label="Add indicators">
       <h2 className={styles.heading}>Add indicators</h2>
-      {schema.metrics.length > 0 && (
-        <Select
-          label="Metric"
-          options={metricOptions(schema)}
-          value={metric}
-          onChange={setMetric}
-        />
-      )}
+      {/* Left to right in the order they are picked: the metric, the machines, then the tests. */}
       <div className={styles.lists}>
+        <div className={clsx(styles.checkboxList, styles.metric)}>
+          <h3 className={styles.listHeading}>Metric</h3>
+          {schema.metrics.length > 0 ? (
+            // The heading says what it is, so its label is for assistive technology only.
+            <Select
+              label="Metric"
+              hideLabel
+              options={metricOptions(schema)}
+              value={metric}
+              onChange={setMetric}
+            />
+          ) : (
+            <div className={styles.note}>This suite has no metrics.</div>
+          )}
+        </div>
         <CheckboxList label="Machines" noun="machine" list={machines} status={machineStatus} />
         <CheckboxList label="Tests" noun="test" list={testList} status={testStatus} />
       </div>

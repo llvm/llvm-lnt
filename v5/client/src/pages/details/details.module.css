@@ -41,12 +41,19 @@
   gap: var(--lnt-space-2);
 }
 
-/* The Add indicators panel (DT4): its two lists side by side, as far as the page is wide. */
+/* The Add indicators panel (DT4): the metric, then the machines and the tests, side by side. */
 .lists {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: max-content repeat(2, minmax(0, 1fr));
   gap: var(--lnt-space-4);
   margin-top: var(--lnt-space-3);
+}
+
+/* Where three columns do not fit, one above the other, in the same order. */
+@media (max-width: 60rem) {
+  .lists {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .checkboxList {
@@ -54,6 +61,11 @@
   flex-direction: column;
   gap: var(--lnt-space-2);
   min-width: 0;
+}
+
+/* The metric's dropdown keeps its own width, even where the column spans the page. */
+.metric {
+  align-items: flex-start;
 }
 
 .listHeading {
