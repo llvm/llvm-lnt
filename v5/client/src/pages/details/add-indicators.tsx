@@ -134,7 +134,13 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
             <div className={styles.note}>This suite has no metrics.</div>
           )}
         </div>
-        <CheckboxList label="Machines" noun="machine" list={machines} status={machineStatus} />
+        <CheckboxList
+          label="Machines"
+          noun="machine"
+          list={machines}
+          status={machineStatus}
+          compact
+        />
         <CheckboxList label="Tests" noun="test" list={testList} status={testStatus} />
       </div>
       <div className={styles.submit}>
@@ -189,6 +195,8 @@ interface CheckboxListProps {
   list: CheckboxListState
   /** Shown above the list, or in its place while it has nothing to show: why. */
   status?: ReactNode
+  /** Show at most five names at once, as for a suite's machines (DT4), rather than more. */
+  compact?: boolean
 }
 
 /**
@@ -196,7 +204,7 @@ interface CheckboxListProps {
  * time with Shift held (AR2 "Range selection"). It can hold thousands of names, such as a suite's
  * tests, so it scrolls in a box of its own.
  */
-function CheckboxList({ label, noun, list, status }: CheckboxListProps) {
+function CheckboxList({ label, noun, list, status, compact = false }: CheckboxListProps) {
   const { names, filter, selection } = list
   const headingId = useId()
   const shown = filter.rows
@@ -256,7 +264,7 @@ function CheckboxList({ label, noun, list, status }: CheckboxListProps) {
       />
       {status !== undefined && <div className={styles.note}>{status}</div>}
       {names.length > 0 && (
-        <div className={styles.scroller}>
+        <div className={clsx(styles.scroller, compact && styles.compact)}>
           <DataTable
             label={label}
             columns={columns}

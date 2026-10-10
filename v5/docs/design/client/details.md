@@ -335,20 +335,23 @@ settings are kept in the URL, as with CP9's panel.
 - Tests: a list of the tests that have a value for the metric on at least one of
   the machines selected, sorted by name, each with a checkbox. Until a machine
   is selected, the list says so.
-- Each list has a text filter, and a checkbox in its header that selects every
-  item shown (see "Range selection" in AR2). A filter does not change the
-  selection: items can be selected under one filter, then others under another.
-  Each list says how many of its items are selected, and how many of those its
-  filter hides.
+- Each list scrolls in a box of its own: the machines' list shows at most five
+  machines at once. Each list also has a text filter, and a checkbox in its
+  header that selects every item shown (see "Range selection" in AR2). A filter
+  does not change the selection: items can be selected under one filter, then
+  others under another. Each list says how many of its items are selected, and
+  how many of those its filter hides.
 - A machine or test that its list no longer offers, because the metric or the
   machines selected have changed, is deselected, but only once every list it
   depends on has loaded: a list that is still loading, or has failed to load,
   deselects nothing. Until then, nothing can be added.
 - Preview: "This will add N indicators", for every machine and test selected.
-- "Add" adds them all in one request. It is disabled, and says why on hover,
-  without `triage` scope, while a list is loading or has failed to load, when
-  nothing is selected, and when there are more indicators than one request can
-  carry (I2's maximum page size; see E8), as in CP9.
+- "Add" adds them all in one request. It is disabled, saying why on hover, when:
+  - the API token does not have `triage` scope,
+  - a list is still loading, or has failed to load,
+  - nothing is selected, or
+  - there are more indicators than one request can carry (I2's maximum page
+    size; see E8), as in CP9.
 - Once they are added, the panel says how many were added, and how many of those
   selected already existed and were not added again. The tests sent are
   deselected.

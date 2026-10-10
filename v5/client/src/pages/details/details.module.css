@@ -92,6 +92,19 @@
   border-radius: var(--lnt-radius);
 }
 
+/* The header, with its checkbox selecting every row, stays in view as the rows scroll. */
+.scroller th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--lnt-bg);
+}
+
+/* The header and five rows of about 2.4rem each, when no name spans two lines. */
+.compact {
+  max-height: 14.75rem;
+}
+
 /* A whole row toggles its checkbox, and Shift+click selects a range rather than text. */
 .checkboxLabel {
   display: flex;
