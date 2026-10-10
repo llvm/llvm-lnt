@@ -21,3 +21,9 @@
   color: var(--lnt-muted);
   cursor: not-allowed;
 }
+
+/* A disabled link among plain ones, such as a table's. */
+.plain {
+  color: var(--lnt-muted);
+  cursor: not-allowed;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { comparePath, profilesPath } from './paths'
+import { comparePath, graphPath, profilesPath } from './paths'
 
 describe('comparePath', () => {
   it('sets what is given of side A only', () => {
@@ -19,6 +19,22 @@ describe('comparePath', () => {
       '/compare?suite_a=nts&machine_a=m1&commit_a=abc&runs_a=r1&runs_a=r2' +
         '&suite_b=nts&machine_b=m1&commit_b=def&runs_b=r3&metric=execution_time',
     )
+  })
+})
+
+describe('graphPath', () => {
+  it('sets what is given, with GR14 names and a test name of any characters', () => {
+    expect(graphPath()).toBe('/graph')
+    expect(graphPath({ suite: 'nts', machine: 'm1' })).toBe('/graph?suite=nts&machine=m1')
+    expect(
+      graphPath({
+        suite: 'nts',
+        machine: 'm1',
+        metric: 'execution_time',
+        test: 'a/b c&d',
+        regressions: 'all',
+      }),
+    ).toBe('/graph?suite=nts&machine=m1&metric=execution_time&test=a%2Fb+c%26d&regressions=all')
   })
 })
 

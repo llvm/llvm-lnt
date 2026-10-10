@@ -2,7 +2,8 @@
  * Populates an LNT v5 instance with development data, through its public REST API:
  *
  * - the `libcxx` and `nts` suites, with their real runs from server/tests/data;
- * - a synthetic libcxx history, with regressions and profiles (see synthetic.ts).
+ * - a synthetic libcxx history, with regressions and profiles, and machines beyond the real ones
+ *   (see synthetic.ts).
  *
  *     node tools/seed.ts [--url URL] [--token TOKEN]
  *

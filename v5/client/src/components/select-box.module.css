@@ -1,0 +1,8 @@
+.box {
+  margin: 0;
+  cursor: pointer;
+}
+
+.box:disabled {
+  cursor: not-allowed;
+}

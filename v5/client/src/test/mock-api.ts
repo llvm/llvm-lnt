@@ -10,18 +10,18 @@ import type { paths } from '../api/schema'
 
 type Method = 'get' | 'post' | 'patch' | 'delete'
 
-type PathWith<M extends Method> = {
+export type PathWith<M extends Method> = {
   [P in keyof paths]: paths[P][M] extends { responses: object } ? P : never
 }[keyof paths]
 
-type Operation<M extends Method, P extends PathWith<M>> = paths[P][M]
+export type Operation<M extends Method, P extends PathWith<M>> = paths[P][M]
 
 type JsonOf<T> = T extends { content: { 'application/json': infer Body } } ? Body : never
 
 /** Every JSON body the operation documents, success and error alike. */
 type ResponseBody<O> = O extends { responses: infer R } ? JsonOf<R[keyof R]> : never
 
-type RequestBody<O> = O extends { requestBody?: infer B } ? JsonOf<NonNullable<B>> : never
+export type RequestBody<O> = O extends { requestBody?: infer B } ? JsonOf<NonNullable<B>> : never
 
 type PathParams<O> = O extends { parameters: { path: infer Params } }
   ? { [K in keyof Params]: string }

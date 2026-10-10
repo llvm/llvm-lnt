@@ -273,13 +273,12 @@ Investigation and management page for a single regression. Layout:
 
 ## Add indicators
 
-Metric [Execution Time v]
-
-Machines                          Tests
-[Filter machines...]              [Filter tests...]
-[x] linux-x86_64                  [x] BM_find_if/1024
-[ ] macos-26.5-arm64              [x] BM_find_if/4096
-etc...                            etc...
+Metric              Machines (1 of 2 selected)     Tests (2 of 1200 selected)
+[Execution Time v]  [Filter machines...]           [Filter tests...]
+                    [-] Machine                    [-] Test
+                    [x] linux-x86_64               [x] BM_find_if/1024
+                    [ ] macos-26.5-arm64           [x] BM_find_if/4096
+                                                   etc...
 
 This will add 2 indicators.  [Add]
 
@@ -324,32 +323,70 @@ page (`/suites/{ts}?tab=regressions`).
 
 ### Add indicators panel
 
-- Metric: dropdown selector
-- Machines: checkbox list with filter input (multi-select, shift+click range)
-- Tests: checkbox list with filter input (multi-select, shift+click range),
-  filtered by selected machines and metric
-- Preview: "This will add N indicators" (machines × tests cross-product)
-- "Add" button creates all (machine × test × metric) indicator combinations
-- Duplicates (same machine+test+metric already on this regression) are silently
-  ignored
+The panel adds indicators to the regression: one for every machine and test
+selected, on the metric selected. It shows the metric, the machines and the
+tests side by side, in the order they are picked. It is a form, so none of its
+settings are kept in the URL, as with CP9's panel.
+
+- Metric: a dropdown over every metric of the suite, which starts on the metric
+  Run Detail selects by default (DT2). A suite with no metrics has no dropdown,
+  and nothing can be added to it.
+- Machines: a list of every machine of the suite, each with a checkbox.
+- Tests: a list of the tests that have a value for the metric on at least one of
+  the machines selected, sorted by name, each with a checkbox. Until a machine
+  is selected, the list says so.
+- Each list scrolls in a box of its own: the machines' list shows only a few
+  machines at once. Each list also has a text filter, and a checkbox in its
+  header that selects every item shown (see "Range selection" in AR2). A filter
+  does not change the selection: items can be selected under one filter, then
+  others under another. Each list says how many of its items are selected, and
+  how many of those its filter hides.
+- A machine or test that its list no longer offers, because the metric or the
+  machines selected have changed, is deselected, but only once every list it
+  depends on has loaded: a list that is still loading, or has failed to load,
+  deselects nothing. Until then, nothing can be added.
+- Preview: "This will add N indicators", for every machine and test selected.
+- "Add" adds them all in one request. It is disabled, saying why on hover, when:
+  - the API token does not have `triage` scope,
+  - a list is still loading, or has failed to load,
+  - nothing is selected, or
+  - there are more indicators than one request can carry (I2's maximum page
+    size; see E8), as in CP9.
+- Once they are added, the panel says how many were added, and how many of those
+  selected already existed and were not added again. The tests sent are
+  deselected.
 
 ### Indicators table
 
-- Heading: "Indicators (X tests across Y machines across Z metrics)" — unique
-  counts computed from the indicators. Shows plain "Indicators" when empty. When
-  a filter is active: "Indicators (showing N of X tests across ...)".
-- Filter: text input above the table for substring matching on machine name,
-  test name, or metric (OR logic, case-insensitive). Filters the table rows
-  client-side. Not shown when there are no indicators.
-- Columns: select checkbox, Machine, Test, Metric, "View on graph" link, remove
-  button (×)
-- Select-all checkbox in header (with indeterminate state for partial selection)
-- Shift+click range selection on checkboxes
-- Batch "Remove selected" button
-- "View on graph" link per indicator: opens the Graph page with the
-  regression's suite and the indicator's machine, metric and test selected, and
-  regression annotations
+- Heading: "Indicators (X tests across Y machines across Z metrics)", counting
+  the distinct tests, machines and metrics that the indicators name, or plain
+  "Indicators" when there are none. While the filter is active, it counts both
+  the indicators shown and all of them: "Indicators (showing N of X tests across
+  M of Y machines across ...)".
+- Order: as E8 returns them, oldest first.
+- Filter: a text input above the table, keeping the indicators whose machine,
+  test or metric (by name or label) contains the text, case-insensitive. It is
+  kept in the URL as `?indicator_filter={text}`. When there are no indicators,
+  it is neither shown nor kept in the URL. Unlike the panel's filters, it
+  deselects the rows it hides, so that only rows shown are ever removed.
+- Columns: a checkbox, the machine (a link to its detail page), the test, the
+  metric (by label), a "View on graph" link, and a remove button (×).
+- Checkboxes: rows are selected one at a time, a range at a time with Shift, or
+  all at once from the header (see "Range selection" in AR2).
+- "Remove selected" removes the selected indicators in one request, and says how
+  many are selected. It is disabled when none is, and when more are selected
+  than one request can carry (see E8).
+- Removing indicators, one or many, is not confirmed (see "Deletions" in AR2).
+  Once one is removed with its ×, the focus moves to the × of the nearest row
+  after it still shown, or else before it, or to the table if no row is left.
+  After "Remove selected", it moves to the table. If the user has moved the
+  focus out of the table meanwhile, it stays where it is.
+- "View on graph" opens the Graph page with the regression's suite and the
+  indicator's machine, metric and test selected, and regression annotations
   showing every state (`regressions=all`; see GR15), which marks this
-  regression's commit on the chart
+  regression's commit on the chart. The Graph page plots only numeric metrics
+  (GR1), so for an indicator on any other metric, the link is disabled and says
+  why (see "Disabled links" in AR2).
 
-Auth: requires `triage` scope for all modifications.
+Every change to the indicators needs `triage` scope. Without it, the panel's
+lists and the table's filter can still be used.

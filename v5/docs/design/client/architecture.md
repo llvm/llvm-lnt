@@ -122,6 +122,16 @@ behind the keyboard, even over thousands of rows -- the test tables of the Graph
 and Compare pages, or a run's samples. The rows it filters, and any chart that
 depends on them, may update just after.
 
+**Range selection**: In a list whose rows are selected with checkboxes, a click
+toggles a row, whether by mouse or from the keyboard, and the anchor is the last
+row clicked. A click with Shift held also gives every row shown from the anchor
+to the clicked one, both included, the clicked row's new state. It never changes
+a row that a filter hides. Without an anchor among the rows shown, a click with
+Shift held acts as a plain click. A checkbox in the list's header selects every
+row shown, or deselects them all if they are all selected already. It, and any
+other change to the selection than a click on a row, leaves the anchor where it
+is.
+
 **Invalid input**: An input whose text is invalid -- an invalid regex in a test
 filter, a name the schema editor rejects (AD3), an ordinal that is not an
 integer its column can hold (DT3) -- shows a red halo (red border and glow) for
@@ -208,6 +218,8 @@ regression -- before the request is sent; the prompt shows the text to type.
 Saving a schema change that removes entries (AD3) is confirmed the same way, by
 typing the suite name, since it destroys their stored values. Revoking an API
 key (AD1), which destroys nothing, asks for a plain confirmation instead.
+Removing indicators from a regression (DT4) is not confirmed at all: it destroys
+no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one its
 spec names, which takes its place in the history rather than adding an entry (an

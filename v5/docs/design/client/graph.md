@@ -131,15 +131,14 @@ from the selection.
 A header "check all" checkbox in the table header selects or deselects all
 visible tests (tri-state: unchecked, indeterminate when some selected, checked
 when all selected). Clicking a row toggles its selection (and triggers data
-fetch if selecting). Shift-clicking selects a contiguous range from the
-last-clicked row (additive -- adds to existing selection). Double-clicking
-isolates that test (deselects all others); double-clicking the sole selected
-test restores all (selects every visible test). Selected tests with data still
-loading show a loading indicator. The chart has no legend of its own; the
-table serves as one. Bidirectional hover highlighting: hovering a table row
-highlights the corresponding chart trace(s); hovering a chart trace highlights
-the table row. A selection of up to 10 tests is kept in the URL, along with
-the rest of the page's state (see GR14).
+fetch if selecting). Shift-clicking selects a range of rows (see "Range
+selection" in AR2). Double-clicking isolates that test (deselects all others);
+double-clicking the sole selected test restores all (selects every visible
+test). Selected tests with data still loading show a loading indicator. The
+chart has no legend of its own; the table serves as one. Bidirectional hover
+highlighting: hovering a table row highlights the corresponding chart trace(s);
+hovering a chart trace highlights the table row. A selection of up to 10 tests
+is kept in the URL, along with the rest of the page's state (see GR14).
 
 
 ### GR8: Client-Side Caching and State Persistence

@@ -25,13 +25,27 @@ export function ButtonLink({ to, title, children }: Props) {
     )
   }
   return (
-    <span
-      role="link"
-      aria-disabled="true"
-      tabIndex={0}
-      className={styles.button}
-      title={title}
-    >
+    <DisabledLink className={styles.button} title={title}>
+      {children}
+    </DisabledLink>
+  )
+}
+
+interface DisabledLinkProps {
+  /** Why the link leads nowhere, shown on hover and given to assistive technology. */
+  title: string | undefined
+  className?: string
+  children: ReactNode
+}
+
+/**
+ * A link that leads nowhere for now (AR2 "Disabled links"): text shown as disabled, which no click
+ * follows, which can still be focused, and which says why on hover. Its look is its owner's, a
+ * button's or a plain link's.
+ */
+export function DisabledLink({ title, className = styles.plain, children }: DisabledLinkProps) {
+  return (
+    <span role="link" aria-disabled="true" tabIndex={0} className={className} title={title}>
       {children}
     </span>
   )

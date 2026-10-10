@@ -1,13 +1,10 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
 import {
   deleteRegression,
-  regressionChanged,
-  regressionKey,
-  regressionScope,
   TEXT_LENGTH,
   useRegression,
+  useRegressionMutation,
 } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
@@ -24,6 +21,8 @@ import { formatTimestamp, plural, regressionTitle, shortUuid, uuidPrefix } from 
 import { REGRESSION_STATES, stateLabel } from '../../regression-states'
 import { suiteTabPath } from '../test-suites/settings'
 import { ActionRow } from './action-row'
+import { AddIndicators } from './add-indicators'
+import { RegressionIndicators } from './regression-indicators'
 import styles from './details.module.css'
 
 type Regression = Schemas['RegressionDetail']
@@ -59,31 +58,28 @@ function RegressionContent({ schema, uuid }: { schema: SuiteSchema; uuid: string
         <>
           <RegressionInfo schema={schema} regression={regression.data} />
           <Actions suite={schema.name} regression={regression.data} />
+          <AddIndicators schema={schema} uuid={uuid} />
+          <RegressionIndicators schema={schema} regression={regression.data} />
         </>
       )}
     </Loaded>
   )
 }
 
-/**
- * Change the regression `uuid` with `PATCH /regressions/{uuid}` (E8), and show what the API
- * returned. Every change to the regression runs in its scope, one after the other.
- */
+/** Change the regression `uuid` with `PATCH /regressions/{uuid}` (E8), which answers with it whole. */
 function useUpdateRegression(suite: string, uuid: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    scope: regressionScope(suite, uuid),
-    // A fetch of the regression under way could land after the answer, and show it as it was.
-    onMutate: () => queryClient.cancelQueries({ queryKey: regressionKey(suite, uuid) }),
-    mutationFn: (body: Schemas['RegressionUpdate']) =>
+  return useRegressionMutation(
+    suite,
+    uuid,
+    (body: Schemas['RegressionUpdate']) =>
       unwrap(
         authedApi.PATCH('/api/suites/{testsuite}/regressions/{uuid}', {
           params: { path: { testsuite: suite, uuid } },
           body,
         }),
       ),
-    onSuccess: (updated) => regressionChanged(queryClient, suite, uuid, () => updated),
-  })
+    (updated) => updated,
+  )
 }
 
 /**

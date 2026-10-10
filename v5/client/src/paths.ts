@@ -33,11 +33,24 @@ function withQuery(path: string, params: [string, string | undefined][]): string
   return search ? `${path}?${search}` : path
 }
 
-/** The Graph page (GR14), showing `suite` and `machine`, as far as they are given. */
-export function graphPath({ suite, machine }: { suite?: string; machine?: string } = {}): string {
+/** What the Graph page (GR14) is to show, as far as it is given. */
+interface GraphView {
+  suite?: string
+  machine?: string
+  metric?: string
+  test?: string
+  /** Which regressions are marked on the chart (GR15). */
+  regressions?: 'active' | 'all'
+}
+
+/** The Graph page (GR14), showing `view`. */
+export function graphPath({ suite, machine, metric, test, regressions }: GraphView = {}): string {
   return withQuery('/graph', [
     ['suite', suite],
     ['machine', machine],
+    ['metric', metric],
+    ['test', test],
+    ['regressions', regressions],
   ])
 }
 

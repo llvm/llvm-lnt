@@ -40,3 +40,94 @@
   align-items: center;
   gap: var(--lnt-space-2);
 }
+
+/* The Add indicators panel (DT4): the metric, then the machines and the tests, side by side. */
+.lists {
+  display: grid;
+  grid-template-columns: max-content repeat(2, minmax(0, 1fr));
+  gap: var(--lnt-space-4);
+  margin-top: var(--lnt-space-3);
+}
+
+/* Where three columns do not fit, one above the other, in the same order. */
+@media (max-width: 60rem) {
+  .lists {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.checkboxList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  min-width: 0;
+}
+
+/* The metric's dropdown keeps its own width, even where the column spans the page. */
+.metric {
+  align-items: flex-start;
+}
+
+.listHeading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.count {
+  color: var(--lnt-muted);
+  font-weight: normal;
+}
+
+/* What a list says in place of its names, or above them. */
+.note {
+  color: var(--lnt-muted);
+  font-size: 0.9rem;
+}
+
+/* A list of thousands of names scrolls in a box of its own, rather than stretch the page. */
+.scroller {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+/* The header, with its checkbox selecting every row, stays in view as the rows scroll. */
+.scroller th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--lnt-bg);
+}
+
+/* The header and five rows of about 2.4rem each, when no name spans two lines. */
+.compact {
+  max-height: 14.75rem;
+}
+
+/* A whole row toggles its checkbox, and Shift+click selects a range rather than text. */
+.checkboxLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lnt-space-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+  margin: var(--lnt-space-3) 0;
+}
+
+.report {
+  margin: 0 0 var(--lnt-space-3);
+}
+
+/* The button removing one indicator: as compact as the row it is in. */
+.removeButton {
+  padding: 0 var(--lnt-space-2);
+  line-height: 1.2;
+}

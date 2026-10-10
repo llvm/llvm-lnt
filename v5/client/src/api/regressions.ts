@@ -1,4 +1,4 @@
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, authedApi, unwrap, type Schemas } from './client'
 import { withCommits } from './commits'
 import { queryKeys } from './keys'
@@ -8,6 +8,7 @@ type RegressionListQuery = NonNullable<
   paths['/api/suites/{testsuite}/regressions']['get']['parameters']['query']
 >
 type RegressionDetail = Schemas['RegressionDetail']
+type Indicator = Schemas['Indicator']
 
 /** E8's limit on a regression's title or bug (D5's column). */
 export const TEXT_LENGTH = 256
@@ -101,4 +102,34 @@ export async function regressionChanged(
     regressionKey(suite, uuid),
     (stored) => stored && change(stored),
   )
+}
+
+/**
+ * A mutation changing the regression `uuid` through `mutationFn`, one of E8's routes, whose answer
+ * `change` applies to the regression as stored (see `regressionChanged`). Every change to the
+ * regression runs in its scope (see `regressionScope`).
+ */
+export function useRegressionMutation<Variables, Result>(
+  suite: string,
+  uuid: string,
+  mutationFn: (variables: Variables) => Promise<Result>,
+  change: (result: Result, stored: RegressionDetail) => RegressionDetail,
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    scope: regressionScope(suite, uuid),
+    // A fetch of the regression under way could land after the answer, and show it as it was.
+    onMutate: () => queryClient.cancelQueries({ queryKey: regressionKey(suite, uuid) }),
+    mutationFn,
+    onSuccess: (result) =>
+      regressionChanged(queryClient, suite, uuid, (stored) => change(result, stored)),
+  })
+}
+
+/** `stored`, with the indicators an indicator route (E8) answered with: the whole list afterwards. */
+export function withIndicators(
+  { indicators }: { indicators: Indicator[] },
+  stored: RegressionDetail,
+): RegressionDetail {
+  return { ...stored, indicators }
 }

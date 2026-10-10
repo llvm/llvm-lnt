@@ -4,7 +4,8 @@
  *
  * It continues the history of the real libcxx machines after their newest real commit, starting
  * from the values they measured there, with noise and a few deliberate changes (`EFFECTS`), which
- * the regressions it creates describe. Everything is derived from fixed seeds, so every run of the
+ * the regressions it creates describe. A fleet of synthetic machines (`FLEET`) measures a few of
+ * its commits too, so that the suite has as many machines as a busy instance. Everything is derived from fixed seeds, so every run of the
  * seed tool submits exactly the same data.
  */
 
@@ -25,6 +26,128 @@ const TRACKED = [LINUX, MACOS, HARDENED]
 
 /** A configuration of the macOS machine kept out of the Dashboard: `tracked: false` (D5). */
 export const UNTRACKED = 'macos-26.5-arm64-O3'
+
+/** A synthetic machine of `FLEET`. */
+interface FleetMachine {
+  name: string
+  /** The real machine whose values it measures, times `speed`. */
+  like: string
+  speed: number
+  clockGhz: number
+  fields: Record<string, string>
+  /** False for a retired machine, kept for its history (D5). */
+  tracked: boolean
+  /** The synthetic commits it measured, each once. */
+  commits: number[]
+}
+
+/**
+ * Machines beyond the real ones, so that the suite has as many as a busy instance, which the pages
+ * listing or picking machines have to handle. Each measured a few commits, never the tagged one
+ * nor the last ten, so that the real machines stay the ones most recently measured. Some are
+ * retired, and so untracked.
+ */
+const FLEET: FleetMachine[] = [
+  {
+    name: 'linux-x86_64-gcc15-20260812',
+    like: LINUX,
+    speed: 1.04,
+    clockGhz: 3.0,
+    fields: { hardware: 'AMD EPYC 9454', os: 'Ubuntu 24.04', compiler: 'gcc 15.1' },
+    tracked: true,
+    commits: [1, 9, 17, 25, 29],
+  },
+  {
+    name: 'linux-x86_64-clang20-20260601',
+    like: LINUX,
+    speed: 1.02,
+    clockGhz: 3.0,
+    fields: { hardware: 'AMD EPYC 7763', os: 'Ubuntu 22.04', compiler: 'clang 20.1' },
+    tracked: false,
+    commits: [0, 4, 8],
+  },
+  {
+    name: 'linux-aarch64-graviton4-20260812',
+    like: MACOS,
+    speed: 1.18,
+    clockGhz: 2.8,
+    fields: { hardware: 'AWS Graviton4', os: 'Amazon Linux 2023', compiler: 'clang 22.1' },
+    tracked: true,
+    commits: [2, 10, 18, 26],
+  },
+  {
+    name: 'linux-aarch64-ampere-20260515',
+    like: MACOS,
+    speed: 1.35,
+    clockGhz: 3.0,
+    fields: { hardware: 'Ampere Altra', os: 'Ubuntu 22.04', compiler: 'clang 20.1' },
+    tracked: false,
+    commits: [0, 3, 6],
+  },
+  {
+    name: 'macos-15.6-arm64-20260520',
+    like: MACOS,
+    speed: 1.08,
+    clockGhz: 4.05,
+    fields: { hardware: 'Apple M3', os: 'macOS 15.6', compiler: 'Apple clang 17.0' },
+    tracked: false,
+    commits: [1, 5],
+  },
+  {
+    name: 'macos-26.5-x86_64-20260812',
+    like: LINUX,
+    speed: 0.92,
+    clockGhz: 3.6,
+    fields: { hardware: 'Intel Core i9-9980HK', os: 'macOS 26.5', compiler: 'Apple clang 21.0' },
+    tracked: true,
+    commits: [3, 11, 23, 28],
+  },
+  {
+    name: 'windows-x86_64-clang-cl-20260812',
+    like: LINUX,
+    speed: 1.12,
+    clockGhz: 3.0,
+    fields: { hardware: 'AMD EPYC 9454', os: 'Windows Server 2025', compiler: 'clang-cl 22.1' },
+    tracked: true,
+    commits: [4, 12, 20, 27],
+  },
+  {
+    name: 'freebsd-x86_64-20260812',
+    like: LINUX,
+    speed: 1.06,
+    clockGhz: 3.0,
+    fields: { hardware: 'AMD EPYC 9454', os: 'FreeBSD 14.3', compiler: 'clang 19.1' },
+    tracked: true,
+    commits: [5, 13, 21],
+  },
+  {
+    name: 'linux-x86_64-asan-20260812',
+    like: LINUX,
+    speed: 2.4,
+    clockGhz: 3.0,
+    fields: { hardware: 'AMD EPYC 9454', os: 'Ubuntu 24.04', compiler: 'clang 22.1, ASan' },
+    tracked: true,
+    commits: [6, 14, 22, 29],
+  },
+  {
+    name: 'linux-riscv64-20260901',
+    like: LINUX,
+    speed: 3.1,
+    clockGhz: 1.5,
+    fields: { hardware: 'SiFive P550', os: 'Ubuntu 24.04', compiler: 'clang 22.1' },
+    tracked: true,
+    commits: [24, 28],
+  },
+  {
+    name: 'linux-x86_64-modules-20260812',
+    like: LINUX,
+    speed: 0.98,
+    clockGhz: 3.0,
+    fields: { hardware: 'AMD EPYC 9454', os: 'Ubuntu 24.04', compiler: 'clang 22.1, modules' },
+    tracked: true,
+    commits: [7, 15, 23],
+  },
+]
 
 const COMMITS = 40
 /** The distance between the ordinals of consecutive synthetic commits. */
@@ -68,6 +191,7 @@ const CLOCK_GHZ: Record<string, number> = {
   [MACOS]: 4.4,
   [HARDENED]: 4.4,
   [UNTRACKED]: 4.4,
+  ...Object.fromEntries(FLEET.map((machine) => [machine.name, machine.clockGhz])),
 }
 
 /** A deterministic stream of numbers in [0, 1) (mulberry32), seeded by `name`. */
@@ -194,6 +318,8 @@ export function libcxxSynthetic(realRuns: Submission[]): {
       measured?: string
       profile?: { isa: Isa; speedup: number }
       parameters: Record<string, unknown>
+      /** The machine as submitted, by name only unless given. */
+      submitted?: Submission['machine']
     },
   ) {
     const entries = testEntries(machine, tests.get(options.measured ?? machine)!, factor, seed)
@@ -201,10 +327,7 @@ export function libcxxSynthetic(realRuns: Submission[]): {
     runs.push({
       format_version: '5',
       uuid: uuidFor(seed),
-      machine:
-        machine === UNTRACKED
-          ? { name: machine, tracked: false, fields: macosFields }
-          : { name: machine },
+      machine: options.submitted ?? { name: machine },
       commit,
       run_parameters: options.parameters,
       tests: entries,
@@ -221,6 +344,15 @@ export function libcxxSynthetic(realRuns: Submission[]): {
         commit_info: `[libc++] Synthetic commit ${i + 1} of ${COMMITS}`,
       },
     }
+    // Before the real machines, so that those stay the ones measured last.
+    for (const fleet of FLEET.filter((machine) => machine.commits.includes(i))) {
+      const factor = (test: string) => fleet.speed * effectsAt(i, fleet.name, test)
+      addRun(fleet.name, commit, `libcxx/${fleet.name}/${i}`, factor, {
+        measured: fleet.like,
+        parameters: runParameters(i, 0),
+        submitted: { name: fleet.name, tracked: fleet.tracked, fields: fleet.fields },
+      })
+    }
     // Some commits are measured twice, so that runs need aggregating.
     const repetitions = i % 5 === 0 ? 2 : 1
     for (const machine of [...TRACKED, ...(i >= COMMITS - 10 ? [UNTRACKED] : [])]) {
@@ -235,6 +367,10 @@ export function libcxxSynthetic(realRuns: Submission[]): {
           measured,
           profile: profiled ? { isa, speedup: 1 } : undefined,
           parameters: runParameters(i, run),
+          submitted:
+            machine === UNTRACKED
+              ? { name: machine, tracked: false, fields: macosFields }
+              : undefined,
         })
       }
     }
