@@ -30,9 +30,7 @@ Runs therefore come in two tiers:
 
 **Deletion**: any commit can be deleted through the API, ordered or not.
 Deleting a commit deletes its runs, and in turn their samples and profiles (see
-D5). The regressions attributed to it are kept, with no commit. This is
-commonly used to clean up unordered commits that are no longer needed (e.g.
-throwaway A/B experiments), but ordered commits can be deleted too.
+D5). The regressions attributed to it are kept, with no commit.
 
 
 ## D2: Schema Storage and Lifecycle

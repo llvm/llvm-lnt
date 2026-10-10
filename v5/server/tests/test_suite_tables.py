@@ -813,7 +813,7 @@ class TestCascades:
     def test_deleting_a_commit_takes_its_runs_and_keeps_its_regressions(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D1 and D5. Commonly used to clean up the unordered commits of a throwaway A/B run.
+        # D1 and D5.
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
