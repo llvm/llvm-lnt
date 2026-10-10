@@ -62,7 +62,7 @@ export function CommitPicker({
   const suite = schema.name
   const toSuggestion = useCallback((commit: Commit) => suggestionOf(commit, schema), [schema])
   const suggestions = useServerSuggestions({
-    queryKey: [...queryKeys.suite(suite), 'commits', 'suggestions', filters],
+    queryKey: [...queryKeys.commits(suite), 'suggestions', filters],
     fetchPage: (term, cursor, signal) =>
       fetchCommitPage(
         suite,
@@ -80,8 +80,7 @@ export function CommitPicker({
   // what keeps a pick from being looked up again.
   const queryClient = useQueryClient()
   const lookupKey = (commit: string | null) => [
-    ...queryKeys.suite(suite),
-    'commits',
+    ...queryKeys.commits(suite),
     'lookup',
     filters,
     commit,

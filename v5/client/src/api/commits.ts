@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { api, unwrap } from './client'
+import { partialMatchKey, useQuery, type Query, type QueryClient } from '@tanstack/react-query'
+import { api, unwrap, type Schemas } from './client'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
 import type { Commit } from '../schema'
@@ -93,12 +93,96 @@ export async function withCommits<Page>(
 }
 
 /**
+ * Whether `query` holds the commits of a list, resolved by `withCommits` for display. Lists shown a
+ * page at a time hold them; no list loaded page after page (`useCursorPages`) resolves its commits.
+ */
+function holdsCommits(query: Query): boolean {
+  const data = query.state.data
+  return typeof data === 'object' && data !== null && 'commits' in data
+}
+
+/**
+ * Mark stale what shows a commit of `suite`, after a change to its ordinal or tag: every query
+ * about commits, and every list that holds its commits' display values. Nothing is fetched again
+ * until it is shown. What names a commit only by its value is left alone, such as a run's samples,
+ * which never change and would otherwise all be fetched again when next shown.
+ */
+export async function commitChanged(queryClient: QueryClient, suite: string): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.suite(suite),
+    predicate: (query) =>
+      partialMatchKey(query.queryKey, queryKeys.commits(suite)) || holdsCommits(query),
+    refetchType: 'none',
+  })
+}
+
+/** The query key of the commit `value`'s detail, with its neighbours (E3). */
+export function commitKey(suite: string, value: string) {
+  return [...queryKeys.commits(suite), 'detail', value] as const
+}
+
+/** The query key of the commit `value` resolved on its own (see `useResolvedCommit`). */
+export function resolvedCommitKey(suite: string, value: string) {
+  return [...queryKeys.commits(suite), 'resolve', value] as const
+}
+
+/** `detail`, without its neighbours: the commit as a list or `commits/resolve` gives it. */
+export function withoutNeighbours(detail: Schemas['CommitDetail']): Commit {
+  const { value, ordinal, tag, fields } = detail
+  return { value, ordinal, tag, fields }
+}
+
+/** Store `detail` as the commit resolved, which a page about it then need not ask for again. */
+function storeResolved(queryClient: QueryClient, suite: string, detail: Schemas['CommitDetail']) {
+  queryClient.setQueryData(resolvedCommitKey(suite, detail.value), withoutNeighbours(detail))
+}
+
+/** Store `detail`, as the API returned it, as both the commit's detail and its resolution. */
+export function storeCommit(
+  queryClient: QueryClient,
+  suite: string,
+  detail: Schemas['CommitDetail'],
+): void {
+  queryClient.setQueryData(commitKey(suite, detail.value), detail)
+  storeResolved(queryClient, suite, detail)
+}
+
+/** Cancel the fetches of the commit `value` under way, whose answers could replace a newer one. */
+export async function cancelCommit(queryClient: QueryClient, suite: string, value: string) {
+  await Promise.all(
+    [commitKey(suite, value), resolvedCommitKey(suite, value)].map((queryKey) =>
+      queryClient.cancelQueries({ queryKey }),
+    ),
+  )
+}
+
+/**
+ * The commit `value` (E3), with the commits before and after it in ordinal order. The commit is
+ * also stored as resolved (see `useResolvedCommit`), which a page about it need not ask for again.
+ */
+export function useCommit(suite: string, value: string) {
+  return useQuery({
+    queryKey: commitKey(suite, value),
+    queryFn: async ({ client, signal }) => {
+      const commit = await unwrap(
+        api.GET('/api/suites/{testsuite}/commits/{value}', {
+          params: { path: { testsuite: suite, value } },
+          signal,
+        }),
+      )
+      storeResolved(client, suite, commit)
+      return commit
+    },
+  })
+}
+
+/**
  * The commit `value`, resolved on its own for its display value and ordinal (E3), or null once it
  * shows that no commit has that value.
  */
 export function useResolvedCommit(suite: string, value: string) {
   return useQuery({
-    queryKey: [...queryKeys.suite(suite), 'commits', 'resolve', value],
+    queryKey: resolvedCommitKey(suite, value),
     queryFn: async ({ signal }) =>
       (await resolveCommits(suite, [value], signal)).get(value) ?? null,
   })
@@ -121,14 +205,15 @@ export type PreviousCommit =
  * The commit before `value` at which `machine` has runs: the one with the nearest lower ordinal
  * among the machine's commits (DT2), which the commit's own `previous` neighbour need not be. The
  * commit is resolved first, since only one with an ordinal has a commit before it (the API refuses
- * the others). The lookup is cached per machine and commit, so that runs of the same machine at
- * the same commit share it.
+ * the others). The lookup is cached per machine, commit and ordinal, so that runs of the same
+ * machine at the same commit share it, and a new ordinal looks it up again.
  */
 export function usePreviousCommit(suite: string, value: string, machine: string): PreviousCommit {
   const commit = useResolvedCommit(suite, value)
-  const ordered = commit.data?.ordinal != null
+  const ordinal = commit.data?.ordinal
+  const ordered = ordinal != null
   const lookup = useQuery({
-    queryKey: [...queryKeys.suite(suite), 'commits', 'previous', { machine, commit: value }],
+    queryKey: [...queryKeys.commits(suite), 'previous', { machine, commit: value, ordinal }],
     queryFn: ({ signal }) =>
       firstCommit(suite, { machine, before_commit: value, sort: '-ordinal' }, signal),
     enabled: ordered,

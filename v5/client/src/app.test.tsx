@@ -75,7 +75,7 @@ describe('routing', () => {
     ['/suites/nts', 'Test Suites'],
     ['/suites/nts/machines/linux-x86_64', 'Machine: linux-x86_64'],
     ['/suites/nts/runs/550e8400-e29b-41d4-a716-446655440000', 'Run: 550e8400'],
-    ['/suites/nts/commits/abc123', 'Commit Detail'],
+    ['/suites/nts/commits/abc123', 'Commit: abc123'],
     ['/suites/nts/regressions/550e8400-e29b-41d4-a716-446655440000', 'Regression Detail'],
     ['/graph', 'Graph'],
     ['/compare', 'Compare'],

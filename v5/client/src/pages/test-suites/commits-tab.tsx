@@ -27,7 +27,7 @@ export function CommitsTab({ schema, search, onSearch }: Props) {
   const input = useServerSearch(search, onSearch)
   const query = { search: search || undefined, sort: '-first_seen', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
-    queryKey: [...queryKeys.suite(suite), 'commits', query],
+    queryKey: [...queryKeys.commits(suite), query],
     fetchPage: (cursor, signal) => fetchCommitPage(suite, { ...query, cursor }, signal),
   })
   const page = pager.page
