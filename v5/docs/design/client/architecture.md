@@ -124,21 +124,21 @@ depends on them, may update just after.
 
 **Invalid input**: An input whose text is invalid -- an invalid regex in a test
 filter, a name the schema editor rejects (AD3), an ordinal that is not an
-integer its column can hold (DT3) -- shows a red halo (red border and glow) for as long as its text
-stays invalid.
+integer its column can hold (DT3) -- shows a red halo (red border and glow) for
+as long as its text stays invalid.
 
 **Inline editing**: A field edited in place shows its value with an Edit button.
 Edit replaces the value with an input, which takes the focus, and Save and
 Cancel buttons. Enter saves and Escape cancels, unless the input uses the key
 itself, as a combobox does. Surrounding whitespace is ignored, and emptying the
 input clears the value. Saving the text as the input opened with changes
-nothing, whatever whitespace the stored value has. While the input's text is invalid, it cannot be saved.
-While a save is under way, neither the input nor its buttons can be used. A save
-that fails leaves the input open with its text, and says why it failed. One that
-succeeds closes the input, and the field shows the value the API returned: an
-edit is never shown before the API has accepted it. Once the input closes, the
-focus goes back to the Edit button. Edit and Save need the scope the change
-needs (see "Authentication").
+nothing, whatever whitespace the stored value has. While the input's text is
+invalid, it cannot be saved. While a save is under way, neither the input nor
+its buttons can be used. A save that fails leaves the input open with its text,
+and says why it failed. One that succeeds closes the input, and the field shows
+the value the API returned: an edit is never shown before the API has accepted
+it. Once the input closes, the focus goes back to the Edit button. Edit and Save
+need the scope the change needs (see "Authentication").
 
 **Comboboxes**: Every combobox follows the standard combobox accessibility
 conventions, with manual selection: typing narrows the suggestions, and the
