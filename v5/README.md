@@ -67,7 +67,7 @@ npm run seed -- --token <token>                   # with a token of your own
 ```
 
 This creates the `libcxx` and `nts` suites with their real runs from `server/tests/data`, and a
-synthetic libcxx history on top, measured on 15 machines. Seeding takes a few seconds.
+synthetic libcxx history on top. Seeding takes a few seconds.
 
 It needs a token with `manage` scope: `--token`, or `$LNT_SEED_TOKEN`. Without either, it creates
 an admin key named `seed` for the database in `.env`, but only when seeding the dev server at its
