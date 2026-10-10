@@ -117,7 +117,7 @@ GET    /api/suites/{testsuite}/commits                      -- List (cursor-pagi
 POST   /api/suites/{testsuite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal and a tag
 GET    /api/suites/{testsuite}/commits/{value}              -- Detail (includes previous/next commit by ordinal)
 PATCH  /api/suites/{testsuite}/commits/{value}              -- Update ordinal, tag, and/or fields
-DELETE /api/suites/{testsuite}/commits/{value}              -- Delete commit (cascades to runs/samples; detaches regressions)
+DELETE /api/suites/{testsuite}/commits/{value}              -- Delete commit (cascades to runs/samples; keeps regressions, with no commit)
 POST   /api/suites/{testsuite}/commits/resolve              -- Batch resolve commit strings to summaries
 ```
 
@@ -156,8 +156,7 @@ commit that has no ordinal itself.
 | `DELETE /commits/{value}` | 204 | |
 
 `DELETE` removes the commit, its runs, and their samples and profiles (see D5).
-The regressions attributed to the commit are kept, with their `commit` cleared
-(see D5).
+The regressions attributed to the commit are kept, with no commit (see D5).
 
 **Filters:**
 
@@ -458,8 +457,7 @@ through the indicator routes below.
 **Detail response:**
 
 - `uuid`, `title`, `bug`, `notes`, `state`
-- `commit`: the commit's identity string, or `null` (also once the commit is
-  deleted; see D5)
+- `commit`: the commit's identity string, or `null`
 - `created_at`: when the regression was created (see D5)
 - `indicators`: a list of `{uuid, machine, test, metric}`, oldest first. It may
   be empty (see D5).

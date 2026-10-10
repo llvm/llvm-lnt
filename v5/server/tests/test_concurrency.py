@@ -24,7 +24,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Connection, Engine, delete, insert, select, text
+from sqlalchemy import Connection, Engine, delete, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from conftest import code_of, run_payload
@@ -923,6 +923,9 @@ class TestReferenceDeletedMidRequest:
     or commit always is rather than a 500. Driven through the API, because a regression's commit is
     stored by the endpoint itself. The delete holds its transaction open, so the request resolves
     the row it can still see and then blocks on it when its write checks the foreign key.
+
+    The last test runs the race the other way around: the regression is attributed to the commit
+    first, and the deletion of the commit, through the API, waits for it.
     """
 
     @pytest.fixture
@@ -1047,6 +1050,33 @@ class TestReferenceDeletedMidRequest:
         response = running.result(timeout=BLOCK_TIMEOUT)
         assert response.status_code == 404
         assert code_of(response) == "not_found"
+        assert api_client.get(f"{REGRESSIONS}/{regression}").json()["commit"] is None
+
+    @pytest.mark.usefixtures("doomed")
+    def test_deleting_a_commit_clears_an_attribution_made_meanwhile(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        tables: SuiteTables,
+        regression: str,
+    ) -> None:
+        # The attribution commits while the deletion waits for it, and the deletion then clears it
+        # too (D5), rather than refusing, or leaving the regression naming a commit that is gone.
+        doomed = select(tables.commit.c.id).where(tables.commit.c.commit == "doomed")
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: connection.execute(
+                update(tables.regression)
+                .where(tables.regression.c.uuid == regression)
+                .values(commit_id=doomed.scalar_subquery())
+            ),
+            lambda _: api_client.delete(f"{COMMITS}/doomed", headers=manage),
+        )
+
+        assert running.result(timeout=BLOCK_TIMEOUT).status_code == 204
         assert api_client.get(f"{REGRESSIONS}/{regression}").json()["commit"] is None
 
 

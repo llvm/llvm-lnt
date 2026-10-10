@@ -1894,7 +1894,7 @@ class TestCascades:
         # The commit created again is a new one that happens to share a value, as a metric added
         # back is (D2).
         uuid = create(commit="abc123")["uuid"]
-        api_client.delete(f"{COMMITS}/abc123", headers=manage)
+        assert api_client.delete(f"{COMMITS}/abc123", headers=manage).status_code == 204
 
         response = api_client.post(COMMITS, json={"value": "abc123"}, headers=submitter)
 
