@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Ref } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap } from '../../api/client'
 import { removeSuite, useSuites, type SuiteSchema } from '../../api/suites'
@@ -12,6 +12,7 @@ import { useDropUnusable } from '../../url-state'
 import { CopyButton } from './copy-button'
 import { CreateSuite } from './create-suite'
 import { downloadFile } from './download'
+import { EditSchema } from './edit-schema'
 import { SchemaTables } from './schema-tables'
 import styles from './admin.module.css'
 
@@ -23,22 +24,24 @@ interface Props {
 
 /**
  * The Test Suites tab (AD2): a dropdown selecting a suite, whose schema it shows, exports and
- * deletes, and "New suite", which opens the schema editor in the viewer's place (AD3). Nothing is
- * selected until the user selects a suite, or the URL names one.
+ * deletes, and "New suite" and "Edit schema", which open the schema editor in the viewer's place
+ * (AD3). Nothing is selected until the user selects a suite, or the URL names one.
  */
 export function SuitesTab({ selected, onSelect }: Props) {
   const suites = useSuites()
   const gate = useScopeGate('manage')
-  const [creating, setCreating] = useState(false)
+  // What the schema editor is open for, if it is: creating a suite, or editing the suite named.
+  const [editor, setEditor] = useState<{ edit: string } | 'create' | null>(null)
   const selectRef = useRef<HTMLButtonElement>(null)
   const newSuiteRef = useRef<HTMLButtonElement>(null)
+  const editRef = useRef<HTMLButtonElement>(null)
   const noteRef = useRef<HTMLParagraphElement>(null)
   // What takes the focus once rendered: the dropdown, or the note saying that there are no suites
-  // if the suite deleted was the last, or "New suite" once the editor is cancelled.
-  const refocus = useRef<'select' | 'new-suite' | null>(null)
+  // if the suite deleted was the last, or the button that opened the editor once it is closed.
+  const refocus = useRef<'select' | 'new-suite' | 'edit' | null>(null)
   useEffect(() => {
     if (refocus.current === null) return
-    const target = refocus.current === 'new-suite' ? newSuiteRef : selectRef
+    const target = { select: selectRef, 'new-suite': newSuiteRef, edit: editRef }[refocus.current]
     refocus.current = null
     ;(target.current ?? noteRef.current)?.focus()
   })
@@ -58,16 +61,26 @@ export function SuitesTab({ selected, onSelect }: Props) {
     return <Loading label="Loading test suites..." />
   }
 
+  const schema = suites.data.find((suite) => suite.name === selected)
+  // A suite edited is no longer shown once another is selected, or it is deleted elsewhere: nor is
+  // its editor.
+  const editing = editor !== null && editor !== 'create'
+  if (editing && editor.edit !== schema?.name) setEditor(null)
+  const editorOpen = editor !== null
+  const closeEditor = (focus: typeof refocus.current) => {
+    setEditor(null)
+    refocus.current = focus
+  }
+
   const newSuite = (
     <ActionButton
       ref={newSuiteRef}
-      reason={gate.title ?? (creating ? 'Close the schema editor first.' : undefined)}
-      onClick={() => setCreating(true)}
+      reason={gate.title ?? (editorOpen ? 'Close the schema editor first.' : undefined)}
+      onClick={() => setEditor('create')}
     >
       New suite
     </ActionButton>
   )
-  const schema = suites.data.find((suite) => suite.name === selected)
   return (
     <>
       <ControlsPanel>
@@ -81,24 +94,22 @@ export function SuitesTab({ selected, onSelect }: Props) {
             ]}
             value={schema?.name ?? ''}
             onChange={onSelect}
-            isDisabled={creating}
+            isDisabled={editorOpen}
           />
         )}
         {newSuite}
       </ControlsPanel>
-      {creating ? (
+      {editor === 'create' ? (
         <CreateSuite
           suites={suites.data}
-          onCancel={() => {
-            setCreating(false)
-            refocus.current = 'new-suite'
-          }}
+          onCancel={() => closeEditor('new-suite')}
           onCreated={(name) => {
-            setCreating(false)
+            closeEditor('select')
             onSelect(name)
-            refocus.current = 'select'
           }}
         />
+      ) : editing ? (
+        <EditSchema name={editor.edit} onClose={() => closeEditor('edit')} />
       ) : suites.data.length === 0 ? (
         <p ref={noteRef} tabIndex={-1} className={styles.note}>
           There are no test suites yet.
@@ -109,6 +120,8 @@ export function SuitesTab({ selected, onSelect }: Props) {
           <SchemaViewer
             key={schema.name}
             schema={schema}
+            editRef={editRef}
+            onEdit={() => setEditor({ edit: schema.name })}
             onDeleted={() => (refocus.current = 'select')}
           />
         )
@@ -119,13 +132,19 @@ export function SuitesTab({ selected, onSelect }: Props) {
 
 interface ViewerProps {
   schema: SuiteSchema
+  /** Open the schema editor on the suite, from the button `editRef` refers to. */
+  onEdit(): void
+  editRef: Ref<HTMLButtonElement>
   /** The suite has been deleted while the viewer showed it, and is about to be forgotten. */
   onDeleted(): void
 }
 
-/** A suite's schema, its exports, and its deletion, which needs `manage` (AD2). */
-function SchemaViewer({ schema, onDeleted }: ViewerProps) {
+/**
+ * A suite's schema, its exports, and its editing and deletion, which need `manage` (AD2).
+ */
+function SchemaViewer({ schema, onEdit, editRef, onDeleted }: ViewerProps) {
   const queryClient = useQueryClient()
+  const gate = useScopeGate('manage')
   const { name } = schema
   // The schema as the API returned it, which another instance can create the suite from (D4).
   const json = JSON.stringify(schema, null, 2)
@@ -159,6 +178,9 @@ function SchemaViewer({ schema, onDeleted }: ViewerProps) {
             },
           }}
         >
+          <ActionButton ref={editRef} reason={gate.title} onClick={onEdit}>
+            Edit schema
+          </ActionButton>
           <CopyButton text={json}>Copy as JSON</CopyButton>
           <button
             type="button"

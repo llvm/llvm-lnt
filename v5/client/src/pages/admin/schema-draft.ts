@@ -91,6 +91,10 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
 export interface DraftEntry {
   /** Identifies the entry's row, whatever its name. */
   id: number
+  /** The entry as stored, if it existed when the editor opened; null for one added since. */
+  original: AnyEntry | null
+  /** An existing entry the user removed, which saving removes, unless the user undoes it. */
+  removed: boolean
   name: string
   type: AttributeType
   display_name: string
@@ -110,14 +114,16 @@ export const EMPTY_DRAFT: Draft = {
 }
 
 /** An entry of any list, as a schema has it: the keys of the other lists are absent. */
-type AnyEntry = Pick<DraftEntry, 'name' | 'type'> &
+export type AnyEntry = Pick<DraftEntry, 'name' | 'type'> &
   Partial<Schemas['Metric'] & Schemas['CommitField'] & Schemas['MachineField']>
 
 let lastId = 0
 
-function draftEntry(entry: AnyEntry): DraftEntry {
+function draftEntry(entry: AnyEntry, original: AnyEntry | null): DraftEntry {
   return {
     id: ++lastId,
+    original,
+    removed: false,
     name: entry.name,
     type: entry.type,
     display_name: entry.display_name ?? '',
@@ -129,18 +135,27 @@ function draftEntry(entry: AnyEntry): DraftEntry {
   }
 }
 
-/** The entries of `schema`, as entries to add: to create a suite from a copy of it (AD3). */
-export function draftOf(schema: SuiteSchema): Draft {
+function entriesOf(schema: SuiteSchema, toDraft: (entry: AnyEntry) => DraftEntry): Draft {
   return {
-    metrics: schema.metrics.map(draftEntry),
-    commit_fields: schema.commit_fields.map(draftEntry),
-    machine_fields: schema.machine_fields.map(draftEntry),
+    metrics: schema.metrics.map(toDraft),
+    commit_fields: schema.commit_fields.map(toDraft),
+    machine_fields: schema.machine_fields.map(toDraft),
   }
+}
+
+/** The entries of `schema`, as entries to add: to create a suite from a copy of it (AD3). */
+export function copyOf(schema: SuiteSchema): Draft {
+  return entriesOf(schema, (entry) => draftEntry(entry, null))
+}
+
+/** The entries of `schema`, as they are stored: to edit its schema (AD3). */
+export function draftOf(schema: SuiteSchema): Draft {
+  return entriesOf(schema, (entry) => draftEntry(entry, entry))
 }
 
 /** A new, unnamed entry of `list`, for `addEntry`. */
 export function newEntry(list: ListName): DraftEntry {
-  return draftEntry({ name: '', type: LIST_INFO[list].type })
+  return draftEntry({ name: '', type: LIST_INFO[list].type }, null)
 }
 
 /** `draft` with `entry` at the end of `list`. */
@@ -169,8 +184,25 @@ export function changeEntry(
   }
 }
 
+/**
+ * `draft` without the entry `id` of `list`: gone, if it was added in this edit, and marked removed
+ * otherwise, which `restoreEntry` undoes.
+ */
 export function removeEntry(draft: Draft, list: ListName, id: number): Draft {
-  return { ...draft, [list]: draft[list].filter((entry) => entry.id !== id) }
+  return {
+    ...draft,
+    [list]: draft[list].flatMap((entry) => {
+      if (entry.id !== id) return [entry]
+      return entry.original === null ? [] : [{ ...entry, removed: true }]
+    }),
+  }
+}
+
+export function restoreEntry(draft: Draft, list: ListName, id: number): Draft {
+  return {
+    ...draft,
+    [list]: draft[list].map((entry) => (entry.id === id ? { ...entry, removed: false } : entry)),
+  }
 }
 
 // D4's rule for every name in a schema, each of which becomes a namespace or a column.
@@ -195,19 +227,28 @@ function quotedList(names: readonly string[]): string {
 /**
  * Why each entry of `list` among `entries` cannot have its name, by the entry's `id`, for those
  * that cannot: D4's rule, the names the list reserves, or another entry of the list with the same
- * name. An empty name is not refused here: nothing has been typed yet (see `hasBlankName`).
+ * name. Only an entry added in this edit can be refused, since an existing one's name cannot be
+ * changed. A removed entry's name stays taken until the edit is saved: removing an entry and adding
+ * one of the same name would be two operations on one name, which D2 does not allow. An empty name
+ * is not refused here: nothing has been typed yet (see `draftProblem`).
  */
 export function nameProblems(list: ListName, entries: readonly DraftEntry[]): Map<number, string> {
   const { noun, reserved } = LIST_INFO[list]
-  const counts = new Map<string, number>()
-  for (const { name } of entries) counts.set(name, (counts.get(name) ?? 0) + 1)
   const problems = new Map<number, string>()
-  for (const { id, name } of entries) {
-    if (name === '') continue
+  for (const entry of entries) {
+    const { id, name } = entry
+    if (entry.original !== null || name === '') continue
+    const others = entries.filter((other) => other !== entry && other.name === name)
     const problem =
       ruleProblem(name) ??
-      (reserved.includes(name) ? `A ${noun} cannot be named ${quotedList(reserved)}.` : undefined) ??
-      (counts.get(name)! > 1 ? `Another ${noun} is named '${name}'.` : undefined)
+      (reserved.includes(name)
+        ? `A ${noun} cannot be named ${quotedList(reserved)}.`
+        : undefined) ??
+      (others.some((other) => other.removed)
+        ? `The ${noun} '${name}' is removed in this edit, so it cannot be added again until the ` +
+          'edit is saved.'
+        : undefined) ??
+      (others.length > 0 ? `Another ${noun} is named '${name}'.` : undefined)
     if (problem !== undefined) problems.set(id, problem)
   }
   return problems
@@ -232,14 +273,18 @@ export function suiteNameProblem(name: string, existing: readonly string[]): str
   return undefined
 }
 
-/** Whether some entry of `draft` has a name that `nameProblems` refuses. */
-export function hasNameProblem(draft: Draft): boolean {
-  return LISTS.some((list) => nameProblems(list, draft[list]).size > 0)
-}
-
-/** Whether some entry of `draft` has no name yet. */
-export function hasBlankName(draft: Draft): boolean {
-  return LISTS.some((list) => draft[list].some((entry) => entry.name === ''))
+/**
+ * Why `draft` cannot be sent, if it cannot: some entry has a name that `nameProblems` refuses, or
+ * no name yet.
+ */
+export function draftProblem(draft: Draft): string | undefined {
+  if (LISTS.some((list) => nameProblems(list, draft[list]).size > 0)) {
+    return 'Correct the names marked in red first.'
+  }
+  if (LISTS.some((list) => draft[list].some((entry) => entry.name === ''))) {
+    return 'Give every new entry a name first.'
+  }
+  return undefined
 }
 
 /**
@@ -263,4 +308,53 @@ function entryOf(list: ListName, entry: DraftEntry) {
 export function schemaOf(name: string, draft: Draft): Schemas['SuiteSchemaInput'] {
   const lists = LISTS.map((list) => [list, draft[list].map((entry) => entryOf(list, entry))])
   return { name, ...Object.fromEntries(lists) } as Schemas['SuiteSchemaInput']
+}
+
+/** The existing entries the user removed, with their list. */
+export function removedEntries(draft: Draft): { list: ListName; name: string }[] {
+  return LISTS.flatMap((list) =>
+    draft[list].filter((entry) => entry.removed).map((entry) => ({ list, name: entry.name })),
+  )
+}
+
+/**
+ * Whether the user changed the key `key` of the existing entry `entry`, stored as `original`: a flag that differs from
+ * the stored one, or a text that differs both as typed and as it would be sent, so that neither
+ * text left untouched (a stored " Foo " shows as typed) nor text changed only around its ends
+ * counts.
+ */
+function isChanged(entry: DraftEntry, original: AnyEntry, key: PresentationKey): boolean {
+  const stored = original[key] ?? null
+  if (!isTextKey(key)) return entry[key] !== stored
+  return entry[key] !== (stored ?? '') && valueOf(entry, key) !== stored
+}
+
+/**
+ * The body of `PATCH /api/suites/{name}/schema` making the changes in `draft` (E10): an entry added
+ * in full, an existing one updated with only the keys the user changed, and a removed one by its
+ * name. It says nothing of what the user left alone, so that saving does not undo changes others
+ * made since the editor opened (AD3). Empty when the user changed nothing.
+ */
+export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
+  const patch: Record<string, Record<string, unknown[]>> = {}
+  for (const list of LISTS) {
+    const add = []
+    const update = []
+    const remove = []
+    for (const entry of draft[list]) {
+      const { original } = entry
+      if (original === null) add.push(entryOf(list, entry))
+      else if (entry.removed) remove.push(entry.name)
+      else {
+        const changed = LIST_INFO[list].keys.filter((key) => isChanged(entry, original, key))
+        if (changed.length > 0) {
+          const values = changed.map((key) => [key, valueOf(entry, key)])
+          update.push({ name: entry.name, ...Object.fromEntries(values) })
+        }
+      }
+    }
+    const operations = Object.entries({ add, update, remove }).filter(([, items]) => items.length)
+    if (operations.length > 0) patch[list] = Object.fromEntries(operations)
+  }
+  return patch as Schemas['SchemaPatch']
 }

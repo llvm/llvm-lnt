@@ -1,17 +1,15 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
-import { queryKeys } from '../../api/keys'
-import { addSuite, type SuiteSchema } from '../../api/suites'
+import { addSuite, refetchSuites, type SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ErrorMessage } from '../../components/feedback'
 import { Select } from '../../components/select'
 import {
-  draftOf,
+  copyOf,
   EMPTY_DRAFT,
-  hasBlankName,
-  hasNameProblem,
+  draftProblem,
   schemaOf,
   suiteNameProblem,
 } from './schema-draft'
@@ -58,8 +56,7 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
     gate.title ??
     (name === '' ? 'Give the suite a name first.' : undefined) ??
     nameProblem ??
-    (hasNameProblem(draft) ? 'Correct the names marked in red first.' : undefined) ??
-    (hasBlankName(draft) ? 'Give every new entry a name first.' : undefined)
+    draftProblem(draft)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -69,7 +66,7 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
   // An action rather than a setting: it shows no suite, so that any suite can be picked, again.
   const startFrom = (value: string) => {
     const source = suites.find((suite) => suite.name === value)
-    if (source && !busy) setDraft(draftOf(source))
+    if (source && !busy) setDraft(copyOf(source))
   }
 
   return (
@@ -166,9 +163,7 @@ function useCreateSuite() {
       ),
     onSuccess: (schema) => addSuite(queryClient, schema),
     onError: (error) => {
-      if (error instanceof ApiError && error.code === 'duplicate') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.suites, exact: true })
-      }
+      if (error instanceof ApiError && error.code === 'duplicate') refetchSuites(queryClient)
     },
   })
 }

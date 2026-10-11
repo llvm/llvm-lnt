@@ -3,7 +3,7 @@
   color: var(--lnt-muted);
 }
 
-/* The form creating an API key (AD1). */
+/* A form creating an API key (AD1) or a suite, or editing a suite's schema (AD3). */
 .createForm {
   padding: var(--lnt-space-3);
   margin-bottom: var(--lnt-space-3);
@@ -132,4 +132,15 @@
 .checkbox {
   margin: 0;
   vertical-align: middle;
+}
+
+/* An existing entry removed in this edit, until saved or undone (AD3). */
+.removedName {
+  color: var(--lnt-muted);
+  text-decoration: line-through;
+}
+
+/* The heading of the editor of a suite's schema, beside its buttons. */
+.editorTitle {
+  align-self: center;
 }

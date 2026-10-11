@@ -22,6 +22,7 @@ import {
   nameProblems,
   newEntry,
   removeEntry,
+  restoreEntry,
   TYPES,
   type AttributeType,
   type Draft,
@@ -85,7 +86,7 @@ interface ListProps {
   change(update: Update, focus?: string): void
 }
 
-/** One list's table, rendered again only when the list changes, not on every keystroke elsewhere. */
+/** One list's table, rendered again when the list changes, not on every keystroke elsewhere. */
 const ListTable = memo(function ListTable({ list, entries, busy, change }: ListProps) {
   const { noun, keys, heading } = LIST_INFO[list]
   const problems = nameProblems(list, entries)
@@ -135,10 +136,15 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
     )
   }
 
-  /** What takes the focus once `entry` is removed: the next row's remove button, else Add. */
+  /**
+   * What takes the focus once `entry` is removed: its Undo button if it existed, which keeps its
+   * row; otherwise the next row's button, or the one adding an entry.
+   */
   const afterRemoving = (entry: DraftEntry) => {
+    if (entry.original !== null) return `${entry.id}-undo`
     const next = entries[entries.indexOf(entry) + 1]
-    return next === undefined ? `add-${list}` : `${next.id}-remove`
+    if (next === undefined) return `add-${list}`
+    return `${next.id}-${next.removed ? 'undo' : 'remove'}`
   }
 
   const columns: Column<DraftEntry>[] = [
@@ -146,56 +152,73 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
       id: 'name',
       header: 'Name',
       className: styles.editorCell,
-      cell: (entry) => (
-        <NameInput
-          // By its place in the list, rather than by what is typed into it.
-          label={`Name of ${noun} ${position(entry)}`}
-          value={entry.name}
-          problem={problems.get(entry.id)}
-          readOnly={busy}
-          className={styles.cellInput}
-          data-focus={`${entry.id}-name`}
-          onValue={(name) => update(entry, { name })}
-        />
-      ),
+      // An existing entry's name and type cannot change (D2).
+      cell: (entry) =>
+        entry.original !== null ? (
+          <span className={entry.removed ? styles.removedName : undefined}>{entry.name}</span>
+        ) : (
+          <NameInput
+            // By its place in the list, rather than by what is typed into it.
+            label={`Name of ${noun} ${position(entry)}`}
+            value={entry.name}
+            problem={problems.get(entry.id)}
+            readOnly={busy}
+            className={styles.cellInput}
+            data-focus={`${entry.id}-name`}
+            onValue={(name) => update(entry, { name })}
+          />
+        ),
     },
     {
       id: 'type',
       header: 'Type',
       className: styles.editorCell,
-      cell: (entry) => (
-        <Select
-          label={`Type of ${entryLabel(entry)}`}
-          hideLabel
-          options={TYPE_OPTIONS}
-          value={entry.type}
-          onChange={(type: AttributeType) => update(entry, { type })}
-          isPending={busy}
-        />
-      ),
+      cell: (entry) =>
+        entry.original !== null ? (
+          entry.type
+        ) : (
+          <Select
+            label={`Type of ${entryLabel(entry)}`}
+            hideLabel
+            options={TYPE_OPTIONS}
+            value={entry.type}
+            onChange={(type: AttributeType) => update(entry, { type })}
+            isPending={busy}
+          />
+        ),
     },
-    ...keys.map((key) => ({
+    ...keys.map((key, index) => ({
       id: key,
       header: KEY_HEADERS[key].header,
       className: styles.editorCell,
-      cell: (entry: DraftEntry) => input(key, entry),
+      cell: (entry: DraftEntry) => {
+        if (!entry.removed) return input(key, entry)
+        // A removed entry says so, in words, in its first column of values.
+        return index === 0 && <span className={styles.note}>(removed)</span>
+      },
     })),
     {
       id: 'remove',
       header: <VisuallyHidden>Actions</VisuallyHidden>,
       className: styles.editorCell,
-      cell: (entry) => (
-        <ActionButton
-          aria-label={`Remove ${entryLabel(entry)}`}
-          busy={busy}
-          data-focus={`${entry.id}-remove`}
-          onClick={() =>
-            change((draft) => removeEntry(draft, list, entry.id), afterRemoving(entry))
-          }
-        >
-          ×
-        </ActionButton>
-      ),
+      // Remove, or for an entry removed already, Undo, each giving the focus to the other.
+      cell: (entry) => {
+        const undo = entry.removed
+        return (
+          <ActionButton
+            aria-label={`${undo ? 'Undo removing' : 'Remove'} ${entryLabel(entry)}`}
+            busy={busy}
+            data-focus={`${entry.id}-${undo ? 'undo' : 'remove'}`}
+            onClick={() =>
+              undo
+                ? change((draft) => restoreEntry(draft, list, entry.id), `${entry.id}-remove`)
+                : change((draft) => removeEntry(draft, list, entry.id), afterRemoving(entry))
+            }
+          >
+            {undo ? 'Undo' : '×'}
+          </ActionButton>
+        )
+      },
     },
   ]
 

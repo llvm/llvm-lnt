@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ActionButton } from './action-button'
 
 describe('ActionButton', () => {
-  it('is disabled while it has a reason, which it gives on hover and to assistive technology', () => {
+  it('is disabled while it has a reason, given on hover and to assistive technology', () => {
     const { rerender } = render(<ActionButton reason="Name the key first.">Create</ActionButton>)
 
     const button = screen.getByRole('button', { name: 'Create' })

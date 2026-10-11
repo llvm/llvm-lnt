@@ -203,16 +203,18 @@ contents, and the API's error message is shown.
 **Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only
 an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since
 D2 allows changing neither. An added entry is editable in full. Removing an existing entry only
-marks it as removed, with an undo button, and its name stays taken until the schema is saved.
-Hovering the red halo on an added entry with that name explains that an entry removed in this
-edit cannot be re-created in the same edit.
+marks it as removed, with an undo button, and its name stays taken until the schema is saved:
+the reason given for refusing an added entry with that name is that an entry removed in this edit
+cannot be added again in the same edit.
 
 "Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
 the user changed, so that it does not overwrite changes made by others since the editor opened.
+When the user changed nothing, "Save" closes the editor without sending anything.
 If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR2).
 The prompt lists the removed entries and warns that every value stored for them will be
 permanently destroyed, along with the regression indicators of any removed metric (see D2). On
 success, the editor closes and the viewer shows the schema the API returned.
 
 In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
-the API's error message.
+the API's error message, unless the suite being edited no longer exists: the editor then closes,
+and the suite is no longer selected.

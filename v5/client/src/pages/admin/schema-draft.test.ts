@@ -3,11 +3,14 @@ import { SUITE } from '../../test/fixtures'
 import {
   addEntry,
   changeEntry,
+  copyOf,
   draftOf,
   EMPTY_DRAFT,
-  hasBlankName,
-  hasNameProblem,
+  draftProblem,
   newEntry,
+  patchOf,
+  removedEntries,
+  restoreEntry,
   nameProblems,
   removeEntry,
   schemaOf,
@@ -82,20 +85,23 @@ describe('nameProblems', () => {
     expect(entryNameProblem(field.draft, 'metrics', first.entry)).toBeUndefined()
   })
 
-  it('leaves an empty name to hasBlankName', () => {
+  it('leaves an empty name to draftProblem', () => {
     const { draft, entry } = withEntry(EMPTY_DRAFT, 'metrics', '')
     expect(entryNameProblem(draft, 'metrics', entry)).toBeUndefined()
-    expect(hasNameProblem(draft)).toBe(false)
-    expect(hasBlankName(draft)).toBe(true)
+    expect(draftProblem(draft)).toBe('Give every new entry a name first.')
   })
 })
 
-describe('hasNameProblem', () => {
-  it('says whether any entry of any list has a name refused', () => {
+describe('draftProblem', () => {
+  it('says whether any entry of any list has a name refused, or none', () => {
     const fine = withEntry(EMPTY_DRAFT, 'metrics', 'size').draft
-    expect(hasNameProblem(fine)).toBe(false)
-    expect(hasBlankName(fine)).toBe(false)
-    expect(hasNameProblem(withEntry(fine, 'commit_fields', 'tag').draft)).toBe(true)
+    expect(draftProblem(fine)).toBeUndefined()
+    const refused = withEntry(fine, 'commit_fields', 'tag').draft
+    expect(draftProblem(refused)).toBe('Correct the names marked in red first.')
+    // A refused name comes first.
+    expect(draftProblem(withEntry(refused, 'metrics', '').draft)).toBe(
+      'Correct the names marked in red first.',
+    )
   })
 })
 
@@ -162,24 +168,40 @@ describe('changeEntry', () => {
 
 describe('addEntry and removeEntry', () => {
   it('adds an unnamed entry of the commonest type at the end of its list', () => {
-    const metrics = addEntry(draftOf(SUITE), 'metrics', newEntry('metrics'))
+    const metrics = addEntry(copyOf(SUITE), 'metrics', newEntry('metrics'))
     expect(metrics.metrics.at(-1)).toMatchObject({ name: '', type: 'real' })
     const fields = addEntry(EMPTY_DRAFT, 'machine_fields', newEntry('machine_fields'))
     expect(fields.machine_fields).toMatchObject([{ name: '', type: 'text' }])
   })
 
-  it('removes the entry, and only it', () => {
-    const draft = draftOf(SUITE)
+  it('removes an entry added in this edit, and only it', () => {
+    const draft = copyOf(SUITE)
     const [os] = draft.machine_fields.filter((entry) => entry.name === 'os')
     const removed = removeEntry(draft, 'machine_fields', os.id)
     expect(removed.machine_fields.map((entry) => entry.name)).toEqual(['hardware', 'core_count'])
     expect(removed.metrics).toBe(draft.metrics)
   })
+
+  it('marks an existing entry removed, which restoreEntry undoes', () => {
+    const draft = draftOf(SUITE)
+    const [os] = draft.machine_fields.filter((entry) => entry.name === 'os')
+    const removed = removeEntry(draft, 'machine_fields', os.id)
+    expect(removed.machine_fields.map((entry) => [entry.name, entry.removed])).toEqual([
+      ['hardware', false],
+      ['os', true],
+      ['core_count', false],
+    ])
+    expect(removedEntries(removed)).toEqual([{ list: 'machine_fields', name: 'os' }])
+    const restored = restoreEntry(removed, 'machine_fields', os.id)
+    expect(restored.machine_fields.every((entry) => !entry.removed)).toBe(true)
+    expect(removedEntries(restored)).toEqual([])
+  })
 })
 
-describe('draftOf and schemaOf', () => {
+describe('copyOf and schemaOf', () => {
   it('copy a schema, keys and all, as a new suite', () => {
-    expect(schemaOf('copy', draftOf(SUITE))).toEqual({
+    expect(copyOf(SUITE).metrics.every((entry) => entry.original === null)).toBe(true)
+    expect(schemaOf('copy', copyOf(SUITE))).toEqual({
       ...SUITE,
       name: 'copy',
     })
@@ -235,6 +257,89 @@ describe('draftOf and schemaOf', () => {
       metrics: [],
       commit_fields: [],
       machine_fields: [],
+    })
+  })
+})
+
+/** The entry of `list` named `name` in `draft`. */
+function entryNamed(draft: Draft, list: ListName, name: string) {
+  return draft[list].find((entry) => entry.name === name)!
+}
+
+describe('nameProblems, editing a schema', () => {
+  it('never refuses an existing entry, whatever its name', () => {
+    const draft = draftOf({ ...SUITE, metrics: [{ ...SUITE.metrics[0], name: 'Odd' }] })
+    expect(nameProblems('metrics', draft.metrics).size).toBe(0)
+  })
+
+  it("refuses an added entry with an existing entry's name, or a removed one's", () => {
+    const draft = draftOf(SUITE)
+    const clash = withEntry(draft, 'machine_fields', 'os')
+    expect(entryNameProblem(clash.draft, 'machine_fields', clash.entry)).toBe(
+      "Another machine field is named 'os'.",
+    )
+
+    const os = entryNamed(draft, 'machine_fields', 'os')
+    const removed = withEntry(removeEntry(draft, 'machine_fields', os.id), 'machine_fields', 'os')
+    expect(entryNameProblem(removed.draft, 'machine_fields', removed.entry)).toBe(
+      "The machine field 'os' is removed in this edit, so it cannot be added again until the " +
+        'edit is saved.',
+    )
+    expect(entryNameProblem(removed.draft, 'machine_fields', os)).toBeUndefined()
+  })
+})
+
+describe('patchOf', () => {
+  /** `draftOf(SUITE)` with the entry `name` of `list` changed. */
+  function changed(list: ListName, name: string, changes: Parameters<typeof changeEntry>[3]) {
+    const draft = draftOf(SUITE)
+    return changeEntry(draft, list, entryNamed(draft, list, name).id, changes)
+  }
+
+  it('is empty while nothing changes, even text left with spaces around it', () => {
+    const spaced = { ...SUITE, metrics: [{ ...SUITE.metrics[0], display_name: ' Time ' }] }
+    expect(patchOf(draftOf(spaced))).toEqual({})
+    expect(patchOf(draftOf(SUITE))).toEqual({})
+    // Text changed only around its ends would be sent as it is stored.
+    expect(patchOf(changed('metrics', 'execution_time', { unit: ' seconds ' }))).toEqual({})
+  })
+
+  it('updates an existing entry with only the keys changed, text trimmed', () => {
+    expect(
+      patchOf(changed('metrics', 'execution_time', { display_name: ' Time ', unit: '' })),
+    ).toEqual({
+      metrics: { update: [{ name: 'execution_time', display_name: 'Time', unit: null }] },
+    })
+    expect(
+      patchOf(changed('machine_fields', 'os', { display_name: 'OS', searchable: false })),
+    ).toEqual({
+      machine_fields: { update: [{ name: 'os', display_name: 'OS', searchable: false }] },
+    })
+  })
+
+  it('moves the display field with an update of both commit fields', () => {
+    expect(patchOf(changed('commit_fields', 'commit_info', { display: true }))).toEqual({
+      commit_fields: {
+        update: [
+          { name: 'svn_revision', display: false },
+          { name: 'commit_info', display: true },
+        ],
+      },
+    })
+  })
+
+  it('adds an added entry in full, and removes a removed one by name, without updating it', () => {
+    const base = draftOf(SUITE)
+    const display = entryNamed(base, 'commit_fields', 'svn_revision')
+    // The display field is removed, then another one made the display field.
+    let draft = removeEntry(base, 'commit_fields', display.id)
+    const added = withEntry(draft, 'commit_fields', 'sha')
+    draft = changeEntry(added.draft, 'commit_fields', added.entry.id, { display: true })
+    expect(patchOf(draft)).toEqual({
+      commit_fields: {
+        add: [{ name: 'sha', type: 'text', display_name: null, searchable: false, display: true }],
+        remove: ['svn_revision'],
+      },
     })
   })
 })

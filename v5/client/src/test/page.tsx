@@ -210,6 +210,11 @@ export function rowsOf(table: HTMLElement) {
     )
 }
 
+/** Replace the text of `input` with `text`, as typing it would. */
+export function typeInto(input: HTMLElement, text: string) {
+  fireEvent.change(input, { target: { value: text } })
+}
+
 export function search(label: string, text: string) {
   fireEvent.change(screen.getByRole('searchbox', { name: label }), { target: { value: text } })
 }

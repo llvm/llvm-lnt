@@ -16,6 +16,7 @@ import {
   renderPage,
   rowsOf,
   table,
+  typeInto,
   type SuiteStore,
 } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
@@ -67,10 +68,6 @@ function suiteNameInput() {
 
 function createButton() {
   return screen.getByRole('button', { name: /^(Create|Creating\.\.\.)$/ })
-}
-
-function typeInto(input: HTMLElement, text: string) {
-  fireEvent.change(input, { target: { value: text } })
 }
 
 /**

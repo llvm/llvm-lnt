@@ -193,7 +193,10 @@ test.describe('the Test Suites tab', () => {
       await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite)
       await pickOption(editor, 'Start from', 'libcxx')
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
-      await editor.getByRole('textbox', { name: /^Name of machine field \d+$/ }).last().fill('kernel')
+      await editor
+        .getByRole('textbox', { name: /^Name of machine field \d+$/ })
+        .last()
+        .fill('kernel')
       await editor.getByRole('button', { name: 'Create', exact: true }).click()
 
       await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
@@ -244,6 +247,70 @@ test.describe('the Test Suites tab', () => {
         '--',
         'No',
       ])
+    })
+  })
+
+  test("edits a suite's schema, confirming a removal", async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const token = await tokenFor('manage')
+    await withOwnSuiteName(request, token, testInfo, async (suite) => {
+      const created = await request.post('/api/suites', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          name: suite,
+          metrics: [
+            { name: 'execution_time', type: 'real' },
+            { name: 'compile_time', type: 'real' },
+          ],
+          commit_fields: [
+            { name: 'sha', type: 'text', display: true },
+            { name: 'short_sha', type: 'text' },
+          ],
+        },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+      await signIn(page, 'manage')
+      await page.goto(`/admin?tab=suites&suite=${suite}`)
+
+      await page.getByRole('button', { name: 'Edit schema' }).click()
+      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      await editor
+        .getByRole('textbox', { name: 'Display name of metric execution_time' })
+        .fill('Execution Time')
+      // The display field moves from one commit field to another.
+      await editor.getByRole('checkbox', { name: 'Display of commit field short_sha' }).check()
+      await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
+      await editor.getByRole('button', { name: '+ Add machine field' }).click()
+      await editor
+        .getByRole('textbox', { name: 'Name of machine field 1', exact: true })
+        .fill('kernel')
+      await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('button', { name: 'Save' }).click()
+
+      await expect(editor).toBeHidden()
+      await expect(rows(table(page, 'Metrics')).locator('td')).toHaveText([
+        'execution_time',
+        'real',
+        'Execution Time',
+        '--',
+        'No',
+      ])
+      const schema = await json<components['schemas']['SuiteSchema']>(
+        request,
+        `/api/suites/${suite}`,
+      )
+      expect(schema.metrics.map((metric) => metric.name)).toEqual(['execution_time'])
+      expect(schema.commit_fields.map((field) => [field.name, field.display])).toEqual([
+        ['sha', false],
+        ['short_sha', true],
+      ])
+      expect(schema.machine_fields.map((field) => field.name)).toEqual(['kernel'])
     })
   })
 })
