@@ -61,20 +61,27 @@ export function EditSchema({ name, onClose }: Props) {
   )
 }
 
-/** The editor, under its heading, with its buttons at the far end of the heading's row. */
+/**
+ * The editor: what it edits, then below it, as below a suite's schema in the viewer, its heading and
+ * buttons, and what they lead to.
+ */
 function Frame({
   name,
   buttons,
   children,
+  below,
 }: {
   name: string
   buttons: ReactNode
   children: ReactNode
+  /** What the buttons lead to: a confirmation, or why a save failed. */
+  below?: ReactNode
 }) {
   const titleId = useId()
   return (
     <section aria-labelledby={titleId}>
-      <div className={styles.createForm}>
+      {children}
+      <div className={styles.editorFooter}>
         <div className={styles.fields}>
           <strong id={titleId} className={styles.editorTitle}>
             Editing {name}
@@ -82,7 +89,7 @@ function Frame({
           <span className={styles.editorButtons}>{buttons}</span>
         </div>
       </div>
-      {children}
+      {below}
     </section>
   )
 }
@@ -139,38 +146,42 @@ function EditForm({ schema, onClose }: FormProps) {
           </ActionButton>
         </>
       }
+      below={
+        <>
+          {confirming && (
+            <ConfirmDelete
+              expected={name}
+              confirmLabel="Save"
+              scope="manage"
+              busyMessage="Removing entries from a suite with much data may take a while."
+              onConfirm={() =>
+                save.mutateAsync({ patch: patchOf(draft), confirm: true }, { onSuccess: onClose })
+              }
+              onCancel={() => {
+                setConfirming(false)
+                saveRef.current?.focus()
+              }}
+            >
+              <p>Saving removes these entries from the suite {name}:</p>
+              <ul>
+                {removed.map((entry) => (
+                  <li key={`${entry.list}-${entry.name}`}>
+                    {LIST_INFO[entry.list].noun} <strong>{entry.name}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p>
+                Every value stored for them is permanently destroyed
+                {removesMetric && ', along with the regression indicators of each removed metric'}.
+                This cannot be undone.
+              </p>
+            </ConfirmDelete>
+          )}
+          {/* A confirmed save shows its failure in the prompt. */}
+          {save.isError && save.variables.confirm === false && <ErrorMessage error={save.error} />}
+        </>
+      }
     >
-      {confirming && (
-        <ConfirmDelete
-          expected={name}
-          confirmLabel="Save"
-          scope="manage"
-          busyMessage="Removing entries from a suite with much data may take a while."
-          onConfirm={() =>
-            save.mutateAsync({ patch: patchOf(draft), confirm: true }, { onSuccess: onClose })
-          }
-          onCancel={() => {
-            setConfirming(false)
-            saveRef.current?.focus()
-          }}
-        >
-          <p>Saving removes these entries from the suite {name}:</p>
-          <ul>
-            {removed.map((entry) => (
-              <li key={`${entry.list}-${entry.name}`}>
-                {LIST_INFO[entry.list].noun} <strong>{entry.name}</strong>
-              </li>
-            ))}
-          </ul>
-          <p>
-            Every value stored for them is permanently destroyed
-            {removesMetric && ', along with the regression indicators of each removed metric'}. This
-            cannot be undone.
-          </p>
-        </ConfirmDelete>
-      )}
-      {/* A confirmed save shows its failure in the prompt. */}
-      {save.isError && save.variables.confirm === false && <ErrorMessage error={save.error} />}
       <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy || confirming} />
     </Frame>
   )

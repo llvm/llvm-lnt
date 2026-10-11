@@ -166,8 +166,8 @@ Machine Fields
 ...
 ```
 
-The first header is shown when creating a suite, and the second when editing one. The tables
-are the same in both modes.
+The first header is shown above the tables when creating a suite. The second is shown below them
+when editing one, where the viewer has its buttons. The tables are the same in both modes.
 
 The editor shows the same entries and keys as the viewer, with an input for each value. Each
 table has a button to add an entry, and each entry a button (×) to remove it. An added entry

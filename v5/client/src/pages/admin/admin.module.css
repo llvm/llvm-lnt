@@ -144,3 +144,9 @@
 .editorTitle {
   align-self: center;
 }
+
+/* The editor's heading and buttons, below a suite's schema as the viewer's actions are (AD3). */
+.editorFooter {
+  composes: createForm;
+  margin-top: var(--lnt-space-4);
+}
