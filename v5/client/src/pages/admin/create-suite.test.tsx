@@ -119,6 +119,7 @@ describe('opening the editor', () => {
     expect(screen.queryByRole('button', { name: 'Copy as JSON' })).not.toBeInTheDocument()
     expect(selectButton('Test suite')).toBeDisabled()
     expect(newSuiteButton()).toBeDisabled()
+    expect(newSuiteButton()).toHaveAccessibleDescription('Close the schema editor first.')
     expect(suiteNameInput()).toHaveFocus()
     // It starts empty.
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
@@ -146,9 +147,40 @@ describe('opening the editor', () => {
   })
 
   it('is offered without suites, with nothing to start from', async () => {
-    await openEditor({ suite: '', suites: [] })
-
+    const store = await openEditor({ suite: '', suites: [] })
+    mockCreate(store)
     expect(selectButton('Start from')).toBeDisabled()
+
+    typeInto(suiteNameInput(), 'first')
+    fireEvent.click(createButton())
+
+    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=first'))
+    expect(selectButton('Test suite')).toHaveTextContent('first')
+    expect(selectButton('Test suite')).toHaveFocus()
+    expect(screen.queryByText('There are no test suites yet.')).not.toBeInTheDocument()
+  })
+
+  it('leaves the focus on Import JSON when it gives the editor back', async () => {
+    await openEditor()
+
+    const toggle = screen.getByRole('button', { name: 'Import JSON' })
+    toggle.focus()
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+
+    expect(suiteNameInput()).not.toHaveFocus()
+    expect(toggle).toHaveFocus()
+  })
+
+  it('creates the suite on Enter in its name', async () => {
+    const store = await openEditor()
+    const sent = mockCreate(store)
+
+    typeInto(suiteNameInput(), 'entered')
+    fireEvent.submit(suiteNameInput())
+
+    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=entered'))
+    expect(sent).toHaveLength(1)
   })
 
   it('discards it all on leaving the tab', async () => {
@@ -251,6 +283,9 @@ describe('the name checks', () => {
     expect(screen.getByRole('textbox', { name: 'Name of metric 2' })).toHaveAccessibleDescription(
       "Another metric is named 'size'.",
     )
+    // Refused, the name no longer names the rows' controls, which would have the same names.
+    expect(screen.getByRole('button', { name: 'Remove metric 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove metric 2' })).toBeInTheDocument()
   })
 
   it("refuse the suite's name, saying why", async () => {
@@ -442,8 +477,9 @@ describe('creating the suite', () => {
     fireEvent.click(createButton())
 
     expect(await within(editor()!).findByRole('alert')).toHaveTextContent('already exists')
-    // Long enough for the list to be fetched again, and fail.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await waitFor(() =>
+      expect(store.queryClient.getQueryState(queryKeys.suites)?.status).toBe('error'),
+    )
     expect(editor()).toBeInTheDocument()
     expect(suiteNameInput()).toHaveValue('fresh')
   })
@@ -458,6 +494,9 @@ describe('creating the suite', () => {
     })
     void store.queryClient.refetchQueries({ queryKey: queryKeys.suites })
     await waitFor(() => expect(refetched.requests).toBe(1))
+
+    // Lists asked for from now on hold what the instance does.
+    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: store.suites })))
 
     fireEvent.click(createButton())
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=fresh'))
@@ -479,7 +518,7 @@ describe('creating the suite', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
     await waitFor(() => expect(currentUrl()).toBe('/admin'))
     await act(async () => reply.open())
-    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    await waitFor(() => expect(store.queryClient.isMutating()).toBe(0))
     expect(currentUrl()).toBe('/admin')
 
     // The suite was created all the same, and is in the list.

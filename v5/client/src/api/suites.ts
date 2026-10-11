@@ -21,7 +21,8 @@ export function useSuites() {
 /**
  * Add the created `schema` to the list of suites: cancel a list on its way, which may not hold it
  * yet, insert it into the cached list by name, and drop everything read from inside an earlier
- * suite of the same name, deleted elsewhere, so that the new one starts afresh.
+ * suite of the same name, deleted elsewhere, so that the new one starts afresh. Then fetch the list
+ * again.
  */
 export async function addSuite(queryClient: QueryClient, schema: SuiteSchema): Promise<void> {
   await queryClient.cancelQueries({ queryKey: queryKeys.suites })
@@ -31,6 +32,9 @@ export async function addSuite(queryClient: QueryClient, schema: SuiteSchema): P
     return { items: [...others, schema].sort((a, b) => compareStrings(a.name, b.name)) }
   })
   queryClient.removeQueries({ queryKey: queryKeys.suite(schema.name) })
+  // The list cancelled may have held more than the cache does, such as a suite created elsewhere:
+  // ask for it again, now that it holds the new suite too.
+  void queryClient.invalidateQueries({ queryKey: queryKeys.suites, exact: true })
 }
 
 /**

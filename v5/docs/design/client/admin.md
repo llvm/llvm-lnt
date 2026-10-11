@@ -187,20 +187,18 @@ is submitted.
 
 **Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
 is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's entries with a copy of an existing suite's, as entries to add. It does not copy the
-suite's name.
+editor's entries with a copy of an existing suite's. It does not copy the suite's name.
 
 "Create" creates the suite. On success, the editor closes and the dropdown selects the new
-suite. If another suite has taken the name meanwhile, the name check says so once the creation
-has failed.
+suite. If the name was taken meanwhile, the name check says so once "Create" fails.
 
-"Import JSON" creates a suite from a schema document instead, without going through the
-editor. It opens a text area, where the user pastes the document or loads it from a file, and
-a button that sends the document unchanged to `POST /api/suites`, where the server validates
-it. They take the place of the suite name, "Start from", the tables and "Create" until "Import
-JSON" is clicked again, which goes back to the editor as the user left it, and keeps the
-document. On success, the editor closes and the dropdown selects the new suite, as with "Create". On
-failure, the text area keeps its contents, and the API's error message is shown.
+"Import JSON" creates a suite from a schema document instead, without going through the editor. It
+opens a text area, where the user pastes the document or loads it from a file, and a button that
+sends the document unchanged to `POST /api/suites`, where the server validates it. They take the
+place of the suite name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
+which goes back to the editor as the user left it, and keeps the document. On success, the editor
+closes and the dropdown selects the new suite, as with "Create". On failure, the text area keeps its
+contents, and the API's error message is shown.
 
 **Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only
 an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since

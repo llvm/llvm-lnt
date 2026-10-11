@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useId, useRef, type InputHTMLAttributes } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  type InputHTMLAttributes,
+  type Ref,
+} from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import { ActionButton } from '../../components/action-button'
 import type { Column } from '../../components/data-table'
@@ -87,9 +95,12 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
 
   /** The entry's place in the list, from 1, by which its controls are named until it has a name. */
   const position = (entry: DraftEntry) => entries.indexOf(entry) + 1
-  /** An entry, as the accessible names of its controls say: `metric compile_time`, `metric 2`. */
+  /**
+   * An entry, as the accessible names of its controls say: `metric compile_time`, or `metric 2`
+   * while its name is empty or refused, which another entry may share.
+   */
   const entryLabel = (entry: DraftEntry) =>
-    `${noun} ${entry.name === '' ? position(entry) : entry.name}`
+    `${noun} ${entry.name === '' || problems.has(entry.id) ? position(entry) : entry.name}`
 
   /** The input of `key` for `entry`. */
   const input = (key: PresentationKey, entry: DraftEntry) => {
@@ -216,6 +227,7 @@ interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChang
   problem: string | undefined
   onValue(value: string): void
   'data-focus'?: string
+  ref?: Ref<HTMLInputElement>
 }
 
 /**

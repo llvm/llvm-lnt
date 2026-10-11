@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap } from '../../api/client'
 import { removeSuite, useSuites, type SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
+import { ActionButton } from '../../components/action-button'
 import { ActionRow } from '../../components/action-row'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
@@ -58,16 +59,13 @@ export function SuitesTab({ selected, onSelect }: Props) {
   }
 
   const newSuite = (
-    <button
-      type="button"
+    <ActionButton
       ref={newSuiteRef}
-      disabled={gate.disabled || creating}
-      title={gate.title}
-      aria-expanded={creating}
+      reason={gate.title ?? (creating ? 'Close the schema editor first.' : undefined)}
       onClick={() => setCreating(true)}
     >
       New suite
-    </button>
+    </ActionButton>
   )
   const schema = suites.data.find((suite) => suite.name === selected)
   return (

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
@@ -39,6 +39,10 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
   // Whether the document to import shows in place of the editor, which keeps what it holds.
   const [importing, setImporting] = useState(false)
   const [text, setText] = useState('')
+  // The suite name takes the focus when the editor opens, and only then: not when it comes back
+  // from Import JSON, whose toggle keeps it.
+  const nameRef = useRef<HTMLInputElement>(null)
+  useEffect(() => nameRef.current?.focus(), [])
   const create = useCreateSuite()
   const send = useCreateSuite()
   const busy = create.isPending || send.isPending
@@ -57,6 +61,11 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
     (hasNameProblem(draft) ? 'Correct the names marked in red first.' : undefined) ??
     (hasBlankName(draft) ? 'Give every new entry a name first.' : undefined)
 
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (reason === undefined && !busy) create.mutate(JSON.stringify(schemaOf(name, draft)), created)
+  }
+
   // An action rather than a setting: it shows no suite, so that any suite can be picked, again.
   const startFrom = (value: string) => {
     const source = suites.find((suite) => suite.name === value)
@@ -65,7 +74,8 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
 
   return (
     <section aria-labelledby={titleId}>
-      <div className={styles.createForm}>
+      {/* A form, so that Enter in the suite name creates the suite. */}
+      <form className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
         <strong id={titleId} className={styles.formTitle}>
           New suite
         </strong>
@@ -79,8 +89,8 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
                   className={styles.nameInput}
                   value={name}
                   problem={nameProblem}
+                  ref={nameRef}
                   readOnly={busy}
-                  autoFocus
                   onValue={setName}
                 />
               </div>
@@ -111,17 +121,13 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
               Cancel
             </ActionButton>
             {!importing && (
-              <ActionButton
-                reason={reason}
-                busy={busy}
-                onClick={() => create.mutate(JSON.stringify(schemaOf(name, draft)), created)}
-              >
+              <ActionButton type="submit" reason={reason} busy={busy}>
                 {create.isPending ? 'Creating...' : 'Create'}
               </ActionButton>
             )}
           </span>
         </div>
-      </div>
+      </form>
       {importing ? (
         <ImportJson
           text={text}
