@@ -46,11 +46,19 @@ export function SuitesTab({ selected, onSelect }: Props) {
     ;(target.current ?? noteRef.current)?.focus()
   })
 
-  // A suite the instance does not have is dropped (AR2 "State"), as is one just deleted.
+  // The suite whose schema the editor edits, if it does.
+  const edited = editor !== null && editor !== 'create' ? editor.edit : null
+
+  // A suite the instance does not have is dropped (AR2 "State"), as is one just deleted. If its
+  // schema was being edited, the editor goes with it, and the focus to the dropdown, as once a suite
+  // is deleted from the viewer.
   useDropUnusable(
     suites,
     (list) => selected === '' || list.some((suite) => suite.name === selected),
-    () => onSelect(''),
+    () => {
+      onSelect('')
+      if (edited === selected) refocus.current = 'select'
+    },
   )
 
   // A list fetched again that fails leaves the one the tab shows, and the editor with it.
@@ -62,10 +70,9 @@ export function SuitesTab({ selected, onSelect }: Props) {
   }
 
   const schema = suites.data.find((suite) => suite.name === selected)
-  // A suite edited is no longer shown once another is selected, or it is deleted elsewhere: nor is
-  // its editor.
-  const editing = editor !== null && editor !== 'create'
-  if (editing && editor.edit !== schema?.name) setEditor(null)
+  // The editor edits the suite shown, and goes once another is.
+  if (edited !== null && edited !== selected) setEditor(null)
+  const editing = edited !== null && schema !== undefined
   const editorOpen = editor !== null
   const closeEditor = (focus: typeof refocus.current) => {
     setEditor(null)
@@ -109,7 +116,7 @@ export function SuitesTab({ selected, onSelect }: Props) {
           }}
         />
       ) : editing ? (
-        <EditSchema name={editor.edit} onClose={() => closeEditor('edit')} />
+        <EditSchema name={selected} onClose={() => closeEditor('edit')} />
       ) : suites.data.length === 0 ? (
         <p ref={noteRef} tabIndex={-1} className={styles.note}>
           There are no test suites yet.

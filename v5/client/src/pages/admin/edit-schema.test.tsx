@@ -307,15 +307,41 @@ describe('saving', () => {
     expect(rowsOf(await table('Metrics'))).toHaveLength(1)
   })
 
-  it('needs no confirmation once every removal is undone', async () => {
+  it('changes nothing in the editor while the removal is being confirmed', async () => {
     await openEditor()
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric code_size' }))
     fireEvent.click(saveButton())
-    expect(prompt()).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo removing metric code_size' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add metric' }))
+    expect(
+      screen.getByRole('textbox', { name: 'Display name of metric execution_time' }),
+    ).toHaveAttribute('readonly')
+    expect(prompt()).toBeInTheDocument()
+    expect(rowsOf(await table('Metrics'))).toHaveLength(2)
 
+    // Cancelling gives the editor back, and the focus to Save.
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'Cancel' }))
     expect(prompt()).not.toBeInTheDocument()
+    expect(saveButton()).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo removing metric code_size' }))
+    expect(screen.getByRole('button', { name: 'Remove metric code_size' })).toBeInTheDocument()
+  })
+
+  it('shows no failure of an earlier save beside the prompt', async () => {
+    const store = await openEditor()
+    mockPatch(store, (schema) => schema, {
+      fail: () => errorResponse(400, 'invalid_request', 'Bad display name.'),
+    })
+    typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Odd')
+    fireEvent.click(saveButton())
+    expect(await within(editor()!).findByRole('alert')).toHaveTextContent('Bad display name.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove metric execution_time' }))
+    fireEvent.click(saveButton())
+
+    expect(prompt()).toBeInTheDocument()
+    expect(within(editor()!).queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('keeps the editor as it was when a confirmed save fails, saying why', async () => {
@@ -365,6 +391,7 @@ describe('saving', () => {
 
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
     expect(editor()).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: / Test suite$/ })).toHaveFocus()
   })
 
   it('has the list of suites fetched again when an entry was added meanwhile', async () => {

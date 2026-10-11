@@ -6,13 +6,7 @@ import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ConfirmDelete } from '../../components/confirm-delete'
 import { ErrorMessage, Loaded } from '../../components/feedback'
-import {
-  draftOf,
-  draftProblem,
-  LIST_INFO,
-  patchOf,
-  removedEntries,
-} from './schema-draft'
+import { draftOf, draftProblem, LIST_INFO, patchOf, removedEntries } from './schema-draft'
 import { SchemaEditorTables } from './schema-editor-tables'
 import styles from './admin.module.css'
 
@@ -103,21 +97,24 @@ function EditForm({ schema, onClose }: FormProps) {
   const gate = useScopeGate('manage')
   const saveRef = useRef<HTMLButtonElement>(null)
   const [draft, setDraft] = useState(() => draftOf(schema))
-  const [confirmAsked, setConfirmAsked] = useState(false)
+  // Removing destroys data, which the user confirms first (AR2 "Deletions"). Meanwhile, the draft
+  // cannot change, so that what is confirmed is what is sent.
+  const [confirming, setConfirming] = useState(false)
   const save = useSaveSchema(name)
   const busy = save.isPending
 
   const removed = removedEntries(draft)
-  // Removing destroys data, which the user confirms first (AR2 "Deletions"). With nothing removed
-  // any more, there is nothing to confirm.
-  const confirming = confirmAsked && removed.length > 0
   const reason = gate.title ?? draftProblem(draft)
 
   const onSave = () => {
     const patch = patchOf(draft)
     // Nothing changed: nothing to send.
     if (Object.keys(patch).length === 0) onClose()
-    else if (removed.length > 0) setConfirmAsked(true)
+    else if (removed.length > 0) {
+      // A failure of an earlier save is no longer what the editor is about.
+      save.reset()
+      setConfirming(true)
+    }
     // Closed only if the editor is still shown (TanStack Query skips `mutate`'s callbacks then).
     else save.mutate({ patch, confirm: false }, { onSuccess: onClose })
   }
@@ -149,12 +146,11 @@ function EditForm({ schema, onClose }: FormProps) {
           confirmLabel="Save"
           scope="manage"
           busyMessage="Removing entries from a suite with much data may take a while."
-          onConfirm={async () => {
-            await save.mutateAsync({ patch: patchOf(draft), confirm: true })
-            onClose()
-          }}
+          onConfirm={() =>
+            save.mutateAsync({ patch: patchOf(draft), confirm: true }, { onSuccess: onClose })
+          }
           onCancel={() => {
-            setConfirmAsked(false)
+            setConfirming(false)
             saveRef.current?.focus()
           }}
         >
@@ -175,7 +171,7 @@ function EditForm({ schema, onClose }: FormProps) {
       )}
       {/* A confirmed save shows its failure in the prompt. */}
       {save.isError && save.variables.confirm === false && <ErrorMessage error={save.error} />}
-      <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
+      <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy || confirming} />
     </Frame>
   )
 }

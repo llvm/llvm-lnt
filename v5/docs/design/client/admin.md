@@ -210,11 +210,12 @@ cannot be added again in the same edit.
 "Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
 the user changed, so that it does not overwrite changes made by others since the editor opened.
 When the user changed nothing, "Save" closes the editor without sending anything.
-If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR2).
+If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR2),
+and the editor's contents cannot change until the user does, or cancels.
 The prompt lists the removed entries and warns that every value stored for them will be
 permanently destroyed, along with the regression indicators of any removed metric (see D2). On
 success, the editor closes and the viewer shows the schema the API returned.
 
 In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
-the API's error message, unless the suite being edited no longer exists: the editor then closes,
-and the suite is no longer selected.
+the API's error message. If the suite being edited no longer exists, the editor closes, and the
+suite is no longer selected.

@@ -302,6 +302,8 @@ describe('patchOf', () => {
     expect(patchOf(draftOf(SUITE))).toEqual({})
     // Text changed only around its ends would be sent as it is stored.
     expect(patchOf(changed('metrics', 'execution_time', { unit: ' seconds ' }))).toEqual({})
+    // So would text that is only whitespace, for a key stored as null.
+    expect(patchOf(changed('machine_fields', 'os', { display_name: '  ' }))).toEqual({})
   })
 
   it('updates an existing entry with only the keys changed, text trimmed', () => {

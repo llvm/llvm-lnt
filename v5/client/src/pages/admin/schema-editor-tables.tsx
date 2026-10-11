@@ -42,8 +42,8 @@ interface Props {
   /** Apply `update` to the draft: a `useState` setter will do. */
   onChange(update: Update): void
   /**
-   * The draft is being sent: nothing changes it, but nothing is disabled either, which would lose
-   * the focus (as in InlineEdit).
+   * The draft is being sent, or confirmed: nothing changes it, but nothing is disabled either, which
+   * would lose the focus (as in InlineEdit).
    */
   busy: boolean
 }
