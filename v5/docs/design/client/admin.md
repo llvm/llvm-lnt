@@ -136,13 +136,14 @@ scope.
 
 ### AD3: Schema editor
 
-The schema editor takes the place of the schema viewer in the Test Suites tab, to create a
-suite or to edit the selected suite's schema. While it is open, the suite dropdown and the
-viewer's buttons are disabled. "Cancel" closes it and discards its changes. Leaving the tab or
-the page does the same, without asking.
+The schema editor takes the place of the schema viewer in the Test Suites tab, buttons
+included, to create a suite or to edit the selected suite's schema. While it is open, the suite
+dropdown and "New suite" are disabled. "Cancel" closes it and discards its changes, and the
+viewer shows the suite selected before again. Leaving the tab or the page discards the changes
+too, without asking.
 
 ```
-New suite    Name [__________]    Start from [suite v]    [Import JSON]       [Cancel] [Create]
+New suite    Suite name [________]    Start from [suite v]    [Import JSON]   [Cancel] [Create]
 
 Editing nts                                                                   [Cancel] [Save]
 
@@ -170,29 +171,35 @@ are the same in both modes.
 
 The editor shows the same entries and keys as the viewer, with an input for each value. Each
 table has a button to add an entry, and each entry a button (×) to remove it. An added entry
-goes at the end of its list, and entries cannot be reordered. Emptying the display name, unit
-or abbreviation input sets it to `null` (see D2).
+goes at the end of its list, and entries cannot be reordered. The display name, unit and
+abbreviation are sent without whitespace at either end, and an input that is empty, or holds only
+whitespace, sets its key to `null` (see D2).
 
 `searchable` and `display` are only valid on a `text` entry (see D3): they are disabled for
 other types, and changing an entry's type away from `text` clears them. Checking `display` on
 one commit field unchecks it on the others, since at most one can have it.
 
-As the user types a name, the editor checks it against D4's rules for names, and for
-uniqueness within its list. A name that fails shows the red halo (see AR2), and "Create" or
-"Save" is disabled while any name fails or is empty. The server validates everything else when
-the schema is submitted.
+As the user types a name, the editor checks it against D4's rules for names, including the
+names that D5 and O1 reserve, and for uniqueness within its list. A name that fails shows the red
+halo (see AR2), and says why on hover. "Create" or "Save" is disabled while any name fails or is
+empty, and when disabled, says why on hover. The server validates everything else when the schema
+is submitted.
 
 **Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
 is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's contents with a copy of an existing suite's schema, leaving the name empty.
+editor's entries with a copy of an existing suite's, as entries to add. It does not copy the
+suite's name.
 
 "Create" creates the suite. On success, the editor closes and the dropdown selects the new
-suite.
+suite. If another suite has taken the name meanwhile, the name check says so once the creation
+has failed.
 
 "Import JSON" creates a suite from a schema document instead, without going through the
 editor. It opens a text area, where the user pastes the document or loads it from a file, and
 a button that sends the document unchanged to `POST /api/suites`, where the server validates
-it. On success, the editor closes and the dropdown selects the new suite, as with "Create". On
+it. They take the place of the suite name, "Start from", the tables and "Create" until "Import
+JSON" is clicked again, which goes back to the editor as the user left it, and keeps the
+document. On success, the editor closes and the dropdown selects the new suite, as with "Create". On
 failure, the text area keeps its contents, and the API's error message is shown.
 
 **Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only

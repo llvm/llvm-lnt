@@ -1,5 +1,6 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
+import { compareStrings } from '../format'
 import { queryKeys } from './keys'
 
 export type SuiteSchema = Schemas['SuiteSchema']
@@ -15,6 +16,21 @@ export function useSuites() {
     queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
     select: (list) => list.items,
   })
+}
+
+/**
+ * Add the created `schema` to the list of suites: cancel a list on its way, which may not hold it
+ * yet, insert it into the cached list by name, and drop everything read from inside an earlier
+ * suite of the same name, deleted elsewhere, so that the new one starts afresh.
+ */
+export async function addSuite(queryClient: QueryClient, schema: SuiteSchema): Promise<void> {
+  await queryClient.cancelQueries({ queryKey: queryKeys.suites })
+  queryClient.setQueryData<Schemas['SuiteSchemaList']>(queryKeys.suites, (list) => {
+    if (list === undefined) return list
+    const others = list.items.filter((entry) => entry.name !== schema.name)
+    return { items: [...others, schema].sort((a, b) => compareStrings(a.name, b.name)) }
+  })
+  queryClient.removeQueries({ queryKey: queryKeys.suite(schema.name) })
 }
 
 /**

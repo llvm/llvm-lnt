@@ -10,7 +10,7 @@ import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
 import { expect, json, test } from './fixtures.ts'
-import { ownSuite } from './own-suite.ts'
+import { ownSuite, withOwnSuiteName } from './own-suite.ts'
 import { pickOption } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -176,6 +176,74 @@ test.describe('the Test Suites tab', () => {
       await expect(page).toHaveURL('/admin?tab=suites')
       await expect(table(page, 'Metrics')).toBeHidden()
       expect((await request.get(`/api/suites/${suite}`)).status()).toBe(404)
+    })
+  })
+
+  test('creates a suite in the editor, starting from a seeded suite', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await withOwnSuiteName(request, await tokenFor('manage'), testInfo, async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const editor = page.getByRole('region', { name: 'New suite' })
+      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      await pickOption(editor, 'Start from', 'libcxx')
+      await editor.getByRole('button', { name: '+ Add machine field' }).click()
+      await editor.getByRole('textbox', { name: /^Name of machine field \d+$/ }).last().fill('kernel')
+      await editor.getByRole('button', { name: 'Create', exact: true }).click()
+
+      await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+      await expect(rows(table(page, 'Machine fields')).last().locator('td')).toHaveText([
+        'kernel',
+        'text',
+        '--',
+        'No',
+      ])
+      const libcxx = await json<components['schemas']['SuiteSchema']>(request, '/api/suites/libcxx')
+      const created = await json<components['schemas']['SuiteSchema']>(
+        request,
+        `/api/suites/${suite}`,
+      )
+      expect(created).toEqual({
+        ...libcxx,
+        name: suite,
+        machine_fields: [
+          ...libcxx.machine_fields,
+          { name: 'kernel', type: 'text', display_name: null, searchable: false },
+        ],
+      })
+    })
+  })
+
+  test('creates a suite from a schema document', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await withOwnSuiteName(request, await tokenFor('manage'), testInfo, async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const editor = page.getByRole('region', { name: 'New suite' })
+      await editor.getByRole('button', { name: 'Import JSON' }).click()
+      await editor
+        .getByRole('textbox', { name: /^Schema document/ })
+        .fill(JSON.stringify({ name: suite, metrics: [{ name: 'size', type: 'integer' }] }))
+      await editor.getByRole('button', { name: 'Create from JSON' }).click()
+
+      await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+      await expect(rows(table(page, 'Metrics')).locator('td')).toHaveText([
+        'size',
+        'integer',
+        '--',
+        '--',
+        'No',
+      ])
     })
   })
 })
