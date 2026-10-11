@@ -1,0 +1,13 @@
+/* A row of actions, such as those below a detail page's info box. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+  margin-bottom: var(--lnt-space-3);
+}
+
+/* The Delete button, set apart at the far end of the row. */
+.end {
+  margin-left: auto;
+}

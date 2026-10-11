@@ -63,3 +63,14 @@
   composes: mono from '../../components/data-table.module.css';
   overflow-wrap: anywhere;
 }
+
+/* A list of a suite's schema (AD2). */
+.heading {
+  margin: var(--lnt-space-4) 0 var(--lnt-space-2);
+  font-size: 1.2rem;
+}
+
+/* The row of actions below a suite's schema, set apart from its last table. */
+.actions {
+  margin-top: var(--lnt-space-4);
+}

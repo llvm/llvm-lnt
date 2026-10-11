@@ -5,6 +5,11 @@
 /** What a table shows in place of a value that is absent. */
 export const MISSING = '--'
 
+/** A boolean, in words. */
+export function yesNo(value: boolean): string {
+  return value ? 'Yes' : 'No'
+}
+
 function pad(value: number): string {
   return String(value).padStart(2, '0')
 }

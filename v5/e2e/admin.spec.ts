@@ -1,13 +1,16 @@
 /**
- * The Admin page's API Keys tab (AD1).
+ * The Admin page's API Keys tab (AD1) and Test Suites tab (AD2).
  *
- * Tests that revoke a key revoke one of their own. The harness's admin key is left alone.
+ * Tests that write change what they create: a key of their own to revoke, and a suite of their own
+ * to delete. The seeded suites and the harness's admin key are left alone.
  */
 
+import { readFileSync } from 'node:fs'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
-import { expect, test } from './fixtures.ts'
+import { expect, json, test } from './fixtures.ts'
+import { ownSuite } from './own-suite.ts'
 import { pickOption } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -127,5 +130,52 @@ test.describe('the API Keys tab', () => {
       'This token is not valid',
     )
     expect(await keyOf(request, token)).toBeNull()
+  })
+})
+
+test.describe('the Test Suites tab', () => {
+  test('shows the schema of a seeded suite to anyone', async ({ page }) => {
+    await page.goto('/admin?tab=suites')
+    await pickOption(page.getByRole('main'), 'Test suite', 'libcxx')
+
+    await expect(page).toHaveURL('/admin?tab=suites&suite=libcxx')
+    await expect(rows(table(page, 'Metrics')).first().locator('td')).toHaveText([
+      'execution_time',
+      'real',
+      'Execution Time',
+      'seconds (s)',
+      'No',
+    ])
+    await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeDisabled()
+  })
+
+  test('downloads the schema of a suite of its own, and deletes the suite', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await ownSuite(request, tokenFor, testInfo, [], async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto(`/admin?tab=suites&suite=${suite}`)
+      await expect(table(page, 'Metrics')).toBeVisible()
+
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: 'Download JSON' }).click(),
+      ])
+      expect(download.suggestedFilename()).toBe(`${suite}.json`)
+      const downloaded = JSON.parse(readFileSync(await download.path(), 'utf8'))
+      expect(downloaded).toEqual(await json(request, `/api/suites/${suite}`))
+
+      await page.getByRole('button', { name: 'Delete This Suite' }).click()
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('button', { name: 'Delete' }).click()
+
+      await expect(page).toHaveURL('/admin?tab=suites')
+      await expect(table(page, 'Metrics')).toBeHidden()
+      expect((await request.get(`/api/suites/${suite}`)).status()).toBe(404)
+    })
   })
 })

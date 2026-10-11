@@ -70,6 +70,10 @@ otherwise.
   string.
 - A metric, machine field or commit field is labelled with its `display_name`
   when the schema sets one, and with its `name` otherwise.
+- Where a page names a metric's unit, it writes its `unit` followed by its
+  `unit_abbrev` in parentheses, as much of either as is set (`seconds (s)`,
+  `seconds`, `(s)`), and only once when the two are identical (`cycles`, not
+  `cycles (cycles)`). A value shown with its unit is left to the page.
 - Timestamps are shown in the browser's local time zone.
 - A measured `real` value is shown to at most 6 significant digits, but never
   with fewer digits than its integer part has (`1.26432`, `66655.7`,

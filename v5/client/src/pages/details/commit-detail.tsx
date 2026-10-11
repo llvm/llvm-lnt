@@ -39,7 +39,7 @@ import {
 } from '../../schema'
 import { trimmedStringParam, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
-import { ActionRow } from './action-row'
+import { DetailActionRow } from './action-row'
 import { CompareWithPrevious, NO_ORDINAL } from './compare-with-previous'
 import { RegressionsTable } from './regressions-table'
 import styles from './details.module.css'
@@ -194,7 +194,7 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
     </ButtonLink>
   )
   return (
-    <ActionRow
+    <DetailActionRow
       deletion={{
         suite,
         label: 'Delete commit',
@@ -219,7 +219,7 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
     >
       {link(commit.previous, 'No commit comes before this one.', '← Previous commit')}
       {link(commit.next, 'No commit comes after this one.', 'Next commit →')}
-    </ActionRow>
+    </DetailActionRow>
   )
 }
 
