@@ -28,11 +28,6 @@ import styles from './details.module.css'
 
 type Machine = Schemas['Machine']
 
-/** What the Tracked toggle means, and that it is not a lifetime policy (DT1). */
-const TRACKED_HELP =
-  `${UNTRACKED_HELP} Untracking a machine deletes nothing: untracked machines are kept ` +
-  'indefinitely.'
-
 /** The states of the regressions still being worked on. */
 const ACTIVE_STATES: RegressionState[] = ['detected', 'active']
 
@@ -115,7 +110,7 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
     <InfoRow
       label={
         // Not a <label>, which would flip the flag when clicked for its help.
-        <span id={labelId} className={styles.help} title={TRACKED_HELP}>
+        <span id={labelId} className={styles.help} title={UNTRACKED_HELP}>
           Tracked
         </span>
       }
@@ -133,7 +128,7 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
           if (!update.isPending) update.mutate(event.target.checked)
         }}
       />
-      <VisuallyHidden id={helpId}>{TRACKED_HELP}</VisuallyHidden>
+      <VisuallyHidden id={helpId}>{UNTRACKED_HELP}</VisuallyHidden>
       {update.isError && <ErrorMessage error={update.error} />}
     </InfoRow>
   )

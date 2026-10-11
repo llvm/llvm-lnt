@@ -54,8 +54,7 @@ Toggling it saves the change at once with `PATCH /machines/{name}`, which
 requires `manage` scope (see "Controls saving on change" in AR2). Unchecking it
 excludes the machine from the Dashboard's trend overview -- it stays fully
 available in Graph, Compare, Profiles, and every listing. The label carries a
-help tooltip saying so, and makes clear that the flag is not a lifetime policy:
-untracked machines are kept indefinitely.
+help tooltip saying so.
 
 ### Active regressions table
 

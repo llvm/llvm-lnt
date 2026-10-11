@@ -440,10 +440,9 @@ as `{suite}.commit`, and the tables below are named that way.
   time. It only affects *automatic* machine selection: untracked machines are
   left out when the server or the UI picks machines on the user's behalf (like
   the Dashboard's trend overview; see DA2), but remain fully addressable
-  wherever a machine is chosen deliberately. It implies no lifetime policy:
-  untracked machines are permanent and are not cleaned up. Typical uses are
-  one-off comparison configurations (e.g. the same hardware built at `-O2` and
-  `-O3`), and retired hardware whose history is worth keeping.
+  wherever a machine is chosen deliberately. Typical uses are one-off
+  comparison configurations (e.g. the same hardware built at `-O2` and `-O3`),
+  and retired hardware whose history is worth keeping.
 - Dynamic columns are created from the schema's `machine_fields` (see D3 for
   the type-to-column mapping). Keys submitted for a machine that are not
   declared as `machine_fields` are rejected (see O1).
