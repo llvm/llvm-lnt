@@ -5,7 +5,7 @@ import { commitPath } from '../paths'
 import { commitDisplayValue } from '../schema'
 
 /**
- * A link to the page of the commit `value`, shown by its display value (AR2) once it is resolved,
+ * A link to the page of the commit `value`, shown by its display value (AR6) once it is resolved,
  * and by `value` until then, or if it cannot be. Each link resolves its commit on its own, so a
  * list of commits resolves them in one batch instead (see `withCommits`).
  */

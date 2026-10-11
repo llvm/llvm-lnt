@@ -9,7 +9,7 @@
  * There are two clients. `api` never sends the stored token, because every `read` endpoint can be
  * used without it (I5) and a stale or revoked token would turn those into 401s. `authedApi` sends
  * the token from `setCredentials`, and is for the requests that need more than `read` scope. The
- * check of a token (AR2) passes it to `api` explicitly, since it is not accepted yet.
+ * check of a token (AR17) passes it to `api` explicitly, since it is not accepted yet.
  */
 
 import createClient, { type Middleware } from 'openapi-fetch'
@@ -52,7 +52,9 @@ export class ApiError extends Error {
   }
 }
 
-/** What to tell the user about a failure (AR2): the API's message, unless permission was denied. */
+/**
+ * What to tell the user about a failure (AR17): the API's message, unless permission was denied.
+ */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.isPermissionDenied ? PERMISSION_DENIED : error.message
   if (error instanceof Error && error.message) return error.message

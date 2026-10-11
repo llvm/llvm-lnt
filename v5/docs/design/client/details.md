@@ -53,7 +53,7 @@ etc..
 ### Action buttons
 
 "View Graph" (pre-filled machine), "Compare" (pre-selected machine), and red "Delete Machine" button.
-Clicking "Delete Machine" shows its confirmation prompt (see AR2) below the action row.
+Clicking "Delete Machine" shows its confirmation prompt (see AR16) below the action row.
 Deletion requires `manage` scope. On success, navigates to the Machines tab of the Test
 Suites page. While the delete is in progress, a message reassures the user that deletion
 may take a while for machines with many runs.
@@ -62,10 +62,9 @@ may take a while for machines with many runs.
 
 The info box shows a `Tracked` checkbox reflecting the machine's `tracked` flag.
 Toggling it saves the change at once with `PATCH /machines/{name}`, which
-requires `manage` scope (see "Controls saving on change" in AR2). Unchecking it
-excludes the machine from the Dashboard's trend overview -- it stays fully
-available in Graph, Compare, Profiles, and every listing. The label carries a
-help tooltip saying so.
+requires `manage` scope (see AR13). Unchecking it excludes the machine from the
+Dashboard's trend overview -- it stays fully available in Graph, Compare,
+Profiles, and every listing. The label carries a help tooltip saying so.
 
 ### Active regressions table
 
@@ -143,10 +142,10 @@ commit is the one with the nearest lower ordinal at which this machine has runs
 tooltip saying why, when the run's commit has no ordinal or the machine has no earlier commit,
 and while the previous commit is being looked up or could not be.
 
-Both are links, so a modified click opens the comparison in a new tab (see AR2), unless
-"Compare with previous commit" is disabled (see "Disabled links" in AR2).
+Both are links, so a modified click opens the comparison in a new tab (see AR2 "Routing"),
+unless "Compare with previous commit" is disabled (see AR8).
 
-Clicking "Delete run" shows its confirmation prompt (see AR2) below the action row.
+Clicking "Delete run" shows its confirmation prompt (see AR16) below the action row.
 Deletion requires `manage` scope. On success, navigates to the machine detail page.
 
 ### Metric selector
@@ -155,8 +154,8 @@ The metric selector drop-down controls which metric column is shown in the
 samples table. It offers every metric of the suite, and defaults to the first
 numeric metric (see D3) in schema order, or to the first metric if none is
 numeric. The selected metric is kept in the URL as `?metric={name}`, and is
-passed on by the Compare links above; Compare drops a metric it does not
-offer (see AR2). A suite with no metrics has no selector, and no value column.
+passed on by the Compare links above; Compare drops a metric it does not offer
+(see AR2 "State"). A suite with no metrics has no selector, and no value column.
 
 ### Test filter
 
@@ -166,12 +165,12 @@ Text input for substring matching on test names (client-side), kept in the URL a
 ### Samples table
 
 All samples + selected metric value, sorted by test name, with no control to sort them
-otherwise. The value column is headed by the selected metric's label (see AR2).
+otherwise. The value column is headed by the selected metric's label (see AR6).
 
 Samples are loaded progressively -- the table renders immediately with the first
 page and grows as more pages arrive, with a progress indicator showing the
-count (see "Paginated tables" in AR2). Once they are all loaded, the count reflects the
-filter (e.g. "2 of 25 samples matching"). Multiple samples for the same test (repetitions)
+count (see AR7). Once they are all loaded, the count reflects the filter (e.g.
+"2 of 25 samples matching"). Multiple samples for the same test (repetitions)
 appear as separate rows. The table says `This run has no samples.` when there are none, and
 `No tests match the filter.` when the filter keeps none.
 
@@ -227,10 +226,10 @@ display value. The various commit fields are displayed prominently. The commit f
 schema marks `display: true` (see D4), if any, carries a small grey `display` badge next to
 its label, like TS3's `untracked` badge, even when this commit has no value for it. Hovering
 the badge explains that the UI shows a commit by that field's value, when it has one, rather
-than by its commit string (see AR2). The ordinal and the tag are edited in place (see
-"Inline editing" in AR2) through `PATCH /commits/{value}`, which requires `manage` scope.
-Emptying either clears it. An ordinal is an integer that its column can hold (see D3 and
-D5): any other text is invalid (see "Invalid input" in AR2).
+than by its commit string (see AR6). The ordinal and the tag are edited in place (see AR12)
+through `PATCH /commits/{value}`, which requires `manage` scope. Emptying either clears it.
+An ordinal is an integer that its column can hold (see D3 and D5): any other text is invalid
+(see AR11).
 
 ### Navigation
 
@@ -241,7 +240,7 @@ either end of the ordered range.
 ### Delete commit
 
 A red "Delete commit" button follows the navigation buttons. Clicking it shows its
-confirmation prompt (see AR2) below them, saying that the commit's runs, with their samples
+confirmation prompt (see AR16) below them, saying that the commit's runs, with their samples
 and profiles, are deleted too, and that the regressions attributed to it are kept, with no
 commit (see E3). Deletion requires `manage` scope. While it is in progress, a message
 reassures the user that deletion may take a while for commits with many runs. On success,
@@ -250,20 +249,19 @@ navigates to the Commits tab of the Test Suites page (`/suites/{ts}?tab=commits`
 ### Regressions section
 
 Section listing regressions where `commit` matches this commit's value, newest first,
-25 per page with Previous/Next (`sort=-created_at`; see AR2). Its rows are those of DT1's
+25 per page with Previous/Next (`sort=-created_at`; see AR7). Its rows are those of DT1's
 active regressions table: UUID, Title, State and Tests. Displays
 `No regressions at this commit.` if there are no regressions.
 
 ### Runs section
 
 Displays every run at this commit in a table, sorted by machine name, and on each machine
-newest first. The runs are loaded progressively, as DT2's samples are, with a count of
-those loaded so far (see "Paginated tables" in AR2). A text input for substring matching on
-machine names, kept in the URL as `?machine_filter={text}`, filters the runs table. Once
-every run has loaded, a summary counts them and their machines, and reflects the filter
-(e.g. "12 runs across 8 machines", "5 of 12 runs across 2 of 8 machines"). The table says
-`No runs at this commit.` when there are none, and `No machines match the filter.` when the
-filter keeps none.
+newest first. The runs are loaded progressively, as DT2's samples are, with a count of those
+loaded so far (see AR7). A text input for substring matching on machine names, kept in the
+URL as `?machine_filter={text}`, filters the runs table. Once every run has loaded, a
+summary counts them and their machines, and reflects the filter (e.g. "12 runs across 8
+machines", "5 of 12 runs across 2 of 8 machines"). The table says `No runs at this commit.`
+when there are none, and `No machines match the filter.` when the filter keeps none.
 
 Each row has a "Compare with previous" link, which does what the Run Detail page's "Compare
 with previous commit" does for that row's run (see DT2). Since this page has no metric
@@ -325,19 +323,19 @@ when it was created (`created_at`). Everything but the creation time can be
 edited with `triage` scope. A field with no value shows `--`, the title
 included.
 
-- Title, Bug and Notes are edited in place (see "Inline editing" in AR2). The
-  bug is displayed as AR2 describes. The notes are edited in a multi-line input,
-  and displayed with their line breaks.
+- Title, Bug and Notes are edited in place (see AR12). The bug is displayed as
+  AR6 describes. The notes are edited in a multi-line input, and displayed with
+  their line breaks.
 - State shows the state's colored badge, then a dropdown listing every state.
-  Picking a state saves it (see "Controls saving on change" in AR2).
+  Picking a state saves it (see AR13).
 - Commit links to the commit's detail page, showing its display value. It is
   edited in place with a commit picker that offers every commit of the suite
-  (see AR2). Emptying the picker clears the regression's commit.
+  (see AR15). Emptying the picker clears the regression's commit.
 
 ### Delete regression
 
 A red "Delete regression" button follows the info box. Clicking it shows its
-confirmation prompt (see AR2) below it; the prompt says that the regression's
+confirmation prompt (see AR16) below it; the prompt says that the regression's
 indicators are deleted too. Deletion requires `triage` scope. Once the
 regression is deleted, the page goes to the Regressions tab of the Test Suites
 page (`/suites/{ts}?tab=regressions`).
@@ -358,10 +356,10 @@ settings are kept in the URL, as with CP9's panel.
   is selected, the list says so.
 - Each list scrolls in a box of its own: the machines' list shows only a few
   machines at once. Each list also has a text filter, and a checkbox in its
-  header that selects every item shown (see "Range selection" in AR2). A filter
-  does not change the selection: items can be selected under one filter, then
-  others under another. Each list says how many of its items are selected, and
-  how many of those its filter hides.
+  header that selects every item shown (see AR10). A filter does not change the
+  selection: items can be selected under one filter, then others under another.
+  Each list says how many of its items are selected, and how many of those its
+  filter hides.
 - A machine or test that its list no longer offers, because the metric or the
   machines selected have changed, is deselected, but only once every list it
   depends on has loaded: a list that is still loading, or has failed to load,
@@ -393,13 +391,13 @@ settings are kept in the URL, as with CP9's panel.
 - Columns: a checkbox, the machine (a link to its detail page), the test, the
   metric (by label), a "View on graph" link, and a remove button (×).
 - Checkboxes: rows are selected one at a time, a range at a time with Shift, or
-  all at once from the header (see "Range selection" in AR2).
+  all at once from the header (see AR10).
 - "Remove selected" removes the selected indicators in one request, and says how
   many are selected. It is disabled when none is, and when more are selected
   than one request can carry (see E8).
-- Removing indicators, one or many, is not confirmed (see "Deletions" in AR2).
-  Once one is removed with its ×, the focus moves to the × of the nearest row
-  after it still shown, or else before it, or to the table if no row is left.
+- Removing indicators, one or many, is not confirmed (see AR16). Once one is
+  removed with its ×, the focus moves to the × of the nearest row after it still
+  shown, or else before it, or to the table if no row is left.
   After "Remove selected", it moves to the table. If the user has moved the
   focus out of the table meanwhile, it stays where it is.
 - "View on graph" opens the Graph page with the regression's suite and the
@@ -407,7 +405,7 @@ settings are kept in the URL, as with CP9's panel.
   showing every state (`regressions=all`; see GR15), which marks this
   regression's commit on the chart. The Graph page plots only numeric metrics
   (GR1), so for an indicator on any other metric, the link is disabled and says
-  why (see "Disabled links" in AR2).
+  why (see AR8).
 
 Every change to the indicators needs `triage` scope. Without it, the panel's
 lists and the table's filter can still be used.

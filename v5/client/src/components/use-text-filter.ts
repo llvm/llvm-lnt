@@ -8,18 +8,16 @@ interface TextFilter<Row> {
   active: boolean
   /**
    * The rows the filter keeps, in order. They follow the text typed once React has had the time to
-   * filter and render them, so that typing never waits for thousands of rows (AR2 "Text filtering
-   * performance").
+   * filter and render them, so that typing never waits for thousands of rows (AR9).
    */
   rows: Row[]
 }
 
 /**
- * A client-side text filter (AR2 "Text filtering") over `rows`, matching a case-insensitive
- * substring of what `textOf` gives for each. Its text is kept in the URL as `stored`, written
- * through `onStore` once typing pauses, trimmed, as a server-side search is (see
- * `useServerSearch`), and the rows are filtered with the same trimmed text. Pass memoized `rows`
- * and a stable `textOf`.
+ * A client-side text filter (AR9) over `rows`, matching a case-insensitive substring of what
+ * `textOf` gives for each. Its text is kept in the URL as `stored`, written through `onStore` once
+ * typing pauses, trimmed, as a server-side search is (see `useServerSearch`), and the rows are
+ * filtered with the same trimmed text. Pass memoized `rows` and a stable `textOf`.
  */
 export function useTextFilter<Row>(
   rows: Row[],

@@ -30,7 +30,7 @@ export const queryKeys = {
 
 /**
  * Forget what was read from inside `suite`, after a change that may affect any of it: a deletion
- * (AR2 "Deletions"), or a change to the suite's schema. What no page shows is dropped rather than
+ * (AR16), or a change to the suite's schema. What no page shows is dropped rather than
  * marked stale, so that the page shown next does not show what was deleted or changed while it
  * fetches its data again. What a page shows is fetched again, unless `leaving` says that it is the
  * page about to leave the entity it deleted, which must not ask for the entity again, and drops

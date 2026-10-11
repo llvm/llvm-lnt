@@ -167,7 +167,7 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   )
 }
 
-/** A list of names to select from, filtered locally (AR2 "Text filtering"). */
+/** A list of names to select from, filtered locally (AR9). */
 interface CheckboxListState {
   /** Every name the list holds, filtered or not. */
   names: string[]
@@ -201,8 +201,8 @@ interface CheckboxListProps {
 
 /**
  * A list of names with a checkbox each, filtered locally, selected one at a time or a range at a
- * time with Shift held (AR2 "Range selection"). It can hold thousands of names, such as a suite's
- * tests, so it scrolls in a box of its own.
+ * time with Shift held (AR10). It can hold thousands of names, such as a suite's tests, so it
+ * scrolls in a box of its own.
  */
 function CheckboxList({ label, noun, list, status, compact = false }: CheckboxListProps) {
   const { names, filter, selection } = list

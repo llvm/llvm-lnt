@@ -22,8 +22,7 @@ interface Props {
 
 /**
  * What every tab of the page has: a search above its table, and its loading and error states. A
- * failure takes the place of the table, rather than leave up rows for another page or search (AR2
- * "Paginated tables").
+ * failure takes the place of the table, rather than leave up rows for another page or search (AR7).
  */
 export function TabContent({
   search,

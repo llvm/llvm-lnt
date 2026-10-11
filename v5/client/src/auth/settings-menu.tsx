@@ -7,8 +7,8 @@ import { useAuth, type TokenStatus } from './use-auth'
 import styles from './settings-menu.module.css'
 
 /**
- * The navbar's Settings button, and the panel it opens, which holds the API token (AR2). The navbar
- * styles the button, with `className`, so that it looks like the links beside it.
+ * The navbar's Settings button, and the panel it opens, which holds the API token (AR17). The
+ * navbar styles the button, with `className`, so that it looks like the links beside it.
  */
 export function SettingsMenu({ className }: { className?: string }) {
   return (

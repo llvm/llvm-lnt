@@ -18,7 +18,7 @@ the suite is a query parameter, not a path segment.
   the page is loaded with `suite=` in the URL, the dropdown is pre-selected.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select
-  input: the user adds a machine by picking it from a combobox (see AR2), and
+  input: the user adds a machine by picking it from a combobox (see AR14), and
   each added machine appears as a chip with an x button to remove it. Multiple
   machines can be added to overlay their data on the same chart. Removing the
   last machine clears the chart. The metric selector is shared across all
@@ -50,7 +50,7 @@ the suite is a query parameter, not a path segment.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not
-  machine name), and has regex mode (see AR2). Changing the filter prunes
+  machine name), and has regex mode (see AR9). Changing the filter prunes
   selected tests that no longer match -- their traces are removed from the
   chart. Clearing the filter restores the full test list (previously selected
   tests remain selected if they match).
@@ -131,14 +131,14 @@ from the selection.
 A header "check all" checkbox in the table header selects or deselects all
 visible tests (tri-state: unchecked, indeterminate when some selected, checked
 when all selected). Clicking a row toggles its selection (and triggers data
-fetch if selecting). Shift-clicking selects a range of rows (see "Range
-selection" in AR2). Double-clicking isolates that test (deselects all others);
-double-clicking the sole selected test restores all (selects every visible
-test). Selected tests with data still loading show a loading indicator. The
-chart has no legend of its own; the table serves as one. Bidirectional hover
-highlighting: hovering a table row highlights the corresponding chart trace(s);
-hovering a chart trace highlights the table row. A selection of up to 10 tests
-is kept in the URL, along with the rest of the page's state (see GR14).
+fetch if selecting). Shift-clicking selects a range of rows (see AR10).
+Double-clicking isolates that test (deselects all others); double-clicking the
+sole selected test restores all (selects every visible test). Selected tests
+with data still loading show a loading indicator. The chart has no legend of its
+own; the table serves as one. Bidirectional hover highlighting: hovering a table
+row highlights the corresponding chart trace(s); hovering a chart trace
+highlights the table row. A selection of up to 10 tests is kept in the URL,
+along with the rest of the page's state (see GR14).
 
 
 ### GR8: Client-Side Caching and State Persistence
@@ -162,9 +162,9 @@ Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
 comparisons. The selector is an expandable panel with cascading selectors: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint) -> Commit (populated from the selected machine's
-commits via `GET commits?machine={name}&sort=-first_seen`; see AR2). Added
+commits via `GET commits?machine={name}&sort=-first_seen`; see AR15). Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
-where `display_value` is the commit's display value (see AR2). A baseline
+where `display_value` is the commit's display value (see AR6). A baseline
 loaded from the URL is looked up like a commit given to the commit picker:
 through `GET commits?machine={machine}&commit={commit}` in the baseline's
 suite, which returns the commit, with its display value, only if the machine
@@ -233,7 +233,7 @@ the user can see the commit range.
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page warns that the selection is not part of the
 URL and so cannot be shared. `test_filter_regex=1` turns on the test filter's
-regex mode (see AR2), and is omitted otherwise. On load, `test_filter` filters
+regex mode (see AR9), and is omitted otherwise. On load, `test_filter` filters
 the test table as if it had been typed, and a `test` that the test list for the
 selected machines and metric does not hold, or that does not match the filter,
 is dropped.

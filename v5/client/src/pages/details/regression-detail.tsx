@@ -121,8 +121,8 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
           value={regression.commit}
           display={(commit) => <CommitLink schema={schema} value={commit} />}
           gate={triage}
-          // Any commit of the suite (AR2 "Commit pickers"). The row says what it is, so the
-          // picker's label is for assistive technology only.
+          // Any commit of the suite (AR15). The row says what it is, so the picker's label is for
+          // assistive technology only.
           editor={({ label, text, setText, setPending, saving }) => (
             <CommitPicker
               label={label}
@@ -155,7 +155,7 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
 
 /**
  * The regression's state, with its badge, which a holder of `triage` scope changes by picking
- * another, saved at once (AR2 "Controls saving on change").
+ * another, saved at once (AR13).
  */
 function StateRow({ suite, regression }: { suite: string; regression: Regression }) {
   const triage = useScopeGate('triage')

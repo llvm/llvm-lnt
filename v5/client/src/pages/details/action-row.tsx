@@ -20,7 +20,7 @@ interface Props {
 
 /**
  * The row of actions below a detail page's info box, ending with the button deleting the entity,
- * and the prompt confirming the deletion below the row (AR2 "Deletions"). Once deleted, the page
+ * and the prompt confirming the deletion below the row (AR16). Once deleted, the page
  * leaves for `leaveTo`, in place of itself in the history, unless the user has left it already.
  */
 export function DetailActionRow({ children, deletion }: Props) {
@@ -32,9 +32,9 @@ export function DetailActionRow({ children, deletion }: Props) {
   useEffect(
     () => () => {
       // What the page read is kept by `forgetSuite` while the page shows it, and would otherwise be
-      // shown again if the history leads back to it (AR2 "Deletions"). It is dropped once the page
-      // has unmounted rather than once it navigates, since the page can stay mounted, hidden, while
-      // the next page's code loads. React cleans up a page's components parent first, so its other
+      // shown again if the history leads back to it (AR16). It is dropped once the page has
+      // unmounted rather than once it navigates, since the page can stay mounted, hidden, while the
+      // next page's code loads. React cleans up a page's components parent first, so its other
       // parts still observe their queries now, but no longer once the cleanup has run through it.
       if (left.current) queueMicrotask(() => forgetUnobserved(queryClient, suite))
     },

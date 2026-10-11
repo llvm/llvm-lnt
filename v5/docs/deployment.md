@@ -177,9 +177,9 @@ instance in accordance with the expected usage.
 
 ## Caching
 
-The server sets `Cache-Control` on every response (see I9 and AR2 in the design docs). Whatever sits
-in front of it must respect those headers rather than impose its own lifetimes: a cache that
-overrides `max-age=0` can serve stale data, or serve one caller's response to another.
+The server sets `Cache-Control` on every response (see I9 and AR2 "Caching" in the design docs).
+Whatever sits in front of it must respect those headers rather than impose its own lifetimes: a
+cache that overrides `max-age=0` can serve stale data, or serve one caller's response to another.
 
 ## Operating the instance
 

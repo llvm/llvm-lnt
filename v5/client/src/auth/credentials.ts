@@ -1,7 +1,7 @@
 /**
- * How the token reaches the API client: the check AR2 runs on it, and what `authedApi` sends.
+ * How the token reaches the API client: the check AR17 runs on it, and what `authedApi` sends.
  *
- * The SPA behaves as if no token were set until a check accepts it (AR2), so `authedApi` sends a
+ * The SPA behaves as if no token were set until a check accepts it (AR17), so `authedApi` sends a
  * token only once its check has succeeded, and the check itself is the only request that carries
  * one that has not been accepted yet. A 401 on a request sent with an accepted token means that the
  * key has been revoked since, so the token is checked again, which reports it as no longer valid.

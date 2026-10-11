@@ -32,7 +32,7 @@ interface Props {
   hideLabel?: boolean
   /**
    * Called with whether the input holds text that is not the value's -- typed, but not picked --
-   * whenever that changes: a form holding the combobox is not submitted meanwhile (AR2).
+   * whenever that changes: a form holding the combobox is not submitted meanwhile (AR15).
    */
   onPendingChange?: (pending: boolean) => void
 }
@@ -53,7 +53,7 @@ function exactMatch(items: readonly Suggestion[], text: string): Suggestion | nu
 }
 
 /**
- * A combobox, with AR2's manual selection: typing narrows the suggestions, and the value changes
+ * A combobox, with AR14's manual selection: typing narrows the suggestions, and the value changes
  * only when the user picks one, or presses Enter on text that exactly matches one.
  *
  * The value is controlled by the caller, and the input's text by the combobox. The value need not
@@ -199,8 +199,8 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
  * The input and its button. The list opens when the user types, as well as on ArrowDown and from
  * the button, as React Aria opens it.
  *
- * Enter with no suggestion highlighted is AR2's Enter on text that exactly matches a suggestion, so
- * that a value can be pasted and entered; with one highlighted, it picks that one, as React Aria
+ * Enter with no suggestion highlighted is AR14's Enter on text that exactly matches a suggestion,
+ * so that a value can be pasted and entered; with one highlighted, it picks that one, as React Aria
  * does. An Enter pressed before the suggestions for its text have arrived is held until they do,
  * and dropped if the text changes meanwhile, as leaving the combobox does by putting back the
  * value's text.

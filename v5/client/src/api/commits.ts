@@ -20,7 +20,7 @@ export function fetchCommitPage(suite: string, query: CommitListQuery, signal?: 
 
 /**
  * The commits named by `values`, keyed by value, from one `POST /commits/resolve` (E3): what a list
- * that only names its commits, such as a page of runs, needs to show their display values (AR2).
+ * that only names its commits, such as a page of runs, needs to show their display values (AR6).
  * A value no commit has, deleted since the list was read, say, is absent from the map.
  */
 async function resolveCommits(
@@ -41,8 +41,8 @@ async function resolveCommits(
 }
 
 /**
- * Which commits a commit picker offers (AR2 "Commit pickers"): the `GET /commits` filters (E3) it
- * passes on. No filter offers every commit of the suite.
+ * Which commits a commit picker offers (AR15): the `GET /commits` filters (E3) it passes on. No
+ * filter offers every commit of the suite.
  */
 export interface CommitFilters {
   /** Only commits with a run on this machine. */
@@ -53,8 +53,8 @@ export interface CommitFilters {
 
 /**
  * The commit `value`, if the commit list under `filters` holds it, and null otherwise: how a commit
- * picker checks that it would offer a commit it was given (AR2 "Commit pickers"), with its filters
- * plus `commit=` (E3).
+ * picker checks that it would offer a commit it was given (AR15), with its filters plus `commit=`
+ * (E3).
  */
 export async function lookUpCommit(
   suite: string,
@@ -73,7 +73,7 @@ async function firstCommit(suite: string, query: CommitListQuery, signal?: Abort
 
 /**
  * `page`, with the commits named by `values` resolved in one call: what a list naming commits needs
- * to show their display values (AR2). If they cannot be resolved, the page goes without them, and
+ * to show their display values (AR6). If they cannot be resolved, the page goes without them, and
  * shows the commit strings instead, rather than fail for want of a way to display them.
  */
 export async function withCommits<Page>(

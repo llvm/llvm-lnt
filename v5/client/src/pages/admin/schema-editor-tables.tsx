@@ -257,8 +257,8 @@ interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChang
 
 /**
  * The input of a name the schema editor checks as it is typed: when refused, it has the red halo,
- * and the reason on hover and for assistive technology (AD3, AR2 "Invalid input"). Not limited in
- * length, so that a name too long is refused rather than cut short.
+ * and the reason on hover and for assistive technology (AD3, AR11). Not limited in length, so that
+ * a name too long is refused rather than cut short.
  */
 export function NameInput({ label, problem, onValue, ...props }: NameProps) {
   const problemId = useId()

@@ -105,8 +105,8 @@ function EditForm({ schema, onClose }: FormProps) {
   const gate = useScopeGate('manage')
   const saveRef = useRef<HTMLButtonElement>(null)
   const [draft, setDraft] = useState(() => draftOf(schema))
-  // Removing destroys data, which the user confirms first (AR2 "Deletions"). Meanwhile, the draft
-  // cannot change, so that what is confirmed is what is sent.
+  // Removing destroys data, which the user confirms first (AR16). Meanwhile, the draft cannot
+  // change, so that what is confirmed is what is sent.
   const [confirming, setConfirming] = useState(false)
   const save = useSaveSchema(name)
   const busy = save.isPending

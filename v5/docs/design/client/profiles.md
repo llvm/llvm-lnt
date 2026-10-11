@@ -39,7 +39,7 @@ selections:
 3. **Commit**: combobox over commits filtered to those with profile-bearing runs
    on the selected machine. Populated by
    `GET /commits?machine={name}&has_profiles=true&sort=-first_seen` when a
-   machine is selected (see AR2). Disabled until machine is selected.
+   machine is selected (see AR15). Disabled until machine is selected.
 4. **Run**: dropdown of runs for the selected machine+commit that contain
    profile data (populated by `GET /runs?machine=M&commit=C&has_profiles=true`;
    shows timestamp + shortened UUID). Disabled until commit is selected.
@@ -140,7 +140,7 @@ When only one side:
 1. Call `GET /runs/{uuid}` to recover machine + commit.
 2. Call `GET /commits?machine={name}&has_profiles=true&sort=-first_seen` to
    populate the commit picker, and the same request with `commit={value}` for
-   the recovered commit, since it need not be on that first page (see AR2).
+   the recovered commit, since it need not be on that first page (see AR15).
 3. Call `GET /runs?machine={name}&commit={value}&has_profiles=true` to populate
    the run dropdown.
 4. Call `GET /runs/{uuid}/profiles` to get the test list for the known run,

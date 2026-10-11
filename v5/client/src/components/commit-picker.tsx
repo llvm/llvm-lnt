@@ -19,7 +19,7 @@ interface Props {
   value: string | null
   /**
    * A commit was picked, or the selection was cleared (null): because the input was emptied, or
-   * because the commit given is not one the picker offers (AR2). The latter may be reported more
+   * because the commit given is not one the picker offers (AR15). The latter may be reported more
    * than once before `value` changes, so clearing must be idempotent, as a URL write is.
    */
   onChange(value: string | null): void
@@ -35,7 +35,7 @@ interface Props {
 
 /**
  * Why a form holding a commit picker cannot be submitted while the picker holds text that was not
- * picked (AR2 "Commit pickers").
+ * picked (AR15).
  */
 export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.'
 
@@ -46,12 +46,11 @@ function suggestionOf(commit: Commit, schema: SuiteSchema): Suggestion {
 }
 
 /**
- * A combobox selecting a commit (AR2 "Commit pickers"). It searches the server rather than
- * filtering a list it holds, since a suite can have tens of thousands of commits: its suggestions
- * are the pages of `GET commits?sort=-first_seen` under its filters, most recently seen first,
- * searched with `search=` once typing pauses, and the next page is loaded when the list is
- * scrolled to its end. The suggestions and the input show display values, and Enter also takes a
- * commit string.
+ * A combobox selecting a commit (AR15). It searches the server rather than filtering a list it
+ * holds, since a suite can have tens of thousands of commits: its suggestions are the pages of
+ * `GET commits?sort=-first_seen` under its filters, most recently seen first, searched with
+ * `search=` once typing pauses, and the next page is loaded when the list is scrolled to its end.
+ * The suggestions and the input show display values, and Enter also takes a commit string.
  *
  * A commit the picker is given rather than one picked among its suggestions -- from the URL, or
  * kept while its filters change -- is looked up with the picker's filters plus `commit=`, which

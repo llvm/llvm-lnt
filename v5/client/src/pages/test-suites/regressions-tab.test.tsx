@@ -576,7 +576,7 @@ describe('deleting a regression', () => {
     expect(checks).toHaveLength(1)
   })
 
-  it('does not show it again from what was read of it before (AR2 "Deletions")', async () => {
+  it('does not show it again from what was read of it before (AR16)', async () => {
     const { markDeleted } = await openPrompt()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     let deleted = false

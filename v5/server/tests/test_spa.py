@@ -119,7 +119,8 @@ class TestSpaServing:
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
-        # A missing file gets I9's header, not AR2's: it may exist after the next deploy.
+        # A missing file gets I9's header rather than an asset's (AR2 "Caching"): it may exist after
+        # the next deploy.
         assert response.headers["cache-control"] == "no-cache, max-age=0"
 
     def test_a_miss_names_what_was_requested(self, client: TestClient) -> None:
@@ -145,7 +146,8 @@ class TestSpaServing:
 
 
 class TestSpaCacheControl:
-    """AR2: hashed assets are cached forever, and everything else is revalidated on every use."""
+    """AR2 "Caching": hashed assets are cached forever, and everything else is revalidated on every
+    use."""
 
     @pytest.mark.parametrize("url", ["/", "/index.html", "/real.css", "/assets/"])
     def test_revalidates_the_shell_and_unhashed_files(self, client: TestClient, url: str) -> None:

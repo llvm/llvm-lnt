@@ -117,7 +117,7 @@ function serveCommits() {
   return queries
 }
 
-/** The lookups of a commit given to the picker (AR2), among the requests `queries` recorded. */
+/** The lookups of a commit given to the picker (AR15), among the requests `queries` recorded. */
 function lookups(queries: URLSearchParams[]) {
   return queries.filter((query) => query.has('commit'))
 }

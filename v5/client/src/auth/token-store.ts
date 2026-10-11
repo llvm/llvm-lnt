@@ -19,9 +19,9 @@ function browserStorage(): Storage | null {
 }
 
 /**
- * The API token, persisted in `localStorage` (AR2), and so shared by every tab of the SPA: one tab
- * hears of another's change through the `storage` event, while something subscribes (the app's
- * `AuthProvider` does, for as long as the app runs).
+ * The API token, persisted in `localStorage` (AR2 "State"), and so shared by every tab of the SPA
+ * (AR17): one tab hears of another's change through the `storage` event, while something
+ * subscribes (the app's `AuthProvider` does, for as long as the app runs).
  *
  * The token is also kept in memory, so that it lasts the session where storage is unavailable.
  */

@@ -59,7 +59,7 @@ interface Props<Row> {
 }
 
 /**
- * A table of entities, styled the same on every page (AR2 "Design consistency").
+ * A table of entities, styled the same on every page (AR5).
  *
  * It renders again only when one of its props changes, so that a page can render again around a
  * table of thousands of rows -- on every keystroke in a filter, say -- without rendering them. Such

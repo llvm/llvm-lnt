@@ -84,7 +84,8 @@ describe('routing', () => {
   ])('renders %s as the %s page', async (path, heading) => {
     renderAt(path)
 
-    // Pages are loaded on first use (AR2), so the heading arrives after the first render.
+    // Pages are loaded on first use (AR2 "Code splitting"), so the heading arrives after the first
+    // render.
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(heading)
   })
 

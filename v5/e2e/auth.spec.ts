@@ -1,5 +1,5 @@
 /**
- * The API token, as the Settings panel handles it (AR2).
+ * The API token, as the Settings panel handles it (AR17).
  */
 
 import type { Page } from '@playwright/test'

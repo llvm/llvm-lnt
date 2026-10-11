@@ -579,7 +579,7 @@ describe('revoking a key', () => {
     fireEvent.click(revokeButton('135f502b'))
     expect(prompt()).toHaveTextContent('Revoke the key test-key (135f502b)?')
     expect(prompt()).not.toHaveTextContent('Settings')
-    // Nothing to type: revoking a key destroys no data (AR2 "Deletions").
+    // Nothing to type: revoking a key destroys no data (AR16).
     expect(within(prompt()).queryByRole('textbox')).not.toBeInTheDocument()
     expect(within(prompt()).getByRole('button', { name: 'Cancel' })).toHaveFocus()
     expect(within(list).getByText('135f502b').closest('tr')).toHaveClass(/confirming/)

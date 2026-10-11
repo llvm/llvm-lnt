@@ -305,7 +305,7 @@ class TestListSearch:
     def test_combines_with_the_most_recently_seen_first_order(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # A commit picker's typeahead (AR2).
+        # A commit picker's typeahead (AR15).
         create("zzz")
 
         assert values_in(page(api_client, "search=e&sort=-first_seen")) == ["def456", "abc123"]
@@ -334,7 +334,7 @@ class TestListMachineFilter:
     def test_lists_a_machines_commits_most_recently_seen_first(
         self, api_client: TestClient, create: Callable[..., Any], add_run: Callable[..., str]
     ) -> None:
-        # What a commit picker asks for (AR2).
+        # What a commit picker asks for (AR15).
         create("later")
         add_run("later", "linux")
         add_run("on-linux", "linux")
@@ -478,7 +478,7 @@ class TestListOrdinalBounds:
 
 
 class TestListCommitFilter:
-    """`commit=`: how a commit picker checks that it would offer a commit it was given (AR2)."""
+    """`commit=`: how a commit picker checks that it would offer a commit it was given (AR15)."""
 
     @pytest.fixture(autouse=True)
     def commits(self, create: Callable[..., Any], add_run: Callable[..., str]) -> None:

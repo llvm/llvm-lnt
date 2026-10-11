@@ -57,7 +57,7 @@ interface LoadedProps {
 
 /**
  * A section showing data it fetches: that it is loading, why it failed, or the data. A failure takes
- * the place of the data rather than leave up what was shown before (AR2 "Paginated tables").
+ * the place of the data rather than leave up what was shown before (AR7).
  */
 export function Loaded({ isPending, error, onRetry, children, label }: LoadedProps) {
   if (error) return <ErrorMessage error={error} onRetry={onRetry} />

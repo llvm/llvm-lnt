@@ -12,8 +12,8 @@ interface SelectBoxProps {
 
 /**
  * The checkbox selecting a row of a list (see `useRangeSelection`), with Shift held to select a
- * range (AR2 "Range selection"). It renders again on its own when its row is selected or
- * deselected, rather than with the whole list.
+ * range (AR10). It renders again on its own when its row is selected or deselected, rather than
+ * with the whole list.
  */
 export function SelectBox({ rows, rowKey, label }: SelectBoxProps) {
   const checked = useSyncExternalStore(rows.subscribe, () => rows.selected().has(rowKey))

@@ -13,8 +13,8 @@ interface Props {
 /**
  * A link that looks like a button: an action leading to another page, in a row of actions. While
  * it leads somewhere, it is an ordinary SPA link, so that a modified click opens it in a new tab
- * (AR2). Otherwise it is no link at all, but text shown as disabled, saying why on hover (AR2
- * "Disabled links"), which can still be focused, and gives assistive technology the reason too.
+ * (AR2 "Routing"). Otherwise it is no link at all, but text shown as disabled, saying why on hover
+ * (AR8), which can still be focused, and gives assistive technology the reason too.
  */
 export function ButtonLink({ to, title, children }: Props) {
   if (to !== null) {
@@ -39,9 +39,9 @@ interface DisabledLinkProps {
 }
 
 /**
- * A link that leads nowhere for now (AR2 "Disabled links"): text shown as disabled, which no click
- * follows, which can still be focused, and which says why on hover. Its look is its owner's, a
- * button's or a plain link's.
+ * A link that leads nowhere for now (AR8): text shown as disabled, which no click follows, which
+ * can still be focused, and which says why on hover. Its look is its owner's, a button's or a plain
+ * link's.
  */
 export function DisabledLink({ title, className = styles.plain, children }: DisabledLinkProps) {
   return (

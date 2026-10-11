@@ -18,7 +18,7 @@ echo "  asset: $asset"
 
 request "${BASE_URL}${asset}"
 expect_status 200
-# Its name is hashed, so it can be cached forever (AR2).
+# Its name is hashed, so it can be cached forever (AR2 "Caching").
 expect_header 'cache-control' 'public, max-age=31536000, immutable[[:space:]]*$'
 
 # A hashed asset that does *not* exist stays a 404. Serving index.html under a script URL turns

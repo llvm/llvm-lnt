@@ -28,7 +28,7 @@ export function fetchRegressions(suite: string, query: RegressionListQuery, sign
 
 /**
  * One page of `GET /regressions` (E8), and the commits its regressions name, resolved in one call
- * for the whole page, to show their display values (AR2).
+ * for the whole page, to show their display values (AR6).
  */
 export async function fetchRegressionPage(
   suite: string,
