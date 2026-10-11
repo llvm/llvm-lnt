@@ -175,12 +175,13 @@ Layout:
 ```
 # Commit: 014621ede7c175aece29796adcaf5000f891cf0c
 
-+-------------------------------------------------------------+
-| Commit            014621ede7c175aece29796adcaf5000f891cf0c  |
-| Ordinal           593922    [Edit]                          |
-| Tag               --        [Edit]                          |
-| <commit-fields>                                             |
-+-------------------------------------------------------------+
++-------------------------------------------------------------------+
+| Commit                  014621ede7c175aece29796adcaf5000f891cf0c  |
+| Ordinal                 593922    [Edit]                          |
+| Tag                     --        [Edit]                          |
+| svn_revision [display]  r593922                                   |
+| <other commit-fields>                                             |
++-------------------------------------------------------------------+
 
 [<- Previous commit] [Next commit ->] [Delete commit]
 
@@ -208,10 +209,14 @@ etc...
 ### Display and edit
 
 The page header and the `Commit` row show the commit string itself rather than its
-display value. The various commit fields are displayed prominently. The ordinal and the
-tag are edited in place (see "Inline editing" in AR2) through `PATCH /commits/{value}`,
-which requires `manage` scope. Emptying either clears it. An ordinal is an integer that its
-column can hold (see D3 and D5): any other text is invalid (see "Invalid input" in AR2).
+display value. The various commit fields are displayed prominently. The commit field the
+schema marks `display: true` (see D4), if any, carries a small grey `display` badge next to
+its label, like TS3's `untracked` badge, even when this commit has no value for it. Hovering
+the badge explains that the UI shows a commit by that field's value, when it has one, rather
+than by its commit string (see AR2). The ordinal and the tag are edited in place (see
+"Inline editing" in AR2) through `PATCH /commits/{value}`, which requires `manage` scope.
+Emptying either clears it. An ordinal is an integer that its column can hold (see D3 and
+D5): any other text is invalid (see "Invalid input" in AR2).
 
 ### Navigation
 

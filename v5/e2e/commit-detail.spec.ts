@@ -54,6 +54,8 @@ test('shows the commit, its neighbours and its runs, filtered by machine', async
   await expect(info).toContainText(String(commit.ordinal))
   await expect(info).toContainText(TAG)
   await expect(info).toContainText('[libc++] Synthetic commit 20 of 40')
+  // The seeded schema shows commits by their `svn_revision`.
+  await expect(info.locator('dt', { hasText: 'svn_revision' })).toHaveText('svn_revision display')
   await expect(link(page, '← Previous commit')).toHaveAttribute(
     'href',
     `/suites/libcxx/commits/${detail.previous!.value}`,
