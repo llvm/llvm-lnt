@@ -227,10 +227,11 @@ no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one its
 spec names, which takes its place in the history rather than adding an entry (an
-exception to "State"), so that Back does not lead to the deleted entity. If the
-user has already left the page by then, it stays where they are. Once deleted,
-the entity is not shown again from data fetched before the deletion, even while
-the page shown next fetches its own.
+exception to "State"), so that Back from the page shown next does not return to
+it. If the user has already left the page when the deletion completes, they stay
+where they are. Data fetched before a deletion is never used to show the deleted
+entity again: not on the page shown next while it loads, and not on the entity's
+own page if the user gets back to it through the browser history.
 
 **Authentication**: The v5 API allows unauthenticated reads, except for the API
 key endpoints, which require `admin` scope even to read (see I5). No

@@ -99,3 +99,43 @@ test('deleting the machine shows the machines left', async ({
     expect((await request.get(`/api/suites/${suite}/machines/m1`)).status()).toBe(404)
   })
 })
+
+test('a machine deleted is not shown again when the history leads back to its page', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    // The machine's page, its run's, then the machine's again. The Test Suites page is not visited,
+    // so that its code is still to be loaded when the deletion leaves for it.
+    await page.goto(`/suites/${suite}/machines/m1`)
+    await table(page, 'Run history').getByRole('link').first().click()
+    await page.getByRole('group', { name: 'Run' }).getByRole('link', { name: 'm1' }).click()
+    await page.getByRole('button', { name: 'Delete Machine' }).click()
+    await page.getByLabel(/to confirm/).fill('m1')
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(page.getByText('No machines yet.')).toBeVisible()
+
+    // The machine is asked for again, but not answered until the page has been looked at.
+    let answer = () => {}
+    const answered = new Promise<void>((resolve) => (answer = resolve))
+    let asked = () => {}
+    const requested = new Promise<void>((resolve) => (asked = resolve))
+    await page.route(`**/api/suites/${suite}/machines/m1`, async (route) => {
+      asked()
+      await answered
+      await route.continue()
+    })
+    await page.goBack()
+    await page.goBack()
+    await expect(page).toHaveURL(`/suites/${suite}/machines/m1`)
+    await requested
+
+    await expect(page.getByRole('status')).toHaveText('Loading...')
+    await expect(page.getByRole('group', { name: 'Machine' })).toHaveCount(0)
+    answer()
+    await expect(page.getByRole('alert')).toContainText("No machine named 'm1'")
+  })
+})
