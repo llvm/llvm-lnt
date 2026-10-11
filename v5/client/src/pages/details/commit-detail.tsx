@@ -43,6 +43,7 @@ import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
 import { CompareWithPrevious, NO_ORDINAL } from './compare-with-previous'
 import { RegressionsTable } from './regressions-table'
+import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
 
 type CommitDetail = Schemas['CommitDetail']
@@ -63,6 +64,7 @@ export default function CommitDetailPage() {
   const { suite = '', value = '' } = useParams()
   return (
     <section>
+      <SuiteTrail suite={suite} tab="commits" />
       {/* The commit string itself rather than its display value (DT3). */}
       <h1>Commit: {value}</h1>
       <WithSchema suite={suite}>

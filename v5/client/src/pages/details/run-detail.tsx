@@ -28,6 +28,7 @@ import {
 import { stringParam, trimmedStringParam, useUrlState } from '../../url-state'
 import { DetailActionRow } from './action-row'
 import { CompareWithPrevious } from './compare-with-previous'
+import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
 
 type Run = Schemas['RunDetail']
@@ -44,6 +45,7 @@ export default function RunDetail() {
   const { suite = '', uuid = '' } = useParams()
   return (
     <section>
+      <SuiteTrail suite={suite} tab="runs" />
       <h1>Run: {uuid}</h1>
       <WithSchema suite={suite}>
         {/* Keyed, so that nothing of a run's page, an open prompt say, stays on another's. */}

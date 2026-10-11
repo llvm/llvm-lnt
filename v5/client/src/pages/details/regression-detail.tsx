@@ -23,6 +23,7 @@ import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
 import { AddIndicators } from './add-indicators'
 import { RegressionIndicators } from './regression-indicators'
+import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
 
 type Regression = Schemas['RegressionDetail']
@@ -37,6 +38,7 @@ export default function RegressionDetailPage() {
   const title = useRegression(suite, uuid, { fetch: false }).data?.title
   return (
     <section>
+      <SuiteTrail suite={suite} tab="regressions" />
       <h1>Regression: {title ?? shortUuid(uuid)}</h1>
       <WithSchema suite={suite}>
         {/* Keyed, so that nothing of a regression's page, an open editor say, stays on another's. */}

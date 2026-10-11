@@ -49,6 +49,16 @@ export function main() {
   return within(screen.getByRole('main'))
 }
 
+/** Queries within the breadcrumb trail of a detail page (see SuiteTrail). */
+export function trail() {
+  return within(screen.getByRole('navigation', { name: 'Breadcrumb' }))
+}
+
+/** The link named `name` in the breadcrumb trail of a detail page. */
+export function trailLink(name: string) {
+  return trail().getByRole('link', { name })
+}
+
 export function currentUrl() {
   return screen.getByTestId('url').textContent
 }
