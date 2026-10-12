@@ -1,0 +1,206 @@
+#!/bin/bash
+# Test `lnt mirror-v4` against a real instance, whose contents the test changes
+# between refreshes to exercise mirroring.
+#
+# RUN: rm -rf %t.instance %t.tmp %t.pg.log && mkdir -p %t.tmp
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         -- %{utils}/server_wrapper.sh --fail-on-error %t.instance 9096 \
+# RUN:             /bin/bash %s %t.tmp %t.instance %S/Inputs %{shared_inputs}
+
+set -eux
+
+TMP="$1"
+INSTANCE="$2"
+INPUTS="$3"
+SHARED_INPUTS="$4"
+
+URL="http://localhost:9096"
+API="${URL}/api/db_default/v4"
+MIRROR="${TMP}/mirror"
+
+refresh() {
+    lnt mirror-v4 "${URL}" "${MIRROR}" "$@"
+}
+
+check() {
+    python "${INPUTS}/check_v4_mirror.py" "${MIRROR}"
+}
+
+expect_failure() {
+    if "$@"; then
+        echo "unexpected success: $*"
+        exit 1
+    fi
+}
+
+# A checksum of every file under a directory, to show that it did not change.
+snapshot() {
+    (cd "$1" && find . -type f | sort | while read -r f; do
+        echo "${f} $(cksum < "${f}")"
+    done)
+}
+
+# Check that a mirrored run is byte for byte what the server returns for it.
+same_as_server() {
+    curl -s "${API}/$1/runs/$2" | cmp - <(gzip -dc "${MIRROR}/$1/runs/$2.json.gz")
+}
+
+
+# A first refresh mirrors every machine and run of the suite.
+refresh --suite nts > "${TMP}/first.txt"
+check > "${TMP}/first-check.txt"
+same_as_server nts 1
+same_as_server nts 2
+# RUN: filecheck %s --check-prefix=FIRST < %t.tmp/first.txt
+# FIRST: Mirroring suite 'nts' of http://localhost:9096 (database 'default')
+# FIRST: machine 1 (localhost__clang_DEV__x86_64): 2 run(s) to fetch, 0 changed, 0 removed, 0 unchanged
+# FIRST: Fetched 2 run(s); removed 0 run(s) and 0 machine(s); 0 failure(s).
+#
+# RUN: filecheck %s --check-prefix=FIRST-CHECK < %t.tmp/first-check.txt
+# FIRST-CHECK: source: http://localhost:9096 database=default
+# FIRST-CHECK-NEXT: suite nts: schema nts
+# FIRST-CHECK-NEXT: machine 1 localhost__clang_DEV__x86_64: runs 1 2
+# FIRST-CHECK-NOT: PROBLEM
+
+# Refreshing an up-to-date mirror fetches nothing.
+refresh --suite nts > "${TMP}/noop.txt"
+# RUN: filecheck %s --check-prefix=NOOP < %t.tmp/noop.txt
+# NOOP: machine 1 (localhost__clang_DEV__x86_64): 0 run(s) to fetch, 0 changed, 0 removed, 2 unchanged
+# NOOP: Fetched 0 run(s); removed 0 run(s) and 0 machine(s); 0 failure(s).
+
+
+# Change the instance: replace run 1, delete run 2, and add a machine with a run.
+lnt import -s nts --merge replace "${INSTANCE}" "${INPUTS}/mirror-v4-replacement.json"
+curl -s -f -X DELETE -H "AuthToken: test_token" "${API}/nts/runs/2"
+lnt import -s nts --merge append "${INSTANCE}" \
+    "${SHARED_INPUTS}/extra-reports/nts-machine3-run1.json"
+
+# A dry run reports the changes without making them.
+snapshot "${MIRROR}" > "${TMP}/before-dry-run.txt"
+refresh --suite nts --dry-run > "${TMP}/dry-run.txt"
+snapshot "${MIRROR}" | diff "${TMP}/before-dry-run.txt" -
+# RUN: filecheck %s --check-prefix=PREVIEW < %t.tmp/dry-run.txt
+# PREVIEW: (dry run)
+# PREVIEW: machine 1 (localhost__clang_DEV__x86_64): 0 run(s) to fetch, 1 changed, 1 removed, 0 unchanged
+# PREVIEW: machine 2 (machine3): 1 run(s) to fetch, 0 changed, 0 removed, 0 unchanged
+# PREVIEW: Dry run: the mirror was not modified.
+
+# The refresh mirrors the changes: the replaced run is fetched again, under the
+# same identifier.
+refresh --suite nts > "${TMP}/update.txt"
+check > "${TMP}/update-check.txt"
+same_as_server nts 1
+same_as_server nts 3
+# RUN: filecheck %s --check-prefix=UPDATE < %t.tmp/update.txt
+# UPDATE: machine 1 (localhost__clang_DEV__x86_64): 0 run(s) to fetch, 1 changed, 1 removed, 0 unchanged
+# UPDATE: machine 2 (machine3): 1 run(s) to fetch, 0 changed, 0 removed, 0 unchanged
+# UPDATE: Fetched 2 run(s); removed 1 run(s) and 0 machine(s); 0 failure(s).
+#
+# RUN: filecheck %s --check-prefix=UPDATE-CHECK < %t.tmp/update-check.txt
+# UPDATE-CHECK: machine 1 localhost__clang_DEV__x86_64: runs 1
+# UPDATE-CHECK-NEXT: machine 2 machine3: runs 3
+# UPDATE-CHECK-NOT: PROBLEM
+test ! -e "${MIRROR}/nts/runs/2.json.gz"
+
+# A machine deleted from the instance is removed from the mirror, runs and all.
+curl -s -f -X DELETE -H "AuthToken: test_token" "${API}/nts/machines/2"
+refresh --suite nts > "${TMP}/machine-removed.txt"
+check > "${TMP}/machine-removed-check.txt"
+# RUN: filecheck %s --check-prefix=MACHINE-REMOVED < %t.tmp/machine-removed.txt
+# MACHINE-REMOVED: machine 2 (machine3): no longer on the server, removed
+# MACHINE-REMOVED: Fetched 0 run(s); removed 0 run(s) and 1 machine(s); 0 failure(s).
+#
+# RUN: filecheck %s --check-prefix=MACHINE-REMOVED-CHECK < %t.tmp/machine-removed-check.txt
+# MACHINE-REMOVED-CHECK: machine 1 localhost__clang_DEV__x86_64: runs 1
+# MACHINE-REMOVED-CHECK-NOT: machine 2
+# MACHINE-REMOVED-CHECK-NOT: PROBLEM
+test ! -e "${MIRROR}/nts/machines/2.json"
+test ! -e "${MIRROR}/nts/runs/3.json.gz"
+
+
+# --machine only refreshes the machines it names.
+lnt import -s nts --merge append "${INSTANCE}" \
+    "${SHARED_INPUTS}/extra-reports/nts-machine2-run1.json"
+refresh --suite nts --machine localhost__clang_DEV__x86_64 > "${TMP}/filter.txt"
+check > "${TMP}/filter-check.txt"
+# RUN: filecheck %s --check-prefix=FILTER < %t.tmp/filter.txt
+# FILTER: machine 1 (localhost__clang_DEV__x86_64): 0 run(s) to fetch
+# FILTER-NOT: machine2
+#
+# RUN: filecheck %s --check-prefix=FILTER-CHECK < %t.tmp/filter-check.txt
+# FILTER-CHECK: machine 1 localhost__clang_DEV__x86_64: runs 1
+# FILTER-CHECK-NOT: machine2
+# FILTER-CHECK-NOT: PROBLEM
+
+
+# A second suite goes into the same mirror, and leaves the first untouched.
+snapshot "${MIRROR}/nts" > "${TMP}/nts-before.txt"
+refresh --suite compile > /dev/null
+snapshot "${MIRROR}/nts" | diff "${TMP}/nts-before.txt" -
+check > "${TMP}/two-suites-check.txt"
+# RUN: filecheck %s --check-prefix=TWO-SUITES < %t.tmp/two-suites-check.txt
+# TWO-SUITES: suite compile: schema compile
+# TWO-SUITES: suite nts: schema nts
+# TWO-SUITES-NOT: PROBLEM
+
+
+# Renaming a machine changes the machine embedded in each of its runs, so they
+# are all fetched again.
+curl -s -f -X POST -H "AuthToken: test_token" -d action=rename -d name=renamed \
+    "${API}/nts/machines/1"
+refresh --suite nts --machine renamed > "${TMP}/rename.txt"
+check > "${TMP}/rename-check.txt"
+same_as_server nts 1
+# RUN: filecheck %s --check-prefix=RENAME < %t.tmp/rename.txt
+# RENAME: machine 1 (renamed): 0 run(s) to fetch, 1 changed, 0 removed, 0 unchanged
+# RENAME: Fetched 1 run(s); removed 0 run(s) and 0 machine(s); 0 failure(s).
+#
+# RUN: filecheck %s --check-prefix=RENAME-CHECK < %t.tmp/rename-check.txt
+# RENAME-CHECK: machine 1 renamed: runs 1
+# RENAME-CHECK-NOT: PROBLEM
+
+# Errors are reported before the mirror is modified.
+snapshot "${MIRROR}" > "${TMP}/before-errors.txt"
+expect_failure refresh --suite nts --machine nosuch > "${TMP}/errors.txt" 2>&1
+expect_failure refresh --suite nosuch >> "${TMP}/errors.txt" 2>&1
+expect_failure refresh --suite nts --database other >> "${TMP}/errors.txt" 2>&1
+expect_failure lnt mirror-v4 http://127.0.0.1:9096 "${MIRROR}" --suite nts \
+    >> "${TMP}/errors.txt" 2>&1
+snapshot "${MIRROR}" | diff "${TMP}/before-errors.txt" -
+mkdir -p "${TMP}/not-a-mirror" && touch "${TMP}/not-a-mirror/file"
+expect_failure lnt mirror-v4 "${URL}" "${TMP}/not-a-mirror" --suite nts \
+    >> "${TMP}/errors.txt" 2>&1
+# RUN: filecheck %s --check-prefix=ERRORS < %t.tmp/errors.txt
+# ERRORS: error: no machine named 'nosuch' in suite 'nts'
+# ERRORS: error: there is no suite 'nosuch' in database 'default' of http://localhost:9096
+# ERRORS: error: {{.*}} is a mirror of database 'default' of http://localhost:9096, not of database 'other' of http://localhost:9096
+# ERRORS: error: {{.*}} is a mirror of database 'default' of http://localhost:9096, not of database 'default' of http://127.0.0.1:9096
+# ERRORS: error: {{.*}}not-a-mirror is not empty and is not a mirror
+
+
+# The next refresh repairs what an interrupted one leaves behind: a run fetched
+# but never added to the manifest is reused rather than fetched again, files the
+# manifest does not reference are removed, and so are leftover temporary files.
+python - "${MIRROR}/manifest.json" <<'EOF'
+import json, sys
+manifest = json.load(open(sys.argv[1]))
+del manifest['suites']['compile']['machines']['2']['runs']['3']
+json.dump(manifest, open(sys.argv[1], 'w'))
+EOF
+echo junk > "${MIRROR}/compile/runs/99.json.gz"
+mkdir -p "${MIRROR}/.mirror-tmp" && echo junk > "${MIRROR}/.mirror-tmp/leftover"
+echo '{}' > "${MIRROR}/compile/machines/1.json"
+expect_failure check > /dev/null
+refresh --suite compile > "${TMP}/repair.txt"
+check > "${TMP}/repair-check.txt"
+# RUN: filecheck %s --check-prefix=REPAIR < %t.tmp/repair.txt
+# REPAIR: Reused 1 run(s) left by an interrupted refresh
+# REPAIR: Fetched 0 run(s)
+#
+# RUN: filecheck %s --check-prefix=REPAIR-CHECK < %t.tmp/repair-check.txt
+# REPAIR-CHECK: machine 2 MacBook-Pro.local: runs 2 3 4
+# REPAIR-CHECK-NOT: PROBLEM
+test ! -e "${MIRROR}/compile/runs/99.json.gz"
+test ! -e "${MIRROR}/.mirror-tmp/leftover"

@@ -8,6 +8,7 @@ from .convert import action_convert
 from .create import action_create
 from .import_data import action_import
 from .import_report import action_importreport
+from .mirror_v4 import action_mirror_v4
 from .profile import action_profile
 from .runserver import action_runserver
 from .runtest import group_runtest
@@ -47,6 +48,7 @@ main.add_command(action_convert)
 main.add_command(action_create)
 main.add_command(action_import)
 main.add_command(action_importreport)
+main.add_command(action_mirror_v4)
 main.add_command(action_profile)
 main.add_command(action_runserver)
 main.add_command(action_send_daily_report)
