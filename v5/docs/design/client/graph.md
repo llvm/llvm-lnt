@@ -274,7 +274,7 @@ stays open as the pointer moves, so that its links can be followed. It shows:
   the trace's data is still loading or could not all be loaded.
 
 While it is open, the popover follows its point -- as more data arrives, the
-chart is resized or the page scrolls -- and updates its contents as more data
+chart is resized or the page scrolls -- and updates its contents as the data
 arrives. It closes on Escape, on its close button, on a click outside it, and on
 any change to the chart other than data arriving, such as a zoom or pan, or a
 change to the selected tests, machines, metric, filter, aggregation, baselines
@@ -338,8 +338,8 @@ for `detected`, and gray for the resolved states (`not_to_be_fixed`, `fixed`
 and `false_positive`). The line itself is not hovered, so that the points along
 it can be: each line has a marker of its color at its top, stacked downwards
 when several regressions share a commit. Hovering a marker shows the regression
-title and which of the selected tests it affects; clicking it navigates to the
-regression detail page.
+title and which of the selected tests it affects (the first ten, and how many
+others); clicking it navigates to the regression detail page.
 A regression with no commit, or whose commit is not on the x-axis scaffold
 (GR3), has no position on the chart and is not drawn. The selected mode is
 persisted in the URL as `regressions={off|active|all}`.

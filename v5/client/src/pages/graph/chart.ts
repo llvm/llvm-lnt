@@ -150,7 +150,7 @@ export function stateColor(state: RegressionState): string {
   }
 }
 
-/** At most how many of the tests a regression affects its tooltip names. */
+/** At most how many of the tests a regression affects its tooltip names (GR15). */
 const TESTS_NAMED = 10
 
 /**
@@ -188,7 +188,8 @@ export function regressionMarkers(marks: RegressionMark[]): Data[] {
       name: `regression ${uuid}`,
       yaxis: 'y2',
       x: [commit],
-      y: [0.98 - 0.05 * stack],
+      // The lowest stays inside the plot, however many share a commit.
+      y: [Math.max(0.02, 0.98 - 0.05 * stack)],
       hovertemplate:
         `<b>${escapeHtml(regressionTitle({ title }))}</b><br>Affects:<br>${named}${more}<br>` +
         '<i>Click to open</i><extra></extra>',

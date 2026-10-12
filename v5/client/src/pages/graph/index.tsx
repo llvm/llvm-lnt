@@ -187,7 +187,7 @@ function GraphPage() {
   }
 
   // The regressions marked (GR15): those of the selected tests that some machine's list holds,
-  // once every list is in, since the API refuses a test that does not exist (E8).
+  // since the API refuses a test that does not exist (E8).
   const marked = useMemo(() => {
     const held = [...tests.byMachine.values()]
     return sorted.filter((test) => held.some((names) => names.has(test)))
@@ -201,7 +201,7 @@ function GraphPage() {
       metric: metric?.name ?? '',
       states: mode === 'off' ? [] : MARKED[mode],
     },
-    mode !== 'off' && known && machines.length > 0 && marked.length > 0,
+    mode !== 'off' && machines.length > 0 && marked.length > 0,
   )
 
   // Whether the suite or the machines the URL names are still being checked, which nothing the

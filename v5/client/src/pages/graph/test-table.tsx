@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
@@ -63,6 +64,12 @@ export function TestTable({
   // loading, rather than with the whole table (as `SelectBox` does for the selection).
   const [loadingStore] = useState(() => new ValueStore<ReadonlySet<string>>(new Set()))
   useLayoutEffect(() => loadingStore.set(loading), [loading, loadingStore])
+  // A test emphasized stays so only while its row is shown, and the table with it.
+  useEffect(() => {
+    const test = emphasis.get()
+    if (test !== null && !shown.includes(test)) emphasis.set(null)
+  }, [shown, emphasis])
+  useEffect(() => () => emphasis.set(null), [emphasis])
 
   const columns = useMemo(
     (): Column<string>[] => [
@@ -127,7 +134,12 @@ export function TestTable({
         {loading.size > 0 && ', loading...'}
       </p>
       {/* Leaving a row for another emphasizes the other at once, without drawing none between. */}
-      <div onMouseLeave={() => emphasis.set(null)}>
+      <div
+        onMouseLeave={() => emphasis.set(null)}
+        onMouseOver={(event) => {
+          if ((event.target as Element).closest('thead') !== null) emphasis.set(null)
+        }}
+      >
         <DataTable
           label="Tests"
           columns={columns}

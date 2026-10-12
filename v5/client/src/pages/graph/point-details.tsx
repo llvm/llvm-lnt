@@ -28,7 +28,8 @@ interface Props {
   runAgg: Aggregation
   /** Where the point is, in pixels in the chart's container, and on which side of it to open. */
   at: { x: number; y: number; side: 'left' | 'right' }
-  onClose(): void
+  /** Close the details: by the keyboard or their button (`returnFocus`), or by a press outside. */
+  onClose(returnFocus?: boolean): void
 }
 
 /**
@@ -92,12 +93,17 @@ export function PointDetails({
         transform: `translate(${at.side === 'right' ? '12px' : 'calc(-100% - 12px)'}, -50%)`,
       }}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') onClose()
+        if (event.key === 'Escape') onClose(true)
       }}
     >
       <div className={styles.detailsHeader}>
         <strong className={styles.detailsTest}>{test}</strong>
-        <button type="button" className={styles.remove} aria-label="Close" onClick={onClose}>
+        <button
+          type="button"
+          className={styles.remove}
+          aria-label="Close"
+          onClick={() => onClose(true)}
+        >
           ×
         </button>
       </div>

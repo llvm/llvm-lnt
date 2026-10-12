@@ -8,7 +8,7 @@ import type { SuiteSchema } from '../../api/suites'
 import type { PlotGeometry } from '../../components/chart'
 import { cursorPage, metric, regression, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockRegressions, renderPage } from '../../test/page'
+import { currentUrl, gate, main, mockRegressions, renderPage, search } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
@@ -137,6 +137,38 @@ describe('hover (GR7, GR10)', () => {
 
     unhover()
     expect(name('b')).not.toHaveClass('hovered')
+  })
+
+  it("highlights the row of the test whose baseline's line is hovered", async () => {
+    mockWorld()
+    renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=libcxx/m1/c10`)
+    await waitFor(() => expect(chart().data).toHaveLength(4))
+
+    hover('b - baseline libcxx/m1/r10', 50)
+
+    expect(testTable().getByText('b').closest('span')).toHaveClass('hovered')
+  })
+
+  it('stops emphasizing a test once the filter hides it, or the header is hovered', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test=a&test=b`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(3))
+    const opacities = () => dataTraces().map((trace) => trace.opacity)
+    fireEvent.mouseEnter(testTable().getByText('a').closest('tr')!)
+    expect(opacities()).toEqual([undefined, 0.2, 0.2])
+
+    // The filter hides a, and deselects it: selected again, it is not emphasized any more.
+    search('Filter tests', 'b')
+    await waitFor(() => expect(listed()).toEqual(['b']))
+    search('Filter tests', '')
+    await waitFor(() => expect(listed()).toHaveLength(4))
+    fireEvent.click(testTable().getByRole('checkbox', { name: 'a' }))
+    await waitFor(() => expect(dataTraces()).toHaveLength(3))
+    expect(opacities()).toEqual([undefined, undefined, undefined])
+
+    fireEvent.mouseEnter(testTable().getByText('a').closest('tr')!)
+    fireEvent.mouseOver(testTable().getByRole('columnheader', { name: 'Test' }))
+    expect(opacities()).toEqual([undefined, undefined, undefined])
   })
 
   it('shows the values of the runs of a point hovered that combines several', async () => {
@@ -287,13 +319,17 @@ describe('the point details (GR11)', () => {
     draw()
     const user = userEvent.setup()
 
+    // Closed from the keyboard or its button, they give the focus back to the chart.
+    const area = main().getByRole('img').parentElement!
     click('a - m1', 1)
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(area).toHaveFocus()
 
     click('a - m1', 1)
     await user.click(details().getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(area).toHaveFocus()
 
     click('a - m1', 1)
     // Moving the focus out does not close it, unlike a press.
@@ -304,6 +340,47 @@ describe('the point details (GR11)', () => {
 
     click('a - m1', 1)
     act(() => chart().onRelayout?.({ 'xaxis.range[0]': 1 } as PlotRelayoutEvent))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('closes on a change to the regressions marked, filter, machines or baselines', async () => {
+    mockWorld({ samples: SAMPLES })
+    mockRegressionWorld()
+    renderPage(`${GRAPHED}&test=a&baseline=libcxx/m1/c10`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+    const user = userEvent.setup()
+    const reopen = () => {
+      click('a - m1', 1)
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    }
+
+    reopen()
+    await pickOption('Regressions', 'All')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    reopen()
+    search('Filter tests', 'a')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    reopen()
+    await user.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r10' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    reopen()
+    await user.click(screen.getByRole('button', { name: 'Remove m2' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('opens nothing on a click of another button than the main one', async () => {
+    mockWorld({ samples: SAMPLES })
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+
+    click('a - m1', 1, { button: 2 })
+    click('a - m1', 1, { button: 1 })
+
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -467,14 +544,46 @@ describe('the regression annotations (GR15)', () => {
     await waitFor(() => expect(markers()).toHaveLength(2))
 
     click(markers()[0].name!, 0, { metaKey: true })
+    click(markers()[0].name!, 0, { button: 1 })
+    // A right-click leaves the menu it opens to the browser.
+    click(markers()[0].name!, 0, { button: 2 })
 
-    expect(open).toHaveBeenCalledWith(
-      `/suites/libcxx/regressions/${uuidOf('1')}`,
-      '_blank',
-      'noopener',
-    )
+    expect(open.mock.calls).toEqual([
+      [`/suites/libcxx/regressions/${uuidOf('1')}`, '_blank', 'noopener'],
+      [`/suites/libcxx/regressions/${uuidOf('1')}`, '_blank', 'noopener'],
+    ])
     expect(currentUrl()).toContain('/graph')
     open.mockRestore()
+  })
+
+  it('keeps the regressions marked while a selection is looked up, but none it left', async () => {
+    mockWorld()
+    const held = gate()
+    let lookups = 0
+    const path = '/api/suites/{testsuite}/regressions/indicators/query'
+    server.use(
+      mockApi('post', path, async ({ request }) => {
+        const { test } = await request.json()
+        if (++lookups > 1) await held.promise
+        // Regression 1 affects test a; regression 2, test b.
+        const items = [
+          { regression_uuid: uuidOf('1'), test: 'a' },
+          { regression_uuid: uuidOf('2'), test: 'b' },
+        ]
+          .filter((item) => test!.includes(item.test))
+          .map((item, i) => ({ ...item, uuid: uuidOf(`${i}0`), machine: 'm1', metric: 'x' }))
+        return HttpResponse.json(cursorPage(items))
+      }),
+    )
+    mockRegressions(() => cursorPage(REGRESSIONS))
+    renderPage(`${ONE_MACHINE}&test=a&test=b&regressions=all`)
+    await waitFor(() => expect(markers()).toHaveLength(2))
+
+    // Deselecting b drops its regression at once, and keeps a's while the lookup is answered.
+    fireEvent.click(testTable().getByRole('checkbox', { name: 'b' }))
+    await waitFor(() => expect(markers()).toHaveLength(1))
+    expect(markers()[0].hovertemplate).toContain('a slowed down')
+    act(() => held.open())
   })
 
   it('asks only about the tests some machine lists, once they are all listed', async () => {

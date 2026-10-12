@@ -11,6 +11,7 @@ import { Chart, type PlotGeometry } from '../../components/chart'
 import { compareStrings } from '../../format'
 import { regressionPath } from '../../paths'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
+import { useStoreValue, type ValueStore } from '../../value-store'
 import type { BaselineState } from './baselines'
 import {
   baselineTraces,
@@ -26,7 +27,6 @@ import {
 } from './chart'
 import { PointDetails } from './point-details'
 import { combineRuns, pointsOf, runValues, type Point } from './points'
-import { useStoreValue, type ValueStore } from '../../value-store'
 import styles from './graph.module.css'
 
 interface Props {
@@ -314,7 +314,13 @@ export function GraphChart({
   const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<PointKey | null>(null)
-  const close = useCallback(() => setOpen(null), [])
+  const container = useRef<HTMLDivElement>(null)
+  // Closed from the keyboard or its button, the details give the focus back to the chart, rather
+  // than to the page; closed by a press elsewhere, they leave it where the press put it.
+  const close = useCallback((returnFocus = false) => {
+    setOpen(null)
+    if (returnFocus) container.current?.focus({ preventScroll: true })
+  }, [])
   // Any change to what the chart is drawn from, besides data arriving, closes the details (GR11).
   const [drawnFrom, setDrawnFrom] = useState(closeOn)
   if (!sameList(drawnFrom, closeOn)) {
@@ -344,13 +350,14 @@ export function GraphChart({
   }
   const onClick = (event: PlotMouseEvent) => {
     const at = curveAt(event)
-    if (at === undefined) return
-    if (at.curve.kind === 'trace') setOpen(pointOf(at.curve.trace, at.index))
+    // Plotly reports a click of any button: only the main one and the middle one mean anything.
+    const { button, ctrlKey, metaKey, shiftKey } = event.event
+    if (at === undefined || (button !== 0 && button !== 1)) return
+    if (at.curve.kind === 'trace' && button === 0) setOpen(pointOf(at.curve.trace, at.index))
     if (at.curve.kind === 'regression' && schema !== undefined) {
       const path = regressionPath(schema.name, at.curve.uuid)
-      // As a modified click on a link does (AR2 "Routing").
-      const { ctrlKey, metaKey, shiftKey } = event.event
-      if (ctrlKey || metaKey || shiftKey) window.open(path, '_blank', 'noopener')
+      // As a link opens on a modified click (AR2 "Routing").
+      if (button === 1 || ctrlKey || metaKey || shiftKey) window.open(path, '_blank', 'noopener')
       else navigate(path)
     }
   }
@@ -394,8 +401,8 @@ export function GraphChart({
     const { trace, index } = openAt
     const point = trace.points[index]
     const x = geometry.x(point.position)
-    const { area } = geometry
-    const side = x < area.left + area.width / 2 ? 'right' : 'left'
+    const { left, width } = geometry.area
+    const side = x < left + width / 2 ? 'right' : 'left'
     details = (
       <PointDetails
         key={`${trace.machine}\0${trace.test}\0${point.commit}`}
@@ -418,7 +425,7 @@ export function GraphChart({
 
   const label = metric ? `${labelOf(metric)} over time` : 'Graph'
   return (
-    <div className={styles.chartArea}>
+    <div className={styles.chartArea} ref={container} tabIndex={-1}>
       <Chart
         label={empty ? `${label}: no data to plot` : label}
         className={styles.chart}
@@ -428,7 +435,7 @@ export function GraphChart({
         onUnhover={onUnhover}
         onClick={onClick}
         onDraw={setGeometry}
-        onRelayout={close}
+        onRelayout={() => close()}
       />
       {scatter}
       {details}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react'
 import styles from './graph.module.css'
 
 export interface Chip {
@@ -29,14 +29,15 @@ export function ChipList({ label, chips, removeLabel, onRemove, focusWhenEmpty }
   // The chip whose button is to take the focus once the chip removed is gone, or null for
   // `focusWhenEmpty`; undefined while no chip is being removed.
   const focusNext = useRef<string | null | undefined>(undefined)
-  const keys = chips.map((chip) => chip.key).join('\0')
-  useEffect(() => {
+  const moveFocus = useEffectEvent(() => {
     if (focusNext.current === undefined) return
     const next = focusNext.current
     focusNext.current = undefined
     const target = next === null ? focusWhenEmpty() : buttons.current.get(next)
     target?.focus()
-  }, [keys, focusWhenEmpty])
+  })
+  const keys = chips.map((chip) => chip.key).join('\0')
+  useEffect(() => moveFocus(), [keys])
   const remove = (i: number) => {
     focusNext.current = chips[i + 1]?.key ?? chips[i - 1]?.key ?? null
     onRemove(chips[i].key)

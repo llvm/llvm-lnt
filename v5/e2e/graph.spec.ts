@@ -107,9 +107,18 @@ test("shows a point's runs on hover, and its details on a click (GR10, GR11)", a
   await page.goto(LINUX_TEST)
   await expect(tracesOf(page)).toHaveCount(1)
 
-  const position = await pointOf(page, 0, 1)
+  // A point that combines several runs, whose values the hover scatter shows (GR10), and that
+  // has a point before it to compare with (GR11).
+  const index = await plotOf(page).evaluate((element) => {
+    const [trace] = (element as PlotDiv & { _fullData: { customdata: string[][] }[] })._fullData
+    return trace.customdata.findIndex(([, , runs], i) => i > 0 && runs !== '1 run')
+  })
+  expect(index).toBeGreaterThan(0)
+  const position = await pointOf(page, 0, index)
   await plotOf(page).hover({ position })
   await expect(page.locator('.hoverlayer')).toContainText('Click for details')
+  await expect(page.locator('svg[class*="scatter"] circle').first()).toBeVisible()
+  expect(await page.locator('svg[class*="scatter"] circle').count()).toBeGreaterThan(1)
 
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog')

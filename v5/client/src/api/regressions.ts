@@ -228,10 +228,18 @@ export function useMarkedRegressions(
     enabled,
   })
 
+  // By name, since a caller's lists may be new arrays of the same names.
+  const askedMachines = machines.join('\0')
+  const askedTests = tests.join('\0')
   const regressions = useMemo(() => {
     if (!enabled || indicators.data === undefined || list.data === undefined) return NOTHING_MARKED
+    // The indicators kept from the previous lookup until the current one arrives may name machines
+    // and tests that are no longer asked about.
+    const onMachines = new Set(askedMachines.split('\0'))
+    const ofTests = new Set(askedTests.split('\0'))
     const tested = new Map<string, Set<string>>()
-    for (const { regression_uuid, test } of indicators.data) {
+    for (const { regression_uuid, machine, test } of indicators.data) {
+      if (!onMachines.has(machine) || !ofTests.has(test)) continue
       let known = tested.get(regression_uuid)
       if (known === undefined) tested.set(regression_uuid, (known = new Set()))
       known.add(test)
@@ -242,7 +250,7 @@ export function useMarkedRegressions(
         ? []
         : [{ uuid, title, state, commit, tests: affected }]
     })
-  }, [enabled, indicators.data, list.data])
+  }, [enabled, indicators.data, list.data, askedMachines, askedTests])
 
   // A query disabled keeps the error it last had.
   return { regressions, ...(enabled ? failuresOf([indicators, list]) : NO_FAILURES) }
