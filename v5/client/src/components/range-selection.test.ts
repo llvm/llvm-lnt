@@ -4,9 +4,11 @@ import {
   clickRow,
   keepOnly,
   NO_SELECTION,
+  replaceRows,
   selectedPart,
   setRows,
   useRangeSelection,
+  wouldExceed,
   type Selection,
 } from './range-selection'
 
@@ -70,6 +72,27 @@ describe('setRows', () => {
   })
 })
 
+describe('replaceRows', () => {
+  it('selects exactly the rows given, leaving the anchor', () => {
+    expect(replaceRows(clicks('a', 'b'), ['c'])).toEqual({ selected: new Set(['c']), anchor: 'b' })
+  })
+})
+
+describe('wouldExceed', () => {
+  const limit = { count: 2, why: 'At most 2.' }
+
+  it('says whether selecting rows as well would take the selection past the limit', () => {
+    expect(wouldExceed(new Set(['a']), ['b'], limit)).toBe(false)
+    expect(wouldExceed(new Set(['a']), ['b', 'c'], limit)).toBe(true)
+    // Rows already selected add nothing.
+    expect(wouldExceed(new Set(['a', 'b']), ['a', 'b'], limit)).toBe(false)
+  })
+
+  it('never says so without a limit', () => {
+    expect(wouldExceed(new Set(ROWS), ['x', 'y'], null)).toBe(false)
+  })
+})
+
 describe('keepOnly', () => {
   it('drops the rows not kept, and is the same selection when it drops none', () => {
     const state = clicks('a', '+c')
@@ -126,5 +149,35 @@ describe('useRangeSelection', () => {
     expect(result.current.selected).toEqual(new Set(['a', 'b']))
     act(() => result.current.rows.setRows(new Set(['a', 'b']), false))
     expect(result.current.selected.size).toBe(0)
+  })
+
+  it('starts with the rows given, the first ones within the limit', () => {
+    const limit = { count: 2, why: 'At most 2.' }
+    const { result } = renderHook(() =>
+      useRangeSelection(undefined, ROWS, { initial: ['c', 'c', 'a', 'e'], limit }),
+    )
+    // A row given twice counts once.
+    expect(result.current.selected).toEqual(new Set(['c', 'a']))
+  })
+
+  it('holds no more rows than its limit, whatever is asked of it', () => {
+    const limit = { count: 2, why: 'At most 2.' }
+    const { result } = renderHook(() => useRangeSelection(undefined, ROWS, { limit }))
+    const { rows } = result.current
+    expect(rows.limit()).toBe(limit)
+
+    act(() => rows.click('a', false))
+    act(() => rows.click('d', true))
+    act(() => rows.setRows(['b', 'c'], true))
+    act(() => rows.replace(['b', 'c', 'd']))
+    expect(result.current.selected).toEqual(new Set(['a']))
+
+    // The refused range left the anchor at A: a range from it within the limit is taken.
+    act(() => rows.click('b', true))
+    expect(result.current.selected).toEqual(new Set(['a', 'b']))
+    // Deselecting is never refused, and neither is what stays within the limit.
+    act(() => rows.click('a', false))
+    act(() => rows.replace(['e', 'f']))
+    expect(result.current.selected).toEqual(new Set(['e', 'f']))
   })
 })

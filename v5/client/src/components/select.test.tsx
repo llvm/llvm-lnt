@@ -39,6 +39,27 @@ describe('Select', () => {
     expect(selectButton('Metric')).toHaveTextContent('Any metric')
   })
 
+  it('shows its placeholder while no option is picked, until one is', async () => {
+    function Unpicked() {
+      const [value, setValue] = useState<string | null>(null)
+      return (
+        <Select
+          label="Metric"
+          options={OPTIONS}
+          value={value}
+          onChange={setValue}
+          placeholder="-- Select metric --"
+        />
+      )
+    }
+    render(<Unpicked />)
+    expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
+
+    await pickOption('Metric', 'Code Size')
+
+    expect(selectButton('Metric')).toHaveTextContent('Code Size')
+  })
+
   it('gives its button to a ref, to focus it from script', () => {
     const ref = createRef<HTMLButtonElement>()
     render(

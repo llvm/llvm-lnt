@@ -37,6 +37,11 @@ export function setRows(state: Selection, keys: Iterable<string>, select: boolea
   return { ...state, selected: withRows(state.selected, keys, select) }
 }
 
+/** The selection once it is exactly `keys`: the anchor stays. */
+export function replaceRows(state: Selection, keys: Iterable<string>): Selection {
+  return { ...state, selected: new Set(keys) }
+}
+
 /** The selection without the rows `keep` lacks: `state` itself if it loses none. */
 export function keepOnly(state: Selection, keep: ReadonlySet<string>): Selection {
   const kept = [...state.selected].filter((key) => keep.has(key))
@@ -66,6 +71,25 @@ export function selectedPart(
   return count === shown.length ? 'all' : 'some'
 }
 
+/** How many rows a list lets the user select at once, and why, for its disabled checkboxes. */
+export interface SelectionLimit {
+  count: number
+  /** Why no more rows can be selected, said on hover, e.g. `At most 100 tests can be selected.` */
+  why: string
+}
+
+/** Whether selecting `keys` as well would take `selected` past `limit`, if there is one. */
+export function wouldExceed(
+  selected: ReadonlySet<string>,
+  keys: Iterable<string>,
+  limit: SelectionLimit | null,
+): boolean {
+  if (limit === null) return false
+  let size = selected.size
+  for (const key of keys) if (!selected.has(key) && ++size > limit.count) return true
+  return false
+}
+
 /**
  * The selection of a list, for its rows' checkboxes (see `SelectBox` and `SelectAllBox`). It is the
  * same object for as long as the list is shown, so that a table holding the checkboxes need not
@@ -75,10 +99,21 @@ export function selectedPart(
 export interface RowSelection {
   subscribe(listener: () => void): () => void
   selected(): ReadonlySet<string>
-  /** The row `key` was clicked, with Shift held or not (see `clickRow`). */
+  /** The list's limit, if it has one. */
+  limit(): SelectionLimit | null
+  /**
+   * The row `key` was clicked, with Shift held or not (see `clickRow`). Like the other changes
+   * below, it does nothing, anchor included, when it would select more rows than the limit.
+   */
   click(key: string, shift: boolean): void
   /** Select every one of `keys`, or none of them, whether shown or not. */
   setRows(keys: Iterable<string>, select: boolean): void
+  /**
+   * Select exactly `keys`, whether shown or not (see `replaceRows`), unless they are more than the
+   * limit allows, as for GR7's double-click restoring every test. A caller restoring a selection,
+   * from a URL say, keeps the first ones that fit itself, as `initial` does.
+   */
+  replace(keys: Iterable<string>): void
 }
 
 export interface RangeSelection {
@@ -87,7 +122,10 @@ export interface RangeSelection {
 }
 
 class SelectionStore {
-  private state = NO_SELECTION
+  private state: Selection
+  constructor(initial: Selection) {
+    this.state = initial
+  }
   private readonly listeners = new Set<() => void>()
 
   get = () => this.state
@@ -106,6 +144,19 @@ class SelectionStore {
   }
 }
 
+interface Options {
+  /**
+   * At most how many rows can be selected (GR7): nothing that would select more does anything. A
+   * list keeps the limit it starts with.
+   */
+  limit?: SelectionLimit
+  /**
+   * The rows selected to begin with, such as those a URL names. Beyond `limit`, the first ones
+   * are kept. Those that are not offered are deselected once that is known, like any other.
+   */
+  initial?: readonly string[]
+}
+
 /**
  * A selection among the rows of a list (AR10). `shown` are the rows in view, in order, which a
  * range selected with Shift spans. `offered` are the rows that can be selected, or undefined while
@@ -116,8 +167,13 @@ class SelectionStore {
 export function useRangeSelection(
   offered: readonly string[] | undefined,
   shown: readonly string[],
+  { limit: initialLimit, initial = [] }: Options = {},
 ): RangeSelection {
-  const [store] = useState(() => new SelectionStore())
+  const [limit] = useState(initialLimit ?? null)
+  const [store] = useState(() => {
+    const kept = [...new Set(initial)].slice(0, limit?.count)
+    return new SelectionStore({ selected: new Set(kept), anchor: null })
+  })
   const { selected } = useSyncExternalStore(store.subscribe, store.get)
 
   // The rows shown when a checkbox is clicked, rather than when the handlers were created, so that
@@ -131,11 +187,20 @@ export function useRangeSelection(
     if (offered !== undefined) store.set(keepOnly(store.get(), new Set(offered)))
   }, [offered, store])
 
-  const [rows] = useState<RowSelection>(() => ({
-    subscribe: store.subscribe,
-    selected: () => store.get().selected,
-    click: (key, shift) => store.set(clickRow(store.get(), shownRef.current, key, shift)),
-    setRows: (keys, select) => store.set(setRows(store.get(), keys, select)),
-  }))
+  const [rows] = useState<RowSelection>(() => {
+    // Every change goes through here, which refuses one that would select more rows than the
+    // limit. The selection starts within it, so a change that selects no more rows always fits.
+    const change = (next: Selection) => {
+      if (limit === null || next.selected.size <= limit.count) store.set(next)
+    }
+    return {
+      subscribe: store.subscribe,
+      selected: () => store.get().selected,
+      limit: () => limit,
+      click: (key, shift) => change(clickRow(store.get(), shownRef.current, key, shift)),
+      setRows: (keys, select) => change(setRows(store.get(), keys, select)),
+      replace: (keys) => change(replaceRows(store.get(), keys)),
+    }
+  })
   return { selected, rows }
 }

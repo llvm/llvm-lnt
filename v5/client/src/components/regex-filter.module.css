@@ -1,0 +1,12 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-3);
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+  white-space: nowrap;
+}

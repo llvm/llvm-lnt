@@ -381,6 +381,86 @@ function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion 
   )
 }
 
+describe('Combobox handing on what is picked', () => {
+  /** A combobox adding the machines picked to a list, as the Graph page adds machine chips. */
+  function MachineAdder() {
+    const [added, setAdded] = useState<string[]>([])
+    const suggestions = useLocalSuggestions(MACHINES)
+    return (
+      <>
+        <Combobox
+          label="Machine"
+          onPick={(picked) => setAdded((list) => [...list, picked.key])}
+          suggestions={suggestions}
+        />
+        <p data-testid="value">{added.join(',')}</p>
+        <p>Elsewhere</p>
+      </>
+    )
+  }
+
+  it('passes on a suggestion that is clicked, and empties its input', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachineAdder />)
+
+    await openList(user)
+    await user.click(screen.getByRole('option', { name: 'macos-arm64' }))
+
+    expect(value()).toBe('macos-arm64')
+    expect(input()).toHaveValue('')
+    expect(listbox()).toBeNull()
+  })
+
+  it('passes on a suggestion moved to with the arrow keys, on Enter', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachineAdder />)
+
+    await user.type(input(), 'linux')
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+
+    expect(value()).toBe('linux-aarch64')
+    expect(input()).toHaveValue('')
+    expect(listbox()).toBeNull()
+  })
+
+  it('passes on the suggestion whose text is exactly the one entered', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachineAdder />)
+
+    await user.type(input(), 'macos-arm64{Enter}')
+
+    expect(value()).toBe('macos-arm64')
+    expect(input()).toHaveValue('')
+    expect(listbox()).toBeNull()
+  })
+
+  it('passes on the same suggestion again when it is picked again', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachineAdder />)
+
+    await user.type(input(), 'macos-arm64{Enter}')
+    await openList(user)
+    await user.click(screen.getByRole('option', { name: 'macos-arm64' }))
+
+    expect(value()).toBe('macos-arm64,macos-arm64')
+  })
+
+  it('passes nothing on when left, or emptied, without a pick', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachineAdder />)
+
+    await user.type(input(), 'linux')
+    await user.click(screen.getByText('Elsewhere'))
+    expect(input()).toHaveValue('')
+
+    await user.type(input(), 'linux')
+    // Hidden from assistive technology while the list is open, as above.
+    await user.click(screen.getByLabelText('Clear Machine'))
+    expect(input()).toHaveValue('')
+    expect(value()).toBe('')
+  })
+})
+
 describe('Combobox options', () => {
   function renderWith(props: { isReadOnly?: boolean; hideLabel?: boolean }) {
     function Picker() {
