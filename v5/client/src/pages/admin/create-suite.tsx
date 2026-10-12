@@ -32,6 +32,7 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
   const gate = useScopeGate('manage')
   const titleId = useId()
   const nameId = useId()
+  const formId = useId()
   const [name, setName] = useState('')
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   // Whether the document to import shows in place of the editor, which keeps what it holds.
@@ -71,8 +72,9 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
 
   return (
     <section aria-labelledby={titleId}>
-      {/* A form, so that Enter in the suite name creates the suite. */}
-      <form className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
+      {/* A form, so that Enter in the suite name creates the suite. Its submit button is Create,
+          below the tables. */}
+      <form id={formId} className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
         <strong id={titleId} className={styles.formTitle}>
           New suite
         </strong>
@@ -113,16 +115,6 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
           >
             Import JSON
           </ActionButton>
-          <span className={styles.editorButtons}>
-            <ActionButton busy={busy} onClick={onCancel}>
-              Cancel
-            </ActionButton>
-            {!importing && (
-              <ActionButton type="submit" reason={reason} busy={busy}>
-                {create.isPending ? 'Creating...' : 'Create'}
-              </ActionButton>
-            )}
-          </span>
         </div>
       </form>
       {importing ? (
@@ -135,11 +127,24 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
           onSend={() => send.mutate(text, created)}
         />
       ) : (
-        <>
-          {create.isError && <ErrorMessage error={create.error} />}
-          <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
-        </>
+        <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
       )}
+      {/* Below the tables, as the viewer's buttons are below a schema. */}
+      <div className={styles.editorFooter}>
+        <div className={styles.fields}>
+          <span className={styles.editorButtons}>
+            <ActionButton busy={busy} onClick={onCancel}>
+              Cancel
+            </ActionButton>
+            {!importing && (
+              <ActionButton type="submit" form={formId} reason={reason} busy={busy}>
+                {create.isPending ? 'Creating...' : 'Create'}
+              </ActionButton>
+            )}
+          </span>
+        </div>
+      </div>
+      {!importing && create.isError && <ErrorMessage error={create.error} />}
     </section>
   )
 }

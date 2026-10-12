@@ -143,9 +143,7 @@ viewer shows the suite selected before again. Leaving the tab or the page discar
 too, without asking.
 
 ```
-New suite    Suite name [________]    Start from [suite v]    [Import JSON]   [Cancel] [Create]
-
-Editing nts                                                                   [Cancel] [Save]
+New suite    Suite name [________]    Start from [suite v]    [Import JSON]
 
 Metrics
 Name              Type        Display Name        Unit          Abbrev    Bigger is Better
@@ -164,10 +162,16 @@ commit_info       text        [              ]    [ ]           [ ]             
 
 Machine Fields
 ...
+
+                                                                           [Cancel] [Create]
+
+Editing nts                                                                  [Cancel] [Save]
 ```
 
-The first header is shown above the tables when creating a suite. The second is shown below them
-when editing one, where the viewer has its buttons. The tables are the same in both modes.
+When creating a suite, the header above the tables holds its name, "Start from" and "Import JSON".
+The editor's buttons are below the tables, where the viewer has its own: "Cancel" and "Create"
+when creating a suite, and its heading, "Cancel" and "Save" when editing one. The tables are the
+same in both modes.
 
 The editor shows the same entries and keys as the viewer, with an input for each value. Each
 table has a button to add an entry, and each entry a button (×) to remove it. An added entry
