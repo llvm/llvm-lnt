@@ -170,6 +170,13 @@ highlighting: hovering a table row highlights the corresponding chart trace(s);
 hovering a chart trace highlights the table row. A selection of up to 10 tests
 is kept in the URL, along with the rest of the page's state (see GR14).
 
+At most 100 tests can be selected at once: well before that, the chart is
+unreadable, and the data of thousands of tests is more than the page can load.
+Once 100 tests are selected, the rows not selected cannot be selected, and the
+header checkbox cannot select every visible test when that would select more
+than 100. Each says why on hover. A shift-click range or a double-click that
+would select more than 100 tests does nothing.
+
 
 ### GR8: Client-Side Caching
 
