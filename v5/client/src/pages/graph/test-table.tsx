@@ -25,6 +25,8 @@ interface Props {
   colors: ReadonlyMap<string, string>
   /** The selected tests whose data is still loading. */
   loading: ReadonlySet<string>
+  /** Why the URL does not reflect the selection, if it does not, which the table warns of. */
+  notInUrl?: string
   /** Whether some machine's tests are still being listed. */
   listing: boolean
   /** What the table says while no test is listed, and why. */
@@ -68,6 +70,7 @@ export function TestTable({
   selection,
   colors,
   loading,
+  notInUrl,
   listing,
   empty,
 }: Props) {
@@ -133,6 +136,7 @@ export function TestTable({
         {filtered
           ? `${count} of ${shown.length} matching tests selected (${all.length} total)`
           : `${count} of ${all.length} tests selected`}
+        {notInUrl !== undefined && <span title={notInUrl}> (too many to reflect in the URL)</span>}
         {loading.size > 0 && ', loading...'}
       </p>
       <DataTable

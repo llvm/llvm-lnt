@@ -49,10 +49,6 @@
   color: var(--lnt-muted);
 }
 
-.warning {
-  color: var(--lnt-warning);
-}
-
 .testRow {
   cursor: pointer;
   user-select: none;

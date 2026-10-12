@@ -266,12 +266,6 @@ function GraphPage() {
           !checking && !listing && !scaffold.pending && series.loading.size === 0 && !failed
         }
       />
-      {/* Always there, so that its message is announced when it appears. */}
-      <p className={styles.warning} role="status">
-        {!shared &&
-          `More than ${TESTS_IN_URL} tests are selected, so the selection is not part of the URL ` +
-            'and cannot be shared with it.'}
-      </p>
       <TestTable
         all={tests.names}
         shown={filter.rows}
@@ -279,6 +273,10 @@ function GraphPage() {
         selection={selection}
         colors={colors}
         loading={series.loading}
+        // Why the URL does not reflect the selection, when it does not (GR14).
+        notInUrl={
+          shared ? undefined : `The URL reflects a selection of at most ${TESTS_IN_URL} tests.`
+        }
         listing={listing}
         empty={emptyTable({ checking, schema, numeric, machines, metric })}
       />

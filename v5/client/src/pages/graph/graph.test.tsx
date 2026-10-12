@@ -419,7 +419,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     expect(currentUrl()).toBe(`${GRAPHED}&test=a&test=b&test=c&test=d`)
   })
 
-  it('keeps at most 10 tests in the URL, and warns once the selection is not in it', async () => {
+  it('keeps at most 10 tests in the URL, and says so once the selection is not in it', async () => {
     const names = Array.from({ length: 11 }, (_, i) => `t${String(i).padStart(2, '0')}`)
     mockWorld({ tests: { m1: names } })
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
@@ -428,10 +428,15 @@ describe('the selection (GR6, GR7, GR14)', () => {
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
     expect(currentUrl()).toBe('/graph?suite=libcxx&machine=m1&metric=execution_time')
-    expect(main().getByText(/the selection is not part of the URL/)).toBeInTheDocument()
+    // Followed by ", loading..." while the tests' data loads.
+    const count = main().getByText(/^11 of 11 tests selected/)
+    expect(count).toHaveTextContent(/^11 of 11 tests selected \(too many to reflect in the URL\)/)
+    expect(within(count).getByText(/too many/)).toHaveAccessibleDescription(
+      'The URL reflects a selection of at most 10 tests.',
+    )
     fireEvent.click(box('t00'))
     expect(currentUrl()).toContain('&test=t01&test=t02')
-    expect(main().queryByText(/the selection is not part of the URL/)).not.toBeInTheDocument()
+    expect(count).not.toHaveTextContent(/too many/)
   })
 
   describe('selects at most 100 tests', () => {
