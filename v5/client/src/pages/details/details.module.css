@@ -1,5 +1,30 @@
 /* Shared by the detail pages (DT1-DT4). */
 
+/* The breadcrumb trail above the header, leading back to the suite's list of such entities. */
+.trail ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+/* The separator is not read out: the list already tells the links apart. */
+.trail li + li::before {
+  /* Where alternative text is not supported, the separator is shown all the same. */
+  content: '›';
+  content: '›' / '';
+  margin-right: var(--lnt-space-2);
+  color: var(--lnt-muted);
+}
+
+/* The header stays close to the trail, which belongs with it. */
+.trail + h1 {
+  margin-top: var(--lnt-space-2);
+}
+
 .heading {
   margin: var(--lnt-space-4) 0 var(--lnt-space-2);
   font-size: 1.2rem;

@@ -4,12 +4,23 @@ Page specifications for the various detail pages. The detail pages present
 detailed information about various entities. They are accessible by clicking
 on these entities from other pages (e.g. the `Test Suite / Runs` page).
 
+Above its header, each detail page shows a breadcrumb trail leading back to the
+Test Suites page (TS1): the suite's name, linking to `/suites/{ts}`, then the
+name of the tab listing the kind of entity the page is about, linking to that
+tab -- Machines, Runs, Commits or Regressions. The tab opens in its default
+state: no search, no filters, its first page. The trail depends only on the
+page's path, so it is shown whatever the state of the page's data: while it
+loads, when it cannot be fetched, and when the entity or the suite does not
+exist. It does not name the entity, which the header does.
+
 
 ## DT1: Machine Detail -- `/suites/{ts}/machines/{name}`
 
 Deep dive into a single machine. Machine names are guaranteed unique. Layout:
 
 ```
+libcxx › Machines
+
 # Machine: linux-x86_64-20260812
 
 +----------------------------------------------------------------+
@@ -88,6 +99,8 @@ lead to the details page for that object.
 All data from a single run. Layout:
 
 ```
+libcxx › Runs
+
 # Run: 573af861-8303-4a5b-a643-b8321e0142c4
 
 +-------------------------------------------------+
@@ -172,6 +185,8 @@ The "what happened at this commit?" page. Key investigation page for developers.
 Layout:
 
 ```
+libcxx › Commits
+
 # Commit: 014621ede7c175aece29796adcaf5000f891cf0c
 
 +-------------------------------------------------------------------+
@@ -262,6 +277,8 @@ saying why, when this commit has no ordinal or the row's machine has no earlier 
 Investigation and management page for a single regression. Layout:
 
 ```
+libcxx › Regressions
+
 # Regression: find_if slowdown
 
 +---------------------------------------------------------------+

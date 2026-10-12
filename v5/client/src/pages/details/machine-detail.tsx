@@ -24,6 +24,7 @@ import { formatFieldValue, labelOf, type Commit } from '../../schema'
 import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
 import { RegressionsTable } from './regressions-table'
+import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
 
 type Machine = Schemas['Machine']
@@ -36,6 +37,7 @@ export default function MachineDetail() {
   const { suite = '', name = '' } = useParams()
   return (
     <section>
+      <SuiteTrail suite={suite} tab="machines" />
       <h1>Machine: {name}</h1>
       <WithSchema suite={suite}>
         {/* Keyed, so that nothing of a machine's page, an open prompt say, stays on another's. */}

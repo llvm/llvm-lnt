@@ -23,6 +23,7 @@ import {
   rowsOf,
   search,
   table,
+  trailLink,
 } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
@@ -144,7 +145,7 @@ describe('the Run Detail page', () => {
     expect(info.getByText('r100 (v1)').closest('dd')).not.toHaveClass('mono')
   })
 
-  it('shows only the error for a run that does not exist', async () => {
+  it('shows only the error for a run that does not exist, and the trail', async () => {
     renderRun({
       run: () => errorResponse(404, 'not_found', `Run '${UUID}' not found in test suite 'libcxx'`),
     })
@@ -152,6 +153,8 @@ describe('the Run Detail page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('not found')
     expect(screen.queryByRole('heading', { name: 'Samples' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    // The Runs tab is the default one.
+    expect(trailLink('Runs')).toHaveAttribute('href', '/suites/libcxx')
   })
 
   it('fetches the samples alongside the run', async () => {

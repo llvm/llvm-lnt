@@ -25,6 +25,7 @@ import {
   save,
   search,
   table,
+  trailLink,
   type Respond,
 } from '../../test/page'
 import { server } from '../../test/server'
@@ -196,7 +197,7 @@ describe('the Commit Detail page', () => {
     expect(rows[2]).toEqual(['Tag', '--Edit'])
   })
 
-  it('shows only the error for a commit that does not exist, with no retry', async () => {
+  it('shows only the error for a commit that does not exist, with no retry, and the trail', async () => {
     renderCommit({
       detail: () => errorResponse(404, 'not_found', `Commit '${VALUE}' not found in test suite`),
     })
@@ -205,6 +206,7 @@ describe('the Commit Detail page', () => {
     expect(screen.queryByRole('heading', { name: 'Runs' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Regressions' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(trailLink('Commits')).toHaveAttribute('href', '/suites/libcxx?tab=commits')
   })
 
   it('offers to fetch the commit again when it could not be', async () => {

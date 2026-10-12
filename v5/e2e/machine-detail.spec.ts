@@ -16,13 +16,20 @@ type Schemas = components['schemas']
 /** A machine `m1` with one run. */
 const RUNS = [{ machine: 'm1', commit: 'c1', ordinal: 1, tests: [{ name: 'bench' }] }]
 
-test('the Machines tab links to the page of each machine', async ({ page }) => {
+test('the Machines tab links to the page of each machine, whose trail leads back', async ({
+  page,
+}) => {
   await page.goto('/suites/libcxx?tab=machines')
   await table(page, 'Machines').getByRole('link', { name: MACOS, exact: true }).click()
 
   await expect(page).toHaveURL(`/suites/libcxx/machines/${MACOS}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Machine: ${MACOS}`)
   await expect(rows(table(page, 'Run history'))).toHaveCount(25)
+
+  const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+  await trail.getByRole('link', { name: 'Machines', exact: true }).click()
+  await expect(page).toHaveURL('/suites/libcxx?tab=machines')
+  await expect(page.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('shows the machine and its active regressions, and links to all of them', async ({

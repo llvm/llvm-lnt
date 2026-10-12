@@ -35,6 +35,7 @@ import {
   save,
   search,
   table,
+  trailLink,
 } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
@@ -174,7 +175,7 @@ describe('the Regression Detail page', () => {
     expect(main().queryByRole('link', { name: /javascript/ })).not.toBeInTheDocument()
   })
 
-  it('shows only the error for a regression that does not exist, with no retry', async () => {
+  it('shows only the error for a regression that does not exist, with no retry, and the trail', async () => {
     renderRegression({
       respond: () => errorResponse(404, 'not_found', `Regression '${UUID}' not found`),
     })
@@ -183,6 +184,7 @@ describe('the Regression Detail page', () => {
     expect(screen.queryByRole('group', { name: 'Regression' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     expect(heading()).toHaveTextContent('Regression: aaaaaaaa…')
+    expect(trailLink('Regressions')).toHaveAttribute('href', '/suites/libcxx?tab=regressions')
   })
 
   it('offers to fetch the regression again when it could not be', async () => {

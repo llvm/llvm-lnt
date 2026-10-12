@@ -18,6 +18,7 @@ import {
   renderPage,
   rowsOf,
   table,
+  trailLink,
 } from '../../test/page'
 import { server } from '../../test/server'
 
@@ -139,14 +140,15 @@ describe('the Machine Detail page', () => {
     expect(trackedBox()).not.toBeChecked()
   })
 
-  it('says when the suite does not exist', async () => {
+  it('says when the suite does not exist, with the trail', async () => {
     mockSuites()
     renderPage('/suites/nope/machines/x')
 
     expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'nope' not found.")
+    expect(trailLink('Machines')).toHaveAttribute('href', '/suites/nope?tab=machines')
   })
 
-  it('shows only the error for a machine that does not exist, with no retry', async () => {
+  it('shows only the error for a machine that does not exist, with no retry, and the trail', async () => {
     const { regressionQueries, runQueries } = mockPage({
       machine: () => errorResponse(404, 'not_found', "Machine 'x' not found in test suite 'libcxx'"),
     })
@@ -157,6 +159,7 @@ describe('the Machine Detail page', () => {
     expect(screen.queryByRole('heading', { name: 'Run History' })).not.toBeInTheDocument()
     expect(regressionQueries).toEqual([])
     expect(runQueries).toEqual([])
+    expect(trailLink('Machines')).toHaveAttribute('href', '/suites/libcxx?tab=machines')
   })
 
   it('offers to fetch the machine again when it could not be', async () => {
