@@ -54,11 +54,11 @@ the suite is a query parameter, not a path segment.
   first machine uses circles (default), the second triangles, then squares,
   diamonds, etc., so that removing a machine shifts the symbols of the machines
   after it. Each chip shows its machine's symbol. Colors represent test
-  identity, assigned by the test's position in the test table's unfiltered list
-  (GR6): every test the selected machines have for the metric, sorted by name.
-  Selecting, deselecting or filtering tests therefore never changes a test's
-  color. The same test on different machines shares the same color but has a
-  different marker shape.
+  identity: a test's color is derived from its name alone, so that it is the
+  same whatever the machines, the metric, the selection or the filter, and on
+  every visit to the page. Two tests may therefore share a color. The same test
+  on different machines shares the same color but has a different marker
+  shape.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not

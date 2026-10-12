@@ -5,7 +5,7 @@ import type { Layout, PlotData } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
-import { traceColor } from '../../chart-colors'
+import { colorOfName } from '../../chart-colors'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { chartProps } from '../../test/chart-props'
@@ -301,13 +301,13 @@ describe('the Graph page (GR1)', () => {
     expect(currentUrl()).toBe(`${GRAPHED}&test=a`)
   })
 
-  it('gives a test a colour by its place in the list, and a machine its marker', async () => {
+  it('gives a test a colour by its name, and a machine its marker', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test=b`)
 
     await waitFor(() => expect(traces()).toEqual(['b - m1: c10=3', 'b - m2: c40=4']))
     const data = chart().data as PlotData[]
-    expect(data.map((trace) => trace.line.color)).toEqual([traceColor(1), traceColor(1)])
+    expect(data.map((trace) => trace.line.color)).toEqual([colorOfName('b'), colorOfName('b')])
     expect(data.map((trace) => trace.marker.symbol)).toEqual(['circle', 'triangle-up'])
   })
 

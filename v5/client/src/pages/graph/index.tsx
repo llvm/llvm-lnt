@@ -7,7 +7,6 @@ import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
-import { traceColor } from '../../chart-colors'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { useRangeSelection } from '../../components/range-selection'
@@ -139,12 +138,6 @@ function GraphPage() {
   const series = useSeries(suite, metric?.name ?? '', selected, tests.byMachine)
   const scaffold = useScaffold(suite, machines)
 
-  // Each test's colour, by its position among every test listed, filtered or not, so that a test
-  // keeps its colour however the selection or the filter changes (GR1).
-  const colors = useMemo(
-    () => new Map(tests.names.map((name, i) => [name, traceColor(i)])),
-    [tests.names],
-  )
   // Whether the suite or the machines the URL names are still being checked, which nothing the
   // page shows can be said to be empty or missing until.
   const checking =
@@ -257,7 +250,6 @@ function GraphPage() {
         metric={metric}
         machines={machines}
         selected={sorted}
-        colors={colors}
         scaffold={scaffold}
         series={series}
         sampleAgg={settings.sample_agg}
@@ -271,7 +263,6 @@ function GraphPage() {
         shown={filter.rows}
         filtered={filter.active}
         selection={selection}
-        colors={colors}
         loading={series.loading}
         // Why the URL does not reflect the selection, when it does not (GR14).
         notInUrl={

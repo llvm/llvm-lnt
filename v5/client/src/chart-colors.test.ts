@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TRACE_COLORS, traceColor } from './chart-colors'
+import { TRACE_COLORS, colorOfName, traceColor } from './chart-colors'
 
 /** The relative luminance of a `#rrggbb` colour, as WCAG defines it. */
 function luminance(hex: string): number {
@@ -21,5 +21,17 @@ describe('TRACE_COLORS', () => {
   it('are all different, and taken again in order once all are used', () => {
     expect(new Set(TRACE_COLORS).size).toBe(TRACE_COLORS.length)
     expect(traceColor(TRACE_COLORS.length + 1)).toBe(TRACE_COLORS[1])
+  })
+})
+
+describe('colorOfName', () => {
+  it('gives a name the same colour every time, whatever else is drawn', () => {
+    expect(colorOfName('BM_find/1024')).toBe(colorOfName('BM_find/1024'))
+    expect(TRACE_COLORS).toContain(colorOfName('BM_find/1024'))
+  })
+
+  it('spreads names over every colour', () => {
+    const names = Array.from({ length: 200 }, (_, i) => `BM_test/${i}`)
+    expect(new Set(names.map(colorOfName)).size).toBe(TRACE_COLORS.length)
   })
 })

@@ -7,6 +7,7 @@ import {
   type MouseEvent,
 } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
+import { colorOfName } from '../../chart-colors'
 import { DataTable, type Column } from '../../components/data-table'
 import { Loading } from '../../components/feedback'
 import type { RangeSelection, RowSelection } from '../../components/range-selection'
@@ -21,8 +22,6 @@ interface Props {
   /** Whether the filter is set. */
   filtered: boolean
   selection: RangeSelection
-  /** Each test's colour on the chart. */
-  colors: ReadonlyMap<string, string>
   /** The selected tests whose data is still loading. */
   loading: ReadonlySet<string>
   /** Why the URL does not reflect the selection, if it does not, which the table warns of. */
@@ -68,7 +67,6 @@ export function TestTable({
   shown,
   filtered,
   selection,
-  colors,
   loading,
   notInUrl,
   listing,
@@ -88,7 +86,7 @@ export function TestTable({
       {
         id: 'color',
         header: <VisuallyHidden>Color</VisuallyHidden>,
-        cell: (test) => <Swatch rows={rows} test={test} color={colors.get(test)} />,
+        cell: (test) => <Swatch rows={rows} test={test} />,
       },
       {
         id: 'test',
@@ -101,7 +99,7 @@ export function TestTable({
         ),
       },
     ],
-    [rows, shown, colors, loadingStore],
+    [rows, shown, loadingStore],
   )
 
   const rowProps = useCallback(
@@ -164,10 +162,12 @@ function isolate(rows: RowSelection, test: string, shown: string[]) {
 }
 
 /** The colour of a selected test's traces (GR6), as a swatch, which has no shape of a machine's. */
-function Swatch({ rows, test, color }: { rows: RowSelection; test: string; color?: string }) {
+function Swatch({ rows, test }: { rows: RowSelection; test: string }) {
   const selected = useSyncExternalStore(rows.subscribe, () => rows.selected().has(test))
-  if (!selected || color === undefined) return null
-  return <span className={styles.swatch} style={{ background: color }} aria-hidden="true" />
+  if (!selected) return null
+  return (
+    <span className={styles.swatch} style={{ background: colorOfName(test) }} aria-hidden="true" />
+  )
 }
 
 /** Whether a selected test's data is still loading (GR7). */

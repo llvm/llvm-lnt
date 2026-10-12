@@ -4,6 +4,7 @@ import type { Aggregation } from '../../aggregation'
 import type { Scaffold } from '../../api/scaffold'
 import type { Measurement, Series } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
+import { colorOfName } from '../../chart-colors'
 import { Chart } from '../../components/chart'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
 import { graphLayout, plotlyTraces, type Trace } from './chart'
@@ -17,7 +18,6 @@ interface Props {
   machines: readonly string[]
   /** The tests selected, in order. */
   selected: readonly string[]
-  colors: ReadonlyMap<string, string>
   scaffold: Scaffold
   series: Series
   sampleAgg: Aggregation
@@ -95,7 +95,6 @@ export function GraphChart({
   metric,
   machines,
   selected,
-  colors,
   scaffold,
   series: latest,
   sampleAgg,
@@ -130,7 +129,7 @@ export function GraphChart({
         const measurements = series.measurementsOf(machine, test)
         const points = pointsFor(measurements, positions, sampleAgg, runAgg)
         if (points.length === 0) continue
-        traces.push({ test, machine, machineIndex, color: colors.get(test)!, points })
+        traces.push({ test, machine, machineIndex, color: colorOfName(test), points })
       }
     })
     return traces.length === 0 ? NO_DATA : plotlyTraces(traces, displayValue, metric)
@@ -143,7 +142,6 @@ export function GraphChart({
     positions,
     sampleAgg,
     runAgg,
-    colors,
     displayValue,
   ])
 
