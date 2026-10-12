@@ -133,7 +133,8 @@ into the chart while data is still loading, the zoom is preserved across
 incremental updates. The x-axis range is always preserved (it was established by
 the scaffold or by user zoom), until the scaffold itself changes, because a
 machine was removed or a machine's scaffold has arrived, which resets the zoom.
-The y-axis range is preserved only when the user has explicitly zoomed;
+The y-axis range is preserved only when the user has explicitly zoomed, and
+only until the metric changes, since another metric has another scale;
 otherwise, it auto-ranges to accommodate new data as it arrives. Double-clicking
 the chart resets the zoom to the full range as usual.
 
@@ -304,8 +305,8 @@ see the commit range.
 `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}`
 
 `test` is present only while at most 10 tests are selected: with more, the URL
-holds no `test` at all, and the page warns that the selection is not part of the
-URL and so cannot be shared. `test_filter_regex=true` turns on the test filter's
+holds no `test` at all, and the page says that the URL does not reflect the
+selection. `test_filter_regex=true` turns on the test filter's
 regex mode (see AR9). On load, `test_filter` filters the test table as if it had
 been typed, and a `test` that the test list for the selected machines and metric
 does not hold, or that does not match the filter, is dropped. Of a URL naming
