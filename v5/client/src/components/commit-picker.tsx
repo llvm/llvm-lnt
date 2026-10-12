@@ -1,28 +1,21 @@
 import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PAGE_SIZE } from '../api/client'
-import { fetchCommitPage, lookUpCommit, type CommitFilters } from '../api/commits'
+import { fetchCommitPage, type CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
 import type { SuiteSchema } from '../api/suites'
-import { commitDisplayValue, type Commit } from '../schema'
+import type { Commit } from '../schema'
 import { useDropUnusable } from '../url-state'
 import { Combobox } from './combobox'
+import { commitLookupKey, commitLookupQuery, suggestionOf } from './commit-lookup'
 import { useServerSuggestions, type Suggestion } from './suggestions'
 
-interface Props {
+interface CommonProps {
   label: string
   /** The suite to pick from, whose schema gives the commits' display values. */
   schema: SuiteSchema
   /** Which of the suite's commits the picker offers. Pass the same object while they are alike. */
   filters?: CommitFilters
-  /** The commit string of the commit selected, or null for none. */
-  value: string | null
-  /**
-   * A commit was picked, or the selection was cleared (null): because the input was emptied, or
-   * because the commit given is not one the picker offers (AR15). The latter may be reported more
-   * than once before `value` changes, so clearing must be idempotent, as a URL write is.
-   */
-  onChange(value: string | null): void
   placeholder?: string
   isDisabled?: boolean
   /** See `Combobox`. */
@@ -33,17 +26,37 @@ interface Props {
   onPendingChange?: (pending: boolean) => void
 }
 
+/** A picker holding a commit. */
+interface ValueProps {
+  /** The commit string of the commit selected, or null for none. */
+  value: string | null
+  /**
+   * A commit was picked, or the selection was cleared (null): because the input was emptied, or
+   * because the commit given is not one the picker offers (AR15). The latter may be reported more
+   * than once before `value` changes, so clearing must be idempotent, as a URL write is.
+   */
+  onChange(value: string | null): void
+  onPick?: never
+}
+
+/**
+ * A picker that hands the commit picked to something else, and is emptied (see `Combobox`). What it
+ * knows of the commit -- that the picker offers it, and its display value -- is stored as the
+ * answer to its lookup (see `commitLookupQuery`).
+ */
+interface PickProps {
+  onPick(value: string): void
+  value?: never
+  onChange?: never
+}
+
+type Props = CommonProps & (ValueProps | PickProps)
+
 /**
  * Why a form holding a commit picker cannot be submitted while the picker holds text that was not
  * picked (AR15).
  */
 export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.'
-
-/** A commit as a suggestion: shown by its display value, and entered by its commit string too. */
-function suggestionOf(commit: Commit, schema: SuiteSchema): Suggestion {
-  const text = commitDisplayValue(commit, schema)
-  return { key: commit.value, text, aliases: text === commit.value ? undefined : [commit.value] }
-}
 
 /**
  * A combobox selecting a commit (AR15). It searches the server rather than filtering a list it
@@ -62,8 +75,9 @@ export function CommitPicker({
   label,
   schema,
   filters = NO_FILTERS,
-  value,
+  value = null,
   onChange,
+  onPick,
   placeholder,
   isDisabled = false,
   isReadOnly,
@@ -87,36 +101,37 @@ export function CommitPicker({
   // The commit `value`, as a suggestion, if the picker offers it under its filters, and null if
   // not. A pick stores the answer for the commit picked, since the suggestions are those of the
   // current filters (see `useServerSuggestions`), so that only a commit given, or kept while the
-  // filters change, is looked up. The stored answer is fresh for the default `staleTime`, which is
-  // what keeps a pick from being looked up again.
+  // filters change, is looked up.
   const queryClient = useQueryClient()
-  const lookupKey = (commit: string | null) => [
-    ...queryKeys.commits(suite),
-    'lookup',
-    filters,
-    commit,
-  ]
+  const store = (suggestion: Suggestion) =>
+    queryClient.setQueryData(commitLookupKey(suite, filters, suggestion.key), suggestion)
   const lookup = useQuery({
-    queryKey: lookupKey(value),
-    queryFn: async ({ signal }) => {
-      const commit = await lookUpCommit(suite, filters, value!, signal)
-      return commit && suggestionOf(commit, schema)
-    },
+    ...commitLookupQuery(schema, filters, value ?? ''),
     enabled: value !== null,
     // While the same commit is looked up under new filters, keep showing it as it was.
     placeholderData: (previous) => (previous?.key === value ? previous : undefined),
   })
-  useDropUnusable(lookup, (found) => found !== null, () => onChange(null))
+  useDropUnusable(lookup, (found) => found !== null, () => onChange?.(null))
   const selected = value === null ? null : (lookup.data ?? { key: value, text: value })
 
+  const handlers = onPick
+    ? {
+        onPick: (suggestion: Suggestion) => {
+          store(suggestion)
+          onPick(suggestion.key)
+        },
+      }
+    : {
+        value: selected,
+        onChange: (suggestion: Suggestion | null) => {
+          if (suggestion) store(suggestion)
+          onChange(suggestion?.key ?? null)
+        },
+      }
   return (
     <Combobox
       label={label}
-      value={selected}
-      onChange={(suggestion) => {
-        if (suggestion) queryClient.setQueryData(lookupKey(suggestion.key), suggestion)
-        onChange(suggestion?.key ?? null)
-      }}
+      {...handlers}
       suggestions={suggestions}
       placeholder={placeholder}
       isDisabled={isDisabled}

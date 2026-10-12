@@ -33,6 +33,11 @@ export const queryKeys = {
    * machine at a time (see api/series.ts).
    */
   series: (suite: string) => ['suite', suite, 'series'] as const,
+  /**
+   * The data of the Graph page's baselines in the suite (GR9), every test's at a commit of a
+   * machine, which the page keeps for longer than its measurements (see pages/graph/baselines.ts).
+   */
+  baselines: (suite: string) => ['suite', suite, 'baselines'] as const,
 }
 
 /**

@@ -10,7 +10,7 @@ import type { Locator, Page } from '@playwright/test'
 import { HARDENED, LINUX, MACOS, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
 import { withOwnSuiteName } from './own-suite.ts'
-import { plotOf, tracesOf, type PlotDiv } from './plot.ts'
+import { plotOf, pointOf, tracesOf } from './plot.ts'
 
 const LIBCXX_METRICS = [
   'Execution Time',
@@ -26,23 +26,6 @@ function section(page: Page, suite: string) {
 
 function card(page: Page, name: string) {
   return section(page, 'libcxx').getByRole('article', { name, exact: true })
-}
-
-/**
- * Where in its plot the `index`th point of the `curve`th trace of `card`'s chart is drawn: relative
- * to the plot rather than to the page, so that acting there through the plot's locator finds the
- * point wherever the plot is, as other tests' suites load above libcxx and push it down.
- */
-async function pointOf(card: Locator, curve: number, index: number) {
-  return plotOf(card).evaluate(
-    (element, [curve, index]) => {
-      const plot = element as PlotDiv
-      const { _size, xaxis, yaxis } = plot._fullLayout
-      const trace = plot._fullData[curve]
-      return { x: _size.l + xaxis.l2p(trace.x[index]), y: _size.t + yaxis.l2p(trace.y[index]) }
-    },
-    [curve, index],
-  )
 }
 
 /**

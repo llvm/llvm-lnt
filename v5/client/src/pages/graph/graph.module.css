@@ -2,7 +2,6 @@
 
 .chart {
   height: 520px;
-  margin: var(--lnt-space-3) 0;
 }
 
 /*
@@ -85,4 +84,119 @@
 .loadingMark {
   color: var(--lnt-muted);
   font-size: 0.85em;
+}
+
+/* The row of what is drawn over the traces: the baselines. */
+.overlays {
+  display: flex;
+  flex-basis: 100%;
+}
+
+/* The chart, and what is placed over it: the hovered point's runs, the point details. */
+.chartArea {
+  position: relative;
+  margin: var(--lnt-space-3) 0;
+}
+
+/* The runs' values of the point hovered (GR10), which the pointer goes through to the chart. */
+.scatter {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The row of the test whose line is hovered on the chart (GR7). */
+.testRow:has(.hovered) {
+  background: color-mix(in srgb, var(--lnt-accent) 10%, transparent);
+}
+
+/* The details of a point (GR11), beside it, over the chart. */
+.details {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  width: max-content;
+  max-width: 24rem;
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+
+.details:focus {
+  outline: none;
+}
+
+.detailsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
+.detailsTest {
+  overflow-wrap: anywhere;
+}
+
+.detailsInfo {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 var(--lnt-space-2);
+  margin: 0;
+}
+
+.detailsInfo dt {
+  color: var(--lnt-muted);
+}
+
+.detailsInfo dd {
+  margin: 0;
+}
+
+/* The point's runs, which scroll once there are many. */
+.detailsRuns {
+  max-height: 10rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.mono {
+  font-family: var(--lnt-font-mono);
+}
+
+/* The baselines (GR9): their label, their chips, and the "+" button with the form it opens. */
+.baselines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lnt-space-1);
+}
+
+.baselinesLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.baselineAdding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
+}
+
+/* Its own size, rather than the width of the chips above it. */
+.addBaseline {
+  flex: none;
+}
+
+.baselineForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
 }

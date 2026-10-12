@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { PAGE_SIZE, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import { useMachineNames } from '../../api/machines'
 import { deleteRegression, fetchRegressionPage, type RegressionPage } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
@@ -14,10 +13,10 @@ import { Combobox } from '../../components/combobox'
 import { ConfirmDelete } from '../../components/confirm-delete'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
+import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { CursorPager } from '../../components/pagination'
 import { StateBadge, StateChips } from '../../components/regression-state'
 import { Select } from '../../components/select'
-import { useLocalSuggestions } from '../../components/suggestions'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
@@ -55,11 +54,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
 
   // A machine or a metric the suite does not have is dropped (AR2 "State"): a metric as soon as it
   // is read, since the schema lists them, and a machine once the machine list shows it is unknown.
-  const machines = useMachineNames(suite)
-  const machineSuggestions = useLocalSuggestions(
-    useMemo(() => machines.data?.map((name) => ({ key: name, text: name })), [machines.data]),
-    machines.error,
-  )
+  const { machines, suggestions: machineSuggestions } = useMachineSuggestions(suite)
   useDropUnusable(
     machines,
     (names) => filters.machine === '' || names.includes(filters.machine),

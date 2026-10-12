@@ -23,7 +23,8 @@ import {
   type Query,
   type QueryClient,
 } from '@tanstack/react-query'
-import { api, MAX_PAGE_SIZE, unwrap } from './client'
+import { api, MAX_PAGE_SIZE, unwrap, type Schemas } from './client'
+import { failuresOf } from './failures'
 import { queryKeys } from './keys'
 import { RequestSlots } from './request-slots'
 import { scaffoldKey } from './scaffold'
@@ -34,8 +35,20 @@ export interface Measurement {
   commit: string
   /** The run's UUID. */
   run: string
+  /** When the run was submitted. */
+  submitted: string
   value: number
 }
+
+/** A point `POST /query` returned (E9), as the Graph page keeps it. */
+export function measurementOf(point: Schemas['DataPoint']): Measurement {
+  // The Graph page plots numeric metrics only (GR1).
+  const { commit, run_uuid: run, submitted_at: submitted, value } = point
+  return { commit, run, submitted, value: value as number }
+}
+
+/** How far a trace's measurements are loaded. */
+export type TraceState = 'loading' | 'failed' | 'complete'
 
 export interface Series {
   /**
@@ -43,6 +56,8 @@ export interface Series {
    * until more of them arrive.
    */
   measurementsOf(machine: string, test: string): readonly Measurement[]
+  /** How far the measurements of `test` on `machine` are loaded, while the test is selected. */
+  stateOf(machine: string, test: string): TraceState
   /** The selected tests whose measurements are still loading on some machine. */
   loading: ReadonlySet<string>
   /** Why some test's measurements could not be loaded, if they could not. */
@@ -95,14 +110,7 @@ async function fetchPage(
     ),
   )
   return {
-    // The Graph page plots numeric metrics only (GR1).
-    measurements: page.items.map(
-      (point): Measurement => ({
-        commit: point.commit,
-        run: point.run_uuid,
-        value: point.value as number,
-      }),
-    ),
+    measurements: page.items.map(measurementOf),
     next: page.cursor.next,
   }
 }
@@ -210,20 +218,25 @@ const traceKey = (machine: string, test: string) => `${machine}\0${test}`
 /** The series of `traces`, from the results of their queries, in order. */
 function combineTraces(traces: Trace[], results: TraceResult[]): Series {
   const measurements = new Map<string, readonly Measurement[]>()
+  const states = new Map<string, TraceState>()
   const loading = new Set<string>()
   results.forEach(({ data, error, isFetching }, i) => {
     const { machine, test } = traces[i]
-    if (data !== undefined) measurements.set(traceKey(machine, test), data.measurements)
+    const key = traceKey(machine, test)
+    if (data !== undefined) measurements.set(key, data.measurements)
     // Until its every page has arrived, or one has failed and is not being fetched again.
     if (isFetching || (data === undefined && error === null)) loading.add(test)
+    states.set(
+      key,
+      isFetching ? 'loading' : error !== null ? 'failed' : data?.complete ? 'complete' : 'loading',
+    )
   })
-  const failed = results.filter((result) => result.error !== null)
   return {
     measurementsOf: (machine, test) =>
       measurements.get(traceKey(machine, test)) ?? NO_MEASUREMENTS,
+    stateOf: (machine, test) => states.get(traceKey(machine, test)) ?? 'loading',
     loading,
-    error: failed[0]?.error ?? null,
-    retry: () => failed.forEach((result) => void result.refetch()),
+    ...failuresOf(results),
   }
 }
 

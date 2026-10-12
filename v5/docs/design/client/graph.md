@@ -13,7 +13,8 @@ the suite is a query parameter, not a path segment.
 
 - **Suite selector**: A required dropdown at the top of the page, populated from
   the test suites defined on the instance. All other controls (machine, metric,
-  test filter, aggregation, baselines) are disabled until a suite is selected.
+  test filter, aggregation, regression annotations, baselines) are disabled
+  until a suite is selected.
   Changing the suite clears the machines, the metric, the selected tests and
   the chart. The test filter, the aggregation, the regression annotation mode
   (GR15) and the baselines (GR9) are kept: a baseline names its own suite.
@@ -168,7 +169,8 @@ sole selected test restores all (selects every visible test). Selected tests
 with data still loading show a loading indicator. The chart has no legend of its
 own; the table and the machine chips (GR1) serve as one. Bidirectional hover
 highlighting: hovering a table row highlights the corresponding chart trace(s);
-hovering a chart trace highlights the table row. A selection of up to 10 tests
+hovering a chart trace highlights the table row. A test's baseline lines (GR9)
+count as its traces for both. A selection of up to 10 tests
 is kept in the URL, along with the rest of the page's state (see GR14).
 
 At most 100 tests can be selected at once: well before that, the chart is
@@ -199,9 +201,12 @@ Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
 comparisons. The selector is an expandable panel with cascading selectors: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint) -> Commit (populated from the selected machine's
-commits via `GET commits?machine={name}&sort=-first_seen`; see AR15). Added
+commits via `GET commits?machine={name}&sort=-first_seen`; see AR15). Picking
+a commit adds the baseline, and empties the commit selector but keeps the suite
+and the machine, so that another commit of the machine can be added. Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
-where `display_value` is the commit's display value (see AR6). A baseline
+where `display_value` is the commit's display value (see AR6), or the commit
+string until the display value is known. A baseline
 loaded from the URL is looked up like a commit given to the commit picker:
 through `GET commits?machine={machine}&commit={commit}` in the baseline's
 suite, which returns the commit, with its display value, only if the machine
@@ -216,7 +221,9 @@ as a horizontal dashed line per selected test, spanning the full chart width,
 colored to match that test's traces. The baseline's Y value for each test is
 computed with the same sample and run aggregation as the traces (GR1), so that
 when the baseline's suite and machine are plotted and its commit is on the
-x-axis, the dashed line meets that machine's trace at the baseline commit. A
+x-axis, the dashed line meets that machine's trace at the baseline commit. Since
+a test's samples may span several pages, a baseline draws nothing until all its
+data has arrived. The y-axis range includes the baseline's lines. A
 baseline draws no line for a test it has no data for, and draws nothing at all
 when its suite does not declare the plotted metric as a numeric metric with the
 same `unit` (an unset unit matching only an unset one), as CP1 requires of a
@@ -239,7 +246,8 @@ cursor is within a few pixels of a data point, so that tooltips are not sticky.
 When hovering over a point that represents multiple runs, its per-run values
 (see GR1) are shown as a scatter of markers at the same x-position, in the
 same trace color but faded (opacity 0.3). This scatter is computed lazily on
-hover and removed on unhover.
+hover and removed on unhover. Showing it does not rescale the chart: a per-run
+value outside the y-axis range is not shown.
 
 
 ### GR11: Point Details
@@ -251,9 +259,9 @@ stays open as the pointer moves, so that its links can be followed. It shows:
 - the machine, linking to its Machine Detail page;
 - the commit, linking to its Commit Detail page;
 - the point's value and run count;
-- the point's runs, each with its submission time, its shortened UUID linking to
-  its Run Detail page, and its per-run value as the hover scatter shows it
-  (GR10). The list scrolls when it is long;
+- the point's runs, in the order they were submitted, each with its submission
+  time, its shortened UUID linking to its Run Detail page, and its per-run value
+  as the hover scatter shows it (GR10). The list scrolls when it is long;
 - "Compare with previous": a link to the Compare page set up to compare this
   point with the previous point of the same trace. Side A is the previous
   point's commit, side B this point's commit, both in this suite and on this
@@ -265,11 +273,14 @@ stays open as the pointer moves, so that its links can be followed. It shows:
   test. The link is disabled (see AR8) at the first point of a trace, and while
   the trace's data is still loading or could not all be loaded.
 
-While it is open, the popover follows its point and updates its contents as
-more data arrives. It closes on Escape, on its close button, on a click outside
-it, and on any change to the chart other than data arriving, such as a zoom or
-pan, or a change to the selected tests, machines, metric, filter or
-aggregation. A click on another point opens that point's popover instead.
+While it is open, the popover follows its point -- as more data arrives, the
+chart is resized or the page scrolls -- and updates its contents as more data
+arrives. It closes on Escape, on its close button, on a click outside it, and on
+any change to the chart other than data arriving, such as a zoom or pan, or a
+change to the selected tests, machines, metric, filter, aggregation, baselines
+or regression annotation mode, and once its point is no longer drawn. Moving
+the focus out of it does not close it. A click on another point opens that
+point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or
 nothing.
 
@@ -281,7 +292,8 @@ tests is loading or has failed to load -- before a machine and a metric are
 chosen, when no test is selected, or when the selected tests have no data on the
 selected machines -- the chart displays an overlay "No data to plot" centered on
 the chart area, preserving the x-axis scaffold, if there is one, so the user can
-see the commit range.
+see the commit range. Baseline lines (GR9) and regression annotations (GR15) are
+not points.
 
 
 ### GR13: API Calls
@@ -323,8 +335,11 @@ vertical dashed line is drawn at the commit of each regression with an
 indicator naming one of the plotted machines, the plotted metric, and one of
 the selected tests. Lines are color-coded by state: red for `active`, yellow
 for `detected`, and gray for the resolved states (`not_to_be_fixed`, `fixed`
-and `false_positive`). Hover shows the regression title and which of
-the selected tests it affects; click navigates to the regression detail page.
+and `false_positive`). The line itself is not hovered, so that the points along
+it can be: each line has a marker of its color at its top, stacked downwards
+when several regressions share a commit. Hovering a marker shows the regression
+title and which of the selected tests it affects; clicking it navigates to the
+regression detail page.
 A regression with no commit, or whose commit is not on the x-axis scaffold
 (GR3), has no position on the chart and is not drawn. The selected mode is
 persisted in the URL as `regressions={off|active|all}`.

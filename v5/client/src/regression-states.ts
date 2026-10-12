@@ -13,6 +13,9 @@ export const REGRESSION_STATES: readonly RegressionState[] = [
   'false_positive',
 ]
 
+/** The states of the regressions still being worked on, as opposed to resolved ones. */
+export const ACTIVE_STATES: readonly RegressionState[] = ['detected', 'active']
+
 /** How a state is shown: its name, in words. */
 export function stateLabel(state: RegressionState): string {
   return state.replaceAll('_', ' ')

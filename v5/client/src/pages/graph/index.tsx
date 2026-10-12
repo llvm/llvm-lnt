@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigationType } from 'react-router'
 import { AGGREGATIONS, type Aggregation } from '../../aggregation'
 import { useMachineNames } from '../../api/machines'
+import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
@@ -14,6 +15,7 @@ import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
+import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
 import { isNumeric, labelOf, type Metric } from '../../schema'
 import {
   booleanParam,
@@ -24,6 +26,16 @@ import {
   useDropUnusable,
   useUrlState,
 } from '../../url-state'
+import { ValueStore } from '../../value-store'
+import { BaselinePanel } from './baseline-panel'
+import {
+  baselineParam,
+  type Baseline,
+  forgetBaselines,
+  formatBaseline,
+  useBaselines,
+  useParsedBaselines,
+} from './baselines'
 import { GraphChart } from './graph-chart'
 import { MachineChips } from './machine-chips'
 import { TestTable } from './test-table'
@@ -35,6 +47,21 @@ const SELECTION_LIMIT = { count: 100, why: 'At most 100 tests can be selected at
 /** At most how many selected tests the URL holds (GR14). */
 const TESTS_IN_URL = 10
 
+/** Which regressions are marked on the chart (GR15). */
+const ANNOTATIONS = [
+  { value: 'off', label: 'Off' },
+  { value: 'active', label: 'Active' },
+  { value: 'all', label: 'All' },
+] as const
+
+type Annotations = (typeof ANNOTATIONS)[number]['value']
+
+/** The states of the regressions each mode marks (GR15): those still worked on, or every one. */
+const MARKED: Record<Exclude<Annotations, 'off'>, readonly RegressionState[]> = {
+  active: ACTIVE_STATES,
+  all: REGRESSION_STATES,
+}
+
 const PARAMS = {
   suite: stringParam(),
   /** The machines, in the order of their chips. */
@@ -45,11 +72,14 @@ const PARAMS = {
   test: listParam(),
   sample_agg: enumParam(AGGREGATIONS, 'median'),
   run_agg: enumParam(AGGREGATIONS, 'median'),
+  regressions: enumParam(ANNOTATIONS.map((option) => option.value), 'off'),
+  baseline: baselineParam(),
 }
 
 const AGGREGATION_OPTIONS = AGGREGATIONS.map((value) => ({ value, label: value }))
 
 const NO_NAMES: string[] = []
+const NO_SUITES: SuiteSchema[] = []
 const nameOf = (name: string) => name
 
 /**
@@ -74,6 +104,10 @@ function GraphPage() {
   // What the page fetched in a suite is kept for as long as it shows it (GR8).
   const client = useQueryClient()
   useEffect(() => () => forgetGraphData(client, suite), [client, suite])
+  useEffect(() => () => forgetBaselines(client), [client])
+  // The test hovered in the table, and the one hovered on the chart (GR7).
+  const [emphasis] = useState(() => new ValueStore<string | null>(null))
+  const [hovered] = useState(() => new ValueStore<string | null>(null))
 
   // The machines chosen that exist, once that is known: nothing is fetched for the others, which
   // are dropped.
@@ -138,6 +172,38 @@ function GraphPage() {
   const series = useSeries(suite, metric?.name ?? '', selected, tests.byMachine)
   const scaffold = useScaffold(suite, machines)
 
+  // The baselines (GR9), those of the URL that are unusable dropped (AR2 "State").
+  const baselines = useBaselines(useParsedBaselines(settings.baseline), suites.data, metric)
+  const { states } = baselines
+  useEffect(() => {
+    const unusable = states.filter((state) => state.unusable)
+    const dropped = new Set(unusable.map((state) => formatBaseline(state.baseline)))
+    if (dropped.size > 0) update({ baseline: settings.baseline.filter((v) => !dropped.has(v)) })
+  }, [states, settings.baseline, update])
+
+  const addBaseline = (baseline: Baseline) => {
+    const value = formatBaseline(baseline)
+    if (!settings.baseline.includes(value)) update({ baseline: [...settings.baseline, value] })
+  }
+
+  // The regressions marked (GR15): those of the selected tests that some machine's list holds,
+  // once every list is in, since the API refuses a test that does not exist (E8).
+  const marked = useMemo(() => {
+    const held = [...tests.byMachine.values()]
+    return sorted.filter((test) => held.some((names) => names.has(test)))
+  }, [sorted, tests.byMachine])
+  const mode = settings.regressions
+  const regressions = useMarkedRegressions(
+    suite,
+    {
+      machines,
+      tests: marked,
+      metric: metric?.name ?? '',
+      states: mode === 'off' ? [] : MARKED[mode],
+    },
+    mode !== 'off' && known && machines.length > 0 && marked.length > 0,
+  )
+
   // Whether the suite or the machines the URL names are still being checked, which nothing the
   // page shows can be said to be empty or missing until.
   const checking =
@@ -148,6 +214,7 @@ function GraphPage() {
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
+
   const chooseSuite = (name: string) => {
     rows.replace([])
     update({ suite: name, machine: [], metric: '', test: [] })
@@ -220,6 +287,25 @@ function GraphPage() {
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
             isDisabled={disabled}
           />
+          <Select<Annotations>
+            label="Regressions"
+            options={ANNOTATIONS}
+            value={mode}
+            onChange={(value) => update({ regressions: value })}
+            isDisabled={disabled}
+          />
+        </div>
+        {/* What is drawn over the traces. */}
+        <div className={styles.overlays}>
+          <BaselinePanel
+            suites={suites.data ?? NO_SUITES}
+            baselines={baselines.states}
+            onAdd={addBaseline}
+            onRemove={(value) =>
+              update({ baseline: settings.baseline.filter((entry) => entry !== value) })
+            }
+            isDisabled={disabled}
+          />
         </div>
       </ControlsPanel>
       {machineNames.isError && (
@@ -251,6 +337,20 @@ function GraphPage() {
           onRetry={series.retry}
         />
       )}
+      {baselines.error !== null && (
+        <ErrorMessage
+          context="A baseline could not be loaded"
+          error={baselines.error}
+          onRetry={baselines.retry}
+        />
+      )}
+      {regressions.error !== null && (
+        <ErrorMessage
+          context="The regressions could not be loaded"
+          error={regressions.error}
+          onRetry={regressions.retry}
+        />
+      )}
       <GraphChart
         schema={schema}
         metric={metric}
@@ -263,6 +363,21 @@ function GraphPage() {
         settled={
           !checking && !listing && !scaffold.pending && series.loading.size === 0 && !failed
         }
+        baselines={baselines.states}
+        regressions={regressions.regressions}
+        emphasis={emphasis}
+        hovered={hovered}
+        closeOn={[
+          sorted,
+          machines.join('\0'),
+          metric?.name,
+          settings.test_filter,
+          settings.test_filter_regex,
+          settings.sample_agg,
+          settings.run_agg,
+          settings.baseline.join('\n'),
+          mode,
+        ]}
       />
       <TestTable
         all={tests.names}
@@ -276,6 +391,8 @@ function GraphPage() {
         }
         listing={listing}
         empty={emptyTable({ checking, schema, numeric, machines, metric })}
+        emphasis={emphasis}
+        hovered={hovered}
       />
     </section>
   )

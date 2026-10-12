@@ -1,14 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Data } from 'plotly.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Data, PlotData, PlotMouseEvent } from 'plotly.js'
+import { useNavigate } from 'react-router'
 import type { Aggregation } from '../../aggregation'
+import type { MarkedRegression } from '../../api/regressions'
 import type { Scaffold } from '../../api/scaffold'
 import type { Measurement, Series } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
-import { Chart } from '../../components/chart'
+import { Chart, type PlotGeometry } from '../../components/chart'
+import { compareStrings } from '../../format'
+import { regressionPath } from '../../paths'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
-import { graphLayout, plotlyTraces, type Trace } from './chart'
-import { pointsOf, type Point } from './points'
+import type { BaselineState } from './baselines'
+import {
+  baselineTraces,
+  graphLayout,
+  plotlyTraces,
+  regressionMarkers,
+  regressionShapes,
+  withEmphasis,
+  type BaselineLine,
+  type PlacedRegression,
+  type RegressionMark,
+  type Trace,
+} from './chart'
+import { PointDetails } from './point-details'
+import { combineRuns, pointsOf, runValues, type Point } from './points'
+import { useStoreValue, type ValueStore } from '../../value-store'
 import styles from './graph.module.css'
 
 interface Props {
@@ -24,6 +42,18 @@ interface Props {
   runAgg: Aggregation
   /** Whether nothing the chart draws is loading or failed to load: an empty chart is empty. */
   settled: boolean
+  baselines: BaselineState[]
+  /** The regressions to mark (GR15). */
+  regressions: MarkedRegression[]
+  /** The test whose row is hovered in the test table, which the chart emphasizes (GR7). */
+  emphasis: ValueStore<string | null>
+  /** Where the chart says which test's line is hovered, for the table to highlight it (GR7). */
+  hovered: ValueStore<string | null>
+  /**
+   * What the chart is drawn from, besides the data: when any of it changes, the point details
+   * close (GR11).
+   */
+  closeOn: readonly unknown[]
 }
 
 /** How often the chart is drawn again, at most, while data arrives: a redraw draws every trace. */
@@ -50,6 +80,9 @@ function useThrottled<T>(value: T, key: string, throttled: boolean, interval: nu
   }, [value, key, throttled, interval])
   return current ? shown.value : value
 }
+
+const sameList = (a: readonly unknown[], b: readonly unknown[]) =>
+  a.length === b.length && a.every((item, i) => Object.is(item, b[i]))
 
 /** A trace's points, and what besides its measurements they were computed from. */
 interface Computed {
@@ -86,9 +119,46 @@ function pointsFor(
   return points
 }
 
+/** What a curve of the chart is, for an event on it to be understood. */
+type Curve =
+  | { kind: 'trace'; trace: Trace }
+  | { kind: 'baseline'; test: string }
+  | { kind: 'regression'; uuid: string }
+
+/** The test a curve draws, if it draws one. */
+function testOf(curve: Curve): string | null {
+  if (curve.kind === 'trace') return curve.trace.test
+  return curve.kind === 'baseline' ? curve.test : null
+}
+
+/** A point of a trace, by the trace's machine and test and the point's commit. */
+interface PointKey {
+  machine: string
+  test: string
+  commit: string
+}
+
+/** The trace of `key` among `traces`, and the index of its point at `key.commit`, if any. */
+function findPoint(traces: Trace[], { machine, test, commit }: PointKey) {
+  const trace = traces.find((drawn) => drawn.machine === machine && drawn.test === test)
+  const index = trace?.points.findIndex((point) => point.commit === commit) ?? -1
+  return trace === undefined || index < 0 ? null : { trace, index }
+}
+
+/** The values of the runs of `measurements` at `commit`, in the order they were submitted. */
+function runsAt(measurements: readonly Measurement[], commit: string, sampleAgg: Aggregation) {
+  const runs = runValues(
+    measurements.filter((measurement) => measurement.commit === commit),
+    sampleAgg,
+  )
+  return runs.sort((a, b) => compareStrings(a.submitted, b.submitted))
+}
+
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
- * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived.
+ * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
+ * (GR9) and the regressions' (GR15) over them. Hovering a point shows its runs' values (GR10), and
+ * clicking it its details (GR11).
  */
 export function GraphChart({
   schema,
@@ -100,6 +170,11 @@ export function GraphChart({
   sampleAgg,
   runAgg,
   settled,
+  baselines,
+  regressions,
+  emphasis,
+  hovered,
+  closeOn,
 }: Props) {
   const { commits, listed } = scaffold
   const series = useThrottled(
@@ -119,9 +194,9 @@ export function GraphChart({
     return (value: string) => shown.get(value) ?? value
   }, [commits, schema])
 
-  const data = useMemo(() => {
-    if (metric === undefined) return NO_DATA
-    const traces: Trace[] = []
+  const traces = useMemo(() => {
+    const drawn: Trace[] = []
+    if (metric === undefined) return drawn
     machines.forEach((machine, machineIndex) => {
       // A machine's traces wait for its scaffold, without which their commits have no position.
       if (!listed.has(machine)) return
@@ -129,38 +204,235 @@ export function GraphChart({
         const measurements = series.measurementsOf(machine, test)
         const points = pointsFor(measurements, positions, sampleAgg, runAgg)
         if (points.length === 0) continue
-        traces.push({ test, machine, machineIndex, color: colorOfName(test), points })
+        drawn.push({ test, machine, machineIndex, color: colorOfName(test), points })
       }
     })
-    return traces.length === 0 ? NO_DATA : plotlyTraces(traces, displayValue, metric)
-  }, [
-    metric,
-    machines,
-    listed,
-    series,
-    selected,
-    positions,
-    sampleAgg,
-    runAgg,
-    displayValue,
-  ])
+    return drawn
+  }, [metric, machines, listed, series, selected, positions, sampleAgg, runAgg])
+
+  // A line per baseline and selected test it has a value for, once all its data has arrived, since
+  // a test's samples may span its pages.
+  const lines = useMemo(
+    () =>
+      baselines.flatMap(({ baseline, display, samples }): BaselineLine[] =>
+        samples === undefined
+          ? []
+          : selected.flatMap((test) => {
+              const measured = samples.get(test)
+              if (measured === undefined) return []
+              const value = combineRuns(runValues(measured, sampleAgg), runAgg)
+              const { suite, machine } = baseline
+              return [{ suite, machine, commit: display, test, value, color: colorOfName(test) }]
+            }),
+      ),
+    [baselines, selected, sampleAgg, runAgg],
+  )
+
+  // The regressions whose commit is on the x-axis, each stacked below those at its commit before,
+  // and the selected tests each affects.
+  const placed = useMemo(() => {
+    const stacked = new Map<string, number>()
+    return regressions.flatMap((regression): (MarkedRegression & PlacedRegression)[] => {
+      const { commit } = regression
+      if (!positions.has(commit)) return []
+      const stack = stacked.get(commit) ?? 0
+      stacked.set(commit, stack + 1)
+      return [{ ...regression, stack }]
+    })
+  }, [regressions, positions])
+  const marks = useMemo(
+    () =>
+      placed.map(
+        (regression): RegressionMark => ({
+          ...regression,
+          tests: selected.filter((test) => regression.tests.has(test)),
+        }),
+      ),
+    [placed, selected],
+  )
+
+  // Everything drawn, and what each curve is. Each kind is built apart, so that what changes one
+  // does not build the others again: the traces' points are many.
+  const traceData = useMemo(
+    () => (metric === undefined ? NO_DATA : plotlyTraces(traces, displayValue, metric)),
+    [traces, displayValue, metric],
+  )
+  const lineData = useMemo(
+    () => (metric === undefined ? NO_DATA : baselineTraces(lines, metric)),
+    [lines, metric],
+  )
+  const markerData = useMemo(() => regressionMarkers(marks), [marks])
+  const drawn = useMemo(
+    () => ({
+      data: [...traceData, ...lineData, ...markerData],
+      curves: [
+        ...traces.map((trace): Curve => ({ kind: 'trace', trace })),
+        ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
+        ...marks.map(({ uuid }): Curve => ({ kind: 'regression', uuid })),
+      ],
+    }),
+    [traceData, lineData, markerData, traces, lines, marks],
+  )
+
+  // The test hovered in the table, emphasized over the others, as long as it is drawn (GR7). Its
+  // traces share their points with those drawn before, so that Plotly only restyles them.
+  const emphasized = useStoreValue(emphasis, (test) => test)
+  const shown = useMemo(() => {
+    const { data, curves } = drawn
+    const on = curves.some((curve) => testOf(curve) === emphasized) ? emphasized : null
+    const styled =
+      on === null
+        ? data
+        : data.map((trace, i) => {
+            const test = testOf(curves[i])
+            return test === null ? trace : withEmphasis(trace as Partial<PlotData>, test === on)
+          })
+    // Plotly reports an event with the trace it drew, which may be one drawn before the latest
+    // render, while it is drawing again: an index into the latest curves could be another's.
+    const curveOf = new WeakMap(styled.map((trace, i) => [trace as object, curves[i]]))
+    return { data: styled, curveOf }
+  }, [drawn, emphasized])
 
   // What the x-axis is made of: a change resets the zoom (GR5).
   const revision = machines.filter((machine) => listed.has(machine)).join('\0')
-  const empty = data.length === 0 && settled
+  // Baselines and regressions are no points of their own (GR12).
+  const empty = traces.length === 0 && settled
   const layout = useMemo(() => {
     const values = commits.map((commit) => commit.value)
-    return graphLayout({ commits: values, displayValue, revision, metric: metric?.name, empty })
-  }, [commits, displayValue, revision, metric, empty])
+    return graphLayout({
+      commits: values,
+      displayValue,
+      revision,
+      metric: metric?.name,
+      empty,
+      shapes: regressionShapes(placed),
+    })
+  }, [commits, displayValue, revision, metric, empty, placed])
+
+  // Where the plot draws, to place the runs' values and the point details over it. Nothing drawn
+  // depends on it, so that a draw does not ask for another.
+  const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
+  const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
+  const [open, setOpen] = useState<PointKey | null>(null)
+  const close = useCallback(() => setOpen(null), [])
+  // Any change to what the chart is drawn from, besides data arriving, closes the details (GR11).
+  const [drawnFrom, setDrawnFrom] = useState(closeOn)
+  if (!sameList(drawnFrom, closeOn)) {
+    setDrawnFrom(closeOn)
+    setOpen(null)
+  }
+
+  const navigate = useNavigate()
+  const curveAt = (event: PlotMouseEvent) => {
+    const point = event.points[0]
+    const curve = point && shown.curveOf.get(point.data)
+    return curve && { curve, index: point.pointNumber }
+  }
+  const pointOf = (trace: Trace, index: number): PointKey => {
+    const { machine, test } = trace
+    return { machine, test, commit: trace.points[index].commit }
+  }
+  const onHover = (event: PlotMouseEvent) => {
+    const at = curveAt(event)
+    if (at === undefined) return
+    if (at.curve.kind === 'trace') setHoveredPoint(pointOf(at.curve.trace, at.index))
+    hovered.set(testOf(at.curve))
+  }
+  const onUnhover = () => {
+    setHoveredPoint(null)
+    hovered.set(null)
+  }
+  const onClick = (event: PlotMouseEvent) => {
+    const at = curveAt(event)
+    if (at === undefined) return
+    if (at.curve.kind === 'trace') setOpen(pointOf(at.curve.trace, at.index))
+    if (at.curve.kind === 'regression' && schema !== undefined) {
+      const path = regressionPath(schema.name, at.curve.uuid)
+      // As a modified click on a link does (AR2 "Routing").
+      const { ctrlKey, metaKey, shiftKey } = event.event
+      if (ctrlKey || metaKey || shiftKey) window.open(path, '_blank', 'noopener')
+      else navigate(path)
+    }
+  }
+
+  // The values of the runs of the point hovered, if it has several (GR10).
+  let scatter = null
+  const hoveredAt = hoveredPoint && findPoint(traces, hoveredPoint)
+  if (geometry !== null && hoveredAt) {
+    const { trace, index } = hoveredAt
+    const point = trace.points[index]
+    if (point.runs > 1) {
+      const measurements = series.measurementsOf(trace.machine, trace.test)
+      const { area } = geometry
+      const x = geometry.x(point.position) - area.left
+      scatter = (
+        <svg
+          className={styles.scatter}
+          style={{ left: area.left, top: area.top, width: area.width, height: area.height }}
+          aria-hidden="true"
+        >
+          {runsAt(measurements, point.commit, sampleAgg).map((run) => (
+            <circle
+              key={run.run}
+              cx={x}
+              cy={geometry.y(run.value) - area.top}
+              r={4}
+              fill={trace.color}
+              fillOpacity={0.3}
+            />
+          ))}
+        </svg>
+      )
+    }
+  }
+
+  // The details of the point clicked (GR11), which close once it is no longer drawn.
+  const openAt = open && findPoint(traces, open)
+  if (open !== null && !openAt) setOpen(null)
+  let details = null
+  if (openAt && geometry !== null && schema !== undefined && metric !== undefined) {
+    const { trace, index } = openAt
+    const point = trace.points[index]
+    const x = geometry.x(point.position)
+    const { area } = geometry
+    const side = x < area.left + area.width / 2 ? 'right' : 'left'
+    details = (
+      <PointDetails
+        key={`${trace.machine}\0${trace.test}\0${point.commit}`}
+        schema={schema}
+        metric={metric}
+        machine={trace.machine}
+        test={trace.test}
+        point={point}
+        display={displayValue(point.commit)}
+        runs={runsAt(series.measurementsOf(trace.machine, trace.test), point.commit, sampleAgg)}
+        previous={trace.points[index - 1] ?? null}
+        state={series.stateOf(trace.machine, trace.test)}
+        sampleAgg={sampleAgg}
+        runAgg={runAgg}
+        at={{ x, y: geometry.y(point.value), side }}
+        onClose={close}
+      />
+    )
+  }
 
   const label = metric ? `${labelOf(metric)} over time` : 'Graph'
   return (
-    <Chart
-      label={empty ? `${label}: no data to plot` : label}
-      className={styles.chart}
-      data={data}
-      layout={layout}
-    />
+    <div className={styles.chartArea}>
+      <Chart
+        label={empty ? `${label}: no data to plot` : label}
+        className={styles.chart}
+        data={shown.data}
+        layout={layout}
+        onHover={onHover}
+        onUnhover={onUnhover}
+        onClick={onClick}
+        onDraw={setGeometry}
+        onRelayout={close}
+      />
+      {scatter}
+      {details}
+    </div>
   )
 }
 

@@ -16,6 +16,41 @@ export interface Point {
   runs: number
 }
 
+/** One run's value: its samples, combined by the sample aggregation (GR1). */
+export interface RunValue {
+  /** The run's UUID. */
+  run: string
+  /** When the run was submitted. */
+  submitted: string
+  value: number
+}
+
+/** The value of each run among `measurements`, its samples combined by `sampleAgg`. */
+export function runValues(
+  measurements: Iterable<Measurement>,
+  sampleAgg: Aggregation,
+): RunValue[] {
+  const runs = new Map<string, { submitted: string; samples: number[] }>()
+  for (const { run, submitted, value } of measurements) {
+    const known = runs.get(run)
+    if (known === undefined) runs.set(run, { submitted, samples: [value] })
+    else known.samples.push(value)
+  }
+  return [...runs].map(([run, { submitted, samples }]) => ({
+    run,
+    submitted,
+    value: aggregate(samples, sampleAgg),
+  }))
+}
+
+/** The value of `runs`, one or more, combined by `runAgg` (GR1). */
+export function combineRuns(runs: readonly RunValue[], runAgg: Aggregation): number {
+  return aggregate(
+    runs.map((run) => run.value),
+    runAgg,
+  )
+}
+
 /**
  * The points of a trace measured by `measurements`, in the order of the x-axis: at each commit
  * `positions` places, each run's samples combined by `sampleAgg`, then the runs by `runAgg` (GR1).
@@ -27,24 +62,21 @@ export function pointsOf(
   sampleAgg: Aggregation,
   runAgg: Aggregation,
 ): Point[] {
-  // Each commit's samples, by run.
-  const commits = new Map<string, Map<string, number[]>>()
-  for (const { commit, run, value } of measurements) {
-    if (!positions.has(commit)) continue
-    let runs = commits.get(commit)
-    if (runs === undefined) commits.set(commit, (runs = new Map()))
-    const samples = runs.get(run)
-    if (samples === undefined) runs.set(run, [value])
-    else samples.push(value)
+  const commits = new Map<string, Measurement[]>()
+  for (const measurement of measurements) {
+    if (!positions.has(measurement.commit)) continue
+    const known = commits.get(measurement.commit)
+    if (known === undefined) commits.set(measurement.commit, [measurement])
+    else known.push(measurement)
   }
   const points: Point[] = []
-  for (const [commit, runs] of commits) {
-    const perRun = [...runs.values()].map((samples) => aggregate(samples, sampleAgg))
+  for (const [commit, measured] of commits) {
+    const runs = runValues(measured, sampleAgg)
     points.push({
       commit,
       position: positions.get(commit)!,
-      value: aggregate(perRun, runAgg),
-      runs: runs.size,
+      value: combineRuns(runs, runAgg),
+      runs: runs.length,
     })
   }
   return points.sort((a, b) => a.position - b.position)
