@@ -1,6 +1,6 @@
 import { QueryObserver } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { forgetSuite } from './keys'
+import { forgetSuite, forgetUnobserved } from './keys'
 import { createQueryClient } from './query-client'
 
 let unsubscribe = () => {}
@@ -46,5 +46,21 @@ describe('forgetSuite', () => {
     expect(queryClient.getQueryState(SHOWN)?.isInvalidated).toBe(true)
     expect(queryFn).toHaveBeenCalledTimes(1)
     expect(queryClient.getQueryData(HIDDEN)).toBeUndefined()
+  })
+})
+
+describe('forgetUnobserved', () => {
+  it('drops what nothing observes, keeps what only a disabled observer reads, and leaves other suites alone', async () => {
+    const { queryClient } = await populated()
+    const DISABLED = ['suite', 'nts', 'regressions', 'detail', 'r1']
+    queryClient.setQueryData(DISABLED, 'data')
+    new QueryObserver(queryClient, { queryKey: DISABLED, enabled: false }).subscribe(() => {})
+
+    forgetUnobserved(queryClient, 'nts')
+
+    expect(queryClient.getQueryData(HIDDEN)).toBeUndefined()
+    for (const key of [SHOWN, DISABLED, OTHER_SUITE, SUITES]) {
+      expect(queryClient.getQueryData(key)).toBe('data')
+    }
   })
 })

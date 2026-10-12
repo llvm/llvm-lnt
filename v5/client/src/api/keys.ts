@@ -33,7 +33,8 @@ export const queryKeys = {
  * (AR2 "Deletions"), or a change to the suite's schema. What no page shows is dropped rather than
  * marked stale, so that the page shown next does not show what was deleted or changed while it
  * fetches its data again. What a page shows is fetched again, unless `leaving` says that it is the
- * page about to leave the entity it deleted, which must not ask for the entity again.
+ * page about to leave the entity it deleted, which must not ask for the entity again, and drops
+ * what it read once it has gone (see `forgetUnobserved`).
  */
 export async function forgetSuite(
   queryClient: QueryClient,
@@ -43,4 +44,17 @@ export async function forgetSuite(
   const queryKey = queryKeys.suite(suite)
   queryClient.removeQueries({ queryKey, type: 'inactive' })
   await queryClient.invalidateQueries({ queryKey, refetchType: leaving ? 'none' : 'active' })
+}
+
+/**
+ * Drop what was read from inside `suite` that nothing observes any more: what the page that deleted
+ * an entity read, once it has gone (see `forgetSuite`). Unlike `type: 'inactive'`, this leaves alone
+ * a query that a page reads only through disabled observers, which would be left holding a query
+ * the cache no longer has.
+ */
+export function forgetUnobserved(queryClient: QueryClient, suite: string): void {
+  queryClient.removeQueries({
+    queryKey: queryKeys.suite(suite),
+    predicate: (query) => query.getObserversCount() === 0,
+  })
 }

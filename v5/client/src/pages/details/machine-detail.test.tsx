@@ -359,6 +359,41 @@ describe('the Machine Detail page', () => {
       await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines&search=linux'))
     })
 
+    it('does not show the machine from the cache when the history leads back to its page', async () => {
+      signIn('manage')
+      mockDelete()
+      let gone = false
+      mockPage({
+        machine: () =>
+          gone
+            ? errorResponse(404, 'not_found', `Machine '${NAME}' not found`)
+            : HttpResponse.json(LINUX),
+        runs: () => HttpResponse.json(cursorPage(gone ? [] : [run('a')])),
+      })
+      mockMachines(() => ({ items: [] }))
+      // The machine's page, then the Runs tab, then the machine's page again, from its run's row.
+      const { queryClient } = renderPage(PAGE)
+      await ready('Machine', deleteButton)
+      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      fireEvent.click(within(await table('Runs')).getByRole('link', { name: NAME }))
+
+      await startDeleting()
+      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+      // Nothing the page read is kept, its lists included, rather than only the machine itself.
+      await waitFor(() =>
+        expect(queryClient.getQueryCache().findAll({ queryKey: ['suite', 'libcxx'] })).toEqual([
+          expect.objectContaining({ queryKey: ['suite', 'libcxx', 'machines', {}] }),
+        ]),
+      )
+      gone = true
+      fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+
+      expect(currentUrl()).toBe(PAGE)
+      expect(screen.queryByRole('group', { name: 'Machine' })).not.toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent('not found')
+    })
+
     /** Start deleting `NAME` from its page, confirmed. */
     async function startDeleting() {
       await ready('Machine', deleteButton)
