@@ -4,7 +4,7 @@
  */
 
 import type { Data, DTickValue, Layout } from 'plotly.js'
-import { escapeHtml } from '../../format'
+import { escapeHtml, plural } from '../../format'
 import { formatMetricValue, type Metric } from '../../schema'
 import type { Point } from './points'
 
@@ -57,7 +57,7 @@ export function plotlyTraces(traces: Trace[], displayValue: DisplayValue, metric
       customdata: points.map((point) => [
         escapeHtml(displayValue(point.commit)),
         formatMetricValue(point.value, metric),
-        point.runs === 1 ? '1 run' : `${point.runs} runs`,
+        plural(point.runs, 'run'),
       ]),
       hovertemplate:
         `<b>${escapeHtml(test)}</b><br>Machine: ${escapeHtml(machine)}<br>` +

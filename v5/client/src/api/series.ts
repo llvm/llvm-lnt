@@ -30,51 +30,65 @@ export interface Measurement {
   /** The run's UUID. */
   run: string
   value: number
-  /** When the run was submitted. */
-  submittedAt: string
 }
 
 /** One page of a batch: the measurements of each of its tests, and the next page's cursor. */
-export interface SeriesPage {
+interface SeriesPage {
   measurements: ReadonlyMap<string, readonly Measurement[]>
   next: string | null
 }
 
 /**
- * What identifies a batch: the tests of one machine fetched together for one metric. A restart
- * after a rejected cursor is a new generation of the same batch, whose pages start afresh.
+ * What identifies a batch in its pages' keys. The tests of one machine and metric are in one batch
+ * at most, so the first of them identifies it, and the key stays short however many it holds. A
+ * restart after a rejected cursor is a new generation of the same batch, whose pages start afresh.
  */
-interface BatchKey {
+interface BatchId {
   machine: string
   metric: string
-  /** Sorted, so that the same tests make the same batch. */
-  tests: readonly string[]
+  first: string
   generation: number
 }
 
+/** A batch: the tests of one machine fetched together for one metric. */
+interface BatchKey extends BatchId {
+  /** Sorted, so that the same tests make the same batch. */
+  tests: readonly string[]
+}
+
 /** A batch, as far as it is loaded. */
-export interface Batch {
+interface Batch {
   machine: string
   tests: readonly string[]
   /** The pages fetched so far, in order. */
   pages: readonly SeriesPage[]
   /** Whether every page has been fetched. */
   complete: boolean
-  /** Why fetching stopped, if it failed. */
   error: Error | null
 }
 
 export interface Series {
-  /** The batches holding a selected test, of every machine given. */
-  batches: Batch[]
+  /**
+   * The measurements of `test` on `machine` loaded so far, in no particular order: the same array
+   * until more of them arrive.
+   */
+  measurementsOf(machine: string, test: string): readonly Measurement[]
+  /** The selected tests whose measurements are still loading on some machine. */
+  loading: ReadonlySet<string>
   /** Why some page could not be fetched, if one could not. */
   error: Error | null
   /** Fetch again the pages that failed. */
   retry(): void
 }
 
-function pageKey(suite: string, batch: BatchKey, cursor: string | null) {
-  return [...queryKeys.series(suite), batch, cursor] as const
+/** What the queries of a batch's pages carry, which their keys leave out. */
+interface PageMeta extends Record<string, unknown> {
+  tests: readonly string[]
+}
+
+function pageKey(suite: string, batch: BatchId, cursor: string | null) {
+  const { machine, metric, first, generation } = batch
+  return [...queryKeys.series(suite), { machine, metric, first, generation }, cursor] as const
 }
 
 async function fetchPage(
@@ -93,13 +107,8 @@ async function fetchPage(
   )
   const measurements = new Map<string, Measurement[]>()
   for (const point of page.items) {
-    const measurement = {
-      commit: point.commit,
-      run: point.run_uuid,
-      // The Graph page plots numeric metrics only (GR1).
-      value: point.value as number,
-      submittedAt: point.submitted_at,
-    }
+    // The Graph page plots numeric metrics only (GR1).
+    const measurement = { commit: point.commit, run: point.run_uuid, value: point.value as number }
     const ofTest = measurements.get(point.test)
     if (ofTest === undefined) measurements.set(point.test, [measurement])
     else ofTest.push(measurement)
@@ -116,11 +125,12 @@ function cachedBatches(
 ): BatchKey[] {
   const latest = new Map<string, BatchKey>()
   for (const query of client.getQueryCache().findAll({ queryKey: queryKeys.series(suite) })) {
-    const [batch, cursor] = query.queryKey.slice(-2) as [BatchKey, string | null]
-    if (cursor !== null || batch.machine !== machine || batch.metric !== metric) continue
-    const tests = batch.tests.join('\0')
-    const known = latest.get(tests)
-    if (known === undefined || known.generation < batch.generation) latest.set(tests, batch)
+    const [id, cursor] = query.queryKey.slice(-2) as [BatchId, string | null]
+    if (cursor !== null || id.machine !== machine || id.metric !== metric) continue
+    const known = latest.get(id.first)
+    if (known !== undefined && known.generation > id.generation) continue
+    const { tests } = query.meta as PageMeta
+    latest.set(id.first, { ...id, tests })
   }
   return [...latest.values()]
 }
@@ -140,7 +150,7 @@ export function useSeries(
   testsOf: ReadonlyMap<string, ReadonlySet<string>>,
 ): Series {
   const client = useQueryClient()
-  // Renders the page again once a restarted batch is in the cache (see `retry`).
+  // Renders the page again once a restarted batch is in the cache (see `restart`).
   const [, setRestarts] = useState(0)
 
   const batches: BatchKey[] = []
@@ -150,8 +160,8 @@ export function useSeries(
     const cached = cachedBatches(client, suite, machine, metric)
     batches.push(...cached.filter((batch) => batch.tests.some((test) => selected.has(test))))
     const covered = new Set(cached.flatMap((batch) => batch.tests))
-    const uncovered = wanted.filter((test) => !covered.has(test)).sort(compareStrings)
-    if (uncovered.length > 0) batches.push({ machine, metric, tests: uncovered, generation: 0 })
+    const tests = wanted.filter((test) => !covered.has(test)).sort(compareStrings)
+    if (tests.length > 0) batches.push({ machine, metric, first: tests[0], generation: 0, tests })
   }
 
   // Each batch's pages: the first, then each one the page before it has given the cursor of.
@@ -170,32 +180,84 @@ export function useSeries(
   // the selection changes: the plan is read back from its serialization, which stays the same.
   const serialized = JSON.stringify({ batches, pages })
   const plan = useMemo((): Plan => JSON.parse(serialized), [serialized])
-  const combine = useCallback(
-    (results: PageResult[]) =>
-      combineBatches(plan, results, (batch) => {
-        // A later page's cursor was refused, which may only mean that the server or the suite's
-        // schema changed meanwhile (I2): the batch starts again, as a new generation.
-        const next = { ...batch, generation: batch.generation + 1 }
-        void client.prefetchQuery({
-          queryKey: pageKey(suite, next, null),
-          queryFn: ({ signal }) => fetchPage(suite, next, null, signal),
-          staleTime: Infinity,
-        })
-        setRestarts((count) => count + 1)
-      }),
-    [plan, client, suite],
+  const restart = useCallback(
+    (batch: BatchKey) => {
+      // A later page's cursor was refused, which may only mean that the server or the suite's
+      // schema changed meanwhile (I2): the batch starts again, as a new generation.
+      const next = { ...batch, generation: batch.generation + 1 }
+      void client.prefetchQuery({
+        queryKey: pageKey(suite, next, null),
+        queryFn: ({ signal }) => fetchPage(suite, next, null, signal),
+        meta: { tests: next.tests } satisfies PageMeta,
+        staleTime: Infinity,
+      })
+      setRestarts((count) => count + 1)
+    },
+    [client, suite],
   )
-  return useQueries({
+  const combine = useCallback(
+    (results: PageResult[]) => combineBatches(plan, results, restart),
+    [plan, restart],
+  )
+  const loaded = useQueries({
     queries: plan.pages.map(({ batch, cursor }) => ({
       queryKey: pageKey(suite, plan.batches[batch], cursor),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchPage(suite, plan.batches[batch], cursor, signal),
+      meta: { tests: plan.batches[batch].tests } satisfies PageMeta,
       staleTime: Infinity,
       // A page is read whole, never compared with a previous one.
       structuralSharing: false,
     })),
     combine,
   })
+
+  return useMemo(() => {
+    const { batches: ofPlan, error, retry } = loaded
+    // A selected test is loading on a machine whose list holds it until its batch is complete or
+    // has failed, and while it has no batch yet.
+    const settled = new Set(
+      ofPlan
+        .filter((batch) => batch.complete || batch.error !== null)
+        .flatMap((batch) => batch.tests.map((test) => `${batch.machine}\0${test}`)),
+    )
+    const loading = new Set<string>()
+    for (const [machine, held] of testsOf) {
+      for (const test of selected) {
+        if (held.has(test) && !settled.has(`${machine}\0${test}`)) loading.add(test)
+      }
+    }
+    return {
+      measurementsOf: (machine, test) => {
+        const batch = ofPlan.find((b) => b.machine === machine && b.tests.includes(test))
+        return batch === undefined ? NO_MEASUREMENTS : measurementsOf(batch, test)
+      },
+      loading,
+      error,
+      retry,
+    }
+  }, [loaded, testsOf, selected])
+}
+
+const NO_MEASUREMENTS: readonly Measurement[] = []
+
+/**
+ * The measurements of each test of each batch, gathered from its pages once per batch: the same
+ * array until the batch changes. A batch keeps its identity until one of its pages changes (see
+ * `combineBatches`), so a page that arrives gathers again only the tests of its own batch.
+ */
+const gathered = new WeakMap<Batch, Map<string, readonly Measurement[]>>()
+
+function measurementsOf(batch: Batch, test: string): readonly Measurement[] {
+  let ofBatch = gathered.get(batch)
+  if (ofBatch === undefined) gathered.set(batch, (ofBatch = new Map()))
+  let measurements = ofBatch.get(test)
+  if (measurements === undefined) {
+    // A commit's samples may span two pages, so a test's are gathered from all of them at once.
+    measurements = batch.pages.flatMap((page) => page.measurements.get(test) ?? [])
+    ofBatch.set(test, measurements)
+  }
+  return measurements
 }
 
 /** A page of a batch: the batch's index in the plan, and the page's cursor. */
@@ -217,12 +279,16 @@ interface PageResult {
   refetch: () => unknown
 }
 
-/** The batches of `plan`, from the results of its pages' queries, in order. */
+/**
+ * The batches of `plan`, from the results of its pages' queries, in order. TanStack Query shares
+ * what is unchanged with the previous result, so a batch none of whose pages changed is the same
+ * object as before.
+ */
 function combineBatches(
   plan: Plan,
   results: PageResult[],
   restart: (batch: BatchKey) => void,
-): Series {
+): { batches: Batch[]; error: Error | null; retry(): void } {
   const batches = plan.batches.map(({ machine, tests }) => ({
     machine,
     tests,

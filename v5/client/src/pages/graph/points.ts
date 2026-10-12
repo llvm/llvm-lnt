@@ -4,13 +4,7 @@
  */
 
 import { aggregate, type Aggregation } from '../../aggregation'
-
-/** One sample of a test: its value, the run it was measured in, and the commit of the run. */
-export interface Measurement {
-  commit: string
-  run: string
-  value: number
-}
+import type { Measurement } from '../../api/series'
 
 /** A trace's value at one commit. */
 export interface Point {

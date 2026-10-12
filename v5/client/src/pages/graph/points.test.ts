@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { pointsOf, type Measurement } from './points'
+import type { Measurement } from '../../api/series'
+import { pointsOf } from './points'
 
 const POSITIONS = new Map([
   ['c1', 0],

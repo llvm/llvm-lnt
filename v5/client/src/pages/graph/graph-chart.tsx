@@ -1,13 +1,13 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Data } from 'plotly.js'
 import type { Aggregation } from '../../aggregation'
 import type { Scaffold } from '../../api/scaffold'
-import type { Series } from '../../api/series'
+import type { Measurement, Series } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import { Chart } from '../../components/chart'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
 import { graphLayout, plotlyTraces, type Trace } from './chart'
-import { pointsOf } from './points'
+import { pointsOf, type Point } from './points'
 import styles from './graph.module.css'
 
 interface Props {
@@ -22,17 +22,71 @@ interface Props {
   series: Series
   sampleAgg: Aggregation
   runAgg: Aggregation
-  /** Whether something the chart draws is still loading. */
-  busy: boolean
-  /** Whether something the chart draws could not be loaded. */
-  failed: boolean
+  /** Whether nothing the chart draws is loading or failed to load: an empty chart is empty. */
+  settled: boolean
+}
+
+/** How often the chart is drawn again, at most, while data arrives: a redraw draws every trace. */
+const REDRAW_INTERVAL_MS = 300
+
+/**
+ * `value`, which follows `value` at most once every `interval` milliseconds while `throttled`, the
+ * latest one each time, and follows it at once otherwise.
+ */
+function useThrottled<T>(value: T, throttled: boolean, interval: number): T {
+  const [shown, setShown] = useState(value)
+  if (!throttled && shown !== value) setShown(value)
+  const last = useRef(0)
+  useEffect(() => {
+    if (!throttled) return
+    const wait = Math.max(0, last.current + interval - Date.now())
+    const timer = setTimeout(() => {
+      last.current = Date.now()
+      setShown(value)
+    }, wait)
+    return () => clearTimeout(timer)
+  }, [value, throttled, interval])
+  return throttled ? shown : value
+}
+
+/** A trace's points, and what besides its measurements they were computed from. */
+interface Computed {
+  positions: ReadonlyMap<string, number>
+  sampleAgg: Aggregation
+  runAgg: Aggregation
+  points: Point[]
+}
+
+/** What each trace's points were last computed as, by the array of measurements they come from. */
+const computed = new WeakMap<readonly Measurement[], Computed>()
+
+/**
+ * The points of a trace measured by `measurements`, computed again only when they, the x-axis or
+ * the aggregation change: a page that arrives changes the measurements of its batch's tests only.
+ */
+function pointsFor(
+  measurements: readonly Measurement[],
+  positions: ReadonlyMap<string, number>,
+  sampleAgg: Aggregation,
+  runAgg: Aggregation,
+): Point[] {
+  const known = computed.get(measurements)
+  if (
+    known !== undefined &&
+    known.positions === positions &&
+    known.sampleAgg === sampleAgg &&
+    known.runAgg === runAgg
+  ) {
+    return known.points
+  }
+  const points = pointsOf(measurements, positions, sampleAgg, runAgg)
+  computed.set(measurements, { positions, sampleAgg, runAgg, points })
+  return points
 }
 
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
- * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived. The traces are computed
- * again when their data or settings change, and only then, since the chart redraws whatever it is
- * given anew (see `Chart`).
+ * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived.
  */
 export function GraphChart({
   schema,
@@ -41,13 +95,14 @@ export function GraphChart({
   selected,
   colors,
   scaffold,
-  series,
+  series: latest,
   sampleAgg,
   runAgg,
-  busy,
-  failed,
+  settled,
 }: Props) {
   const { commits, listed } = scaffold
+  const series = useThrottled(latest, latest.loading.size > 0, REDRAW_INTERVAL_MS)
+  const positions = useMemo(() => new Map(commits.map((commit, i) => [commit.value, i])), [commits])
   const displayValue = useMemo(() => {
     const shown = new Map(
       commits.map((commit) => [
@@ -60,17 +115,13 @@ export function GraphChart({
 
   const data = useMemo(() => {
     if (metric === undefined) return NO_DATA
-    const positions = new Map(commits.map((commit, i) => [commit.value, i]))
     const traces: Trace[] = []
     machines.forEach((machine, machineIndex) => {
       // A machine's traces wait for its scaffold, without which their commits have no position.
       if (!listed.has(machine)) return
-      const batches = series.batches.filter((batch) => batch.machine === machine)
       for (const test of selected) {
-        // A commit's samples may span two pages, so a trace is computed from all of them at once.
-        const pages = batches.find((batch) => batch.tests.includes(test))?.pages ?? []
-        const measurements = pages.flatMap((page) => page.measurements.get(test) ?? [])
-        const points = pointsOf(measurements, positions, sampleAgg, runAgg)
+        const measurements = series.measurementsOf(machine, test)
+        const points = pointsFor(measurements, positions, sampleAgg, runAgg)
         if (points.length === 0) continue
         traces.push({ test, machine, machineIndex, color: colors.get(test)!, points })
       }
@@ -78,20 +129,20 @@ export function GraphChart({
     return traces.length === 0 ? NO_DATA : plotlyTraces(traces, displayValue, metric)
   }, [
     metric,
-    commits,
     machines,
     listed,
-    series.batches,
+    series,
     selected,
-    colors,
+    positions,
     sampleAgg,
     runAgg,
+    colors,
     displayValue,
   ])
 
   // What the x-axis is made of: a change resets the zoom (GR5).
   const revision = machines.filter((machine) => listed.has(machine)).join('\0')
-  const empty = data.length === 0 && !busy && !failed
+  const empty = data.length === 0 && settled
   const layout = useMemo(() => {
     const values = commits.map((commit) => commit.value)
     return graphLayout({ commits: values, displayValue, revision, empty })

@@ -6,22 +6,25 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import { traceColor } from '../../chart-colors'
-import type { ChartProps } from '../../components/chart'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockSuites, renderPage, search } from '../../test/page'
+import { chartProps } from '../../test/chart-props'
+import {
+  currentUrl,
+  gate,
+  main,
+  mockCommits,
+  mockMachines,
+  mockSuites,
+  mockTests,
+  renderPage,
+  search,
+} from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 
-// Plotly cannot draw in jsdom. The tests check what the page hands it instead: the props the chart
-// was last rendered with.
-const charts = vi.hoisted(() => ({ last: null as ChartProps | null }))
-vi.mock('../../components/chart', () => ({
-  Chart: (props: ChartProps) => {
-    charts.last = props
-    return <div role="img" aria-label={props.label} />
-  },
-}))
+// The tests check what the page hands Plotly to draw (see test/chart.tsx).
+vi.mock('../../components/chart', () => import('../../test/chart'))
 
 /** libcxx, with two numeric metrics and one that cannot be plotted. */
 const GRAPH_SUITE: SuiteSchema = {
@@ -83,11 +86,9 @@ const pointOf = (machineName: string, test: string, [value, run, measured]: Samp
     tag: null,
   }) satisfies Schemas['DataPoint']
 
-/** The query bodies `POST /query` was sent, in order, and the signal of each request. */
+/** The bodies `POST /query` was sent, in order, and the signal of each request. */
 interface Recorded {
   queries: { body: Schemas['QueryRequest']; signal: AbortSignal }[]
-  tests: URLSearchParams[]
-  commits: URLSearchParams[]
 }
 
 /** Mock the API for the Graph page: GRAPH_SUITE and TEXT_SUITE, and the world described. */
@@ -98,23 +99,12 @@ function mockWorld({
   samples = SAMPLES,
   pageSize = 10_000,
 }: World = {}): Recorded {
-  const recorded: Recorded = { queries: [], tests: [], commits: [] }
+  const recorded: Recorded = { queries: [] }
   mockSuites([GRAPH_SUITE, TEXT_SUITE])
+  mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
+  mockTests((query) => testPage(tests[query.get('machine')!] ?? []))
+  mockCommits((query) => cursorPage((commits[query.get('machine')!] ?? []).map(commitAt)))
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/machines', () =>
-      HttpResponse.json({ items: machines.map((name) => machine(name)) }),
-    ),
-    mockApi('get', '/api/suites/{testsuite}/tests', ({ request }) => {
-      const query = new URL(request.url).searchParams
-      recorded.tests.push(query)
-      const names = tests[query.get('machine')!] ?? []
-      return HttpResponse.json(cursorPage(names.map((name) => ({ name }))))
-    }),
-    mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
-      const query = new URL(request.url).searchParams
-      recorded.commits.push(query)
-      return HttpResponse.json(cursorPage((commits[query.get('machine')!] ?? []).map(commitAt)))
-    }),
     mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
       const body = await request.json()
       recorded.queries.push({ body, signal: request.signal })
@@ -130,9 +120,19 @@ function mockWorld({
   return recorded
 }
 
-/** The traces the chart was last given, as `name: [commit, value]...`. */
+/** A page of `GET /tests` listing `names`. */
+function testPage(names: string[]) {
+  return cursorPage(names.map((name) => ({ name })))
+}
+
+/** What the page last handed the chart to draw. */
+function chart() {
+  return chartProps(main().getByRole('img'))
+}
+
+/** The traces the chart was last given, as `name: commit=value...`. */
 function traces() {
-  return (charts.last?.data ?? []).map((trace) => {
+  return chart().data.map((trace) => {
     const { name, x, y } = trace as PlotData
     const points = (x as string[]).map((value, i) => `${value}=${(y as number[])[i]}`)
     return `${name}: ${points.join(' ')}`
@@ -140,22 +140,22 @@ function traces() {
 }
 
 function layout(): Partial<Layout> {
-  return charts.last!.layout
+  return chart().layout
 }
 
-function table() {
+function testTable() {
   return within(main().getByRole('table', { name: 'Tests' }))
 }
 
 /** The tests the table lists, in order. */
 function listed() {
-  return table()
+  return testTable()
     .getAllByRole('row')
     .slice(1)
     .map((row) => within(row).getAllByRole('cell')[2].textContent)
 }
 
-const box = (test: string) => table().getByRole('checkbox', { name: test })
+const box = (test: string) => testTable().getByRole('checkbox', { name: test })
 
 async function addMachine(name: string) {
   const user = userEvent.setup()
@@ -281,7 +281,7 @@ describe('the Graph page (GR1)', () => {
     renderPage(`${GRAPHED}&test=b`)
 
     await waitFor(() => expect(traces()).toEqual(['b - m1: c10=3', 'b - m2: c40=4']))
-    const data = charts.last!.data as PlotData[]
+    const data = chart().data as PlotData[]
     expect(data.map((trace) => trace.line.color)).toEqual([traceColor(1), traceColor(1)])
     expect(data.map((trace) => trace.marker.symbol)).toEqual(['circle', 'triangle-up'])
   })
@@ -362,7 +362,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(GRAPHED)
     await waitFor(() => expect(listed()).toHaveLength(4))
 
-    fireEvent.click(table().getByText('b'))
+    fireEvent.click(testTable().getByText('b'))
     expect(box('b')).toBeChecked()
     fireEvent.click(box('b'))
     expect(box('b')).not.toBeChecked()
@@ -373,9 +373,9 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(`${GRAPHED}&test=a&test=b`)
     await waitFor(() => expect(box('a')).toBeChecked())
 
-    fireEvent.doubleClick(table().getByText('c'))
+    fireEvent.doubleClick(testTable().getByText('c'))
     expect(currentUrl()).toBe(`${GRAPHED}&test=c`)
-    fireEvent.doubleClick(table().getByText('c'))
+    fireEvent.doubleClick(testTable().getByText('c'))
     expect(currentUrl()).toBe(`${GRAPHED}&test=a&test=b&test=c&test=d`)
   })
 
@@ -385,7 +385,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
     await waitFor(() => expect(listed()).toHaveLength(11))
 
-    fireEvent.click(table().getByRole('checkbox', { name: 'Select all tests shown' }))
+    fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
     expect(currentUrl()).toBe('/graph?suite=libcxx&machine=m1&metric=execution_time')
     expect(main().getByText(/the selection is not part of the URL/)).toBeInTheDocument()
@@ -400,7 +400,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
     await waitFor(() => expect(listed()).toHaveLength(101))
 
-    const all = table().getByRole('checkbox', { name: 'Select all tests shown' })
+    const all = testTable().getByRole('checkbox', { name: 'Select all tests shown' })
     expect(all).toBeDisabled()
     expect(all).toHaveAccessibleDescription('At most 100 tests can be selected at once.')
   })
@@ -441,14 +441,10 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(`${GRAPHED}&test=a&test=b`)
     await waitFor(() => expect(box('a')).toBeChecked())
     // compile_time's lists, held: a stays selected meanwhile.
-    server.use(
-      mockApi('get', '/api/suites/{testsuite}/tests', async ({ request }) => {
-        await lists.promise
-        const query = new URL(request.url).searchParams
-        const names = query.get('machine') === 'm1' ? ['b'] : ['b', 'd']
-        return HttpResponse.json(cursorPage(names.map((name) => ({ name }))))
-      }),
-    )
+    mockTests(async (query) => {
+      await lists.promise
+      return testPage(query.get('machine') === 'm1' ? ['b'] : ['b', 'd'])
+    })
 
     await pickOption('Metric', 'Compile Time')
     expect(currentUrl()).toContain('test=a&test=b')
@@ -496,7 +492,7 @@ describe('loading (GR2, GR4, GR8)', () => {
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1']))
     expect(main().getByText('1 of 3 tests selected, loading...')).toBeInTheDocument()
-    expect(table().getByText('(loading...)')).toBeInTheDocument()
+    expect(testTable().getByText('(loading...)')).toBeInTheDocument()
 
     act(() => second.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
@@ -508,7 +504,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     renderPage(GRAPHED)
     await waitFor(() => expect(listed()).toHaveLength(4))
 
-    fireEvent.click(table().getByRole('checkbox', { name: 'Select all tests shown' }))
+    fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
     await waitFor(() => expect(recorded.queries).toHaveLength(2))
     expect(recorded.queries.map(({ body }) => [body.machine, body.test])).toEqual([
@@ -555,11 +551,11 @@ describe('loading (GR2, GR4, GR8)', () => {
     let failing = true
     server.use(
       mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
-        const query = new URL(request.url).searchParams
-        if (query.get('machine') === 'm2' && failing) {
+        const machineName = new URL(request.url).searchParams.get('machine') as 'm1' | 'm2'
+        if (machineName === 'm2' && failing) {
           return errorResponse(500, 'internal_error', 'The commits broke.')
         }
-        return HttpResponse.json(cursorPage(COMMITS[query.get('machine') as 'm1'].map(commitAt)))
+        return HttpResponse.json(cursorPage(COMMITS[machineName].map(commitAt)))
       }),
     )
     renderPage(`${GRAPHED}&test=b`)
@@ -599,7 +595,7 @@ describe('loading (GR2, GR4, GR8)', () => {
       mockApi('get', '/api/suites/{testsuite}/tests', () =>
         failing
           ? errorResponse(500, 'internal_error', 'The tests broke.')
-          : HttpResponse.json(cursorPage([{ name: 'a' }])),
+          : HttpResponse.json(testPage(['a'])),
       ),
     )
     renderPage(GRAPHED)

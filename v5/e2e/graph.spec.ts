@@ -6,34 +6,22 @@
 import type { Page } from '@playwright/test'
 import { LINUX, MACOS } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
+import { plotOf, tracesOf, type PlotDiv } from './plot.ts'
 import { pickOption } from './select.ts'
+import { table } from './tables.ts'
 
 /** A test every real machine measured, at every commit. */
 const TEST = 'BM_num_get<void*>'
 
 const GRAPHED = `/graph?suite=libcxx&machine=${LINUX}&machine=${MACOS}&metric=execution_time`
 
-/** The plot, once Plotly has drawn it. */
-function plotOf(page: Page) {
-  return page.getByRole('main').locator('.js-plotly-plot')
-}
-
-/** The lines the chart draws, one per test and machine. */
-function tracesOf(page: Page) {
-  return plotOf(page).locator('.scatterlayer .trace')
-}
-
-/** The range of the x-axis as Plotly drew it, from its internals (see dashboard.spec.ts). */
+/** The range of the x-axis as Plotly drew it. */
 function xRange(page: Page) {
-  return plotOf(page).evaluate(
-    (element) =>
-      (element as unknown as { _fullLayout: { xaxis: { range: number[] } } })._fullLayout.xaxis
-        .range,
-  )
+  return plotOf(page).evaluate((element) => (element as PlotDiv)._fullLayout.xaxis.range)
 }
 
 function testBox(page: Page, name: string) {
-  return page.getByRole('table', { name: 'Tests' }).getByRole('checkbox', { name, exact: true })
+  return table(page, 'Tests').getByRole('checkbox', { name, exact: true })
 }
 
 test('plots a test chosen from scratch', async ({ page }) => {
@@ -55,7 +43,7 @@ test('plots a test chosen from scratch', async ({ page }) => {
 test('keeps the x-axis as it is while the data arrives (GR3)', async ({ page }) => {
   await page.goto(GRAPHED)
   // The axis spans the machines' commits before anything is plotted.
-  await expect(page.getByRole('table', { name: 'Tests' })).toBeVisible()
+  await expect(table(page, 'Tests')).toBeVisible()
   await expect.poll(async () => (await xRange(page))[0]).toBe(-0.5)
   const before = await xRange(page)
 

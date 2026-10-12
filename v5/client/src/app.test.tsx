@@ -7,8 +7,8 @@ import { renderWithProviders } from './test/render'
 // Every page so far starts from the list of suites, and asks for nothing else without one.
 beforeEach(() => mockSuites([]))
 
-// Plotly cannot draw in jsdom, and the Graph page shows its chart before it has anything to plot.
-vi.mock('./components/chart', () => ({ Chart: () => null }))
+// The Graph page shows its chart before it has anything to plot.
+vi.mock('./components/chart', () => import('./test/chart'))
 
 function renderAt(url: string) {
   return renderWithProviders(<App />, { url })

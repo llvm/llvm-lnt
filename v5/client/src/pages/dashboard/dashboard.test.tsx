@@ -16,23 +16,12 @@ import {
   mockTrends,
   renderPage,
 } from '../../test/page'
+import { chartProps } from '../../test/chart-props'
 import { server } from '../../test/server'
 import { machineColor } from './sparkline'
 
-// Plotly cannot draw in jsdom. The tests check what the cards hand it instead: the props each chart
-// was last rendered with, recorded against the element it renders.
-const charts = vi.hoisted(() => new WeakMap<Element, ChartProps>())
-vi.mock('../../components/chart', () => ({
-  Chart: (props: ChartProps) => (
-    <div
-      role="img"
-      aria-label={props.label}
-      ref={(element) => {
-        if (element !== null) charts.set(element, props)
-      }}
-    />
-  ),
-}))
+// The tests check what the cards hand Plotly to draw (see test/chart.tsx).
+vi.mock('../../components/chart', () => import('../../test/chart'))
 
 /**
  * libcxx, with metrics of each kind: one with a unit and its abbreviation, one whose unit is its
@@ -93,7 +82,7 @@ async function card(name: string, suite = 'libcxx') {
 /** The chart of the card `name`, once drawn, and the props it was last rendered with. */
 async function chartOf(name: string, suite = 'libcxx') {
   const element = await (await card(name, suite)).findByRole('img', { hidden: true })
-  return { element, props: () => charts.get(element)! }
+  return { element, props: () => chartProps(element) }
 }
 
 /** The link the chart of the card `name` is in. */

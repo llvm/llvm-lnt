@@ -3,26 +3,26 @@ import { useLocation, useNavigationType } from 'react-router'
 import { AGGREGATIONS, type Aggregation } from '../../aggregation'
 import { useMachineNames } from '../../api/machines'
 import { useScaffold } from '../../api/scaffold'
-import { useSeries, type Batch } from '../../api/series'
+import { useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
+import { traceColor } from '../../chart-colors'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { useRangeSelection } from '../../components/range-selection'
 import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
-import { traceColor } from '../../chart-colors'
 import { compareStrings } from '../../format'
 import { isNumeric, labelOf, type Metric } from '../../schema'
 import {
   booleanParam,
   enumParam,
+  listParam,
   stringParam,
   trimmedStringParam,
   useDropUnusable,
   useUrlState,
-  type Param,
 } from '../../url-state'
 import { GraphChart } from './graph-chart'
 import { MachineChips } from './machine-chips'
@@ -35,19 +35,14 @@ const SELECTION_LIMIT = { count: 100, why: 'At most 100 tests can be selected at
 /** At most how many selected tests the URL holds (GR14). */
 const TESTS_IN_URL = 10
 
-/** A parameter repeated once per value, each value kept once, in the order first given. */
-function uniqueListParam(): Param<string[]> {
-  return { default: [], parse: (values) => [...new Set(values)], serialize: (value) => value }
-}
-
 const PARAMS = {
   suite: stringParam(),
   /** The machines, in the order of their chips. */
-  machine: uniqueListParam(),
+  machine: listParam(),
   metric: stringParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
-  test: uniqueListParam(),
+  test: listParam(),
   sample_agg: enumParam(AGGREGATIONS, 'median'),
   run_agg: enumParam(AGGREGATIONS, 'median'),
 }
@@ -73,50 +68,20 @@ export default function Graph() {
 function GraphPage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
+  // The suite, once the suites are known to hold it. One that does not exist is dropped (AR2
+  // "State"), and what was chosen in it with it.
   const schema = suites.data?.find((entry) => entry.name === settings.suite)
-  // A suite that does not exist is dropped (AR2 "State"), and what was chosen in it with it.
   useDropUnusable(
     suites,
     (list) => settings.suite === '' || list.some((entry) => entry.name === settings.suite),
     () => update({ suite: '', machine: [], metric: '', test: [] }),
   )
-
-  return (
-    <section>
-      <h1>Graph</h1>
-      {suites.isError && (
-        <ErrorMessage error={suites.error} onRetry={() => void suites.refetch()} />
-      )}
-      <Graphed
-        suites={suites.data ?? []}
-        schema={schema}
-        settings={settings}
-        update={update}
-      />
-    </section>
-  )
-}
-
-type Settings = ReturnType<typeof useUrlState<typeof PARAMS>>[0]
-type Update = ReturnType<typeof useUrlState<typeof PARAMS>>[1]
-
-interface GraphedProps {
-  suites: SuiteSchema[]
-  /** The suite selected, once the suites are known to hold it. */
-  schema: SuiteSchema | undefined
-  settings: Settings
-  update: Update
-}
-
-/** The page's controls, chart and test table, for the suite selected, if any (GR1). */
-function Graphed({ suites, schema, settings, update }: GraphedProps) {
   const suite = schema?.name ?? ''
-  const numeric = useMemo(() => schema?.metrics.filter(isNumeric) ?? [], [schema])
 
+  // The machines chosen that exist, once that is known: nothing is fetched for the others, which
+  // are dropped.
   const machineNames = useMachineNames(suite, schema !== undefined)
   const names = machineNames.data
-  // The machines chosen that exist, once that is known: nothing is fetched for the others, which
-  // are dropped (AR2 "State").
   const machines = useMemo(
     () => (names ? settings.machine.filter((name) => names.includes(name)) : NO_NAMES),
     [names, settings.machine],
@@ -128,11 +93,13 @@ function Graphed({ suites, schema, settings, update }: GraphedProps) {
   )
 
   // The metric, once the suite is known to offer it: only a numeric one can be plotted (GR1).
+  const numeric = useMemo(() => schema?.metrics.filter(isNumeric) ?? [], [schema])
   const metric = numeric.find((entry) => entry.name === settings.metric)
-  const unusableMetric = schema !== undefined && settings.metric !== '' && metric === undefined
-  useEffect(() => {
-    if (unusableMetric) update({ metric: '' })
-  }, [unusableMetric, update])
+  useDropUnusable(
+    suites,
+    () => schema === undefined || settings.metric === '' || metric !== undefined,
+    () => update({ metric: '' }),
+  )
 
   const tests = useTestNames(suite, metric === undefined ? NO_NAMES : machines, metric?.name ?? '')
   const filter = useTextFilter(
@@ -159,15 +126,7 @@ function Graphed({ suites, schema, settings, update }: GraphedProps) {
     update({ test: shared ? sorted : [] })
   }, [sorted, shared, update])
 
-  // The tests each machine's list holds, of the machines whose list is in, in the chips' order.
-  const testsOf = useMemo(() => {
-    const listed = machines.flatMap((name) => {
-      const held = tests.byMachine.get(name)
-      return held === undefined ? [] : [[name, held] as const]
-    })
-    return new Map(listed)
-  }, [machines, tests.byMachine])
-  const series = useSeries(suite, metric?.name ?? '', selected, testsOf)
+  const series = useSeries(suite, metric?.name ?? '', selected, tests.byMachine)
   const scaffold = useScaffold(suite, machines)
 
   // Each test's colour, by its position among every test listed, filtered or not, so that a test
@@ -176,11 +135,8 @@ function Graphed({ suites, schema, settings, update }: GraphedProps) {
     () => new Map(tests.names.map((name, i) => [name, traceColor(i)])),
     [tests.names],
   )
-  const loading = useMemo(
-    () => loadingTests(series.batches, testsOf, selected),
-    [series.batches, testsOf, selected],
-  )
   const listing = metric !== undefined && machines.length > 0 && !tests.complete
+  const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
@@ -191,11 +147,19 @@ function Graphed({ suites, schema, settings, update }: GraphedProps) {
 
   const disabled = schema === undefined
   return (
-    <>
+    <section>
+      <h1>Graph</h1>
+      {suites.isError && (
+        <ErrorMessage
+          context="The test suites could not be listed"
+          error={suites.error}
+          onRetry={() => void suites.refetch()}
+        />
+      )}
       <ControlsPanel>
         <Select
           label="Suite"
-          options={suites.map((entry) => ({ value: entry.name, label: entry.name }))}
+          options={(suites.data ?? []).map(({ name }) => ({ value: name, label: name }))}
           value={schema === undefined ? null : schema.name}
           placeholder="-- Select suite --"
           onChange={chooseSuite}
@@ -281,8 +245,7 @@ function Graphed({ suites, schema, settings, update }: GraphedProps) {
         series={series}
         sampleAgg={settings.sample_agg}
         runAgg={settings.run_agg}
-        busy={listing || scaffold.pending || loading.size > 0}
-        failed={tests.error !== null || scaffold.failures.length > 0 || series.error !== null}
+        settled={!listing && !scaffold.pending && series.loading.size === 0 && !failed}
       />
       {!shared && (
         <p className={styles.warning} role="status">
@@ -296,35 +259,12 @@ function Graphed({ suites, schema, settings, update }: GraphedProps) {
         filtered={filter.active}
         selection={selection}
         colors={colors}
-        loading={loading}
+        loading={series.loading}
         listing={listing}
         empty={emptyTable(schema, machines, metric)}
       />
-    </>
+    </section>
   )
-}
-
-/**
- * The selected tests whose data is still loading on some machine whose list holds them: those of a
- * batch with pages to come, and those no batch holds yet. A batch that failed is not loading.
- */
-function loadingTests(
-  batches: Batch[],
-  testsOf: ReadonlyMap<string, ReadonlySet<string>>,
-  selected: ReadonlySet<string>,
-): ReadonlySet<string> {
-  const loaded = new Set<string>()
-  for (const batch of batches) {
-    if (!batch.complete && batch.error === null) continue
-    for (const test of batch.tests) loaded.add(`${batch.machine}\0${test}`)
-  }
-  const loading = new Set<string>()
-  for (const [machine, held] of testsOf) {
-    for (const test of selected) {
-      if (held.has(test) && !loaded.has(`${machine}\0${test}`)) loading.add(test)
-    }
-  }
-  return loading
 }
 
 /** What the test table says while it has no tests to list, and why. */
