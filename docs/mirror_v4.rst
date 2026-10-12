@@ -16,51 +16,20 @@ converting it.
 
 A mirror is not a backup: it tracks the instance, so data deleted from the
 instance is deleted from the mirror the next time it is refreshed (see
-`Mirroring`_). Copy the directory elsewhere to keep a snapshot of it.
+`Mirroring`_).
 
 
-Usage
------
+Example
+-------
 
-::
+To mirror the ``nts`` and ``compile`` suites of ``https://lnt.llvm.org`` into
+``./lnt-mirror``::
 
-    lnt mirror-v4 [OPTIONS] URL MIRROR_DIR --suite SUITE
+    lnt mirror-v4 https://lnt.llvm.org ./lnt-mirror --suite nts
+    lnt mirror-v4 https://lnt.llvm.org ./lnt-mirror --suite compile
 
-``URL`` is the root of the instance, e.g. ``https://lnt.llvm.org``.
-``MIRROR_DIR`` is created if it does not exist; if it does, it must be a mirror
-of the same instance and database, and it is brought up to date. Each such
-invocation is a *refresh* of the mirror.
-
-``--suite SUITE``
-  The test suite to mirror. Required, and given exactly once: the v4 API offers
-  no way to list an instance's suites, so they cannot be discovered. A mirror
-  can hold several suites, refreshed by separate invocations on the same
-  ``MIRROR_DIR``; each invocation reads and writes only the suite it names.
-
-``--database NAME``
-  The database of the instance to mirror. Defaults to ``default``. A mirror
-  holds a single database; mirror each database into a directory of its own.
-
-``--machine NAME``
-  Only refresh the machines with this name. May be given several times. v4 does
-  not require machine names to be unique, so a name selects every machine that
-  carries it. A name that matches no machine, either on the instance or in the
-  mirror, is an error.
-
-``--workers N``
-  How many requests to send concurrently. Defaults to 4. Be considerate of the
-  instance being mirrored.
-
-``--dry-run``
-  Report what the refresh would fetch and remove, without changing the mirror.
-
-The command exits with a non-zero status if anything could not be fetched. The
-mirror is left consistent regardless (see `Consistency`_), and running the same
-command again resumes where it stopped.
-
-Interrupting a refresh, e.g. with Ctrl-C, stops it from sending further
-requests. It then waits for the requests in flight, which can take as long as
-the instance takes to answer them, records what it fetched, and exits.
+Running the same commands again later *refreshes* the mirror, bringing it up to
+date. See ``lnt mirror-v4 --help`` for the other options.
 
 
 What is mirrored
@@ -93,34 +62,22 @@ of it inaccurately:
   creates in every new database, e.g. their ``execution_time`` and
   ``compile_time`` metrics.
 
-Take these values from the suite's schema definition rather than from the
-mirror where one is available.
-
 
 Mirroring
 ---------
 
-After a successful refresh, the mirrored part of the suite matches the instance
-as it was at the time of the refresh.
+After a successful refresh, the suite in the mirror matches the suite on the
+instance as it was at the time of the refresh:
 
 - Runs and machines that are new on the instance are added.
 - Runs and machines that were deleted from the instance are removed from the
   mirror.
 - A run that was replaced on the instance -- v4 reuses the run's identifier when
-  a submission replaces an earlier one -- is fetched again. A replacement is
-  recognised by a change in the run's summary in its machine's listing (its
-  start and end times, order, and run fields), so a replacement identical to
-  the run it replaces in all of those goes unnoticed.
+  a submission replaces an earlier one -- is fetched again.
 - Every run document embeds its machine's metadata. A machine whose metadata
-  changed on the instance -- it was renamed, or its fields were updated -- has
-  all of its runs fetched again, and so do runs moved to another machine.
+  changed on the instance has all of its runs fetched again.
 - A suite that no longer exists on the instance is an error; the mirror is left
   untouched.
-- Machines excluded by ``--machine``, and suites other than the one named by
-  ``--suite``, are left untouched.
-
-A refresh of an up-to-date mirror fetches the suite's schema and machine
-listings, and no runs.
 
 
 Mirror Format
@@ -144,9 +101,9 @@ that directory when it starts. Its contents are never part of the mirror.
 The manifest
 ~~~~~~~~~~~~
 
-``manifest.json`` is the authoritative listing of the mirror's contents. A file
-the manifest does not reference is not part of the mirror, and tools reading a
-mirror must ignore it.
+``manifest.json`` is the authoritative listing of the mirror's contents: a file
+it does not reference is not part of the mirror, and tools reading a mirror must
+ignore it. It looks like this:
 
 .. code-block:: json
 
@@ -174,44 +131,15 @@ mirror must ignore it.
       }
     }
 
-``format_version``
-  The version of this format, ``"1"``. It changes whenever the format changes in
-  a way that a tool reading the previous version could misread.
-  ``lnt mirror-v4`` refuses to refresh a mirror of any other version, and tools
-  reading a mirror should likewise refuse a version they do not know.
+Machines and runs are keyed by their v4 identifiers, since v4 machine names are
+not unique. Each ``sha256`` is the lowercase hexadecimal SHA-256 of a file's
+bytes exactly as the instance sent them; for a run, that is the decompressed
+contents of ``<suite>/runs/<id>.json.gz``.
 
-``source``
-  The instance the mirror was copied from: its root ``url``, without a trailing
-  slash, and the ``database``.
-
-``suites``
-  One entry per mirrored suite, keyed by suite name.
-
-``suites.<suite>.schema.sha256``
-  The SHA-256 of ``<suite>/schema.json``.
-
-``suites.<suite>.machines``
-  One entry per mirrored machine, keyed by the machine's v4 identifier (a
-  decimal string, since JSON keys are strings). Machines are identified by
-  identifier rather than by name because v4 machine names are not unique.
-
-``...machines.<id>.name``
-  The machine's name, as the instance reported it at ``fetched_at``.
-
-``...machines.<id>.fetched_at``
-  When the machine's listing, ``<suite>/machines/<id>.json``, was fetched from
-  the instance: an ISO 8601 timestamp in UTC.
-
-``...machines.<id>.sha256``
-  The SHA-256 of ``<suite>/machines/<id>.json``.
-
-``...machines.<id>.runs``
-  One entry per mirrored run of the machine, keyed by the run's v4 identifier.
-  Its ``sha256`` is that of the run's JSON document, i.e. of the *decompressed*
-  contents of ``<suite>/runs/<id>.json.gz``.
-
-Every hash is the lowercase hexadecimal SHA-256 of the file's bytes exactly as
-the instance sent them.
+``format_version`` changes whenever the format changes in a way that a tool
+reading the previous version could misread. ``lnt mirror-v4`` refuses to refresh
+a mirror of any other version, and tools reading a mirror should likewise refuse
+a version they do not know.
 
 The payload
 ~~~~~~~~~~~

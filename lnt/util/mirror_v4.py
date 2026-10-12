@@ -623,8 +623,8 @@ def refresh(url: str, mirror_dir: str, suite: str, database: str = 'default',
     """Refresh `suite` in the mirror at `mirror_dir`.
 
     Returns the number of things that could not be fetched: 0 means the
-    mirrored part of the suite now matches the server. Raises MirrorError for
-    problems that stop the refresh before the mirror is modified.
+    machines refreshed now match the server. Raises MirrorError for problems
+    that stop the refresh before the mirror is modified.
     """
     url = url.rstrip('/')
     if not _SUITE_RE.match(suite):

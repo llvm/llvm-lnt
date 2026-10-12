@@ -9,7 +9,7 @@ import click
               help="test suite to mirror, given once (the v4 API cannot list "
                    "them)")
 @click.option("--database", default="default", show_default=True,
-              help="database of the instance to mirror")
+              metavar="NAME", help="database of the instance to mirror")
 @click.option("--machine", "machines", multiple=True, metavar="NAME",
               help="only refresh the machines with this name (repeatable)")
 @click.option("--workers", default=4, show_default=True,
@@ -25,7 +25,12 @@ def action_mirror_v4(url: str, mirror_dir: str, suites: tuple[str, ...],
 
     URL is the root of the LNT v4 instance, e.g. https://lnt.llvm.org. The
     mirror in MIRROR_DIR is created if needed, and brought up to date if it
-    already exists. See the "Mirroring a v4 Instance" documentation for the
+    already exists. A mirror holds a single database of a single instance, and
+    can hold several of its suites, each mirrored by an invocation of its own.
+
+    Exits with a non-zero status if anything could not be fetched. The mirror
+    is left consistent regardless, and running the same command again resumes
+    where it stopped. See the "Mirroring a v4 Instance" documentation for the
     mirror's format.
     """
     import sys
