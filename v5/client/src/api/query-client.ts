@@ -23,8 +23,8 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
  * - Data stays fresh for a minute, so that a page shown again within that time does not refetch
  *   it. Data that never changes (a run's samples, a profile) can set a longer `staleTime`; a
  *   mutation invalidates whatever it changes. How long unused data stays cached at all, so that
- *   going back renders it at once (GR8), is TanStack's `gcTime`, left at its default of five
- *   minutes for now.
+ *   going back to a page can render it at once, is TanStack's `gcTime`, left at its default of
+ *   five minutes for now.
  * - Mutations are never retried: a write that failed is reported rather than repeated.
  */
 export function createQueryClient(): QueryClient {
