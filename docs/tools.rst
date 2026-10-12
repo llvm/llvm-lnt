@@ -30,10 +30,10 @@ Client-Side Tools
     be the url to the actual ``submitRun`` page on the server; the database
     being submitted to is effectively a part of this URL.
 
-  ``lnt scrape-v4 <server url> <archive dir> --suite <suite>``
-    Copy a test suite of a v4 server into a local archive, through the server's
-    REST API. Running it again brings the archive up to date. See
-    :ref:`scrape_v4` for the details and the archive format.
+  ``lnt mirror-v4 <server url> <mirror dir> --suite <suite>``
+    Mirror a test suite of a v4 server into a local directory, through the
+    server's REST API. Running it again brings the mirror up to date. See
+    :ref:`mirror_v4` for the details and the mirror's format.
 
   ``lnt showtests``
     List available built-in tests. See the :ref:`tests` documentation for more

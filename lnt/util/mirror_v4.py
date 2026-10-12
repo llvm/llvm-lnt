@@ -1,12 +1,12 @@
-"""Mirror a test suite of an LNT v4 instance into a local archive.
+"""Mirror a test suite of an LNT v4 instance into a local directory.
 
-This implements ``lnt scrape-v4``. docs/scrape_v4.rst specifies the archive
+This implements ``lnt mirror-v4``. docs/mirror_v4.rst specifies the mirror's
 format and the guarantees maintained here; the comments below refer to it as
 "the spec".
 
 The central invariant, which every step is ordered to preserve: each run the
 manifest lists under a machine appears in that machine's listing (the version of
-it whose hash the manifest records), and its archived document embeds that
+it whose hash the manifest records), and its mirrored document embeds that
 listing's summary of the run and that listing's machine. Payload files are
 always written before the manifest references them, and the manifest stops
 referencing a file before the file is overwritten or deleted.
@@ -32,15 +32,16 @@ from urllib.parse import quote
 
 import requests
 
-MANIFEST = 'archive.json'
+MANIFEST = 'mirror.json'
 
 # Where files are written before being moved into place. It is cleared whenever
-# a scrape opens the archive, so whatever an interrupted scrape left in it goes.
-STAGING = '.scrape-tmp'
+# a refresh opens the mirror, so whatever an interrupted refresh left in it
+# goes.
+STAGING = '.mirror-tmp'
 
-# How often, in fetched runs, the manifest is flushed during a scrape. A flush
+# How often, in fetched runs, the manifest is flushed during a refresh. A flush
 # rewrites the whole manifest, so it is not done after every run; anything
-# fetched but not yet flushed is adopted by the next scrape rather than fetched
+# fetched but not yet flushed is adopted by the next refresh rather than fetched
 # again.
 FLUSH_EVERY = 100
 
@@ -55,7 +56,7 @@ TIMEOUT = (30, 300)
 
 # Some deployments sit behind a proxy that rejects the default User-Agent of
 # python-requests, so send one of our own.
-USER_AGENT = 'lnt-scrape-v4'
+USER_AGENT = 'lnt-mirror-v4'
 
 # Run documents compress about as well at this level as at the maximum, at a
 # fraction of the CPU time.
@@ -67,10 +68,10 @@ _SUITE_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
 _DATABASE_RE = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*$')
 
 # A JSON object from a server response. Its shape is the server's, and only the
-# parts the scrape relies on are checked.
+# parts the refresh relies on are checked.
 JSONObject = dict[str, Any]
 
-# Where the scrape reports its progress, one line at a time.
+# Where the refresh reports its progress, one line at a time.
 Echo = Callable[[str], None]
 
 _T = TypeVar('_T')
@@ -93,7 +94,7 @@ class RunEntry(TypedDict):
 
 class MachineEntry(TypedDict):
     name: str
-    scraped_at: str
+    fetched_at: str
     sha256: str
     runs: dict[str, RunEntry]
 
@@ -108,8 +109,8 @@ class Manifest(TypedDict):
     suites: dict[str, SuiteEntry]
 
 
-class ScrapeError(Exception):
-    """A problem that stops the scrape before it modifies the archive."""
+class MirrorError(Exception):
+    """A problem that stops the refresh before it modifies the mirror."""
 
 
 class FetchError(Exception):
@@ -210,7 +211,7 @@ class Client:
 
 
 # ----------------------------------------------------------------------------
-# Archive
+# Mirror
 # ----------------------------------------------------------------------------
 
 def _sorted_by_id(mapping: dict[str, _T]) -> dict[str, _T]:
@@ -226,7 +227,7 @@ def _fsync_directory(path: str) -> None:
         os.close(fd)
 
 
-class Archive:
+class Mirror:
     def __init__(self, path: str) -> None:
         self.path = path
         # Set by `open`.
@@ -244,14 +245,14 @@ class Archive:
         self._moved_into_lock = threading.Lock()
 
     def open(self, url: str, database: str, create: bool) -> None:
-        """Lock the archive and load its manifest.
+        """Lock the mirror and load its manifest.
 
         With `create`, the directory is created if needed and the staging area
         cleared; otherwise (for a dry run) nothing is written, and a directory
-        that does not exist is treated as an empty archive.
+        that does not exist is treated as an empty mirror.
 
-        A directory that has no manifest must be empty: anything else is not an
-        archive, and scraping into it could delete files that are not ours.
+        A directory that has no manifest must be empty: anything else is not a
+        mirror, and refreshing it could delete files that are not ours.
         """
         if create:
             os.makedirs(self.path, exist_ok=True)
@@ -265,11 +266,11 @@ class Archive:
         source = Source(url=url, database=database)
         manifest_path = os.path.join(self.path, MANIFEST)
         if not os.path.exists(manifest_path):
-            # The staging area alone is what a scrape leaves behind if it is
-            # interrupted while writing the manifest of a new archive.
+            # The staging area alone is what a refresh leaves behind if it is
+            # interrupted while writing the manifest of a new mirror.
             if os.path.isdir(self.path) and \
                     set(os.listdir(self.path)) - {STAGING}:
-                raise ScrapeError('%s is not empty and is not an archive'
+                raise MirrorError('%s is not empty and is not a mirror'
                                   % self.path)
             self.manifest = Manifest(source=source, suites={})
             self.is_new = True
@@ -278,20 +279,20 @@ class Archive:
             with open(manifest_path) as f:
                 manifest = json.load(f)
         except ValueError as e:
-            raise ScrapeError('%s is not valid JSON: %s' % (manifest_path, e))
+            raise MirrorError('%s is not valid JSON: %s' % (manifest_path, e))
         if not isinstance(manifest, dict) or \
                 not isinstance(manifest.get('suites'), dict):
-            raise ScrapeError('%s is not an archive manifest' % manifest_path)
+            raise MirrorError('%s is not a mirror manifest' % manifest_path)
         if manifest.get('source') != source:
-            archived = manifest.get('source') or {}
-            raise ScrapeError(
-                '%s is an archive of database %r of %s, not of database %r '
-                'of %s' % (self.path, archived.get('database'),
-                           archived.get('url'), database, url))
+            recorded = manifest.get('source') or {}
+            raise MirrorError(
+                '%s is a mirror of database %r of %s, not of database %r '
+                'of %s' % (self.path, recorded.get('database'),
+                           recorded.get('url'), database, url))
         self.manifest = cast(Manifest, manifest)
 
     def _lock(self) -> None:
-        """Take the archive for this process, or fail if another has it.
+        """Take the mirror for this process, or fail if another has it.
 
         The lock is on the directory itself rather than on a file in it, so
         that taking it creates nothing (which matters for --dry-run), and it is
@@ -302,7 +303,7 @@ class Archive:
             fcntl.flock(self._lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             self.close()
-            raise ScrapeError('%s is in use by another scrape' % self.path)
+            raise MirrorError('%s is in use by another refresh' % self.path)
 
     def close(self) -> None:
         if self._lock_fd is not None:
@@ -375,14 +376,14 @@ def _run_path(suite: str, run_id: str) -> str:
 
 
 # ----------------------------------------------------------------------------
-# Scraping
+# Refreshing
 # ----------------------------------------------------------------------------
 
 @dataclass
 class _UnlistedMachine:
     """A machine whose listing could not be fetched.
 
-    The scrape leaves what the archive has for it untouched.
+    The refresh leaves what the mirror has for it untouched.
     """
 
     id: str
@@ -395,18 +396,18 @@ class _UnlistedMachine:
 
 @dataclass
 class _MachinePlan:
-    """What a scrape does with one machine, given its listing."""
+    """What a refresh does with one machine, given its listing."""
 
     id: str
-    scraped_at: str
+    fetched_at: str
     listing: bytes                   # raw bytes of the machine's listing
     machine: JSONObject              # the machine object, from the listing
     summaries: dict[str, JSONObject]  # run id -> run summary, from the listing
-    listing_changed: bool = True     # whether it differs from the archived one
-    # Archived runs kept as they are, by run id.
+    listing_changed: bool = True     # whether it differs from the mirrored one
+    # Mirrored runs kept as they are, by run id.
     kept: dict[str, RunEntry] = field(default_factory=dict)
     changed: set[str] = field(default_factory=set)  # runs no longer current
-    removed: int = 0                 # archived runs gone from the server
+    removed: int = 0                 # mirrored runs gone from the server
 
     @property
     def name(self) -> str:
@@ -415,7 +416,7 @@ class _MachinePlan:
 
     @property
     def to_fetch(self) -> list[str]:
-        """The runs the archive does not hold a current copy of."""
+        """The runs the mirror does not hold a current copy of."""
         return sorted((run_id for run_id in self.summaries
                        if run_id not in self.kept), key=int)
 
@@ -435,7 +436,7 @@ class _MachinePlan:
             document.get('machine') == self.machine
 
     def current_sha(self, run_id: str, data: bytes | None) -> str | None:
-        """The sha256 of an archived run document if it is current, or None.
+        """The sha256 of a mirrored run document if it is current, or None.
         """
         if data is None:
             return None
@@ -446,33 +447,33 @@ class _MachinePlan:
         return _sha256(data) if self.is_current(run_id, document) else None
 
 
-def _plan_machine(client: Client, archive: Archive, suite: str,
-                  machine_id: str, archived: MachineEntry | None
+def _plan_machine(client: Client, mirror: Mirror, suite: str,
+                  machine_id: str, mirrored: MachineEntry | None
                   ) -> _MachinePlan | _UnlistedMachine:
     """Fetch a machine's listing and work out what to do with its runs.
 
-    `archived` is the machine's manifest entry, or None if it is new.
+    `mirrored` is the machine's manifest entry, or None if it is new.
     """
-    scraped_at = _now()
+    fetched_at = _now()
     try:
         listing = client.get('machines/%s' % machine_id)
         machine, summaries = _parse_listing(listing, machine_id)
     except FetchError as e:
-        return _UnlistedMachine(machine_id, archived['name'] if archived else None,
-                                e)
-    plan = _MachinePlan(machine_id, scraped_at, listing, machine, summaries)
-    if not archived:
+        return _UnlistedMachine(machine_id,
+                                mirrored['name'] if mirrored else None, e)
+    plan = _MachinePlan(machine_id, fetched_at, listing, machine, summaries)
+    if not mirrored:
         return plan
 
-    # The fast path: every archived run is current according to the previous
+    # The fast path: every mirrored run is current according to the previous
     # listing, provided that listing is the version the manifest vouches for,
     # so a run whose summary and machine are the same in both listings is
-    # still current. Otherwise (the scrape that wrote the listing was
+    # still current. Otherwise (the refresh that wrote the listing was
     # interrupted before it could update the manifest), fall back to checking
-    # the archived runs themselves.
-    previous = archive.read(_machine_path(suite, machine_id))
+    # the mirrored runs themselves.
+    previous = mirror.read(_machine_path(suite, machine_id))
     previous_summaries: dict[str, JSONObject] | None = None
-    if previous is not None and _sha256(previous) == archived['sha256']:
+    if previous is not None and _sha256(previous) == mirrored['sha256']:
         plan.listing_changed = previous != plan.listing
         try:
             previous_machine, previous_summaries = \
@@ -483,7 +484,7 @@ def _plan_machine(client: Client, archive: Archive, suite: str,
             if previous_machine != plan.machine:
                 previous_summaries = {}
 
-    for run_id, run_entry in archived['runs'].items():
+    for run_id, run_entry in mirrored['runs'].items():
         if run_id not in plan.summaries:
             plan.removed += 1
             continue
@@ -491,10 +492,10 @@ def _plan_machine(client: Client, archive: Archive, suite: str,
         if previous_summaries is not None:
             current = previous_summaries.get(run_id) == \
                 plan.summaries[run_id] and \
-                os.path.exists(os.path.join(archive.path, path))
+                os.path.exists(os.path.join(mirror.path, path))
         else:
             current = plan.current_sha(
-                run_id, archive.read(path, compressed=True)) == \
+                run_id, mirror.read(path, compressed=True)) == \
                 run_entry['sha256']
         if current:
             plan.kept[run_id] = run_entry
@@ -503,10 +504,10 @@ def _plan_machine(client: Client, archive: Archive, suite: str,
     return plan
 
 
-def _fetch_all(client: Client, archive: Archive, suite: str,
+def _fetch_all(client: Client, mirror: Mirror, suite: str,
                pending: list[tuple[_MachinePlan, str]], workers: int,
                echo: Echo) -> tuple[int, int]:
-    """Fetch and archive the runs in `pending`, a list of (plan, run id).
+    """Fetch and store the runs in `pending`, a list of (plan, run id).
 
     Returns the number of runs fetched and the number that failed. Workers only
     fetch and write payload files; the manifest is updated on this thread, and
@@ -516,11 +517,11 @@ def _fetch_all(client: Client, archive: Archive, suite: str,
         data = client.get('runs/%s' % run_id)
         if not plan.is_current(run_id, _parse(data, 'run %s' % run_id)):
             # The run or its machine changed on the server since the listing;
-            # archiving it would break the invariant. The next scrape will pick
+            # storing it would break the invariant. The next refresh will pick
             # it up.
-            raise FetchError('run %s changed on the server during the scrape'
+            raise FetchError('run %s changed on the server during the refresh'
                              % run_id)
-        archive.write(_run_path(suite, run_id), data, compress=True)
+        mirror.write(_run_path(suite, run_id), data, compress=True)
         return _sha256(data)
 
     fetched = failures = 0
@@ -537,21 +538,21 @@ def _fetch_all(client: Client, archive: Archive, suite: str,
                 failures += 1
                 echo('  run %s of %s: %s' % (run_id, plan.describe(), e))
                 continue
-            archive.manifest['suites'][suite]['machines'][plan.id]['runs'][
+            mirror.manifest['suites'][suite]['machines'][plan.id]['runs'][
                 run_id] = RunEntry(sha256=sha)
             fetched += 1
             if fetched % FLUSH_EVERY == 0:
-                archive.flush()
+                mirror.flush()
                 echo('  fetched %d/%d' % (fetched, len(pending)))
     finally:
         # When interrupted, drop the runs not started yet, and do not wait for
         # those in flight either: what they write is not referenced by the
-        # manifest, and is adopted or cleaned up by the next scrape.
+        # manifest, and is adopted or cleaned up by the next refresh.
         pool.shutdown(wait=False, cancel_futures=True)
     return fetched, failures
 
 
-def _clean(archive: Archive, suite: str, entry: SuiteEntry) -> None:
+def _clean(mirror: Mirror, suite: str, entry: SuiteEntry) -> None:
     """Delete the payload files of `suite` that the manifest does not reference.
     """
     referenced = {
@@ -560,7 +561,7 @@ def _clean(archive: Archive, suite: str, entry: SuiteEntry) -> None:
                  for run_id in machine['runs']},
     }
     for subdirectory, names in referenced.items():
-        directory = os.path.join(archive.path, suite, subdirectory)
+        directory = os.path.join(mirror.path, suite, subdirectory)
         if not os.path.isdir(directory):
             continue
         for name in os.listdir(directory):
@@ -568,56 +569,56 @@ def _clean(archive: Archive, suite: str, entry: SuiteEntry) -> None:
                 os.remove(os.path.join(directory, name))
 
 
-def scrape(url: str, archive_dir: str, suite: str, database: str = 'default',
-           machines: Iterable[str] = (), workers: int = 4,
-           dry_run: bool = False, echo: Echo = print) -> int:
-    """Scrape `suite` into the archive at `archive_dir`.
+def refresh(url: str, mirror_dir: str, suite: str, database: str = 'default',
+            machines: Iterable[str] = (), workers: int = 4,
+            dry_run: bool = False, echo: Echo = print) -> int:
+    """Refresh `suite` in the mirror at `mirror_dir`.
 
     Returns the number of things that could not be fetched: 0 means the
-    archived part of the suite now mirrors the server. Raises ScrapeError for
-    problems that stop the scrape before the archive is modified.
+    mirrored part of the suite now matches the server. Raises MirrorError for
+    problems that stop the refresh before the mirror is modified.
     """
     url = url.rstrip('/')
     if not _SUITE_RE.match(suite):
-        raise ScrapeError('invalid suite name: %r' % suite)
+        raise MirrorError('invalid suite name: %r' % suite)
     if not _DATABASE_RE.match(database):
-        raise ScrapeError('invalid database name: %r' % database)
+        raise MirrorError('invalid database name: %r' % database)
 
-    created = not dry_run and not os.path.exists(archive_dir)
-    archive = Archive(archive_dir)
+    created = not dry_run and not os.path.exists(mirror_dir)
+    mirror = Mirror(mirror_dir)
     try:
-        archive.open(url, database, create=not dry_run)
-        return _scrape(archive, url, suite, database, set(machines), workers,
-                       dry_run, echo)
-    except ScrapeError:
+        mirror.open(url, database, create=not dry_run)
+        return _refresh_suite(mirror, url, suite, database, set(machines),
+                              workers, dry_run, echo)
+    except MirrorError:
         # Such an error comes before anything is written, so a directory this
-        # scrape created is still empty, and is removed rather than left
+        # refresh created is still empty, and is removed rather than left
         # behind.
         if created:
             try:
-                os.rmdir(archive_dir)
+                os.rmdir(mirror_dir)
             except OSError:
                 pass
         raise
     finally:
-        archive.close()
+        mirror.close()
 
 
-def _scrape(archive: Archive, url: str, suite: str, database: str,
-            machine_filter: set[str], workers: int, dry_run: bool,
-            echo: Echo) -> int:
-    for archived_suite in archive.manifest['suites']:
-        if archived_suite != suite and archived_suite.lower() == suite.lower():
-            raise ScrapeError(
-                "suite '%s' would share a directory with the archived suite "
-                "'%s' on case-insensitive file systems" % (suite, archived_suite))
+def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
+                   machine_filter: set[str], workers: int, dry_run: bool,
+                   echo: Echo) -> int:
+    for mirrored_suite in mirror.manifest['suites']:
+        if mirrored_suite != suite and mirrored_suite.lower() == suite.lower():
+            raise MirrorError(
+                "suite '%s' would share a directory with the mirrored suite "
+                "'%s' on case-insensitive file systems" % (suite, mirrored_suite))
     client = Client(url, database, suite)
-    echo("Scraping suite '%s' of %s (database '%s') into %s%s"
-         % (suite, url, database, archive.path,
+    echo("Mirroring suite '%s' of %s (database '%s') into %s%s"
+         % (suite, url, database, mirror.path,
             ' (dry run)' if dry_run else ''))
 
-    # Everything that can make the scrape fail as a whole is checked before
-    # the archive is touched.
+    # Everything that can make the refresh fail as a whole is checked before
+    # the mirror is touched.
     try:
         schema = client.get('schema')
         _parse(schema, 'the schema')
@@ -626,42 +627,42 @@ def _scrape(archive: Archive, url: str, suite: str, database: str,
                                   for m in listing['machines']}
     except HTTPStatusError as e:
         if e.status == 404:
-            raise ScrapeError("there is no suite '%s' in database '%s' of %s"
+            raise MirrorError("there is no suite '%s' in database '%s' of %s"
                               % (suite, database, url))
-        raise ScrapeError(str(e))
+        raise MirrorError(str(e))
     except (FetchError, KeyError, TypeError, ValueError) as e:
-        raise ScrapeError(str(e))
+        raise MirrorError(str(e))
 
-    entry = archive.manifest['suites'].get(suite) or SuiteEntry(
+    entry = mirror.manifest['suites'].get(suite) or SuiteEntry(
         schema=SchemaEntry(sha256=_sha256(schema)), machines={})
-    archived = entry['machines']
+    mirrored = entry['machines']
     if machine_filter:
         unknown = machine_filter - set(server.values()) - \
-            {m['name'] for m in archived.values()}
+            {m['name'] for m in mirrored.values()}
         if unknown:
-            raise ScrapeError("no machine named %s in suite '%s'" % (
+            raise MirrorError("no machine named %s in suite '%s'" % (
                 ', '.join("'%s'" % name for name in sorted(unknown)), suite))
         # A machine is in scope if its current name, or the name it had when
-        # it was archived, is selected.
+        # it was mirrored, is selected.
         in_scope = {i for i, name in server.items() if name in machine_filter}
-        in_scope |= {i for i, m in archived.items()
+        in_scope |= {i for i, m in mirrored.items()
                      if m['name'] in machine_filter}
     else:
-        in_scope = set(server) | set(archived)
+        in_scope = set(server) | set(mirrored)
 
     removed_machines = sorted((i for i in in_scope if i not in server), key=int)
     for machine_id in removed_machines:
         echo('  machine %s (%s): no longer on the server, %s'
-             % (machine_id, archived[machine_id]['name'],
+             % (machine_id, mirrored[machine_id]['name'],
                 'to remove' if dry_run else 'removed'))
 
-    # Machine listings are fetched concurrently: on a scrape of an up-to-date
-    # archive, they are most of the work.
+    # Machine listings are fetched concurrently: on a refresh of an up-to-date
+    # mirror, they are most of the work.
     pool = ThreadPoolExecutor(max_workers=workers)
     try:
         plans = list(pool.map(
-            lambda machine_id: _plan_machine(client, archive, suite, machine_id,
-                                             archived.get(machine_id)),
+            lambda machine_id: _plan_machine(client, mirror, suite, machine_id,
+                                             mirrored.get(machine_id)),
             sorted(in_scope - set(removed_machines), key=int)))
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
@@ -679,41 +680,41 @@ def _scrape(archive: Archive, url: str, suite: str, database: str,
                 len(plan.changed), plan.removed, len(plan.kept)))
 
     if dry_run:
-        echo('Dry run: the archive was not modified.')
+        echo('Dry run: the mirror was not modified.')
         return failures
 
-    # From here on the archive is modified. A new archive gets its manifest
+    # From here on the mirror is modified. A new mirror gets its manifest
     # first, so that a directory holding any of our files is recognised as an
-    # archive even if this scrape is interrupted. Then the manifest is brought
-    # to a state where it no longer references anything this scrape removes or
+    # mirror even if this refresh is interrupted. Then the manifest is brought
+    # to a state where it no longer references anything this refresh removes or
     # replaces; only then are payload files overwritten or deleted.
-    if archive.is_new:
-        archive.flush()
-    archive.manifest['suites'][suite] = entry
-    if archive.read(_schema_path(suite)) != schema:
-        archive.write(_schema_path(suite), schema)
+    if mirror.is_new:
+        mirror.flush()
+    mirror.manifest['suites'][suite] = entry
+    if mirror.read(_schema_path(suite)) != schema:
+        mirror.write(_schema_path(suite), schema)
     entry['schema'] = SchemaEntry(sha256=_sha256(schema))
     for machine_id in removed_machines:
-        del archived[machine_id]
+        del mirrored[machine_id]
 
     for plan in ok:
         if plan.listing_changed:
-            archive.write(_machine_path(suite, plan.id), plan.listing)
-        archived[plan.id] = MachineEntry(
-            name=plan.name, scraped_at=plan.scraped_at,
+            mirror.write(_machine_path(suite, plan.id), plan.listing)
+        mirrored[plan.id] = MachineEntry(
+            name=plan.name, fetched_at=plan.fetched_at,
             sha256=_sha256(plan.listing), runs=dict(plan.kept))
     # A run the server moved to another machine may still be listed under its
     # old one, if that machine is out of scope or its listing could not be
     # fetched. It stops being listed there before its file is replaced.
     fetching = {run_id: plan.id for plan in ok for run_id in plan.to_fetch}
-    for machine_id, machine in archived.items():
+    for machine_id, machine in mirrored.items():
         for run_id in [run_id for run_id in machine['runs']
                        if fetching.get(run_id, machine_id) != machine_id]:
             del machine['runs'][run_id]
-    archive.flush()
+    mirror.flush()
 
-    # Runs the scrape knows to have changed are fetched; any other run missing
-    # from the manifest may have been fetched by an interrupted scrape, and is
+    # Runs the refresh knows to have changed are fetched; any other run missing
+    # from the manifest may have been fetched by an interrupted refresh, and is
     # reused if still current.
     pending: list[tuple[_MachinePlan, str]] = []
     adopted = 0
@@ -721,28 +722,28 @@ def _scrape(archive: Archive, url: str, suite: str, database: str,
         for run_id in plan.to_fetch:
             sha = None
             if run_id not in plan.changed:
-                sha = plan.current_sha(run_id, archive.read(
+                sha = plan.current_sha(run_id, mirror.read(
                     _run_path(suite, run_id), compressed=True))
             if sha is None:
                 pending.append((plan, run_id))
             else:
-                archived[plan.id]['runs'][run_id] = RunEntry(sha256=sha)
+                mirrored[plan.id]['runs'][run_id] = RunEntry(sha256=sha)
                 adopted += 1
     if adopted:
-        echo('Reused %d run(s) left by an interrupted scrape' % adopted)
+        echo('Reused %d run(s) left by an interrupted refresh' % adopted)
 
     fetched = 0
     try:
         if pending:
             echo('Fetching %d run(s) with %d worker(s)...'
                  % (len(pending), workers))
-            fetched, fetch_failures = _fetch_all(client, archive, suite,
+            fetched, fetch_failures = _fetch_all(client, mirror, suite,
                                                  pending, workers, echo)
             failures += fetch_failures
     finally:
         # Also when interrupted, so that the runs fetched so far are kept.
-        archive.flush()
-    _clean(archive, suite, entry)
+        mirror.flush()
+    _clean(mirror, suite, entry)
 
     removed_runs = sum(plan.removed for plan in ok)
     echo('Fetched %d run(s); removed %d run(s) and %d machine(s); '

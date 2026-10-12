@@ -1,17 +1,17 @@
 #!/usr/bin/env python
-"""Check that a directory is a well-formed archive produced by `lnt scrape-v4`.
+"""Check that a directory is a well-formed mirror produced by `lnt mirror-v4`.
 
-Verifies the properties docs/scrape_v4.rst guarantees for an archive left by a
-completed scrape: every file the manifest references exists and has the
-recorded hash, every archived run matches its summary and its machine in the
+Verifies the properties docs/mirror_v4.rst guarantees for a mirror left by a
+completed refresh: every file the manifest references exists and has the
+recorded hash, every mirrored run matches its summary and its machine in the
 machine listing, and no other file sits in a suite's directory. Prints a
-normalized listing of the archive for FileCheck, and exits with a non-zero
-status (after reporting every problem) if the archive is not well-formed.
+normalized listing of the mirror for FileCheck, and exits with a non-zero
+status (after reporting every problem) if the mirror is not well-formed.
 
-Deliberately independent of lnt.util.scrape_v4, so that it checks the archive
+Deliberately independent of lnt.util.mirror_v4, so that it checks the mirror
 against the spec rather than against the code that wrote it.
 
-Usage: check_v4_archive.py ARCHIVE_DIR
+Usage: check_v4_mirror.py MIRROR_DIR
 """
 
 import gzip
@@ -22,14 +22,14 @@ import sys
 
 
 def main():
-    archive = sys.argv[1]
+    mirror = sys.argv[1]
     problems = []
     referenced = set()
 
     def read(relpath, sha256, compressed=False):
         """The contents of a referenced file, or None if it is not usable."""
         referenced.add(relpath)
-        path = os.path.join(archive, relpath)
+        path = os.path.join(mirror, relpath)
         if not os.path.isfile(path):
             problems.append('%s: missing' % relpath)
             return None
@@ -42,7 +42,7 @@ def main():
             return None
         return data
 
-    with open(os.path.join(archive, 'archive.json')) as f:
+    with open(os.path.join(mirror, 'mirror.json')) as f:
         manifest = json.load(f)
     source = manifest['source']
     print('source: %s database=%s' % (source['url'], source['database']))
@@ -54,7 +54,7 @@ def main():
 
         for machine_id, machine in entry['machines'].items():
             listing_path = '%s/machines/%s.json' % (suite, machine_id)
-            for key in ('name', 'scraped_at', 'sha256', 'runs'):
+            for key in ('name', 'fetched_at', 'sha256', 'runs'):
                 if key not in machine:
                     problems.append('%s: no %s in the manifest'
                                     % (listing_path, key))
@@ -86,9 +86,9 @@ def main():
                 machine_id, machine['name'],
                 ' '.join(sorted(machine['runs'], key=int)) or '(none)'))
 
-        for root, _, files in os.walk(os.path.join(archive, suite)):
+        for root, _, files in os.walk(os.path.join(mirror, suite)):
             for name in files:
-                relpath = os.path.relpath(os.path.join(root, name), archive)
+                relpath = os.path.relpath(os.path.join(root, name), mirror)
                 if relpath not in referenced:
                     problems.append('%s: not referenced by the manifest'
                                     % relpath)

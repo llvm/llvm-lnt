@@ -1,10 +1,10 @@
-# Test how `lnt scrape-v4` handles failures and unusual server behavior,
+# Test how `lnt mirror-v4` handles failures and unusual server behavior,
 # against a fake server whose responses the test scripts: requests that fail and
 # are retried, requests that keep failing, runs that change while they are being
-# scraped or that move between machines, and invalid invocations.
+# fetched or that move between machines, and invalid invocations.
 #
 # RUN: rm -rf %t.dir && mkdir -p %t.dir
-# RUN: python %s %t.dir %S/Inputs/check_v4_archive.py > %t.out
+# RUN: python %s %t.dir %S/Inputs/check_v4_mirror.py > %t.out
 # RUN: filecheck %s < %t.out
 
 import fcntl
@@ -18,16 +18,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from click.testing import CliRunner
 
-import lnt.util.scrape_v4
-from lnt.lnttool.scrape_v4 import action_scrape_v4
+import lnt.util.mirror_v4
+from lnt.lnttool.mirror_v4 import action_mirror_v4
 
 # Retry immediately, rather than after the delays meant for a real server.
-lnt.util.scrape_v4.RETRY_DELAYS = (0, 0)
-# Pin the umask, so that the permissions the archive's files get are known.
+lnt.util.mirror_v4.RETRY_DELAYS = (0, 0)
+# Pin the umask, so that the permissions the mirror's files get are known.
 os.umask(0o022)
 
 TMP, CHECKER = sys.argv[1], sys.argv[2]
-ARCHIVE = os.path.join(TMP, 'archive')
+MIRROR = os.path.join(TMP, 'mirror')
 PREFIX = '/api/db_default/v4/nts/'
 
 MACHINE = {'id': 1, 'name': 'fake-machine'}
@@ -92,30 +92,30 @@ SCHEMA = (OK, {'name': 'nts', 'format_version': '2'})
 MACHINES = (OK, {'generated_by': 'fake', 'machines': [MACHINE]})
 
 
-def scrape(title, *args, archive=ARCHIVE):
+def refresh(title, *args, mirror=MIRROR):
     print('=== %s' % title)
-    result = CliRunner().invoke(action_scrape_v4,
-                                [URL, archive] + list(args or ['--suite', 'nts']))
+    result = CliRunner().invoke(action_mirror_v4,
+                                [URL, mirror] + list(args or ['--suite', 'nts']))
     # The URL has a random port; keep it out of what FileCheck sees.
     print(result.output.replace(URL, 'URL'), end='')
     print('exit: %d' % result.exit_code)
 
 
-def check(archive=ARCHIVE):
-    result = subprocess.run([sys.executable, CHECKER, archive],
+def check(mirror=MIRROR):
+    result = subprocess.run([sys.executable, CHECKER, mirror],
                             capture_output=True, text=True)
     print(result.stdout.replace(URL, 'URL'), end='')
     print('check: %d' % result.returncode)
 
 
 # A request that fails with a 5xx or a 429 is retried; one that keeps failing
-# is a failure, and the scrape archives everything else and exits with an error.
+# is a failure, and the refresh mirrors everything else and exits with an error.
 serve(schema=[SCHEMA], machines=[MACHINES],
       **{'machines/1': [(OK, listing(summary(1), summary(2), summary(3)))],
          'runs/1': [(429, {}), (OK, run_body(1))],
          'runs/2': [(500, {}), (OK, run_body(2))],
          'runs/3': [(500, {})]})
-scrape('run 3 keeps failing')
+refresh('run 3 keeps failing')
 check()
 # CHECK-LABEL: === run 3 keeps failing
 # CHECK: machine 1 (fake-machine): 3 run(s) to fetch
@@ -128,16 +128,16 @@ check()
 print('runs/3 requested %d times' % requests_seen.count('runs/3'))
 # CHECK: runs/3 requested 3 times
 
-# The archive's files get the permissions the umask gives any other new file.
+# The mirror's files get the permissions the umask gives any other new file.
 modes = {os.stat(os.path.join(root, name)).st_mode & 0o777
-         for root, _, names in os.walk(ARCHIVE) for name in names}
+         for root, _, names in os.walk(MIRROR) for name in names}
 print('modes: %s' % sorted('%o' % mode for mode in modes))
 # CHECK: modes: ['644']
 
-# Once the server recovers, the next scrape fetches only what is missing.
+# Once the server recovers, the next refresh fetches only what is missing.
 responses['runs/3'] = [(OK, run_body(3))]
 del requests_seen[:]
-scrape('the server recovered')
+refresh('the server recovered')
 check()
 fetched = sorted(p for p in requests_seen if p.startswith('runs/'))
 print('runs fetched: %s' % fetched)
@@ -150,23 +150,23 @@ print('runs fetched: %s' % fetched)
 # CHECK: runs fetched: ['runs/3']
 
 # A run that changes between the machine listing and the fetch of the run is not
-# archived, since it matches neither the old summary nor the new one.
+# mirrored, since it matches neither the old summary nor the new one.
 serve(schema=[SCHEMA], machines=[MACHINES],
       **{'machines/1': [(OK, listing(summary(1, start_time='2026-02-02T00:00'),
                                      summary(2), summary(3)))],
          'runs/1': [(OK, run_body(1, start_time='2026-03-03T00:00'))]})
-scrape('run 1 changes during the scrape')
+refresh('run 1 changes during the refresh')
 check()
-# CHECK-LABEL: === run 1 changes during the scrape
+# CHECK-LABEL: === run 1 changes during the refresh
 # CHECK: machine 1 (fake-machine): 0 run(s) to fetch, 1 changed, 0 removed, 2 unchanged
-# CHECK: run 1 of machine 1 (fake-machine): run 1 changed on the server during the scrape
+# CHECK: run 1 of machine 1 (fake-machine): run 1 changed on the server during the refresh
 # CHECK: exit: 1
 # CHECK: machine 1 fake-machine: runs 2 3
 # CHECK: check: 0
 
-# A machine whose listing cannot be fetched keeps what the archive has for it.
+# A machine whose listing cannot be fetched keeps what the mirror has for it.
 serve(schema=[SCHEMA], machines=[MACHINES], **{'machines/1': [(500, {})]})
-scrape('the machine listing fails')
+refresh('the machine listing fails')
 check()
 # CHECK-LABEL: === the machine listing fails
 # CHECK: machine 1 (fake-machine): could not fetch its listing: {{.*}}machines/1 returned HTTP 500
@@ -174,20 +174,20 @@ check()
 # CHECK: machine 1 fake-machine: runs 2 3
 # CHECK: check: 0
 
-# The schema is fetched first; if that fails, the archive is not touched.
+# The schema is fetched first; if that fails, the mirror is not touched.
 serve(schema=[(500, {})])
-scrape('the schema fails')
+refresh('the schema fails')
 # CHECK-LABEL: === the schema fails
 # CHECK: error: {{.*}}schema returned HTTP 500
 # CHECK: exit: 1
 
-# Only one scrape may use an archive at a time.
-lock = os.open(ARCHIVE, os.O_RDONLY)
+# Only one refresh may use a mirror at a time.
+lock = os.open(MIRROR, os.O_RDONLY)
 fcntl.flock(lock, fcntl.LOCK_EX)
-scrape('the archive is locked')
+refresh('the mirror is locked')
 os.close(lock)
-# CHECK-LABEL: === the archive is locked
-# CHECK: error: {{.*}}archive is in use by another scrape
+# CHECK-LABEL: === the mirror is locked
+# CHECK: error: {{.*}}mirror is in use by another refresh
 # CHECK: exit: 1
 
 # A run moved to another machine is fetched again with that machine embedded,
@@ -202,14 +202,14 @@ serve(schema=[SCHEMA], machines=[BOTH_MACHINES],
          'runs/1': [(OK, run_body(1))],
          'runs/2': [(OK, run_body(2))],
          'runs/3': [(OK, run_body(3, machine=OTHER_MACHINE))]})
-scrape('two machines', archive=MOVED)
+refresh('two machines', mirror=MOVED)
 responses.update({
     'machines/1': [(OK, listing(summary(1)))],
     'machines/2': [(OK, listing(summary(2), summary(3),
                                 machine=OTHER_MACHINE))],
     'runs/2': [(OK, run_body(2, machine=OTHER_MACHINE))]})
-scrape('run 2 moved, old machine excluded', '--suite', 'nts',
-       '--machine', 'other-machine', archive=MOVED)
+refresh('run 2 moved, old machine excluded', '--suite', 'nts',
+        '--machine', 'other-machine', mirror=MOVED)
 check(MOVED)
 # CHECK-LABEL: === run 2 moved, old machine excluded
 # CHECK: machine 2 (other-machine): 1 run(s) to fetch, 0 changed, 0 removed, 1 unchanged
@@ -225,13 +225,13 @@ serve(schema=[SCHEMA], machines=[BOTH_MACHINES],
          'runs/2': [(OK, run_body(2))],
          'runs/3': [(OK, run_body(3, machine=OTHER_MACHINE))]})
 shutil.rmtree(MOVED)
-scrape('two machines again', archive=MOVED)
+refresh('two machines again', mirror=MOVED)
 responses.update({
     'machines/1': [(500, {})],
     'machines/2': [(OK, listing(summary(2), summary(3),
                                 machine=OTHER_MACHINE))],
     'runs/2': [(OK, run_body(2, machine=OTHER_MACHINE))]})
-scrape('run 2 moved, old machine listing fails', archive=MOVED)
+refresh('run 2 moved, old machine listing fails', mirror=MOVED)
 check(MOVED)
 # CHECK-LABEL: === run 2 moved, old machine listing fails
 # CHECK: machine 1 (fake-machine): could not fetch its listing
@@ -241,21 +241,21 @@ check(MOVED)
 # CHECK: check: 0
 
 # Invalid invocations are rejected before anything is written, and a directory
-# the scrape would have created is not left behind.
-scrape('suite given twice', '--suite', 'nts', '--suite', 'compile')
+# the refresh would have created is not left behind.
+refresh('suite given twice', '--suite', 'nts', '--suite', 'compile')
 # CHECK-LABEL: === suite given twice
 # CHECK: --suite may only be given once
 # CHECK: exit: 2
-scrape('invalid suite name', '--suite', 'archive.json')
+refresh('invalid suite name', '--suite', 'mirror.json')
 # CHECK-LABEL: === invalid suite name
-# CHECK: error: invalid suite name: 'archive.json'
+# CHECK: error: invalid suite name: 'mirror.json'
 # CHECK: exit: 1
-scrape('suite name differing only in case', '--suite', 'NTS')
+refresh('suite name differing only in case', '--suite', 'NTS')
 # CHECK-LABEL: === suite name differing only in case
-# CHECK: error: suite 'NTS' would share a directory with the archived suite 'nts'
+# CHECK: error: suite 'NTS' would share a directory with the mirrored suite 'nts'
 # CHECK: exit: 1
 NEW = os.path.join(TMP, 'new')
-scrape('unknown suite into a new directory', '--suite', 'nosuch', archive=NEW)
+refresh('unknown suite into a new directory', '--suite', 'nosuch', mirror=NEW)
 print('created: %s' % os.path.exists(NEW))
 # CHECK-LABEL: === unknown suite into a new directory
 # CHECK: error: there is no suite 'nosuch'
