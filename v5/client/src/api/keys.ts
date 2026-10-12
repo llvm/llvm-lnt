@@ -26,6 +26,8 @@ export const queryKeys = {
   tests: (suite: string) => ['suite', suite, 'tests'] as const,
   /** Everything read about the suite's regressions: lists, whatever their filters, and details. */
   regressions: (suite: string) => ['suite', suite, 'regressions'] as const,
+  /** The suite's trends (E9), whatever their metric, machines and window. */
+  trends: (suite: string) => ['suite', suite, 'trends'] as const,
 }
 
 /**

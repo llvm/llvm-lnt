@@ -1,0 +1,80 @@
+/* The Dashboard (DA1-DA2). */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lnt-space-3);
+}
+
+/* The commit range presets, at the top right. */
+.ranges {
+  display: flex;
+  gap: var(--lnt-space-1);
+}
+
+.range[aria-pressed='true'],
+.range[aria-pressed='true']:hover {
+  border-color: var(--lnt-accent);
+  background: var(--lnt-accent);
+  color: var(--lnt-bg);
+}
+
+/* What the page says when there is nothing to show. */
+.note {
+  color: var(--lnt-muted);
+}
+
+.suite {
+  margin-bottom: var(--lnt-space-4);
+}
+
+.suiteHeading {
+  margin: 0 0 var(--lnt-space-2);
+  font-size: 1.2rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--lnt-space-3);
+}
+
+.card {
+  min-width: 0;
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+.title {
+  margin: 0 0 var(--lnt-space-1);
+  font-size: 0.95rem;
+}
+
+.unit {
+  color: var(--lnt-muted);
+  font-weight: normal;
+}
+
+.chartLink {
+  display: block;
+}
+
+/* Plotly fills the chart's container, so the container sets the size. */
+.chart {
+  height: 160px;
+}
+
+/* What a card shows in place of its chart: that it loads, why it failed, or that it is empty. */
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  margin: 0;
+  padding: var(--lnt-space-2);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-panel);
+}

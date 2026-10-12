@@ -75,6 +75,11 @@ export function plural(count: number, noun: string): string {
   return `${count} ${count === 1 ? noun : `${noun}s`}`
 }
 
+/** `text` with HTML's special characters escaped: for text a chart reads as HTML, as Plotly does. */
+export function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 /** Orders strings as `Array.prototype.sort` does by default, by UTF-16 code units. */
 export function compareStrings(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0

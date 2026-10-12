@@ -1,16 +1,19 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
 import { queryKeys } from './keys'
+import type { paths } from './schema'
 
 type Machine = Schemas['Machine']
 
+type MachineListQuery = NonNullable<
+  paths['/api/suites/{testsuite}/machines']['get']['parameters']['query']
+>
+
 /**
- * The machines of the suite whose name or searchable fields contain `search`, by name, or every
- * machine without one (E2). One query for every page that needs them, so that the same list is
- * fetched and cached once.
+ * The machines of the suite that `query` lists (E2): with no filter, every machine, by name. One
+ * query for every page that needs them, so that the same list is fetched and cached once.
  */
-export function machinesQuery(suite: string, search = '') {
-  const query = { search: search || undefined }
+export function machinesQuery(suite: string, query: MachineListQuery = {}) {
   return queryOptions({
     queryKey: [...queryKeys.machines(suite), query],
     queryFn: async ({ signal }) => {
@@ -26,6 +29,23 @@ export function machinesQuery(suite: string, search = '') {
 }
 
 const namesOf = (machines: Machine[]) => machines.map((machine) => machine.name)
+
+/** The tracked machines, most recently active first (E2), to choose some on the user's behalf. */
+const RECENTLY_ACTIVE: MachineListQuery = { tracked: true, sort: '-last_run_at' }
+
+/**
+ * The names of the `count` tracked machines that most recently had a run, most recent first:
+ * machines the user did not pick (D5), such as the Dashboard's (DA2). Machines without runs are
+ * left out.
+ */
+export function useRecentlyActiveMachines(suite: string, count: number, enabled = true) {
+  return useQuery({
+    ...machinesQuery(suite, RECENTLY_ACTIVE),
+    enabled,
+    select: (machines) =>
+      namesOf(machines.filter((machine) => machine.last_run_at !== null).slice(0, count)),
+  })
+}
 
 /**
  * The names of the suite's machines, fetched once for a combobox to filter locally: a suite has few

@@ -69,7 +69,7 @@ after every key carrying a timestamp, in both directions. `Scope` sorts by I5's
 hierarchy, from `read` to `admin`, rather than alphabetically. Keys with the same value keep
 the default order, which is `Created` descending, also the order the API returns. The URL
 names the sort column after its key in the API, prefixed with `-` for descending order
-(`sort=-last_used_at`), and leaves out the default order.
+(`sort=-last_used_at`).
 
 Clicking Revoke asks for a plain confirmation (see AR16) before the request is sent. On
 success the row's `Active` flips to `No` in place and its Revoke button disappears --

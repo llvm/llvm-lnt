@@ -25,16 +25,22 @@ describe('comparePath', () => {
 describe('graphPath', () => {
   it('sets what is given, with GR14 names and a test name of any characters', () => {
     expect(graphPath()).toBe('/graph')
-    expect(graphPath({ suite: 'nts', machine: 'm1' })).toBe('/graph?suite=nts&machine=m1')
+    expect(graphPath({ suite: 'nts', machines: ['m1'] })).toBe('/graph?suite=nts&machine=m1')
     expect(
       graphPath({
         suite: 'nts',
-        machine: 'm1',
+        machines: ['m1'],
         metric: 'execution_time',
         test: 'a/b c&d',
         regressions: 'all',
       }),
     ).toBe('/graph?suite=nts&machine=m1&metric=execution_time&test=a%2Fb+c%26d&regressions=all')
+  })
+
+  it('repeats the machine parameter once per machine, in order', () => {
+    expect(graphPath({ suite: 'nts', machines: ['m2', 'm&1'], metric: 'score' })).toBe(
+      '/graph?suite=nts&machine=m2&machine=m%261&metric=score',
+    )
   })
 })
 

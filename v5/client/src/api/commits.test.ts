@@ -15,6 +15,8 @@ const SHOWING_COMMITS: [string, readonly unknown[], unknown][] = [
   ['a list of commits', [...queryKeys.commits('libcxx'), { sort: '-first_seen' }], PAGE],
   ['a page of runs', [...queryKeys.runs('libcxx'), { sort: '-submitted_at' }], PAGE_WITH_COMMITS],
   ['a page of regressions', [...queryKeys.regressions('libcxx'), {}], PAGE_WITH_COMMITS],
+  // Placed and windowed by ordinals, whether or not it holds its commits.
+  ['a trend', [...queryKeys.trends('libcxx'), { metric: 'm' }], { items: [] }],
 ]
 const NOT_SHOWING_COMMITS: [string, readonly unknown[], unknown][] = [
   ['a run', runKey('libcxx', 'r1'), {}],
