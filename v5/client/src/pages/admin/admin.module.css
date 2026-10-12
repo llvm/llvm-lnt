@@ -3,7 +3,7 @@
   color: var(--lnt-muted);
 }
 
-/* The form creating an API key (AD1). */
+/* A form creating an API key (AD1) or a suite, or editing a suite's schema (AD3). */
 .createForm {
   padding: var(--lnt-space-3);
   margin-bottom: var(--lnt-space-3);
@@ -72,5 +72,81 @@
 
 /* The row of actions below a suite's schema, set apart from its last table. */
 .actions {
+  margin-top: var(--lnt-space-4);
+}
+
+/* Cancel and the button submitting the editor, at the far end of its controls. */
+.editorButtons {
+  display: flex;
+  gap: var(--lnt-space-2);
+  margin-left: auto;
+}
+
+/* An input in a cell of the editor's tables, as wide as its column lets it be. */
+.cellInput {
+  width: 100%;
+  min-width: 6rem;
+}
+
+.addEntry {
+  margin-top: var(--lnt-space-2);
+}
+
+/* "Import JSON": the document, and what loads and sends it. */
+.importJson {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+}
+
+.document {
+  width: 100%;
+  font-family: var(--lnt-font-mono);
+}
+
+.importActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+}
+
+/* "Import JSON" while its document shows in place of the editor. */
+.toggle[aria-pressed='true'] {
+  border-color: var(--lnt-accent);
+  background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
+}
+
+/* The file chooser carries a button of its own: no box around it. */
+.fileInput {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+/* A cell of the editor's tables, its checkbox in line with the inputs beside it. */
+.editorCell {
+  vertical-align: middle;
+}
+
+.checkbox {
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* An existing entry removed in this edit, until saved or undone (AD3). */
+.removedName {
+  color: var(--lnt-muted);
+  text-decoration: line-through;
+}
+
+/* The heading of the editor of a suite's schema, beside its buttons. */
+.editorTitle {
+  align-self: center;
+}
+
+/* The editor's heading and buttons, below a suite's schema as the viewer's actions are (AD3). */
+.editorFooter {
+  composes: createForm;
   margin-top: var(--lnt-space-4);
 }

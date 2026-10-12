@@ -10,7 +10,7 @@ import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
 import { expect, json, test } from './fixtures.ts'
-import { ownSuite } from './own-suite.ts'
+import { ownSuite, withOwnSuiteName } from './own-suite.ts'
 import { pickOption } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -176,6 +176,230 @@ test.describe('the Test Suites tab', () => {
       await expect(page).toHaveURL('/admin?tab=suites')
       await expect(table(page, 'Metrics')).toBeHidden()
       expect((await request.get(`/api/suites/${suite}`)).status()).toBe(404)
+    })
+  })
+
+  test('creates a suite in the editor, starting from a seeded suite', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await withOwnSuiteName(request, await tokenFor('manage'), testInfo, async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const editor = page.getByRole('region', { name: 'New suite' })
+      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      await pickOption(editor, 'Start from', 'libcxx')
+      await editor.getByRole('button', { name: '+ Add machine field' }).click()
+      await editor
+        .getByRole('textbox', { name: /^Name of machine field \d+$/ })
+        .last()
+        .fill('kernel')
+      await editor.getByRole('button', { name: 'Create', exact: true }).click()
+
+      await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+      await expect(rows(table(page, 'Machine fields')).last().locator('td')).toHaveText([
+        'kernel',
+        'text',
+        '--',
+        'No',
+      ])
+      const libcxx = await json<components['schemas']['SuiteSchema']>(request, '/api/suites/libcxx')
+      const created = await json<components['schemas']['SuiteSchema']>(
+        request,
+        `/api/suites/${suite}`,
+      )
+      expect(created).toEqual({
+        ...libcxx,
+        name: suite,
+        machine_fields: [
+          ...libcxx.machine_fields,
+          { name: 'kernel', type: 'text', display_name: null, searchable: false },
+        ],
+      })
+    })
+  })
+
+  test('creates a suite from a schema document', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await withOwnSuiteName(request, await tokenFor('manage'), testInfo, async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const editor = page.getByRole('region', { name: 'New suite' })
+      await editor.getByRole('button', { name: 'Import JSON' }).click()
+      await editor
+        .getByRole('textbox', { name: /^Schema document/ })
+        .fill(JSON.stringify({ name: suite, metrics: [{ name: 'size', type: 'integer' }] }))
+      await editor.getByRole('button', { name: 'Create from JSON' }).click()
+
+      await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+      await expect(rows(table(page, 'Metrics')).locator('td')).toHaveText([
+        'size',
+        'integer',
+        '--',
+        '--',
+        'No',
+      ])
+    })
+  })
+
+  test("edits a suite's schema, confirming a removal", async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const token = await tokenFor('manage')
+    await withOwnSuiteName(request, token, testInfo, async (suite) => {
+      const created = await request.post('/api/suites', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          name: suite,
+          metrics: [
+            { name: 'execution_time', type: 'real' },
+            { name: 'compile_time', type: 'real' },
+          ],
+          commit_fields: [
+            { name: 'sha', type: 'text', display: true },
+            { name: 'short_sha', type: 'text' },
+          ],
+        },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+      await signIn(page, 'manage')
+      await page.goto(`/admin?tab=suites&suite=${suite}`)
+
+      await page.getByRole('button', { name: 'Edit schema' }).click()
+      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      await editor
+        .getByRole('textbox', { name: 'Display name of metric execution_time' })
+        .fill('Execution Time')
+      // The display field moves from one commit field to another.
+      await editor.getByRole('checkbox', { name: 'Display of commit field short_sha' }).check()
+      await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
+      await editor.getByRole('button', { name: '+ Add machine field' }).click()
+      await editor
+        .getByRole('textbox', { name: 'Name of machine field 1', exact: true })
+        .fill('kernel')
+      await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('button', { name: 'Save' }).click()
+
+      await expect(editor).toBeHidden()
+      await expect(rows(table(page, 'Metrics')).locator('td')).toHaveText([
+        'execution_time',
+        'real',
+        'Execution Time',
+        '--',
+        'No',
+      ])
+      const schema = await json<components['schemas']['SuiteSchema']>(
+        request,
+        `/api/suites/${suite}`,
+      )
+      expect(schema.metrics.map((metric) => metric.name)).toEqual(['execution_time'])
+      expect(schema.commit_fields.map((field) => [field.name, field.display])).toEqual([
+        ['sha', false],
+        ['short_sha', true],
+      ])
+      expect(schema.machine_fields.map((field) => field.name)).toEqual(['kernel'])
+    })
+  })
+
+  test('creates a suite that takes runs, whose pages follow its schema once edited', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const token = await tokenFor('manage')
+    await withOwnSuiteName(request, token, testInfo, async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const creator = page.getByRole('region', { name: 'New suite' })
+      await creator.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      for (const metric of ['execution_time', 'compile_time']) {
+        await creator.getByRole('button', { name: '+ Add metric' }).click()
+        await creator.getByRole('textbox', { name: /^Name of metric \d+$/ }).last().fill(metric)
+      }
+      await creator.getByRole('button', { name: '+ Add machine field' }).click()
+      await creator
+        .getByRole('textbox', { name: 'Name of machine field 1', exact: true })
+        .fill('hardware')
+      await creator.getByRole('button', { name: 'Create', exact: true }).click()
+      await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+
+      const submitted = await request.post(`/api/suites/${suite}/runs`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          format_version: '5',
+          machine: { name: 'm1', fields: { hardware: 'Apple M4' } },
+          commit: { value: 'c1', ordinal: 1 },
+          tests: [{ name: 'bench', execution_time: 1.5, compile_time: 0.25 }],
+        },
+      })
+      expect(submitted.status(), await submitted.text()).toBe(201)
+      const run = ((await submitted.json()) as components['schemas']['RunDetail']).uuid
+
+      // The pages of the suite, visited before its schema changes, and again after, without the
+      // page being loaded again.
+      await page.goto(`/suites/${suite}/runs/${run}`)
+      await page.evaluate(() => Object.assign(window, { notReloaded: true }))
+      await pickOption(page, 'Metric', 'compile_time')
+      await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('0.25')
+      await page.getByRole('main').getByRole('link', { name: 'm1', exact: true }).click()
+      const machine = page.getByRole('group', { name: 'Machine', exact: true })
+      await expect(machine).toContainText('Apple M4')
+      await expect(machine).not.toContainText('kernel')
+
+      await page.getByRole('navigation').getByRole('link', { name: 'Admin' }).click()
+      await page.getByRole('tab', { name: 'Test Suites' }).click()
+      await pickOption(page.getByRole('main'), 'Test suite', suite)
+      await page.getByRole('button', { name: 'Edit schema' }).click()
+      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      await editor
+        .getByRole('textbox', { name: 'Display name of metric execution_time' })
+        .fill('Execution Time')
+      await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
+      await editor.getByRole('button', { name: '+ Add machine field' }).click()
+      await editor
+        .getByRole('textbox', { name: 'Name of machine field 2', exact: true })
+        .fill('kernel')
+      await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('button', { name: 'Save' }).click()
+      await expect(editor).toBeHidden()
+
+      // The machine has the new field, without a value yet, and keeps the value it had.
+      await page.goBack()
+      await expect(machine).toContainText('kernel')
+      await expect(machine).toContainText('Apple M4')
+
+      // The run no longer offers the metric removed, whose selection is dropped, and names the
+      // other one as the schema now does.
+      await page.goBack()
+      await expect(page).toHaveURL(`/suites/${suite}/runs/${run}`)
+      const metric = page.getByRole('button', { name: / Metric$/ })
+      await expect(metric).toHaveText(/Execution Time/)
+      await metric.click()
+      await expect(page.getByRole('option')).toHaveText(['Execution Time'])
+      await page.keyboard.press('Escape')
+      await expect(table(page, 'Samples').getByRole('columnheader').nth(1)).toHaveText(
+        'Execution Time',
+      )
+      await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('1.5')
+
+      expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)
     })
   })
 })

@@ -7,6 +7,7 @@ import { queryKeys } from '../../api/keys'
 import { grants, scopeRank, SCOPES, useScopeGate, type Scope, type ScopeGate } from '../../auth/scope'
 import { acceptedKey, useAuth } from '../../auth/use-auth'
 import { ConfirmDelete } from '../../components/confirm-delete'
+import { ActionButton } from '../../components/action-button'
 import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
 import { Alert, ErrorMessage, Loaded, Loading } from '../../components/feedback'
@@ -77,7 +78,6 @@ function CreateKey() {
   const queryClient = useQueryClient()
   const gate = useScopeGate('admin')
   const titleId = useId()
-  const reasonId = useId()
   const warningId = useId()
   const [name, setName] = useState('')
   const [scope, setScope] = useState<Scope>('read')
@@ -130,15 +130,9 @@ function CreateKey() {
             value={scope}
             onChange={setScope}
           />
-          <button
-            type="submit"
-            disabled={reason !== undefined || create.isPending}
-            title={reason}
-            aria-describedby={reason === undefined ? undefined : reasonId}
-          >
+          <ActionButton type="submit" reason={reason} busy={create.isPending}>
             {create.isPending ? 'Creating...' : 'Create key'}
-          </button>
-          {reason !== undefined && <VisuallyHidden id={reasonId}>{reason}</VisuallyHidden>}
+          </ActionButton>
         </div>
       </form>
       {create.isError && <ErrorMessage error={create.error} />}

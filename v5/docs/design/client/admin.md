@@ -136,15 +136,14 @@ scope.
 
 ### AD3: Schema editor
 
-The schema editor takes the place of the schema viewer in the Test Suites tab, to create a
-suite or to edit the selected suite's schema. While it is open, the suite dropdown and the
-viewer's buttons are disabled. "Cancel" closes it and discards its changes. Leaving the tab or
-the page does the same, without asking.
+The schema editor takes the place of the schema viewer in the Test Suites tab, buttons
+included, to create a suite or to edit the selected suite's schema. While it is open, the suite
+dropdown and "New suite" are disabled. "Cancel" closes it and discards its changes, and the
+viewer shows the suite selected before again. Leaving the tab or the page discards the changes
+too, without asking.
 
 ```
-New suite    Name [__________]    Start from [suite v]    [Import JSON]       [Cancel] [Create]
-
-Editing nts                                                                   [Cancel] [Save]
+New suite    Suite name [________]    Start from [suite v]    [Import JSON]
 
 Metrics
 Name              Type        Display Name        Unit          Abbrev    Bigger is Better
@@ -163,51 +162,64 @@ commit_info       text        [              ]    [ ]           [ ]             
 
 Machine Fields
 ...
+
+                                                                           [Cancel] [Create]
+
+Editing nts                                                                  [Cancel] [Save]
 ```
 
-The first header is shown when creating a suite, and the second when editing one. The tables
-are the same in both modes.
+When creating a suite, the header above the tables holds its name, "Start from" and "Import JSON".
+The editor's buttons are below the tables, where the viewer has its own: "Cancel" and "Create"
+when creating a suite, and its heading, "Cancel" and "Save" when editing one. The tables are the
+same in both modes.
 
 The editor shows the same entries and keys as the viewer, with an input for each value. Each
 table has a button to add an entry, and each entry a button (×) to remove it. An added entry
-goes at the end of its list, and entries cannot be reordered. Emptying the display name, unit
-or abbreviation input sets it to `null` (see D2).
+goes at the end of its list, and entries cannot be reordered. The display name, unit and
+abbreviation are sent without whitespace at either end, and an input that is empty, or holds only
+whitespace, sets its key to `null` (see D2).
 
 `searchable` and `display` are only valid on a `text` entry (see D3): they are disabled for
 other types, and changing an entry's type away from `text` clears them. Checking `display` on
 one commit field unchecks it on the others, since at most one can have it.
 
-As the user types a name, the editor checks it against D4's rules for names, and for
-uniqueness within its list. A name that fails shows the red halo (see AR2), and "Create" or
-"Save" is disabled while any name fails or is empty. The server validates everything else when
-the schema is submitted.
+As the user types a name, the editor checks it against D4's rules for names, including the
+names that D5 and O1 reserve, and for uniqueness within its list. A name that fails shows the red
+halo (see AR2), and says why on hover. "Create" or "Save" is disabled while any name fails or is
+empty, and when disabled, says why on hover. The server validates everything else when the schema
+is submitted.
 
 **Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
 is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's contents with a copy of an existing suite's schema, leaving the name empty.
+editor's entries with a copy of an existing suite's. It does not copy the suite's name.
 
 "Create" creates the suite. On success, the editor closes and the dropdown selects the new
-suite.
+suite. If the name was taken meanwhile, the name check says so once "Create" fails.
 
-"Import JSON" creates a suite from a schema document instead, without going through the
-editor. It opens a text area, where the user pastes the document or loads it from a file, and
-a button that sends the document unchanged to `POST /api/suites`, where the server validates
-it. On success, the editor closes and the dropdown selects the new suite, as with "Create". On
-failure, the text area keeps its contents, and the API's error message is shown.
+"Import JSON" creates a suite from a schema document instead, without going through the editor. It
+opens a text area, where the user pastes the document or loads it from a file, and a button that
+sends the document unchanged to `POST /api/suites`, where the server validates it. They take the
+place of the suite name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
+which goes back to the editor as the user left it, and keeps the document. On success, the editor
+closes and the dropdown selects the new suite, as with "Create". On failure, the text area keeps its
+contents, and the API's error message is shown.
 
 **Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only
 an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since
 D2 allows changing neither. An added entry is editable in full. Removing an existing entry only
-marks it as removed, with an undo button, and its name stays taken until the schema is saved.
-Hovering the red halo on an added entry with that name explains that an entry removed in this
-edit cannot be re-created in the same edit.
+marks it as removed, with an undo button, and its name stays taken until the schema is saved:
+the reason given for refusing an added entry with that name is that an entry removed in this edit
+cannot be added again in the same edit.
 
 "Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
 the user changed, so that it does not overwrite changes made by others since the editor opened.
-If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR2).
+When the user changed nothing, "Save" closes the editor without sending anything.
+If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR2),
+and the editor's contents cannot change until the user does, or cancels.
 The prompt lists the removed entries and warns that every value stored for them will be
 permanently destroyed, along with the regression indicators of any removed metric (see D2). On
 success, the editor closes and the viewer shows the schema the API returned.
 
 In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
-the API's error message.
+the API's error message. If the suite being edited no longer exists, the editor closes, and the
+suite is no longer selected.

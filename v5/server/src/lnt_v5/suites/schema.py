@@ -36,6 +36,10 @@ from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 #
 # Anchored because pydantic's pattern is a *search* rather than a full match, so an unanchored
 # pattern would accept anything merely containing a legal name.
+#
+# The web UI's schema editor checks names as they are typed with a copy of these rules, and of the
+# reserved names below and on each entry model: see schema-lists.ts and schema-editor-model.ts in
+# client/src/pages/admin.
 NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 
 # D4: names that satisfy the pattern but still cannot be a suite, because a namespace cannot be

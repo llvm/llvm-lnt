@@ -1,6 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
-import { queryKeys } from './keys'
+import { compareStrings } from '../format'
+import { forgetSuite, queryKeys } from './keys'
 
 export type SuiteSchema = Schemas['SuiteSchema']
 
@@ -15,6 +16,45 @@ export function useSuites() {
     queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
     select: (list) => list.items,
   })
+}
+
+/** Fetch the list of suites again, after a write that found it out of date. */
+export function refetchSuites(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.suites, exact: true })
+}
+
+/**
+ * Put `schema`, as the API returned it after a write, in the list of suites: in place of the
+ * suite's schema, or by name. A list on its way, which may not hold it yet, is cancelled, and asked
+ * for again, since it may have held more than the cache does, such as a suite created elsewhere.
+ */
+async function putSuite(queryClient: QueryClient, schema: SuiteSchema): Promise<void> {
+  const fetching = queryClient.isFetching({ queryKey: queryKeys.suites, exact: true }) > 0
+  await queryClient.cancelQueries({ queryKey: queryKeys.suites, exact: true })
+  queryClient.setQueryData<Schemas['SuiteSchemaList']>(queryKeys.suites, (list) => {
+    if (list === undefined) return list
+    const others = list.items.filter((entry) => entry.name !== schema.name)
+    return { items: [...others, schema].sort((a, b) => compareStrings(a.name, b.name)) }
+  })
+  if (fetching) refetchSuites(queryClient)
+}
+
+/**
+ * Add the created `schema` to the list of suites, and drop everything read from inside an earlier
+ * suite of the same name, deleted elsewhere, so that the new one starts afresh.
+ */
+export async function addSuite(queryClient: QueryClient, schema: SuiteSchema): Promise<void> {
+  await putSuite(queryClient, schema)
+  queryClient.removeQueries({ queryKey: queryKeys.suite(schema.name) })
+}
+
+/**
+ * Put the changed `schema` in the list of suites, and forget what was read from inside the suite,
+ * whose fields or metrics may have changed.
+ */
+export async function updateSuite(queryClient: QueryClient, schema: SuiteSchema): Promise<void> {
+  await putSuite(queryClient, schema)
+  await forgetSuite(queryClient, schema.name, { leaving: false })
 }
 
 /**

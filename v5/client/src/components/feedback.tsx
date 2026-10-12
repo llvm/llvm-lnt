@@ -51,14 +51,16 @@ interface LoadedProps {
   onRetry(): void
   /** What shows the data, rendered once there is no failure and nothing pending. */
   children: ReactNode
+  /** What to say while the data loads, if not that it is loading. */
+  label?: string
 }
 
 /**
  * A section showing data it fetches: that it is loading, why it failed, or the data. A failure takes
  * the place of the data rather than leave up what was shown before (AR2 "Paginated tables").
  */
-export function Loaded({ isPending, error, onRetry, children }: LoadedProps) {
+export function Loaded({ isPending, error, onRetry, children, label }: LoadedProps) {
   if (error) return <ErrorMessage error={error} onRetry={onRetry} />
-  if (isPending) return <Loading />
+  if (isPending) return <Loading label={label} />
   return children
 }

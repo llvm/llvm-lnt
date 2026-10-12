@@ -17,6 +17,26 @@ export interface OwnRun {
 }
 
 /**
+ * Call `use` with the name of a suite of the test's own, one that no other test uses, and delete the
+ * suite, if `use` created one, once it returns, with `manageToken`.
+ */
+export async function withOwnSuiteName(
+  request: APIRequestContext,
+  manageToken: string,
+  testInfo: TestInfo,
+  use: (suite: string) => Promise<void>,
+) {
+  const suite = `e2e_${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 63)
+  try {
+    await use(suite)
+  } finally {
+    await request.delete(`/api/suites/${suite}?confirm=true`, {
+      headers: { Authorization: `Bearer ${manageToken}` },
+    })
+  }
+}
+
+/**
  * Create a suite named after the test, with the metrics `execution_time` and `compile_time`, and
  * the machine field `hardware`, submit `runs` to it, and call `use` with its name and the UUIDs of
  * the runs, in order. The suite is deleted once `use` returns.
@@ -28,21 +48,21 @@ export async function ownSuite(
   runs: OwnRun[],
   use: (suite: string, runs: string[]) => Promise<void>,
 ) {
-  const suite = `e2e_${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 63)
-  const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
-  const created = await request.post('/api/suites', {
-    headers,
-    data: {
-      name: suite,
-      metrics: [
-        { name: 'execution_time', type: 'real' },
-        { name: 'compile_time', type: 'real' },
-      ],
-      machine_fields: [{ name: 'hardware', type: 'text' }],
-    },
-  })
-  expect(created.status(), await created.text()).toBe(201)
-  try {
+  const token = await tokenFor('manage')
+  const headers = { Authorization: `Bearer ${token}` }
+  await withOwnSuiteName(request, token, testInfo, async (suite) => {
+    const created = await request.post('/api/suites', {
+      headers,
+      data: {
+        name: suite,
+        metrics: [
+          { name: 'execution_time', type: 'real' },
+          { name: 'compile_time', type: 'real' },
+        ],
+        machine_fields: [{ name: 'hardware', type: 'text' }],
+      },
+    })
+    expect(created.status(), await created.text()).toBe(201)
     const uuids: string[] = []
     for (const { machine, commit, ordinal, tests } of runs) {
       const response = await request.post(`/api/suites/${suite}/runs`, {
@@ -58,7 +78,5 @@ export async function ownSuite(
       uuids.push(((await response.json()) as components['schemas']['RunDetail']).uuid)
     }
     await use(suite, uuids)
-  } finally {
-    await request.delete(`/api/suites/${suite}?confirm=true`, { headers })
-  }
+  })
 }
