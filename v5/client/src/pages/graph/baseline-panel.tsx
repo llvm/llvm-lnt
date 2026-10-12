@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SuiteSchema } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
@@ -19,9 +19,9 @@ interface Props {
 }
 
 /**
- * The baselines (GR9): a chip per baseline, which removes it, and a "+" button opening a form that
- * adds one, picking its suite, then one of the suite's machines, then a commit at which the machine
- * has runs. Picking the commit adds the baseline, and keeps the suite and the machine, for another.
+ * The baselines (GR9): a "+" button beside their label, opening a form that adds one, picking its
+ * suite, then one of the suite's machines, then a commit at which the machine has runs, and a chip
+ * per baseline, which removes it. Picking the commit adds the baseline and closes the form.
  */
 export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled }: Props) {
   const [adding, setAdding] = useState(false)
@@ -31,17 +31,23 @@ export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled }
     text: `${baseline.suite}/${baseline.machine}/${display}`,
   }))
 
+  // Once a baseline is added, the form it was picked in is gone: the focus goes back to "+".
+  const added = useRef(false)
+  useEffect(() => {
+    if (adding || !added.current) return
+    added.current = false
+    toggle.current?.focus()
+  }, [adding])
+  const add = (baseline: Baseline) => {
+    onAdd(baseline)
+    added.current = true
+    setAdding(false)
+  }
+
   return (
     <div className={styles.baselines}>
-      <span className={styles.baselinesLabel}>Baselines</span>
-      <ChipList
-        label="Baselines added"
-        chips={chips}
-        removeLabel={(chip) => `Remove baseline ${chip.text}`}
-        onRemove={onRemove}
-        focusWhenEmpty={() => toggle.current}
-      />
-      <div className={styles.baselineAdding}>
+      <div className={styles.baselinesHeader}>
+        <span className={styles.baselinesLabel}>Baselines</span>
         <button
           ref={toggle}
           type="button"
@@ -54,8 +60,15 @@ export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled }
         >
           +
         </button>
-        {adding && !isDisabled && <BaselineForm suites={suites} onAdd={onAdd} />}
       </div>
+      {adding && !isDisabled && <BaselineForm suites={suites} onAdd={add} />}
+      <ChipList
+        label="Baselines added"
+        chips={chips}
+        removeLabel={(chip) => `Remove baseline ${chip.text}`}
+        onRemove={onRemove}
+        focusWhenEmpty={() => toggle.current}
+      />
     </div>
   )
 }

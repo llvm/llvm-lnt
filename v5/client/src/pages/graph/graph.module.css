@@ -175,12 +175,21 @@
   font-family: var(--lnt-font-mono);
 }
 
-/* The baselines (GR9): their label, their chips, and the "+" button with the form it opens. */
+/*
+ * The baselines (GR9): their label with the "+" button beside it, the form it opens, and their
+ * chips.
+ */
 .baselines {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--lnt-space-1);
+  gap: var(--lnt-space-2);
+}
+
+.baselinesHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
 }
 
 .baselinesLabel {
@@ -188,16 +197,10 @@
   font-weight: 600;
 }
 
-.baselineAdding {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--lnt-space-3);
-}
-
-/* Its own size, rather than the width of the chips above it. */
+/* Small, beside the label, rather than a button of its own row. */
 .addBaseline {
-  flex: none;
+  padding: 0 var(--lnt-space-2);
+  line-height: 1.4;
 }
 
 .baselineForm {

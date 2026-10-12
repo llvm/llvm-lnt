@@ -198,12 +198,12 @@ baseline. In particular:
 
 Users can overlay one or more baselines as horizontal dashed lines on the chart.
 Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
-comparisons. The selector is an expandable panel with cascading selectors: Suite
+comparisons. The selector is a panel, opened by a "+" button beside the
+"Baselines" label, with cascading selectors: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint) -> Commit (populated from the selected machine's
 commits via `GET commits?machine={name}&sort=-first_seen`; see AR15). Picking
-a commit adds the baseline, and empties the commit selector but keeps the suite
-and the machine, so that another commit of the machine can be added. Added
+a commit adds the baseline and closes the panel; "+" closes it too. Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
 where `display_value` is the commit's display value (see AR6), or the commit
 string until the display value is known. A baseline
@@ -211,8 +211,7 @@ loaded from the URL is looked up like a commit given to the commit picker:
 through `GET commits?machine={machine}&commit={commit}` in the baseline's
 suite, which returns the commit, with its display value, only if the machine
 has runs at it. If that lookup succeeds without returning it, the baseline is
-unusable, and is dropped (see AR2 "State"). The "+" button keeps its own size
-rather than stretching to the width of the chips.
+unusable, and is dropped (see AR2 "State").
 Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
 with `{machine, metric, commit}` in the JSON body: every test's data at that
 commit, so that selecting tests needs no request, and a test that the

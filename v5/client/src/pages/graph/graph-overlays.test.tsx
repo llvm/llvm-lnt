@@ -706,7 +706,7 @@ describe('the baselines (GR9)', () => {
     await waitFor(() => expect(layout().annotations?.[0]?.text).toBe('No data to plot'))
   })
 
-  it('adds a baseline from the panel, keeping its suite and machine, and removes it', async () => {
+  it('adds a baseline from the panel, which then closes, and removes it', async () => {
     mockWorld()
     renderPage(`${ONE_MACHINE}&test=a`)
     await waitFor(() => expect(listed()).toEqual(['a', 'b', 'c']))
@@ -721,8 +721,10 @@ describe('the baselines (GR9)', () => {
     await user.click(await screen.findByRole('option', { name: 'r20' }))
 
     await waitFor(() => expect(query().baseline).toEqual(['libcxx/m1/c20']))
-    expect(commit).toHaveValue('')
-    expect(screen.getByRole('combobox', { name: 'Baseline machine' })).toHaveValue('m1')
+    expect(screen.queryByRole('group', { name: 'New baseline' })).not.toBeInTheDocument()
+    const add = screen.getByRole('button', { name: 'Add a baseline' })
+    expect(add).toHaveFocus()
+    expect(add).toHaveAttribute('aria-expanded', 'false')
     await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r20: 2']))
 
     await user.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r20' }))
