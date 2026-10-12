@@ -742,6 +742,28 @@ describe('loading (GR2, GR4, GR8)', () => {
     expect(sent).toEqual([null, '1', null, '1'])
   })
 
+  it('loads a test deselected while loading again from its first page once reselected', async () => {
+    mockWorld()
+    const [first, again] = [gate(), gate()]
+    let seconds = 0
+    const sent = mockTwoPages(async () => {
+      await (++seconds === 1 ? first : again).promise
+      return null
+    })
+    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1']))
+
+    fireEvent.click(box('a'))
+    fireEvent.click(box('a'))
+
+    await waitFor(() => expect(sent).toEqual([null, '1', null, '1']))
+    expect(main().getByText('1 of 3 tests selected, loading...')).toBeInTheDocument()
+    act(() => again.open())
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(main().getByText('1 of 3 tests selected')).toBeInTheDocument()
+    act(() => first.open())
+  })
+
   it('stops loading a test once it is deselected', async () => {
     const held = gate()
     const recorded = mockWorld()

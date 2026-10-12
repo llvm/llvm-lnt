@@ -5,9 +5,12 @@
  * costs the server about the same however few tests it names, and the pages of a batch would have
  * to be fetched one after the other, whereas the tests' requests run side by side.
  *
- * A test's query is never refetched while the page shows it, and never goes stale. One that fails,
- * or is cancelled because its test was deselected or its machine removed, starts again from its
- * first page when fetched again, so that no sample is counted twice.
+ * A test's query stays fresh for good once every page has arrived, and is never fetched again while
+ * the page shows it. Until then, it is stale: one cancelled because its test was deselected or its
+ * machine removed keeps the pages that had arrived, since TanStack Query keeps what a query
+ * function writes as it goes, and is fetched again once its test is shown again. A query fetched
+ * again, after a failure or a cancellation, starts from its first page, so that no sample is
+ * counted twice.
  *
  * What a page has fetched is kept for as long as it shows the suite, even what it no longer shows
  * (GR8), and forgotten once it leaves it (see `forgetGraphData`).
@@ -17,6 +20,7 @@ import { useCallback, useMemo } from 'react'
 import {
   experimental_streamedQuery as streamedQuery,
   useQueries,
+  type Query,
   type QueryClient,
 } from '@tanstack/react-query'
 import { api, MAX_PAGE_SIZE, unwrap } from './client'
@@ -59,10 +63,18 @@ interface Trace {
   test: string
 }
 
-/** A page of a trace's measurements, and whether it starts them over (see `pagesOf`). */
+/** A page of a trace's measurements, whether it starts them over (see `pagesOf`), and the last. */
 interface Chunk {
   measurements: Measurement[]
   restart: boolean
+  last: boolean
+}
+
+/** A trace's measurements, as far as they are loaded. */
+interface Measured {
+  measurements: Measurement[]
+  /** Whether every page has arrived. */
+  complete: boolean
 }
 
 async function fetchPage(
@@ -118,20 +130,31 @@ async function* pagesOf(
       cursor = null
       continue
     }
-    yield { measurements: page.measurements, restart: restarted && cursor === null }
-    if (page.next === null) return
+    const last = page.next === null
+    yield { measurements: page.measurements, restart: restarted && cursor === null, last }
+    if (last) return
     cursor = page.next
   }
 }
 
 const NO_MEASUREMENTS: Measurement[] = []
 
+const NOTHING_MEASURED: Measured = { measurements: NO_MEASUREMENTS, complete: false }
+
 /**
  * A trace's measurements once `chunk` has arrived: a new array, so that its points are computed
- * again (see graph-chart.tsx).
+ * again (see graph-chart.tsx), complete once the last page has.
  */
-function addChunk(measurements: Measurement[], chunk: Chunk): Measurement[] {
-  return chunk.restart ? chunk.measurements : measurements.concat(chunk.measurements)
+function addChunk({ measurements }: Measured, chunk: Chunk): Measured {
+  return {
+    measurements: chunk.restart ? chunk.measurements : measurements.concat(chunk.measurements),
+    complete: chunk.last,
+  }
+}
+
+/** How long a trace's measurements stay fresh: for good once complete, not at all until then. */
+function freshness(query: Query<Measured>): number {
+  return query.state.data?.complete ? Infinity : 0
 }
 
 /**
@@ -156,14 +179,14 @@ export function useSeries(
   return useQueries({
     queries: traces.map((trace) => ({
       queryKey: [...queryKeys.series(suite), { metric, ...trace }],
-      queryFn: streamedQuery<Chunk, Measurement[]>({
+      queryFn: streamedQuery<Chunk, Measured>({
         streamFn: ({ signal }) => pagesOf(suite, metric, trace, signal),
         reducer: addChunk,
-        initialValue: NO_MEASUREMENTS,
-        // Fetched again, after a failure, from the first page, dropping the pages it had.
+        initialValue: NOTHING_MEASURED,
+        // Fetched again from the first page, dropping the pages it had.
         refetchMode: 'reset',
       }),
-      staleTime: Infinity,
+      staleTime: freshness,
       // Kept for as long as the page shows the suite, whose leaving forgets them (GR8; see
       // `forgetGraphData`).
       gcTime: Infinity,
@@ -176,7 +199,7 @@ export function useSeries(
 
 /** The parts of a trace's query result the series is made of. */
 interface TraceResult {
-  data?: Measurement[]
+  data?: Measured
   error: Error | null
   isFetching: boolean
   refetch: () => unknown
@@ -190,7 +213,7 @@ function combineTraces(traces: Trace[], results: TraceResult[]): Series {
   const loading = new Set<string>()
   results.forEach(({ data, error, isFetching }, i) => {
     const { machine, test } = traces[i]
-    if (data !== undefined) measurements.set(traceKey(machine, test), data)
+    if (data !== undefined) measurements.set(traceKey(machine, test), data.measurements)
     // Until its every page has arrived, or one has failed and is not being fetched again.
     if (isFetching || (data === undefined && error === null)) loading.add(test)
   })
