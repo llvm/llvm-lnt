@@ -29,8 +29,8 @@ export const queryKeys = {
   /** The suite's trends (E9), whatever their metric, machines and window. */
   trends: (suite: string) => ['suite', suite, 'trends'] as const,
   /**
-   * The suite's measurements, as the Graph page loads them from `POST /query` (E9), in batches of
-   * pages (see api/series.ts).
+   * The suite's measurements, as the Graph page loads them from `POST /query` (E9), a test on a
+   * machine at a time (see api/series.ts).
    */
   series: (suite: string) => ['suite', suite, 'series'] as const,
 }

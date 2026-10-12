@@ -604,18 +604,38 @@ describe('loading (GR2, GR4, GR8)', () => {
     expect(main().getByText('1 of 3 tests selected')).toBeInTheDocument()
   })
 
-  it('asks for the tests selected together in one request per machine', async () => {
+  it('asks for each test selected on each machine whose list holds it, apart', async () => {
     const recorded = mockWorld()
     renderPage(GRAPHED)
     await waitFor(() => expect(listed()).toHaveLength(4))
 
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
-    await waitFor(() => expect(recorded.queries).toHaveLength(2))
-    expect(recorded.queries.map(({ body }) => [body.machine, body.test])).toEqual([
-      ['m1', ['a', 'b', 'c']],
-      ['m2', ['b', 'c', 'd']],
-    ])
+    await waitFor(() => expect(recorded.queries).toHaveLength(6))
+    const asked = recorded.queries.map(({ body }) => `${body.machine}/${body.test!.join()}`)
+    expect(asked.sort()).toEqual(['m1/a', 'm1/b', 'm1/c', 'm2/b', 'm2/c', 'm2/d'])
+  })
+
+  it('sends at most 6 requests at once, and the others as those are answered', async () => {
+    const held = gate()
+    const names = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8']
+    const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
+        recorded.queries.push({ body: await request.json(), signal: request.signal })
+        await held.promise
+        return HttpResponse.json(cursorPage([]))
+      }),
+    )
+    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
+    await waitFor(() => expect(listed()).toHaveLength(8))
+
+    fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
+
+    await waitFor(() => expect(recorded.queries).toHaveLength(6))
+    act(() => held.open())
+    await waitFor(() => expect(recorded.queries).toHaveLength(8))
+    await waitFor(() => expect(main().getByText('8 of 8 tests selected')).toBeInTheDocument())
   })
 
   it('asks for nothing again when a test is selected again', async () => {
@@ -676,7 +696,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     await waitFor(() => expect(traces()).toEqual(['b - m1: c10=3', 'b - m2: c40=4']))
   })
 
-  it('fetches again only the page that failed, adding no point twice', async () => {
+  it('starts a test over from its first page on Retry, adding no point twice', async () => {
     mockWorld()
     let failing = true
     const sent = mockTwoPages(async () =>
@@ -690,10 +710,10 @@ describe('loading (GR2, GR4, GR8)', () => {
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
-    expect(sent).toEqual([null, '1', '1'])
+    expect(sent).toEqual([null, '1', null, '1'])
   })
 
-  it('starts a test again on Retry after a refused cursor, showing what it had', async () => {
+  it('starts a test over by itself after a refused cursor, showing what it had', async () => {
     mockWorld()
     const restart = gate()
     const sent: (string | null | undefined)[] = []
@@ -711,11 +731,11 @@ describe('loading (GR2, GR4, GR8)', () => {
       }),
     )
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
-    expect(await main().findByText(/data of some tests could not be loaded/)).toBeInTheDocument()
 
-    fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(sent).toEqual([null, '1', null]))
-    expect(traces()).toEqual(['a - m1: c10=1'])
+    // Drawn once the chart catches up with the data, which it redraws at most every so often.
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1']))
+    expect(main().queryByRole('alert')).not.toBeInTheDocument()
 
     act(() => restart.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
@@ -738,6 +758,27 @@ describe('loading (GR2, GR4, GR8)', () => {
     fireEvent.click(box('a'))
 
     await waitFor(() => expect(recorded.queries[0].signal.aborted).toBe(true))
+    act(() => held.open())
+  })
+
+  it('stops loading only the test deselected, not the others', async () => {
+    const held = gate()
+    const recorded = mockWorld()
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
+        recorded.queries.push({ body: await request.json(), signal: request.signal })
+        await held.promise
+        return HttpResponse.json(cursorPage([]))
+      }),
+    )
+    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a&test=b')
+    await waitFor(() => expect(recorded.queries).toHaveLength(2))
+
+    fireEvent.click(box('a'))
+
+    const of = (test: string) => recorded.queries.find(({ body }) => body.test![0] === test)!
+    await waitFor(() => expect(of('a').signal.aborted).toBe(true))
+    expect(of('b').signal.aborted).toBe(false)
     act(() => held.open())
   })
 

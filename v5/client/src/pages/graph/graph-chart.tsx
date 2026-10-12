@@ -64,7 +64,7 @@ const computed = new WeakMap<readonly Measurement[], Computed>()
 
 /**
  * The points of a trace measured by `measurements`, computed again only when they, the x-axis or
- * the aggregation change: a page that arrives changes the measurements of its batch's tests only.
+ * the aggregation change: a page that arrives changes the measurements of its own trace only.
  */
 function pointsFor(
   measurements: readonly Measurement[],

@@ -86,14 +86,14 @@ the suite is a query parameter, not a path segment.
 ### GR2: Lazy Loading with Progressive Rendering
 
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
-The selected tests' data is fetched via `POST /query` with OR'd test names and
-rendered incrementally. When several tests are selected at once (a range,
-or every visible test), they are fetched together rather than with one request
-per test. The chart progressively fills in data as pages arrive via
-cursor-based pagination. This avoids blocking the UI on large datasets.
+Each selected test's data on each machine is fetched on its own via
+`POST /query`, and the chart progressively fills in each trace as its pages
+arrive via cursor-based pagination. This avoids blocking the UI on large
+datasets. So that a large selection does not flood the server, only a few
+requests are in flight at once; the others wait for their turn.
 
-Each machine's data is loaded on its own: removing a machine stops loading its
-data without disturbing the other machines'. Leaving the page stops all
+Deselecting a test stops loading its data, and removing a machine stops loading
+that machine's, without disturbing the rest. Leaving the page stops all
 loading.
 
 
@@ -286,8 +286,7 @@ see the commit range.
 ### GR13: API Calls
 
 - `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}`
-  (one fetch pipeline per machine, targeted to the selected tests via
-  multi-value `test`)
+  (one per selected test and machine, `test` naming that test)
 - `POST query` in a baseline's suite, with JSON body `{machine, metric, commit}`
   (baseline data; see GR9)
 - `GET tests?machine=...&metric=...` (test name discovery)
