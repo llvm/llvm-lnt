@@ -183,9 +183,6 @@ baseline. In particular:
 - Adding a machine fetches only that machine's data, while the other machines'
   traces stay displayed.
 
-Leaving the page need not keep any of it: coming back loads the page from its
-URL, as a first visit would.
-
 
 ### GR9: Baselines
 
