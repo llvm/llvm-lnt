@@ -199,8 +199,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         metadata,
         Column("id", Integer, Identity(), primary_key=True),
         Column("name", String(NAME_LENGTH), nullable=False, unique=True),
-        # D5: governs automatic machine selection only. Untracked machines stay fully addressable,
-        # and are never cleaned up -- this is not a lifetime policy.
+        # D5: governs automatic machine selection only. Untracked machines stay fully addressable.
         Column("tracked", Boolean, nullable=False, server_default=true()),
         *_dynamic(schema.machine_fields),
     )

@@ -124,11 +124,11 @@ describe('the Machine Detail page', () => {
     renderMachine()
 
     await screen.findByRole('group', { name: 'Machine' })
-    expect(trackedBox()).toHaveAccessibleDescription(/Dashboard.*kept indefinitely/)
-    expect(screen.getByText('Tracked')).toHaveAttribute(
-      'title',
-      expect.stringMatching(/Dashboard.*kept indefinitely/),
-    )
+    const help =
+      "Untracked machines are left out of the Dashboard's trend overview, but are listed and " +
+      'usable everywhere else.'
+    expect(trackedBox()).toHaveAccessibleDescription(help)
+    expect(screen.getByText('Tracked')).toHaveAttribute('title', help)
   })
 
   it('shows an untracked machine unchecked', async () => {
