@@ -106,6 +106,59 @@ describe('Chart', () => {
     expect(onUnhover).toHaveBeenCalledWith(event)
   })
 
+  it("reports where the plot draws once a draw moves it, from Plotly's layout", async () => {
+    const onDraw = vi.fn()
+    plotly.react.mockImplementation(async (div) =>
+      Object.assign(div, {
+        on: (name: string, listener: Listener) => plotly.listeners.set(name, listener),
+        _fullLayout: {
+          _size: { l: 70, t: 10, w: 600, h: 400 },
+          xaxis: { l2p: (value: number) => 10 * value, _offset: 70 },
+          yaxis: { l2p: (value: number) => 400 - value, _offset: 10 },
+        },
+      }),
+    )
+    render(chart({ onDraw }))
+
+    await waitFor(() => expect(onDraw).toHaveBeenCalledTimes(1))
+    const geometry = onDraw.mock.lastCall![0]
+    expect(geometry.area).toEqual({ left: 70, top: 10, width: 600, height: 400 })
+    expect(geometry.x(2)).toBe(90)
+    expect(geometry.y(100)).toBe(310)
+    // A draw that moves nothing reports nothing; a zoom or a resize, which moves the plot, does.
+    plotly.listeners.get('plotly_afterplot')!(undefined)
+    expect(onDraw).toHaveBeenCalledTimes(1)
+    const div = screen.getByRole('img') as unknown as { _fullLayout: { _size: { w: number } } }
+    div._fullLayout._size.w = 500
+    plotly.listeners.get('plotly_afterplot')!(undefined)
+    expect(onDraw).toHaveBeenCalledTimes(2)
+    expect(onDraw.mock.lastCall![0].area.width).toBe(500)
+  })
+
+  it('reports nothing of a draw that ends once the plot is freed', async () => {
+    const onDraw = vi.fn()
+    const { unmount } = render(chart({ onDraw }))
+    await waitFor(() => expect(plotly.listeners.has('plotly_afterplot')).toBe(true))
+    onDraw.mockClear()
+
+    unmount()
+    plotly.listeners.get('plotly_afterplot')!(undefined)
+
+    expect(onDraw).not.toHaveBeenCalled()
+  })
+
+  it('reports a zoom, but not the relayout of a resize', async () => {
+    const onRelayout = vi.fn()
+    render(chart({ onRelayout }))
+    await waitFor(() => expect(plotly.listeners.has('plotly_relayout')).toBe(true))
+
+    plotly.listeners.get('plotly_relayout')!({ autosize: true, width: 600 })
+    expect(onRelayout).not.toHaveBeenCalled()
+    const zoom = { 'xaxis.range[0]': 1, 'xaxis.range[1]': 4 }
+    plotly.listeners.get('plotly_relayout')!(zoom)
+    expect(onRelayout).toHaveBeenCalledWith(zoom)
+  })
+
   it('says so when Plotly fails to draw, and frees the plot', async () => {
     plotly.react.mockRejectedValueOnce(new Error('no'))
     render(chart())

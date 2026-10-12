@@ -10,11 +10,40 @@ import type { Locator, Page } from '@playwright/test'
  */
 export interface PlotDiv extends HTMLElement {
   _fullLayout: {
-    _size: { l: number; t: number }
-    xaxis: { l2p(value: number): number; range: number[] }
-    yaxis: { l2p(value: number): number }
+    xaxis: PlotAxis & { range: number[] }
+    yaxis: PlotAxis
+    /** The axis of what a chart draws over its plot, such as the Graph's regressions. */
+    yaxis2?: PlotAxis
   }
-  _fullData: { x: number[]; y: number[] }[]
+  _fullData: { name: string; x: (number | string)[]; y: number[]; yaxis: string }[]
+}
+
+interface PlotAxis {
+  /** Where a value of the axis is drawn, from the start of the axis. */
+  d2p(value: number | string): number
+  /** Where the axis starts, in the plot. */
+  _offset: number
+}
+
+/**
+ * Where point `index` of a trace of the chart in `scope` -- the `trace`th, or the one named
+ * `trace` -- is drawn, relative to the plot rather than to the page, so that acting there through
+ * the plot's locator finds the point wherever the plot is, as content above it loads.
+ */
+export function pointOf(scope: Page | Locator, trace: number | string, index: number) {
+  return plotOf(scope).evaluate(
+    (element, [trace, index]) => {
+      const { _fullLayout: layout, _fullData: drawn } = element as PlotDiv
+      const data = typeof trace === 'number' ? drawn[trace] : drawn.find((d) => d.name === trace)
+      if (data === undefined) throw new Error(`No trace ${trace}`)
+      const yaxis = (data.yaxis === 'y2' && layout.yaxis2) || layout.yaxis
+      return {
+        x: layout.xaxis._offset + layout.xaxis.d2p(data.x[index]),
+        y: yaxis._offset + yaxis.d2p(data.y[index]),
+      }
+    },
+    [trace, index] as const,
+  )
 }
 
 /** The plot of the chart in `scope`, once Plotly has drawn it. */

@@ -19,7 +19,7 @@ import { runColumns } from '../../components/run-columns'
 import { WithSchema } from '../../components/with-schema'
 import { UNTRACKED_HELP } from '../../machines'
 import { comparePath, graphPath } from '../../paths'
-import type { RegressionState } from '../../regression-states'
+import { ACTIVE_STATES } from '../../regression-states'
 import { formatFieldValue, labelOf, type Commit } from '../../schema'
 import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
@@ -28,9 +28,6 @@ import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
 
 type Machine = Schemas['Machine']
-
-/** The states of the regressions still being worked on. */
-const ACTIVE_STATES: RegressionState[] = ['detected', 'active']
 
 /** The Machine Detail page (DT1). */
 export default function MachineDetail() {
@@ -177,10 +174,10 @@ function Actions({ suite, name }: { suite: string; name: string }) {
 function ActiveRegressions({ suite, name }: { suite: string; name: string }) {
   const query = {
     machine: name,
-    state: ACTIVE_STATES,
-    sort: '-created_at',
+    state: [...ACTIVE_STATES],
+    sort: '-created_at' as const,
     limit: PAGE_SIZE,
-  } as const
+  }
   const regressions = useQuery({
     // Apart from the Regressions tab's lists, which hold the same page with its commits resolved.
     queryKey: [...queryKeys.regressions(suite), 'without commits', query],

@@ -70,18 +70,37 @@ interface CompareSide {
   commit?: string
   /** The runs selected among those of `machine` at `commit`: every one of them when not given. */
   runs?: string[]
+  /** How the side's runs are combined: Compare's default when not given. */
+  runAgg?: string
 }
 
-/** The Compare page (CP7), with side A and side B set as far as they are given, and `metric`. */
-export function comparePath(a: CompareSide = {}, b: CompareSide = {}, metric?: string): string {
-  const side = (suffix: string, { suite, machine, commit, runs = [] }: CompareSide): Param[] => [
+/**
+ * The Compare page (CP7), with side A and side B set as far as they are given, `metric`, and how
+ * each run's samples are combined (`sampleAgg`, Compare's default when not given).
+ */
+export function comparePath(
+  a: CompareSide = {},
+  b: CompareSide = {},
+  metric?: string,
+  sampleAgg?: string,
+): string {
+  const side = (
+    suffix: string,
+    { suite, machine, commit, runs = [], runAgg }: CompareSide,
+  ): Param[] => [
     [`suite_${suffix}`, suite],
     [`machine_${suffix}`, machine],
     [`commit_${suffix}`, commit],
     // Repeated once per run, as a setting holding several values is (AR2 "State").
     ...runs.map((run): Param => [`runs_${suffix}`, run]),
+    [`run_agg_${suffix}`, runAgg],
   ]
-  return withQuery('/compare', [...side('a', a), ...side('b', b), ['metric', metric]])
+  return withQuery('/compare', [
+    ...side('a', a),
+    ...side('b', b),
+    ['metric', metric],
+    ['sample_agg', sampleAgg],
+  ])
 }
 
 /** The Profiles page (PF9), with side A set to the profile of `test` in `run`, as far as given. */

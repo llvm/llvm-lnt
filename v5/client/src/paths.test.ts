@@ -20,6 +20,19 @@ describe('comparePath', () => {
         '&suite_b=nts&machine_b=m1&commit_b=def&runs_b=r3&metric=execution_time',
     )
   })
+
+  it("sets each side's run aggregation and the sample aggregation, with CP7 names", () => {
+    const path = comparePath(
+      { suite: 'nts', commit: 'abc', runAgg: 'max' },
+      { suite: 'nts', commit: 'def', runAgg: 'max' },
+      'execution_time',
+      'min',
+    )
+    expect(path).toBe(
+      '/compare?suite_a=nts&commit_a=abc&run_agg_a=max&suite_b=nts&commit_b=def&run_agg_b=max' +
+        '&metric=execution_time&sample_agg=min',
+    )
+  })
 })
 
 describe('graphPath', () => {

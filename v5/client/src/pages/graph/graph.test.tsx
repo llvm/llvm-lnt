@@ -1,182 +1,35 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
-import type { Layout, PlotData } from 'plotly.js'
+import type { PlotData } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
-import type { Schemas } from '../../api/client'
-import type { SuiteSchema } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
-import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
+import { cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { chartProps } from '../../test/chart-props'
-import {
-  currentUrl,
-  gate,
-  main,
-  mockCommits,
-  mockMachines,
-  mockSuites,
-  mockTests,
-  renderPage,
-  search,
-} from '../../test/page'
+import { currentUrl, gate, main, mockTests, renderPage, search } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
+import {
+  COMMITS,
+  GRAPHED,
+  TESTS,
+  addMachine,
+  box,
+  chart,
+  commitAt,
+  layout,
+  listed,
+  mockWorld,
+  pointOf,
+  query,
+  testPage,
+  testTable,
+  traces,
+  type Sample,
+} from './graph-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
-
-/** libcxx, with two numeric metrics and one that cannot be plotted. */
-const GRAPH_SUITE: SuiteSchema = {
-  ...SUITE,
-  metrics: [
-    SUITE.metrics[0],
-    metric('compile_time', { display_name: 'Compile Time' }),
-    metric('hash', { type: 'text' }),
-  ],
-}
-
-/** A suite with a metric, but none numeric. */
-const TEXT_SUITE: SuiteSchema = {
-  ...BARE_SUITE,
-  name: 'text_only',
-  metrics: [metric('hash', { type: 'text' })],
-}
-
-/** A sample: its commit, its run (one per letter), and its value. */
-type Sample = [commit: string, run: string, value: number]
-
-interface World {
-  machines?: string[]
-  /** The tests of each machine, for any metric. */
-  tests?: Record<string, string[]>
-  /** The commits each machine has runs at, by ordinal. */
-  commits?: Record<string, number[]>
-  /** The samples of each test on each machine, under `machine/test`. */
-  samples?: Record<string, Sample[]>
-  /** How many points a page of `POST /query` holds. */
-  pageSize?: number
-  /** What the list of suites waits for before it is answered. */
-  suitesWait?: () => Promise<void>
-}
-
-const MACHINES = ['m1', 'm2']
-const TESTS = { m1: ['a', 'b', 'c'], m2: ['b', 'c', 'd'] }
-const COMMITS = { m1: [10, 20, 30], m2: [20, 30, 40] }
-const SAMPLES: Record<string, Sample[]> = {
-  'm1/a': [
-    ['c10', 'r1', 1],
-    ['c20', 'r2', 2],
-  ],
-  'm1/b': [['c10', 'r1', 3]],
-  'm2/b': [['c40', 'r3', 4]],
-}
-
-const commitAt = (ordinal: number) =>
-  commit(`c${ordinal}`, { ordinal, fields: { svn_revision: `r${ordinal}`, commit_info: null } })
-
-const pointOf = (machineName: string, test: string, [value, run, measured]: Sample) =>
-  ({
-    test,
-    machine: machineName,
-    metric: 'execution_time',
-    value: measured,
-    commit: value,
-    ordinal: Number(value.slice(1)),
-    run_uuid: run,
-    submitted_at: '2026-08-25T14:22:41Z',
-    tag: null,
-  }) satisfies Schemas['DataPoint']
-
-/** The bodies `POST /query` was sent, in order, and the signal of each request. */
-interface Recorded {
-  queries: { body: Schemas['QueryRequest']; signal: AbortSignal }[]
-}
-
-/** Mock the API for the Graph page: GRAPH_SUITE and TEXT_SUITE, and the world described. */
-function mockWorld({
-  machines = MACHINES,
-  tests = TESTS,
-  commits = COMMITS,
-  samples = SAMPLES,
-  pageSize = 10_000,
-  suitesWait,
-}: World = {}): Recorded {
-  const recorded: Recorded = { queries: [] }
-  mockSuites([GRAPH_SUITE, TEXT_SUITE], { wait: suitesWait })
-  mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
-  mockTests((query) => testPage(tests[query.get('machine')!] ?? []))
-  mockCommits((query) => cursorPage((commits[query.get('machine')!] ?? []).map(commitAt)))
-  server.use(
-    mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-      const body = await request.json()
-      recorded.queries.push({ body, signal: request.signal })
-      const all = (body.test ?? []).flatMap((test) =>
-        (samples[`${body.machine}/${test}`] ?? []).map((s) => pointOf(body.machine!, test, s)),
-      )
-      const start = Number(body.cursor ?? 0)
-      const end = start + pageSize
-      const next = end < all.length ? String(end) : null
-      return HttpResponse.json(cursorPage(all.slice(start, end), next))
-    }),
-  )
-  return recorded
-}
-
-/** A page of `GET /tests` listing `names`. */
-function testPage(names: string[]) {
-  return cursorPage(names.map((name) => ({ name })))
-}
-
-/** What the page last handed the chart to draw. */
-function chart() {
-  return chartProps(main().getByRole('img'))
-}
-
-/** The traces the chart was last given, as `name: commit=value...`. */
-function traces() {
-  return chart().data.map((trace) => {
-    const { name, x, y } = trace as PlotData
-    const points = (x as string[]).map((value, i) => `${value}=${(y as number[])[i]}`)
-    return `${name}: ${points.join(' ')}`
-  })
-}
-
-function layout(): Partial<Layout> {
-  return chart().layout
-}
-
-function testTable() {
-  return within(main().getByRole('table', { name: 'Tests' }))
-}
-
-/** The tests the table lists, in order. */
-function listed() {
-  return testTable()
-    .getAllByRole('row')
-    .slice(1)
-    .map((row) => within(row).getAllByRole('cell')[2].textContent)
-}
-
-const box = (test: string) => testTable().getByRole('checkbox', { name: test })
-
-async function addMachine(name: string) {
-  const user = userEvent.setup()
-  const input = await screen.findByRole('combobox', { name: 'Machines' })
-  await waitFor(() => expect(input).toBeEnabled())
-  await user.type(input, name)
-  await user.click(await screen.findByRole('option', { name }))
-}
-
-/** The query of the URL the page is at, by parameter, whatever their order. */
-function query() {
-  const params = new URLSearchParams(currentUrl()!.split('?')[1] ?? '')
-  const entries: Record<string, string[]> = {}
-  for (const [key, value] of params) (entries[key] ??= []).push(value)
-  return entries
-}
-
-const GRAPHED = '/graph?suite=libcxx&machine=m1&machine=m2&metric=execution_time'
 
 /**
  * Answer `POST /query` for test a on m1 with two pages, c10 then c20, the second once `second`

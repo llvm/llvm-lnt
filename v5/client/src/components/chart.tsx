@@ -1,8 +1,56 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import type { Config, Data, Layout, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
+import type {
+  Config,
+  Data,
+  Layout,
+  PlotHoverEvent,
+  PlotMouseEvent,
+  PlotRelayoutEvent,
+} from 'plotly.js'
 import { Alert } from './feedback'
 
 type Plotly = typeof import('plotly.js-basic-dist-min').default
+
+/**
+ * Where a plot draws, in pixels from the top left of the chart's container: the plotting area, and
+ * the position of a value on each axis -- on a category axis, of a category's index.
+ */
+export interface PlotGeometry {
+  area: { left: number; top: number; width: number; height: number }
+  x(value: number): number
+  y(value: number): number
+}
+
+/** The parts of Plotly's own state of a plot that place what it draws (see `geometryOf`). */
+interface DrawnPlot {
+  _fullLayout?: {
+    _size: { l: number; t: number; w: number; h: number }
+    xaxis?: DrawnAxis
+    yaxis?: DrawnAxis
+  }
+}
+
+interface DrawnAxis {
+  l2p(value: number): number
+  _offset: number
+}
+
+/**
+ * Where the plot drawn in `div` draws, read from Plotly's state of it. That state is internal to
+ * Plotly, but there is no other way to place something over a point: the SVG draws each trace as
+ * one path, without its points.
+ */
+function geometryOf(div: HTMLElement): PlotGeometry | null {
+  const layout = (div as DrawnPlot)._fullLayout
+  // A plot purged, or not drawn yet, has no axes.
+  if (layout?.xaxis === undefined || layout.yaxis === undefined) return null
+  const { _size: size, xaxis, yaxis } = layout
+  return {
+    area: { left: size.l, top: size.t, width: size.w, height: size.h },
+    x: (value) => xaxis.l2p(value) + xaxis._offset,
+    y: (value) => yaxis.l2p(value) + yaxis._offset,
+  }
+}
 
 /** Plotly, once loaded, so that a chart shown afterwards draws without waiting a render for it. */
 let loaded: Plotly | null = null
@@ -41,6 +89,14 @@ export interface ChartProps {
   onUnhover?(event: PlotMouseEvent): void
   /** A point was clicked: the one whose hover label shows. */
   onClick?(event: PlotMouseEvent): void
+  /**
+   * The plot was drawn, after a change to what it draws, a zoom, or a resize: where it draws now.
+   * Something placed over the plot with it is placed again here. What the chart draws must not
+   * depend on it, or each draw would ask for another.
+   */
+  onDraw?(geometry: PlotGeometry): void
+  /** The user zoomed or panned the plot, or reset its zoom. */
+  onRelayout?(event: PlotRelayoutEvent): void
 }
 
 /**
@@ -67,6 +123,23 @@ export function Chart({
   const onHover = useEffectEvent((event: PlotHoverEvent) => events.onHover?.(event))
   const onUnhover = useEffectEvent((event: PlotMouseEvent) => events.onUnhover?.(event))
   const onClick = useEffectEvent((event: PlotMouseEvent) => events.onClick?.(event))
+  // Where the plot was last reported to draw, so that a draw that moves nothing reports nothing.
+  const drawnAt = useRef('')
+  const onDraw = useEffectEvent((div: HTMLElement) => {
+    const geometry = geometryOf(div)
+    if (geometry === null) return
+    const { area, x, y } = geometry
+    const at = [area.left, area.top, area.width, area.height, x(0), x(1), y(0), y(1)].join()
+    if (at === drawnAt.current) return
+    drawnAt.current = at
+    events.onDraw?.(geometry)
+  })
+  const onRelayout = useEffectEvent((event: PlotRelayoutEvent) => {
+    // A resize relayouts the plot too, with nothing but its new size.
+    const keys = Object.keys(event)
+    if (keys.every((key) => key === 'autosize' || key === 'width' || key === 'height')) return
+    events.onRelayout?.(event)
+  })
 
   useEffect(() => {
     if (library === null) plotly.then(setLibrary, (error: unknown) => setLoadFailure({ error }))
@@ -104,11 +177,19 @@ export function Chart({
     if (library === null || div === null || state === null) return
     library.react(div, data, structuredClone(layout), { displaylogo: false, ...config }).then(
       (plot) => {
-        if (!state.live || state.ready) return
+        if (!state.live) return
+        // A zoom or a resize draws again too, which the listener below reports.
+        onDraw(div)
+        if (state.ready) return
         state.ready = true
         plot.on('plotly_hover', (event) => onHover(event))
         plot.on('plotly_unhover', (event) => onUnhover(event))
         plot.on('plotly_click', (event) => onClick(event))
+        // A draw under way when the plot is freed ends after it, with nothing left to report.
+        plot.on('plotly_afterplot', () => {
+          if (state.live) onDraw(div)
+        })
+        plot.on('plotly_relayout', (event) => onRelayout(event))
       },
       () => {
         if (!state.live) return

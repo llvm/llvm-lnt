@@ -1,6 +1,15 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { api, authedApi, MAX_PAGE_SIZE, unwrap, type Schemas } from './client'
 import { withCommits } from './commits'
+import { failuresOf, type Failures } from './failures'
+import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
 
@@ -135,4 +144,116 @@ export function withIndicators(
   stored: RegressionDetail,
 ): RegressionDetail {
   return { ...stored, indicators }
+}
+
+/** A regression the Graph page marks (GR15), and the tests it affects among those asked about. */
+export interface MarkedRegression {
+  uuid: string
+  title: string | null
+  state: Schemas['RegressionStateName']
+  /** The commit it is attributed to: a regression without one cannot be placed. */
+  commit: string
+  bug: string | null
+  created_at: string
+  tests: ReadonlySet<string>
+}
+
+/** What the Graph page marks regressions on: what it plots, and the states to show. */
+export interface MarkedOn {
+  machines: readonly string[]
+  /** The tests asked about, which must exist, since the API refuses a test that does not (E8). */
+  tests: readonly string[]
+  metric: string
+  states: readonly Schemas['RegressionStateName'][]
+}
+
+/** What is known of the regressions to mark (see `useMarkedRegressions`). */
+export interface MarkedRegressions extends Failures {
+  regressions: MarkedRegression[]
+}
+
+const NOTHING_MARKED: MarkedRegression[] = []
+
+const NO_FAILURES: Failures = { error: null, retry: () => {} }
+
+/**
+ * The regressions in one of `states` with an indicator naming one of `machines`, `metric`, and one
+ * of `tests`, attributed to a commit (GR15), unless `enabled` is false. Their indicators come from
+ * the indicator lookup (E8), and their title, state and commit from the list of the suite's
+ * regressions in those states with an indicator naming the metric, joined on their UUID. The two
+ * are fetched apart, so that selecting a test asks for the indicators only, and the regressions
+ * marked stay until they arrive. Both are under the suite's regressions, which a change to one
+ * marks stale.
+ */
+export function useMarkedRegressions(
+  suite: string,
+  { machines, tests, metric, states }: MarkedOn,
+  enabled: boolean,
+): MarkedRegressions {
+  const indicators = useQuery({
+    queryKey: [
+      ...queryKeys.regressions(suite),
+      'marked',
+      'indicators',
+      { machines, tests, metric, states },
+    ],
+    queryFn: ({ signal }) =>
+      fetchEveryPage((cursor) =>
+        unwrap(
+          api.POST('/api/suites/{testsuite}/regressions/indicators/query', {
+            params: { path: { testsuite: suite } },
+            body: {
+              machine: [...machines],
+              test: [...tests],
+              metric,
+              state: [...states],
+              limit: MAX_PAGE_SIZE,
+              cursor,
+            },
+            signal,
+          }),
+        ),
+      ),
+    enabled,
+    placeholderData: keepPreviousData,
+  })
+  const list = useQuery({
+    queryKey: [...queryKeys.regressions(suite), 'marked', 'list', { metric, states }],
+    queryFn: ({ signal }) =>
+      fetchEveryPage((cursor) =>
+        fetchRegressions(
+          suite,
+          { state: [...states], metric, has_commit: true, limit: MAX_PAGE_SIZE, cursor },
+          signal,
+        ),
+      ),
+    enabled,
+  })
+
+  // By name, since a caller's lists may be new arrays of the same names.
+  const askedMachines = machines.join('\0')
+  const askedTests = tests.join('\0')
+  const regressions = useMemo(() => {
+    if (!enabled || indicators.data === undefined || list.data === undefined) return NOTHING_MARKED
+    // The indicators kept from the previous lookup until the current one arrives may name machines
+    // and tests that are no longer asked about.
+    const onMachines = new Set(askedMachines.split('\0'))
+    const ofTests = new Set(askedTests.split('\0'))
+    const tested = new Map<string, Set<string>>()
+    for (const { regression_uuid, machine, test } of indicators.data) {
+      if (!onMachines.has(machine) || !ofTests.has(test)) continue
+      let known = tested.get(regression_uuid)
+      if (known === undefined) tested.set(regression_uuid, (known = new Set()))
+      known.add(test)
+    }
+    return list.data.flatMap(({ uuid, title, state, commit, bug, created_at }) => {
+      const affected = tested.get(uuid)
+      return affected === undefined || commit === null
+        ? []
+        : [{ uuid, title, state, commit, bug, created_at, tests: affected }]
+    })
+  }, [enabled, indicators.data, list.data, askedMachines, askedTests])
+
+  // A query disabled keeps the error it last had.
+  return { regressions, ...(enabled ? failuresOf([indicators, list]) : NO_FAILURES) }
 }

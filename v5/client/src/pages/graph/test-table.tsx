@@ -1,10 +1,12 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
   useSyncExternalStore,
   type MouseEvent,
+  type ReactNode,
 } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import { colorOfName } from '../../chart-colors'
@@ -12,6 +14,7 @@ import { DataTable, type Column } from '../../components/data-table'
 import { Loading } from '../../components/feedback'
 import type { RangeSelection, RowSelection } from '../../components/range-selection'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
+import { useStoreValue, ValueStore } from '../../value-store'
 import styles from './graph.module.css'
 
 interface Props {
@@ -30,29 +33,10 @@ interface Props {
   listing: boolean
   /** What the table says while no test is listed, and why. */
   empty: string
-}
-
-/**
- * Which of a list of tests a cell's row is among, for cells to render again on their own when their
- * row joins or leaves it, rather than with the whole table (as `SelectBox` does for the selection).
- */
-class TestSet {
-  private tests: ReadonlySet<string> = new Set()
-  private readonly listeners = new Set<() => void>()
-
-  has = (test: string) => this.tests.has(test)
-
-  set(tests: ReadonlySet<string>) {
-    this.tests = tests
-    for (const listener of this.listeners) listener()
-  }
-
-  subscribe = (listener: () => void) => {
-    this.listeners.add(listener)
-    return () => {
-      this.listeners.delete(listener)
-    }
-  }
+  /** Where the table says which test's row is hovered, for the chart to emphasize it (GR7). */
+  emphasis: ValueStore<string | null>
+  /** The test whose line is hovered on the chart, whose row the table highlights (GR7). */
+  hovered: ValueStore<string | null>
 }
 
 /**
@@ -60,7 +44,8 @@ class TestSet {
  * not with its checkbox or a click on its row, a range at a time with Shift (AR10). A double-click
  * isolates a test, or selects every test shown again once it is the only one selected. A selected
  * test shows its colour on the chart, and whether its data is still loading. The table is the
- * chart's legend, with the machines' chips.
+ * chart's legend, with the machines' chips: hovering a row emphasizes the test's lines on the
+ * chart, and hovering one of them highlights its row (GR7).
  */
 export function TestTable({
   all,
@@ -71,10 +56,20 @@ export function TestTable({
   notInUrl,
   listing,
   empty,
+  emphasis,
+  hovered,
 }: Props) {
   const { rows, selected } = selection
-  const [loadingStore] = useState(() => new TestSet())
+  // Which tests are loading, for each row to render again on its own when its test starts or stops
+  // loading, rather than with the whole table (as `SelectBox` does for the selection).
+  const [loadingStore] = useState(() => new ValueStore<ReadonlySet<string>>(new Set()))
   useLayoutEffect(() => loadingStore.set(loading), [loading, loadingStore])
+  // A test emphasized stays so only while its row is shown, and the table with it.
+  useEffect(() => {
+    const test = emphasis.get()
+    if (test !== null && !shown.includes(test)) emphasis.set(null)
+  }, [shown, emphasis])
+  useEffect(() => () => emphasis.set(null), [emphasis])
 
   const columns = useMemo(
     (): Column<string>[] => [
@@ -92,14 +87,14 @@ export function TestTable({
         id: 'test',
         header: 'Test',
         cell: (test) => (
-          <>
+          <HoverMark store={hovered} test={test}>
             {test}
             <LoadingMark store={loadingStore} test={test} />
-          </>
+          </HoverMark>
         ),
       },
     ],
-    [rows, shown, loadingStore],
+    [rows, shown, loadingStore, hovered],
   )
 
   const rowProps = useCallback(
@@ -117,8 +112,9 @@ export function TestTable({
       onMouseDown: (event: MouseEvent) => {
         if (event.shiftKey || event.detail > 1) event.preventDefault()
       },
+      onMouseEnter: () => emphasis.set(test),
     }),
-    [rows, shown],
+    [rows, shown, emphasis],
   )
 
   // The tests listed so far stay shown while another machine's are listed (AR7).
@@ -137,14 +133,22 @@ export function TestTable({
         {notInUrl !== undefined && <span title={notInUrl}> (too many to reflect in the URL)</span>}
         {loading.size > 0 && ', loading...'}
       </p>
-      <DataTable
-        label="Tests"
-        columns={columns}
-        rows={shown}
-        rowKey={nameOf}
-        rowProps={rowProps}
-        empty="No tests match the filter."
-      />
+      {/* Leaving a row for another emphasizes the other at once, without drawing none between. */}
+      <div
+        onMouseLeave={() => emphasis.set(null)}
+        onMouseOver={(event) => {
+          if ((event.target as Element).closest('thead') !== null) emphasis.set(null)
+        }}
+      >
+        <DataTable
+          label="Tests"
+          columns={columns}
+          rows={shown}
+          rowKey={nameOf}
+          rowProps={rowProps}
+          empty="No tests match the filter."
+        />
+      </div>
     </>
   )
 }
@@ -170,8 +174,20 @@ function Swatch({ rows, test }: { rows: RowSelection; test: string }) {
   )
 }
 
+interface HoverMarkProps {
+  store: ValueStore<string | null>
+  test: string
+  children: ReactNode
+}
+
+/** A test's name, marked while its line is hovered on the chart, which highlights its row (GR7). */
+function HoverMark({ store, test, children }: HoverMarkProps) {
+  const hovered = useStoreValue(store, (shown) => shown === test)
+  return <span className={hovered ? styles.hovered : undefined}>{children}</span>
+}
+
 /** Whether a selected test's data is still loading (GR7). */
-function LoadingMark({ store, test }: { store: TestSet; test: string }) {
-  const loading = useSyncExternalStore(store.subscribe, () => store.has(test))
+function LoadingMark({ store, test }: { store: ValueStore<ReadonlySet<string>>; test: string }) {
+  const loading = useStoreValue(store, (tests) => tests.has(test))
   return loading ? <span className={styles.loadingMark}> (loading...)</span> : null
 }

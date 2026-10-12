@@ -1,6 +1,7 @@
 import { useQueries } from '@tanstack/react-query'
 import { compareStrings } from '../format'
 import { api, MAX_PAGE_SIZE, unwrap } from './client'
+import { failuresOf } from './failures'
 import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 
@@ -81,12 +82,10 @@ function combineNames(
 ): TestNames {
   const listed = results.flatMap((result) => (result.data ? [result.data] : []))
   const names = new Set(listed.flatMap((tests) => tests.names))
-  const failed = results.filter((result) => result.error !== null)
   return {
     names: [...names].sort(compareStrings),
     complete: results.every((result) => result.data !== undefined),
-    error: failed[0]?.error ?? null,
-    retry: () => failed.forEach((result) => void result.refetch()),
+    ...failuresOf(results),
     byMachine: new Map(listed.map((tests) => [tests.machine, new Set(tests.names)])),
   }
 }

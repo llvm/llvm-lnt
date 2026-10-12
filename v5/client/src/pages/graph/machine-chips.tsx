@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { Combobox } from '../../components/combobox'
 import { useLocalSuggestions } from '../../components/suggestions'
 import { markerOf } from './chart'
+import { ChipList } from './chip-list'
 import styles from './graph.module.css'
 
 interface Props {
@@ -31,24 +32,16 @@ export function MachineChips({ machines, names, pending, error, isDisabled, onCh
   )
   const suggestions = useLocalSuggestions(offered, error)
 
-  // Once a chip is removed with its button, the focus goes to the button of the chip after it, or
-  // else before it, or to the combobox once none is left, rather than to the page.
   const root = useRef<HTMLDivElement>(null)
-  const buttons = useRef(new Map<string, HTMLButtonElement>())
-  // The chip whose button is to take the focus once the page shows the chip removed gone, or null
-  // for the combobox; undefined while no chip is being removed.
-  const focusNext = useRef<string | null | undefined>(undefined)
-  useEffect(() => {
-    if (focusNext.current === undefined) return
-    const next = focusNext.current
-    focusNext.current = undefined
-    const target = next === null ? root.current?.querySelector('input') : buttons.current.get(next)
-    target?.focus()
-  }, [machines])
-  const remove = (i: number) => {
-    focusNext.current = machines[i + 1] ?? machines[i - 1] ?? null
-    onChange(machines.filter((_, j) => j !== i))
-  }
+  const chips = machines.map((machine, i) => ({
+    key: machine,
+    mark: (
+      <span className={styles.marker} aria-hidden="true">
+        {markerOf(i).char}
+      </span>
+    ),
+    text: machine,
+  }))
 
   return (
     <div className={styles.machines} ref={root}>
@@ -59,30 +52,13 @@ export function MachineChips({ machines, names, pending, error, isDisabled, onCh
         placeholder={pending ? 'Loading machines...' : 'Add a machine...'}
         isDisabled={isDisabled}
       />
-      {machines.length > 0 && (
-        <ul className={styles.chips} aria-label="Machines added">
-          {machines.map((machine, i) => (
-            <li key={machine} className={styles.chip}>
-              <span className={styles.marker} aria-hidden="true">
-                {markerOf(i).char}
-              </span>
-              {machine}
-              <button
-                type="button"
-                className={styles.remove}
-                aria-label={`Remove ${machine}`}
-                ref={(button) => {
-                  if (button) buttons.current.set(machine, button)
-                  else buttons.current.delete(machine)
-                }}
-                onClick={() => remove(i)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ChipList
+        label="Machines added"
+        chips={chips}
+        removeLabel={(chip) => `Remove ${chip.key}`}
+        onRemove={(machine) => onChange(machines.filter((entry) => entry !== machine))}
+        focusWhenEmpty={() => root.current?.querySelector('input')}
+      />
     </div>
   )
 }

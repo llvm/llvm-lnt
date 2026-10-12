@@ -2,7 +2,6 @@
 
 .chart {
   height: 520px;
-  margin: var(--lnt-space-3) 0;
 }
 
 /*
@@ -85,4 +84,137 @@
 .loadingMark {
   color: var(--lnt-muted);
   font-size: 0.85em;
+}
+
+/* The row of what is drawn over the traces: the baselines. */
+.overlays {
+  display: flex;
+  flex-basis: 100%;
+}
+
+/* The chart, and what is placed over it: the hovered point's runs, the point details. */
+.chartArea {
+  position: relative;
+  margin: var(--lnt-space-3) 0;
+}
+
+/* Focused from script only, once the point details close, where an outline means nothing. */
+.chartArea:focus {
+  outline: none;
+}
+
+/* The runs' values of the point hovered (GR10), which the pointer goes through to the chart. */
+.scatter {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The row of the test whose line is hovered on the chart (GR7). */
+.testRow:has(.hovered) {
+  background: color-mix(in srgb, var(--lnt-accent) 10%, transparent);
+}
+
+/* The details of a point (GR11), beside it, over the chart. */
+.details {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  width: max-content;
+  max-width: 30rem;
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+
+.details:focus {
+  outline: none;
+}
+
+.detailsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
+.detailsTitle {
+  overflow-wrap: anywhere;
+}
+
+.detailsInfo {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 var(--lnt-space-2);
+  margin: 0;
+}
+
+.detailsInfo dt {
+  color: var(--lnt-muted);
+}
+
+.detailsInfo dd {
+  margin: 0;
+}
+
+/* A UUID, set in a fixed-width font as the tables' are. */
+.uuid {
+  font-family: var(--lnt-font-mono);
+}
+
+/* A list in the details: a point's runs, a regression's tests, which scroll once there are many. */
+.detailsRuns,
+.detailsTests {
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.detailsTests {
+  margin: 0;
+  padding-left: var(--lnt-space-3);
+}
+
+.detailsHeading {
+  margin: 0 0 var(--lnt-space-1);
+  font-size: 0.9rem;
+}
+
+/*
+ * The baselines (GR9): their label with the "+" button beside it, the form it opens, and their
+ * chips.
+ */
+.baselines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lnt-space-2);
+}
+
+.baselinesHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.baselinesLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Small, beside the label, rather than a button of its own row. */
+.addBaseline {
+  padding: 0 var(--lnt-space-2);
+  line-height: 1.4;
+}
+
+.baselineForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
 }
