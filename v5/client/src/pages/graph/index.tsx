@@ -199,17 +199,17 @@ function GraphPage() {
             />
           )}
           <Select<Aggregation>
-            label="Sample aggregation"
-            options={AGGREGATION_OPTIONS}
-            value={settings.sample_agg}
-            onChange={(value) => update({ sample_agg: value })}
-            isDisabled={disabled}
-          />
-          <Select<Aggregation>
             label="Run aggregation"
             options={AGGREGATION_OPTIONS}
             value={settings.run_agg}
             onChange={(value) => update({ run_agg: value })}
+            isDisabled={disabled}
+          />
+          <Select<Aggregation>
+            label="Sample aggregation"
+            options={AGGREGATION_OPTIONS}
+            value={settings.sample_agg}
+            onChange={(value) => update({ sample_agg: value })}
             isDisabled={disabled}
           />
           <RegexFilter
