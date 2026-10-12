@@ -201,10 +201,10 @@ os.close(lock)
 
 
 def set_format_version(version):
-    with open(os.path.join(MIRROR, 'mirror.json')) as f:
+    with open(os.path.join(MIRROR, 'manifest.json')) as f:
         manifest = json.load(f)
     manifest['format_version'] = version
-    with open(os.path.join(MIRROR, 'mirror.json'), 'w') as f:
+    with open(os.path.join(MIRROR, 'manifest.json'), 'w') as f:
         json.dump(manifest, f)
 
 
@@ -213,7 +213,7 @@ set_format_version('2')
 refresh('another format version')
 set_format_version('1')
 # CHECK-LABEL: === another format version
-# CHECK: error: {{.*}}mirror.json has format version '2', but this version of LNT only handles format version '1'
+# CHECK: error: {{.*}}manifest.json has format version '2', but this version of LNT only handles format version '1'
 # CHECK: exit: 1
 
 # A run moved to another machine is fetched again with that machine embedded,
@@ -272,9 +272,9 @@ refresh('suite given twice', '--suite', 'nts', '--suite', 'compile')
 # CHECK-LABEL: === suite given twice
 # CHECK: --suite may only be given once
 # CHECK: exit: 2
-refresh('invalid suite name', '--suite', 'mirror.json')
+refresh('invalid suite name', '--suite', 'manifest.json')
 # CHECK-LABEL: === invalid suite name
-# CHECK: error: invalid suite name: 'mirror.json'
+# CHECK: error: invalid suite name: 'manifest.json'
 # CHECK: exit: 1
 refresh('suite name differing only in case', '--suite', 'NTS')
 # CHECK-LABEL: === suite name differing only in case

@@ -43,10 +43,10 @@ def main():
             return None
         return data
 
-    with open(os.path.join(mirror, 'mirror.json')) as f:
+    with open(os.path.join(mirror, 'manifest.json')) as f:
         manifest = json.load(f)
     if manifest.get('format_version') != '1':
-        problems.append('mirror.json: format version %r rather than "1"'
+        problems.append('manifest.json: format version %r rather than "1"'
                         % manifest.get('format_version'))
     source = manifest['source']
     print('source: %s database=%s' % (source['url'], source['database']))

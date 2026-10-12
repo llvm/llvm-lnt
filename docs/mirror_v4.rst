@@ -129,7 +129,7 @@ Mirror Format
 A mirror is a directory with the following layout::
 
     MIRROR_DIR/
-      mirror.json                   # the manifest
+      manifest.json                 # the manifest
       <suite>/
         schema.json                 # GET .../<suite>/schema
         machines/<machine id>.json  # GET .../<suite>/machines/<machine id>
@@ -144,7 +144,7 @@ that directory when it starts. Its contents are never part of the mirror.
 The manifest
 ~~~~~~~~~~~~
 
-``mirror.json`` is the authoritative listing of the mirror's contents. A file
+``manifest.json`` is the authoritative listing of the mirror's contents. A file
 the manifest does not reference is not part of the mirror, and tools reading a
 mirror must ignore it.
 

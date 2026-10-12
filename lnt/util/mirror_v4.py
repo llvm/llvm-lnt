@@ -33,7 +33,7 @@ from urllib.parse import quote
 
 import requests
 
-MANIFEST = 'mirror.json'
+MANIFEST = 'manifest.json'
 
 # The version of the mirror's format, recorded in its manifest. A refresh
 # refuses a mirror of any other version rather than risk misreading it.

@@ -183,7 +183,7 @@ expect_failure lnt mirror-v4 "${URL}" "${TMP}/not-a-mirror" --suite nts \
 # The next refresh repairs what an interrupted one leaves behind: a run fetched
 # but never added to the manifest is reused rather than fetched again, files the
 # manifest does not reference are removed, and so are leftover temporary files.
-python - "${MIRROR}/mirror.json" <<'EOF'
+python - "${MIRROR}/manifest.json" <<'EOF'
 import json, sys
 manifest = json.load(open(sys.argv[1]))
 del manifest['suites']['compile']['machines']['2']['runs']['3']
