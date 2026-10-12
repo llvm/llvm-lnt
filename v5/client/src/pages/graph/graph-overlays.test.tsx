@@ -248,7 +248,7 @@ describe('the point details (GR11)', () => {
       '4',
       '2',
     ])
-    const compare = details().getByRole('link', { name: 'Compare with previous' })
+    const compare = details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare).toHaveAttribute(
       'href',
       '/compare?suite_a=libcxx&machine_a=m1&commit_a=c10&run_agg_a=min' +
@@ -267,7 +267,7 @@ describe('the point details (GR11)', () => {
 
     click('a - m1', 1)
 
-    const compare = details().getByRole('link', { name: 'Compare with previous' })
+    const compare = details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare.getAttribute('href')).not.toMatch(/agg/)
   })
 
@@ -279,7 +279,7 @@ describe('the point details (GR11)', () => {
 
     click('a - m1', 0)
 
-    const compare = details().getByRole('link', { name: 'Compare with previous' })
+    const compare = details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare).toHaveAttribute('aria-disabled', 'true')
     expect(compare).toHaveAccessibleDescription('This is the first point of its trace.')
   })
@@ -301,7 +301,7 @@ describe('the point details (GR11)', () => {
     draw()
 
     click('a - m1', 1)
-    const compare = () => details().getByRole('link', { name: 'Compare with previous' })
+    const compare = () => details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare()).toHaveAccessibleDescription("The test's data is still loading.")
 
     act(() => second.open())

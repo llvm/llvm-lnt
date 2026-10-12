@@ -102,7 +102,7 @@ export function PointDetails({
         />
       </div>
       <ButtonLink to={compare} title={why}>
-        Compare with previous
+        Compare with previous commit
       </ButtonLink>
     </ChartDialog>
   )

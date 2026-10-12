@@ -261,8 +261,8 @@ stays open as the pointer moves, so that its links can be followed. It shows:
 - the point's runs, in the order they were submitted, each with its submission
   time, its shortened UUID linking to its Run Detail page, and its per-run value
   as the hover scatter shows it (GR10). The list scrolls when it is long;
-- "Compare with previous": a link to the Compare page set up to compare this
-  point with the previous point of the same trace. Side A is the previous
+- "Compare with previous commit": a link to the Compare page set up to compare
+  this point with the previous point of the same trace. Side A is the previous
   point's commit, side B this point's commit, both in this suite and on this
   machine with all their runs, with the plotted metric, and with the Graph's
   sample and run aggregation, so that Compare's Value A and Value B are the two

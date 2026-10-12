@@ -125,7 +125,7 @@ test("shows a point's runs on hover, and its details on a click (GR10, GR11)", a
   await expect(details).toBeFocused()
   expect(await details.getAttribute('aria-label')).toMatch(`${TEST} on ${LINUX} at `)
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
-  const compare = details.getByRole('link', { name: 'Compare with previous' })
+  const compare = details.getByRole('link', { name: 'Compare with previous commit' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
 
   await details.getByRole('table', { name: 'Runs' }).getByRole('link').first().click()
