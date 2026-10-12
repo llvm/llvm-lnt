@@ -3,8 +3,9 @@ import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { Schemas } from '../../api/client'
 import { withoutNeighbours } from '../../api/commits'
+import type { SuiteSchema } from '../../api/suites'
 import { signIn, TOKEN } from '../../test/auth'
-import { commit, cursorPage, regression, run, uuidOf } from '../../test/fixtures'
+import { commit, cursorPage, regression, run, SUITE, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -51,6 +52,8 @@ const BEFORE = commit('before', { ordinal: 98 })
 
 interface Options {
   url?: string
+  /** The suites the API lists: `SUITE` and `BARE_SUITE` by default. */
+  suites?: SuiteSchema[]
   /** The answer to `GET /commits/{value}`: `DETAIL` by default. */
   detail?: () => Response | Promise<Response>
   /** The answer to each request for runs; by default, `runs` on one page. */
@@ -68,6 +71,7 @@ interface Options {
  */
 function renderCommit({
   url = PAGE,
+  suites,
   detail = () => HttpResponse.json(DETAIL),
   runs = [],
   runPages = () => HttpResponse.json(cursorPage(runs)),
@@ -78,7 +82,7 @@ function renderCommit({
   const runList = recording(runPages)
   const regressionList = recording(regressions)
   const lookups = recording(previous)
-  mockSuites()
+  mockSuites(suites)
   const resolved = mockResolve([withoutNeighbours(DETAIL)])
   server.use(
     mockApi('get', COMMIT_ROUTE, () => {
@@ -139,13 +143,46 @@ describe('the Commit Detail page', () => {
       ['Commit', VALUE],
       ['Ordinal', '100Edit'],
       ['Tag', 'v1Edit'],
-      ['svn_revision', 'r100'],
+      ['svn_revision display', 'r100'],
       ['commit_info', 'Fix the vectorizer'],
     ])
     // An identifier, set as a table sets one.
     expect(within(screen.getByRole('group', { name: 'Commit' })).getByText(VALUE)).toHaveClass(
       'mono',
     )
+  })
+
+  it('marks the display field, saying what it is on hover', async () => {
+    renderCommit()
+
+    const box = await screen.findByRole('group', { name: 'Commit' })
+    const badges = within(box).getAllByText('display')
+    expect(badges).toHaveLength(1)
+    expect(badges[0].closest('dt')).toHaveTextContent(/^svn_revision/)
+    expect(badges[0]).toHaveAttribute(
+      'title',
+      'The UI shows a commit by the value of this field, when it has one, rather than by its ' +
+        'commit string.',
+    )
+  })
+
+  it('marks the display field even when the commit has no value for it', async () => {
+    renderCommit({
+      detail: () =>
+        HttpResponse.json({ ...DETAIL, fields: { ...DETAIL.fields, svn_revision: null } }),
+    })
+
+    expect((await infoRows('Commit'))[3]).toEqual(['svn_revision display', '--'])
+  })
+
+  it('marks no field when the schema has none to display', async () => {
+    const fields = SUITE.commit_fields.map((field) => ({ ...field, display: false }))
+    renderCommit({ suites: [{ ...SUITE, commit_fields: fields }] })
+
+    expect((await infoRows('Commit')).slice(3)).toEqual([
+      ['svn_revision', 'r100'],
+      ['commit_info', 'Fix the vectorizer'],
+    ])
   })
 
   it('shows a missing ordinal and tag as such', async () => {

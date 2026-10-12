@@ -17,6 +17,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
 import { useScopeGate } from '../../auth/scope'
+import { Badge } from '../../components/badge'
 import { ButtonLink } from '../../components/button-link'
 import { ControlsPanel } from '../../components/controls-panel'
 import { DataTable, type Column } from '../../components/data-table'
@@ -46,6 +47,11 @@ import styles from './details.module.css'
 
 type CommitDetail = Schemas['CommitDetail']
 type Run = Schemas['Run']
+
+/** What the badge on the display field (D4) says on hover (DT3). */
+const DISPLAY_HELP =
+  'The UI shows a commit by the value of this field, when it has one, rather than by its commit ' +
+  'string.'
 
 /** D5's limit on a tag. */
 const TAG_LENGTH = 256
@@ -143,7 +149,10 @@ function invalidOrdinal(text: string): string | undefined {
     : `An ordinal is an integer from ${ORDINAL_MIN} to ${ORDINAL_MAX}.`
 }
 
-/** The commit, its ordinal and tag, which a holder of `manage` scope can edit, and its fields. */
+/**
+ * The commit, its ordinal and tag, which a holder of `manage` scope can edit, and its fields, the
+ * display field marked as such.
+ */
 function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
   const update = useUpdateCommit(schema.name, commit.value)
   const manage = useScopeGate('manage')
@@ -171,7 +180,20 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
         />
       </InfoRow>
       {schema.commit_fields.map((field) => (
-        <InfoRow key={field.name} label={labelOf(field)}>
+        <InfoRow
+          key={field.name}
+          label={
+            <>
+              {labelOf(field)}
+              {field.display && (
+                <>
+                  {' '}
+                  <Badge help={DISPLAY_HELP}>display</Badge>
+                </>
+              )}
+            </>
+          }
+        >
           {formatFieldValue(commit.fields[field.name], field.type)}
         </InfoRow>
       ))}

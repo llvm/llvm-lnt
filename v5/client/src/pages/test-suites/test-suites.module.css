@@ -36,19 +36,6 @@
   color: var(--lnt-muted);
 }
 
-/* A machine's `untracked` label. */
-.badge {
-  display: inline-block;
-  padding: 0 var(--lnt-space-2);
-  border-radius: 999px;
-  background: var(--lnt-border);
-  color: var(--lnt-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  vertical-align: middle;
-  cursor: help;
-}
-
 /* A labelled control of the controls panel, its label above it as a combobox has its own. */
 .control {
   display: inline-flex;

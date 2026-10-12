@@ -4,13 +4,13 @@ import type { Schemas } from '../../api/client'
 import { machinesQuery } from '../../api/machines'
 import { shownData } from '../../api/shown-data'
 import type { SuiteSchema } from '../../api/suites'
+import { Badge } from '../../components/badge'
 import { DataTable, type Column } from '../../components/data-table'
 import { useServerSearch } from '../../components/use-server-search'
 import { UNTRACKED_HELP } from '../../machines'
 import { machinePath } from '../../paths'
 import { formatFieldValue, labelOf } from '../../schema'
 import { TabContent } from './tab-content'
-import styles from './test-suites.module.css'
 
 type Machine = Schemas['Machine']
 
@@ -66,9 +66,7 @@ function columns(schema: SuiteSchema): Column<Machine>[] {
           {!machine.tracked && (
             <>
               {' '}
-              <span className={styles.badge} title={UNTRACKED_HELP}>
-                untracked
-              </span>
+              <Badge help={UNTRACKED_HELP}>untracked</Badge>
             </>
           )}
         </>
