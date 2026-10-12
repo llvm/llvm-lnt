@@ -385,15 +385,13 @@ class TestQueryFilters:
     def test_answers_the_baseline_call_the_graph_page_makes(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # GR9: a baseline is fetched with `{machine, metric, commit, test}` in one
-        # body, which is the only request any client doc combines four filters in.
+        # GR9: a baseline is fetched with `{machine, metric, commit}`: every test's
+        # value on one machine at one commit, whatever the commit's ordinal.
         baseline = submit("linux", "base", {"name": "a", "execution_time": 1.0}, {"name": "b"})
         submit("darwin", "base", {"name": "a", "execution_time": 2.0})
         submit("linux", "other", {"name": "a", "execution_time": 3.0})
 
-        served = points(
-            api_client, machine="linux", metric="execution_time", commit="base", test=["a"]
-        )
+        served = points(api_client, machine="linux", metric="execution_time", commit="base")
 
         assert served == [
             {
