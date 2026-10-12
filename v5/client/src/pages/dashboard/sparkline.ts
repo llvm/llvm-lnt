@@ -5,21 +5,16 @@
 
 import type { Data } from 'plotly.js'
 import type { TrendPoint } from '../../api/trends'
+import { traceColor } from '../../chart-colors'
 import { escapeHtml, formatNumber } from '../../format'
 import type { Metric } from '../../schema'
 
 /** How many machines a suite's cards show (DA2). */
 export const MACHINES_SHOWN = 5
 
-/**
- * The colour of each machine a suite's cards show, by its position among them. Each has a contrast
- * of at least 3:1 against the page's background, as a graphic needs to be told apart from it.
- */
-const MACHINE_COLORS = ['#1f77b4', '#c2410c', '#2ca02c', '#7c3aed', '#be185d']
-
 /** The colour of the `index`th machine of a suite's cards, the same on every card. */
 export function machineColor(index: number): string {
-  return MACHINE_COLORS[index]
+  return traceColor(index)
 }
 
 /** One machine's line on a card. */

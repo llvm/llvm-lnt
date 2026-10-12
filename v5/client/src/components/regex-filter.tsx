@@ -11,6 +11,7 @@ interface Props {
   /** Whether the text is matched as a regex rather than as a substring. */
   regex: boolean
   onRegexChange(regex: boolean): void
+  isDisabled?: boolean
 }
 
 /**
@@ -18,7 +19,14 @@ interface Props {
  * and Compare pages: the text, and a "Regex" checkbox beside it. While the text is not a valid
  * regex, the input shows the red halo (AR11) and says why on hover.
  */
-export function RegexFilter({ filter, label, placeholder, regex, onRegexChange }: Props) {
+export function RegexFilter({
+  filter,
+  label,
+  placeholder,
+  regex,
+  onRegexChange,
+  isDisabled,
+}: Props) {
   return (
     <div className={styles.root}>
       <SearchInput
@@ -26,11 +34,13 @@ export function RegexFilter({ filter, label, placeholder, regex, onRegexChange }
         label={label}
         placeholder={placeholder}
         invalid={filter.invalid}
+        isDisabled={isDisabled}
       />
       <label className={styles.mode}>
         <input
           type="checkbox"
           checked={regex}
+          disabled={isDisabled}
           onChange={(event) => onRegexChange(event.target.checked)}
         />
         Regex

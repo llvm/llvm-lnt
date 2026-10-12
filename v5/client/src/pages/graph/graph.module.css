@@ -1,0 +1,71 @@
+/* The Graph page (GR1-GR14). */
+
+.chart {
+  height: 520px;
+  margin: var(--lnt-space-3) 0;
+}
+
+/* The machine combobox, and the chips of the machines added after it. */
+.machines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-2);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+  padding: 0.15rem 0.25rem 0.15rem 0.5rem;
+  border: 1px solid var(--lnt-border);
+  border-radius: 999px;
+  background: var(--lnt-bg);
+}
+
+.marker {
+  color: var(--lnt-muted);
+}
+
+.remove {
+  padding: 0 0.35rem;
+  border: none;
+  background: none;
+  line-height: 1;
+}
+
+/* What the page says in place of a control or the table, and its warnings. */
+.note,
+.count {
+  color: var(--lnt-muted);
+}
+
+.warning {
+  color: var(--lnt-warning, #92400e);
+}
+
+.testRow {
+  cursor: pointer;
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.loadingMark {
+  color: var(--lnt-muted);
+  font-size: 0.85em;
+}

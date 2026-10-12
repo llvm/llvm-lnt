@@ -8,13 +8,14 @@ interface Props {
   placeholder: string
   /** Why the input's text is invalid, if it is (AR11): it shows the red halo, and says why. */
   invalid?: string
+  isDisabled?: boolean
 }
 
 /**
  * The input of a search: of the server (see `useServerSearch`), or of rows already loaded (see
  * `useTextFilter`), which decides how its text matches (AR9).
  */
-export function SearchInput({ search, label, placeholder, invalid }: Props) {
+export function SearchInput({ search, label, placeholder, invalid, isDisabled }: Props) {
   return (
     <input
       type="search"
@@ -23,6 +24,7 @@ export function SearchInput({ search, label, placeholder, invalid }: Props) {
       placeholder={placeholder}
       aria-invalid={invalid !== undefined || undefined}
       title={invalid}
+      disabled={isDisabled}
       value={search.text}
       onChange={(event) => search.setText(event.target.value)}
       spellCheck={false}

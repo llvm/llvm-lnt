@@ -51,8 +51,8 @@ export function useRecentlyActiveMachines(suite: string, count: number, enabled 
  * The names of the suite's machines, fetched once for a combobox to filter locally: a suite has few
  * machines (D5), unlike commits, which a commit picker searches on the server instead (AR15).
  */
-export function useMachineNames(suite: string) {
-  return useQuery({ ...machinesQuery(suite), select: namesOf })
+export function useMachineNames(suite: string, enabled = true) {
+  return useQuery({ ...machinesQuery(suite), select: namesOf, enabled })
 }
 
 /** The query key of the machine `name`, which a change to it updates. */
