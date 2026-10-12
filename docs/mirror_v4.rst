@@ -131,15 +131,44 @@ ignore it. It looks like this:
       }
     }
 
-Machines and runs are keyed by their v4 identifiers, since v4 machine names are
-not unique. Each ``sha256`` is the lowercase hexadecimal SHA-256 of a file's
-bytes exactly as the instance sent them; for a run, that is the decompressed
-contents of ``<suite>/runs/<id>.json.gz``.
+``format_version``
+  The version of this format, ``"1"``. It changes whenever the format changes in
+  a way that a tool reading the previous version could misread.
+  ``lnt mirror-v4`` refuses to refresh a mirror of any other version, and tools
+  reading a mirror should likewise refuse a version they do not know.
 
-``format_version`` changes whenever the format changes in a way that a tool
-reading the previous version could misread. ``lnt mirror-v4`` refuses to refresh
-a mirror of any other version, and tools reading a mirror should likewise refuse
-a version they do not know.
+``source``
+  The instance the mirror was copied from: its root ``url``, without a trailing
+  slash, and the ``database``.
+
+``suites``
+  One entry per mirrored suite, keyed by suite name.
+
+``suites.<suite>.schema.sha256``
+  The SHA-256 of ``<suite>/schema.json``.
+
+``suites.<suite>.machines``
+  One entry per mirrored machine, keyed by the machine's v4 identifier (a
+  decimal string, since JSON keys are strings). Machines are identified by
+  identifier rather than by name because v4 machine names are not unique.
+
+``...machines.<id>.name``
+  The machine's name, as the instance reported it at ``fetched_at``.
+
+``...machines.<id>.fetched_at``
+  When the machine's listing, ``<suite>/machines/<id>.json``, was fetched from
+  the instance: an ISO 8601 timestamp in UTC.
+
+``...machines.<id>.sha256``
+  The SHA-256 of ``<suite>/machines/<id>.json``.
+
+``...machines.<id>.runs``
+  One entry per mirrored run of the machine, keyed by the run's v4 identifier.
+  Its ``sha256`` is that of the run's JSON document, i.e. of the *decompressed*
+  contents of ``<suite>/runs/<id>.json.gz``.
+
+Every hash is the lowercase hexadecimal SHA-256 of the file's bytes exactly as
+the instance sent them.
 
 The payload
 ~~~~~~~~~~~
