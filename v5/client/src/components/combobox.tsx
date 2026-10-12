@@ -1,4 +1,12 @@
-import { useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
+import {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+  type RefObject,
+} from 'react'
 import {
   Button,
   Collection,
@@ -17,11 +25,8 @@ import type { Suggestion, Suggestions } from './suggestions'
 import shared from './dropdown.module.css'
 import styles from './combobox.module.css'
 
-interface Props {
+interface CommonProps {
   label: string
-  /** The picked suggestion, or null when nothing is picked. */
-  value: Suggestion | null
-  onChange: (value: Suggestion | null) => void
   /** From `useLocalSuggestions` or `useServerSuggestions`. */
   suggestions: Suggestions
   placeholder?: string
@@ -36,6 +41,26 @@ interface Props {
    */
   onPendingChange?: (pending: boolean) => void
 }
+
+/** A combobox holding a value: the suggestion last picked. */
+interface ValueProps {
+  /** The picked suggestion, or null when nothing is picked. */
+  value: Suggestion | null
+  onChange: (value: Suggestion | null) => void
+  onPick?: never
+}
+
+/**
+ * A combobox that hands what is picked to something else, such as a list of chips, rather than
+ * holding it: a pick is passed to `onPick` and empties the input.
+ */
+interface PickProps {
+  onPick: (picked: Suggestion) => void
+  value?: never
+  onChange?: never
+}
+
+type Props = CommonProps & (ValueProps | PickProps)
 
 function sameSuggestion(a: Suggestion | null, b: Suggestion | null): boolean {
   return a?.key === b?.key && a?.text === b?.text
@@ -58,12 +83,14 @@ function exactMatch(items: readonly Suggestion[], text: string): Suggestion | nu
  *
  * The value is controlled by the caller, and the input's text by the combobox. The value need not
  * be among the suggestions loaded, which is the case for a commit restored from the URL that is not
- * on the first page of the picker's suggestions.
+ * on the first page of the picker's suggestions. A combobox given `onPick` instead holds no value:
+ * it hands each pick on, and empties its input.
  */
 export function Combobox({
   label,
-  value,
+  value = null,
   onChange,
+  onPick,
   suggestions,
   placeholder,
   isDisabled,
@@ -90,7 +117,7 @@ export function Combobox({
 
   const onInputChange = (next: string) => {
     setText(next)
-    if (next === '' && value !== null) onChange(null)
+    if (next === '' && value !== null) onChange?.(null)
   }
 
   // The clear button empties the input, which clears the value, and leaves the focus in it.
@@ -101,13 +128,22 @@ export function Combobox({
   }
 
   const restore = () => setText(value?.text ?? '')
+  // How to close the list from outside it, which `Field` provides.
+  const closeListRef = useRef(() => {})
+  // Every pick closes the list. React Aria closes it when the value changes, but a pick may leave
+  // the value as it is: one handed on to `onPick`, or one of the value itself (its commit string,
+  // entered while the input showed its display value).
   const pick = (picked: Suggestion) => {
-    if (picked.key === value?.key) {
+    if (onPick) {
+      setText('')
+      onPick(picked)
+    } else if (picked.key === value?.key) {
       restore()
     } else {
       setText(picked.text)
-      onChange(picked)
+      onChange?.(picked)
     }
+    closeListRef.current()
   }
 
   // A pick, or React Aria asking to put the value's text back (on blur, or Enter with nothing
@@ -135,7 +171,7 @@ export function Combobox({
       isReadOnly={isReadOnly}
     >
       <FieldLabel label={label} hidden={hideLabel} />
-      <Field query={query} suggestions={suggestions} value={value} pick={pick}>
+      <Field query={query} suggestions={suggestions} pick={pick} closeListRef={closeListRef}>
         <div className={styles.inputBox}>
           <Input ref={inputRef} placeholder={placeholder} className={styles.input} />
           {text !== '' && !isDisabled && !isReadOnly && (
@@ -208,17 +244,20 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
 function Field({
   query,
   suggestions,
-  value,
   pick,
+  closeListRef,
   children,
 }: {
   query: string
   suggestions: Suggestions
-  value: Suggestion | null
   pick: (picked: Suggestion) => void
+  closeListRef: RefObject<() => void>
   children: ReactElement
 }) {
   const state = useContext(ComboBoxStateContext)!
+  useEffect(() => {
+    closeListRef.current = () => state.close()
+  })
   // The text the held Enter was pressed on, if any.
   const held = useRef<string | null>(null)
 
@@ -230,9 +269,6 @@ function Field({
       return
     }
     pick(match)
-    // React Aria closes the list when the value changes, but the match may be the value already
-    // (its commit string, typed while the input showed its display value).
-    if (match.key === value?.key) state.close()
   }
 
   useEffect(() => {

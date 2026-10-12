@@ -7,8 +7,10 @@ import { SelectAllBox, SelectBox } from './select-box'
 const ROWS = ['a', 'b', 'c', 'd']
 
 /** A list of `ROWS`, each with a checkbox, under a select-all checkbox. */
-function List({ shown = ROWS }: { shown?: string[] }) {
-  const { rows } = useRangeSelection(undefined, shown)
+function List({ shown = ROWS, limit }: { shown?: string[]; limit?: number }) {
+  const { rows } = useRangeSelection(undefined, shown, {
+    limit: limit === undefined ? undefined : { count: limit, why: `At most ${limit} rows.` },
+  })
   return (
     <>
       <SelectAllBox rows={rows} shown={shown} label="Select all" />
@@ -68,5 +70,52 @@ describe('SelectAllBox', () => {
   it('cannot be used with no rows shown', () => {
     render(<List shown={[]} />)
     expect(all()).toBeDisabled()
+  })
+})
+
+describe('A list with a limit (GR7)', () => {
+  it('disables the boxes of the rows not selected once it is full, saying why', async () => {
+    const user = userEvent.setup()
+    render(<List limit={2} />)
+
+    await user.click(box('a'))
+    await user.click(box('c'))
+
+    for (const key of ['b', 'd']) {
+      expect(box(key)).toBeDisabled()
+      expect(box(key)).toHaveAccessibleDescription('At most 2 rows.')
+    }
+    expect(box('a')).toBeEnabled()
+    expect(box('a')).not.toHaveAttribute('title')
+
+    await user.click(box('a'))
+    expect(box('b')).toBeEnabled()
+    expect(box('b')).not.toHaveAttribute('title')
+  })
+
+  it('disables the select-all box while selecting every row shown would exceed it', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<List limit={3} />)
+    expect(all()).toBeDisabled()
+    expect(all()).toHaveAccessibleDescription('At most 3 rows.')
+
+    rerender(<List limit={3} shown={['a', 'b', 'c']} />)
+    expect(all()).toBeEnabled()
+    await user.click(all())
+    expect(all()).toBeChecked()
+    // Every row shown is selected, so it deselects them, whatever the limit.
+    expect(all()).toBeEnabled()
+  })
+
+  it('keeps showing how much is selected while it is disabled', async () => {
+    const user = userEvent.setup()
+    render(<List limit={2} />)
+
+    await user.click(box('a'))
+    expect(all()).toBeDisabled()
+    expect(all()).toBePartiallyChecked()
+
+    await user.click(box('a'))
+    expect(all()).not.toBePartiallyChecked()
   })
 })

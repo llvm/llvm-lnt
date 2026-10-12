@@ -162,7 +162,9 @@ they select the tests that a whole operation covers (plotting, a geomean, an
 export). A "Regex" checkbox beside the input switches it between substring and
 regex matching, both case-insensitive. While its text is not a valid regex, the
 input shows the red halo (see AR11), and the filter keeps applying the last
-valid one, or none if there has not been one yet.
+valid filter, or none if there has not been one yet. Switching to regex mode
+on text that is not a valid regex therefore keeps matching that text as a
+substring.
 
 Typing in a client-side filter must never lag behind the keyboard, even over
 thousands of rows -- the test tables of the Graph and Compare pages, or a run's

@@ -130,6 +130,6 @@ export function useRestartOnRejectedCursor(
  * Whether `error`, from a request for a page after the first, is the server rejecting its cursor,
  * which may only mean that the server or the suite's schema changed since it was issued (I2).
  */
-export function rejectsCursor(error: Error | null): boolean {
+export function rejectsCursor(error: unknown): boolean {
   return error instanceof ApiError && error.status === 400
 }

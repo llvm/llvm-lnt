@@ -1,7 +1,7 @@
 import { useQueries } from '@tanstack/react-query'
 import { compareStrings } from '../format'
-import { api, MAX_PAGE_SIZE, unwrap, type Schemas } from './client'
-import type { CursorPage } from './use-cursor-pages'
+import { api, MAX_PAGE_SIZE, unwrap } from './client'
+import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 
 /** The names of every test with a value for `metric` on `machine` (E5), however many pages. */
@@ -11,10 +11,8 @@ async function fetchTestNames(
   metric: string,
   signal: AbortSignal,
 ): Promise<string[]> {
-  const names: string[] = []
-  let cursor: string | null = null
-  do {
-    const page: CursorPage<Schemas['Test']> = await unwrap(
+  const tests = await fetchEveryPage((cursor) =>
+    unwrap(
       api.GET('/api/suites/{testsuite}/tests', {
         params: {
           path: { testsuite: suite },
@@ -22,11 +20,9 @@ async function fetchTestNames(
         },
         signal,
       }),
-    )
-    names.push(...page.items.map((test) => test.name))
-    cursor = page.cursor.next
-  } while (cursor !== null)
-  return names
+    ),
+  )
+  return tests.map((test) => test.name)
 }
 
 /** What is known of the tests of several machines (see `useTestNames`). */

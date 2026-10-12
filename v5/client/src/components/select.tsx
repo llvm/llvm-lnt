@@ -20,8 +20,10 @@ export interface Option<Value extends string> {
 interface Props<Value extends string> {
   label: string
   options: readonly Option<Value>[]
-  /** One of the options' values. */
-  value: Value
+  /** One of the options' values, or null while none is picked, which shows `placeholder`. */
+  value: Value | null
+  /** What the dropdown shows while no option is picked. */
+  placeholder?: string
   onChange(value: NoInfer<Value>): void
   isDisabled?: boolean
   /**
@@ -53,6 +55,7 @@ export function Select<Value extends string>({
   label,
   options,
   value,
+  placeholder,
   onChange,
   isDisabled,
   title,
@@ -71,6 +74,7 @@ export function Select<Value extends string>({
       <AriaSelect
         className={shared.root}
         value={value}
+        placeholder={placeholder}
         // A single selection that cannot be cleared: React Aria reports a null only for no
         // selection.
         onChange={(key) => {
