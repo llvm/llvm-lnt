@@ -6,6 +6,11 @@ import { fetchCommitPage } from './commits'
 import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 
+/** The root of the keys of the machines' scaffolds. */
+export function scaffoldKey(suite: string) {
+  return [...queryKeys.commits(suite), 'scaffold'] as const
+}
+
 /** Why a machine's commits could not be listed, and how to list them again. */
 export interface ScaffoldFailure {
   machine: string
@@ -31,7 +36,8 @@ export interface Scaffold {
  * The x-axis scaffold of `machines` (GR3): the union of the commits each has runs at, in ordinal
  * order, each machine's listed by a query of its own, so that adding a machine lists only its
  * commits. Under the suite's commits, so that a change to an ordinal marks it stale (see
- * `commitChanged`); otherwise it is kept for as long as the page shows it.
+ * `commitChanged`); otherwise it is kept for as long as the page shows the suite (GR8; see
+ * `forgetGraphData`).
  */
 export function useScaffold(suite: string, machines: readonly string[]): Scaffold {
   // Run again only when a result, or the machines, change, so that the commits are the same array
@@ -42,7 +48,7 @@ export function useScaffold(suite: string, machines: readonly string[]): Scaffol
   )
   return useQueries({
     queries: machines.map((machine) => ({
-      queryKey: [...queryKeys.commits(suite), 'scaffold', machine],
+      queryKey: [...scaffoldKey(suite), machine],
       // Every commit at which the machine has runs, leaving out those without an ordinal.
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchEveryPage((cursor) => {
@@ -50,6 +56,7 @@ export function useScaffold(suite: string, machines: readonly string[]): Scaffol
           return fetchCommitPage(suite, query, signal)
         }),
       staleTime: Infinity,
+      gcTime: Infinity,
     })),
     combine,
   })

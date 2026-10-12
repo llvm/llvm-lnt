@@ -56,6 +56,8 @@ interface World {
   samples?: Record<string, Sample[]>
   /** How many points a page of `POST /query` holds. */
   pageSize?: number
+  /** What the list of suites waits for before it is answered. */
+  suitesWait?: () => Promise<void>
 }
 
 const MACHINES = ['m1', 'm2']
@@ -98,9 +100,10 @@ function mockWorld({
   commits = COMMITS,
   samples = SAMPLES,
   pageSize = 10_000,
+  suitesWait,
 }: World = {}): Recorded {
   const recorded: Recorded = { queries: [] }
-  mockSuites([GRAPH_SUITE, TEXT_SUITE])
+  mockSuites([GRAPH_SUITE, TEXT_SUITE], { wait: suitesWait })
   mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
   mockTests((query) => testPage(tests[query.get('machine')!] ?? []))
   mockCommits((query) => cursorPage((commits[query.get('machine')!] ?? []).map(commitAt)))
@@ -201,12 +204,11 @@ describe('the Graph page (GR1)', () => {
     mockWorld()
     renderPage('/graph')
 
-    await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
+    expect(await main().findByText('Select a suite first.')).toBeInTheDocument()
     expect(selectButton('Suite')).toHaveTextContent('-- Select suite --')
     expect(screen.getByRole('combobox', { name: 'Machines' })).toBeDisabled()
     expect(selectButton('Metric')).toBeDisabled()
     expect(screen.getByRole('searchbox', { name: 'Filter tests' })).toBeDisabled()
-    expect(main().getByText('Select a suite first.')).toBeInTheDocument()
     // GR12: the overlay, with no axis to keep.
     expect(layout().annotations?.[0]?.text).toBe('No data to plot')
   })
@@ -248,6 +250,30 @@ describe('the Graph page (GR1)', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m2' }))
     expect(currentUrl()).toBe('/graph?suite=libcxx&machine=m1')
+    // The focus goes to the chip left, then to the combobox once none is.
+    expect(screen.getByRole('button', { name: 'Remove m1' })).toHaveFocus()
+    await userEvent.setup().keyboard('{Enter}')
+    expect(screen.getByRole('combobox', { name: 'Machines' })).toHaveFocus()
+  })
+
+  it('says nothing is missing while the suite and machines of its URL are checked', async () => {
+    const suites = gate()
+    mockWorld({ suitesWait: () => suites.promise })
+    renderPage(`${GRAPHED}&test=a`)
+
+    expect(await main().findByText('Loading...')).toBeInTheDocument()
+    expect(layout().annotations).toEqual([])
+    act(() => suites.open())
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+  })
+
+  it('says there is nothing to plot once the tests selected have no data', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test=c`)
+
+    await waitFor(() => expect(layout().annotations?.[0]?.text).toBe('No data to plot'))
+    const name = 'Execution Time over time: no data to plot'
+    expect(main().getByRole('img')).toHaveAccessibleName(name)
   })
 
   it("lists every test the machines have for the metric, and plots none of them", async () => {
@@ -255,8 +281,7 @@ describe('the Graph page (GR1)', () => {
     renderPage(GRAPHED)
 
     await waitFor(() => expect(listed()).toEqual(['a', 'b', 'c', 'd']))
-    expect(main().getByRole('status', { name: '' })).toBeDefined()
-    expect(main().getByText('0 of 4 tests selected')).toBeInTheDocument()
+    expect(main().getByText('0 of 4 tests selected')).toHaveAttribute('role', 'status')
     expect(recorded.queries).toEqual([])
     expect(traces()).toEqual([])
   })
@@ -368,14 +393,29 @@ describe('the selection (GR6, GR7, GR14)', () => {
     expect(box('b')).not.toBeChecked()
   })
 
+  it('selects a range of rows with Shift held (AR10)', async () => {
+    mockWorld()
+    renderPage(GRAPHED)
+    await waitFor(() => expect(listed()).toHaveLength(4))
+
+    const user = userEvent.setup()
+    await user.click(testTable().getByText('a'))
+    await user.keyboard('{Shift>}')
+    await user.click(testTable().getByText('c'))
+    await user.keyboard('{/Shift}')
+
+    expect(currentUrl()).toBe(`${GRAPHED}&test=a&test=b&test=c`)
+  })
+
   it('isolates a test on a double-click, and selects every test back on another', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test=a&test=b`)
     await waitFor(() => expect(box('a')).toBeChecked())
 
-    fireEvent.doubleClick(testTable().getByText('c'))
+    const user = userEvent.setup()
+    await user.dblClick(testTable().getByText('c'))
     expect(currentUrl()).toBe(`${GRAPHED}&test=c`)
-    fireEvent.doubleClick(testTable().getByText('c'))
+    await user.dblClick(testTable().getByText('c'))
     expect(currentUrl()).toBe(`${GRAPHED}&test=a&test=b&test=c&test=d`)
   })
 
@@ -394,15 +434,75 @@ describe('the selection (GR6, GR7, GR14)', () => {
     expect(main().queryByText(/the selection is not part of the URL/)).not.toBeInTheDocument()
   })
 
-  it('selects at most 100 tests', async () => {
-    const names = Array.from({ length: 101 }, (_, i) => `t${String(i).padStart(3, '0')}`)
-    mockWorld({ tests: { m1: names } })
-    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
-    await waitFor(() => expect(listed()).toHaveLength(101))
+  describe('selects at most 100 tests', () => {
+    const NAMES = Array.from({ length: 101 }, (_, i) => `t${String(i).padStart(3, '0')}`)
+    const ONE_MACHINE = '/graph?suite=libcxx&machine=m1&metric=execution_time'
+    const WHY = 'At most 100 tests can be selected at once.'
 
-    const all = testTable().getByRole('checkbox', { name: 'Select all tests shown' })
-    expect(all).toBeDisabled()
-    expect(all).toHaveAccessibleDescription('At most 100 tests can be selected at once.')
+    it('and says why it cannot select them all', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(ONE_MACHINE)
+      await waitFor(() => expect(listed()).toHaveLength(101))
+
+      const all = testTable().getByRole('checkbox', { name: 'Select all tests shown' })
+      expect(all).toBeDisabled()
+      expect(all).toHaveAccessibleDescription(WHY)
+    })
+
+    it('of a URL naming more, the first 100, and then no other', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(`${ONE_MACHINE}&${NAMES.map((name) => `test=${name}`).join('&')}`)
+      await waitFor(() => expect(listed()).toHaveLength(101))
+
+      expect(box('t099')).toBeChecked()
+      expect(box('t100')).not.toBeChecked()
+      expect(box('t100')).toBeDisabled()
+      expect(box('t100')).toHaveAccessibleDescription(WHY)
+    })
+
+    it('not even by double-clicking the only test selected', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(`${ONE_MACHINE}&test=t005`)
+      await waitFor(() => expect(box('t005')).toBeChecked())
+
+      await userEvent.setup().dblClick(testTable().getByText('t005'))
+
+      expect(currentUrl()).toBe(`${ONE_MACHINE}&test=t005`)
+    })
+  })
+
+  it('clears the selection with the last machine', async () => {
+    mockWorld()
+    renderPage(`/graph?suite=libcxx&machine=m1&metric=execution_time&test=a`)
+    await waitFor(() => expect(box('a')).toBeChecked())
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/graph?suite=libcxx&metric=execution_time'))
+  })
+
+  it('drops the tests of the URL that its filter hides (GR14)', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test_filter=b&test=a&test=b`)
+
+    await waitFor(() => expect(query()).toMatchObject({ test: ['b'] }))
+    expect(listed()).toEqual(['b'])
+  })
+
+  it('keeps a long selection of the URL there until what it names is known', async () => {
+    const lists = gate()
+    mockWorld()
+    mockTests(async (query) => {
+      await lists.promise
+      return testPage(TESTS[query.get('machine') as 'm1'])
+    })
+    const unknown = Array.from({ length: 11 }, (_, i) => `test=gone${i}`).join('&')
+    renderPage(`${GRAPHED}&test=a&${unknown}`)
+    await screen.findByText('Loading tests...')
+
+    expect(query().test).toHaveLength(12)
+    act(() => lists.open())
+    await waitFor(() => expect(query().test).toEqual(['a']))
   })
 
   it('prunes the tests the filter hides, in substring or regex mode', async () => {
@@ -588,29 +688,95 @@ describe('loading (GR2, GR4, GR8)', () => {
     expect(sent).toEqual([null, '1', '1'])
   })
 
+  it('starts a test again on Retry after a refused cursor, showing what it had', async () => {
+    mockWorld()
+    const restart = gate()
+    const sent: (string | null | undefined)[] = []
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
+        const { cursor } = await request.json()
+        sent.push(cursor)
+        // The first cursor is refused, as after a change to the suite's schema (I2).
+        if (cursor && sent.length === 2) {
+          return errorResponse(400, 'invalid_request', 'This cursor was not issued here.')
+        }
+        if (!cursor && sent.length > 1) await restart.promise
+        const sample: Sample = cursor ? ['c20', 'r2', 2] : ['c10', 'r1', 1]
+        return HttpResponse.json(cursorPage([pointOf('m1', 'a', sample)], cursor ? null : '1'))
+      }),
+    )
+    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
+    expect(await main().findByText(/data of some tests could not be loaded/)).toBeInTheDocument()
+
+    fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(sent).toEqual([null, '1', null]))
+    expect(traces()).toEqual(['a - m1: c10=1'])
+
+    act(() => restart.open())
+    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(sent).toEqual([null, '1', null, '1'])
+  })
+
+  it('stops loading a test once it is deselected', async () => {
+    const held = gate()
+    const recorded = mockWorld()
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
+        recorded.queries.push({ body: await request.json(), signal: request.signal })
+        await held.promise
+        return HttpResponse.json(cursorPage([]))
+      }),
+    )
+    renderPage(`${GRAPHED}&test=a`)
+    await waitFor(() => expect(recorded.queries).toHaveLength(1))
+
+    fireEvent.click(box('a'))
+
+    await waitFor(() => expect(recorded.queries[0].signal.aborted).toBe(true))
+    act(() => held.open())
+  })
+
   it("says why the machines' tests could not be listed, and tries again", async () => {
     mockWorld()
     let failing = true
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/tests', () =>
-        failing
+      mockApi('get', '/api/suites/{testsuite}/tests', ({ request }) => {
+        const machineName = new URL(request.url).searchParams.get('machine') as 'm1' | 'm2'
+        return failing && machineName === 'm2'
           ? errorResponse(500, 'internal_error', 'The tests broke.')
-          : HttpResponse.json(testPage(['a'])),
-      ),
+          : HttpResponse.json(testPage(TESTS[machineName]))
+      }),
     )
     renderPage(GRAPHED)
 
     expect(
       await main().findByText(/The tests could not be listed: The tests broke\./),
     ).toBeInTheDocument()
+    // Those of the other machine stay listed, and are not said to be loading (AR7).
+    expect(listed()).toEqual(['a', 'b', 'c'])
+    expect(main().queryByText('Loading tests...')).not.toBeInTheDocument()
     failing = false
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(listed()).toEqual(['a']))
+    await waitFor(() => expect(listed()).toEqual(['a', 'b', 'c', 'd']))
+  })
+
+  it("says why the suite's machines could not be listed", async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/machines', () =>
+        errorResponse(500, 'internal_error', 'The machines broke.'),
+      ),
+    )
+    renderPage('/graph?suite=libcxx')
+
+    expect(
+      await main().findByText(/The machines could not be listed: The machines broke\./),
+    ).toBeInTheDocument()
   })
 })
 
 describe('the URL (GR14, AR2)', () => {
-  it('drops a suite, a machine or a metric that cannot be used', async () => {
+  it('drops a suite that does not exist, and what was chosen in it', async () => {
     mockWorld()
     renderPage('/graph?suite=nope&machine=m1&metric=execution_time&test=a')
     await waitFor(() => expect(currentUrl()).toBe('/graph'))

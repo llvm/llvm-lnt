@@ -50,11 +50,12 @@
 }
 
 .warning {
-  color: var(--lnt-warning, #92400e);
+  color: var(--lnt-warning);
 }
 
 .testRow {
   cursor: pointer;
+  user-select: none;
 }
 
 .swatch {

@@ -49,15 +49,19 @@ interface MachineTests {
  * The names of the tests with a value for `metric` on any of `machines`, sorted by code point: the
  * union of one `GET tests?machine=...&metric=...` per machine, every page of it, each cached on its
  * own, so that adding a machine lists only its own tests. While some are being listed, those
- * already listed are kept.
+ * already listed are kept. With `keep`, the lists are never fetched again, and stay cached until
+ * removed, as the Graph page does once it leaves their suite (GR8).
  */
 export function useTestNames(
   suite: string,
   machines: readonly string[],
   metric: string,
+  { keep = false }: { keep?: boolean } = {},
 ): TestNames {
   return useQueries({
     queries: machines.map((machine) => ({
+      // Kept as they are for as long as the page shows them, when it asks to.
+      ...(keep ? { staleTime: Infinity, gcTime: Infinity } : {}),
       queryKey: [...queryKeys.tests(suite), { machine, metric }],
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<MachineTests> => ({
         machine,

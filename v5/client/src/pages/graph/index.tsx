@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigationType } from 'react-router'
 import { AGGREGATIONS, type Aggregation } from '../../aggregation'
 import { useMachineNames } from '../../api/machines'
 import { useScaffold } from '../../api/scaffold'
-import { useSeries } from '../../api/series'
+import { forgetGraphData, useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { traceColor } from '../../chart-colors'
@@ -68,15 +69,12 @@ export default function Graph() {
 function GraphPage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
-  // The suite, once the suites are known to hold it. One that does not exist is dropped (AR2
-  // "State"), and what was chosen in it with it.
+  // The suite, once the suites are known to hold it (see below for one that does not exist).
   const schema = suites.data?.find((entry) => entry.name === settings.suite)
-  useDropUnusable(
-    suites,
-    (list) => settings.suite === '' || list.some((entry) => entry.name === settings.suite),
-    () => update({ suite: '', machine: [], metric: '', test: [] }),
-  )
   const suite = schema?.name ?? ''
+  // What the page fetched in a suite is kept for as long as it shows it (GR8).
+  const client = useQueryClient()
+  useEffect(() => () => forgetGraphData(client, suite), [client, suite])
 
   // The machines chosen that exist, once that is known: nothing is fetched for the others, which
   // are dropped.
@@ -101,7 +99,8 @@ function GraphPage() {
     () => update({ metric: '' }),
   )
 
-  const tests = useTestNames(suite, metric === undefined ? NO_NAMES : machines, metric?.name ?? '')
+  const listedFor = metric === undefined ? NO_NAMES : machines
+  const tests = useTestNames(suite, listedFor, metric?.name ?? '', { keep: true })
   const filter = useTextFilter(
     tests.names,
     nameOf,
@@ -119,12 +118,23 @@ function GraphPage() {
   })
   const { selected, rows } = selection
 
-  // The selection, in the URL while it is short enough to share (GR14).
+  // A suite that does not exist is dropped (AR2 "State"), and what was chosen in it with it.
+  useDropUnusable(
+    suites,
+    (list) => settings.suite === '' || list.some((entry) => entry.name === settings.suite),
+    () => {
+      rows.replace([])
+      update({ suite: '', machine: [], metric: '', test: [] })
+    },
+  )
+
+  // The selection, in the URL while it is short enough to share (GR14). A long one from the URL
+  // stays there until what it names is known, which may leave few enough of them to share.
   const sorted = useMemo(() => [...selected].sort(compareStrings), [selected])
   const shared = sorted.length <= TESTS_IN_URL
   useEffect(() => {
-    update({ test: shared ? sorted : [] })
-  }, [sorted, shared, update])
+    if (shared || known) update({ test: shared ? sorted : [] })
+  }, [sorted, shared, known, update])
 
   const series = useSeries(suite, metric?.name ?? '', selected, tests.byMachine)
   const scaffold = useScaffold(suite, machines)
@@ -135,7 +145,12 @@ function GraphPage() {
     () => new Map(tests.names.map((name, i) => [name, traceColor(i)])),
     [tests.names],
   )
-  const listing = metric !== undefined && machines.length > 0 && !tests.complete
+  // Whether the suite or the machines the URL names are still being checked, which nothing the
+  // page shows can be said to be empty or missing until.
+  const checking =
+    suites.isPending || (schema !== undefined && settings.machine.length > 0 && names === undefined)
+  const listing =
+    metric !== undefined && machines.length > 0 && !tests.complete && tests.error === null
   const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
@@ -165,9 +180,11 @@ function GraphPage() {
           onChange={chooseSuite}
         />
         <MachineChips
-          machines={settings.machine}
+          // Once the machines are known, only those that exist, as the chart marks them.
+          machines={names ? machines : settings.machine}
           names={names}
           pending={!disabled && machineNames.isPending}
+          error={machineNames.error}
           isDisabled={disabled}
           onChange={(chosen) => update({ machine: chosen })}
         />
@@ -245,14 +262,16 @@ function GraphPage() {
         series={series}
         sampleAgg={settings.sample_agg}
         runAgg={settings.run_agg}
-        settled={!listing && !scaffold.pending && series.loading.size === 0 && !failed}
+        settled={
+          !checking && !listing && !scaffold.pending && series.loading.size === 0 && !failed
+        }
       />
-      {!shared && (
-        <p className={styles.warning} role="status">
-          More than {TESTS_IN_URL} tests are selected, so the selection is not part of the URL and
-          cannot be shared with it.
-        </p>
-      )}
+      {/* Always there, so that its message is announced when it appears. */}
+      <p className={styles.warning} role="status">
+        {!shared &&
+          `More than ${TESTS_IN_URL} tests are selected, so the selection is not part of the URL ` +
+            'and cannot be shared with it.'}
+      </p>
       <TestTable
         all={tests.names}
         shown={filter.rows}
@@ -261,19 +280,25 @@ function GraphPage() {
         colors={colors}
         loading={series.loading}
         listing={listing}
-        empty={emptyTable(schema, machines, metric)}
+        empty={emptyTable({ checking, schema, numeric, machines, metric })}
       />
     </section>
   )
 }
 
+interface Chosen {
+  checking: boolean
+  schema: SuiteSchema | undefined
+  numeric: Metric[]
+  machines: readonly string[]
+  metric: Metric | undefined
+}
+
 /** What the test table says while it has no tests to list, and why. */
-function emptyTable(
-  schema: SuiteSchema | undefined,
-  machines: readonly string[],
-  metric: Metric | undefined,
-): string {
+function emptyTable({ checking, schema, numeric, machines, metric }: Chosen): string {
+  if (checking) return 'Loading...'
   if (schema === undefined) return 'Select a suite first.'
+  if (numeric.length === 0) return 'This suite has no numeric metric to plot.'
   if (machines.length === 0) return 'Add a machine to list its tests.'
   if (metric === undefined) return 'Select a metric to list the tests that have it.'
   return 'No test has a value for this metric on the machines added.'

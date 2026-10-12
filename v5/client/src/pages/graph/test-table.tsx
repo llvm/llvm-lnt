@@ -25,7 +25,7 @@ interface Props {
   colors: ReadonlyMap<string, string>
   /** The selected tests whose data is still loading. */
   loading: ReadonlySet<string>
-  /** Whether the tests are still being listed. */
+  /** Whether some machine's tests are still being listed. */
   listing: boolean
   /** What the table says while no test is listed, and why. */
   empty: string
@@ -109,21 +109,26 @@ export function TestTable({
         if ((event.target as HTMLElement).closest('input') !== null) return
         rows.click(test, event.shiftKey)
       },
-      onDoubleClick: () => isolate(rows, test, shown),
-      // Shift selects a range of rows, not their text.
+      onDoubleClick: (event: MouseEvent) => {
+        if ((event.target as HTMLElement).closest('input') === null) isolate(rows, test, shown)
+      },
+      // Shift selects a range of rows, and a double-click isolates one, rather than text.
       onMouseDown: (event: MouseEvent) => {
-        if (event.shiftKey) event.preventDefault()
+        if (event.shiftKey || event.detail > 1) event.preventDefault()
       },
     }),
     [rows, shown],
   )
 
-  if (listing) return <Loading label="Loading tests..." />
-  if (all.length === 0) return <p className={styles.note}>{empty}</p>
+  // The tests listed so far stay shown while another machine's are listed (AR7).
+  if (all.length === 0) {
+    return listing ? <Loading label="Loading tests..." /> : <p className={styles.note}>{empty}</p>
+  }
 
   const count = shown.filter((test) => selected.has(test)).length
   return (
     <>
+      {listing && <Loading label="Loading tests..." />}
       <p className={styles.count} role="status">
         {filtered
           ? `${count} of ${shown.length} matching tests selected (${all.length} total)`

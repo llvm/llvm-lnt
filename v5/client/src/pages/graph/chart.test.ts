@@ -8,7 +8,13 @@ const display = (commit: string) => `<${commit}>`
 describe('graphLayout', () => {
   it('spans every commit of the x-axis, labelled by its display value, escaped', () => {
     const commits = ['c1', 'c2']
-    const layout = graphLayout({ commits, displayValue: display, revision: 'm1', empty: false })
+    const layout = graphLayout({
+      commits,
+      displayValue: display,
+      revision: 'm1',
+      metric: 'execution_time',
+      empty: false,
+    })
 
     expect(layout.xaxis).toMatchObject({
       type: 'category',
@@ -19,11 +25,19 @@ describe('graphLayout', () => {
       autorange: false,
     })
     expect(layout.uirevision).toBe('m1')
+    // A zoom of the y-axis is reset by another metric, on another scale, too.
+    expect(layout.yaxis?.uirevision).toBe('m1\0execution_time')
     expect(layout.annotations).toEqual([])
   })
 
   it('leaves the range to Plotly without commits, and says there is nothing to plot', () => {
-    const layout = graphLayout({ commits: [], displayValue: display, revision: '', empty: true })
+    const layout = graphLayout({
+      commits: [],
+      displayValue: display,
+      revision: '',
+      metric: undefined,
+      empty: true,
+    })
 
     expect(layout.xaxis).not.toHaveProperty('range')
     expect(layout.annotations).toMatchObject([{ text: 'No data to plot' }])

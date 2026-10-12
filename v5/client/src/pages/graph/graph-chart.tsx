@@ -31,22 +31,24 @@ const REDRAW_INTERVAL_MS = 300
 
 /**
  * `value`, which follows `value` at most once every `interval` milliseconds while `throttled`, the
- * latest one each time, and follows it at once otherwise.
+ * latest one each time, and follows it at once otherwise, or once `key` changes: a value for
+ * another key, such as another metric's data, is never shown in place of the latest one.
  */
-function useThrottled<T>(value: T, throttled: boolean, interval: number): T {
-  const [shown, setShown] = useState(value)
-  if (!throttled && shown !== value) setShown(value)
+function useThrottled<T>(value: T, key: string, throttled: boolean, interval: number): T {
+  const [shown, setShown] = useState({ value, key })
+  const current = throttled && shown.key === key
+  if (!current && shown.value !== value) setShown({ value, key })
   const last = useRef(0)
   useEffect(() => {
     if (!throttled) return
     const wait = Math.max(0, last.current + interval - Date.now())
     const timer = setTimeout(() => {
       last.current = Date.now()
-      setShown(value)
+      setShown({ value, key })
     }, wait)
     return () => clearTimeout(timer)
-  }, [value, throttled, interval])
-  return throttled ? shown : value
+  }, [value, key, throttled, interval])
+  return current ? shown.value : value
 }
 
 /** A trace's points, and what besides its measurements they were computed from. */
@@ -101,7 +103,12 @@ export function GraphChart({
   settled,
 }: Props) {
   const { commits, listed } = scaffold
-  const series = useThrottled(latest, latest.loading.size > 0, REDRAW_INTERVAL_MS)
+  const series = useThrottled(
+    latest,
+    `${schema?.name}\0${metric?.name}`,
+    latest.loading.size > 0,
+    REDRAW_INTERVAL_MS,
+  )
   const positions = useMemo(() => new Map(commits.map((commit, i) => [commit.value, i])), [commits])
   const displayValue = useMemo(() => {
     const shown = new Map(
@@ -145,12 +152,13 @@ export function GraphChart({
   const empty = data.length === 0 && settled
   const layout = useMemo(() => {
     const values = commits.map((commit) => commit.value)
-    return graphLayout({ commits: values, displayValue, revision, empty })
-  }, [commits, displayValue, revision, empty])
+    return graphLayout({ commits: values, displayValue, revision, metric: metric?.name, empty })
+  }, [commits, displayValue, revision, metric, empty])
 
+  const label = metric ? `${labelOf(metric)} over time` : 'Graph'
   return (
     <Chart
-      label={metric ? `${labelOf(metric)} over time` : 'Graph'}
+      label={empty ? `${label}: no data to plot` : label}
       className={styles.chart}
       data={data}
       layout={layout}

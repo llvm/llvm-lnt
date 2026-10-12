@@ -13,6 +13,9 @@
  * were fetched, so refetching them all at once could fork the chain and count samples twice.
  * Nothing invalidates these queries while the page shows them, and they never go stale.
  *
+ * What a page has fetched is kept for as long as it shows the suite, even what it no longer shows
+ * (GR8), and forgotten once it leaves it (see `forgetGraphData`).
+ *
  * Which tests have a batch is read from the cache rather than kept in state, so that a batch
  * outlives the page's state -- a remount, a selection made again -- for as long as it is cached.
  */
@@ -22,6 +25,7 @@ import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-qu
 import { compareStrings } from '../format'
 import { api, MAX_PAGE_SIZE, unwrap } from './client'
 import { queryKeys } from './keys'
+import { scaffoldKey } from './scaffold'
 import { rejectsCursor } from './use-cursor-pages'
 
 /** One sample of a test, as the Graph page keeps it. */
@@ -40,13 +44,15 @@ interface SeriesPage {
 
 /**
  * What identifies a batch in its pages' keys. The tests of one machine and metric are in one batch
- * at most, so the first of them identifies it, and the key stays short however many it holds. A
- * restart after a rejected cursor is a new generation of the same batch, whose pages start afresh.
+ * at most, so the first of them, and how many there are, identify it, and the key stays short
+ * however many it holds. A restart after a rejected cursor is a new generation of the same batch,
+ * whose pages start afresh.
  */
 interface BatchId {
   machine: string
   metric: string
   first: string
+  count: number
   generation: number
 }
 
@@ -87,8 +93,9 @@ interface PageMeta extends Record<string, unknown> {
 }
 
 function pageKey(suite: string, batch: BatchId, cursor: string | null) {
-  const { machine, metric, first, generation } = batch
-  return [...queryKeys.series(suite), { machine, metric, first, generation }, cursor] as const
+  const { machine, metric, first, count, generation } = batch
+  const id = { machine, metric, first, count, generation }
+  return [...queryKeys.series(suite), id, cursor] as const
 }
 
 async function fetchPage(
@@ -116,23 +123,38 @@ async function fetchPage(
   return { measurements, next: page.cursor.next }
 }
 
-/** The batches of `machine` and `metric` in the cache, each in its latest generation. */
+/** A generation of a batch in the cache, and whether its first page has arrived. */
+interface Candidate {
+  batch: BatchKey
+  arrived: boolean
+}
+
+/** Whether `a` is a better generation to show than `b`: one with data, then the later one. */
+function preferred(a: Candidate, b: Candidate): boolean {
+  return a.arrived !== b.arrived ? a.arrived : a.batch.generation > b.batch.generation
+}
+
+/**
+ * The batches of `machine` and `metric` in the cache, each in its latest generation whose first
+ * page has arrived, so that a batch starting again keeps showing what it had until then, or else in
+ * its latest generation.
+ */
 function cachedBatches(
   client: QueryClient,
   suite: string,
   machine: string,
   metric: string,
 ): BatchKey[] {
-  const latest = new Map<string, BatchKey>()
+  const chosen = new Map<string, Candidate>()
   for (const query of client.getQueryCache().findAll({ queryKey: queryKeys.series(suite) })) {
     const [id, cursor] = query.queryKey.slice(-2) as [BatchId, string | null]
     if (cursor !== null || id.machine !== machine || id.metric !== metric) continue
-    const known = latest.get(id.first)
-    if (known !== undefined && known.generation > id.generation) continue
     const { tests } = query.meta as PageMeta
-    latest.set(id.first, { ...id, tests })
+    const candidate = { batch: { ...id, tests }, arrived: query.state.data !== undefined }
+    const known = chosen.get(id.first)
+    if (known === undefined || preferred(candidate, known)) chosen.set(id.first, candidate)
   }
-  return [...latest.values()]
+  return [...chosen.values()].map(({ batch }) => batch)
 }
 
 /**
@@ -150,7 +172,7 @@ export function useSeries(
   testsOf: ReadonlyMap<string, ReadonlySet<string>>,
 ): Series {
   const client = useQueryClient()
-  // Renders the page again once a restarted batch is in the cache (see `restart`).
+  // Renders the page again once a restarted batch has its first page (see `restart`).
   const [, setRestarts] = useState(0)
 
   const batches: BatchKey[] = []
@@ -161,7 +183,9 @@ export function useSeries(
     batches.push(...cached.filter((batch) => batch.tests.some((test) => selected.has(test))))
     const covered = new Set(cached.flatMap((batch) => batch.tests))
     const tests = wanted.filter((test) => !covered.has(test)).sort(compareStrings)
-    if (tests.length > 0) batches.push({ machine, metric, first: tests[0], generation: 0, tests })
+    if (tests.length > 0) {
+      batches.push({ machine, metric, first: tests[0], count: tests.length, generation: 0, tests })
+    }
   }
 
   // Each batch's pages: the first, then each one the page before it has given the cursor of.
@@ -184,14 +208,18 @@ export function useSeries(
     (batch: BatchKey) => {
       // A later page's cursor was refused, which may only mean that the server or the suite's
       // schema changed meanwhile (I2): the batch starts again, as a new generation.
+      // The batch keeps showing what it had until the new generation's first page arrives, which
+      // the page then switches to (see `cachedBatches`).
       const next = { ...batch, generation: batch.generation + 1 }
-      void client.prefetchQuery({
-        queryKey: pageKey(suite, next, null),
-        queryFn: ({ signal }) => fetchPage(suite, next, null, signal),
-        meta: { tests: next.tests } satisfies PageMeta,
-        staleTime: Infinity,
-      })
-      setRestarts((count) => count + 1)
+      void client
+        .prefetchQuery({
+          queryKey: pageKey(suite, next, null),
+          queryFn: ({ signal }) => fetchPage(suite, next, null, signal),
+          meta: { tests: next.tests } satisfies PageMeta,
+          staleTime: Infinity,
+          gcTime: Infinity,
+        })
+        .then(() => setRestarts((count) => count + 1))
     },
     [client, suite],
   )
@@ -206,6 +234,9 @@ export function useSeries(
         fetchPage(suite, plan.batches[batch], cursor, signal),
       meta: { tests: plan.batches[batch].tests } satisfies PageMeta,
       staleTime: Infinity,
+      // Kept for as long as the page shows the suite, whose leaving forgets them (GR8; see
+      // `forgetGraphData`).
+      gcTime: Infinity,
       // A page is read whole, never compared with a previous one.
       structuralSharing: false,
     })),
@@ -316,4 +347,19 @@ function combineBatches(
       })
     },
   }
+}
+
+/**
+ * Forget what the Graph page fetched in `suite` and no longer shows -- its measurements, its
+ * scaffolds and its lists of tests, which it keeps for as long as it shows the suite (GR8) -- once
+ * it has left the suite or the page. Done after the current task, and only to what nothing
+ * observes then, so that a page mounted again at once, as StrictMode does in development, keeps
+ * what it is still showing.
+ */
+export function forgetGraphData(client: QueryClient, suite: string): void {
+  setTimeout(() => {
+    for (const queryKey of [queryKeys.series(suite), scaffoldKey(suite), queryKeys.tests(suite)]) {
+      client.removeQueries({ queryKey, predicate: (query) => query.getObserversCount() === 0 })
+    }
+  })
 }

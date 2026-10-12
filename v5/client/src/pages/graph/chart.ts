@@ -73,10 +73,12 @@ interface LayoutOptions {
   commits: string[]
   displayValue: DisplayValue
   /**
-   * What the axis is made of, such as the machines whose scaffold it holds: a new value resets
+   * What the x-axis is made of, such as the machines whose scaffold it holds: a new value resets
    * what the user did to the chart (GR5).
    */
   revision: string
+  /** The metric plotted, whose change also resets a zoom of the y-axis, on another scale. */
+  metric: string | undefined
   /** Whether to say that there is nothing to plot (GR12). */
   empty: boolean
 }
@@ -91,6 +93,7 @@ export function graphLayout({
   commits,
   displayValue,
   revision,
+  metric,
   empty,
 }: LayoutOptions): Partial<Layout> {
   return {
@@ -108,7 +111,7 @@ export function graphLayout({
       tickangle: -45,
       automargin: true,
     },
-    yaxis: { automargin: true, zeroline: false },
+    yaxis: { automargin: true, zeroline: false, uirevision: `${revision}\0${metric ?? ''}` },
     showlegend: false,
     hovermode: 'closest',
     hoverdistance: 8,

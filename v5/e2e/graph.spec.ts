@@ -4,8 +4,13 @@
  */
 
 import type { Page } from '@playwright/test'
+
+/** A page of a cursor-paginated list (I2). */
+interface ListPage<Item> {
+  items: Item[]
+}
 import { LINUX, MACOS } from '../tools/synthetic.ts'
-import { expect, test } from './fixtures.ts'
+import { expect, json, test } from './fixtures.ts'
 import { plotOf, tracesOf, type PlotDiv } from './plot.ts'
 import { pickOption } from './select.ts'
 import { table } from './tables.ts'
@@ -40,11 +45,16 @@ test('plots a test chosen from scratch', async ({ page }) => {
   )
 })
 
-test('keeps the x-axis as it is while the data arrives (GR3)', async ({ page }) => {
+test('keeps the x-axis as it is while the data arrives (GR3)', async ({ page, request }) => {
+  // The axis spans every commit of both machines, before anything is plotted.
+  const commits = new Set<string>()
+  for (const machine of [LINUX, MACOS]) {
+    const path = `/api/suites/libcxx/commits?machine=${machine}&sort=ordinal&limit=10000`
+    const list = await json<ListPage<{ value: string }>>(request, path)
+    for (const commit of list.items) commits.add(commit.value)
+  }
   await page.goto(GRAPHED)
-  // The axis spans the machines' commits before anything is plotted.
-  await expect(table(page, 'Tests')).toBeVisible()
-  await expect.poll(async () => (await xRange(page))[0]).toBe(-0.5)
+  await expect.poll(() => xRange(page)).toEqual([-0.5, commits.size - 0.5])
   const before = await xRange(page)
 
   await testBox(page, TEST).check()
@@ -61,7 +71,7 @@ test('restores the chart from its URL, after a reload too', async ({ page }) => 
   await page.reload()
 
   await expect(tracesOf(page)).toHaveCount(2)
-  await expect(page.getByText('1 of ')).toBeVisible()
+  await expect(page.getByText(/^1 of \d+ tests selected$/)).toBeVisible()
 })
 
 test("lists the tests of a Dashboard card's machines, and plots none", async ({ page }) => {
