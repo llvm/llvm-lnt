@@ -165,7 +165,7 @@ describe('the regression annotations (GR15)', () => {
     expect(first).toMatchObject({ mode: 'markers', yaxis: 'y2', x: ['c1'] })
     expect((second.y as number[])[0]).toBeLessThan((first.y as number[])[0])
     expect(first.hovertemplate).toContain('<b>(untitled)</b><br>Affects:<br>t&lt;0&gt;<br>')
-    expect(first.hovertemplate).toContain('t&lt;9&gt;<br>and 2 more<br><i>Click to open</i>')
+    expect(first.hovertemplate).toContain('t&lt;9&gt;<br>and 2 more<br><i>Click for details</i>')
   })
 
   it('draws the lines over axes of their own, which span the plot whatever its zoom', () => {

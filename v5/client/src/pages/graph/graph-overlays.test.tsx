@@ -436,7 +436,12 @@ describe('the point details (GR11)', () => {
 
 /** Regressions at c20, where m1 has test a, and one at a commit off the x-axis. */
 const REGRESSIONS = [
-  regression('1', { title: 'a slowed down', state: 'active', commit: 'c20' }),
+  regression('1', {
+    title: 'a slowed down',
+    state: 'active',
+    commit: 'c20',
+    bug: 'https://example.com/bugs/1',
+  }),
   regression('2', { title: null, state: 'fixed', commit: 'c20' }),
   regression('3', { title: 'Off the axis', state: 'detected', commit: 'c99' }),
 ]
@@ -534,35 +539,52 @@ describe('the regression annotations (GR15)', () => {
     await waitFor(() => expect(lookups.at(-1)?.state).toEqual(['detected', 'active']))
   })
 
-  it('opens the regression whose marker is clicked', async () => {
+  it("shows the details of the regression whose marker is clicked, linking to it", async () => {
     mockWorld()
     mockRegressionWorld()
     renderPage(`${GRAPHED}&test=a&regressions=all`)
     await waitFor(() => expect(markers()).toHaveLength(2))
+    draw()
 
     click(markers()[0].name!, 0)
 
-    await waitFor(() => expect(currentUrl()).toBe(`/suites/libcxx/regressions/${uuidOf('1')}`))
+    const dialog = screen.getByRole('dialog', { name: 'Regression: a slowed down' })
+    expect(dialog).toHaveFocus()
+    expect(details().getByText('active')).toBeInTheDocument()
+    expect(details().getByRole('link', { name: 'r20' })).toHaveAttribute(
+      'href',
+      '/suites/libcxx/commits/c20',
+    )
+    expect(details().getByRole('link', { name: 'https://example.com/bugs/1' })).toHaveAttribute(
+      'target',
+      '_blank',
+    )
+    const tests = details().getByRole('list', { name: 'Selected tests affected' })
+    expect(within(tests).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['a'])
+    expect(details().getByRole('link', { name: 'Open regression' })).toHaveAttribute(
+      'href',
+      `/suites/libcxx/regressions/${uuidOf('1')}`,
+    )
+    // Beside the marker, below it: at c20's position, 1, near the top of the plot.
+    expect(dialog).toHaveStyle({ left: '150px', top: '18px', transform: 'translate(12px, -12px)' })
+    expect(currentUrl()).toContain('/graph')
   })
 
-  it('opens the regression in a new tab on a modified click', async () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  it("shows one popover at a time, a point's or a regression's, none on right-click", async () => {
     mockWorld()
     mockRegressionWorld()
     renderPage(`${GRAPHED}&test=a&regressions=all`)
     await waitFor(() => expect(markers()).toHaveLength(2))
+    draw()
 
-    click(markers()[0].name!, 0, { metaKey: true })
-    click(markers()[0].name!, 0, { button: 1 })
-    // A right-click leaves the menu it opens to the browser.
-    click(markers()[0].name!, 0, { button: 2 })
+    click(markers()[1].name!, 0, { button: 2 })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    expect(open.mock.calls).toEqual([
-      [`/suites/libcxx/regressions/${uuidOf('1')}`, '_blank', 'noopener'],
-      [`/suites/libcxx/regressions/${uuidOf('1')}`, '_blank', 'noopener'],
-    ])
-    expect(currentUrl()).toContain('/graph')
-    open.mockRestore()
+    click('a - m1', 1)
+    fireEvent.pointerDown(main().getByRole('img'))
+    click(markers()[1].name!, 0)
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Regression: (untitled)')
   })
 
   it('keeps the regressions marked while a selection is looked up, but none it left', async () => {

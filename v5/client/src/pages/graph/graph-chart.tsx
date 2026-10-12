@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Data, PlotData, PlotMouseEvent } from 'plotly.js'
-import { useNavigate } from 'react-router'
 import type { Aggregation } from '../../aggregation'
 import type { MarkedRegression } from '../../api/regressions'
 import type { Scaffold } from '../../api/scaffold'
@@ -9,13 +8,13 @@ import type { SuiteSchema } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
 import { Chart, type PlotGeometry } from '../../components/chart'
 import { compareStrings } from '../../format'
-import { regressionPath } from '../../paths'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
 import { useStoreValue, type ValueStore } from '../../value-store'
 import type { BaselineState } from './baselines'
 import {
   baselineTraces,
   graphLayout,
+  markerHeight,
   plotlyTraces,
   regressionMarkers,
   regressionShapes,
@@ -26,6 +25,7 @@ import {
   type Trace,
 } from './chart'
 import { PointDetails } from './point-details'
+import { RegressionDetails } from './regression-details'
 import { combineRuns, pointsOf, runValues, type Point } from './points'
 import styles from './graph.module.css'
 
@@ -137,6 +137,9 @@ interface PointKey {
   test: string
   commit: string
 }
+
+/** What details are open: a point's (GR11), or a regression's (GR15). */
+type Opened = { kind: 'point'; point: PointKey } | { kind: 'regression'; uuid: string }
 
 /** The trace of `key` among `traces`, and the index of its point at `key.commit`, if any. */
 function findPoint(traces: Trace[], { machine, test, commit }: PointKey) {
@@ -309,11 +312,11 @@ export function GraphChart({
     })
   }, [commits, displayValue, revision, metric, empty, placed])
 
-  // Where the plot draws, to place the runs' values and the point details over it. Nothing drawn
+  // Where the plot draws, to place the runs' values and the details over it. Nothing drawn
   // depends on it, so that a draw does not ask for another.
   const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
-  const [open, setOpen] = useState<PointKey | null>(null)
+  const [open, setOpen] = useState<Opened | null>(null)
   const container = useRef<HTMLDivElement>(null)
   // Closed from the keyboard or its button, the details give the focus back to the chart, rather
   // than to the page; closed by a press elsewhere, they leave it where the press put it.
@@ -328,7 +331,6 @@ export function GraphChart({
     setOpen(null)
   }
 
-  const navigate = useNavigate()
   const curveAt = (event: PlotMouseEvent) => {
     const point = event.points[0]
     const curve = point && shown.curveOf.get(point.data)
@@ -350,16 +352,11 @@ export function GraphChart({
   }
   const onClick = (event: PlotMouseEvent) => {
     const at = curveAt(event)
-    // Plotly reports a click of any button: only the main one and the middle one mean anything.
-    const { button, ctrlKey, metaKey, shiftKey } = event.event
-    if (at === undefined || (button !== 0 && button !== 1)) return
-    if (at.curve.kind === 'trace' && button === 0) setOpen(pointOf(at.curve.trace, at.index))
-    if (at.curve.kind === 'regression' && schema !== undefined) {
-      const path = regressionPath(schema.name, at.curve.uuid)
-      // As a link opens on a modified click (AR2 "Routing").
-      if (button === 1 || ctrlKey || metaKey || shiftKey) window.open(path, '_blank', 'noopener')
-      else navigate(path)
-    }
+    // Plotly reports a click of any button: only the main one opens details.
+    if (at === undefined || event.event.button !== 0) return
+    const { curve } = at
+    if (curve.kind === 'trace') setOpen({ kind: 'point', point: pointOf(curve.trace, at.index) })
+    if (curve.kind === 'regression') setOpen({ kind: 'regression', uuid: curve.uuid })
   }
 
   // The values of the runs of the point hovered, if it has several (GR10).
@@ -393,34 +390,55 @@ export function GraphChart({
     }
   }
 
-  // The details of the point clicked (GR11), which close once it is no longer drawn.
-  const openAt = open && findPoint(traces, open)
-  if (open !== null && !openAt) setOpen(null)
+  // The details opened (GR11, GR15), which close once what they are about is no longer drawn.
+  const openPoint = open?.kind === 'point' ? findPoint(traces, open.point) : null
+  const openMark =
+    open?.kind === 'regression' ? marks.find((mark) => mark.uuid === open.uuid) : undefined
+  if (open !== null && !openPoint && openMark === undefined) setOpen(null)
   let details = null
-  if (openAt && geometry !== null && schema !== undefined && metric !== undefined) {
-    const { trace, index } = openAt
-    const point = trace.points[index]
-    const x = geometry.x(point.position)
-    const { left, width } = geometry.area
-    const side = x < left + width / 2 ? 'right' : 'left'
-    details = (
-      <PointDetails
-        key={`${trace.machine}\0${trace.test}\0${point.commit}`}
-        schema={schema}
-        metric={metric}
-        machine={trace.machine}
-        test={trace.test}
-        point={point}
-        display={displayValue(point.commit)}
-        runs={runsAt(series.measurementsOf(trace.machine, trace.test), point.commit, sampleAgg)}
-        previous={trace.points[index - 1] ?? null}
-        state={series.stateOf(trace.machine, trace.test)}
-        sampleAgg={sampleAgg}
-        runAgg={runAgg}
-        at={{ x, y: geometry.y(point.value), side }}
-        onClose={close}
-      />
-    )
+  if (geometry !== null && schema !== undefined) {
+    const { area } = geometry
+    const sideOf = (x: number) => (x < area.left + area.width / 2 ? 'right' : 'left')
+    if (openPoint && metric !== undefined) {
+      const { trace, index } = openPoint
+      const point = trace.points[index]
+      const x = geometry.x(point.position)
+      details = (
+        <PointDetails
+          key={`${trace.machine}\0${trace.test}\0${point.commit}`}
+          schema={schema}
+          metric={metric}
+          machine={trace.machine}
+          test={trace.test}
+          point={point}
+          display={displayValue(point.commit)}
+          runs={runsAt(series.measurementsOf(trace.machine, trace.test), point.commit, sampleAgg)}
+          previous={trace.points[index - 1] ?? null}
+          state={series.stateOf(trace.machine, trace.test)}
+          sampleAgg={sampleAgg}
+          runAgg={runAgg}
+          at={{ x, y: geometry.y(point.value), side: sideOf(x) }}
+          onClose={close}
+        />
+      )
+    } else if (openMark !== undefined) {
+      const { uuid, commit, stack, tests } = openMark
+      const x = geometry.x(positions.get(commit)!)
+      // On the axis of the markers, which spans the plot from 0 at the bottom to 1 at the top.
+      const y = area.top + (1 - markerHeight(stack)) * area.height
+      details = (
+        <RegressionDetails
+          key={uuid}
+          schema={schema}
+          regression={placed.find((regression) => regression.uuid === uuid)!}
+          tests={tests}
+          display={displayValue(commit)}
+          // Below the marker, at the top of the plot, rather than above the plot.
+          at={{ x, y, side: sideOf(x), align: 'start' }}
+          onClose={close}
+        />
+      )
+    }
   }
 
   const label = metric ? `${labelOf(metric)} over time` : 'Graph'

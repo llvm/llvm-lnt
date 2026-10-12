@@ -132,7 +132,7 @@ test("shows a point's runs on hover, and its details on a click (GR10, GR11)", a
   await expect(page).toHaveURL(/\/suites\/libcxx\/runs\//)
 })
 
-test('marks a regression at its commit, and opens it from its marker (GR15)', async ({
+test("marks a regression at its commit, and shows its details from its marker (GR15)", async ({
   page,
   request,
 }) => {
@@ -152,6 +152,9 @@ test('marks a regression at its commit, and opens it from its marker (GR15)', as
   await expect(page.locator('.hoverlayer')).toContainText('std::format slowdown')
 
   await plotOf(page).click({ position })
+  const details = page.getByRole('dialog', { name: 'Regression: std::format slowdown' })
+  await expect(details).toBeFocused()
+  await details.getByRole('link', { name: 'Open regression' }).click()
   await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
 })
 

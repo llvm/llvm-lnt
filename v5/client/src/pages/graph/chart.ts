@@ -133,6 +133,15 @@ export interface PlacedRegression {
   stack: number
 }
 
+/**
+ * The height of the marker of the regression `stack`th at its commit, on the axis of the markers,
+ * which spans the plot from 0 at the bottom to 1 at the top. The lowest stays inside the plot,
+ * however many share a commit.
+ */
+export function markerHeight(stack: number): number {
+  return Math.max(0.02, 0.98 - 0.05 * stack)
+}
+
 /** A regression drawn on the chart (GR15), with the selected tests it affects. */
 export interface RegressionMark extends PlacedRegression {
   tests: string[]
@@ -174,9 +183,10 @@ export function regressionShapes(
 }
 
 /**
- * A marker at the top of each regression's line (GR15), which is what is hovered and clicked: one
- * per regression, stacked downwards when several share a commit, on a y-axis of their own spanning
- * 0 to 1, so that they neither take part in the scale of the values nor move with a zoom.
+ * A marker at the top of each regression's line (GR15), which is what is hovered, and clicked for
+ * the regression's details: one per regression, stacked downwards when several share a commit, on
+ * a y-axis of their own spanning 0 to 1, so that they neither take part in the scale of the values
+ * nor move with a zoom.
  */
 export function regressionMarkers(marks: RegressionMark[]): Data[] {
   return marks.map(({ uuid, title, state, commit, tests, stack }) => {
@@ -188,11 +198,10 @@ export function regressionMarkers(marks: RegressionMark[]): Data[] {
       name: `regression ${uuid}`,
       yaxis: 'y2',
       x: [commit],
-      // The lowest stays inside the plot, however many share a commit.
-      y: [Math.max(0.02, 0.98 - 0.05 * stack)],
+      y: [markerHeight(stack)],
       hovertemplate:
         `<b>${escapeHtml(regressionTitle({ title }))}</b><br>Affects:<br>${named}${more}<br>` +
-        '<i>Click to open</i><extra></extra>',
+        '<i>Click for details</i><extra></extra>',
       marker: { color: stateColor(state), size: 10, symbol: 'triangle-down' },
     }
   })

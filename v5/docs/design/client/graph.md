@@ -338,7 +338,12 @@ and `false_positive`). The line itself is not hovered, so that the points along
 it can be: each line has a marker of its color at its top, stacked downwards
 when several regressions share a commit. Hovering a marker shows the regression
 title and which of the selected tests it affects (the first ten, and how many
-others); clicking it navigates to the regression detail page.
+others), and a last line saying that clicking the marker shows the regression's
+details. Clicking it opens a popover beside it, which behaves as a point's does
+(GR11): it shows the regression's title, its state (as a colored badge), its
+commit (linking to its Commit Detail page), its bug (see AR6), when it was
+created, the selected tests it affects, and a link to its Regression Detail
+page. One popover is open at a time, a point's or a regression's.
 A regression with no commit, or whose commit is not on the x-axis scaffold
 (GR3), has no position on the chart and is not drawn. The selected mode is
 persisted in the URL as `regressions={off|active|all}`.

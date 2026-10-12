@@ -123,7 +123,7 @@
   flex-direction: column;
   gap: var(--lnt-space-2);
   width: max-content;
-  max-width: 24rem;
+  max-width: 30rem;
   padding: var(--lnt-space-2) var(--lnt-space-3);
   border: 1px solid var(--lnt-border-strong);
   border-radius: var(--lnt-radius);

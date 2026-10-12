@@ -71,7 +71,12 @@ export function PointDetails({
   }
 
   return (
-    <ChartDialog label={`${test} on ${machine} at ${display}`} title={test} at={at} onClose={onClose}>
+    <ChartDialog
+      label={`${test} on ${machine} at ${display}`}
+      title={test}
+      at={at}
+      onClose={onClose}
+    >
       <dl className={styles.detailsInfo}>
         <dt>Machine</dt>
         <dd>
@@ -118,13 +123,13 @@ function runColumns(suite: string, metric: Metric): Column<RunValue>[] {
       id: 'run',
       header: 'Run',
       cell: (run) => <Link to={runPath(suite, run.run)}>{shortUuid(run.run)}</Link>,
-      looks: ['mono'],
+      looks: ['mono', 'nowrap'],
     },
     {
       id: 'value',
       header: 'Value',
       cell: (run) => formatMetricValue(run.value, metric),
-      looks: ['numeric'],
+      looks: ['numeric', 'nowrap'],
     },
   ]
 }

@@ -153,6 +153,8 @@ export interface MarkedRegression {
   state: Schemas['RegressionStateName']
   /** The commit it is attributed to: a regression without one cannot be placed. */
   commit: string
+  bug: string | null
+  created_at: string
   tests: ReadonlySet<string>
 }
 
@@ -244,11 +246,11 @@ export function useMarkedRegressions(
       if (known === undefined) tested.set(regression_uuid, (known = new Set()))
       known.add(test)
     }
-    return list.data.flatMap(({ uuid, title, state, commit }) => {
+    return list.data.flatMap(({ uuid, title, state, commit, bug, created_at }) => {
       const affected = tested.get(uuid)
       return affected === undefined || commit === null
         ? []
-        : [{ uuid, title, state, commit, tests: affected }]
+        : [{ uuid, title, state, commit, bug, created_at, tests: affected }]
     })
   }, [enabled, indicators.data, list.data, askedMachines, askedTests])
 

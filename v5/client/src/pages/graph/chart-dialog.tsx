@@ -1,11 +1,15 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import styles from './graph.module.css'
 
-/** Where a dialog opens: beside a place on the chart, in pixels in the chart's container. */
+/**
+ * Where a dialog opens: beside a place on the chart, in pixels in the chart's container, on its
+ * left or its right, and centred on it, or starting at it for a place at the top of the plot.
+ */
 export interface Anchor {
   x: number
   y: number
   side: 'left' | 'right'
+  align?: 'center' | 'start'
 }
 
 interface Props {
@@ -48,7 +52,9 @@ export function ChartDialog({ label, title, at, onClose, children }: Props) {
       style={{
         left: at.x,
         top: at.y,
-        transform: `translate(${at.side === 'right' ? '12px' : 'calc(-100% - 12px)'}, -50%)`,
+        transform:
+          `translate(${at.side === 'right' ? '12px' : 'calc(-100% - 12px)'}, ` +
+          `${at.align === 'start' ? '-12px' : '-50%'})`,
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') onClose(true)
