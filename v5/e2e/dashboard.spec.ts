@@ -87,13 +87,8 @@ function machinesOf(url: string) {
   return new URL(url).searchParams.getAll('machine')
 }
 
-test('draws a trace per machine of the key, which holds the tracked machines', async ({ page }) => {
+test('draws a trace per tracked machine on each libcxx card', async ({ page }) => {
   await page.goto('/')
-
-  const key = section(page, 'libcxx').getByRole('list', { name: 'Machines' })
-  await expect(key.getByRole('listitem')).toHaveCount(5)
-  for (const machine of [LINUX, MACOS, HARDENED]) await expect(key).toContainText(machine)
-  await expect(key).not.toContainText(UNTRACKED)
 
   await expect(section(page, 'libcxx').getByRole('article')).toHaveText(
     LIBCXX_METRICS.map((name) => new RegExp(`^${name}`)),
@@ -141,12 +136,14 @@ test("opens the Graph with a card's machines from its title", async ({ page }) =
   await page.goto('/')
   const cycles = card(page, 'Cycles Elapsed')
   await expect(tracesOf(cycles)).toHaveCount(5)
-  const key = await section(page, 'libcxx').getByRole('listitem').allTextContents()
 
   await cycles.getByRole('link', { name: 'Cycles Elapsed', exact: true }).click()
 
   await expect(page).toHaveURL(/\/graph\?suite=libcxx&machine=.*&metric=cycles$/)
-  expect(machinesOf(page.url())).toEqual(key)
+  const machines = machinesOf(page.url())
+  expect(machines).toHaveLength(5)
+  expect(machines).toEqual(expect.arrayContaining([LINUX, MACOS, HARDENED]))
+  expect(machines).not.toContain(UNTRACKED)
 })
 
 test('opens the Graph with the machine of the trace clicked', async ({ page }) => {

@@ -17,7 +17,7 @@ export const MACHINES_SHOWN = 5
  */
 const MACHINE_COLORS = ['#1f77b4', '#c2410c', '#2ca02c', '#7c3aed', '#be185d']
 
-/** The colour of the `index`th machine of a suite's cards, on every card and in the key. */
+/** The colour of the `index`th machine of a suite's cards, the same on every card. */
 export function machineColor(index: number): string {
   return MACHINE_COLORS[index]
 }

@@ -34,8 +34,7 @@ performance trends across all test suites.
   for a given metric simply has no trace on that card, and a card on which no
   machine has a trend says so in place of its chart.
 - Each trace is a colored line. A machine has the same color on every card of
-  its suite, and the suite's section has a key saying which color is which
-  machine.
+  its suite.
 - X-axis: sequential position (evenly spaced, no axis labels) among the
   commits any of the card's traces has data at, in ordinal order. A machine's
   line runs straight across the commits where it has no value.

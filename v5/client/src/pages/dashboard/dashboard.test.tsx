@@ -160,12 +160,9 @@ describe('the Dashboard', () => {
       ['compile_status', shown],
     ])
     expect(trends.every((query) => query.get('last_n') === '500')).toBe(true)
-    const key = section('libcxx').getByRole('list', { name: 'Machines' })
-    const items = within(key).getAllByRole('listitem')
-    expect(items.map((item) => item.textContent)).toEqual(shown)
   })
 
-  it('gives a machine the same colour on every card and in the key', async () => {
+  it('gives a machine the same colour on every card', async () => {
     mockSuites([DASH_SUITE])
     mockMachineNames(['m1', 'm2'])
     // m1 has no data for cycles: m2 keeps its colour there all the same.
@@ -180,11 +177,6 @@ describe('the Dashboard', () => {
       ['m2', machineColor(1)],
     ])
     expect(colours((await chartOf('Cycles')).props().data)).toEqual([['m2', machineColor(1)]])
-    const swatches = section('libcxx')
-      .getAllByRole('listitem')
-      .map((item) => item.firstElementChild)
-    expect(swatches[0]).toHaveStyle({ backgroundColor: machineColor(0) })
-    expect(swatches[1]).toHaveStyle({ backgroundColor: machineColor(1) })
   })
 
   it('says so when no tracked machine has runs, and asks for no trend', async () => {

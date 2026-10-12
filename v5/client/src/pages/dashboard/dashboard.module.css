@@ -35,30 +35,6 @@
   font-size: 1.2rem;
 }
 
-/* Which colour is which machine, on every card of the suite. */
-.key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--lnt-space-1) var(--lnt-space-3);
-  margin: 0 0 var(--lnt-space-2);
-  padding: 0;
-  list-style: none;
-  font-size: 0.85rem;
-}
-
-.keyItem {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lnt-space-2);
-}
-
-/* A short stretch of the machine's line. */
-.swatch {
-  width: 1rem;
-  height: 3px;
-  border-radius: 2px;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

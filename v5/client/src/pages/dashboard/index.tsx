@@ -5,7 +5,7 @@ import { Loaded } from '../../components/feedback'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, useUrlState } from '../../url-state'
 import { SparklineCard } from './sparkline-card'
-import { MACHINES_SHOWN, machineColor } from './sparkline'
+import { MACHINES_SHOWN } from './sparkline'
 import styles from './dashboard.module.css'
 
 /** The commit ranges offered (DA1), as `last_n` values. */
@@ -91,41 +91,20 @@ interface SuiteCardsProps {
   range: number
 }
 
-/** The machine key and the cards of a suite, or why there are none. */
+/** The cards of a suite, or why there are none. */
 function SuiteCards({ schema, metrics, machines, range }: SuiteCardsProps) {
   if (machines.length === 0) return <p className={styles.note}>No tracked machine has runs yet.</p>
   return (
-    <>
-      <MachineKey machines={machines} />
-      <div className={styles.grid}>
-        {metrics.map((metric) => (
-          <SparklineCard
-            key={metric.name}
-            schema={schema}
-            metric={metric}
-            machines={machines}
-            range={range}
-          />
-        ))}
-      </div>
-    </>
-  )
-}
-
-/** Which colour is which machine, on every card of the suite (DA2). */
-function MachineKey({ machines }: { machines: string[] }) {
-  return (
-    <ul className={styles.key} aria-label="Machines">
-      {machines.map((machine, index) => (
-        <li key={machine} className={styles.keyItem}>
-          <span
-            className={styles.swatch}
-            style={{ backgroundColor: machineColor(index) }}
-            aria-hidden="true"
-          />
-          {machine}
-        </li>
+    <div className={styles.grid}>
+      {metrics.map((metric) => (
+        <SparklineCard
+          key={metric.name}
+          schema={schema}
+          metric={metric}
+          machines={machines}
+          range={range}
+        />
       ))}
-    </ul>
+    </div>
   )
 }
