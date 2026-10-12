@@ -25,12 +25,11 @@ the suite is a query parameter, not a path segment.
   each added machine appears as a chip with an x button to remove it. The
   combobox does not offer the machines already added. Multiple machines can be
   added to overlay their data on the same chart. Removing the last machine
-  clears the chart. The metric selector is shared across all machines -- the
-  same metric is plotted for every machine.
-  The full machine list is fetched once when the combobox is created and
-  filtered locally by case-insensitive substring as the user types (instant, no
-  per-keystroke API calls). A "Loading machines..." hint is shown until the
-  initial fetch completes.
+  clears the chart and the selected tests. The metric selector is shared across
+  all machines -- the same metric is plotted for every machine. The suite's full
+  machine list is fetched once and filtered locally by case-insensitive
+  substring as the user types (instant, no per-keystroke API calls). A "Loading
+  machines..." hint is shown until the initial fetch completes.
 
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at
   least one machine and a metric are selected, the test table is populated with
@@ -49,16 +48,17 @@ the suite is a query parameter, not a path segment.
   only once every machine's test list has loaded: a list that is still loading,
   or has failed to load, deselects nothing.
 
-- **Multi-machine trace naming and symbols**: Each trace is named
-  `{test name} - {machine name}` (test name first for natural sorting). Machines
-  are visually distinguished by marker symbols, assigned in the order of their
-  chips: the first machine uses circles (default), the second triangles, then
-  squares, diamonds, etc. Each chip shows its machine's symbol. Colors
-  represent test identity, assigned by the test's position in the test table's
-  unfiltered list (GR6): every test the selected machines have for the metric,
-  sorted by name. Selecting, deselecting or filtering tests therefore never
-  changes a test's color. The same test on different machines shares the same
-  color but has a different marker shape.
+- **Multi-machine trace naming and symbols**: Each trace is named `{test name} -
+  {machine name}` (test name first for natural sorting). Machines are visually
+  distinguished by marker symbols, assigned in the order of their chips: the
+  first machine uses circles (default), the second triangles, then squares,
+  diamonds, etc., so that removing a machine shifts the symbols of the machines
+  after it. Each chip shows its machine's symbol. Colors represent test
+  identity, assigned by the test's position in the test table's unfiltered list
+  (GR6): every test the selected machines have for the metric, sorted by name.
+  Selecting, deselecting or filtering tests therefore never changes a test's
+  color. The same test on different machines shares the same color but has a
+  different marker shape.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not
@@ -86,14 +86,15 @@ the suite is a query parameter, not a path segment.
 ### GR2: Lazy Loading with Progressive Rendering
 
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
-For each selected test, data is fetched via `POST /query` with OR'd test names
-and rendered incrementally. When several tests are selected at once (a range,
+The selected tests' data is fetched via `POST /query` with OR'd test names and
+rendered incrementally. When several tests are selected at once (a range,
 or every visible test), they are fetched together rather than with one request
 per test. The chart progressively fills in data as pages arrive via
 cursor-based pagination. This avoids blocking the UI on large datasets.
 
-Each machine's data is loaded on its own: removing a machine, or leaving the
-page, stops loading its data without disturbing the other machines'.
+Each machine's data is loaded on its own: removing a machine stops loading its
+data without disturbing the other machines'. Leaving the page stops all
+loading.
 
 
 ### GR3: X-axis Scaffolding
@@ -129,12 +130,12 @@ unaffected.
 
 The chart is updated in place as new pages of data arrive. If the user zooms
 into the chart while data is still loading, the zoom is preserved across
-incremental updates. The x-axis range is always preserved (it was established by the
-scaffold or by user zoom), until the scaffold itself changes because a machine
-was added or removed, which resets the zoom. The y-axis range is preserved
-only when the user has explicitly zoomed; otherwise, it auto-ranges to
-accommodate new data as it arrives. Double-clicking the chart resets the zoom to
-the full range as usual.
+incremental updates. The x-axis range is always preserved (it was established by
+the scaffold or by user zoom), until the scaffold itself changes, because a
+machine was removed or a machine's scaffold has arrived, which resets the zoom.
+The y-axis range is preserved only when the user has explicitly zoomed;
+otherwise, it auto-ranges to accommodate new data as it arrives. Double-clicking
+the chart resets the zoom to the full range as usual.
 
 
 ### GR6: Test Selection Table
@@ -145,14 +146,14 @@ combination -- selecting a test plots it on all active machines). The table is
 part of the normal page flow (no scrollable container). A message line above the
 rows says how many of the table's rows are selected, e.g. "3 of 1200 tests
 selected", followed by ", loading..." while selected tests' data is loading.
-When the test filter is set, it counts the rows the filter keeps and also
-gives the unfiltered total: "3 of 42 matching tests selected (1200 total)".
-The selection is always among those rows, since the filter prunes it, and the
-message follows the filter as it changes. Each row has: a checkbox cell (checked =
-selected/plotted), a color cell (a swatch of the test's color, only when
+When the test filter is set, it counts the rows the filter keeps and also gives
+the unfiltered total: "3 of 42 matching tests selected (1200 total)". The
+selection is always among those rows, since the filter prunes it, and the
+message follows the filter as it changes. Each row has: a checkbox cell (checked
+= selected/plotted), a color cell (a swatch of the test's color, only when
 selected, empty otherwise; it has no shape, since shapes stand for machines),
-and the test name. The test filter narrows the table; tests that no longer
-match are pruned from the selection.
+and the test name. The test filter narrows the table; tests that no longer match
+are pruned from the selection.
 
 
 ### GR7: Selection Interactions
@@ -177,8 +178,8 @@ test names per machine and metric (all of them, filtered client-side), data per
 machine, metric and test, and scaffolds per machine; and the data of each
 baseline. In particular:
 
-- Changing the test filter or the aggregation re-renders from what is loaded,
-  without any request.
+- Changing the test filter or the aggregation redraws the traces from the data
+  already loaded, without fetching any again.
 - Adding a machine fetches only that machine's data, while the other machines'
   traces stay displayed.
 
@@ -203,14 +204,18 @@ has runs at it. If that lookup succeeds without returning it, the baseline is
 unusable, and is dropped (see AR2 "State"). The "+" button keeps its own size
 rather than stretching to the width of the chips.
 Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
-with `{machine, metric, commit, test}` in the JSON body. Each baseline renders
+with `{machine, metric, commit}` in the JSON body: every test's data at that
+commit, so that selecting tests needs no request, and a test that the
+baseline's suite does not have is simply absent. Each baseline renders
 as a horizontal dashed line per selected test, spanning the full chart width,
 colored to match that test's traces. The baseline's Y value for each test is
 computed with the same sample and run aggregation as the traces (GR1), so that
 when the baseline's suite and machine are plotted and its commit is on the
 x-axis, the dashed line meets that machine's trace at the baseline commit. A
 baseline draws no line for a test it has no data for, and draws nothing at all
-when its suite does not declare the plotted metric as a numeric metric.
+when its suite does not declare the plotted metric as a numeric metric with the
+same `unit` (an unset unit matching only an unset one), as CP1 requires of a
+metric compared across suites.
 Hovering a dashed line shows a tooltip with: the baseline suite, machine,
 commit, test name, and metric value.
 Baselines are encoded in the URL query string for shareability as
@@ -241,46 +246,51 @@ stays open as the pointer moves, so that its links can be followed. It shows:
 - the machine, linking to its Machine Detail page;
 - the commit, linking to its Commit Detail page;
 - the point's value and run count;
-- the point's runs, each with its submission time, its shortened UUID linking
-  to its Run Detail page, and its per-run value as the hover scatter shows it
+- the point's runs, each with its submission time, its shortened UUID linking to
+  its Run Detail page, and its per-run value as the hover scatter shows it
   (GR10). The list scrolls when it is long;
 - "Compare with previous": a link to the Compare page set up to compare this
   point with the previous point of the same trace. Side A is the previous
-  point's commit, side B this point's commit, both on this machine with all
-  their runs, with the plotted metric, and with the Graph's sample and run
-  aggregation, so that Compare's Value A and Value B are the two points'
-  values. The previous point is the one at the nearest lower commit on the
-  x-axis where this trace has a value, so that unlike the previous commit of
-  Run Detail's "Compare with previous commit" (DT2), it always has data for
-  the test. The link is disabled (see AR8) at the first point of a trace, and
-  while the trace's data is still loading or could not all be loaded.
+  point's commit, side B this point's commit, both in this suite and on this
+  machine with all their runs, with the plotted metric, and with the Graph's
+  sample and run aggregation, so that Compare's Value A and Value B are the two
+  points' values. The previous point is the one at the nearest lower commit on
+  the x-axis where this trace has a value, so that unlike the previous commit of
+  Run Detail's "Compare with previous commit" (DT2), it always has data for the
+  test. The link is disabled (see AR8) at the first point of a trace, and while
+  the trace's data is still loading or could not all be loaded.
 
 While it is open, the popover follows its point and updates its contents as
 more data arrives. It closes on Escape, on its close button, on a click outside
-it, and on any change to the chart other than data arriving: a zoom or pan, a
-change to the selected tests, machines, metric, filter or aggregation. A click
-on another point opens that point's popover instead.
+it, and on any change to the chart other than data arriving, such as a zoom or
+pan, or a change to the selected tests, machines, metric, filter or
+aggregation. A click on another point opens that point's popover instead.
+Clicking anything else on the chart does what its own section says (GR15), or
+nothing.
 
 
 ### GR12: Empty State
 
-When the chart has no point to draw, while nothing is loading and nothing has
-failed to load -- before a machine and a metric are chosen, when no test is
-selected, or when the selected tests have no data on the selected machines --
-the chart displays an overlay "No data to plot" centered on the chart area,
-preserving the x-axis scaffold, if there is one, so the user can see the commit
-range.
+When the chart has no point to draw, while no scaffold or data of the selected
+tests is loading or has failed to load -- before a machine and a metric are
+chosen, when no test is selected, or when the selected tests have no data on the
+selected machines -- the chart displays an overlay "No data to plot" centered on
+the chart area, preserving the x-axis scaffold, if there is one, so the user can
+see the commit range.
 
 
 ### GR13: API Calls
 
 - `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}`
-  (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`)
+  (one fetch pipeline per machine, targeted to the selected tests via
+  multi-value `test`)
+- `POST query` in a baseline's suite, with JSON body `{machine, metric, commit}`
+  (baseline data; see GR9)
 - `GET tests?machine=...&metric=...` (test name discovery)
 - `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
 - `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit picker)
 - `GET commits?machine={name}&commit={value}` (baselines loaded from the URL)
-- `GET machines` (machine combobox)
+- `GET machines` (machine combobox, and the baseline panel's machines)
 - `GET suites` (suite selector, and the selected suite's metrics)
 - `POST regressions/indicators/query` and `GET regressions` (regression
   annotations; see GR15)
@@ -293,10 +303,9 @@ range.
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page warns that the selection is not part of the
 URL and so cannot be shared. `test_filter_regex=true` turns on the test filter's
-regex mode (see AR9). On load, `test_filter` filters
-the test table as if it had been typed, and a `test` that the test list for the
-selected machines and metric does not hold, or that does not match the filter,
-is dropped.
+regex mode (see AR9). On load, `test_filter` filters the test table as if it had
+been typed, and a `test` that the test list for the selected machines and metric
+does not hold, or that does not match the filter, is dropped.
 
 
 ### GR15: Regression Annotations
