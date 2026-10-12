@@ -48,10 +48,8 @@ performance trends across all test suites.
 - Clicking a sparkline, or the card's title, navigates to the Graph page
   pre-populated with that suite, metric, and the machines with a trace on the
   card. Clicking directly on a specific trace -- the one whose hover tooltip
-  shows -- navigates with just that machine. The title is how the keyboard
-  reaches the Graph; the chart adds nothing to it but the choice of a trace,
-  which only a pointer can make. While a card shows no chart, its title is a
-  disabled link (see AR8).
+  shows -- navigates with just that machine. While a card shows no chart, its
+  title is a disabled link (see AR8).
 - Loading state: placeholder skeleton with "Loading..." while data is being
   fetched, including after the commit range changes, rather than the chart of
   the previous range.
