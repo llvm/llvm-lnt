@@ -24,10 +24,10 @@ revoking them do. Otherwise, a red banner saying
 `Permission denied. Set an API token with the required scope in Settings.` is shown in
 place of the tab's content.
 
-While the token is being checked (see AR2), the tab says so, unless it is already showing its
+While the token is being checked (see AR17), the tab says so, unless it is already showing its
 content. It then keeps it until the check settles, so that a check that accepts the token again
 loses nothing the tab shows, such as a token shown only once, but disables the actions that need
-the token meanwhile, as AR2 gates them. This is an exception to AR2's rule that the SPA behaves as
+the token meanwhile, as AR17 gates them. This is an exception to AR17's rule that the SPA behaves as
 if no token were set until a check succeeds, whether the check is of a new token or of the same
 one again. A check that does not accept a token with `admin` scope replaces the content with the
 banner.
@@ -71,7 +71,7 @@ the default order, which is `Created` descending, also the order the API returns
 names the sort column after its key in the API, prefixed with `-` for descending order
 (`sort=-last_used_at`), and leaves out the default order.
 
-Clicking Revoke asks for a plain confirmation (see AR2) before the request is sent. On
+Clicking Revoke asks for a plain confirmation (see AR16) before the request is sent. On
 success the row's `Active` flips to `No` in place and its Revoke button disappears --
 the row is not removed. Revoking the key of the token set in Settings checks the token again at
 once, so that the Settings panel, this tab and every control gated on the token show straight
@@ -119,7 +119,7 @@ etc...
 Each table shows exactly the presentation keys its list accepts (see D4), so the three
 tables deliberately differ in their columns. Entries are shown by their `name`, with their
 `display_name` in a column of its own; one that was not set shows `--` rather than
-repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR2
+repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR6
 writes it, and `--` when it has neither a unit nor an abbreviation.
 
 "Edit schema" opens the schema editor on the selected suite. "Copy as JSON" and "Download
@@ -128,7 +128,7 @@ suite from it unchanged (see D4).
 
 Clicking the red "Delete This Suite" button shows an inline panel warning that deleting a
 suite permanently destroys all its machines, runs, commits, samples, and regressions, with
-the confirmation prompt AR2 describes. On confirmation, the suite is deleted, and so is no
+the confirmation prompt AR16 describes. On confirmation, the suite is deleted, and so is no
 longer selected.
 
 Anyone can view and export a schema. Creating, editing and deleting a suite require `manage`
@@ -185,7 +185,7 @@ one commit field unchecks it on the others, since at most one can have it.
 
 As the user types a name, the editor checks it against D4's rules for names, including the
 names that D5 and O1 reserve, and for uniqueness within its list. A name that fails shows the red
-halo (see AR2), and says why on hover. "Create" or "Save" is disabled while any name fails or is
+halo (see AR11), and says why on hover. "Create" or "Save" is disabled while any name fails or is
 empty, and when disabled, says why on hover. The server validates everything else when the schema
 is submitted.
 
@@ -214,7 +214,7 @@ cannot be added again in the same edit.
 "Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
 the user changed, so that it does not overwrite changes made by others since the editor opened.
 When the user changed nothing, "Save" closes the editor without sending anything.
-If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR2),
+If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR16),
 and the editor's contents cannot change until the user does, or cancels.
 The prompt lists the removed entries and warns that every value stored for them will be
 permanently destroyed, along with the regression indicators of any removed metric (see D2). On

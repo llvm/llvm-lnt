@@ -9,7 +9,7 @@ interface Props {
 }
 
 /**
- * A regression's bug (AR2): a link opening in a new tab when it is a web URL, and plain text
+ * A regression's bug (AR6): a link opening in a new tab when it is a web URL, and plain text
  * otherwise, since the API stores whatever string it is given, and a link must not run a
  * `javascript:` one.
  */

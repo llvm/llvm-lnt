@@ -3,7 +3,7 @@ import type { QueryStatus } from '@tanstack/react-query'
 import { ApiError } from '../api/client'
 import { UnsendableTokenError, type ApiKey } from './credentials'
 
-/** What the latest check says about the token (AR2). */
+/** What the latest check says about the token (AR17). */
 export type TokenStatus =
   | { state: 'none' }
   | { state: 'checking' }

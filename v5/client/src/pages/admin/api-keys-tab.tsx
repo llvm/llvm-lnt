@@ -30,7 +30,7 @@ interface Sorting {
  * The API Keys tab (AD1). Even listing keys needs `admin`, so without it the tab says only that
  * permission is denied, and asks the API nothing. While the token is being checked, the tab says
  * so, unless it is already showing the keys, which it keeps until the check settles, so that what
- * it shows -- a token shown only once -- is not lost. Its actions are disabled meanwhile, as AR2
+ * it shows -- a token shown only once -- is not lost. Its actions are disabled meanwhile, as AR17
  * gates them, since until the check succeeds no token would be sent.
  */
 export function ApiKeysTab(sorting: Sorting) {

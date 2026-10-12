@@ -1,5 +1,5 @@
 /**
- * Formatting shared by every page (AR2 "Display conventions").
+ * Formatting shared by every page (AR6).
  */
 
 /** What a table shows in place of a value that is absent. */
@@ -28,7 +28,7 @@ export function formatTimestamp(iso: string): string {
   return `${day}, ${time} ${hours < 12 ? 'AM' : 'PM'}`
 }
 
-/** The first 8 characters of a UUID: what a deletion is confirmed with (AR2 "Deletions"). */
+/** The first 8 characters of a UUID: what a deletion is confirmed with (AR16). */
 export function uuidPrefix(uuid: string): string {
   return uuid.slice(0, 8)
 }
@@ -38,7 +38,7 @@ export function shortUuid(uuid: string): string {
   return `${uuidPrefix(uuid)}…`
 }
 
-/** A regression's title, or `(untitled)` when it has none (AR2 "Display conventions"). */
+/** A regression's title, or `(untitled)` when it has none (AR6). */
 export function regressionTitle(regression: { title: string | null }): string {
   return regression.title ?? '(untitled)'
 }
@@ -63,8 +63,8 @@ const NUMBER = new Intl.NumberFormat('en-US', {
 })
 
 /**
- * A measured number, to at most 6 significant digits but with its whole integer part (AR2 "Display
- * conventions"): `1.26432`, `66655.7`, `4123456789`.
+ * A measured number, to at most 6 significant digits but with its whole integer part (AR6):
+ * `1.26432`, `66655.7`, `4123456789`.
  */
 export function formatNumber(value: number): string {
   return NUMBER.format(value)

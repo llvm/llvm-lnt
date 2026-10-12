@@ -50,7 +50,8 @@ class TestWithoutTheDatabase:
             ("GET", "/api/", 307),
             ("GET", "/api/suites/x/commits/a%00b", 400),
             ("GET", "/favicon.ico", 404),
-            # AR2: a missing asset may exist after the next deploy, so it is not cached forever.
+            # AR2 "Caching": a missing asset may exist after the next deploy, so it is not cached
+            # forever.
             ("GET", "/assets/index-STALEHASH.js", 404),
             ("GET", "/llms.txt", 200),
             ("GET", "/api/openapi.json", 200),
@@ -103,7 +104,8 @@ class TestWithoutTheDatabase:
     def test_the_web_ui_keeps_its_own_headers(
         self, client: TestClient, path: str, cache_control: str
     ) -> None:
-        # AR2's headers, whatever the request carries: none of these files depends on a credential.
+        # The caching headers (AR2 "Caching"), whatever the request carries: none of these files
+        # depends on a credential.
         response = client.get(path, headers=SOME_CREDENTIAL)
 
         assert response.status_code == 200

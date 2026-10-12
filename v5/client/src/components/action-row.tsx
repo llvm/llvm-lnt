@@ -11,7 +11,7 @@ export interface Deletion {
   label: string
   /** The scope deleting needs. */
   scope: Scope
-  /** What to type to confirm (AR2 "Deletions"). */
+  /** What to type to confirm (AR16). */
   expected: string
   /** What the deletion destroys. */
   message: ReactNode
@@ -36,7 +36,7 @@ interface Props {
 
 /**
  * A row of actions ending with the button deleting what the page shows, and the prompt confirming
- * the deletion below the row (AR2 "Deletions"). Cancelling gives the focus back to the button.
+ * the deletion below the row (AR16). Cancelling gives the focus back to the button.
  */
 export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
   const { label, scope, expected, message, busyMessage, onDelete, onDeleted } = deletion

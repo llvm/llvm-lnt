@@ -109,7 +109,7 @@ Suites page.
   are shown (`has_commit=false`); when unchecked, regressions are shown whether
   or not they have one.
 - Free-text search on the title or a UUID prefix: server-side `search=` (see
-  AR2 and O4)
+  AR9 and O4)
 
 The filters are kept in the URL, as the API names them: `state`, `machine`,
 `metric` and `has_commit=false`.
@@ -118,7 +118,7 @@ The filters are kept in the URL, as the API names them: `state`, `machine`,
 - "New Regression" button -> toggles an inline create form with title, bug,
   state and commit fields, the latter a commit picker over every commit of the
   suite. On successful creation, navigates to the new regression's detail page.
-- Delete: a per-row button, confirmed as AR2 describes.
+- Delete: a per-row button, confirmed as AR16 describes.
 
 Clicking a row navigates to the regression's detail page, except on the commit and
 bug links it holds, which lead to their own targets.

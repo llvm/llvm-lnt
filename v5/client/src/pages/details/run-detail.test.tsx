@@ -497,7 +497,7 @@ describe('the Run Detail page', () => {
       await waitFor(() => expect(testsOf(samples)).toEqual(['Sort/16', 'std::sort/8']))
       expect(main().getByRole('status')).toHaveTextContent('2 of 3 samples matching')
 
-      // Plain text: what would be regex syntax elsewhere matches as it is (AR2).
+      // Plain text: what would be regex syntax elsewhere matches as it is (AR9).
       search('Filter tests', '^std')
       expect(await within(samples).findByText('No tests match the filter.')).toBeInTheDocument()
     })

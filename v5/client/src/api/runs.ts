@@ -18,7 +18,7 @@ export function fetchRuns(suite: string, query: RunListQuery, signal?: AbortSign
 
 /**
  * One page of `GET /runs` (E4), and its commits, resolved in one call for the whole page. Run lists
- * show each run's commit by its display value, which the runs do not carry (AR2).
+ * show each run's commit by its display value, which the runs do not carry (AR6).
  */
 export async function fetchRunPage(
   suite: string,

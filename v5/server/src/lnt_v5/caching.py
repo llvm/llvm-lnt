@@ -1,4 +1,4 @@
-"""The caching headers on every response (I9), and the values for the web UI's files (AR2).
+"""The caching headers on every response (I9), and those of the web UI's files (AR2 "Caching").
 
 A response without `Cache-Control` leaves caches to decide for themselves, and some shared caches
 then apply a default lifetime. That is long enough to answer a revoked token with data, or to keep
@@ -14,8 +14,8 @@ from fastapi import FastAPI
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-# AR2: the client build gives files under assets/ content-hashed names, so they can be cached
-# forever.
+# AR2 "Caching": the client build gives files under assets/ content-hashed names, so they can be
+# cached forever.
 IMMUTABLE = "public, max-age=31536000, immutable"
 
 # For anything that may change: a cache may store it, but must check with the server before every

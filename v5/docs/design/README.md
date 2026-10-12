@@ -71,7 +71,7 @@ e.g. `D5`, `I4` or `GR8`.
 
 | Document | Prefix | Contents |
 |----------|----------|----------|
-| [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar |
+| [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar, conventions shared by every page |
 | [Dashboard](client/dashboard.md) | DA | Landing page with sparkline trend overview across test suites |
 | [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker + tabs): Runs, Machines, Commits, Regressions |
 | [Detail Pages](client/details.md) | DT | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |

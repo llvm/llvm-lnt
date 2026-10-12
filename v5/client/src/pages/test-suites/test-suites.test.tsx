@@ -317,7 +317,7 @@ describe('the Runs tab', () => {
     expect(await screen.findByRole('link', { name: 'second' })).toBeInTheDocument()
     expect(queries[1].get('cursor')).toBe('page2')
     expect(next).toBeDisabled()
-    // The position is not kept in the URL (AR2).
+    // The position is not kept in the URL (AR7).
     expect(currentUrl()).toBe('/suites/libcxx')
 
     fireEvent.click(previous)

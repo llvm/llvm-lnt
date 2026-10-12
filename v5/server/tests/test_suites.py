@@ -274,7 +274,7 @@ class TestDetail:
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
         # Not a route, and it must not fall through to index.html: an unmatched `/api/...` is a
-        # genuine 404 carrying the error envelope (AR2).
+        # genuine 404 carrying the error envelope (AR2 "Serving").
         create()
 
         response = api_client.get(f"{SUITES}/nts/no-such-resource")

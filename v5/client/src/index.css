@@ -65,7 +65,7 @@
     color: var(--lnt-accent);
   }
 
-  /* Form controls, shared by every page (AR2 "Design consistency"). */
+  /* Form controls, shared by every page (AR5). */
   button,
   input,
   textarea {
@@ -102,7 +102,7 @@
     background: var(--lnt-bg);
   }
 
-  /* The red halo of an input whose text is invalid (AR2 "Invalid input"). */
+  /* The red halo of an input whose text is invalid (AR11). */
   input[aria-invalid='true'],
   textarea[aria-invalid='true'] {
     border-color: var(--lnt-danger);

@@ -297,7 +297,7 @@ function indicatorColumns({
 /**
  * The indicator on the Graph page, with every state's regressions marked, so that this one's commit
  * is (GR15). The Graph page plots only numeric metrics, so for any other, the link leads nowhere,
- * and says why (AR2 "Disabled links").
+ * and says why (AR8).
  */
 function GraphLink({
   suite,

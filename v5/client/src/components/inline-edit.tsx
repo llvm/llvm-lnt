@@ -51,10 +51,10 @@ interface Props {
 }
 
 /**
- * A field edited in place (AR2 "Inline editing"): its value and an Edit button, which replaces them
- * with an input, Save and Cancel. Enter saves and Escape cancels, unless the input uses the key
- * itself. The field shows `value` as its owner gives it, so an edit shows once the owner has the
- * value the API returned.
+ * A field edited in place (AR12): its value and an Edit button, which replaces them with an input,
+ * Save and Cancel. Enter saves and Escape cancels, unless the input uses the key itself. The field
+ * shows `value` as its owner gives it, so an edit shows once the owner has the value the API
+ * returned.
  */
 export function InlineEdit({
   label,

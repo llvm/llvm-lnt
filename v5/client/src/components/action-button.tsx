@@ -4,7 +4,7 @@ import { VisuallyHidden } from 'react-aria-components'
 interface Props extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'disabled' | 'title'> {
   /**
    * Why the button cannot be used yet, if it cannot: it is disabled, saying why on hover and to
-   * assistive technology (as AR2 has disabled controls do).
+   * assistive technology (as AR8 and AR17 have disabled links and controls do).
    */
   reason?: string
   /**

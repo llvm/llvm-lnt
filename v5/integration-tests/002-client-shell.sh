@@ -3,7 +3,8 @@
 # The image serves the built client at the root. This is what proves the client bundle actually
 # made it into the image, rather than the server coming up with nothing to serve.
 #
-# The shell is revalidated on every load, so that browsers pick up a deploy on the next one (AR2).
+# The shell is revalidated on every load, so that browsers pick up a deploy on the next one
+# (AR2 "Caching").
 
 source "$(dirname "$0")/lib.sh"
 

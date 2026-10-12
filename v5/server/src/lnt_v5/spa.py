@@ -2,7 +2,7 @@
 
 Deep links and hard refreshes must resolve to a client route rather than 404, so anything that is
 not the API, not an infrastructure route, and not a request for a file falls through to
-index.html. See AR2.
+index.html. See AR2 "Serving".
 
 Two things are settled before the route table is consulted at all, and both live here because both
 are statements about the raw path rather than about any endpoint: a URL carrying a NUL is refused
@@ -252,8 +252,9 @@ class SpaStaticFiles(StaticFiles):
                 # No built client, or a bundle somehow missing its entry point.
                 raise _not_found(method, request_path) from no_index
 
-        # AR2's header, based on the file served rather than the URL requested, and set on whatever
-        # the base class returned, so that a 304 carries the same header as the 200 (RFC 9110).
+        # The caching header (AR2 "Caching"), based on the file served rather than the URL
+        # requested, and set on whatever the base class returned, so that a 304 carries the same
+        # header as the 200 (RFC 9110).
         # Missing files raise an exception instead, and get I9's header from caching.py.
         #
         # Revalidation only works if the ETag changes with the file. StaticFiles computes it from

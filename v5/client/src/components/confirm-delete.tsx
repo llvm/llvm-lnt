@@ -8,9 +8,9 @@ interface Props {
   /** What is about to happen, and what it destroys. */
   children: ReactNode
   /**
-   * The text to type to confirm (AR2 "Deletions"): a name, a commit string, or the first 8
-   * characters of a UUID. Without one, the confirmation is a plain one, for an action that destroys
-   * nothing, such as revoking an API key.
+   * The text to type to confirm (AR16): a name, a commit string, or the first 8 characters of a
+   * UUID. Without one, the confirmation is a plain one, for an action that destroys nothing, such
+   * as revoking an API key.
    */
   expected?: string
   /** The confirming button's label. */
@@ -18,7 +18,7 @@ interface Props {
   /** Shown while `onConfirm` runs, for an action that may take a while. */
   busyMessage?: string
   /**
-   * The scope the action needs, without which the confirming button is disabled, as AR2 gates it:
+   * The scope the action needs, without which the confirming button is disabled, as AR17 gates it:
    * the token may change, or be checked again, while the prompt is open.
    */
   scope: Scope
@@ -28,10 +28,10 @@ interface Props {
 }
 
 /**
- * The confirmation of a destructive action, by typing `expected` before it is sent (AR2
- * "Deletions"): the prompt says what to type, and its button is enabled once it is typed exactly.
- * Without `expected`, it is a plain confirmation. Escape cancels. Its owner closes it once
- * `onConfirm` succeeds, navigating away, say.
+ * The confirmation of a destructive action, by typing `expected` before it is sent (AR16): the
+ * prompt says what to type, and its button is enabled once it is typed exactly. Without `expected`,
+ * it is a plain confirmation. Escape cancels. Its owner closes it once `onConfirm` succeeds,
+ * navigating away, say.
  */
 export function ConfirmDelete({
   children,

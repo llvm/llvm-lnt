@@ -10,7 +10,7 @@ interface Props {
 
 /**
  * The input of a search: of the server (see `useServerSearch`), or of rows already loaded (see
- * `useTextFilter`). It matches plain substrings, with no regex mode (AR2 "Text filtering").
+ * `useTextFilter`). It matches plain substrings, with no regex mode (AR9).
  */
 export function SearchInput({ search, label, placeholder }: Props) {
   return (

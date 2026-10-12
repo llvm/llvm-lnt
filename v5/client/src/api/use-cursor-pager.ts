@@ -37,10 +37,9 @@ export interface CursorPagerState<Page> {
 }
 
 /**
- * A cursor-paginated endpoint shown a page at a time, with Previous and Next (AR2 "Paginated
- * tables"). Pagination is forward-only (I2), so Previous returns to a page already visited, which
- * comes from the cache. The position is component state rather than part of the URL, so a reload
- * shows the first page again.
+ * A cursor-paginated endpoint shown a page at a time, with Previous and Next (AR7). Pagination is
+ * forward-only (I2), so Previous returns to a page already visited, which comes from the cache. The
+ * position is component state rather than part of the URL, so a reload shows the first page again.
  *
  * When a page fails to load, the pager has no page to show, only the error and `retry`. A cursor
  * the server rejects (see `rejectsCursor`) starts the pager again from a first page fetched afresh,

@@ -13,7 +13,7 @@ export interface Suggestion {
   /** What the suggestion shows, and what the input shows once it is picked. */
   text: string
   /**
-   * Other texts that find it, and that Enter picks it by (AR2), such as the commit string of a
+   * Other texts that find it, and that Enter picks it by (AR14), such as the commit string of a
    * commit shown by its display value.
    */
   aliases?: readonly string[]
@@ -42,7 +42,7 @@ export interface Suggestions {
 function noMore() {}
 
 /**
- * Suggestions from `all`, filtered by case-insensitive substring (AR2). Undefined while `all` is
+ * Suggestions from `all`, filtered by case-insensitive substring (AR9). Undefined while `all` is
  * still being loaded, or if loading it failed with `error`. Memoize `all`, as the suggestions are
  * filtered again when it changes.
  */
@@ -95,7 +95,7 @@ interface ServerOptions<Item> {
 }
 
 /**
- * Suggestions from a cursor-paginated server-side search (AR2): the first page of matches for the
+ * Suggestions from a cursor-paginated server-side search (AR9): the first page of matches for the
  * text, searched again once the user stops typing, and the next page when the user scrolls to the
  * end of the list. A response for text the user has since changed is never shown, since each text
  * is a query of its own; the previous text's suggestions stay up until the new ones arrive.
@@ -128,7 +128,7 @@ export function useServerSuggestions<Item>({
     queryKey: fullKey,
     queryFn: ({ pageParam, signal }) => fetchPage(term, pageParam, signal),
     ...cursorPaging,
-    // The previous text's suggestions stay up while the new text's load (AR2), but not those of
+    // The previous text's suggestions stay up while the new text's load (AR9), but not those of
     // another `queryKey`: they are not suggestions at all under its filters, and could be picked.
     placeholderData: (previous, previousQuery) =>
       previousQuery !== undefined && sameQuery(previousQuery.queryKey, queryKey)

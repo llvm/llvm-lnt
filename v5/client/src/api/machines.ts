@@ -29,7 +29,7 @@ const namesOf = (machines: Machine[]) => machines.map((machine) => machine.name)
 
 /**
  * The names of the suite's machines, fetched once for a combobox to filter locally: a suite has few
- * machines (D5), unlike commits, which a commit picker searches on the server instead (AR2).
+ * machines (D5), unlike commits, which a commit picker searches on the server instead (AR15).
  */
 export function useMachineNames(suite: string) {
   return useQuery({ ...machinesQuery(suite), select: namesOf })

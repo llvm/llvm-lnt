@@ -55,9 +55,9 @@ function reason(required: Scope, status: TokenStatus): string {
 }
 
 /**
- * AR2's gating of a control on the scope its action needs: disabled, saying on hover which scope it
- * needs, unless the token grants it. A control is disabled while its token is being checked, since
- * until then the SPA behaves as if there were none. Spread it onto the control:
+ * AR17's gating of a control on the scope its action needs: disabled, saying on hover which scope
+ * it needs, unless the token grants it. A control is disabled while its token is being checked,
+ * since until then the SPA behaves as if there were none. Spread it onto the control:
  *
  *     <button {...useScopeGate('manage')} onClick={remove}>Delete</button>
  *

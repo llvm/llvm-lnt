@@ -203,8 +203,8 @@ class TestExemptRoutes:
     def test_a_query_parameter_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # I3's refusal is for the REST API surface, which these are outside of: a proxy busting a
         # cache, or a probe tagging its requests, must not turn them into a 400. Nor must the web
-        # UI's own routes, whose query strings carry its state (AR2) -- not exempt from the scope
-        # system, but never part of it.
+        # UI's own routes, whose query strings carry its state (AR2 "State") -- not exempt from the
+        # scope system, but never part of it.
         assert api_client.get(f"{path}?v=1&v=2").status_code == 200
 
 

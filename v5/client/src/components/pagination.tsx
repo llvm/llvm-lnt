@@ -2,8 +2,7 @@ import type { CursorPagerState } from '../api/use-cursor-pager'
 import styles from './pagination.module.css'
 
 /**
- * Previous and Next below a table over a cursor-paginated endpoint (AR2 "Paginated tables"), from
- * `useCursorPager`.
+ * Previous and Next below a table over a cursor-paginated endpoint (AR7), from `useCursorPager`.
  */
 export function CursorPager({
   pager,

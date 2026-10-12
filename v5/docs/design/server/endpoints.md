@@ -164,7 +164,7 @@ The regressions attributed to the commit are kept, with no commit (see D5).
   and searchable commit fields (see O4).
 - `commit=`: only the commit with this value, if it also satisfies the other
   filters. An unknown commit gives an empty result (see I3). A commit picker
-  uses it to check that it would offer a commit it was given (see AR2).
+  uses it to check that it would offer a commit it was given (see AR15).
 - `machine=`: only commits with at least one run on this machine. 404 if the
   machine does not exist.
 - `has_profiles=`: boolean. `true` returns only commits where at least one run
@@ -185,7 +185,7 @@ The regressions attributed to the commit are kept, with no commit (see D5).
   submission, and its place in this order never changes: neither a later run nor
   a change to its ordinal moves it. Both directions include every commit,
   including those with no ordinal, which makes `-first_seen` the order for a
-  commit picker (see AR2).
+  commit picker (see AR15).
 - `sort=ordinal` orders by ordinal ascending (oldest first), and
   `sort=-ordinal` by ordinal descending (newest first). Both exclude commits
   with no ordinal.

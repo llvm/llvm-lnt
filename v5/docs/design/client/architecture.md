@@ -1,8 +1,9 @@
 # v5 Web UI: Architecture
 
 This document covers the SPA architecture, how the server serves it,
-client-side routing, the page hierarchy, and the navigation bar. For individual
-page specifications, see the other documents in this directory.
+client-side routing, the page hierarchy, the navigation bar, and the conventions
+that every page follows. For individual page specifications, see the other
+documents in this directory.
 
 
 ## AR1: Context
@@ -14,9 +15,9 @@ contained in a LNT v5 instance. This SPA uses it to provide a more dynamic exper
 
 ## AR2: Single-Page Application
 
-One SPA with client-side routing. Every route in the page hierarchy below is
-served by the same application; there is no point at which navigating within
-the UI causes a full page reload.
+One SPA with client-side routing. Every route in the page hierarchy below
+(AR3) is served by the same application; there is no point at which navigating
+within the UI causes a full page reload.
 
 - **Routing**: Simple path-based client-side router. No full page reload when
   navigating within the SPA. Modified clicks (Cmd+Click, Ctrl+Click,
@@ -52,212 +53,6 @@ the UI causes a full page reload.
   holding several values repeats its parameter once per value, as the API does
   (see I3).
 
-**Design consistency**: All pages should share a consistent look and feel --
-comboboxes, metric selectors, table styling, progress/error feedback, color
-scheme, and layout spacing. The same components are reused across pages rather
-than reinvented per-page. Pages with selection controls (dropdowns, filters,
-aggregation settings) wrap them in a shared controls panel -- a lightly shaded
-box with a border -- so the settings area is visually distinct from the page
-content.
-
-**Display conventions**: These hold on every page, unless the page specifies
-otherwise.
-
-- A commit is shown by its *display value*: the value of the commit field the
-  schema marks `display: true` (see D4) when the commit has one, and the commit
-  string otherwise, followed by ` (tag)` when the commit has a tag. The display
-  value is for display only: links, URL state and API requests use the commit
-  string.
-- A metric, machine field or commit field is labelled with its `display_name`
-  when the schema sets one, and with its `name` otherwise.
-- Where a page names a metric's unit, it writes its `unit` followed by its
-  `unit_abbrev` in parentheses, as much of either as is set (`seconds (s)`,
-  `seconds`, `(s)`), and only once when the two are identical (`cycles`, not
-  `cycles (cycles)`). A value shown with its unit is left to the page.
-- Timestamps are shown in the browser's local time zone.
-- A measured `real` value is shown to at most 6 significant digits, but never
-  with fewer digits than its integer part has (`1.26432`, `66655.7`,
-  `4123456789`).
-- Where space is short, a UUID is shortened to its first 8 characters.
-- A regression without a title is labelled `(untitled)`.
-- A regression's bug is a link opening in a new tab when it is an `http` or
-  `https` URL, and plain text otherwise, since the API stores any string.
-
-**Paginated tables**: A table that shows a paginated endpoint (see I2) a
-page at a time has `[<- Previous]` and `[Next ->]` below it. Pagination is
-forward-only, so Previous returns to pages the user has already visited. The
-position is not kept in the URL: reloading the page shows the first page again.
-
-When the rows a table should show cannot be fetched -- for another page, search
-or filter -- the table and its pager give way to the error, with a way to try
-again, rather than leave up the rows of another page or search.
-
-A table that loads every page of a paginated endpoint, showing the rows as they
-arrive, gives way to the error in the same way if the first page cannot be
-fetched. If a later page cannot be, it keeps the rows it has, says that they are
-incomplete, and offers to load the rest.
-
-Wherever a failure offers a way to try again, an error saying that what was
-asked for does not exist (I4's `not_found`) does not, since trying again would
-get the same answer.
-
-**Disabled links**: A link that leads nowhere for now -- to a comparison with a
-commit that does not exist, say -- is shown disabled: no click follows it,
-modified or not, and it says why on hover and to assistive technology.
-
-**Text filtering**: A client-side text filter -- one that narrows data already
-loaded in the browser -- matches its text as a case-insensitive substring.
-
-The test filters of the Graph and Compare pages also have a regex mode, since
-they select the tests that a whole operation covers (plotting, a geomean, an
-export). A "Regex" checkbox beside the input switches it between substring and
-regex matching, both case-insensitive. While its text is not a valid regex, the
-input shows the red halo (see Invalid input), and the filter keeps applying the
-last valid one, or none if there has not been one yet.
-
-Inputs that search the server rather than filter data already loaded -- the
-Test Suites tabs' searches (TS1), commit pickers (see below) and the regression
-picker (CP9) -- ask the server again as the user types (debounced), from the
-first page. A response for earlier text never replaces the one for the current
-text, though the previous results may stay up until the current ones arrive.
-
-**Text filtering performance**: Typing in a client-side filter must never lag
-behind the keyboard, even over thousands of rows -- the test tables of the Graph
-and Compare pages, or a run's samples. The rows it filters, and any chart that
-depends on them, may update just after.
-
-**Range selection**: In a list whose rows are selected with checkboxes, a click
-toggles a row, whether by mouse or from the keyboard, and the anchor is the last
-row clicked. A click with Shift held also gives every row shown from the anchor
-to the clicked one, both included, the clicked row's new state. It never changes
-a row that a filter hides. Without an anchor among the rows shown, a click with
-Shift held acts as a plain click. A checkbox in the list's header selects every
-row shown, or deselects them all if they are all selected already. It, and any
-other change to the selection than a click on a row, leaves the anchor where it
-is.
-
-**Invalid input**: An input whose text is invalid -- an invalid regex in a test
-filter, a name the schema editor rejects (AD3), an ordinal that is not an
-integer its column can hold (DT3) -- shows a red halo (red border and glow) for
-as long as its text stays invalid.
-
-**Inline editing**: A field edited in place shows its value with an Edit button.
-Clicking Edit replaces the value with an input, which takes the focus, and Save
-and Cancel buttons. Enter saves and Escape cancels, unless the input uses the
-key itself: a combobox uses them, for example, to pick a suggestion or close its
-list, and in a multi-line input, Enter starts a new line and Ctrl+Enter
-(Cmd+Enter on a Mac) saves.
-
-Whitespace at either end of the text is ignored: it is removed before the text
-is checked or saved, so text that is only whitespace clears the value, like an
-empty input. Saving unchanged text -- the text the input opened with, or the
-stored value once trimmed -- closes the input without sending anything, so a
-stored value with whitespace at either end keeps it. Invalid text cannot be
-saved. While a save is in progress, the input and its buttons cannot be used. If
-the save fails, the input stays open with its text and says why. If it succeeds,
-the input closes and the field shows the value the API returned, so an edit
-never appears before the API has accepted it. When the input closes, the focus
-returns to the Edit button. Edit and Save need the scope that the change needs
-(see "Authentication").
-
-**Controls saving on change**: Some controls, such as a checkbox or a dropdown,
-save as soon as the user changes them. Such a control keeps showing the stored
-value until the API has accepted the change. While a save is in progress, the
-control ignores further changes, but can still be focused. Only picking an
-option from the open list changes a dropdown: a closed dropdown does not step
-through its options, from the keyboard or otherwise, since each step would be
-saved. If the save fails, the control keeps showing the stored value and says
-why. The control needs the scope that the change needs (see "Authentication").
-
-**Comboboxes**: Every combobox follows the standard combobox accessibility
-conventions, with manual selection: typing narrows the suggestions, and the
-value changes only when the user picks a suggestion, by clicking it or by moving
-to it with ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without
-picking one puts back the text of its current value, and emptying the input
-clears the value. While the input holds text, a button in it empties it, so
-that a value can be cleared without editing the text. When no suggestion
-matches the typed text, the list says so.
-The list closes on Escape, on blur, on a click outside it and once a suggestion
-is picked.
-
-So that a value can be pasted and entered, Enter with no suggestion highlighted
-picks the suggestion that the typed text exactly identifies: its shown text, or
-the identifier of what it stands for, such as a commit string or a regression's
-UUID. The comparison is case-sensitive and ignores surrounding whitespace. The
-suggestion must be the only one so identified among the suggestions loaded for
-that text -- the first page of them, unless the user has scrolled for more.
-Otherwise, the text stays as it is. An Enter pressed before those suggestions
-have loaded takes effect once they have, unless the text has changed meanwhile,
-as it does when the user leaves the combobox.
-
-**Commit pickers**: Every combobox that selects a commit -- on the Compare and
-Profiles pages, for Graph baselines, and for a regression's commit -- lists its
-suggestions most recently seen first, as `GET commits?sort=-first_seen` returns
-them with the picker's filters (see E3). That order keeps commits without an
-ordinal (ad-hoc A/B experiment commits; see D1) selectable, placed by recency
-among the ordered ones, whereas `sort=-ordinal` would drop them. A picker
-searches the server as above rather than fetching every commit and filtering
-locally: a machine can have tens of thousands of commits. The search covers the
-display value the suggestions show only if the schema marks the display field
-`searchable` (see O4).
-
-A page of matches need not hold every matching commit: scrolling to the end of
-the suggestions loads the next page. A commit the picker is given rather than
-chosen -- restored from the URL, or kept while its filters change -- is looked
-up with the picker's filters plus `commit=` (see E3). The lookup returns
-the commit, with its display value, only if the picker would offer it.
-Otherwise the commit is unusable, and the picker is cleared as if the user had
-emptied it (see "State").
-
-If the user types in a commit picker but does not pick one of its suggestions,
-the form containing the picker cannot be submitted until they do, or clear the
-picker, and the form says so. Otherwise, the form would be submitted with a
-commit other than the one the text shows. An empty picker is fine: it means no
-commit, which a form may accept.
-
-**Deletions**: Deleting a suite, a machine, a commit, a run or a regression is
-confirmed by typing its identifier -- the name of a suite or a machine, the
-commit string of a commit, the first 8 characters of the UUID of a run or a
-regression -- before the request is sent; the prompt shows the text to type.
-Saving a schema change that removes entries (AD3) is confirmed the same way, by
-typing the suite name, since it destroys their stored values. Revoking an API
-key (AD1), which destroys nothing, asks for a plain confirmation instead.
-Removing indicators from a regression (DT4) is not confirmed at all: it destroys
-no measured data, and the indicators can be added again.
-
-Once the entity a page is about has been deleted, the page leaves for the one its
-spec names, which takes its place in the history rather than adding an entry (an
-exception to "State"), so that Back from the page shown next does not return to
-it. If the user has already left the page when the deletion completes, they stay
-where they are. Data fetched before a deletion is never used to show the deleted
-entity again: not on the page shown next while it loads, and not on the entity's
-own page if the user gets back to it through the browser history.
-
-**Authentication**: The v5 API allows unauthenticated reads, except for the API
-key endpoints, which require `admin` scope even to read (see I5). No
-configuration can gate reads, so the SPA never needs a token merely to browse.
-It sends the token only with the requests that need more than `read` scope, and
-with the check below.
-
-The navigation bar includes a Settings panel with a Bearer token input. The
-token is checked through `GET /api/auth` (see E12) when it is entered and
-whenever the SPA loads: the panel shows the name and scope of the key it
-belongs to, that it is not valid (the API refuses it with a 401, or it cannot be
-sent at all), or that the check failed (any other error), which it offers to
-retry. It can also clear the token. Until a check succeeds, the SPA behaves as
-if no token were set, unless a page specifies otherwise (see AD1).
-
-The token is shared by every tab of the SPA: a change made in one tab takes
-effect in the others, which check the new token. It is also checked again
-whenever a request sent with it gets a 401, as its key may have been revoked in
-the meantime.
-
-Unless a page specifies otherwise, a control whose action needs a scope the
-token does not grant -- or any scope above `read`, when no valid token is set --
-is disabled, and hovering it says which scope it needs. A request the API
-nevertheless refuses with 401 or 403 is reported as
-`Permission denied. Set an API token with the required scope in Settings.`
-
 
 ## AR3: Page Hierarchy
 
@@ -292,3 +87,243 @@ a new tab -- that is a separate document, not an SPA route.
 Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when
 navigated from a suite-scoped page, pre-filling the current suite. The Test
 Suites link targets `/suites/{ts}` to preserve the suite context.
+
+
+## AR5: Design Consistency
+
+All pages should share a consistent look and feel -- comboboxes, metric
+selectors, table styling, progress/error feedback, color scheme, and layout
+spacing. The same components are reused across pages rather than reinvented
+per-page. Pages with selection controls (dropdowns, filters, aggregation
+settings) wrap them in a shared controls panel -- a lightly shaded box with a
+border -- so the settings area is visually distinct from the page content.
+
+
+## AR6: Display Conventions
+
+These hold on every page, unless the page specifies otherwise.
+
+- A commit is shown by its *display value*: the value of the commit field the
+  schema marks `display: true` (see D4) when the commit has one, and the commit
+  string otherwise, followed by ` (tag)` when the commit has a tag. The display
+  value is for display only: links, URL state and API requests use the commit
+  string.
+- A metric, machine field or commit field is labelled with its `display_name`
+  when the schema sets one, and with its `name` otherwise.
+- Where a page names a metric's unit, it writes its `unit` followed by its
+  `unit_abbrev` in parentheses, as much of either as is set (`seconds (s)`,
+  `seconds`, `(s)`), and only once when the two are identical (`cycles`, not
+  `cycles (cycles)`). A value shown with its unit is left to the page.
+- Timestamps are shown in the browser's local time zone.
+- A measured `real` value is shown to at most 6 significant digits, but never
+  with fewer digits than its integer part has (`1.26432`, `66655.7`,
+  `4123456789`).
+- Where space is short, a UUID is shortened to its first 8 characters.
+- A regression without a title is labelled `(untitled)`.
+- A regression's bug is a link opening in a new tab when it is an `http` or
+  `https` URL, and plain text otherwise, since the API stores any string.
+
+
+## AR7: Paginated Tables
+
+A table that shows a paginated endpoint (see I2) a page at a time has
+`[<- Previous]` and `[Next ->]` below it. Pagination is forward-only, so
+Previous returns to pages the user has already visited. The position is not kept
+in the URL: reloading the page shows the first page again.
+
+When the rows a table should show cannot be fetched -- for another page, search
+or filter -- the table and its pager give way to the error, with a way to try
+again, rather than leave up the rows of another page or search.
+
+A table that loads every page of a paginated endpoint, showing the rows as they
+arrive, gives way to the error in the same way if the first page cannot be
+fetched. If a later page cannot be, it keeps the rows it has, says that they are
+incomplete, and offers to load the rest.
+
+Wherever a failure offers a way to try again, an error saying that what was
+asked for does not exist (I4's `not_found`) does not, since trying again would
+get the same answer.
+
+
+## AR8: Disabled Links
+
+A link that leads nowhere for now -- to a comparison with a commit that does not
+exist, say -- is shown disabled: no click follows it, modified or not, and it
+says why on hover and to assistive technology.
+
+
+## AR9: Text Filtering
+
+A client-side text filter -- one that narrows data already loaded in the
+browser -- matches its text as a case-insensitive substring.
+
+The test filters of the Graph and Compare pages also have a regex mode, since
+they select the tests that a whole operation covers (plotting, a geomean, an
+export). A "Regex" checkbox beside the input switches it between substring and
+regex matching, both case-insensitive. While its text is not a valid regex, the
+input shows the red halo (see AR11), and the filter keeps applying the last
+valid one, or none if there has not been one yet.
+
+Typing in a client-side filter must never lag behind the keyboard, even over
+thousands of rows -- the test tables of the Graph and Compare pages, or a run's
+samples. The rows it filters, and any chart that depends on them, may update
+just after.
+
+Inputs that search the server rather than filter data already loaded -- the
+Test Suites tabs' searches (TS1), commit pickers (AR15) and the regression
+picker (CP9) -- ask the server again as the user types (debounced), from the
+first page. A response for earlier text never replaces the one for the current
+text, though the previous results may stay up until the current ones arrive.
+
+
+## AR10: Range Selection
+
+In a list whose rows are selected with checkboxes, a click toggles a row,
+whether by mouse or from the keyboard, and the anchor is the last row clicked. A
+click with Shift held also gives every row shown from the anchor to the clicked
+one, both included, the clicked row's new state. It never changes a row that a
+filter hides. Without an anchor among the rows shown, a click with Shift held
+acts as a plain click. A checkbox in the list's header selects every row shown,
+or deselects them all if they are all selected already. It, and any other change
+to the selection than a click on a row, leaves the anchor where it is.
+
+
+## AR11: Invalid Input
+
+An input whose text is invalid -- an invalid regex in a test filter, a name the
+schema editor rejects (AD3), an ordinal that is not an integer its column can
+hold (DT3) -- shows a red halo (red border and glow) for as long as its text
+stays invalid.
+
+
+## AR12: Inline Editing
+
+A field edited in place shows its value with an Edit button. Clicking Edit
+replaces the value with an input, which takes the focus, and Save and Cancel
+buttons. Enter saves and Escape cancels, unless the input uses the key itself: a
+combobox uses them, for example, to pick a suggestion or close its list, and in
+a multi-line input, Enter starts a new line and Ctrl+Enter (Cmd+Enter on a Mac)
+saves.
+
+Whitespace at either end of the text is ignored: it is removed before the text
+is checked or saved, so text that is only whitespace clears the value, like an
+empty input. Saving unchanged text -- the text the input opened with, or the
+stored value once trimmed -- closes the input without sending anything, so a
+stored value with whitespace at either end keeps it. Invalid text cannot be
+saved. While a save is in progress, the input and its buttons cannot be used. If
+the save fails, the input stays open with its text and says why. If it succeeds,
+the input closes and the field shows the value the API returned, so an edit
+never appears before the API has accepted it. When the input closes, the focus
+returns to the Edit button. Edit and Save need the scope that the change needs
+(see AR17).
+
+
+## AR13: Controls Saving on Change
+
+Some controls, such as a checkbox or a dropdown, save as soon as the user
+changes them. Such a control keeps showing the stored value until the API has
+accepted the change. While a save is in progress, the control ignores further
+changes, but can still be focused. Only picking an option from the open list
+changes a dropdown: a closed dropdown does not step through its options, from
+the keyboard or otherwise, since each step would be saved. If the save fails,
+the control keeps showing the stored value and says why. The control needs the
+scope that the change needs (see AR17).
+
+
+## AR14: Comboboxes
+
+Every combobox follows the standard combobox accessibility conventions, with
+manual selection: typing narrows the suggestions, and the value changes only
+when the user picks a suggestion, by clicking it or by moving to it with
+ArrowDown/ArrowUp and pressing Enter. Leaving the combobox without picking one
+puts back the text of its current value, and emptying the input clears the
+value. While the input holds text, a button in it empties it, so that a value
+can be cleared without editing the text. When no suggestion matches the typed
+text, the list says so. The list closes on Escape, on blur, on a click outside
+it and once a suggestion is picked.
+
+So that a value can be pasted and entered, Enter with no suggestion highlighted
+picks the suggestion that the typed text exactly identifies: its shown text, or
+the identifier of what it stands for, such as a commit string or a regression's
+UUID. The comparison is case-sensitive and ignores surrounding whitespace. The
+suggestion must be the only one so identified among the suggestions loaded for
+that text -- the first page of them, unless the user has scrolled for more.
+Otherwise, the text stays as it is. An Enter pressed before those suggestions
+have loaded takes effect once they have, unless the text has changed meanwhile,
+as it does when the user leaves the combobox.
+
+
+## AR15: Commit Pickers
+
+Every combobox that selects a commit -- on the Compare and Profiles pages, for
+Graph baselines, and for a regression's commit -- lists its suggestions most
+recently seen first, as `GET commits?sort=-first_seen` returns them with the
+picker's filters (see E3). That order keeps commits without an ordinal (ad-hoc
+A/B experiment commits; see D1) selectable, placed by recency among the ordered
+ones, whereas `sort=-ordinal` would drop them. A picker searches the server, as
+AR9 describes, rather than fetching every commit and filtering locally: a
+machine can have tens of thousands of commits. The search covers the display
+value the suggestions show only if the schema marks the display field
+`searchable` (see O4).
+
+A page of matches need not hold every matching commit: scrolling to the end of
+the suggestions loads the next page. A commit the picker is given rather than
+chosen -- restored from the URL, or kept while its filters change -- is looked
+up with the picker's filters plus `commit=` (see E3). The lookup returns
+the commit, with its display value, only if the picker would offer it.
+Otherwise the commit is unusable, and the picker is cleared as if the user had
+emptied it (see AR2 "State").
+
+If the user types in a commit picker but does not pick one of its suggestions,
+the form containing the picker cannot be submitted until they do, or clear the
+picker, and the form says so. Otherwise, the form would be submitted with a
+commit other than the one the text shows. An empty picker is fine: it means no
+commit, which a form may accept.
+
+
+## AR16: Deletions
+
+Deleting a suite, a machine, a commit, a run or a regression is confirmed by
+typing its identifier -- the name of a suite or a machine, the commit string of
+a commit, the first 8 characters of the UUID of a run or a regression -- before
+the request is sent; the prompt shows the text to type. Saving a schema change
+that removes entries (AD3) is confirmed the same way, by typing the suite name,
+since it destroys their stored values. Revoking an API key (AD1), which destroys
+nothing, asks for a plain confirmation instead. Removing indicators from a
+regression (DT4) is not confirmed at all: it destroys no measured data, and the
+indicators can be added again.
+
+Once the entity a page is about has been deleted, the page leaves for the one
+its spec names, which takes its place in the history rather than adding an entry
+(an exception to AR2 "State"), so that Back from the page shown next does not
+return to it. If the user has already left the page when the deletion completes,
+they stay where they are. Data fetched before a deletion is never used to show
+the deleted entity again: not on the page shown next while it loads, and not on
+the entity's own page if the user gets back to it through the browser history.
+
+
+## AR17: Authentication
+
+The v5 API allows unauthenticated reads, except for the API key endpoints, which
+require `admin` scope even to read (see I5). No configuration can gate reads, so
+the SPA never needs a token merely to browse. It sends the token only with the
+requests that need more than `read` scope, and with the check below.
+
+The navigation bar includes a Settings panel with a Bearer token input. The
+token is checked through `GET /api/auth` (see E12) when it is entered and
+whenever the SPA loads: the panel shows the name and scope of the key it
+belongs to, that it is not valid (the API refuses it with a 401, or it cannot be
+sent at all), or that the check failed (any other error), which it offers to
+retry. It can also clear the token. Until a check succeeds, the SPA behaves as
+if no token were set, unless a page specifies otherwise (see AD1).
+
+The token is shared by every tab of the SPA: a change made in one tab takes
+effect in the others, which check the new token. It is also checked again
+whenever a request sent with it gets a 401, as its key may have been revoked in
+the meantime.
+
+Unless a page specifies otherwise, a control whose action needs a scope the
+token does not grant -- or any scope above `read`, when no valid token is set --
+is disabled, and hovering it says which scope it needs. A request the API
+nevertheless refuses with 401 or 403 is reported as
+`Permission denied. Set an API token with the required scope in Settings.`

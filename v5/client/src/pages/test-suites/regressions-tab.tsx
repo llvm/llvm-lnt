@@ -99,7 +99,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
     mutationFn: (regression: Regression) => deleteRegression(suite, regression.uuid),
     onSuccess: async () => {
       // Drop what no page shows, such as the regression's detail, so that it is not shown again
-      // (AR2 "Deletions").
+      // (AR16).
       queryClient.removeQueries({ queryKey: queryKeys.regressions(suite), type: 'inactive' })
       await queryClient.invalidateQueries({ queryKey: queryKeys.regressions(suite) })
       rowConfirm.done()
@@ -107,8 +107,8 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   })
 
   // A click anywhere on a row opens the regression, except on what the row holds that does
-  // something of its own (its links and its Delete button), a modified click, which AR2 leaves to
-  // the browser, and a click that ends selecting the row's text.
+  // something of its own (its links and its Delete button), a modified click, which AR2 "Routing"
+  // leaves to the browser, and a click that ends selecting the row's text.
   const openRow = (regression: Regression) => (event: MouseEvent) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
     if ((event.target as Element).closest('a, button')) return

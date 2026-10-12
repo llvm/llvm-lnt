@@ -424,7 +424,7 @@ Every response carries a `Cache-Control` header:
 
 | Response | `Cache-Control` |
 |----------|-----------------|
-| A web UI file | As given in AR2 |
+| A web UI file | As given in AR2 "Caching" |
 | Any other response, to a request with an `Authorization` header (valid or not) | `private, no-store` |
 | Any other response, to a request without one | `no-cache, max-age=0` |
 

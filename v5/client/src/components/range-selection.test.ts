@@ -22,7 +22,7 @@ function clicks(...keys: string[]): Selection {
 
 const selected = (state: Selection) => [...state.selected].sort()
 
-describe('clickRow (AR2 "Range selection")', () => {
+describe('clickRow (AR10)', () => {
   it('toggles the row clicked, which becomes the anchor', () => {
     expect(clicks('b')).toEqual({ selected: new Set(['b']), anchor: 'b' })
     expect(clicks('b', 'b')).toEqual({ selected: new Set(), anchor: 'b' })

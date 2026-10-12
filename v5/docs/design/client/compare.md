@@ -23,7 +23,7 @@ Each side (A and B) has independent controls:
   until a suite is selected** -- shows "Select a suite first" placeholder.
   Clearing the machine resets downstream state (commit, runs) and disables the
   commit input.
-- **Commit**: a commit picker (see AR2) over the commits where the selected
+- **Commit**: a commit picker (see AR15) over the commits where the selected
   machine has runs. **Disabled until a machine is selected** -- shows "Select a
   machine first" placeholder. Re-disabled if the machine is cleared. Clearing
   the commit also clears the runs for that side.
@@ -102,7 +102,7 @@ Global controls (shared across both sides):
     pooled sample set for the p-value calculation. Samples are pooled across all
     selected runs per side, before any aggregation.
 
-- **Test filter**: a text filter on test names, with regex mode (see AR2),
+- **Test filter**: a text filter on test names, with regex mode (see AR9),
   applied to both table and chart
 
 There is no Compare button. The comparison triggers automatically whenever the
@@ -400,7 +400,7 @@ The chart and table always represent the same dataset:
    `GET suites`. When a machine is selected, the first page of
    `GET commits?machine={name}&sort=-first_seen` populates the commit combobox
    with the commits relevant to that machine, most recently seen first; typing
-   re-queries it with `search=` (see AR2).
+   re-queries it with `search=` (see AR15).
 2. User selects commit and machine on each side. On each change, fetch
    `GET runs?machine=M&commit=C` to populate the runs checkbox list. If no runs
    exist, show an empty list.
@@ -437,7 +437,7 @@ All selection state is encoded as query parameters for shareability:
   `noise_floor_on` (knob enabled state; all default to disabled, so `_on` params
   only appear as `1` when enabled), `hide_noise`
 - `test_filter`, and `test_filter_regex`: `1` when the test filter's regex mode
-  is on (see AR2), omitted otherwise
+  is on (see AR9), omitted otherwise
 - `columns`: the keys of the optional columns shown (see CP2), omitted when
   none is shown
 - `sort`: the comparison table's sort column (`test`, `value_a`, `value_b`,
@@ -547,7 +547,7 @@ indicators (I2's maximum page size; see E8). When expanded, it offers:
   indicators.
 - "Add to existing" -- a regression picker over side B's suite; adds the
   indicators to the selected regression. A suite can hold more regressions than
-  fit on a page, so the picker searches the server (see AR2): it opens on the
+  fit on a page, so the picker searches the server (see AR9): it opens on the
   first page of `GET regressions?sort=-created_at` and narrows it with
   `search=`, which matches the title or a prefix of the UUID. Each suggestion
   shows the regression's title, or `(untitled)` and its shortened UUID when it

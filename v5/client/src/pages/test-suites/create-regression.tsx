@@ -32,7 +32,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
   const [bug, setBug] = useState('')
   const [state, setState] = useState<RegressionState>('detected')
   const [commit, setCommit] = useState<string | null>(null)
-  // The commit picker holds text that is not the commit picked (AR2 "Commit pickers").
+  // The commit picker holds text that is not the commit picked (AR15).
   const [commitPending, setCommitPending] = useState(false)
   const reasonId = useId()
 

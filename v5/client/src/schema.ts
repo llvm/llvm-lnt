@@ -1,5 +1,5 @@
 /**
- * How a suite's schema (D4) is presented, following AR2's display conventions.
+ * How a suite's schema (D4) is presented, following AR6's display conventions.
  */
 
 import type { Schemas } from './api/client'
@@ -17,7 +17,7 @@ export function labelOf(entry: { name: string; display_name: string | null }): s
 }
 
 /**
- * A metric's unit as AR2 writes it: the unit and its abbreviation in parentheses, as much of
+ * A metric's unit as AR6 writes it: the unit and its abbreviation in parentheses, as much of
  * either as is set, and once when they are identical. Null when neither is set.
  */
 export function formatUnit({ unit, unit_abbrev }: Metric): string | null {
@@ -43,7 +43,7 @@ export function defaultMetric(schema: SuiteSchema): Metric | undefined {
   return schema.metrics.find(isNumeric) ?? schema.metrics[0]
 }
 
-/** A metric's value, as shown: a `real` to 6 significant digits (AR2), anything else in full. */
+/** A metric's value, as shown: a `real` to 6 significant digits (AR6), anything else in full. */
 export function formatMetricValue(value: FieldValue, metric: Metric): string {
   if (typeof value === 'number' && metric.type === 'real') return formatNumber(value)
   return formatFieldValue(value, metric.type)
@@ -55,7 +55,7 @@ export function metricOptions(schema: SuiteSchema): { value: string; label: stri
 }
 
 /**
- * A commit's display value (AR2): the value of the commit field the schema marks `display`, when
+ * A commit's display value (AR6): the value of the commit field the schema marks `display`, when
  * the commit has one, and the commit string otherwise, followed by ` (tag)` when the commit has a
  * tag, unless `withTag` is false. It is for display only: links and requests use `commit.value`.
  */

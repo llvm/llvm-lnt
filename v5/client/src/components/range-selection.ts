@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 /**
  * A selection among the rows of a list, each with a checkbox, and the anchor that a range selected
- * with Shift starts from (AR2 "Range selection"). Rows are identified by string keys.
+ * with Shift starts from (AR10). Rows are identified by string keys.
  */
 export interface Selection {
   selected: ReadonlySet<string>
@@ -107,11 +107,11 @@ class SelectionStore {
 }
 
 /**
- * A selection among the rows of a list (AR2 "Range selection"). `shown` are the rows in view, in
- * order, which a range selected with Shift spans. `offered` are the rows that can be selected, or
- * undefined while that is not known: once it is, a row that is no longer offered is deselected, so
- * that it does not come back with the row. A list whose filter is to deselect the rows it hides
- * passes the rows it shows as `offered`.
+ * A selection among the rows of a list (AR10). `shown` are the rows in view, in order, which a
+ * range selected with Shift spans. `offered` are the rows that can be selected, or undefined while
+ * that is not known: once it is, a row that is no longer offered is deselected, so that it does not
+ * come back with the row. A list whose filter is to deselect the rows it hides passes the rows it
+ * shows as `offered`.
  */
 export function useRangeSelection(
   offered: readonly string[] | undefined,
