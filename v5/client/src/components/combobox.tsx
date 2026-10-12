@@ -1,6 +1,7 @@
 import {
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -255,7 +256,7 @@ function Field({
   children: ReactElement
 }) {
   const state = useContext(ComboBoxStateContext)!
-  useEffect(() => {
+  useLayoutEffect(() => {
     closeListRef.current = () => state.close()
   })
   // The text the held Enter was pressed on, if any.

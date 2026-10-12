@@ -76,6 +76,7 @@ describe('useTextFilter (AR9)', () => {
     expect(input()).toHaveAttribute('aria-invalid', 'true')
     expect(input()).toHaveAccessibleDescription('Not a valid regular expression.')
     expect(shown()).toEqual(['BM_find/1024', 'BM_find/4096'])
+    expect(screen.getByTestId('active')).toHaveTextContent('true')
 
     type('find/(4096)')
     expect(input()).not.toHaveAttribute('aria-invalid')
@@ -101,6 +102,18 @@ describe('useTextFilter (AR9)', () => {
 
     // Back to substrings, the text is valid again.
     await user.click(regexBox())
+    expect(input()).not.toHaveAttribute('aria-invalid')
+    expect(shown()).toEqual(['BM_Bitset/Dense_(90%)'])
+  })
+
+  it('matches an invalid regex as a substring once switched back to substrings', async () => {
+    render(<Filtered rows={[...TESTS, 'BM_Bitset/Dense_(90%)']} initialRegex />)
+    type('find')
+    type('Dense_(')
+    expect(shown()).toEqual(['BM_find/1024', 'BM_find/4096'])
+
+    await userEvent.setup().click(regexBox())
+
     expect(input()).not.toHaveAttribute('aria-invalid')
     expect(shown()).toEqual(['BM_Bitset/Dense_(90%)'])
   })

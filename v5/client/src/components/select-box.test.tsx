@@ -1,16 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { useRangeSelection } from './range-selection'
+import { useRangeSelection, type SelectionLimit } from './range-selection'
 import { SelectAllBox, SelectBox } from './select-box'
 
 const ROWS = ['a', 'b', 'c', 'd']
 
 /** A list of `ROWS`, each with a checkbox, under a select-all checkbox. */
-function List({ shown = ROWS, limit }: { shown?: string[]; limit?: number }) {
-  const { rows } = useRangeSelection(undefined, shown, {
-    limit: limit === undefined ? undefined : { count: limit, why: `At most ${limit} rows.` },
-  })
+function List({ shown = ROWS, limit }: { shown?: string[]; limit?: SelectionLimit }) {
+  const { rows } = useRangeSelection(undefined, shown, { limit })
   return (
     <>
       <SelectAllBox rows={rows} shown={shown} label="Select all" />
@@ -73,10 +71,13 @@ describe('SelectAllBox', () => {
   })
 })
 
+const TWO = { count: 2, why: 'At most 2 rows.' }
+const THREE = { count: 3, why: 'At most 3 rows.' }
+
 describe('A list with a limit (GR7)', () => {
   it('disables the boxes of the rows not selected once it is full, saying why', async () => {
     const user = userEvent.setup()
-    render(<List limit={2} />)
+    render(<List limit={TWO} />)
 
     await user.click(box('a'))
     await user.click(box('c'))
@@ -95,11 +96,11 @@ describe('A list with a limit (GR7)', () => {
 
   it('disables the select-all box while selecting every row shown would exceed it', async () => {
     const user = userEvent.setup()
-    const { rerender } = render(<List limit={3} />)
+    const { rerender } = render(<List limit={THREE} />)
     expect(all()).toBeDisabled()
     expect(all()).toHaveAccessibleDescription('At most 3 rows.')
 
-    rerender(<List limit={3} shown={['a', 'b', 'c']} />)
+    rerender(<List limit={THREE} shown={['a', 'b', 'c']} />)
     expect(all()).toBeEnabled()
     await user.click(all())
     expect(all()).toBeChecked()
@@ -109,7 +110,7 @@ describe('A list with a limit (GR7)', () => {
 
   it('keeps showing how much is selected while it is disabled', async () => {
     const user = userEvent.setup()
-    render(<List limit={2} />)
+    render(<List limit={TWO} />)
 
     await user.click(box('a'))
     expect(all()).toBeDisabled()
@@ -117,5 +118,17 @@ describe('A list with a limit (GR7)', () => {
 
     await user.click(box('a'))
     expect(all()).not.toBePartiallyChecked()
+  })
+
+  it('does nothing on a Shift-click whose range would exceed it', async () => {
+    const user = userEvent.setup()
+    render(<List limit={TWO} />)
+
+    await user.click(box('a'))
+    await user.keyboard('{Shift>}')
+    await user.click(box('d'))
+    await user.keyboard('{/Shift}')
+
+    expect(checked()).toEqual(['a'])
   })
 })

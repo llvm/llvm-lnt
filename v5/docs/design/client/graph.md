@@ -309,9 +309,9 @@ holds no `test` at all, and the page warns that the selection is not part of the
 URL and so cannot be shared. `test_filter_regex=true` turns on the test filter's
 regex mode (see AR9). On load, `test_filter` filters the test table as if it had
 been typed, and a `test` that the test list for the selected machines and metric
-does not hold, or that does not match the filter, is dropped. A URL naming more
-than 100 tests, which the page never writes, has only the first 100 it names
-selected (see GR7).
+does not hold, or that does not match the filter, is dropped. Of a URL naming
+more than 100 tests, which the page never writes, only the first 100 are
+selected (see GR7), before any of them is dropped.
 
 
 ### GR15: Regression Annotations

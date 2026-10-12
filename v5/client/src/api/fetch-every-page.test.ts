@@ -53,13 +53,16 @@ describe('fetchEveryPage', () => {
 
   it('fails when a cursor is rejected again after starting again', async () => {
     const failure = rejected()
+    const cursors: (string | null)[] = []
 
     const items = fetchEveryPage(async (cursor) => {
+      cursors.push(cursor)
       if (cursor === 'p2') throw failure
       return PAGES[cursor ?? 'first']
     })
 
     await expect(items).rejects.toBe(failure)
+    expect(cursors).toEqual([null, 'p2', null, 'p2'])
   })
 
   it('does not start again when the first page is refused', async () => {

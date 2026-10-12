@@ -394,6 +394,7 @@ describe('Combobox handing on what is picked', () => {
           suggestions={suggestions}
         />
         <p data-testid="value">{added.join(',')}</p>
+        <p>Elsewhere</p>
       </>
     )
   }
@@ -438,9 +439,25 @@ describe('Combobox handing on what is picked', () => {
     renderWithProviders(<MachineAdder />)
 
     await user.type(input(), 'macos-arm64{Enter}')
-    await user.type(input(), 'macos-arm64{Enter}')
+    await openList(user)
+    await user.click(screen.getByRole('option', { name: 'macos-arm64' }))
 
     expect(value()).toBe('macos-arm64,macos-arm64')
+  })
+
+  it('passes nothing on when left, or emptied, without a pick', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachineAdder />)
+
+    await user.type(input(), 'linux')
+    await user.click(screen.getByText('Elsewhere'))
+    expect(input()).toHaveValue('')
+
+    await user.type(input(), 'linux')
+    // Hidden from assistive technology while the list is open, as above.
+    await user.click(screen.getByLabelText('Clear Machine'))
+    expect(input()).toHaveValue('')
+    expect(value()).toBe('')
   })
 })
 

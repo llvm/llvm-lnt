@@ -154,8 +154,9 @@ describe('useRangeSelection', () => {
   it('starts with the rows given, the first ones within the limit', () => {
     const limit = { count: 2, why: 'At most 2.' }
     const { result } = renderHook(() =>
-      useRangeSelection(undefined, ROWS, { initial: ['c', 'a', 'e'], limit }),
+      useRangeSelection(undefined, ROWS, { initial: ['c', 'c', 'a', 'e'], limit }),
     )
+    // A row given twice counts once.
     expect(result.current.selected).toEqual(new Set(['c', 'a']))
   })
 

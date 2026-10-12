@@ -108,7 +108,11 @@ export interface RowSelection {
   click(key: string, shift: boolean): void
   /** Select every one of `keys`, or none of them, whether shown or not. */
   setRows(keys: Iterable<string>, select: boolean): void
-  /** Select exactly `keys`, whether shown or not (see `replaceRows`). */
+  /**
+   * Select exactly `keys`, whether shown or not (see `replaceRows`), unless they are more than the
+   * limit allows, as for GR7's double-click restoring every test. A caller restoring a selection,
+   * from a URL say, keeps the first ones that fit itself, as `initial` does.
+   */
   replace(keys: Iterable<string>): void
 }
 
@@ -141,7 +145,10 @@ class SelectionStore {
 }
 
 interface Options {
-  /** At most how many rows can be selected (GR7): nothing that would select more does anything. */
+  /**
+   * At most how many rows can be selected (GR7): nothing that would select more does anything. A
+   * list keeps the limit it starts with.
+   */
   limit?: SelectionLimit
   /**
    * The rows selected to begin with, such as those a URL names. Beyond `limit`, the first ones
@@ -160,20 +167,20 @@ interface Options {
 export function useRangeSelection(
   offered: readonly string[] | undefined,
   shown: readonly string[],
-  { limit, initial = [] }: Options = {},
+  { limit: initialLimit, initial = [] }: Options = {},
 ): RangeSelection {
-  const [store] = useState(
-    () => new SelectionStore({ selected: new Set(initial.slice(0, limit?.count)), anchor: null }),
-  )
+  const [limit] = useState(initialLimit ?? null)
+  const [store] = useState(() => {
+    const kept = [...new Set(initial)].slice(0, limit?.count)
+    return new SelectionStore({ selected: new Set(kept), anchor: null })
+  })
   const { selected } = useSyncExternalStore(store.subscribe, store.get)
 
   // The rows shown when a checkbox is clicked, rather than when the handlers were created, so that
   // they keep their identity.
   const shownRef = useRef(shown)
-  const limitRef = useRef(limit)
   useLayoutEffect(() => {
     shownRef.current = shown
-    limitRef.current = limit
   })
   // Before the page is painted, so that what is no longer offered is never shown selected.
   useLayoutEffect(() => {
@@ -181,14 +188,15 @@ export function useRangeSelection(
   }, [offered, store])
 
   const [rows] = useState<RowSelection>(() => {
-    // Every change goes through here, which refuses one that selects more rows than the limit.
+    // Every change goes through here, which refuses one that would select more rows than the
+    // limit. The selection starts within it, so a change that selects no more rows always fits.
     const change = (next: Selection) => {
-      if (next.selected.size <= (limitRef.current?.count ?? Infinity)) store.set(next)
+      if (limit === null || next.selected.size <= limit.count) store.set(next)
     }
     return {
       subscribe: store.subscribe,
       selected: () => store.get().selected,
-      limit: () => limitRef.current ?? null,
+      limit: () => limit,
       click: (key, shift) => change(clickRow(store.get(), shownRef.current, key, shift)),
       setRows: (keys, select) => change(setRows(store.get(), keys, select)),
       replace: (keys) => change(replaceRows(store.get(), keys)),

@@ -31,7 +31,8 @@ const INVALID_REGEX = 'Not a valid regular expression.'
 /**
  * The regex `term` compiles to, case-insensitive, or null if it is not one. No `g` flag, which
  * would carry the position of a match over from one row to the next, and no `u` or `v`, which
- * change which patterns are valid.
+ * change which patterns are valid. A pattern that backtracks catastrophically, like `(a+)+$`, can
+ * still hold up the page while it filters: the user typed it, and can change it.
  */
 function compile(term: string): RegExp | null {
   try {
