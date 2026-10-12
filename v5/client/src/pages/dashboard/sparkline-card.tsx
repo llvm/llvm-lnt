@@ -6,6 +6,7 @@ import { VisuallyHidden } from 'react-aria-components'
 import clsx from 'clsx'
 import type { SuiteSchema } from '../../api/suites'
 import { useTrends, type TrendPoint } from '../../api/trends'
+import { DisabledLink } from '../../components/button-link'
 import { Chart } from '../../components/chart'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { graphPath } from '../../paths'
@@ -43,24 +44,25 @@ export function SparklineCard({ schema, metric, machines, range }: Props) {
   const unit = formatUnit(metric)
 
   let body
+  // Why the title leads nowhere for now (AR8), while the card has no chart.
+  let unlinked: string | null = null
   if (trends.isError) {
+    unlinked = 'The trend could not be loaded.'
     body = (
       <div className={styles.placeholder}>
         <ErrorMessage error={trends.error} onRetry={() => void trends.refetch()} />
       </div>
     )
   } else if (shown === undefined) {
+    unlinked = 'The trend is loading.'
     body = (
       <div className={styles.placeholder}>
         <Loading />
       </div>
     )
   } else if (traced.length === 0) {
-    body = (
-      <p className={clsx(styles.placeholder, styles.note)}>
-        No machine has a trend for this metric.
-      </p>
-    )
+    unlinked = 'No machine has a trend for this metric.'
+    body = <p className={clsx(styles.placeholder, styles.note)}>{unlinked}</p>
   } else {
     body = (
       <>
@@ -73,10 +75,10 @@ export function SparklineCard({ schema, metric, machines, range }: Props) {
   return (
     <article className={styles.card} aria-label={title}>
       <h3 className={styles.title}>
-        {traced.length > 0 ? (
+        {unlinked === null ? (
           <Link to={graphPath({ suite, machines: traced, metric: metric.name })}>{title}</Link>
         ) : (
-          title
+          <DisabledLink title={unlinked}>{title}</DisabledLink>
         )}
         {unit !== null && <span className={styles.unit}> — {unit}</span>}
       </h3>

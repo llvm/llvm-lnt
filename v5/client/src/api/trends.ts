@@ -33,9 +33,10 @@ async function fetchTrend(
 type Trend = Awaited<ReturnType<typeof fetchTrend>>
 
 /**
- * `next`, or `previous` if both hold the same trend and commits. TanStack Query's own structural
- * sharing does not look into the commits, a `Map`, so without this a refetch that brings nothing
- * new would still give new data, and redraw every chart drawn from it.
+ * `next`, keeping what it has in common with `previous`: `previous` itself if both hold the same
+ * trend and commits, or else `previous`'s items if those are the same. TanStack Query's own
+ * structural sharing does not look into the commits, a `Map`, so without this a refetch that
+ * brings nothing new would still give new data, and redraw every chart drawn from it.
  */
 function keepUnchanged(previous: Trend | undefined, next: Trend): Trend {
   if (previous === undefined) return next

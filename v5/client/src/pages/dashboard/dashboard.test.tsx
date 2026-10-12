@@ -250,7 +250,7 @@ describe('the Dashboard', () => {
       await waitFor(() => expect(currentUrl()).toBe('/'))
     })
 
-    it('is read from the URL, which drops one that is not offered', async () => {
+    it('is read from the URL', async () => {
       const { trends } = renderDashboard('/?range=1000')
 
       await chartOf('compile_status')
@@ -288,6 +288,9 @@ describe('the Dashboard', () => {
       const executionTime = await card('Execution Time')
       expect(await executionTime.findByRole('status')).toHaveTextContent('Loading...')
       expect(executionTime.queryByRole('img', { hidden: true })).not.toBeInTheDocument()
+      const title = executionTime.getByRole('link', { name: 'Execution Time' })
+      expect(title).toHaveAttribute('aria-disabled', 'true')
+      expect(title).toHaveAttribute('title', 'The trend is loading.')
       act(() => slow.open())
       await chartOf('Execution Time')
     })
@@ -310,8 +313,10 @@ describe('the Dashboard', () => {
 
       const executionTime = await card('Execution Time')
       expect(await executionTime.findByRole('alert')).toHaveTextContent('No trend.')
-      // Its title leads nowhere: the card does not know which machines have data.
-      expect(executionTime.queryByRole('link')).not.toBeInTheDocument()
+      // Its title leads nowhere: the card does not know which machines have data (AR8).
+      const title = executionTime.getByRole('link', { name: 'Execution Time' })
+      expect(title).toHaveAttribute('aria-disabled', 'true')
+      expect(title).toHaveAttribute('title', 'The trend could not be loaded.')
       broken = false
       fireEvent.click(executionTime.getByRole('button', { name: 'Retry' }))
       await chartOf('Execution Time')
@@ -326,7 +331,9 @@ describe('the Dashboard', () => {
 
       const cycles = await card('Cycles')
       expect(await cycles.findByText('No machine has a trend for this metric.')).toBeInTheDocument()
-      expect(cycles.queryByRole('link')).not.toBeInTheDocument()
+      const title = cycles.getByRole('link', { name: 'Cycles' })
+      expect(title).toHaveAttribute('aria-disabled', 'true')
+      expect(title).toHaveAttribute('title', 'No machine has a trend for this metric.')
     })
 
     it("labels each point with its machine, its commit's display value and its value", async () => {

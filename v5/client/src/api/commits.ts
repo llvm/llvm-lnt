@@ -94,7 +94,8 @@ export async function withCommits<Page>(
 
 /**
  * Whether `query` holds the commits of a list, resolved by `withCommits` for display. Lists shown a
- * page at a time hold them; no list loaded page after page (`useCursorPages`) resolves its commits.
+ * page at a time and trends hold them; no list loaded page after page (`useCursorPages`) resolves
+ * its commits.
  */
 function holdsCommits(query: Query): boolean {
   const data = query.state.data

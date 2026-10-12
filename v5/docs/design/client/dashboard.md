@@ -50,12 +50,13 @@ performance trends across all test suites.
   card. Clicking directly on a specific trace -- the one whose hover tooltip
   shows -- navigates with just that machine. The title is how the keyboard
   reaches the Graph; the chart adds nothing to it but the choice of a trace,
-  which only a pointer can make.
+  which only a pointer can make. While a card shows no chart, its title is a
+  disabled link (see AR8).
 - Loading state: placeholder skeleton with "Loading..." while data is being
   fetched, including after the commit range changes, rather than the chart of
   the previous range.
 - Error state: the card says why its data could not be fetched, with a way to
-  try again (see AR7).
+  try again, as AR7 describes for a table.
 
 ## DA3: Why per-machine traces (not a single aggregate)
 
