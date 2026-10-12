@@ -189,15 +189,17 @@ Consistency
 ~~~~~~~~~~~
 
 The manifest is only ever replaced atomically, and a refresh that stops for any
-reason -- a failed request, an interruption, a crash -- leaves behind a manifest
-that satisfies the following:
+reason leaves behind a manifest that satisfies the following:
 
 - Every file the manifest references exists.
-- Every run listed under a machine appears in the summary of runs of that
-  machine's listing -- the version of it whose hash the manifest records. The
-  run's mirrored ``run`` is identical to that summary, and its mirrored
-  ``machine`` to the listing's ``machine``. A run the instance holds but the
-  mirror could not fetch is simply not listed.
+- Every run the manifest lists under a machine is also in that machine's
+  listing, and its document agrees with the listing: the document's ``run`` is
+  identical to the listing's summary of the run, and its ``machine`` to the
+  listing's ``machine``.
+
+Here, a machine's listing means the version of ``<suite>/machines/<id>.json``
+whose hash the manifest records (see below). Runs that a refresh could not fetch
+are left out of the manifest.
 
 A crash can additionally leave ``<suite>/schema.json`` or a machine's listing
 with a hash that no longer matches the manifest; run documents are never
