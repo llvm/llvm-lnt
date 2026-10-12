@@ -2,7 +2,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { DataTable, type Column } from '../../components/data-table'
 import { MISSING, yesNo } from '../../format'
 import { formatUnit, type Metric } from '../../schema'
-import { KEY_HEADERS, LIST_INFO, type ListName } from './schema-draft'
+import { KEY_HEADERS, LIST_INFO, type ListName } from './schema-lists'
 import styles from './admin.module.css'
 
 type CommitField = SuiteSchema['commit_fields'][number]

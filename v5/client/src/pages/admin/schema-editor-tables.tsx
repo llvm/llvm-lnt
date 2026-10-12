@@ -15,21 +15,23 @@ import { SchemaList } from './schema-tables'
 import {
   addEntry,
   changeEntry,
-  isTextKey,
-  KEY_HEADERS,
-  LIST_INFO,
-  LISTS,
   nameProblems,
   newEntry,
   removeEntry,
   restoreEntry,
-  TYPES,
-  type AttributeType,
   type Draft,
   type DraftEntry,
+} from './schema-editor-model'
+import {
+  isTextKey,
+  KEY_HEADERS,
+  LIST_INFO,
+  LISTS,
+  TYPES,
+  type AttributeType,
   type ListName,
   type PresentationKey,
-} from './schema-draft'
+} from './schema-lists'
 import styles from './admin.module.css'
 
 const TYPE_OPTIONS = TYPES.map((type) => ({ value: type, label: type }))

@@ -12,7 +12,7 @@ import {
   draftProblem,
   schemaOf,
   suiteNameProblem,
-} from './schema-draft'
+} from './schema-editor-model'
 import { NameInput, SchemaEditorTables } from './schema-editor-tables'
 import styles from './admin.module.css'
 

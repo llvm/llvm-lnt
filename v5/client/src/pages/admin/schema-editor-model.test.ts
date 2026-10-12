@@ -16,8 +16,8 @@ import {
   schemaOf,
   suiteNameProblem,
   type Draft,
-  type ListName,
-} from './schema-draft'
+} from './schema-editor-model'
+import { type ListName } from './schema-lists'
 
 /** `draft` with a new entry of `list` named `name`, and that entry. */
 function withEntry(draft: Draft, list: ListName, name: string) {
