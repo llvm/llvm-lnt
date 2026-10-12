@@ -233,12 +233,21 @@ describe('the point details (GR11)', () => {
       '/suites/libcxx/commits/c20',
     )
     expect(details().getByText('2 (2 runs)')).toBeInTheDocument()
-    const runs = within(details().getByRole('list', { name: 'Runs' })).getAllByRole('listitem')
+    const table = details().getByRole('table', { name: 'Runs' })
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      'Submitted',
+      'Run',
+      'Value',
+    ])
+    const runs = within(table).getAllByRole('row').slice(1)
     expect(runs.map((run) => within(run).getByRole('link').getAttribute('href'))).toEqual([
       '/suites/libcxx/runs/r3',
       '/suites/libcxx/runs/r2',
     ])
-    expect(runs.map((run) => run.textContent?.split(' ').at(-1))).toEqual(['4', '2'])
+    expect(runs.map((run) => within(run).getAllByRole('cell').at(-1)?.textContent)).toEqual([
+      '4',
+      '2',
+    ])
     const compare = details().getByRole('link', { name: 'Compare with previous' })
     expect(compare).toHaveAttribute(
       'href',

@@ -128,7 +128,7 @@ test("shows a point's runs on hover, and its details on a click (GR10, GR11)", a
   const compare = details.getByRole('link', { name: 'Compare with previous' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
 
-  await details.getByRole('list', { name: 'Runs' }).getByRole('link').first().click()
+  await details.getByRole('table', { name: 'Runs' }).getByRole('link').first().click()
   await expect(page).toHaveURL(/\/suites\/libcxx\/runs\//)
 })
 

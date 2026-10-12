@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import type { Aggregation } from '../../aggregation'
 import type { TraceState } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import { ButtonLink } from '../../components/button-link'
+import { DataTable, type Column } from '../../components/data-table'
 import { formatTimestamp, plural, shortUuid } from '../../format'
 import { commitPath, comparePath, machinePath, runPath } from '../../paths'
 import { formatMetricValue, type Metric } from '../../schema'
+import { ChartDialog, type Anchor } from './chart-dialog'
 import type { Point, RunValue } from './points'
 import styles from './graph.module.css'
 
@@ -26,15 +27,14 @@ interface Props {
   state: TraceState
   sampleAgg: Aggregation
   runAgg: Aggregation
-  /** Where the point is, in pixels in the chart's container, and on which side of it to open. */
-  at: { x: number; y: number; side: 'left' | 'right' }
-  /** Close the details: by the keyboard or their button (`returnFocus`), or by a press outside. */
+  /** Where the point is. */
+  at: Anchor
   onClose(returnFocus?: boolean): void
 }
 
 /**
- * The details of a point clicked on the chart (GR11), in a dialog beside it, which takes the focus
- * and stays open as the pointer moves, until Escape, its close button, or a press outside it.
+ * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
+ * value, the runs the value combines, and a comparison with the point before it.
  */
 export function PointDetails({
   schema,
@@ -52,16 +52,6 @@ export function PointDetails({
   onClose,
 }: Props) {
   const suite = schema.name
-  const root = useRef<HTMLDivElement>(null)
-  useEffect(() => root.current?.focus(), [])
-  useEffect(() => {
-    // A press on another point closes this one before the click opens that one's.
-    const onPointerDown = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) onClose()
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [onClose])
 
   // A side's aggregation in the comparison's URL, unless it is Compare's default.
   const unlessDefault = (how: Aggregation) => (how === 'median' ? undefined : how)
@@ -81,32 +71,7 @@ export function PointDetails({
   }
 
   return (
-    <div
-      ref={root}
-      role="dialog"
-      aria-label={`${test} on ${machine} at ${display}`}
-      tabIndex={-1}
-      className={styles.details}
-      style={{
-        left: at.x,
-        top: at.y,
-        transform: `translate(${at.side === 'right' ? '12px' : 'calc(-100% - 12px)'}, -50%)`,
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onClose(true)
-      }}
-    >
-      <div className={styles.detailsHeader}>
-        <strong className={styles.detailsTest}>{test}</strong>
-        <button
-          type="button"
-          className={styles.remove}
-          aria-label="Close"
-          onClick={() => onClose(true)}
-        >
-          ×
-        </button>
-      </div>
+    <ChartDialog label={`${test} on ${machine} at ${display}`} title={test} at={at} onClose={onClose}>
       <dl className={styles.detailsInfo}>
         <dt>Machine</dt>
         <dd>
@@ -121,20 +86,45 @@ export function PointDetails({
           {formatMetricValue(point.value, metric)} ({plural(point.runs, 'run')})
         </dd>
       </dl>
-      <ul className={styles.detailsRuns} aria-label="Runs">
-        {runs.map((run) => (
-          <li key={run.run}>
-            {formatTimestamp(run.submitted)}{' '}
-            <Link to={runPath(suite, run.run)} className={styles.mono}>
-              {shortUuid(run.run)}
-            </Link>{' '}
-            {formatMetricValue(run.value, metric)}
-          </li>
-        ))}
-      </ul>
+      <div className={styles.detailsRuns}>
+        <h3 className={styles.detailsHeading}>Runs</h3>
+        <DataTable
+          label="Runs"
+          columns={runColumns(suite, metric)}
+          rows={runs}
+          rowKey={runKey}
+          empty="No runs."
+        />
+      </div>
       <ButtonLink to={compare} title={why}>
         Compare with previous
       </ButtonLink>
-    </div>
+    </ChartDialog>
   )
+}
+
+const runKey = (run: RunValue) => run.run
+
+/** The columns of the table of a point's runs: when each was submitted, which, and its value. */
+function runColumns(suite: string, metric: Metric): Column<RunValue>[] {
+  return [
+    {
+      id: 'submitted',
+      header: 'Submitted',
+      cell: (run) => formatTimestamp(run.submitted),
+      looks: ['nowrap'],
+    },
+    {
+      id: 'run',
+      header: 'Run',
+      cell: (run) => <Link to={runPath(suite, run.run)}>{shortUuid(run.run)}</Link>,
+      looks: ['mono'],
+    },
+    {
+      id: 'value',
+      header: 'Value',
+      cell: (run) => formatMetricValue(run.value, metric),
+      looks: ['numeric'],
+    },
+  ]
 }

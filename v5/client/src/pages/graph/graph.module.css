@@ -142,7 +142,7 @@
   gap: var(--lnt-space-2);
 }
 
-.detailsTest {
+.detailsTitle {
   overflow-wrap: anywhere;
 }
 
@@ -161,18 +161,22 @@
   margin: 0;
 }
 
-/* The point's runs, which scroll once there are many. */
-.detailsRuns {
-  max-height: 10rem;
-  margin: 0;
-  padding: 0;
+/* A list in the details: a point's runs, a regression's tests, which scroll once there are many. */
+.detailsRuns,
+.detailsTests {
+  max-height: 12rem;
   overflow-y: auto;
-  list-style: none;
   font-size: 0.9rem;
 }
 
-.mono {
-  font-family: var(--lnt-font-mono);
+.detailsTests {
+  margin: 0;
+  padding-left: var(--lnt-space-3);
+}
+
+.detailsHeading {
+  margin: 0 0 var(--lnt-space-1);
+  font-size: 0.9rem;
 }
 
 /*
