@@ -313,4 +313,93 @@ test.describe('the Test Suites tab', () => {
       expect(schema.machine_fields.map((field) => field.name)).toEqual(['kernel'])
     })
   })
+
+  test('creates a suite that takes runs, whose pages follow its schema once edited', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const token = await tokenFor('manage')
+    await withOwnSuiteName(request, token, testInfo, async (suite) => {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const creator = page.getByRole('region', { name: 'New suite' })
+      await creator.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      for (const metric of ['execution_time', 'compile_time']) {
+        await creator.getByRole('button', { name: '+ Add metric' }).click()
+        await creator.getByRole('textbox', { name: /^Name of metric \d+$/ }).last().fill(metric)
+      }
+      await creator.getByRole('button', { name: '+ Add machine field' }).click()
+      await creator
+        .getByRole('textbox', { name: 'Name of machine field 1', exact: true })
+        .fill('hardware')
+      await creator.getByRole('button', { name: 'Create', exact: true }).click()
+      await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+
+      const submitted = await request.post(`/api/suites/${suite}/runs`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          format_version: '5',
+          machine: { name: 'm1', fields: { hardware: 'Apple M4' } },
+          commit: { value: 'c1', ordinal: 1 },
+          tests: [{ name: 'bench', execution_time: 1.5, compile_time: 0.25 }],
+        },
+      })
+      expect(submitted.status(), await submitted.text()).toBe(201)
+      const run = ((await submitted.json()) as components['schemas']['RunDetail']).uuid
+
+      // The pages of the suite, visited before its schema changes, and again after, without the
+      // page being loaded again.
+      await page.goto(`/suites/${suite}/runs/${run}`)
+      await page.evaluate(() => Object.assign(window, { notReloaded: true }))
+      await pickOption(page, 'Metric', 'compile_time')
+      await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('0.25')
+      await page.getByRole('main').getByRole('link', { name: 'm1', exact: true }).click()
+      const machine = page.getByRole('group', { name: 'Machine', exact: true })
+      await expect(machine).toContainText('Apple M4')
+      await expect(machine).not.toContainText('kernel')
+
+      await page.getByRole('navigation').getByRole('link', { name: 'Admin' }).click()
+      await page.getByRole('tab', { name: 'Test Suites' }).click()
+      await pickOption(page.getByRole('main'), 'Test suite', suite)
+      await page.getByRole('button', { name: 'Edit schema' }).click()
+      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      await editor
+        .getByRole('textbox', { name: 'Display name of metric execution_time' })
+        .fill('Execution Time')
+      await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
+      await editor.getByRole('button', { name: '+ Add machine field' }).click()
+      await editor
+        .getByRole('textbox', { name: 'Name of machine field 2', exact: true })
+        .fill('kernel')
+      await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('button', { name: 'Save' }).click()
+      await expect(editor).toBeHidden()
+
+      // The machine has the new field, without a value yet, and keeps the value it had.
+      await page.goBack()
+      await expect(machine).toContainText('kernel')
+      await expect(machine).toContainText('Apple M4')
+
+      // The run no longer offers the metric removed, whose selection is dropped, and names the
+      // other one as the schema now does.
+      await page.goBack()
+      await expect(page).toHaveURL(`/suites/${suite}/runs/${run}`)
+      const metric = page.getByRole('button', { name: / Metric$/ })
+      await expect(metric).toHaveText(/Execution Time/)
+      await metric.click()
+      await expect(page.getByRole('option')).toHaveText(['Execution Time'])
+      await page.keyboard.press('Escape')
+      await expect(table(page, 'Samples').getByRole('columnheader').nth(1)).toHaveText(
+        'Execution Time',
+      )
+      await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('1.5')
+
+      expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)
+    })
+  })
 })
