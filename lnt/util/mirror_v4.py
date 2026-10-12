@@ -34,6 +34,10 @@ import requests
 
 MANIFEST = 'mirror.json'
 
+# The version of the mirror's format, recorded in its manifest. A refresh
+# refuses a mirror of any other version rather than risk misreading it.
+FORMAT_VERSION = '1'
+
 # Where files are written before being moved into place. It is cleared whenever
 # a refresh opens the mirror, so whatever an interrupted refresh left in it
 # goes.
@@ -105,6 +109,7 @@ class SuiteEntry(TypedDict):
 
 
 class Manifest(TypedDict):
+    format_version: str
     source: Source
     suites: dict[str, SuiteEntry]
 
@@ -272,7 +277,8 @@ class Mirror:
                     set(os.listdir(self.path)) - {STAGING}:
                 raise MirrorError('%s is not empty and is not a mirror'
                                   % self.path)
-            self.manifest = Manifest(source=source, suites={})
+            self.manifest = Manifest(format_version=FORMAT_VERSION,
+                                     source=source, suites={})
             self.is_new = True
             return
         try:
@@ -280,8 +286,15 @@ class Mirror:
                 manifest = json.load(f)
         except ValueError as e:
             raise MirrorError('%s is not valid JSON: %s' % (manifest_path, e))
-        if not isinstance(manifest, dict) or \
-                not isinstance(manifest.get('suites'), dict):
+        if not isinstance(manifest, dict):
+            raise MirrorError('%s is not a mirror manifest' % manifest_path)
+        if manifest.get('format_version') != FORMAT_VERSION:
+            raise MirrorError(
+                '%s has format version %r, but this version of LNT only '
+                'handles format version %r'
+                % (manifest_path, manifest.get('format_version'),
+                   FORMAT_VERSION))
+        if not isinstance(manifest.get('suites'), dict):
             raise MirrorError('%s is not a mirror manifest' % manifest_path)
         if manifest.get('source') != source:
             recorded = manifest.get('source') or {}
@@ -319,7 +332,8 @@ class Mirror:
                 machines[machine_id]['runs'] = _sorted_by_id(machine['runs'])
             suites[name] = SuiteEntry(schema=suite['schema'],
                                       machines=_sorted_by_id(machines))
-        manifest = Manifest(source=self.manifest['source'], suites=suites)
+        manifest = Manifest(format_version=FORMAT_VERSION,
+                            source=self.manifest['source'], suites=suites)
         data = (json.dumps(manifest, indent=2) + '\n').encode('utf-8')
         # The files the manifest references must be durable before it is, and
         # a rename is only durable once its directory is synced.

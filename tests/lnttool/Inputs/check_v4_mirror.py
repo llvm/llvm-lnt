@@ -2,11 +2,12 @@
 """Check that a directory is a well-formed mirror produced by `lnt mirror-v4`.
 
 Verifies the properties docs/mirror_v4.rst guarantees for a mirror left by a
-completed refresh: every file the manifest references exists and has the
-recorded hash, every mirrored run matches its summary and its machine in the
-machine listing, and no other file sits in a suite's directory. Prints a
-normalized listing of the mirror for FileCheck, and exits with a non-zero
-status (after reporting every problem) if the mirror is not well-formed.
+completed refresh: the manifest has the expected format version, every file the
+manifest references exists and has the recorded hash, every mirrored run
+matches its summary and its machine in the machine listing, and no other file
+sits in a suite's directory. Prints a normalized listing of the mirror for
+FileCheck, and exits with a non-zero status (after reporting every problem) if
+the mirror is not well-formed.
 
 Deliberately independent of lnt.util.mirror_v4, so that it checks the mirror
 against the spec rather than against the code that wrote it.
@@ -44,6 +45,9 @@ def main():
 
     with open(os.path.join(mirror, 'mirror.json')) as f:
         manifest = json.load(f)
+    if manifest.get('format_version') != '1':
+        problems.append('mirror.json: format version %r rather than "1"'
+                        % manifest.get('format_version'))
     source = manifest['source']
     print('source: %s database=%s' % (source['url'], source['database']))
 

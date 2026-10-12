@@ -147,6 +147,7 @@ mirror must ignore it.
 .. code-block:: json
 
     {
+      "format_version": "1",
       "source": {
         "url": "https://lnt.llvm.org",
         "database": "default"
@@ -168,6 +169,12 @@ mirror must ignore it.
         }
       }
     }
+
+``format_version``
+  The version of this format, ``"1"``. It changes whenever the format changes in
+  a way that a tool reading the previous version could misread.
+  ``lnt mirror-v4`` refuses to refresh a mirror of any other version, and tools
+  reading a mirror should likewise refuse a version they do not know.
 
 ``source``
   The instance the mirror was copied from: its root ``url``, without a trailing

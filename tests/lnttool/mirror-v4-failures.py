@@ -190,6 +190,23 @@ os.close(lock)
 # CHECK: error: {{.*}}mirror is in use by another refresh
 # CHECK: exit: 1
 
+
+def set_format_version(version):
+    with open(os.path.join(MIRROR, 'mirror.json')) as f:
+        manifest = json.load(f)
+    manifest['format_version'] = version
+    with open(os.path.join(MIRROR, 'mirror.json'), 'w') as f:
+        json.dump(manifest, f)
+
+
+# A mirror of another format version is refused rather than misread.
+set_format_version('2')
+refresh('another format version')
+set_format_version('1')
+# CHECK-LABEL: === another format version
+# CHECK: error: {{.*}}mirror.json has format version '2', but this version of LNT only handles format version '1'
+# CHECK: exit: 1
+
 # A run moved to another machine is fetched again with that machine embedded,
 # and stops being listed under its old machine, even when that machine is not
 # refreshed: excluded by --machine, or its listing cannot be fetched.
