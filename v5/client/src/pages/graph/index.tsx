@@ -165,56 +165,62 @@ function GraphPage() {
         />
       )}
       <ControlsPanel>
-        <Select
-          label="Suite"
-          options={(suites.data ?? []).map(({ name }) => ({ value: name, label: name }))}
-          value={schema === undefined ? null : schema.name}
-          placeholder="-- Select suite --"
-          onChange={chooseSuite}
-        />
-        <MachineChips
-          // Once the machines are known, only those that exist, as the chart marks them.
-          machines={names ? machines : settings.machine}
-          names={names}
-          pending={!disabled && machineNames.isPending}
-          error={machineNames.error}
-          isDisabled={disabled}
-          onChange={(chosen) => update({ machine: chosen })}
-        />
-        {schema !== undefined && numeric.length === 0 ? (
-          <p className={styles.note}>This suite has no numeric metric.</p>
-        ) : (
+        {/* What is plotted from: the suite, and its machines, whose chips stack below them. */}
+        <div className={styles.sources}>
           <Select
-            label="Metric"
-            options={numeric.map((entry) => ({ value: entry.name, label: labelOf(entry) }))}
-            value={metric?.name ?? null}
-            placeholder="-- Select metric --"
-            onChange={(name) => update({ metric: name })}
+            label="Suite"
+            options={(suites.data ?? []).map(({ name }) => ({ value: name, label: name }))}
+            value={schema === undefined ? null : schema.name}
+            placeholder="-- Select suite --"
+            onChange={chooseSuite}
+          />
+          <MachineChips
+            // Once the machines are known, only those that exist, as the chart marks them.
+            machines={names ? machines : settings.machine}
+            names={names}
+            pending={!disabled && machineNames.isPending}
+            error={machineNames.error}
+            isDisabled={disabled}
+            onChange={(chosen) => update({ machine: chosen })}
+          />
+        </div>
+        {/* How it is plotted. */}
+        <div className={styles.settings}>
+          {schema !== undefined && numeric.length === 0 ? (
+            <p className={styles.note}>This suite has no numeric metric.</p>
+          ) : (
+            <Select
+              label="Metric"
+              options={numeric.map((entry) => ({ value: entry.name, label: labelOf(entry) }))}
+              value={metric?.name ?? null}
+              placeholder="-- Select metric --"
+              onChange={(name) => update({ metric: name })}
+              isDisabled={disabled}
+            />
+          )}
+          <Select<Aggregation>
+            label="Sample aggregation"
+            options={AGGREGATION_OPTIONS}
+            value={settings.sample_agg}
+            onChange={(value) => update({ sample_agg: value })}
             isDisabled={disabled}
           />
-        )}
-        <Select<Aggregation>
-          label="Sample aggregation"
-          options={AGGREGATION_OPTIONS}
-          value={settings.sample_agg}
-          onChange={(value) => update({ sample_agg: value })}
-          isDisabled={disabled}
-        />
-        <Select<Aggregation>
-          label="Run aggregation"
-          options={AGGREGATION_OPTIONS}
-          value={settings.run_agg}
-          onChange={(value) => update({ run_agg: value })}
-          isDisabled={disabled}
-        />
-        <RegexFilter
-          filter={filter}
-          label="Filter tests"
-          placeholder="Filter tests..."
-          regex={settings.test_filter_regex}
-          onRegexChange={(regex) => update({ test_filter_regex: regex })}
-          isDisabled={disabled}
-        />
+          <Select<Aggregation>
+            label="Run aggregation"
+            options={AGGREGATION_OPTIONS}
+            value={settings.run_agg}
+            onChange={(value) => update({ run_agg: value })}
+            isDisabled={disabled}
+          />
+          <RegexFilter
+            filter={filter}
+            label="Filter tests"
+            placeholder="Filter tests..."
+            regex={settings.test_filter_regex}
+            onRegexChange={(regex) => update({ test_filter_regex: regex })}
+            isDisabled={disabled}
+          />
+        </div>
       </ControlsPanel>
       {machineNames.isError && (
         <ErrorMessage

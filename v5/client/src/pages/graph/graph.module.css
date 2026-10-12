@@ -5,17 +5,37 @@
   margin: var(--lnt-space-3) 0;
 }
 
-/* The machine combobox, and the chips of the machines added after it. */
+/*
+ * The controls, on two rows of their own: the suite and the machines, then the settings. The first
+ * row is aligned at the top, since the machines' chips stack below their combobox.
+ */
+.sources,
+.settings {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-3);
+}
+
+.sources {
+  align-items: flex-start;
+}
+
+.settings {
+  align-items: flex-end;
+}
+
+/* The machine combobox, and below it the chips of the machines added, one per line. */
 .machines {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-direction: column;
   gap: var(--lnt-space-2);
 }
 
 .chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--lnt-space-1);
   margin: 0;
   padding: 0;
