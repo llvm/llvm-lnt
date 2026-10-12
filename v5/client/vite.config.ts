@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Just above Plotly's chunk (about 1160 kB, 385 kB compressed), the only one above Vite's
+    // default of 500 kB. Only the pages with a chart fetch it (see components/chart.tsx).
+    chunkSizeWarningLimit: 1200,
+  },
   server: {
     proxy: {
       '/healthz': 'http://localhost:3000',

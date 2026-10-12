@@ -25,7 +25,7 @@ export function MachinesTab({ schema, search, onSearch }: Props) {
   const suite = schema.name
   const input = useServerSearch(search, onSearch)
   const machines = useQuery({
-    ...machinesQuery(suite, search),
+    ...machinesQuery(suite, { search: search || undefined }),
     // Keep the machines shown until those of the next search arrive.
     placeholderData: keepPreviousData,
   })

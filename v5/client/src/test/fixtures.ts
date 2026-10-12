@@ -5,7 +5,7 @@
 
 import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
-import type { Commit } from '../schema'
+import type { Commit, Metric } from '../schema'
 
 /** A suite like libcxx: a display field, labelled and unlabelled fields, and a non-text one. */
 export const SUITE: SuiteSchema = {
@@ -37,6 +37,19 @@ export const BARE_SUITE: SuiteSchema = {
   metrics: [],
   machine_fields: [],
   commit_fields: [],
+}
+
+/** A metric (D4), `real` and without a label or a unit unless given. */
+export function metric(name: string, overrides: Partial<Metric> = {}): Metric {
+  return {
+    name,
+    type: 'real',
+    display_name: null,
+    unit: null,
+    unit_abbrev: null,
+    bigger_is_better: false,
+    ...overrides,
+  }
 }
 
 export function machine(
@@ -125,4 +138,22 @@ export function regressionDetail(
 /** I2's cursor envelope. */
 export function cursorPage<Item>(items: Item[], next: string | null = null) {
   return { items, cursor: { next, previous: null } }
+}
+
+/** A trend item (E9) of `machine` at the commit `commit-{ordinal}`, with no tag unless given. */
+export function trendPoint(
+  machine: string,
+  ordinal: number,
+  value: number,
+  overrides: Partial<Schemas['TrendPoint']> = {},
+): Schemas['TrendPoint'] {
+  return {
+    machine,
+    commit: `commit-${ordinal}`,
+    ordinal,
+    submitted_at: '2026-08-25T14:22:41Z',
+    tag: null,
+    value,
+    ...overrides,
+  }
 }

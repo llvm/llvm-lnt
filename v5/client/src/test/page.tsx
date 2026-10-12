@@ -140,6 +140,17 @@ export function mockMachines(respond: Respond<Schemas['MachineList']>) {
   return queries
 }
 
+/** Answer `GET /trends` with `respond`'s items; returns its queries. */
+export function mockTrends(respond: Respond<Schemas['TrendPoint'][]>) {
+  const { queries, answer } = recording(respond)
+  server.use(
+    mockApi('get', '/api/suites/{testsuite}/trends', async ({ request }) =>
+      HttpResponse.json({ items: await answer(request) }),
+    ),
+  )
+  return queries
+}
+
 export function mockTests(respond: Respond<Page<Schemas['Test']>>) {
   const { queries, answer } = recording(respond)
   server.use(

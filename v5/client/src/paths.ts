@@ -26,8 +26,10 @@ export function regressionPath(suite: string, uuid: string): string {
   return `${suitePath(suite)}/regressions/${segment(uuid)}`
 }
 
+type Param = [string, string | undefined]
+
 /** `path`, followed by the parameters of `params` that are set, in order. */
-function withQuery(path: string, params: [string, string | undefined][]): string {
+function withQuery(path: string, params: Param[]): string {
   const set = params.filter((entry): entry is [string, string] => entry[1] !== undefined)
   const search = new URLSearchParams(set).toString()
   return search ? `${path}?${search}` : path
@@ -36,7 +38,7 @@ function withQuery(path: string, params: [string, string | undefined][]): string
 /** What the Graph page (GR14) is to show, as far as it is given. */
 interface GraphView {
   suite?: string
-  machine?: string
+  machines?: string[]
   metric?: string
   test?: string
   /** Which regressions are marked on the chart (GR15). */
@@ -44,10 +46,17 @@ interface GraphView {
 }
 
 /** The Graph page (GR14), showing `view`. */
-export function graphPath({ suite, machine, metric, test, regressions }: GraphView = {}): string {
+export function graphPath({
+  suite,
+  machines = [],
+  metric,
+  test,
+  regressions,
+}: GraphView = {}): string {
   return withQuery('/graph', [
     ['suite', suite],
-    ['machine', machine],
+    // Repeated once per machine, as a setting holding several values is (AR2 "State").
+    ...machines.map((machine): Param => ['machine', machine]),
     ['metric', metric],
     ['test', test],
     ['regressions', regressions],
@@ -65,7 +74,6 @@ interface CompareSide {
 
 /** The Compare page (CP7), with side A and side B set as far as they are given, and `metric`. */
 export function comparePath(a: CompareSide = {}, b: CompareSide = {}, metric?: string): string {
-  type Param = [string, string | undefined]
   const side = (suffix: string, { suite, machine, commit, runs = [] }: CompareSide): Param[] => [
     [`suite_${suffix}`, suite],
     [`machine_${suffix}`, machine],

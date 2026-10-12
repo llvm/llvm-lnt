@@ -164,7 +164,7 @@ function Actions({ suite, name }: { suite: string; name: string }) {
         leaveTo: suiteTabPath(suite, 'machines'),
       }}
     >
-      <ButtonLink to={graphPath({ suite, machine: name })}>View Graph</ButtonLink>
+      <ButtonLink to={graphPath({ suite, machines: [name] })}>View Graph</ButtonLink>
       <ButtonLink to={comparePath({ suite, machine: name })}>Compare</ButtonLink>
     </DetailActionRow>
   )

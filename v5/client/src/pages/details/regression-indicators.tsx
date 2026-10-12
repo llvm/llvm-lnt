@@ -314,7 +314,9 @@ function GraphLink({
   }
   const { machine, test } = indicator
   return (
-    <Link to={graphPath({ suite, machine, metric: metric.name, test, regressions: 'all' })}>
+    <Link
+      to={graphPath({ suite, machines: [machine], metric: metric.name, test, regressions: 'all' })}
+    >
       View on graph
     </Link>
   )

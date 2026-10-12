@@ -71,14 +71,16 @@ export function commitDisplayValue(
 }
 
 /**
- * The display value of the commit `value`, from `commits`, which resolved it: `value` itself while
- * it is not among them -- not resolved yet, or deleted since it was named.
+ * The display value of the commit `value`, from `commits`, which resolved it. While it is not among
+ * them -- not resolved yet, or deleted since it was named -- it is `value` itself, followed by
+ * ` (tag)` when the caller knows the commit's `tag`.
  */
 export function displayValueOf(
   value: string,
   commits: Map<string, Commit> | undefined,
   schema: SuiteSchema,
+  tag: string | null = null,
 ): string {
-  const commit = commits?.get(value)
-  return commit === undefined ? value : commitDisplayValue(commit, schema)
+  const commit = commits?.get(value) ?? { value, ordinal: null, tag, fields: {} }
+  return commitDisplayValue(commit, schema)
 }
