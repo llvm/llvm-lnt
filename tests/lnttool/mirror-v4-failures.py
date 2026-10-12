@@ -11,6 +11,7 @@ import fcntl
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -54,17 +55,25 @@ def listing(*runs, machine=MACHINE):
 # the first response off its list, and the last one is repeated.
 responses = {}
 requests_seen = []
+# Path -> (arrived, release): a request for the path sets `arrived`, and is only
+# answered once `release` is set.
+held = {}
 
 
 def serve(**routes):
     responses.clear()
     responses.update({path: list(answers) for path, answers in routes.items()})
     del requests_seen[:]
+    held.clear()
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split('?')[0]
+        if path[len(PREFIX):] in held:
+            arrived, release = held[path[len(PREFIX):]]
+            arrived.set()
+            release.wait()
         answers = responses.get(path[len(PREFIX):]) \
             if path.startswith(PREFIX) else None
         if not answers:
@@ -278,5 +287,57 @@ print('created: %s' % os.path.exists(NEW))
 # CHECK: error: there is no suite 'nosuch'
 # CHECK: exit: 1
 # CHECK: created: False
+
+# An interrupted refresh sends and retries no more requests, and keeps the
+# mirror locked until the requests in flight are done, since they could still
+# write to it. It runs in a process of its own so that it can be interrupted.
+# That process installs Python's usual SIGINT handler itself: lit runs tests
+# with SIGINT ignored, and Python leaves it ignored if it starts that way.
+INTERRUPTED = os.path.join(TMP, 'interrupted')
+arrived, release = threading.Event(), threading.Event()
+serve(schema=[SCHEMA], machines=[MACHINES],
+      **{'machines/1': [(OK, listing(summary(1)))],
+         'runs/1': [(500, {})]})
+held['runs/1'] = (arrived, release)
+print('=== interrupted while a request is in flight')
+process = subprocess.Popen(
+    [sys.executable, '-c',
+     'import signal; signal.signal(signal.SIGINT, signal.default_int_handler); '
+     'import lnt.lnttool; lnt.lnttool.main()',
+     'mirror-v4', URL, INTERRUPTED, '--suite', 'nts'],
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+# Should the process not stop, kill it, so that the test fails rather than hang.
+watchdog = threading.Timer(60, process.kill)
+watchdog.start()
+assert arrived.wait(timeout=60)
+process.send_signal(signal.SIGINT)
+output = ''
+while 'Stopping' not in output:
+    line = process.stdout.readline()
+    assert line, output
+    output += line
+lock = os.open(INTERRUPTED, os.O_RDONLY)
+try:
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    print('locked while stopping: no')
+except BlockingIOError:
+    print('locked while stopping: yes')
+os.close(lock)
+release.set()
+output += process.communicate()[0]
+watchdog.cancel()
+print(output.replace(URL, 'URL'), end='')
+print('exit: %d' % process.returncode)
+print('runs/1 requested %d time(s)' % requests_seen.count('runs/1'))
+check(INTERRUPTED)
+# CHECK-LABEL: === interrupted while a request is in flight
+# CHECK: locked while stopping: yes
+# CHECK: Stopping: waiting for the requests in flight to finish...
+# CHECK: Aborted!
+# CHECK: exit: 1
+# CHECK: runs/1 requested 1 time(s)
+# CHECK: machine 1 fake-machine: runs (none)
+# CHECK-NOT: PROBLEM
+# CHECK: check: 0
 
 server.shutdown()

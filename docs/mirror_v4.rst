@@ -58,6 +58,10 @@ The command exits with a non-zero status if anything could not be fetched. The
 mirror is left consistent regardless (see `Consistency`_), and running the same
 command again resumes where it stopped.
 
+Interrupting a refresh, e.g. with Ctrl-C, stops it from sending further
+requests. It then waits for the requests in flight, which can take as long as
+the instance takes to answer them, records what it fetched, and exits.
+
 
 What is mirrored
 ----------------

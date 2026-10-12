@@ -12,6 +12,7 @@ always written before the manifest references them, and the manifest stops
 referencing a file before the file is overwritten or deleted.
 """
 
+import contextlib
 import datetime
 import fcntl
 import gzip
@@ -24,7 +25,7 @@ import tempfile
 import threading
 import time
 import zlib
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, TypedDict, TypeVar, cast
@@ -176,6 +177,11 @@ class Client:
         # requests does not promise that a Session is safe to share between
         # threads, so give each worker its own.
         self._local = threading.local()
+        self._stopping = threading.Event()
+
+    def stop(self) -> None:
+        """Send no more requests, and do not retry those in flight."""
+        self._stopping.set()
 
     def _session(self) -> requests.Session:
         session: requests.Session | None = getattr(self._local, 'session', None)
@@ -196,6 +202,8 @@ class Client:
         url = '%s/%s' % (self.base, path)
         delays = iter(RETRY_DELAYS)
         while True:
+            if self._stopping.is_set():
+                raise FetchError('%s: not sent, the refresh is stopping' % url)
             error: FetchError
             try:
                 response = self._session().get(
@@ -210,9 +218,10 @@ class Client:
                         response.status_code not in RETRY_STATUSES:
                     raise error
             delay = next(delays, None)
-            if delay is None:
+            # Waiting on the event rather than sleeping ends the wait as soon as
+            # the refresh stops.
+            if delay is None or self._stopping.wait(delay):
                 raise error
-            time.sleep(delay)
 
 
 # ----------------------------------------------------------------------------
@@ -239,6 +248,8 @@ class Mirror:
         self.manifest: Manifest
         self.is_new = False
         self._lock_fd: int | None = None
+        # Whether worker threads may still write to the mirror (see _workers).
+        self.workers_running = False
         # mkstemp creates files only their owner can read; give ours the
         # permissions any other new file would get. Querying the umask means
         # setting it, which is only safe before any worker thread starts.
@@ -319,7 +330,9 @@ class Mirror:
             raise MirrorError('%s is in use by another refresh' % self.path)
 
     def close(self) -> None:
-        if self._lock_fd is not None:
+        # A mirror that workers may still write to stays locked, until the OS
+        # releases the lock when the process exits.
+        if self._lock_fd is not None and not self.workers_running:
             os.close(self._lock_fd)
             self._lock_fd = None
 
@@ -518,6 +531,33 @@ def _plan_machine(client: Client, mirror: Mirror, suite: str,
     return plan
 
 
+@contextlib.contextmanager
+def _workers(client: Client, mirror: Mirror, count: int,
+             echo: Echo) -> Iterator[ThreadPoolExecutor]:
+    """A pool of `count` threads sending requests through `client`.
+
+    Leaving the block waits for every thread to finish, even when it is left by
+    an exception, such as the user interrupting the refresh: a worker can write
+    to the mirror, so it must be done before the mirror is unlocked, or it could
+    overwrite a file that the manifest of the next refresh references. To keep
+    that wait short, the workers stop sending and retrying requests, and only
+    the requests in flight are waited for. If that wait is interrupted too, the
+    mirror stays locked until the process exits.
+    """
+    pool = ThreadPoolExecutor(max_workers=count)
+    mirror.workers_running = True
+    try:
+        yield pool
+    except BaseException:
+        client.stop()
+        echo('Stopping: waiting for the requests in flight to finish...')
+        raise
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+        # Not reached if the wait is interrupted.
+        mirror.workers_running = False
+
+
 def _fetch_all(client: Client, mirror: Mirror, suite: str,
                pending: list[tuple[_MachinePlan, str]], workers: int,
                echo: Echo) -> tuple[int, int]:
@@ -539,8 +579,7 @@ def _fetch_all(client: Client, mirror: Mirror, suite: str,
         return _sha256(data)
 
     fetched = failures = 0
-    pool = ThreadPoolExecutor(max_workers=workers)
-    try:
+    with _workers(client, mirror, workers, echo) as pool:
         futures: dict[Future[str], tuple[_MachinePlan, str]] = {
             pool.submit(fetch_and_store, plan, run_id): (plan, run_id)
             for plan, run_id in pending}
@@ -558,11 +597,6 @@ def _fetch_all(client: Client, mirror: Mirror, suite: str,
             if fetched % FLUSH_EVERY == 0:
                 mirror.flush()
                 echo('  fetched %d/%d' % (fetched, len(pending)))
-    finally:
-        # When interrupted, drop the runs not started yet, and do not wait for
-        # those in flight either: what they write is not referenced by the
-        # manifest, and is adopted or cleaned up by the next refresh.
-        pool.shutdown(wait=False, cancel_futures=True)
     return fetched, failures
 
 
@@ -672,14 +706,11 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
 
     # Machine listings are fetched concurrently: on a refresh of an up-to-date
     # mirror, they are most of the work.
-    pool = ThreadPoolExecutor(max_workers=workers)
-    try:
+    with _workers(client, mirror, workers, echo) as pool:
         plans = list(pool.map(
             lambda machine_id: _plan_machine(client, mirror, suite, machine_id,
                                              mirrored.get(machine_id)),
             sorted(in_scope - set(removed_machines), key=int)))
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
     failures = 0
     ok: list[_MachinePlan] = []
     for plan in plans:
