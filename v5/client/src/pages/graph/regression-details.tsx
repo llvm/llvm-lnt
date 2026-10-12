@@ -2,9 +2,8 @@ import { Link } from 'react-router'
 import type { MarkedRegression } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { BugLink } from '../../components/bug-link'
-import { ButtonLink } from '../../components/button-link'
 import { StateBadge } from '../../components/regression-state'
-import { formatTimestamp, regressionTitle } from '../../format'
+import { formatTimestamp, regressionTitle, shortUuid } from '../../format'
 import { commitPath, regressionPath } from '../../paths'
 import { ChartDialog, type Anchor } from './chart-dialog'
 import styles from './graph.module.css'
@@ -23,7 +22,8 @@ interface Props {
 
 /**
  * The details of a regression whose marker was clicked on the chart (GR15), in a dialog beside it:
- * its state, commit, bug and creation time, the selected tests it affects, and a link to its page.
+ * its UUID, linking to its page as the regressions tables' do, its state, commit, bug and creation
+ * time, and the selected tests it affects.
  */
 export function RegressionDetails({ schema, regression, tests, display, at, onClose }: Props) {
   const suite = schema.name
@@ -32,6 +32,12 @@ export function RegressionDetails({ schema, regression, tests, display, at, onCl
   return (
     <ChartDialog label={`Regression: ${title}`} title={title} at={at} onClose={onClose}>
       <dl className={styles.detailsInfo}>
+        <dt>Regression</dt>
+        <dd>
+          <Link to={regressionPath(suite, uuid)} title={uuid} className={styles.uuid}>
+            {shortUuid(uuid)}
+          </Link>
+        </dd>
         <dt>State</dt>
         <dd>
           <StateBadge state={state} />
@@ -55,7 +61,6 @@ export function RegressionDetails({ schema, regression, tests, display, at, onCl
           ))}
         </ul>
       </div>
-      <ButtonLink to={regressionPath(suite, uuid)}>Open regression</ButtonLink>
     </ChartDialog>
   )
 }

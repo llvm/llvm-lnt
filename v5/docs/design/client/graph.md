@@ -340,10 +340,10 @@ when several regressions share a commit. Hovering a marker shows the regression
 title and which of the selected tests it affects (the first ten, and how many
 others), and a last line saying that clicking the marker shows the regression's
 details. Clicking it opens a popover beside it, which behaves as a point's does
-(GR11): it shows the regression's title, its state (as a colored badge), its
+(GR11): it shows the regression's title, its UUID (shortened, see AR6, and
+linking to its Regression Detail page), its state (as a colored badge), its
 commit (linking to its Commit Detail page), its bug (see AR6), when it was
-created, the selected tests it affects, and a link to its Regression Detail
-page. One popover is open at a time, a point's or a regression's.
+created, and the selected tests it affects. One popover is open at a time, a point's or a regression's.
 A regression with no commit, or whose commit is not on the x-axis scaffold
 (GR3), has no position on the chart and is not drawn. The selected mode is
 persisted in the URL as `regressions={off|active|all}`.

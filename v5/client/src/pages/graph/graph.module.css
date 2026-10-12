@@ -161,6 +161,11 @@
   margin: 0;
 }
 
+/* A UUID, set in a fixed-width font as the tables' are. */
+.uuid {
+  font-family: var(--lnt-font-mono);
+}
+
 /* A list in the details: a point's runs, a regression's tests, which scroll once there are many. */
 .detailsRuns,
 .detailsTests {

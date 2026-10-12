@@ -561,10 +561,9 @@ describe('the regression annotations (GR15)', () => {
     )
     const tests = details().getByRole('list', { name: 'Selected tests affected' })
     expect(within(tests).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['a'])
-    expect(details().getByRole('link', { name: 'Open regression' })).toHaveAttribute(
-      'href',
-      `/suites/libcxx/regressions/${uuidOf('1')}`,
-    )
+    const link = details().getByRole('link', { name: `${uuidOf('1').slice(0, 8)}…` })
+    expect(link).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('1')}`)
+    expect(link).toHaveAttribute('title', uuidOf('1'))
     // Beside the marker, below it: at c20's position, 1, near the top of the plot.
     expect(dialog).toHaveStyle({ left: '150px', top: '18px', transform: 'translate(12px, -12px)' })
     expect(currentUrl()).toContain('/graph')

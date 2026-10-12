@@ -154,7 +154,7 @@ test("marks a regression at its commit, and shows its details from its marker (G
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog', { name: 'Regression: std::format slowdown' })
   await expect(details).toBeFocused()
-  await details.getByRole('link', { name: 'Open regression' }).click()
+  await details.getByRole('link', { name: `${uuid.slice(0, 8)}…` }).click()
   await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
 })
 
