@@ -4,16 +4,16 @@
  */
 
 import type { Page } from '@playwright/test'
-
-/** A page of a cursor-paginated list (I2). */
-interface ListPage<Item> {
-  items: Item[]
-}
 import { LINUX, MACOS } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { plotOf, tracesOf, type PlotDiv } from './plot.ts'
 import { pickOption } from './select.ts'
 import { table } from './tables.ts'
+
+/** A page of a cursor-paginated list (I2). */
+interface ListPage<Item> {
+  items: Item[]
+}
 
 /** A test every real machine measured, at every commit. */
 const TEST = 'BM_num_get<void*>'
