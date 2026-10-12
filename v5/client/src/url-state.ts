@@ -65,7 +65,8 @@ export function booleanParam(defaultValue: boolean): Param<boolean> {
 
 /** A parameter repeated once per value (I3's convention). */
 export function listParam(): Param<string[]> {
-  return { default: [], parse: (values) => values, serialize: (value) => value }
+  // Each value once, in the order first given: a value given twice means nothing more.
+  return { default: [], parse: (values) => [...new Set(values)], serialize: (value) => value }
 }
 
 /**

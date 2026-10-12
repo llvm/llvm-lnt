@@ -21,6 +21,15 @@ describe('ErrorMessage', () => {
     )
   })
 
+  it('says what could not be done before why, when told', () => {
+    const error = new ApiError(500, 'internal_error', 'The server failed.')
+    render(<ErrorMessage error={error} context="The tests could not be listed" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The tests could not be listed: The server failed.',
+    )
+  })
+
   it('shows the message of an error that is not from the API', () => {
     render(<ErrorMessage error={new TypeError('Failed to fetch dynamically imported module')} />)
 

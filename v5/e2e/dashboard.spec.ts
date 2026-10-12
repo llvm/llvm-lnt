@@ -10,6 +10,7 @@ import type { Locator, Page } from '@playwright/test'
 import { HARDENED, LINUX, MACOS, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
 import { withOwnSuiteName } from './own-suite.ts'
+import { plotOf, tracesOf, type PlotDiv } from './plot.ts'
 
 const LIBCXX_METRICS = [
   'Execution Time',
@@ -19,36 +20,12 @@ const LIBCXX_METRICS = [
   'Peak Memory Footprint',
 ]
 
-/**
- * The parts of a Plotly plot that place its points on the page. They are Plotly internals, but the
- * only way to find where a given point is drawn: the SVG holds each trace as one path, without its
- * points, and a hover label only shows once the pointer is within a few pixels of one.
- */
-interface PlotDiv extends HTMLElement {
-  _fullLayout: {
-    _size: { l: number; t: number }
-    xaxis: { l2p(value: number): number }
-    yaxis: { l2p(value: number): number }
-  }
-  _fullData: { x: number[]; y: number[] }[]
-}
-
 function section(page: Page, suite: string) {
   return page.getByRole('main').getByRole('region', { name: suite, exact: true })
 }
 
 function card(page: Page, name: string) {
   return section(page, 'libcxx').getByRole('article', { name, exact: true })
-}
-
-/** The plot of `card`'s chart, once Plotly has drawn it. */
-function plotOf(card: Locator) {
-  return card.locator('.js-plotly-plot')
-}
-
-/** The lines `card`'s chart draws, one per machine. */
-function tracesOf(card: Locator) {
-  return card.locator('.scatterlayer .trace')
 }
 
 /**

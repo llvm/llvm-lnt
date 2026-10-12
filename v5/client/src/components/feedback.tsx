@@ -13,6 +13,8 @@ export function Alert({ children }: { children: ReactNode }) {
 
 interface ErrorMessageProps {
   error: unknown
+  /** What could not be done, said before why, where the page shows several failures. */
+  context?: string
   /**
    * Offer to try again, with a button calling it, unless the API answered that what was asked for
    * does not exist: asking again would get the same answer.
@@ -21,10 +23,11 @@ interface ErrorMessageProps {
 }
 
 /** A failure, as the user should see it (see `errorMessage`). */
-export function ErrorMessage({ error, onRetry }: ErrorMessageProps) {
+export function ErrorMessage({ error, context, onRetry }: ErrorMessageProps) {
   const missing = error instanceof ApiError && error.code === 'not_found'
   return (
     <Alert>
+      {context !== undefined && `${context}: `}
       {errorMessage(error)}
       {onRetry && !missing && (
         <button type="button" className={styles.retry} onClick={onRetry}>

@@ -54,11 +54,11 @@ the suite is a query parameter, not a path segment.
   first machine uses circles (default), the second triangles, then squares,
   diamonds, etc., so that removing a machine shifts the symbols of the machines
   after it. Each chip shows its machine's symbol. Colors represent test
-  identity, assigned by the test's position in the test table's unfiltered list
-  (GR6): every test the selected machines have for the metric, sorted by name.
-  Selecting, deselecting or filtering tests therefore never changes a test's
-  color. The same test on different machines shares the same color but has a
-  different marker shape.
+  identity: a test's color is derived from its name alone, so that it is the
+  same whatever the machines, the metric, the selection or the filter, and on
+  every visit to the page. Two tests may therefore share a color. The same test
+  on different machines shares the same color but has a different marker
+  shape.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not
@@ -86,14 +86,14 @@ the suite is a query parameter, not a path segment.
 ### GR2: Lazy Loading with Progressive Rendering
 
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
-The selected tests' data is fetched via `POST /query` with OR'd test names and
-rendered incrementally. When several tests are selected at once (a range,
-or every visible test), they are fetched together rather than with one request
-per test. The chart progressively fills in data as pages arrive via
-cursor-based pagination. This avoids blocking the UI on large datasets.
+Each selected test's data on each machine is fetched on its own via
+`POST /query`, and the chart progressively fills in each trace as its pages
+arrive via cursor-based pagination. This avoids blocking the UI on large
+datasets. So that a large selection does not flood the server, only a few
+requests are in flight at once; the others wait for their turn.
 
-Each machine's data is loaded on its own: removing a machine stops loading its
-data without disturbing the other machines'. Leaving the page stops all
+Deselecting a test stops loading its data, and removing a machine stops loading
+that machine's, without disturbing the rest. Leaving the page stops all
 loading.
 
 
@@ -133,7 +133,8 @@ into the chart while data is still loading, the zoom is preserved across
 incremental updates. The x-axis range is always preserved (it was established by
 the scaffold or by user zoom), until the scaffold itself changes, because a
 machine was removed or a machine's scaffold has arrived, which resets the zoom.
-The y-axis range is preserved only when the user has explicitly zoomed;
+The y-axis range is preserved only when the user has explicitly zoomed, and
+only until the metric changes, since another metric has another scale;
 otherwise, it auto-ranges to accommodate new data as it arrives. Double-clicking
 the chart resets the zoom to the full range as usual.
 
@@ -286,8 +287,7 @@ see the commit range.
 ### GR13: API Calls
 
 - `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}`
-  (one fetch pipeline per machine, targeted to the selected tests via
-  multi-value `test`)
+  (one per selected test and machine, `test` naming that test)
 - `POST query` in a baseline's suite, with JSON body `{machine, metric, commit}`
   (baseline data; see GR9)
 - `GET tests?machine=...&metric=...` (test name discovery)
@@ -305,8 +305,8 @@ see the commit range.
 `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}`
 
 `test` is present only while at most 10 tests are selected: with more, the URL
-holds no `test` at all, and the page warns that the selection is not part of the
-URL and so cannot be shared. `test_filter_regex=true` turns on the test filter's
+holds no `test` at all, and the page says that the URL does not reflect the
+selection. `test_filter_regex=true` turns on the test filter's
 regex mode (see AR9). On load, `test_filter` filters the test table as if it had
 been typed, and a `test` that the test list for the selected machines and metric
 does not hold, or that does not match the filter, is dropped. Of a URL naming

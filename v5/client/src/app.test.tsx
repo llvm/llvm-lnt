@@ -1,11 +1,14 @@
 import { screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './app'
 import { mockSuites } from './test/page'
 import { renderWithProviders } from './test/render'
 
 // Every page so far starts from the list of suites, and asks for nothing else without one.
 beforeEach(() => mockSuites([]))
+
+// The Graph page shows its chart before it has anything to plot.
+vi.mock('./components/chart', () => import('./test/chart'))
 
 function renderAt(url: string) {
   return renderWithProviders(<App />, { url })
