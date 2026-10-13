@@ -545,9 +545,10 @@ too many, its buttons are disabled, and it says why. Changing side B's suite,
 or swapping the sides, clears the picked regression. If creating the
 regression or adding the indicators fails, the panel stays open and says why.
 
-Once the regression is created, or the indicators added, the panel collapses
-back to its button, its title and picked regression are cleared, and a message
-beside the button says what was done, until the panel is opened again:
+Collapsing the panel clears its title and picked regression. Once the
+regression is created, or the indicators added, the panel collapses back to
+its button, which takes the focus, and a message beside the button says what
+was done, until the panel is opened again:
 - "Regression created: " followed by a link to the new regression's detail
   page;
 - "Added N indicators to " followed by a link to the regression's detail page,

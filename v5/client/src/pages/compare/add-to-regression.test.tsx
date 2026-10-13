@@ -122,6 +122,94 @@ describe('Add to Regression (CP9)', () => {
     expect(within(createForm()).getByLabelText('Title')).toHaveValue('')
   })
 
+  it('makes indicators of the rows the table compares, on side B as the sides are now', async () => {
+    // Run 3 is m1's at c2, and run 4 m2's: c is noise, and e is on run 3 only.
+    mockWorld({
+      samples: {
+        '3': [
+          ['a', 4],
+          ['c', 5.01],
+          ['d', 2],
+          ['e', 7],
+        ],
+        '4': [
+          ['a', 1],
+          ['c', 5],
+          ['d', 1],
+        ],
+      },
+    })
+    const requests = mockCreate()
+    mockRegressions(() => cursorPage(REGRESSIONS))
+    // The filter leaves out d, "Hide noise" c, and a is hidden: once swapped, side B is other's m1
+    // at c2, and only e makes an indicator.
+    const query = new URLSearchParams({
+      suite_a: 'other',
+      machine_a: 'm1',
+      commit_a: 'c2',
+      suite_b: 'libcxx',
+      machine_b: 'm2',
+      commit_b: 'c2',
+      metric: 'execution_time',
+      noise_pct: '1',
+      hide_noise: 'true',
+      hidden_test: 'a',
+      test_filter: '^[ace]$',
+      test_filter_regex: 'true',
+    })
+    signIn('triage')
+    renderPage(`/compare?${query}`)
+    await comparison()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Swap sides' }))
+    await waitFor(() => expect(toggle()).toBeEnabled())
+    await user.click(toggle())
+    await user.click(within(createForm()).getByRole('button', { name: 'Create regression' }))
+
+    await screen.findByText(/Regression created:/)
+    expect(requests).toEqual([
+      { suite: 'other', body: { title: null, commit: 'c2', indicators: [indicator('e')] } },
+    ])
+  })
+
+  it('offers the regression created when the panel is opened again', async () => {
+    mockWorld()
+    await openPanel()
+    const regressions = [...REGRESSIONS]
+    mockRegressions(() => cursorPage(regressions))
+    const created = regressionDetail('d', { title: 'Slow' })
+    mockCreate(created)
+    const user = userEvent.setup()
+    await user.click(within(createForm()).getByRole('button', { name: 'Create regression' }))
+    await screen.findByText(/Regression created:/)
+    regressions.unshift(regression('d', { title: 'Slow' }))
+
+    await user.click(toggle())
+    await user.click(within(addForm()).getByRole('button', { name: /Show suggestions/ }))
+    expect(await screen.findByRole('option', { name: 'Slow' })).toBeInTheDocument()
+  })
+
+  it('cannot be closed while a request is under way, and gives the focus back', async () => {
+    mockWorld()
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    await openPanel()
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/regressions', async () => {
+        await held
+        return HttpResponse.json(regressionDetail('d'), { status: 201 })
+      }),
+    )
+    await userEvent
+      .setup()
+      .click(within(createForm()).getByRole('button', { name: 'Create regression' }))
+
+    await waitFor(() => expect(toggle()).toBeDisabled())
+    release()
+    await screen.findByText(/Regression created:/)
+    expect(toggle()).toHaveFocus()
+  })
+
   it('creates an untitled regression, linked by its short UUID', async () => {
     mockWorld()
     const requests = mockCreate(regressionDetail('d', { title: null }))

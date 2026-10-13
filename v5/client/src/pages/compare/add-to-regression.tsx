@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
@@ -91,12 +91,22 @@ export function AddToRegression({ suite, machine, commit, metric, tests, swapped
   }
 
   const blocked = why !== undefined || pending
+  const whyId = useId()
 
   // The indicators, as the comparison is when the button is clicked: it may change before the
   // answer.
   const indicators = (): IndicatorObject[] =>
     (tests ?? []).map((test) => ({ machine, test, metric }))
+  // Once done, the form the button was clicked in is gone: the focus goes back to the toggle.
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const finished = useRef(false)
+  useEffect(() => {
+    if (open || !finished.current) return
+    finished.current = false
+    toggleRef.current?.focus()
+  }, [open])
   const done = (next: Report) => {
+    finished.current = true
     setOpen(false)
     setReport(next)
   }
@@ -141,6 +151,7 @@ export function AddToRegression({ suite, machine, commit, metric, tests, swapped
         {/* An open panel can always be closed, but not while a request is under way, whose answer
             it shows. */}
         <button
+          ref={toggleRef}
           type="button"
           aria-expanded={open}
           disabled={pending || (!open && why !== undefined)}
@@ -161,9 +172,14 @@ export function AddToRegression({ suite, machine, commit, metric, tests, swapped
       </div>
       {open && (
         <div className={styles.regressionPanel}>
-          {why !== undefined && <p className={styles.note}>{why}</p>}
+          {why !== undefined && (
+            <p id={whyId} className={styles.note}>
+              {why}
+            </p>
+          )}
           <CreateForm
             disabled={blocked}
+            why={why === undefined ? undefined : whyId}
             creating={create.isPending}
             error={create.error}
             onCreate={onCreate}
@@ -173,6 +189,7 @@ export function AddToRegression({ suite, machine, commit, metric, tests, swapped
             key={`${suite}\0${swapped}`}
             suite={suite}
             disabled={blocked}
+            why={why === undefined ? undefined : whyId}
             adding={add.isPending}
             error={add.error}
             onAdd={onAdd}
@@ -198,21 +215,26 @@ interface AddVariables {
 
 interface CreateFormProps {
   disabled: boolean
+  /** The id of what says why nothing can be added, while nothing can. */
+  why: string | undefined
   creating: boolean
   error: Error | null
   onCreate(title: string): void
 }
 
 /** "Create new regression": its title, which may be left empty. */
-function CreateForm({ disabled, creating, error, onCreate }: CreateFormProps) {
+function CreateForm({ disabled, why, creating, error, onCreate }: CreateFormProps) {
   const [title, setTitle] = useState('')
+  const headingId = useId()
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!disabled) onCreate(title)
   }
   return (
-    <form aria-label="Create new regression" onSubmit={submit}>
-      <h3 className={styles.regressionHeading}>Create new regression</h3>
+    <form aria-labelledby={headingId} onSubmit={submit}>
+      <h3 id={headingId} className={styles.regressionHeading}>
+        Create new regression
+      </h3>
       <div className={styles.regressionFields}>
         <label className={styles.regressionField}>
           Title
@@ -224,7 +246,7 @@ function CreateForm({ disabled, creating, error, onCreate }: CreateFormProps) {
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
-        <button type="submit" disabled={disabled}>
+        <button type="submit" disabled={disabled} aria-describedby={why}>
           {creating ? 'Creating...' : 'Create regression'}
         </button>
       </div>
@@ -236,24 +258,29 @@ function CreateForm({ disabled, creating, error, onCreate }: CreateFormProps) {
 interface AddFormProps {
   suite: string
   disabled: boolean
+  /** The id of what says why nothing can be added, while nothing can. */
+  why: string | undefined
   adding: boolean
   error: Error | null
   onAdd(regression: PickedRegression): void
 }
 
 /** "Add to existing": a regression of side B's suite, picked among them. */
-function AddForm({ suite, disabled, adding, error, onAdd }: AddFormProps) {
+function AddForm({ suite, disabled, why, adding, error, onAdd }: AddFormProps) {
   const [picked, setPicked] = useState<PickedRegression | null>(null)
   // The picker holds text that is not the regression picked (AR15).
   const [pickPending, setPickPending] = useState(false)
   const reasonId = useId()
+  const headingId = useId()
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!disabled && !pickPending && picked !== null) onAdd(picked)
   }
   return (
-    <form aria-label="Add to existing" onSubmit={submit}>
-      <h3 className={styles.regressionHeading}>Add to existing</h3>
+    <form aria-labelledby={headingId} onSubmit={submit}>
+      <h3 id={headingId} className={styles.regressionHeading}>
+        Add to existing
+      </h3>
       <div className={styles.regressionFields}>
         <RegressionPicker
           label="Regression"
@@ -267,8 +294,8 @@ function AddForm({ suite, disabled, adding, error, onAdd }: AddFormProps) {
         <button
           type="submit"
           disabled={disabled || picked === null}
-          title={picked === null ? 'Pick a regression first.' : undefined}
-          aria-describedby={pickPending ? reasonId : undefined}
+          title={why === undefined && picked === null ? 'Pick a regression first.' : undefined}
+          aria-describedby={pickPending ? reasonId : why}
           {...pendingGuard(pickPending)}
         >
           {adding ? 'Adding...' : 'Add indicators'}
