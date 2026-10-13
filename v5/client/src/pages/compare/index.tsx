@@ -1,7 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
-import type { Schemas } from '../../api/client'
-import type { SampleState } from '../../api/runs'
 import { useSuites } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -19,12 +17,8 @@ import { ValueStore } from '../../value-store'
 import {
   compareRows,
   geomeanRow,
-  joinSides,
-  sideSamples,
-  sideValues,
   summaryCounts,
   type ComparisonRow,
-  type NoiseKnob,
   type NoiseSettings,
 } from './comparison'
 import { AddToRegression } from './add-to-regression'
@@ -41,30 +35,21 @@ import {
   NO_SHADOW,
   PARAMS,
   sideChanges,
-  type Settings,
   type SideSettings,
 } from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
+import { useComparison, useSideComparison } from './use-comparison'
 import { useProfileLinks } from './use-profile-links'
 import { useShadow } from './use-shadow'
-import { runsListFailed, useSides, type Side } from './use-side'
+import { runsListFailed, useSides } from './use-side'
 import styles from './compare.module.css'
 
-type Sample = Schemas['Sample']
-
-const NO_ROWS: ComparisonRow[] = []
 const NO_TESTS: string[] = []
 const NO_BARS: Bar[] = []
 /** No noise knob enabled: the shadow's line needs no statuses. */
 const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
-/** The URL parameter of each noise knob (CP7). */
-const NOISE_PARAMS = {
-  pct: 'noise_pct',
-  pval: 'noise_pval',
-  floor: 'noise_floor',
-} as const satisfies Record<NoiseKnob, keyof Settings>
 const testOf = (row: ComparisonRow) => row.test
 
 /**
@@ -73,46 +58,6 @@ const testOf = (row: ComparisonRow) => row.test
  */
 export default function Compare() {
   return <ComparePage key={useVisitKey()} />
-}
-
-/**
- * The samples of each of the runs `side` has selected, in the order they were submitted, once they
- * have all arrived. With no run selected, there is nothing to compare, rather than nothing compared.
- */
-function useRunSamplesOf(
-  side: Side,
-  states: ReadonlyMap<string, SampleState>,
-): Sample[][] | undefined {
-  const { selected, wanted } = side
-  return useMemo(() => {
-    // Once the selection is known, the runs the side wants are those it has selected.
-    if (selected === undefined || selected.size === 0) return undefined
-    const samples = wanted.map((key) => states.get(key)?.samples)
-    return samples.every((entry) => entry !== undefined) ? samples : undefined
-  }, [selected, wanted, states])
-}
-
-/**
- * The side's samples for each test, once its selected runs' samples have arrived and `metric` is
- * known, and its value of each.
- */
-function useSideComparison(
-  side: Side,
-  states: ReadonlyMap<string, SampleState>,
-  metric: string | undefined,
-  sampleAgg: Aggregation,
-) {
-  const runSamples = useSameElements(useRunSamplesOf(side, states))
-  const { runAgg } = side.settings
-  const samples = useMemo(
-    () => (runSamples && metric !== undefined ? sideSamples(runSamples, metric) : undefined),
-    [runSamples, metric],
-  )
-  const values = useMemo(
-    () => samples && sideValues(samples, sampleAgg, runAgg),
-    [samples, sampleAgg, runAgg],
-  )
-  return { samples, values }
 }
 
 /**
@@ -148,12 +93,8 @@ function ComparePage() {
 
   const profiles = useProfileLinks(a, b)
 
-  // The comparison, each step computed again only when what it depends on changes.
-  const { sample_agg: sampleAgg } = settings
-  const sideA = useSideComparison(a, states, metric?.name, sampleAgg)
-  const sideB = useSideComparison(b, states, metric?.name, sampleAgg)
-  const { samples: samplesA, values: valuesA } = sideA
-  const { samples: samplesB, values: valuesB } = sideB
+  const comparison = useComparison(sides, metric, settings)
+  const { tests, rows, valuesA, biggerIsBetter, noise } = comparison
   // The shadow's values, unless side A's suite and the shadow's do not both offer the metric, in
   // which case the shadow draws nothing (CP8).
   const shadowOffered = useMemo(
@@ -161,24 +102,11 @@ function ComparePage() {
     [a.schema, shadowSide.schema, metric?.name],
   )
   const shadowMetric = shadowOffered ? metric?.name : undefined
-  const { values: valuesShadow } = useSideComparison(shadowSide, states, shadowMetric, sampleAgg)
-  const tests = useMemo(
-    () => (samplesA && samplesB ? joinSides(samplesA, samplesB) : undefined),
-    [samplesA, samplesB],
-  )
-  const biggerIsBetter = metric?.bigger_is_better ?? false
-  // The noise settings applied, which follow those set once the page has had the time to classify
-  // every test again, so that a change to a knob never holds up the page while thousands of rows
-  // are classified and rendered.
-  const { noise_pct: pct, noise_pval: pval, noise_floor: floor } = settings
-  const noiseSet = useMemo(() => ({ pct, pval, floor }), [pct, pval, floor])
-  const noise = useDeferredValue(noiseSet)
-  const rows = useMemo(
-    () =>
-      tests && valuesA && valuesB
-        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise })
-        : NO_ROWS,
-    [tests, valuesA, valuesB, biggerIsBetter, noise],
+  const { values: valuesShadow } = useSideComparison(
+    shadowSide,
+    states,
+    shadowMetric,
+    settings.sample_agg,
   )
   const filter = useTextFilter(
     rows,
@@ -285,13 +213,9 @@ function ComparePage() {
     if (shared || complete) update({ hidden_test: hiddenSorted })
   }, [hiddenSorted, shared, complete, update])
 
-  const onNoise = useCallback(
-    (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
-    [update],
-  )
   // Whether the table still shows the noise as it was classified before the latest change.
   const reclassifying =
-    noise !== noiseSet || hideNoise !== settings.hide_noise || deferredOptional !== optional
+    comparison.classifying || hideNoise !== settings.hide_noise || deferredOptional !== optional
 
   // Swapping the sides, or changing what side A is, dismisses the shadow (CP8). Changing side A's
   // run aggregation does not: the shadow follows it.
@@ -384,7 +308,7 @@ function ComparePage() {
           <Select<Aggregation>
             label="Sample aggregation"
             options={AGGREGATION_OPTIONS}
-            value={sampleAgg}
+            value={settings.sample_agg}
             onChange={(value) => update({ sample_agg: value })}
           />
           <RegexFilter
@@ -394,12 +318,7 @@ function ComparePage() {
             regex={settings.test_filter_regex}
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
-          <NoiseControls
-            noise={noiseSet}
-            onNoise={onNoise}
-            hideNoise={settings.hide_noise}
-            onHideNoise={(hide) => update({ hide_noise: hide })}
-          />
+          <NoiseControls settings={settings} update={update} />
         </div>
         <AddToRegression
           suite={b.settings.suite}
