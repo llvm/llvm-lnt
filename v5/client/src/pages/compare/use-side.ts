@@ -17,10 +17,11 @@ import {
 } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
-import type { RowSelection } from '../../components/range-selection'
+import { useControlledSelection, type RowSelection } from '../../components/range-selection'
 import { useDropUnusable } from '../../url-state'
-import { useRunSelection } from './run-selection'
+import { NO_RUNS_SELECTED, runsParam, selectedRuns } from './run-selection'
 import {
+  NO_SHADOW,
   sideChanges,
   sideSettings,
   type Settings,
@@ -45,15 +46,21 @@ export interface Side {
   /** The selection among the runs. */
   selection: RowSelection
   /**
-   * The runs selected, once the selection is known: once the side's runs are listed, and it has
-   * been filled for them from the URL. Undefined until then.
+   * The runs selected, once the side's runs are listed: those the URL names, or every run when it
+   * names none of them, unless the user has deselected every run. Undefined until then.
    */
   selected: ReadonlySet<string> | undefined
+  /**
+   * The runs, by `[suite, machine, commit]`, of which the user has deselected every one, which the
+   * URL cannot say (CP7): null when the side's runs are not those.
+   */
+  noRunsOf: string | null
+  setNoRunsOf(list: string | null): void
   /** The runs whose samples the side asks for: those it lists, or until it does, the URL's. */
   refs: RunRef[]
   /**
-   * Those whose samples it wants, by `runRefKey`: those selected, or until that is known, the
-   * URL's.
+   * Those whose samples it wants, by `runRefKey`: those selected, or until the runs are listed,
+   * the URL's.
    */
   wanted: string[]
 }
@@ -67,27 +74,31 @@ export function runsListFailed({ runs, machines, settings }: Side): boolean {
   return runs.isError && (known || machines.machines.isError)
 }
 
-/** The runs as the URL holds them: left out when every run is selected. */
-function runsParam(uuids: readonly string[], selected: ReadonlySet<string>): string[] {
-  return selected.size === uuids.length ? [] : uuids.filter((uuid) => selected.has(uuid))
-}
-
 const NO_RUNS: string[] = []
+const NO_CHANGES: Partial<Settings> = {}
 
 /**
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
- * lists the suites of the instance.
+ * lists the suites of the instance. The user's changes to the side also make the changes
+ * `dismisses`: side A's dismiss the shadow (CP8).
  */
 export function useSide(
   id: SideId,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
+  dismisses: Partial<Settings> = NO_CHANGES,
 ): Side {
   const settings = sideSettings(all, id)
   const { suite, machine, commit } = settings
   const schema = suites.data?.find((entry) => entry.name === suite)
+  // What the user changes, from the side's panel or its runs.
   const updateSide = useCallback(
+    (changes: Partial<SideSettings>) => update({ ...sideChanges(id, changes), ...dismisses }),
+    [id, update, dismisses],
+  )
+  // What the page drops, as unusable (AR2 "State").
+  const drop = useCallback(
     (changes: Partial<SideSettings>) => update(sideChanges(id, changes)),
     [id, update],
   )
@@ -96,13 +107,13 @@ export function useSide(
   useDropUnusable(
     suites,
     (list) => suite === '' || list.some((entry) => entry.name === suite),
-    () => updateSide({ suite: '', machine: '', commit: '', runs: [] }),
+    () => drop({ suite: '', machine: '', commit: '', runs: [] }),
   )
   const machines = useMachineSuggestions(suite, schema !== undefined)
   useDropUnusable(
     machines.machines,
     (names) => machine === '' || names.includes(machine),
-    () => updateSide({ machine: '', commit: '', runs: [] }),
+    () => drop({ machine: '', commit: '', runs: [] }),
   )
 
   // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
@@ -110,24 +121,39 @@ export function useSide(
   const runs = useQuery({ ...commitRunsQuery(suite, machine, commit), enabled: named })
   const uuids = useMemo(() => runs.data?.map((run) => run.uuid), [runs.data])
 
-  // The selection among the runs, filled from the URL for each list of runs.
+  // The runs selected, as the URL names them, once they are listed.
   const list = [suite, machine, commit].join('\0')
-  const runSelection = useRunSelection(uuids, list, settings.runs)
-  const { selected } = runSelection
+  const [noRunsOf, setNoRunsOf] = useState<string | null>(null)
+  const none = noRunsOf === list
+  const selected = useMemo(
+    () => selectedRuns(uuids, settings.runs, none),
+    [uuids, settings.runs, none],
+  )
+  const selection = useControlledSelection(
+    selected ?? NO_RUNS_SELECTED,
+    uuids ?? NO_RUNS,
+    (next) => {
+      if (uuids === undefined) return
+      setNoRunsOf(next.size === 0 ? list : null)
+      updateSide({ runs: runsParam(uuids, next) })
+    },
+  )
 
-  // The selection, in the URL, unless it is every run, the default. Without a commit, there is
-  // none to keep (AR2 "State").
+  // The URL's runs that are not listed are dropped. Without a commit, there are none to keep (AR2
+  // "State").
   useEffect(() => {
-    if (uuids !== undefined && selected !== undefined) {
-      updateSide({ runs: runsParam(uuids, selected) })
-    } else if (!named) updateSide({ runs: [] })
-  }, [named, selected, uuids, updateSide])
+    if (uuids !== undefined && selected !== undefined) drop({ runs: runsParam(uuids, selected) })
+    else if (!named) drop({ runs: [] })
+  }, [named, selected, uuids, drop])
 
   // The runs whose samples the side needs.
   const asked = named ? (uuids ?? settings.runs) : NO_RUNS
   const refs = useMemo(() => asked.map((uuid) => ({ suite, uuid })), [suite, asked])
-  // Those whose samples it wants: once the runs are listed, those selected, or about to be.
-  const chosen = named ? (runSelection.chosen ?? asked) : asked
+  // Those whose samples it wants: once the runs are listed, those selected.
+  const chosen = useMemo(
+    () => (uuids && selected ? uuids.filter((uuid) => selected.has(uuid)) : asked),
+    [uuids, selected, asked],
+  )
   const wanted = useMemo(() => chosen.map((uuid) => runRefKey({ suite, uuid })), [suite, chosen])
 
   return {
@@ -138,8 +164,10 @@ export function useSide(
     machines,
     named,
     runs,
-    selection: runSelection.rows,
+    selection,
     selected,
+    noRunsOf,
+    setNoRunsOf,
     refs,
     wanted,
   }
@@ -167,24 +195,21 @@ export function useSides(
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
 ): Sides {
-  // Which side each of these two holds. Swapping the sides swaps them, so that each side keeps
-  // what it holds in memory, such as its runs selected, rather than reading it from the URL again,
-  // which cannot say that none is.
+  const a = useSide('a', all, update, suites, NO_SHADOW)
+  const b = useSide('b', all, update, suites)
   const [swapped, setSwapped] = useState(false)
-  const first = useSide(swapped ? 'b' : 'a', all, update, suites)
-  const second = useSide(swapped ? 'a' : 'b', all, update, suites)
-  const [a, b] = swapped ? [second, first] : [first, second]
 
-  const refs = useMemo(() => uniqueRuns(first.refs, second.refs), [first.refs, second.refs])
-  const wanted = useMemo(
-    () => new Set([...first.wanted, ...second.wanted]),
-    [first.wanted, second.wanted],
-  )
+  const refs = useMemo(() => uniqueRuns(a.refs, b.refs), [a.refs, b.refs])
+  const wanted = useMemo(() => new Set([...a.wanted, ...b.wanted]), [a.wanted, b.wanted])
   const states = useRunSamples(refs, wanted)
 
+  // Swapping the sides dismisses the shadow (CP8).
   const swap = () => {
-    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
+    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...NO_SHADOW })
+    a.setNoRunsOf(b.noRunsOf)
+    b.setNoRunsOf(a.noRunsOf)
     setSwapped(!swapped)
   }
   return { a, b, swapped, swap, states }
 }
+

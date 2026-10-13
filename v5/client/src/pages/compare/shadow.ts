@@ -9,52 +9,19 @@ import { skipToken, useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { useRunSamples, type SampleState } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { commitLookupKey, commitLookupQuery } from '../../components/commit-lookup'
-import type { RowSelection } from '../../components/range-selection'
 import type { Metric } from '../../schema'
 import { useDropUnusable } from '../../url-state'
 import { chartBars, type Bar } from './chart'
 import { compareRows, type ComparisonRow, type NoiseSettings } from './comparison'
 import { chosenRuns, hasFailed, sidesRuns } from './loading'
 import { offeredMetrics } from './metrics'
-import {
-  NO_SHADOW,
-  sideChanges,
-  type Settings,
-  type SideSettings,
-} from './settings'
+import { NO_SHADOW, sideChanges, type Settings } from './settings'
 import { useSideComparison, type Comparison } from './use-comparison'
 import { useSide, type Side, type Sides } from './use-side'
 
 const NO_BARS: Bar[] = []
 /** No noise knob enabled: the shadow's line needs no statuses. */
 const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
-
-/**
- * `selection`, every change through which also calls `onChange`: side A's runs, which dismiss the
- * shadow when the user changes them from the side's panel. The side filling its selection from the
- * URL, which it does through the selection itself rather than this one, does not.
- */
-function notifying(selection: RowSelection, onChange: () => void): RowSelection {
-  // Each member listed, so that one added to RowSelection is a choice to make here.
-  return {
-    subscribe: selection.subscribe,
-    selected: selection.selected,
-    limit: selection.limit,
-    inverted: selection.inverted,
-    click: (key, shift) => {
-      selection.click(key, shift)
-      onChange()
-    },
-    setRows: (keys, select) => {
-      selection.setRows(keys, select)
-      onChange()
-    },
-    replace: (keys) => {
-      selection.replace(keys)
-      onChange()
-    },
-  }
-}
 
 export interface Shadow {
   /** The shadow, read like a side. */
@@ -65,10 +32,8 @@ export interface Shadow {
   pinned: boolean
   /** Its commit's display value (AR6), or its commit string until that is known. */
   display: string
-  /**
-   * Side A, as its panel changes it: any change by the user to what side A is dismisses the shadow.
-   */
-  dismissingA: Side
+  /** Side A's suite, which the shadow is compared with. */
+  schemaA: SuiteSchema | undefined
   /** Pin side B as it is as the shadow. */
   pin(): void
   dismiss(): void
@@ -117,21 +82,8 @@ export function useShadow(
   const wanted = useMemo(() => new Set(side.wanted), [side.wanted])
   const states = useRunSamples(side.refs, wanted)
 
-  // Changing what side A is dismisses the shadow; so does swapping the sides, which the page does.
+  // Side A's changes, and swapping the sides, dismiss the shadow too (see `useSides`).
   const dismiss = useCallback(() => update(NO_SHADOW), [update])
-  const updateA = useCallback(
-    (changes: Partial<SideSettings>) =>
-      update({
-        ...sideChanges('a', changes),
-        ...(pinned ? NO_SHADOW : {}),
-      }),
-    [pinned, update],
-  )
-  const { selection: selectionA } = a
-  const runsA = useMemo(
-    () => (pinned ? notifying(selectionA, dismiss) : selectionA),
-    [pinned, selectionA, dismiss],
-  )
   const pin = () => update(sideChanges('shadow_b', b.settings))
 
   // The failures of the runs the sides select are reported as theirs.
@@ -146,7 +98,7 @@ export function useShadow(
     states,
     pinned,
     display: lookup.data?.text ?? commit,
-    dismissingA: { ...a, update: updateA, selection: runsA },
+    schemaA: a.schema,
     pin,
     dismiss,
     failed,
@@ -165,7 +117,7 @@ export function useShadowLine(
   plotted: readonly ComparisonRow[],
 ): Bar[] {
   const { side, states, pinned } = shadow
-  const schemaA = shadow.dismissingA.schema
+  const { schemaA } = shadow
   const offered = useMemo(
     () => offeredMetrics(schemaA, side.schema).some((entry) => entry.name === metric?.name),
     [schemaA, side.schema, metric?.name],

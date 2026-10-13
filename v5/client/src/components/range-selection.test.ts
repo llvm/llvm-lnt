@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   clickRow,
   keepOnly,
@@ -7,6 +7,7 @@ import {
   replaceRows,
   selectedPart,
   setRows,
+  useControlledSelection,
   useRangeSelection,
   wouldExceed,
   type Selection,
@@ -179,5 +180,30 @@ describe('useRangeSelection', () => {
     act(() => rows.click('a', false))
     act(() => rows.replace(['e', 'f']))
     expect(result.current.selected).toEqual(new Set(['e', 'f']))
+  })
+})
+
+describe('useControlledSelection', () => {
+  const sorted = (keys: ReadonlySet<string> | undefined) => keys && [...keys].sort()
+
+  it('hands every change to its owner, a range at a time with Shift, and keeps nothing else', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useControlledSelection(new Set(['a']), ROWS, onChange))
+    act(() => result.current.click('c', false))
+    expect(sorted(onChange.mock.lastCall?.[0])).toEqual(['a', 'c'])
+    expect(sorted(result.current.selected())).toEqual(['a'])
+    act(() => result.current.click('e', true))
+    expect(sorted(onChange.mock.lastCall?.[0])).toEqual(['a', 'c', 'd', 'e'])
+  })
+
+  it('follows the selection its owner holds, as the same object', () => {
+    const { result, rerender } = renderHook(
+      ({ selected }) => useControlledSelection(selected, ROWS, () => {}),
+      { initialProps: { selected: new Set(['a']) } },
+    )
+    const rows = result.current
+    rerender({ selected: new Set(['b', 'c']) })
+    expect(result.current).toBe(rows)
+    expect(sorted(rows.selected())).toEqual(['b', 'c'])
   })
 })

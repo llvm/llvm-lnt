@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
@@ -74,6 +74,19 @@ describe('the Compare page (CP1)', () => {
     await waitFor(() => expect(runBox('2', 'A')).toBeChecked())
     expect(runBox('1', 'A')).toBeChecked()
     expect(query().runs_a).toBeUndefined()
+  })
+
+  it('selects a run that a side lists later, while every run is selected', async () => {
+    const runs = { 'm1/c1': ['1', '2'], 'm1/c2': ['3'] }
+    mockWorld({ runs })
+    const { queryClient } = renderPage(COMPARED)
+    await comparison()
+
+    runs['m1/c2'] = ['3', '4']
+    await act(() => queryClient.invalidateQueries())
+
+    await waitFor(() => expect(runBox('4', 'B')).toBeChecked())
+    expect(query().runs_b).toBeUndefined()
   })
 
   it('asks only for the samples of the runs selected', async () => {
