@@ -159,6 +159,27 @@
 
 .regressionSummary {
   flex-basis: 100%;
+}
+
+.regressionSummary > .note {
+  margin: var(--lnt-space-1) 0 0;
+}
+
+/* What the indicators are, a label and its value per line. */
+.regressionTargets {
+  margin: 0;
+}
+
+.regressionTarget {
+  display: flex;
+  gap: var(--lnt-space-2);
+}
+
+.regressionTarget dt {
+  font-weight: 600;
+}
+
+.regressionTarget dd {
   margin: 0;
 }
 

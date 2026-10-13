@@ -102,11 +102,17 @@ describe('Add to Regression (CP9)', () => {
     await openPanel()
 
     // a and c have a value on side B, and b has none.
-    expect(screen.getByText(/^An indicator for each of the 2 tests compared/).textContent).toBe(
-      'An indicator for each of the 2 tests compared: Execution Time on m1, in libcxx. A new ' +
-        'regression is attributed to commit c2. 1 test compared has no value on side B, and is ' +
-        'left out.',
-    )
+    const targets = screen.getByText('Covers:').closest('dl')!
+    expect([...targets.children].map((row) => row.textContent)).toEqual([
+      'Covers:2 selected tests',
+      'Test Suite:libcxx',
+      'Metric:Execution Time',
+      'Machine:m1',
+      'Commit:c2',
+    ])
+    expect(
+      screen.getByText('1 test compared has no value on side B, and is left out.'),
+    ).toBeInTheDocument()
   })
 
   it("creates a regression of side B's commit, with the compared tests B has a value for", async () => {

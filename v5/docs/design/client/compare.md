@@ -537,11 +537,12 @@ header is disabled, with an explanation, when there would be no indicators, or
 more than one request can carry (I2's maximum page size; see E8). While it is
 expanded, the header collapses it, except while a request is under way.
 
-When expanded, the box first says what the indicators are: the metric, side B's
-machine and suite, how many tests compared they cover, and side B's commit,
-shown by its display value (see AR6), which a new regression is attributed to.
-It also says how many tests compared are left out for having no value on side
-B. It follows the compared rows as they change. Then it offers:
+When expanded, the box first lists what the indicators are, a line each: how
+many tests compared they cover (Covers), side B's suite (Test Suite), the
+metric, side B's machine, and side B's commit, shown by its display value (see
+AR6), which a new regression is attributed to. Below, it says how many tests
+compared are left out for having no value on side B, if any are. It follows
+the compared rows as they change. Then it offers:
 - "Create new regression" -- a title input, which may be left empty, and a
   button that creates a regression in side B's suite, attributed to side B's
   commit, with those indicators.

@@ -249,17 +249,31 @@ interface SummaryProps {
  */
 function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryProps) {
   const lookup = useQuery(commitLookupQuery(schema, { machine }, commit))
-  const leftOut =
-    skipped === 1
-      ? ' 1 test compared has no value on side B, and is left out.'
-      : ` ${skipped} tests compared have no value on side B, and are left out.`
+  const rows: [string, string][] = [
+    ['Covers', plural(tests, 'selected test')],
+    ['Test Suite', schema.name],
+    ['Metric', metric],
+    ['Machine', machine],
+    ['Commit', lookup.data?.text ?? commit],
+  ]
   return (
-    <p className={styles.regressionSummary}>
-      An indicator for each of the {plural(tests, 'test')} compared: <strong>{metric}</strong> on{' '}
-      <strong>{machine}</strong>, in <strong>{schema.name}</strong>. A new regression is attributed
-      to commit <strong>{lookup.data?.text ?? commit}</strong>.
-      {skipped > 0 && leftOut}
-    </p>
+    <div className={styles.regressionSummary}>
+      <dl className={styles.regressionTargets}>
+        {rows.map(([label, value]) => (
+          <div key={label} className={styles.regressionTarget}>
+            <dt>{label}:</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {skipped > 0 && (
+        <p className={styles.note}>
+          {skipped === 1
+            ? '1 test compared has no value on side B, and is left out.'
+            : `${skipped} tests compared have no value on side B, and are left out.`}
+        </p>
+      )}
+    </div>
   )
 }
 
