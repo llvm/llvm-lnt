@@ -129,7 +129,7 @@ These hold on every page, unless the page specifies otherwise.
   `https` URL, and plain text otherwise, since the API stores any string.
 
 
-## AR7: Paginated Tables
+## AR7: Paginated Tables and Fetch Errors
 
 A table that shows a paginated endpoint (see I2) a page at a time has
 `[<- Previous]` and `[Next ->]` below it. Pagination is forward-only, so
