@@ -29,11 +29,6 @@ Everything the mirror holds for the suite: its schema, its machines, and its
 runs with their samples. Since the mirror holds neither regressions nor
 profiles, neither are imported (see :ref:`mirror_v4`).
 
-The command reads the mirror as ``mirror_v4.rst`` specifies: it refuses a
-manifest whose ``format_version`` is not ``"1"``, reads only the files the
-manifest references, and refuses to run if any of them is missing or does not
-have the hash the manifest records.
-
 Each v4 entity becomes one v5 entity, as described in the following sections.
 Anything that cannot be converted as described is an error: the command never
 guesses.
@@ -53,7 +48,7 @@ machines:
   is an error. ``bigger_is_better``, ``unit`` and ``unit_abbrev`` are kept,
   except that an empty ``unit`` or ``unit_abbrev`` becomes null. So does a
   ``display_name`` equal to the metric's name, which is how v4 reports a metric
-  without one. Other keys, such as ``ignore_same_hash``, are dropped.
+  without one. Other keys are dropped.
 - **Machine fields**: one ``text`` field per v4 machine field, followed by one
   ``text`` field per other key found on any of the suite's machines, other than
   ``id`` and ``name``, in alphabetical order. v4 machines can hold keys that
@@ -64,21 +59,21 @@ machines:
   declared anywhere: v5 runs have no declared fields, so their values go into
   ``run_parameters``.
 
-The derived schema must be one that v5 accepts, e.g. every name in it must be
-a valid v5 name: it is an error otherwise.
+The derived schema must be a valid v5 schema, it is an error otherwise.
 
-The v4 instance may report the schema inaccurately (see :ref:`mirror_v4`), so
-``--schema FILE`` replaces the derived schema with a v5 schema document, in the
-format ``GET /api/suites/{name}`` returns. Its ``name`` must be the target
-suite's, and it must declare every metric and machine field that the derived
-schema declares, with the same type; it may differ in anything else.
+Since v4 instances sometimes report their schema inaccurately, the schema to
+use when importing into a v5 instance can be specified explicitly with
+``--schema FILE``. The file must be in the JSON format used by v5 schemas. Its
+``name`` must be the target suite's, and it must declare every metric and
+machine field that the derived schema declares, with the same type; it can also
+declare more.
 
 Machines
 ~~~~~~~~
 
-Each v4 machine becomes a v5 machine, untracked (``tracked: false``), so that
-the instance's administrator chooses which machines are tracked once the import
-is done. Its fields are the values of its keys, other than ``id`` and
+Each v4 machine becomes an untracked v5 machine. The intent is for the
+instance's administrator to manually select which machines are to be tracked on
+the dashboard. Its fields are the values of its keys, other than ``id`` and
 ``name``, that are not null. Every value must be a string.
 
 Its name is the v4 machine's name, with every ``/`` replaced by ``_``, since a
