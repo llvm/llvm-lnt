@@ -59,6 +59,7 @@ function ComparePage() {
     [update],
   )
   const { tests } = comparison
+  const noise = noiseSettings(settings)
   const failed = failedRuns(a, b, sides.states)
   const wait = waiting(a, b, sides.states, {
     suitesPending: suites.isPending,
@@ -144,7 +145,7 @@ function ComparePage() {
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
           <NoiseControls
-            noise={noiseSettings(settings)}
+            noise={noise}
             onNoise={onNoise}
             hideNoise={settings.hide_noise}
             onHideNoise={(hide) => update({ hide_noise: hide })}
@@ -183,7 +184,7 @@ function ComparePage() {
           <CompareChart
             rows={plotted}
             shadow={line}
-            noisePct={comparison.noise.pct}
+            noisePct={noise.pct}
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}
             hovered={hovered}

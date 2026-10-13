@@ -4,7 +4,7 @@
  * with the settings the URL keeps of them (CP7).
  */
 
-import { useCallback, useDeferredValue, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useRangeSelection } from '../../components/range-selection'
 import type { TableSort } from '../../components/table-sort'
 import { useTextFilter } from '../../components/use-text-filter'
@@ -24,7 +24,7 @@ const testOf = (row: ComparisonRow) => row.test
  * page of each test that has a profile, `links`.
  */
 export function useComparisonTable(
-  { tests, rows, biggerIsBetter, classifying }: Comparison,
+  { tests, rows, biggerIsBetter }: Comparison,
   settings: Settings,
   update: (changes: Partial<Settings>) => void,
   links: ReadonlyMap<string, string>,
@@ -38,22 +38,18 @@ export function useComparisonTable(
   )
   const matching = filter.rows
   // The rows the table shows: those the filter keeps, without the noise when it is hidden.
-  const hideNoise = useDeferredValue(settings.hide_noise)
   const shown = useMemo(
-    () => (hideNoise ? matching.filter((row) => row.status !== 'noise') : matching),
-    [matching, hideNoise],
+    () => (settings.hide_noise ? matching.filter((row) => row.status !== 'noise') : matching),
+    [matching, settings.hide_noise],
   )
   const total = useMemo(
-    () => (hideNoise ? rows.filter((row) => row.status !== 'noise').length : rows.length),
-    [rows, hideNoise],
+    () =>
+      settings.hide_noise ? rows.filter((row) => row.status !== 'noise').length : rows.length,
+    [rows, settings.hide_noise],
   )
   const counts = useMemo(() => summaryCounts(matching), [matching])
 
-  // The table's columns, with the optional ones shown, which it follows once it has had the time
-  // to render them, as it does the noise.
-  const optional = settings.columns
-  const deferredOptional = useDeferredValue(optional)
-  const columns = useMemo(() => tableColumns(deferredOptional), [deferredOptional])
+  const columns = useMemo(() => tableColumns(settings.columns), [settings.columns])
 
   // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
   // A sort by a column that is not shown is the default one, and is dropped from the URL (CP7).
@@ -120,8 +116,6 @@ export function useComparisonTable(
     notInUrl: shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`,
     geomean,
     csv,
-    // Whether the rows shown are about to be replaced, once the latest change is applied to them.
-    busy: classifying || hideNoise !== settings.hide_noise || deferredOptional !== optional,
     links,
     profiled,
     empty:

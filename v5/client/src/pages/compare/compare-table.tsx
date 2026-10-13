@@ -86,8 +86,6 @@ export interface TableView {
   links: ProfileMap
   /** Whether any compared test has a profile, which the Profile column is shown for. */
   profiled: boolean
-  /** Whether the rows are about to be replaced, by those of another classification of the noise. */
-  busy: boolean
   sort: TableSort
   onSort(sort: TableSort): void
   /** The compared rows as CSV, or null when there is none to copy (CP2 "Copy as CSV"). */
@@ -120,7 +118,6 @@ export function CompareTable({
   notInUrl,
   geomean,
   empty,
-  busy,
   sort,
   onSort,
   csv,
@@ -230,7 +227,6 @@ export function CompareTable({
           rowProps={rowProps}
           pinned={PINNED}
           empty={empty}
-          busy={busy}
           sort={sort}
           onSort={onSort}
           presorted

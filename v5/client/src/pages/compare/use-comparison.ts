@@ -4,7 +4,7 @@
  * comparison.ts).
  */
 
-import { useDeferredValue, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { Schemas } from '../../api/client'
 import type { SampleState } from '../../api/runs'
 import { useSameElements } from '../../same-elements'
@@ -16,7 +16,6 @@ import {
   sideValues,
   type ComparedTest,
   type ComparisonRow,
-  type NoiseSettings,
 } from './comparison'
 import { chosenRuns } from './loading'
 import { noiseSettings, type Settings } from './settings'
@@ -74,10 +73,6 @@ export interface Comparison {
   /** Side A's value of each test, which the shadow is compared with too (CP8). */
   valuesA: ReadonlyMap<string, number> | undefined
   biggerIsBetter: boolean
-  /** The noise settings the rows are classified with. */
-  noise: NoiseSettings
-  /** Whether those are not yet the settings the URL holds, which the rows are about to follow. */
-  classifying: boolean
 }
 
 /** The comparison of sides `a` and `b` for `metric`, with the page's `settings`. */
@@ -95,18 +90,13 @@ export function useComparison(
     [samplesA, samplesB],
   )
   const biggerIsBetter = metric?.bigger_is_better ?? false
-  // The noise settings applied, which follow those set once the page has had the time to classify
-  // every test again, so that a change to a knob never holds up the page while thousands of rows
-  // are classified and rendered.
   const { pct, pval, floor } = noiseSettings(settings)
-  const noiseSet = useMemo(() => ({ pct, pval, floor }), [pct, pval, floor])
-  const noise = useDeferredValue(noiseSet)
   const rows = useMemo(
     () =>
       tests && valuesA && valuesB
-        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise })
+        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise: { pct, pval, floor } })
         : NO_ROWS,
-    [tests, valuesA, valuesB, biggerIsBetter, noise],
+    [tests, valuesA, valuesB, biggerIsBetter, pct, pval, floor],
   )
-  return { tests, rows, valuesA, biggerIsBetter, noise, classifying: noise !== noiseSet }
+  return { tests, rows, valuesA, biggerIsBetter }
 }
