@@ -269,11 +269,12 @@ describe('optional columns (CP2)', () => {
         'before any aggregation.',
     )
 
+    // The line labels the group of the menu's items.
     await userEvent.setup().click(screen.getByRole('button', { name: 'Columns' }))
     expect(
-      within(screen.getByRole('menu')).getByText(
-        "Over every sample of each side's selected runs, before any aggregation.",
-      ),
+      within(screen.getByRole('menu')).getByRole('group', {
+        name: "Over every sample of each side's selected runs, before any aggregation.",
+      }),
     ).toBeInTheDocument()
   })
 
