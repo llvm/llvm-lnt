@@ -146,19 +146,21 @@ function findPoint(traces: Trace[], { machine, test, commit }: PointKey) {
   return trace === undefined || index < 0 ? null : { trace, index }
 }
 
+/** The samples of the point of `measurements` at `commit` (GR1). */
+function samplesAt(measurements: readonly Measurement[], commit: string) {
+  return measurements.filter((measurement) => measurement.commit === commit)
+}
+
 /** The values of the runs of `measurements` at `commit`, in the order they were submitted. */
 function runsAt(measurements: readonly Measurement[], commit: string, sampleAgg: Aggregation) {
-  const runs = runValues(
-    measurements.filter((measurement) => measurement.commit === commit),
-    sampleAgg,
-  )
+  const runs = runValues(samplesAt(measurements, commit), sampleAgg)
   return runs.sort((a, b) => compareStrings(a.submitted, b.submitted))
 }
 
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
  * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
- * (GR9) and the regressions' (GR15) over them. Hovering a point shows its runs' values (GR10), and
+ * (GR9) and the regressions' (GR15) over them. Hovering a point shows its samples (GR10), and
  * clicking it its details (GR11).
  */
 export function GraphChart({
@@ -310,8 +312,8 @@ export function GraphChart({
     })
   }, [commits, displayValue, revision, metric, empty, placed])
 
-  // Where the plot draws, to place the runs' values and the details over it. Nothing drawn
-  // depends on it, so that a draw does not ask for another.
+  // Where the plot draws, to place the hovered point's samples and the details over it. Nothing
+  // drawn depends on it, so that a draw does not ask for another.
   const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<Opened | null>(null)
@@ -357,14 +359,14 @@ export function GraphChart({
     if (curve.kind === 'regression') setOpen({ kind: 'regression', uuid: curve.uuid })
   }
 
-  // The values of the runs of the point hovered, if it has several (GR10).
+  // The samples of the point hovered, if it has several (GR10).
   let scatter = null
   const hoveredAt = hoveredPoint && findPoint(traces, hoveredPoint)
   if (geometry !== null && hoveredAt) {
     const { trace, index } = hoveredAt
     const point = trace.points[index]
-    if (point.runs > 1) {
-      const measurements = series.measurementsOf(trace.machine, trace.test)
+    const samples = samplesAt(series.measurementsOf(trace.machine, trace.test), point.commit)
+    if (samples.length > 1) {
       const { area } = geometry
       const x = geometry.x(point.position) - area.left
       scatter = (
@@ -373,11 +375,11 @@ export function GraphChart({
           style={{ left: area.left, top: area.top, width: area.width, height: area.height }}
           aria-hidden="true"
         >
-          {runsAt(measurements, point.commit, sampleAgg).map((run) => (
+          {samples.map((sample, i) => (
             <circle
-              key={run.run}
+              key={i}
               cx={x}
-              cy={geometry.y(run.value) - area.top}
+              cy={geometry.y(sample.value) - area.top}
               r={4}
               fill={trace.color}
               fillOpacity={0.3}

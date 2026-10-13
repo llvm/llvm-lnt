@@ -76,11 +76,14 @@ the suite is a query parameter, not a path segment.
   A trace's line runs straight across the commits where it has no value.
 
 - **Aggregation controls**: a point is the value of one test on one machine at
-  one commit, computed as Compare computes a side's value (see CP2
-  "Aggregation pipeline"): the sample aggregation combines the test's samples
-  within each run into a per-run value, and the run aggregation combines the
-  per-run values of the runs at that commit. Each is median, mean, min or max,
-  and defaults to median.
+  one commit. Its samples are the samples of that test on that machine at that
+  commit that have a value for the plotted metric (a run with N such samples
+  contributes N of them), and its runs are the runs they belong to. Its value
+  is computed from its samples as Compare computes a side's value (see CP2
+  "Aggregation pipeline"): the sample aggregation combines the samples within
+  each run into a per-run value, and the run aggregation combines the per-run
+  values of the point's runs. Each is median, mean, min or max, and defaults to
+  median.
 
 
 ### GR2: Lazy Loading with Progressive Rendering
@@ -241,11 +244,11 @@ Hover a data point: tooltip showing test name, machine name, commit,
 aggregated metric value, run count, and a last line saying that clicking the
 point shows its details (GR11). The tooltip only appears when the
 cursor is within a few pixels of a data point, so that tooltips are not sticky.
-When hovering over a point that represents multiple runs, its per-run values
-(see GR1) are shown as a scatter of markers at the same x-position, in the
-same trace color but faded (opacity 0.3). This scatter is computed lazily on
-hover and removed on unhover. Showing it does not rescale the chart: a per-run
-value outside the y-axis range is not shown.
+When hovering over a point that has more than one sample, its samples (see
+GR1) are shown, before any aggregation, as a scatter of markers at the point's
+x-position, in the same trace color but faded (opacity 0.3). This scatter is
+computed lazily on hover and removed on unhover. Showing it does not rescale
+the chart: a sample outside the y-axis range is not shown.
 
 
 ### GR11: Point Details
@@ -259,7 +262,7 @@ stays open as the pointer moves, so that its links can be followed. It shows:
 - the point's value and run count;
 - the point's runs, in the order they were submitted, each with its submission
   time, its shortened UUID linking to its Run Detail page, and its per-run value
-  as the hover scatter shows it (GR10). The list scrolls when it is long;
+  (see GR1). The list scrolls when it is long;
 - "Compare with previous commit": a link to the Compare page set up to compare
   this point with the previous point of the same trace. Side A is the previous
   point's commit, side B this point's commit, both in this suite and on this

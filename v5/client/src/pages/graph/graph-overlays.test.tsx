@@ -170,14 +170,14 @@ describe('hover (GR7, GR10)', () => {
     expect(opacities()).toEqual([undefined, undefined, undefined])
   })
 
-  it('shows the values of the runs of a point hovered that combines several', async () => {
-    // At c10, run r1's median is 3, and r2's is 10. c20 has one run.
+  it('shows every sample of a point hovered that has several, even from a single run', async () => {
+    // c10 has one run with three samples; c20 has one run with a single sample.
     const samples: Record<string, Sample[]> = {
       'm1/a': [
         ['c10', 'r1', 1],
         ['c10', 'r1', 5],
-        ['c10', 'r2', 10],
-        ['c20', 'r3', 2],
+        ['c10', 'r1', 9],
+        ['c20', 'r2', 2],
       ],
     }
     mockWorld({ samples })
@@ -188,8 +188,9 @@ describe('hover (GR7, GR10)', () => {
     hover('a - m1', 0)
     // At c10's position, 0, over the plotting area, which starts at (50, 10).
     expect(scatter()).toEqual([
-      { x: 0, y: 360 },
-      { x: 0, y: 290 },
+      { x: 0, y: 380 },
+      { x: 0, y: 340 },
+      { x: 0, y: 300 },
     ])
     const circle = screen.getByRole('main').querySelector('circle')!
     expect(circle).toHaveAttribute('fill-opacity', '0.3')
@@ -200,6 +201,28 @@ describe('hover (GR7, GR10)', () => {
     hover('a - m1', 0)
     unhover()
     expect(scatter()).toEqual([])
+  })
+
+  it("shows the samples of all of a point's runs, not their per-run values", async () => {
+    // At c10, run r1's median is 3, and r2's is 10: the samples are 1, 5 and 10.
+    const samples: Record<string, Sample[]> = {
+      'm1/a': [
+        ['c10', 'r1', 1],
+        ['c10', 'r1', 5],
+        ['c10', 'r2', 10],
+      ],
+    }
+    mockWorld({ samples })
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+
+    hover('a - m1', 0)
+    expect(scatter()).toEqual([
+      { x: 0, y: 380 },
+      { x: 0, y: 340 },
+      { x: 0, y: 290 },
+    ])
   })
 })
 
