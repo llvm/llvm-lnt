@@ -14,15 +14,17 @@ function List({
   shown = ROWS,
   limit,
   inverted,
+  initial,
 }: {
   shown?: string[]
   limit?: SelectionLimit
   inverted?: true
+  initial?: string[]
 }) {
   const { rows, selected } = useRangeSelection(
     undefined,
     shown,
-    inverted ? { inverted } : { limit },
+    inverted ? { inverted, initial } : { limit, initial },
   )
   return (
     <>
@@ -136,10 +138,12 @@ describe('A list whose selection is of the rows hidden (CP2)', () => {
 
   it('changes only the rows shown from the header', async () => {
     const user = userEvent.setup()
-    render(<List inverted shown={['a', 'b']} />)
+    render(<List inverted shown={['a', 'b']} initial={['c']} />)
 
     await user.click(all())
-    expect(hidden()).toBe('a,b')
+    expect(hidden()).toBe('a,b,c')
+    await user.click(all())
+    expect(hidden()).toBe('c')
   })
 })
 
