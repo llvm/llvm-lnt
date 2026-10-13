@@ -74,7 +74,6 @@ export function barTrace(bars: readonly Bar[]): Partial<PlotData> {
   }
 }
 
-
 /**
  * The noise band (CP2 "Noise band on chart"): the log2 ratios of the Delta % threshold `pct`, above
  * and below, made symmetric from 100% on, where the one below is undefined.

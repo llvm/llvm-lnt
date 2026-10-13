@@ -125,7 +125,6 @@ describe('barTrace', () => {
       '-50.00%',
     ])
   })
-
 })
 
 describe('compareLayout', () => {
