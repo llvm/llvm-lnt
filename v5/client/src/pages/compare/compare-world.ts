@@ -184,3 +184,34 @@ export async function pick(label: string, name: string) {
   await user.keyboard(name)
   await user.click(await screen.findByRole('option', { name }))
 }
+
+/** The comparison of COMPARED: a is regressed, b is on side A only, c on side B only. */
+export const ROWS = [
+  'Geomean | 2 | 4 | 2 | +100.00% | 2.0000 | Regressed',
+  'a | 2 | 4 | 2 | +100.00% | 2.0000 | Regressed',
+  'b | 2 | N/A | N/A | N/A | N/A | N/A',
+  'c | N/A | 5 | N/A | N/A | N/A | N/A',
+]
+
+/** A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only. */
+export const NOISY = {
+  samples: {
+    '1': [
+      ['a', 100],
+      ['b', 2],
+      ['d', 2],
+    ],
+    '2': [
+      ['a', 100],
+      ['d', 2],
+    ],
+    '3': [
+      ['a', 100.5],
+      ['c', 5],
+      ['d', 3],
+    ],
+  } as Record<string, [string, number][]>,
+}
+
+/** The checkbox showing `test`'s row (CP2 "Hidden tests"). */
+export const showBox = (test: string) => screen.getByRole('checkbox', { name: `Show ${test}` })
