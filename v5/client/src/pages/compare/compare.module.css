@@ -253,6 +253,22 @@
   width: 1.2em;
 }
 
+/* A test's row, which a click hides or shows (CP2), and greys out while it is hidden. */
+.testRow {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Opaque, as the sticky cells take their row's background (see `.tableBox tr`). */
+.testRow:has(.hovered) {
+  background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
+}
+
+.testRow:has(> td > input[type='checkbox']:not(:checked)) {
+  color: var(--lnt-muted);
+  opacity: 0.6;
+}
+
 /*
  * The table, in a box of its own that scrolls horizontally when its columns do not fit, with the
  * checkboxes and the tests' names in view (CP2 "Width"). Positioned, so that it clips what is
@@ -261,8 +277,11 @@
  */
 .tableBox {
   --show-width: 2.5rem;
+  --test-width: 16rem;
   position: relative;
   overflow-x: auto;
+  /* A header focused from the keyboard scrolls into view beside the sticky columns. */
+  scroll-padding-left: calc(var(--show-width) + var(--test-width));
 }
 
 /* Opaque, for the sticky cells to take their row's background, whatever its state. */
@@ -293,24 +312,8 @@
  */
 .testColumn {
   left: var(--show-width);
-  min-width: 16rem;
+  min-width: var(--test-width);
   box-shadow: inset -1px 0 var(--lnt-border);
-}
-
-/* A test's row, which a click hides or shows (CP2), and greys out while it is hidden. */
-.testRow {
-  cursor: pointer;
-  user-select: none;
-}
-
-/* Opaque, as the sticky cells take their row's background (see `.tableBox tr`). */
-.testRow:has(.hovered) {
-  background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
-}
-
-.testRow:has(> td > input[type='checkbox']:not(:checked)) {
-  color: var(--lnt-muted);
-  opacity: 0.6;
 }
 
 .count {
