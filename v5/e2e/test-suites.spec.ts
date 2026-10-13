@@ -12,10 +12,25 @@ import { column, rows, settled, table } from './tables.ts'
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
+test('the Test Suites link selects the first suite, in place of /suites', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('navigation').getByRole('link', { name: 'Test Suites', exact: true }).click()
+
+  // The first suite may be another test's, which it may delete at any time, so this looks at
+  // nothing read from inside the suite.
+  await expect(page).toHaveURL(/\/suites\/[^/?]+$/)
+  const first = page.getByRole('navigation', { name: 'Test suites' }).getByRole('link').first()
+  await expect(first).toHaveAttribute('aria-current', 'page')
+  expect(await first.getAttribute('href')).toBe(new URL(page.url()).pathname)
+  await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+
+  await page.goBack()
+  await expect(page).toHaveURL('/')
+})
+
 test('picking a suite shows its runs', async ({ page }) => {
-  await page.goto('/suites')
+  await page.goto('/suites/nts')
   const picker = page.getByRole('navigation', { name: 'Test suites' })
-  await expect(page.getByRole('tablist')).toHaveCount(0)
 
   await picker.getByRole('link', { name: 'libcxx', exact: true }).click()
 
@@ -205,9 +220,7 @@ test.describe('the Commits tab', () => {
 })
 
 test('Back leaves the page rather than stepping through its settings', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('navigation').getByRole('link', { name: 'Test Suites', exact: true }).click()
-  await expect(page).toHaveURL('/suites')
+  await page.goto('/suites/nts')
   await page.getByRole('link', { name: 'libcxx', exact: true }).click()
   await expect(page).toHaveURL('/suites/libcxx')
 
@@ -218,5 +231,5 @@ test('Back leaves the page rather than stepping through its settings', async ({ 
   await expect(page).toHaveURL('/suites/libcxx?tab=commits')
 
   await page.goBack()
-  await expect(page).toHaveURL('/suites')
+  await expect(page).toHaveURL('/suites/nts')
 })

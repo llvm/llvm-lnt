@@ -24,16 +24,39 @@ import { server } from '../../test/server'
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
 describe('the Test Suites page', () => {
-  it('shows only the suite picker when no suite is selected', async () => {
-    mockSuites()
+  it('selects the first suite once the list has loaded', async () => {
+    const list = gate()
+    mockSuites(undefined, { wait: () => list.promise })
+    mockRuns(() => cursorPage([]))
     renderPage('/suites')
 
-    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
-    const cards = within(picker).getAllByRole('link')
-    expect(cards.map((card) => card.textContent)).toEqual(['libcxx', 'nts'])
-    expect(cards[0]).toHaveAttribute('href', '/suites/libcxx')
-    expect(cards[0]).not.toHaveAttribute('aria-current')
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(await screen.findByText('Loading test suites...')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites')
+    act(() => list.open())
+
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    expect(screen.getByRole('link', { name: 'libcxx' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps the query parameters when it selects the first suite', async () => {
+    mockSuites()
+    mockMachines(() => ({ items: [] }))
+    renderPage('/suites?tab=machines')
+
+    expect(await table('Machines')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites/libcxx?tab=machines')
+  })
+
+  it('selects the first suite in place of /suites in the history', async () => {
+    mockSuites()
+    mockRuns(() => cursorPage([]))
+    renderPage('/nope')
+
+    fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
   })
 
   it('shows the tabs of the selected suite, the Runs tab first', async () => {
@@ -112,6 +135,7 @@ describe('the Test Suites page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'nope' not found.")
     expect(screen.getByRole('navigation', { name: 'Test suites' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites/nope')
   })
 
   it('says nothing about the suite until the list has loaded', async () => {
@@ -130,23 +154,28 @@ describe('the Test Suites page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'nope' not found.")
   })
 
-  it('reports a failure to list the suites, not that the suite does not exist', async () => {
-    server.use(
-      mockApi('get', '/api/suites', () =>
-        errorResponse(500, 'internal_error', 'The server failed'),
-      ),
-    )
-    renderPage('/suites/libcxx')
+  it.each([['/suites/libcxx'], ['/suites']])(
+    'reports a failure to list the suites at %s, and selects no suite',
+    async (url) => {
+      server.use(
+        mockApi('get', '/api/suites', () =>
+          errorResponse(500, 'internal_error', 'The server failed'),
+        ),
+      )
+      renderPage(url)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
-    expect(screen.queryByText(/not found/)).not.toBeInTheDocument()
-  })
+      expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
+      expect(screen.queryByText(/not found/)).not.toBeInTheDocument()
+      expect(currentUrl()).toBe(url)
+    },
+  )
 
   it('says when there are no suites', async () => {
     mockSuites([])
     renderPage('/suites')
 
     expect(await screen.findByText('There are no test suites yet.')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites')
   })
 
   it('restores the tab and the search from the URL', async () => {

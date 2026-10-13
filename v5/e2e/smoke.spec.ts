@@ -26,12 +26,14 @@ test.describe('routing', () => {
     await page.evaluate(() => (document.documentElement.dataset.loadedOnce = 'yes'))
 
     const navbar = page.getByRole('navigation')
+    // Test Suites comes after the suite-agnostic pages, since it lands on the first suite (TS1),
+    // which the navbar would pass on to them (AR4).
     for (const [link, url, heading] of [
-      ['Test Suites', '/suites', 'Test Suites'],
       ['Graph', '/graph', 'Graph'],
       ['Compare', '/compare', 'Compare'],
       ['Profiles', '/profiles', 'Profiles'],
       ['Admin', '/admin', 'Admin'],
+      ['Test Suites', /\/suites\/[^/?]+$/, 'Test Suites'],
       ['LNT', '/', 'Dashboard'],
     ]) {
       await navbar.getByRole('link', { name: link, exact: true }).click()
