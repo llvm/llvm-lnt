@@ -7,6 +7,7 @@ import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, LINUX, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
+import { ownSuite } from './own-suite.ts'
 import { pickOption } from './select.ts'
 import { plotOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
@@ -104,4 +105,53 @@ test('links a test to its profile on both sides', async ({ page, request }) => {
     'href',
     `/profiles?${profiles}`,
   )
+})
+
+test('adds the comparison to a new regression, then to that one', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  const run = (commit: string, ordinal: number, value: number) => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    tests: [{ name: 'bench', samples: [{ execution_time: value }] }],
+  })
+  await ownSuite(request, tokenFor, testInfo, [run('c1', 1, 1), run('c2', 2, 2)], async (suite) => {
+    await signIn(page, 'triage')
+    await page.goto(
+      `/compare?suite_a=${suite}&machine_a=m1&commit_a=c1&suite_b=${suite}&machine_b=m1` +
+        '&commit_b=c2&metric=execution_time',
+    )
+    await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+
+    const toggle = page.getByRole('button', { name: 'Add to regression' })
+    await toggle.click()
+    const create = page.getByRole('form', { name: 'Create new regression' })
+    await create.getByLabel('Title').fill('From compare')
+    await create.getByRole('button', { name: 'Create regression' }).click()
+    const link = page.getByRole('status').getByRole('link', { name: 'From compare' })
+    await expect(link).toBeVisible()
+    const uuid = (await link.getAttribute('href'))!.split('/').at(-1)!
+    const created = await json<Schemas['RegressionDetail']>(
+      request,
+      `/api/suites/${suite}/regressions/${uuid}`,
+    )
+    expect(created.commit).toBe('c2')
+    expect(created.indicators).toMatchObject([
+      { machine: 'm1', test: 'bench', metric: 'execution_time' },
+    ])
+
+    // Adding the same indicator again adds none.
+    await toggle.click()
+    const add = page.getByRole('form', { name: 'Add to existing' })
+    await add.getByRole('combobox', { name: 'Regression' }).fill('From')
+    await page.getByRole('option', { name: 'From compare' }).click()
+    await add.getByRole('button', { name: 'Add indicators' }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Added' })).toHaveText(
+      'Added 0 indicators to From compare. 1 indicator already existed.',
+    )
+  })
 })

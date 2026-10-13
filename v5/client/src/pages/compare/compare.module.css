@@ -137,6 +137,48 @@
   width: 5rem;
 }
 
+/* Add to Regression (CP9): its button, what was done beside it, and the panel it opens. */
+.addToRegression {
+  margin-top: var(--lnt-space-3);
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+}
+
+.regressionPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-4);
+  margin-top: var(--lnt-space-3);
+}
+
+.regressionPanel > .note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.regressionHeading {
+  margin: 0 0 var(--lnt-space-2);
+  font-size: 1rem;
+}
+
+.regressionFields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-2);
+}
+
+.regressionField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+}
+
 /* How many of the table's tests are shown, and Copy as CSV, above it. */
 .countRow {
   display: flex;

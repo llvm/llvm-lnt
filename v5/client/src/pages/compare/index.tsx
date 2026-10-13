@@ -9,6 +9,7 @@ import { labelOf } from '../../schema'
 import { useUrlState, useVisitKey } from '../../url-state'
 import { ValueStore } from '../../value-store'
 import type { NoiseKnob } from './comparison'
+import { AddToRegression } from './add-to-regression'
 import { ColumnsMenu } from './columns-menu'
 import { chosenRuns, failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
@@ -124,6 +125,14 @@ function ComparePage() {
             onHideNoise={(hide) => update({ hide_noise: hide })}
           />
         </div>
+        <AddToRegression
+          suite={b.settings.suite}
+          machine={b.settings.machine}
+          commit={b.settings.commit}
+          metric={metric?.name ?? ''}
+          rows={comparison.tests === undefined ? undefined : table.plotted}
+          swapped={sides.swapped}
+        />
       </ControlsPanel>
       {failed.length > 0 && (
         <ErrorMessage
