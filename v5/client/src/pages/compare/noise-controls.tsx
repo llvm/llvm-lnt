@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from 'react'
-import { VisuallyHidden } from 'react-aria-components'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Button, Dialog, DialogTrigger, VisuallyHidden } from 'react-aria-components'
 import { HelpLabel } from '../../components/help-label'
+import { Popover } from '../../components/popover'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { parseNumber } from '../../format'
 import type { NoiseKnob, NoiseSettings } from './comparison'
@@ -59,12 +60,10 @@ interface Props {
 }
 
 /**
- * "Hide noise", and the noise knobs, in a section collapsed to begin with (CP1): each enabled with
- * its checkbox, and its value typed.
+ * "Hide noise", and the "Noise filtering" button, which opens the noise knobs in a panel below it
+ * (CP1): each enabled with its checkbox, and its value typed.
  */
 export function NoiseControls({ noise, onNoise, hideNoise, onHideNoise }: Props) {
-  const [open, setOpen] = useState(false)
-  const sectionId = useId()
   return (
     <div className={styles.noiseControls}>
       <label className={styles.checkbox}>
@@ -75,20 +74,18 @@ export function NoiseControls({ noise, onNoise, hideNoise, onHideNoise }: Props)
         />
         Hide noise
       </label>
-      <button
-        type="button"
-        className={styles.disclosure}
-        aria-expanded={open}
-        aria-controls={sectionId}
-        onClick={() => setOpen(!open)}
-      >
-        <span aria-hidden="true">{open ? '▾' : '▸'}</span> Noise filtering
-      </button>
-      <div id={sectionId} className={styles.knobs} hidden={!open}>
-        {KNOBS.map((knob) => (
-          <KnobInput key={knob.key} knob={knob} value={noise[knob.key]} onChange={onNoise} />
-        ))}
-      </div>
+      <DialogTrigger>
+        <Button>
+          Noise filtering <span aria-hidden="true">▾</span>
+        </Button>
+        <Popover placement="bottom start">
+          <Dialog className={styles.knobs} aria-label="Noise filtering">
+            {KNOBS.map((knob) => (
+              <KnobInput key={knob.key} knob={knob} value={noise[knob.key]} onChange={onNoise} />
+            ))}
+          </Dialog>
+        </Popover>
+      </DialogTrigger>
     </div>
   )
 }
@@ -104,7 +101,7 @@ interface KnobProps {
  * A noise knob: its checkbox, and its value, typed in an input. While the text is not a value the
  * knob accepts, the input shows the red halo (AR11), and the knob keeps its last valid value. A
  * valid value is applied once typing pauses, rather than at each keystroke, which would apply the
- * values typed on the way, such as 0 on the way to 0.05.
+ * values typed on the way, such as 0 on the way to 0.05, or as the panel closes, if that is sooner.
  */
 function KnobInput({ knob, value, onChange }: KnobProps) {
   const [text, setText] = useState(String(value ?? knob.initial))
@@ -119,22 +116,32 @@ function KnobInput({ knob, value, onChange }: KnobProps) {
     const timer = setTimeout(() => onChange(knob.key, valid), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)
   }, [enabled, valid, value, knob.key, onChange])
+  // What closing the panel applies: the value typed, while typing has not paused since.
+  const pending = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    pending.current = enabled && valid !== value ? () => onChange(knob.key, valid) : null
+  })
+  useEffect(() => () => pending.current?.(), [])
 
   const range =
     knob.max === Infinity ? `at least ${knob.min}` : `between ${knob.min} and ${knob.max}`
   return (
-    <div className={styles.knob}>
-      <input
-        type="checkbox"
-        checked={enabled}
-        aria-labelledby={labelId}
-        aria-describedby={helpId}
-        onChange={(event) => onChange(knob.key, event.target.checked ? valid : null)}
-      />
-      <HelpLabel id={labelId} help={knob.help}>
-        {knob.label}
-      </HelpLabel>
-      <VisuallyHidden id={helpId}>{knob.help}</VisuallyHidden>
+    <>
+      <span className={styles.knobLabel}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          aria-labelledby={labelId}
+          aria-describedby={helpId}
+          onChange={(event) => onChange(knob.key, event.target.checked ? valid : null)}
+        />
+        <HelpLabel id={labelId} help={knob.help}>
+          {knob.label}
+        </HelpLabel>
+        <VisuallyHidden elementType="span" id={helpId}>
+          {knob.help}
+        </VisuallyHidden>
+      </span>
       <input
         type="text"
         inputMode="decimal"
@@ -149,6 +156,6 @@ function KnobInput({ knob, value, onChange }: KnobProps) {
           if (parsed !== undefined) setValid(parsed)
         }}
       />
-    </div>
+    </>
   )
 }

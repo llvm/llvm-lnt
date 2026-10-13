@@ -22,7 +22,7 @@ suite-agnostic: each side selects its own suite. Layout:
 +-------------------------------------+       +-----------------------------------------------+
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
-[ ] Hide noise  > Noise filtering
+[ ] Hide noise  [Noise filtering v]
 [Filter tests...] [ ] Regex                                                [Add to regression]
 
 <progress and errors>
@@ -87,11 +87,12 @@ Global controls, shared by both sides:
   CP2 "Aggregation pipeline"): median, mean, min or max, median by default.
 - **Hide noise**: a checkbox that removes the rows classified as noise from the
   table and the chart.
-- **Noise filtering**: a section, collapsed by default, holding three
-  independent knobs. Each knob has a checkbox to enable it (off by default) and
-  a value. A test is classified as **noise** if any enabled knob triggers for
-  it. When every knob is disabled, no test is noise. Each knob's label has a
-  help tooltip saying what the knob does.
+- **Noise filtering**: a button opening a panel below it, over the page, which
+  holds three independent knobs, one per row, and closes on Escape or a click
+  outside it. Closing it keeps the values typed in it. Each knob has a checkbox
+  to enable it (off by default) and a value. A test is classified as **noise**
+  if any enabled knob triggers for it. When every knob is disabled, no test is
+  noise. Each knob's label has a help tooltip saying what the knob does.
   - **Delta % below** (1 by default, at least 0): triggers when |Delta %| is
     below the value.
   - **P-value above** (0.05 by default, between 0 and 1): triggers when the

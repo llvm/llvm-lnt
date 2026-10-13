@@ -30,21 +30,49 @@ describe('noise (CP1)', () => {
     await comparison()
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    // The page behind the panel is hidden from assistive technology until it closes.
+    const open = () => user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    const close = () => user.keyboard('{Escape}')
+
+    await open()
     await user.click(screen.getByRole('checkbox', { name: 'Delta % below' }))
     await waitFor(() => expect(query().noise_pct).toEqual(['1']))
+    await close()
     await waitFor(async () => expect(await statusOf('a')).toBe('Noise'))
 
+    await open()
     const threshold = screen.getByRole('textbox', { name: 'Delta % below threshold' })
     await user.clear(threshold)
     await user.type(threshold, '60')
     // Once typing pauses.
     await waitFor(() => expect(query().noise_pct).toEqual(['60']), { timeout: 2000 })
+    await close()
     await waitFor(async () => expect(await statusOf('d')).toBe('Noise'))
 
+    await open()
     await user.click(screen.getByRole('checkbox', { name: 'Delta % below' }))
     await waitFor(() => expect(query().noise_pct).toBeUndefined())
+    await close()
     await waitFor(async () => expect(await statusOf('d')).toBe('Regressed'))
+  })
+
+  it('applies a value typed as the panel closes, before typing pauses', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&noise_pct=1`)
+    await comparison()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+
+    const threshold = screen.getByRole('textbox', { name: 'Delta % below threshold' })
+    await user.clear(threshold)
+    await user.type(threshold, '60')
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Noise filtering' })).not.toBeInTheDocument()
+    expect(query().noise_pct).toEqual(['60'])
+    // And the panel opens again on the value applied.
+    await user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    expect(screen.getByRole('textbox', { name: 'Delta % below threshold' })).toHaveValue('60')
   })
 
   it('applies only the value typed once typing pauses, and none once disabled meanwhile', async () => {
