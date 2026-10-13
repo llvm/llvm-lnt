@@ -37,10 +37,10 @@ const UNREPORTED = { error: null, refetch: () => {} }
  */
 function useProfiledRuns(side: Side) {
   const { suite, machine, commit } = side.settings
-  const { selected, listed } = side
+  const { selected, named } = side
   const query = useQuery({
     ...commitRunsQuery(suite, machine, commit, { has_profiles: true }),
-    enabled: listed,
+    enabled: named,
   })
   const { data } = query
   const refs = useMemo(
@@ -73,7 +73,8 @@ function profiledBy(
 
 /**
  * The profiles of each run, as plain data, which keeps its identity for as long as it holds the
- * same (see `replaceEqualDeep`), so that the links are only computed again when they change.
+ * same (see `replaceEqualDeep`), so that the links are not computed again whenever a query's state
+ * changes, but only when a run's profiles arrive or the runs change.
  */
 function combineProfiles(
   results: { data?: RunProfile[]; error: Error | null; refetch: () => unknown }[],

@@ -916,18 +916,93 @@ describe('the Profile column (CP2)', () => {
     expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
   })
 
+  it("links none of a side's profiles until all its selected runs' are listed", async () => {
+    mockWorld({
+      profiles: PROFILES,
+      profilesAnswer: (hex) =>
+        hex === '2' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(COMPARED)
+
+    // Side A's run 1 is listed, but not its latest, so none of side A's profiles is linked.
+    expect(await screen.findByText(/The profiles could not be listed/)).toBeInTheDocument()
+    await waitFor(async () =>
+      expect(await profileLinks()).toEqual({
+        a: profilesUrl(['3', 'a']),
+        c: profilesUrl(['3', 'c']),
+      }),
+    )
+  })
+
   it('says when the runs with profiles could not be listed, still comparing', async () => {
+    let fail = true
     mockWorld({
       profiles: PROFILES,
       runsAnswer: (query) =>
-        query.has('has_profiles') ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+        query.has('has_profiles') && fail
+          ? errorResponse(500, 'internal_error', 'Boom')
+          : undefined,
     })
     renderPage(COMPARED)
 
     expect(
-      await screen.findAllByText(/The profiles could not be listed: Boom/),
-    ).toHaveLength(1)
-    expect((await comparison()).length).toBe(ROWS.length)
+      await screen.findByText(/The profiles could not be listed: Boom/),
+    ).toBeInTheDocument()
+    expect(await comparison()).toEqual(ROWS)
+
+    fail = false
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+  })
+
+  it('swaps the links with the sides', async () => {
+    mockWorld({ profiles: PROFILES })
+    renderPage(COMPARED)
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
+    await waitFor(async () =>
+      expect((await profileLinks()).a).toBe(profilesUrl(['3', 'a'], ['2', 'a'])),
+    )
+  })
+
+  it('is shown whatever the filter, while a test of the comparison has a profile', async () => {
+    mockWorld({ profiles: { '1': ['b'] } })
+    renderPage(`${COMPARED}&test_filter=c`)
+
+    expect(await screen.findByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()
+    expect(await profileLinks()).toEqual({})
+  })
+
+  it('reports nothing for a machine that does not exist, before it is dropped', async () => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let profiled = false
+    mockWorld({
+      runsAnswer: (query) => {
+        if (query.get('machine') !== 'bogus') return undefined
+        if (query.has('has_profiles')) profiled = true
+        return errorResponse(404, 'not_found', 'No such machine')
+      },
+    })
+    // Holding the machines back, so that the machine is not known not to exist meanwhile, and
+    // answering the commit's lookup as the API does for a machine that does not exist.
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/machines', async () => {
+        await held
+      }),
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (new URL(request.url).searchParams.get('machine') === 'bogus')
+          return errorResponse(404, 'not_found', 'No such machine') as never
+      }),
+    )
+    renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')
+
+    await waitFor(() => expect(profiled).toBe(true))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+    release()
+    await waitFor(() => expect(query().machine_a).toBeUndefined())
   })
 })
 

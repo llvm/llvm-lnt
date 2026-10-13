@@ -263,8 +263,8 @@ function ComparePage() {
     () => shown.filter((row) => !hiddenTests.has(row.test)),
     [shown, hiddenTests],
   )
-  // Whether to show the Profile column: whether any test compared has a profile, whatever the
-  // filter, so that the columns stay the same as it changes.
+  // Whether to show the Profile column: whether any test of the comparison has a profile, whatever
+  // the filter, "Hide noise" and the hidden tests, so that the columns stay the same as they change.
   const { links } = profiles
   const profiled = useMemo(
     () => allTests?.some((test) => links.has(test)) ?? false,

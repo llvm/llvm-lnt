@@ -30,8 +30,8 @@ export interface Side {
   schema: SuiteSchema | undefined
   /** The suite's machines, and the suggestions of the combobox picking one. */
   machines: ReturnType<typeof useMachineSuggestions>
-  /** Whether the side names a suite, a machine and a commit, which its runs are listed for. */
-  listed: boolean
+  /** Whether the side names a suite, a machine and a commit: what its runs are asked for with. */
+  named: boolean
   /** The runs of the machine at the commit, in the order they were submitted. */
   runs: UseQueryResult<Run[]>
   /** The selection among the runs. */
@@ -89,8 +89,8 @@ export function useSide(
   )
 
   // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
-  const listed = suite !== '' && machine !== '' && commit !== ''
-  const runs = useQuery({ ...commitRunsQuery(suite, machine, commit), enabled: listed })
+  const named = suite !== '' && machine !== '' && commit !== ''
+  const runs = useQuery({ ...commitRunsQuery(suite, machine, commit), enabled: named })
   const uuids = useMemo(() => runs.data?.map((run) => run.uuid), [runs.data])
 
   // The selection among the runs. It is filled once for each list of runs, from the URL, or with
@@ -123,12 +123,12 @@ export function useSide(
   // none to keep (AR2 "State").
   useEffect(() => {
     if (known) updateSide({ runs: runsParam(uuids, selected) })
-    else if (!listed) updateSide({ runs: [] })
-  }, [known, listed, selected, uuids, updateSide])
+    else if (!named) updateSide({ runs: [] })
+  }, [known, named, selected, uuids, updateSide])
 
   // The runs whose samples the side needs, as text so that they are the same arrays for as long
   // as they are the same runs.
-  const asked = listed ? (uuids ?? fromUrl) : NO_RUNS
+  const asked = named ? (uuids ?? fromUrl) : NO_RUNS
   const askedText = asked.join(',')
   const refs = useMemo(
     () => (askedText === '' ? [] : askedText.split(',').map((uuid) => ({ suite, uuid }))),
@@ -137,7 +137,7 @@ export function useSide(
   // Once the runs are listed, those the selection holds, or is about to be filled with.
   const chosen = known
     ? uuids.filter((uuid) => selected.has(uuid))
-    : listed
+    : named
       ? (fill ?? asked)
       : asked
   const wantedText = chosen.join(',')
@@ -153,7 +153,7 @@ export function useSide(
     update: updateSide,
     schema,
     machines,
-    listed,
+    named,
     runs,
     selection: rows,
     selected: known ? selected : undefined,
