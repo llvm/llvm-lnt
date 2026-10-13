@@ -82,7 +82,9 @@ script remaps machines with duplicate names: among the v4 machines with the same
 name, the one with the lowest identifier (in the v4 DB) keeps the name, and each
 of the others gets a suffix ``-import-<id>``, where ``<id>`` is its v4 DB id.
 For example, v4 machines with IDs ``352`` and ``372``, both named ``x86_64-O3``,
-become  ``x86_64-O3`` and ``x86_64-O3-import-372``.
+become ``x86_64-O3`` and ``x86_64-O3-import-372``.
+
+The resulting names must be unique and valid v5 names, otherwise it is an error.
 
 Commits
 ~~~~~~~
