@@ -15,8 +15,9 @@ suite-agnostic: each side selects its own suite. Layout:
 | Suite            [libcxx         v] |       | Suite            [libcxx                   v] |
 | Machine          [linux-x86_64     ] | (<->) | Machine          [linux-x86_64               ] |
 | Commit           [0f985af790f8     ] |       | Commit           [014621ede7c1               ] |
-| Runs             [-] Run            |       | Runs             [x] Run                      |
-|                  [x] 2026-08-25 ... |       |                  [x] 2026-08-31, 3:03 PM ...  |
+| Runs             +----------------+ |       | Runs             +--------------------------+ |
+|                  | [x] 08-25 ...  | |       |                  | [x] 2026-08-31, 3:03 PM  | |
+|                  +----------------+ |       |                  +--------------------------+ |
 +-------------------------------------+       +-----------------------------------------------+
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
@@ -54,12 +55,13 @@ Each side has its own controls:
   machine has runs. Disabled until a machine is selected, showing "Select a
   machine first". Clearing the commit clears the runs.
 - **Runs**: a checkbox list of the selected machine's runs at the selected
-  commit, in the order they were submitted, each with its submission time and
-  its shortened UUID linking to its Run Detail page. Every run is selected when
-  a commit is picked, unless the URL names some of them (see CP7). Rows are
-  selected one at a time, a range at a time with Shift, or all at once from the
-  header (see AR10). Before a commit is selected, the list says "Select a
-  commit first".
+  commit, in the order they were submitted, in a box of its own that scrolls
+  when they are many. Each run shows its submission time and its shortened UUID
+  linking to its Run Detail page. Every run is selected when a commit is
+  picked, unless the URL names some of them (see CP7). Rows are selected one at
+  a time, or a range at a time with Shift (see AR10). Unlike AR10's lists, it
+  has no checkbox selecting every row: every run is selected to begin with.
+  Before a commit is selected, the list says "Select a commit first".
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to

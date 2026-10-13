@@ -59,16 +59,50 @@
   border: none;
 }
 
-.runsLegend,
+/* Like the label of the fields above it. */
+.runsLegend {
+  padding: 0;
+}
+
+/* The runs of a side (CP1), in a box of their own, which scrolls once they are many. */
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+  max-height: 12rem;
+  overflow: auto;
+  padding: var(--lnt-space-2);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+}
+
 .run {
   display: flex;
   align-items: center;
   gap: var(--lnt-space-2);
 }
 
-.runsLegend {
-  padding: 0;
+.runTime {
   font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The run's UUID, out of the way until hovered, when it shows as the link it is. */
+.runUuid {
+  color: var(--lnt-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.runUuid:hover,
+.runUuid:focus-visible {
+  color: var(--lnt-accent);
+  text-decoration: underline;
+}
+
+.mono {
+  font-family: var(--lnt-font-mono);
 }
 
 /* The settings shared by both sides. */

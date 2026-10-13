@@ -186,7 +186,9 @@ describe('hidden tests (CP2)', () => {
     await comparison()
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
+    // Run 2 first: run 1 alone still has b, which run 2 alone would not, and forget.
+    await user.click(runBox('2', 'A'))
+    await user.click(runBox('1', 'A'))
     expect(await main().findByText('Select a run for side A.')).toBeInTheDocument()
     await user.click(runBox('1', 'A'))
 

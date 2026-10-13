@@ -89,9 +89,12 @@ describe('the Compare page (CP1)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    await userEvent
-      .setup()
-      .click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
+    // Both of side A's runs, a range at a time with Shift (AR10).
+    const user = userEvent.setup()
+    await user.click(runBox('1', 'A'))
+    await user.keyboard('{Shift>}')
+    await user.click(runBox('2', 'A'))
+    await user.keyboard('{/Shift}')
 
     expect(await main().findByText('Select a run for side A.')).toBeInTheDocument()
   })
@@ -139,7 +142,8 @@ describe('the Compare page (CP1)', () => {
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
-    await user.click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
+    await user.click(runBox('1', 'A'))
+    await user.click(runBox('2', 'A'))
     expect(await main().findByText('Select a run for side A.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Swap sides' }))

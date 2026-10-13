@@ -188,17 +188,6 @@ describe('the shadow (CP8)', () => {
     expect(query().commit_a).toEqual(['c1'])
   })
 
-  it("is dismissed when the user deselects every run of side A at once", async () => {
-    mockWorld()
-    renderPage(SHADOWED)
-    await waitFor(() => expect(line()).toBeDefined())
-
-    await userEvent
-      .setup()
-      .click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
-    await waitFor(() => expect(chip()).toBeNull())
-  })
-
   it("is dismissed when the user changes side A's runs", async () => {
     mockWorld()
     renderPage(SHADOWED)

@@ -1,13 +1,13 @@
 import { useMemo, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import type { SuiteSchema } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
-import { SelectAllBox, SelectBox } from '../../components/select-box'
+import { SelectBox } from '../../components/select-box'
 import { Select } from '../../components/select'
 import { NO_SUGGESTIONS } from '../../components/suggestions'
-import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
 import { runPath } from '../../paths'
 import { runsListFailed, type Side } from './use-side'
@@ -103,7 +103,10 @@ export function SidePanel({ side, title, suites, action }: Props) {
   )
 }
 
-/** The runs of the side's machine at its commit, each selected with its checkbox (CP1). */
+/**
+ * The runs of the side's machine at its commit, in a box of their own that scrolls once they are
+ * many, each selected with its checkbox, or a range of them with Shift (CP1).
+ */
 function RunList({ side }: { side: Side }) {
   const { settings, runs, selection } = side
   const letter = side.id.toUpperCase()
@@ -119,24 +122,28 @@ function RunList({ side }: { side: Side }) {
   }
   if (runs.data === undefined) return <Loading label="Loading runs..." />
   if (runs.data.length === 0) return <p className={styles.note}>No runs.</p>
-  const uuids = runs.data.map((run) => run.uuid)
   return (
     <fieldset className={styles.runs}>
-      <legend className={styles.runsLegend}>
-        <SelectAllBox rows={selection} shown={uuids} label={`Select all runs of side ${letter}`} />
-        Runs
-      </legend>
-      {runs.data.map((run) => (
-        <div key={run.uuid} className={styles.run}>
-          <SelectBox
-            rows={selection}
-            rowKey={run.uuid}
-            label={`Run ${uuidPrefix(run.uuid)} of side ${letter}`}
-          />
-          {formatTimestamp(run.submitted_at)}{' '}
-          <UuidLink uuid={run.uuid} to={runPath(settings.suite, run.uuid)} />
-        </div>
-      ))}
+      <legend className={styles.runsLegend}>Runs</legend>
+      <div className={styles.runList}>
+        {runs.data.map((run) => (
+          <div key={run.uuid} className={styles.run}>
+            <SelectBox
+              rows={selection}
+              rowKey={run.uuid}
+              label={`Run ${uuidPrefix(run.uuid)} of side ${letter}`}
+            />
+            <span className={styles.runTime}>{formatTimestamp(run.submitted_at)}</span>
+            <Link
+              to={runPath(settings.suite, run.uuid)}
+              title={run.uuid}
+              className={styles.runUuid}
+            >
+              UUID <span className={styles.mono}>{uuidPrefix(run.uuid)}</span>
+            </Link>
+          </div>
+        ))}
+      </div>
     </fieldset>
   )
 }
