@@ -91,10 +91,13 @@ Global controls, shared by both sides:
   table and the chart.
 - **Noise filtering**: a button opening a panel below it, over the page, which
   holds three independent knobs, one per row, and closes on Escape or a click
-  outside it. Closing it keeps the values typed in it. Each knob has a checkbox
-  to enable it (off by default) and a value. A test is classified as **noise**
-  if any enabled knob triggers for it. When every knob is disabled, no test is
-  noise. Each knob's label has a help tooltip saying what the knob does.
+  outside it. Each knob has a checkbox to enable it (off by default) and a
+  value. While a knob is disabled, so is its value, which can only be set once
+  the knob is enabled. Closing the panel keeps the values typed in it, and a
+  disabled knob keeps its value for when it is enabled again. A test is
+  classified as **noise** if any enabled knob triggers for it. When every knob
+  is disabled, no test is noise. Each knob's label has a help tooltip saying
+  what the knob does.
   - **Delta % below** (1 by default, at least 0): triggers when |Delta %| is
     below the value.
   - **P-value above** (0.05 by default, between 0 and 1): triggers when the

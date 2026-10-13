@@ -99,6 +99,61 @@ describe('noise (CP1)', () => {
     expect(query().noise_pct).toEqual(['60'])
   })
 
+  it("disables a knob's value while the knob is disabled", async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    const threshold = screen.getByRole('textbox', { name: 'Delta % below threshold' })
+    const knob = screen.getByRole('checkbox', { name: 'Delta % below' })
+
+    for (const name of ['Delta % below', 'P-value above', 'Absolute below'])
+      expect(screen.getByRole('textbox', { name: `${name} threshold` })).toBeDisabled()
+    await user.click(knob)
+    expect(threshold).toBeEnabled()
+    expect(query().noise_pct).toEqual(['1'])
+
+    // Disabled with text that is not a value: nothing is applied, and the text stays as it is.
+    await user.clear(threshold)
+    await user.type(threshold, 'abc')
+    await user.click(knob)
+    expect(query().noise_pct).toBeUndefined()
+    expect(threshold).toBeDisabled()
+    expect(threshold).toHaveValue('abc')
+    expect(threshold).toHaveAttribute('aria-invalid', 'true')
+
+    // Enabled again, with the last valid value.
+    await user.click(knob)
+    expect(threshold).toBeEnabled()
+    expect(query().noise_pct).toEqual(['1'])
+  })
+
+  it("keeps a disabled knob's value as the panel closes", async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+    const open = () => user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    const threshold = () => screen.getByRole('textbox', { name: 'Delta % below threshold' })
+    const knob = () => screen.getByRole('checkbox', { name: 'Delta % below' })
+
+    // Disabled before typing pauses, so that 60 is never applied.
+    await open()
+    await user.click(knob())
+    await user.clear(threshold())
+    await user.type(threshold(), '60')
+    await user.click(knob())
+    await user.keyboard('{Escape}')
+    expect(query().noise_pct).toBeUndefined()
+
+    await open()
+    expect(threshold()).toBeDisabled()
+    expect(threshold()).toHaveValue('60')
+    await user.click(knob())
+    expect(query().noise_pct).toEqual(['60'])
+  })
+
   it('starts collapsed, and hides the noise on request', async () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&noise_pct=1`)
@@ -161,6 +216,10 @@ describe('noise (CP1)', () => {
 
     await waitFor(() => expect(query().noise_pval).toBeUndefined())
     expect(query().noise_floor).toBeUndefined()
+    await userEvent.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    const threshold = screen.getByRole('textbox', { name: 'P-value above threshold' })
+    expect(threshold).toBeDisabled()
+    expect(threshold).toHaveValue('0.05')
   })
 
   it('hides the noise from the table, but not from the summary bar', async () => {
