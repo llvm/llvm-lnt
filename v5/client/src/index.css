@@ -103,6 +103,14 @@
     background: var(--lnt-bg);
   }
 
+  /* As a disabled button looks. A read-only input is not disabled, and keeps its look. */
+  input:disabled,
+  textarea:disabled {
+    color: var(--lnt-muted);
+    background: var(--lnt-panel);
+    cursor: not-allowed;
+  }
+
   /* The red halo of an input whose text is invalid (AR11). */
   input[aria-invalid='true'],
   textarea[aria-invalid='true'] {

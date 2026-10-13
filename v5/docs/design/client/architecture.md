@@ -101,9 +101,11 @@ otherwise (see TS1).
 All pages should share a consistent look and feel -- comboboxes, metric
 selectors, table styling, progress/error feedback, color scheme, and layout
 spacing. The same components are reused across pages rather than reinvented
-per-page. Pages with selection controls (dropdowns, filters, aggregation
-settings) wrap them in a shared controls panel -- a lightly shaded box with a
-border -- so the settings area is visually distinct from the page content.
+per-page. A disabled control looks disabled, the same way whatever its kind:
+a button, a dropdown, a combobox or a text input. Pages with selection
+controls (dropdowns, filters, aggregation settings) wrap them in a shared
+controls panel -- a lightly shaded box with a border -- so the settings area is
+visually distinct from the page content.
 
 
 ## AR6: Display Conventions
