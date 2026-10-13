@@ -3,7 +3,7 @@
  * synthetic commit, three samples per test and run.
  */
 
-import type { APIRequestContext, Page } from '@playwright/test'
+import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, LINUX, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -46,6 +46,59 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   const drawn = () =>
     plotOf(page).evaluate((element) => (element as PlotDiv)._fullData?.[0]?.y.length ?? 0)
   await expect.poll(drawn).toBe((await rows(comparison).count()) - 1)
+})
+
+test('scrolls the table rather than the page when its columns do not fit', async ({
+  page,
+  request,
+}) => {
+  const [older, newer] = await newestCommits(request)
+  const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time` +
+      statistics.map((key) => `&columns=${key}`).join(''),
+  )
+  const comparison = table(page, 'Comparison')
+  await expect(rows(comparison).first()).toContainText('Geomean')
+  // The Profile column's header is visually hidden, absolutely positioned, which the box must clip
+  // as well for the page not to scroll: the check below covers that only while it is shown.
+  await expect(comparison.getByRole('columnheader', { name: 'Profile' })).toHaveCount(1)
+  const box = comparison.locator('xpath=..')
+  expect(await box.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+  expect(
+    await page.evaluate(() => {
+      const { scrollWidth, clientWidth } = document.documentElement
+      return scrollWidth <= clientWidth
+    }),
+  ).toBe(true)
+
+  const row = rows(comparison).nth(1)
+  const cells = row.locator('td')
+  const [check, name] = [cells.nth(0), cells.nth(1)]
+  const status = row.getByText(/^(Improved|Regressed|Noise|Unchanged)$/)
+  // The tests' names are not squeezed to make room for the other columns.
+  expect((await name.boundingBox())!.width).toBeGreaterThanOrEqual(200)
+
+  // The row in view, from the page's scrolling: scrolling the cell into view could scroll the box.
+  await row.evaluate((element) =>
+    window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 100),
+  )
+  await expect(status).not.toBeInViewport()
+  await box.evaluate((element) => (element.scrollLeft = element.scrollWidth))
+  await expect(status).toBeInViewport()
+  // The checkbox and the name stay in view, over the columns scrolled under them.
+  const onTop = (cell: Locator) =>
+    cell.evaluate((element) => {
+      const { left, top, width, height } = element.getBoundingClientRect()
+      const hit = document.elementFromPoint(left + width / 2, top + height / 2)
+      return hit !== null && element.contains(hit)
+    })
+  expect(await onTop(check)).toBe(true)
+  expect(await onTop(name)).toBe(true)
+  // With no gap between them, which the columns scrolled under them would show through.
+  const [checkBox, nameBox] = [(await check.boundingBox())!, (await name.boundingBox())!]
+  expect(nameBox.x - (checkBox.x + checkBox.width)).toBeCloseTo(0, 0)
 })
 
 test('compares two commits chosen from scratch', async ({ page, request }) => {

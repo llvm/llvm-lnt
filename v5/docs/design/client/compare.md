@@ -211,6 +211,10 @@ all use these rows.
   PF1 describes. The column comes last, and cannot be sorted by. It is shown
   while any test of the comparison has a profile, whatever the test filter,
   "Hide noise" and the hidden tests.
+- **Width**: when the columns don't fit in the page's width, the table scrolls
+  horizontally in a box of its own rather than squeezing the Test column. The
+  rest of the page, the summary message row included, stays in place. The
+  checkboxes and the Test column stay in view while the other columns scroll.
 
 
 #### Computation Reference
@@ -373,7 +377,7 @@ bar's layout stays stable. When there is no comparison, the bar renders nothing.
 The chart shows the compared rows (see CP2), so the test filter, "Hide noise"
 and the hidden tests affect the chart and the table in the same way. Hovering a chart bar highlights its table
 row, and hovering a table row highlights its chart bar. Neither scrolls the
-page.
+page or the table.
 
 
 ### CP6: Data Flow
