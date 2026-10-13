@@ -86,7 +86,9 @@ class MirroredRun:
     id: str
     machine_id: str
     sha256: str       # of its document, as the manifest records it
-    commit: Any       # the value of its order field, from the listing
+    # The fields of the run that its commit is derived from, as its machine's
+    # listing reports them.
+    commit_fields: JSONObject
 
 
 @dataclass
@@ -97,6 +99,7 @@ class MirroredSuite:
     suite: str
     schema: JSONObject
     order_fields: list[str]          # run fields marked "order" by the schema
+    commit_field: str | None         # given with --commit-field
     machines: dict[str, JSONObject]  # v4 machine id -> machine object
     runs: list[MirroredRun]          # in increasing order of v4 id
     # Runs in the listings that the mirror does not hold, because the refresh
@@ -130,8 +133,11 @@ def _parse(data: bytes, what: str) -> JSONObject:
     return document
 
 
-def read_mirror(mirror_dir: str, suite: str) -> MirroredSuite:
+def read_mirror(mirror_dir: str, suite: str,
+                commit_field: str | None = None) -> MirroredSuite:
     """Read what planning needs of `suite` in the mirror at `mirror_dir`.
+
+    `commit_field` is the run field given with --commit-field, if any.
 
     The listings are read one at a time, keeping only what planning needs of
     them: those of a large suite take gigabytes once parsed.
@@ -172,15 +178,17 @@ def read_mirror(mirror_dir: str, suite: str) -> MirroredSuite:
             summaries = {str(run['id']): run for run in listing['runs']}
             missing += len(summaries.keys() - machine['runs'].keys())
             for run_id, run in machine['runs'].items():
-                commit = None
-                if len(order_fields) == 1:
-                    commit = summaries[run_id].get(order_fields[0])
+                summary = summaries[run_id]
+                fields = {key: summary.get(key)
+                          for key in order_fields + [commit_field]
+                          if key is not None}
                 runs.append(MirroredRun(run_id, machine_id, run['sha256'],
-                                        commit))
+                                        fields))
         runs.sort(key=lambda run: int(run.id))
         return MirroredSuite(mirror_dir, manifest['source']['url'],
                              manifest['source']['database'], suite, schema,
-                             order_fields, machines, runs, missing)
+                             order_fields, commit_field, machines, runs,
+                             missing)
     except OSError as e:
         raise PlanError(['%s is not a readable mirror: %s' % (mirror_dir, e)])
     except ValueError as e:
@@ -408,14 +416,42 @@ def ordinal(commit: str) -> int | None:
     return int(match.group(1))
 
 
-def _order_commits(mirrored: MirroredSuite,
+def _commit_source(run: JSONObject, order_field: str,
+                   commit_field: str | None) -> str:
+    """The field of the v4 run `run` that its commit is taken from."""
+    if commit_field is not None and run.get(commit_field) is not None:
+        return commit_field
+    return order_field
+
+
+def _run_ordinal(run: JSONObject, order_field: str) -> int | None:
+    """The ordinal of the commit of the v4 run `run`, if it has one."""
+    revision = _commit_value(run.get(order_field))
+    return ordinal(revision) if revision is not None else None
+
+
+def _order_commits(mirrored: MirroredSuite, order_field: str,
                    problems: list[str]) -> dict[str, int | None]:
     """The ordinal of each commit, by commit value."""
-    ordinals = {}
+    commit_field = mirrored.commit_field
+    if commit_field is not None and \
+            all(run.commit_fields.get(commit_field) is None
+                for run in mirrored.runs):
+        problems.append('--commit-field: no run has a %s' % commit_field)
+    ordinals: dict[str, int | None] = {}
+    disputed: set[str] = set()
     for run in mirrored.runs:
-        commit = _commit_value(run.commit)
-        if commit is not None:
-            ordinals[commit] = ordinal(commit)
+        source = _commit_source(run.commit_fields, order_field, commit_field)
+        commit = _commit_value(run.commit_fields.get(source))
+        if commit is None:
+            continue
+        value = _run_ordinal(run.commit_fields, order_field)
+        if commit in ordinals and ordinals[commit] != value:
+            disputed.add(commit)
+        ordinals.setdefault(commit, value)
+    for commit in sorted(disputed):
+        problems.append('the runs of commit %r do not agree on its ordinal'
+                        % commit)
     values: dict[int, list[str]] = collections.defaultdict(list)
     for commit, value in ordinals.items():
         if value is not None:
@@ -444,7 +480,9 @@ def make_plan(mirrored: MirroredSuite, target_suite: str,
         _check_override(override, schema, problems)
         schema = override
     machines = _name_machines(mirrored, problems)
-    ordinals = _order_commits(mirrored, problems)
+    ordinals: dict[str, int | None] = {}
+    if len(mirrored.order_fields) == 1:
+        ordinals = _order_commits(mirrored, mirrored.order_fields[0], problems)
     if problems:
         raise PlanError(problems)
     # Samples are checked against the target schema, which check_schema has
@@ -521,22 +559,23 @@ def convert_run(plan: Plan, run: MirroredRun,
         raise ConversionError('its document does not have the shape of a v4 '
                               'run')
 
-    commit_value = _commit_value(v4_run.get(plan.order_field))
+    source = _commit_source(v4_run, plan.order_field,
+                            plan.mirrored.commit_field)
+    commit_value = _commit_value(v4_run.get(source))
     if commit_value is None:
         raise ConversionError('it has no valid %s: %r'
-                              % (plan.order_field,
-                                 v4_run.get(plan.order_field)))
+                              % (source, v4_run.get(source)))
     problem = _identifier_problem(commit_value)
     if problem:
         raise ConversionError('its commit %s' % problem)
     commit: JSONObject = {'value': commit_value}
-    if plan.ordinals.get(commit_value) is not None:
-        commit['ordinal'] = plan.ordinals[commit_value]
+    run_ordinal = _run_ordinal(v4_run, plan.order_field)
+    if run_ordinal is not None:
+        commit['ordinal'] = run_ordinal
 
     run_parameters = {key: value for key, value in v4_run.items()
                       if value is not None and
-                      key not in _RUN_KEYS_DROPPED and
-                      key != plan.order_field}
+                      key not in _RUN_KEYS_DROPPED and key != source}
     _check_storable(run_parameters, 'a run parameter')
 
     tests: dict[str, list[JSONObject]] = {}
@@ -580,13 +619,14 @@ def _describe(plan: Plan, run: MirroredRun) -> str:
 
 
 def dry_run(mirror_dir: str, suite: str, target_suite: str,
-            override: JSONObject | None = None, echo: Echo = print) -> int:
+            override: JSONObject | None = None,
+            commit_field: str | None = None, echo: Echo = print) -> int:
     """Plan the import and convert every run, without submitting anything.
 
     Returns the number of runs that cannot be converted. Raises PlanError if
     the suite cannot be imported at all.
     """
-    mirrored = read_mirror(mirror_dir, suite)
+    mirrored = read_mirror(mirror_dir, suite, commit_field)
     echo("Importing suite '%s' of %s (database '%s') into suite '%s' "
          '(dry run)' % (suite, mirrored.url, mirrored.database, target_suite))
     plan = make_plan(mirrored, target_suite, override)

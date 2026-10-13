@@ -16,11 +16,15 @@ def group_v5() -> None:
               type=click.Path(exists=True, dir_okay=False),
               help="v5 schema to create the target suite with, instead of "
                    "the one derived from the mirror")
+@click.option("--commit-field", metavar="FIELD",
+              help="take each run's commit from this v4 run field, when the "
+                   "run has one, rather than from the order field")
 @click.option("--dry-run", is_flag=True,
               help="convert every run and report problems, without "
                    "contacting the v5 instance")
 def action_import_v4_mirror(mirror_dir: str, suite: str, target_suite: str,
-                            schema_file: str | None, dry_run: bool) -> None:
+                            schema_file: str | None,
+                            commit_field: str | None, dry_run: bool) -> None:
     """import a test suite of a v4 mirror into an LNT v5 instance
 
     MIRROR_DIR is a mirror made by `lnt mirror-v4`. See the "Importing a v4
@@ -45,7 +49,7 @@ def action_import_v4_mirror(mirror_dir: str, suite: str, target_suite: str,
             raise click.BadParameter("not a JSON object", param_hint="--schema")
     try:
         failures = do_dry_run(mirror_dir, suite, target_suite, override,
-                              echo=click.echo)
+                              commit_field, echo=click.echo)
     except PlanError as e:
         for problem in e.problems:
             click.echo("error: %s" % problem, err=True)

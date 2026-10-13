@@ -310,6 +310,54 @@ import_(newline, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 
 
 # ---------------------------------------------------------------------------
+print('# COMMIT FIELD')
+# With --commit-field, a run's commit is that field when the run has one, and
+# its order field otherwise. The ordinal always comes from the order field, and
+# the field the commit came from is the one left out of the run parameters.
+M = {'id': 1, 'name': 'm'}
+by_sha = make_mirror('by-sha', [(M, [
+    run(1, M, 'r100', [], git_sha='aaa'),
+    run(2, M, 'r100', [], git_sha='aaa'),
+    run(3, M, 'r101', []),
+    run(4, M, '16.2.0', [], git_sha='bbb'),
+])])
+mirrored = read_mirror(by_sha, 'nts', 'git_sha')
+plan = make_plan(mirrored, 'target')
+for r in mirrored.runs:
+    submission = convert_run(plan, r, read_run(mirrored, r))
+    print(r.id, json.dumps(submission['commit'], sort_keys=True),
+          sorted(submission['run_parameters']))
+import_(by_sha, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
+        '--commit-field', 'git_sha')
+# CHECK-LABEL: # COMMIT FIELD
+# CHECK-NEXT: 1 {"ordinal": 100, "value": "aaa"} ['end_time', 'llvm_project_revision', 'start_time']
+# CHECK-NEXT: 2 {"ordinal": 100, "value": "aaa"} ['end_time', 'llvm_project_revision', 'start_time']
+# CHECK-NEXT: 3 {"ordinal": 101, "value": "r101"} ['end_time', 'start_time']
+# CHECK-NEXT: 4 {"value": "bbb"} ['end_time', 'llvm_project_revision', 'start_time']
+# CHECK:      Commits: 3, of which 2 have an ordinal
+# CHECK:      exit: 0
+
+# A field that no run has is most likely a typo.
+import_(by_sha, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
+        '--commit-field', 'git_hsa')
+# CHECK:      error: --commit-field: no run has a git_hsa
+# CHECK-NEXT: exit: 1
+
+# The runs of a commit must agree on its ordinal.
+disagree = make_mirror('disagree', [(M, [
+    run(1, M, 'r100', [], git_sha='aaa'),
+    run(2, M, 'r101', [], git_sha='aaa'),
+    run(3, M, '102', [], git_sha='ccc'),
+    run(4, M, 'r102', [], git_sha='ddd'),
+])])
+import_(disagree, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
+        '--commit-field', 'git_sha')
+# CHECK:      error: the runs of commit 'aaa' do not agree on its ordinal
+# CHECK-NEXT: error: commits 'ccc', 'ddd' would all have ordinal 102
+# CHECK-NEXT: exit: 1
+
+
+# ---------------------------------------------------------------------------
 print('# RUN ERRORS')
 # A run that cannot be converted is reported, and the others are converted.
 M = {'id': 1, 'name': 'm'}

@@ -89,14 +89,19 @@ The resulting names must be unique and valid v5 names, otherwise it is an error.
 Commits
 ~~~~~~~
 
-A run's commit is the value of its order field, as a string, unchanged. It must
-be a valid v5 commit value.
+A run's commit is the value of its order field, as a string, unchanged. A v4
+suite whose order field holds a revision number may record a better identity
+for the commit in another run field, such as a git SHA: with
+``--commit-field FIELD``, a run's commit is the value of its ``FIELD`` instead,
+when the run has one. It is an error if no run has one. Either way, the commit
+must be a valid v5 commit value.
 
-The commit's ordinal is the number the value holds when it matches
+The commit's ordinal is the number the run's order field holds when it matches
 ``^r?[0-9]+$`` (e.g. ``602079`` or ``r602079``), provided it fits in a 32-bit
-signed integer, like every v5 ordinal. Any other commit has no ordinal. Two
-different values with the same ordinal (e.g. ``602079`` and ``r602079``) are an
-error, since v5 ordinals are unique within a suite.
+signed integer, like every v5 ordinal. Otherwise, the commit has no ordinal. It
+is an error if the runs of a commit do not agree on its ordinal, or if two
+different commits have the same ordinal (e.g. ``602079`` and ``r602079``), since
+v5 ordinals are unique within a suite.
 
 Commits get no tag and no fields.
 
@@ -112,7 +117,7 @@ Each v4 run becomes one v5 run submission:
 - ``machine``: the run's machine, as described above.
 - ``commit``: ``value`` and, if it has one, ``ordinal``, as described above.
 - ``run_parameters``: every key of the v4 run that is not null, except ``id``,
-  ``order_id``, ``order_by`` and the order field.
+  ``order_id``, ``order_by`` and the field its commit is taken from.
 - ``tests``: one entry per test name, in the order the names first appear among
   the v4 samples. Each v4 sample becomes one v5 sample, holding the metrics that
   are not null in it, even if that leaves none.
