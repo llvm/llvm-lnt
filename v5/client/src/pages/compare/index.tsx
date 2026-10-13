@@ -58,6 +58,9 @@ function ComparePage() {
     [update],
   )
 
+  // Neither side has a suite whose schema is known: none is picked, or the suites the URL names
+  // have not loaded.
+  const noSchema = a.schema === undefined && b.schema === undefined
   const noise = noiseSettings(settings)
   const failed = failedRuns(a, b, sides.states)
   const wait = waiting(a, b, sides.states, {
@@ -104,9 +107,7 @@ function ComparePage() {
       </div>
       <ControlsPanel>
         <div className={styles.settings}>
-          {a.settings.suite === '' && b.settings.suite === '' ? (
-            <p className={styles.note}>Select a suite to load metrics...</p>
-          ) : a.schema === undefined && b.schema === undefined ? null : offered.length === 0 ? (
+          {!noSchema && offered.length === 0 ? (
             <p className={styles.note}>No metric can be compared.</p>
           ) : (
             <Select
@@ -115,6 +116,7 @@ function ComparePage() {
               value={metric?.name ?? null}
               placeholder="-- Select metric --"
               onChange={(value) => update({ metric: value })}
+              isDisabled={noSchema}
             />
           )}
           <Select<Aggregation>

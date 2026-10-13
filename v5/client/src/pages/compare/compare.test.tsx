@@ -17,9 +17,11 @@ describe('the Compare page (CP1)', () => {
     renderPage('/compare')
 
     expect(await main().findByText('Select a suite for side A.')).toBeInTheDocument()
-    expect(main().getByText('Select a suite to load metrics...')).toBeInTheDocument()
+    expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
+    expect(selectButton('Metric')).toBeDisabled()
     await pickOption('Suite', 'libcxx', sideOf('A'))
     expect(await main().findByText('Select a machine for side A.')).toBeInTheDocument()
+    expect(selectButton('Metric')).toBeEnabled()
     await pick('Machine', 'm1', sideOf('A'))
     expect(await main().findByText('Select a commit for side A.')).toBeInTheDocument()
     await pick('Commit', 'c1', sideOf('A'))
@@ -232,7 +234,8 @@ describe('the metric (CP1)', () => {
     renderPage('/compare?suite_a=other')
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: /Metric$/ }))
+    await waitFor(() => expect(selectButton('Metric')).toBeEnabled())
+    await user.click(selectButton('Metric'))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Execution Time',
       'Compile Time',
@@ -240,7 +243,7 @@ describe('the metric (CP1)', () => {
     await user.keyboard('{Escape}')
 
     await pickOption('Suite', 'libcxx', sideOf('B'))
-    await user.click(screen.getByRole('button', { name: /Metric$/ }))
+    await user.click(selectButton('Metric'))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Execution Time',
     ])
@@ -249,7 +252,7 @@ describe('the metric (CP1)', () => {
   it('drops the metric when a suite picked does not offer it', async () => {
     mockWorld()
     renderPage('/compare?suite_a=other&metric=compile_time')
-    expect(await screen.findByRole('button', { name: /Metric$/ })).toHaveTextContent('Compile Time')
+    await waitFor(() => expect(selectButton('Metric')).toHaveTextContent('Compile Time'))
 
     await pickOption('Suite', 'libcxx', sideOf('B'))
 
@@ -377,7 +380,7 @@ describe('loading (CP6)', () => {
       await main().findByText(/The test suites could not be listed: The suites broke\./),
     ).toBeInTheDocument()
     expect(main().queryByText('Select a suite for side A.')).not.toBeInTheDocument()
-    expect(main().queryByText('Select a suite to load metrics...')).not.toBeInTheDocument()
+    expect(selectButton('Metric')).toBeDisabled()
   })
 
   it('drops the runs of a side without a commit', async () => {
