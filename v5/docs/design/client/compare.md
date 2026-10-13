@@ -79,8 +79,8 @@ Global controls, shared by both sides:
   an unset one). While only one side has a suite, that suite's metrics are
   offered. The dropdown shows "-- Select metric --" until a metric is selected,
   and again if a side's suite changes so that the selected metric is no longer
-  offered. Before any suite is selected, the metric area says "Select a suite
-  to load metrics..." instead, and when no metric is offered, it says so.
+  offered. It is disabled until a suite is selected. When the selected suites
+  offer no metric, the page says so in place of the dropdown.
 - **Run aggregation**: how each side's selected runs' values are combined (see
   CP2 "Aggregation pipeline"): median, mean, min or max, median by default. It
   is the same for both sides, so that Value A and Value B measure the same
