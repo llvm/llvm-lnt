@@ -4,7 +4,7 @@
  * read like a side.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import {
@@ -17,9 +17,9 @@ import {
 } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
-import { useRangeSelection, type RowSelection } from '../../components/range-selection'
+import type { RowSelection } from '../../components/range-selection'
 import { useDropUnusable } from '../../url-state'
-import { useStoreValue, ValueStore } from '../../value-store'
+import { useRunSelection } from './run-selection'
 import {
   sideChanges,
   sideSettings,
@@ -110,51 +110,30 @@ export function useSide(
   const runs = useQuery({ ...commitRunsQuery(suite, machine, commit), enabled: named })
   const uuids = useMemo(() => runs.data?.map((run) => run.uuid), [runs.data])
 
-  // The selection among the runs. It is filled once for each list of runs, from the URL, or with
-  // every run when the URL names none of them. It is only known once it has been.
-  const key = [suite, machine, commit].join('\0')
-  const { rows, selected } = useRangeSelection(uuids, uuids ?? NO_RUNS)
-  // The runs the selection was last filled for, by `key`. Set by the effect that fills the
-  // selection, like the selection itself, and so kept in a store like it, rather than in state.
-  const [filledFor] = useState(() => new ValueStore<string | null>(null))
-  const filled = useStoreValue(filledFor, (value) => value)
-  const fromUrl = settings.runs
-  // What the selection is filled with: the runs the URL names, or every run when it names none.
-  const fill = useMemo(() => {
-    const kept = fromUrl.filter((uuid) => uuids?.includes(uuid))
-    return kept.length > 0 ? kept : uuids
-  }, [fromUrl, uuids])
-  // Before the page is painted, so that the runs never show unselected meanwhile. While there are
-  // no runs listed, the selection is filled for none, so that it is filled again for the next ones,
-  // even those it was filled for before.
-  useLayoutEffect(() => {
-    if (fill === undefined) filledFor.set(null)
-    else if (filled !== key) {
-      filledFor.set(key)
-      rows.replace(fill)
-    }
-  }, [fill, filled, filledFor, key, rows])
-  const known = uuids !== undefined && filled === key
+  // The selection among the runs, filled from the URL for each list of runs.
+  const list = [suite, machine, commit].join('\0')
+  const { rows, selected, fill } = useRunSelection(uuids, list, settings.runs)
 
   // The selection, in the URL, unless it is every run, the default. Without a commit, there is
   // none to keep (AR2 "State").
   useEffect(() => {
-    if (known) updateSide({ runs: runsParam(uuids, selected) })
-    else if (!named) updateSide({ runs: [] })
-  }, [known, named, selected, uuids, updateSide])
+    if (uuids !== undefined && selected !== undefined) {
+      updateSide({ runs: runsParam(uuids, selected) })
+    } else if (!named) updateSide({ runs: [] })
+  }, [named, selected, uuids, updateSide])
 
   // The runs whose samples the side needs.
-  const asked = named ? (uuids ?? fromUrl) : NO_RUNS
+  const asked = named ? (uuids ?? settings.runs) : NO_RUNS
   const refs = useMemo(() => asked.map((uuid) => ({ suite, uuid })), [suite, asked])
   // Once the runs are listed, those the selection holds, or is about to be filled with.
   const chosen = useMemo(
     () =>
-      known && uuids !== undefined
+      uuids !== undefined && selected !== undefined
         ? uuids.filter((uuid) => selected.has(uuid))
         : named
           ? (fill ?? asked)
           : asked,
-    [known, uuids, selected, named, fill, asked],
+    [uuids, selected, named, fill, asked],
   )
   const wanted = useMemo(() => chosen.map((uuid) => runRefKey({ suite, uuid })), [suite, chosen])
 
@@ -167,7 +146,7 @@ export function useSide(
     named,
     runs,
     selection: rows,
-    selected: known ? selected : undefined,
+    selected,
     refs,
     wanted,
   }
