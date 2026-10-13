@@ -3,7 +3,7 @@ import click
 
 @click.group("v5")
 def group_v5() -> None:
-    """tools for moving to an LNT v5 instance"""
+    """tools for interacting with LNT v5 instances"""
 
 
 @group_v5.command("import-v4-mirror")

@@ -297,6 +297,16 @@ import_(ordinals, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 # An invalid target suite name.
 import_(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts', '--dry-run')
 # CHECK:      error: suite name: 'pg_nts' is reserved by v5
+import_(ordinals, '--suite', 'nts', '--target-suite', 'nts\n', '--dry-run')
+# CHECK:      error: suite name: 'nts\n' is not a valid v5 name
+
+# A revision followed by anything else has no ordinal.
+M = {'id': 1, 'name': 'm'}
+newline = make_mirror('newline', [(M, [run(1, M, '5', []),
+                                       run(2, M, '5\n', [])])])
+import_(newline, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+# CHECK:      Commits: 2, of which 1 have an ordinal
+# CHECK:      exit: 0
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +322,7 @@ runs = [
     run(6, M, '6', [], bad=float('nan')),
     run(7, M, '7', [sample('t', compile_time=1)]),
     run(8, M, '8', [sample('t', hash='a\0b')]),
+    run(9, M, '9', [sample('t', compile_time=10**400)]),
 ]
 run_errors = make_mirror('run-errors', [(M, runs)])
 # Damage run 7's file.
@@ -320,14 +331,15 @@ with open(os.path.join(run_errors, 'nts/runs/7.json.gz'), 'wb') as f:
 import_(run_errors, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 # CHECK-LABEL: # RUN ERRORS
 # CHECK:      run 1 of machine 1 (m): its commit 'a/b' cannot appear in a URL path
-# CHECK-NEXT: run 2 of machine 1 (m): it has no llvm_project_revision
+# CHECK-NEXT: run 2 of machine 1 (m): it has no valid llvm_project_revision: None
 # CHECK-NEXT: run 3 of machine 1 (m): test 't', metric 'compile_time': 'fast' is not a valid real value
 # CHECK-NEXT: run 4 of machine 1 (m): test 't', metric 'exec_status': 1.5 is not a valid integer value
 # CHECK-NEXT: run 5 of machine 1 (m): test 't': 'unknown' is not a metric of the suite
 # CHECK-NEXT: run 6 of machine 1 (m): a run parameter is nan
 # CHECK-NEXT: run 7 of machine 1 (m): nts/runs/7.json.gz does not have the hash the manifest records
 # CHECK-NEXT: run 8 of machine 1 (m): test 't', metric 'hash': 'a\x00b' is not a valid text value
-# CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 8 failure(s).
+# CHECK-NEXT: run 9 of machine 1 (m): test 't', metric 'compile_time': {{[0-9]+}} is not a valid real value
+# CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 9 failure(s).
 # CHECK-NEXT: exit: 1
 
 
@@ -373,6 +385,33 @@ import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
 # CHECK-NEXT: exit: 1
 
 
+def malform(schema):
+    schema['name'] = ['target']
+    schema['metrics'][0]['type'] = []
+    schema['metrics'].append({'name': {}, 'type': 'real'})
+
+
+# A malformed schema is reported rather than crashing the command.
+import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
+        '--dry-run', '--schema', override('malformed', malform))
+# CHECK:      error: --schema: its name is ['target'] rather than the target suite's, 'target'
+# CHECK-NEXT: error: --schema: metrics entry 'compile_time' has type [] rather than 'real'
+# CHECK-NEXT: error: suite name: ['target'] is not a valid v5 name
+# CHECK-NEXT: error: metrics entry 'compile_time': [] is not a v5 type
+# CHECK-NEXT: error: metrics entry {}: {} is not a valid v5 name
+# CHECK-NEXT: exit: 1
+
+# Samples are checked against the target schema, which can declare metrics
+# that the v4 schema does not.
+M = {'id': 1, 'name': 'm', 'os': 'linux', 'cpu': 'x86'}
+extra_metric = make_mirror('extra-metric', [
+    (M, [run(1, M, '1', [sample('t', extra=1.5)])])])
+import_(extra_metric, '--suite', 'nts', '--target-suite', 'target',
+        '--dry-run', '--schema', override('extra', fix_units))
+# CHECK:      Converted 1 run(s) of 1 machine(s); 0 failure(s).
+# CHECK-NEXT: exit: 0
+
+
 # ---------------------------------------------------------------------------
 print('# MIRROR ERRORS')
 import_(basic, '--suite', 'compile', '--target-suite', 'target', '--dry-run')
@@ -392,6 +431,23 @@ manifest['format_version'] = '2'
 write(os.path.join(names, 'manifest.json'), json.dumps(manifest).encode())
 import_(names, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 # CHECK:      error: {{.*}}names cannot be imported: its format version is '2', but only version '1' can be imported
+# CHECK-NEXT: exit: 1
+
+# A malformed mirror is reported rather than crashing the command.
+M = {'id': 1, 'name': 'm'}
+malformed = make_mirror('malformed', [(M, [run(1, M, '1', [])])])
+with open(os.path.join(malformed, 'manifest.json')) as f:
+    manifest = json.load(f)
+del manifest['source']
+write(os.path.join(malformed, 'manifest.json'), json.dumps(manifest).encode())
+import_(malformed, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+# CHECK:      error: {{.*}}malformed cannot be imported: it is malformed (KeyError('source'))
+# CHECK-NEXT: exit: 1
+
+manifest['suites']['nts']['machines'] = []
+write(os.path.join(malformed, 'manifest.json'), json.dumps(manifest).encode())
+import_(malformed, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+# CHECK:      error: {{.*}}malformed cannot be imported: it is malformed (AttributeError({{.*}}))
 # CHECK-NEXT: exit: 1
 
 # Only dry runs are supported so far.

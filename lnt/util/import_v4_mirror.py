@@ -40,7 +40,7 @@ METRIC_TYPES = {'Real': 'real', 'Status': 'integer', 'Hash': 'text'}
 DUPLICATE_SUFFIX = '-import-%s'
 
 # v5's rules for names of suites and of schema entries.
-_NAME_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+_NAME_RE = re.compile(r'[a-z][a-z0-9_]*')
 _NAME_MAX = 63
 _RESERVED_SUITE_NAMES = {'public', 'information_schema'}
 _V5_TYPES = {'real', 'integer', 'text', 'datetime'}
@@ -55,7 +55,7 @@ _COMMIT_FIELD_BUILTINS = {'id', 'commit', 'ordinal', 'tag'}
 _IDENTIFIER_MAX = 256
 
 # v5 ordinals are 32-bit, and integer metrics 64-bit.
-_ORDINAL_RE = re.compile(r'^r?([0-9]+)$')
+_ORDINAL_RE = re.compile(r'r?([0-9]+)')
 _ORDINAL_MAX = 2**31 - 1
 _INTEGER_MIN, _INTEGER_MAX = -2**63, 2**63 - 1
 
@@ -96,6 +96,7 @@ class MirroredSuite:
     database: str
     suite: str
     schema: JSONObject
+    order_fields: list[str]          # run fields marked "order" by the schema
     machines: dict[str, JSONObject]  # v4 machine id -> machine object
     runs: list[MirroredRun]          # in increasing order of v4 id
     # Runs in the listings that the mirror does not hold, because the refresh
@@ -148,8 +149,13 @@ def read_mirror(mirror_dir: str, suite: str) -> MirroredSuite:
         entry = manifest['suites'][suite]
         schema = _parse(_read(mirror_dir, schema_path(suite),
                               entry['schema']['sha256']), 'the schema')
+        for key in ('metrics', 'machine_fields', 'run_fields'):
+            if not all(isinstance(e, dict) for e in schema.get(key, [])):
+                raise ValueError('the schema has a malformed %s list' % key)
         order_fields = [f.get('name') for f in schema.get('run_fields', [])
                         if f.get('order')]
+        if not all(isinstance(field, str) for field in order_fields):
+            raise ValueError('the schema has a malformed run_fields list')
         machines: dict[str, JSONObject] = {}
         runs: list[MirroredRun] = []
         missing = 0
@@ -158,6 +164,10 @@ def read_mirror(mirror_dir: str, suite: str) -> MirroredSuite:
                                    machine_path(suite, machine_id),
                                    machine['sha256']),
                              'the listing of machine %s' % machine_id)
+            int(machine_id)
+            if not isinstance(listing['machine'], dict):
+                raise ValueError('the listing of machine %s is malformed'
+                                 % machine_id)
             machines[machine_id] = listing['machine']
             summaries = {str(run['id']): run for run in listing['runs']}
             missing += len(summaries.keys() - machine['runs'].keys())
@@ -167,14 +177,17 @@ def read_mirror(mirror_dir: str, suite: str) -> MirroredSuite:
                     commit = summaries[run_id].get(order_fields[0])
                 runs.append(MirroredRun(run_id, machine_id, run['sha256'],
                                         commit))
+        runs.sort(key=lambda run: int(run.id))
+        return MirroredSuite(mirror_dir, manifest['source']['url'],
+                             manifest['source']['database'], suite, schema,
+                             order_fields, machines, runs, missing)
     except OSError as e:
         raise PlanError(['%s is not a readable mirror: %s' % (mirror_dir, e)])
-    except (KeyError, TypeError, ValueError) as e:
+    except ValueError as e:
         raise PlanError(['%s cannot be imported: %s' % (mirror_dir, e)])
-    runs.sort(key=lambda run: int(run.id))
-    return MirroredSuite(mirror_dir, manifest['source']['url'],
-                         manifest['source']['database'], suite, schema,
-                         machines, runs, missing)
+    except (AttributeError, KeyError, TypeError) as e:
+        raise PlanError(['%s cannot be imported: it is malformed (%r)'
+                         % (mirror_dir, e)])
 
 
 def read_run(mirrored: MirroredSuite, run: MirroredRun) -> JSONObject:
@@ -194,14 +207,14 @@ def read_run(mirrored: MirroredSuite, run: MirroredRun) -> JSONObject:
 class Plan:
     mirrored: MirroredSuite
     schema: JSONObject              # the schema to create the target suite with
-    metric_types: dict[str, str]    # the v5 type of each v4 metric
+    metric_types: dict[str, str]    # metric -> its type in the target schema
     order_field: str
     machines: dict[str, JSONObject]  # v4 machine id -> v5 machine object
     ordinals: dict[str, int | None]  # commit value -> ordinal
 
 
 def _check_name(name: Any, what: str, problems: list[str]) -> None:
-    if not isinstance(name, str) or not _NAME_RE.match(name) or \
+    if not isinstance(name, str) or not _NAME_RE.fullmatch(name) or \
             len(name) > _NAME_MAX:
         problems.append('%s: %r is not a valid v5 name' % (what, name))
 
@@ -225,13 +238,16 @@ def check_schema(schema: JSONObject, problems: list[str]) -> None:
     """Check the parts of a v5 schema that a converted suite could get wrong.
 
     The v5 instance validates the whole schema when the suite is created; this
-    only lets a dry run report what the conversion is responsible for.
+    only lets a dry run report what the conversion is responsible for. The
+    schema may come from the user (--schema), so nothing about its shape is
+    assumed.
     """
-    _check_name(schema.get('name'), 'suite name', problems)
+    found: list[str] = []
     name = schema.get('name')
-    if name in _RESERVED_SUITE_NAMES or \
-            (isinstance(name, str) and name.startswith('pg_')):
-        problems.append('suite name: %r is reserved by v5' % name)
+    _check_name(name, 'suite name', found)
+    if isinstance(name, str) and \
+            (name in _RESERVED_SUITE_NAMES or name.startswith('pg_')):
+        found.append('suite name: %r is reserved by v5' % name)
     lists = [('metrics', _METRIC_BUILTINS),
              ('machine_fields', _MACHINE_FIELD_BUILTINS),
              ('commit_fields', _COMMIT_FIELD_BUILTINS)]
@@ -239,47 +255,46 @@ def check_schema(schema: JSONObject, problems: list[str]) -> None:
         entries = schema.get(key, [])
         if not isinstance(entries, list) or \
                 not all(isinstance(e, dict) for e in entries):
-            problems.append('%s: not a list of objects' % key)
+            found.append('%s: not a list of objects' % key)
             continue
         names = [e.get('name') for e in entries]
         for entry in entries:
-            what = '%s entry %r' % (key, entry.get('name'))
-            _check_name(entry.get('name'), what, problems)
-            if entry.get('name') in builtins:
-                problems.append('%s: the name is reserved by v5' % what)
-            if names.count(entry.get('name')) > 1:
-                problems.append('%s: the name is declared more than once'
-                                % what)
-            if entry.get('type') not in _V5_TYPES:
-                problems.append('%s: %r is not a v5 type'
-                                % (what, entry.get('type')))
+            entry_name, entry_type = entry.get('name'), entry.get('type')
+            what = '%s entry %r' % (key, entry_name)
+            _check_name(entry_name, what, found)
+            if isinstance(entry_name, str):
+                if entry_name in builtins:
+                    found.append('%s: the name is reserved by v5' % what)
+                if names.count(entry_name) > 1:
+                    found.append('%s: the name is declared more than once'
+                                 % what)
+            if not isinstance(entry_type, str) or entry_type not in _V5_TYPES:
+                found.append('%s: %r is not a v5 type' % (what, entry_type))
             for label in ('display_name', 'unit', 'unit_abbrev'):
                 value = entry.get(label)
                 if value is not None and \
                         (not isinstance(value, str) or not value):
-                    problems.append('%s: %s %r is not a non-empty string'
-                                    % (what, label, value))
-    # Duplicates are reported once per entry; keep each message once.
-    problems[:] = list(dict.fromkeys(problems))
+                    found.append('%s: %s %r is not a non-empty string'
+                                 % (what, label, value))
+    # An entry declared twice is reported twice; keep each message once.
+    problems.extend(dict.fromkeys(found))
 
 
 def _derive_schema(mirrored: MirroredSuite, target_suite: str,
-                   problems: list[str]) -> tuple[JSONObject, dict[str, str]]:
-    """The target schema the spec derives, and the type of each metric.
+                   problems: list[str]) -> JSONObject:
+    """The target schema the spec derives.
 
     The schema is in the normalized form a v5 instance returns, with every
     optional key present.
     """
     metrics = []
-    metric_types = {}
     for metric in mirrored.schema.get('metrics', []):
-        name = metric.get('name')
-        v5_type = METRIC_TYPES.get(metric.get('type'))
+        name, v4_type = metric.get('name'), metric.get('type')
+        v5_type = METRIC_TYPES.get(v4_type) if isinstance(v4_type, str) else None
         if v5_type is None:
             problems.append('metric %r: type %r cannot be imported'
                             % (name, metric.get('type')))
             continue
-        metric_types[name] = v5_type
         display_name = metric.get('display_name')
         metrics.append({
             'name': name,
@@ -304,7 +319,7 @@ def _derive_schema(mirrored: MirroredSuite, target_suite: str,
     schema = {'name': target_suite, 'metrics': metrics,
               'machine_fields': machine_fields, 'commit_fields': []}
     check_schema(schema, problems)
-    return schema, metric_types
+    return schema
 
 
 def _check_override(override: JSONObject, derived: JSONObject,
@@ -316,8 +331,10 @@ def _check_override(override: JSONObject, derived: JSONObject,
                                          derived['name']))
     for key in ('metrics', 'machine_fields'):
         entries = override.get(key, [])
-        types = {e.get('name'): e.get('type') for e in entries
-                 if isinstance(e, dict)} if isinstance(entries, list) else {}
+        types = {}
+        if isinstance(entries, list):
+            types = {e.get('name'): e.get('type') for e in entries
+                     if isinstance(e, dict) and isinstance(e.get('name'), str)}
         for entry in derived[key]:
             if entry['name'] not in types:
                 problems.append('--schema: %s does not declare %r'
@@ -333,16 +350,17 @@ def _check_override(override: JSONObject, derived: JSONObject,
 def _name_machines(mirrored: MirroredSuite,
                    problems: list[str]) -> dict[str, JSONObject]:
     """The v5 machine object of each v4 machine, by v4 identifier."""
-    by_name: dict[Any, list[str]] = collections.defaultdict(list)
+    by_name: dict[str, list[str]] = collections.defaultdict(list)
     for machine_id in sorted(mirrored.machines, key=int):
-        by_name[mirrored.machines[machine_id].get('name')].append(machine_id)
+        v4_name = mirrored.machines[machine_id].get('name')
+        if isinstance(v4_name, str):
+            by_name[v4_name].append(machine_id)
+        else:
+            problems.append('machine %s: its name, %r, is not a string'
+                            % (machine_id, v4_name))
 
     machines: dict[str, JSONObject] = {}
     for v4_name, ids in by_name.items():
-        if not isinstance(v4_name, str):
-            problems.append('machine %s: its name, %r, is not a string'
-                            % (ids[0], v4_name))
-            continue
         # The oldest machine of a name keeps it.
         for i, machine_id in enumerate(ids):
             name = v4_name.replace('/', '_')
@@ -373,9 +391,18 @@ def _name_machines(mirrored: MirroredSuite,
     return machines
 
 
+def _commit_value(value: Any) -> str | None:
+    """A v4 order field's value as a commit value, if it can be one."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return None
+
+
 def ordinal(commit: str) -> int | None:
     """The ordinal of the commit `commit`, if it has one."""
-    match = _ORDINAL_RE.match(commit)
+    match = _ORDINAL_RE.fullmatch(commit)
     if match is None or int(match.group(1)) > _ORDINAL_MAX:
         return None
     return int(match.group(1))
@@ -386,8 +413,8 @@ def _order_commits(mirrored: MirroredSuite,
     """The ordinal of each commit, by commit value."""
     ordinals = {}
     for run in mirrored.runs:
-        if run.commit is not None:
-            commit = str(run.commit)
+        commit = _commit_value(run.commit)
+        if commit is not None:
             ordinals[commit] = ordinal(commit)
     values: dict[int, list[str]] = collections.defaultdict(list)
     for commit, value in ordinals.items():
@@ -409,12 +436,10 @@ def make_plan(mirrored: MirroredSuite, target_suite: str,
     every problem found.
     """
     problems: list[str] = []
-    order_fields = [f.get('name') for f in mirrored.schema.get('run_fields', [])
-                    if f.get('order')]
-    if len(order_fields) != 1:
+    if len(mirrored.order_fields) != 1:
         problems.append('the schema has %d run fields marked "order", rather '
-                        'than exactly one' % len(order_fields))
-    schema, metric_types = _derive_schema(mirrored, target_suite, problems)
+                        'than exactly one' % len(mirrored.order_fields))
+    schema = _derive_schema(mirrored, target_suite, problems)
     if override is not None:
         _check_override(override, schema, problems)
         schema = override
@@ -422,8 +447,11 @@ def make_plan(mirrored: MirroredSuite, target_suite: str,
     ordinals = _order_commits(mirrored, problems)
     if problems:
         raise PlanError(problems)
-    return Plan(mirrored, schema, metric_types, order_fields[0], machines,
-                ordinals)
+    # Samples are checked against the target schema, which check_schema has
+    # found well-formed.
+    metric_types = {m['name']: m['type'] for m in schema.get('metrics', [])}
+    return Plan(mirrored, schema, metric_types, mirrored.order_fields[0],
+                machines, ordinals)
 
 
 # ----------------------------------------------------------------------------
@@ -458,13 +486,21 @@ def _check_storable(value: Any, where: str) -> None:
             _check_storable(item, where)
 
 
+def _is_finite_number(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        # An int too large to be a float.
+        return False
+
+
 def _typed(value: Any, v5_type: str, what: str) -> Any:
     """`value` as a value of the v5 type `v5_type`."""
-    is_number = isinstance(value, (int, float)) and \
-        not isinstance(value, bool)
-    if v5_type == 'real' and is_number and math.isfinite(value):
+    if v5_type == 'real' and _is_finite_number(value):
         return value
-    if v5_type == 'integer' and is_number and math.isfinite(value) and \
+    if v5_type == 'integer' and _is_finite_number(value) and \
             value == int(value) and _INTEGER_MIN <= value <= _INTEGER_MAX:
         return int(value)
     if v5_type == 'text' and isinstance(value, str) and '\0' not in value:
@@ -485,10 +521,11 @@ def convert_run(plan: Plan, run: MirroredRun,
         raise ConversionError('its document does not have the shape of a v4 '
                               'run')
 
-    commit_value = v4_run.get(plan.order_field)
+    commit_value = _commit_value(v4_run.get(plan.order_field))
     if commit_value is None:
-        raise ConversionError('it has no %s' % plan.order_field)
-    commit_value = str(commit_value)
+        raise ConversionError('it has no valid %s: %r'
+                              % (plan.order_field,
+                                 v4_run.get(plan.order_field)))
     problem = _identifier_problem(commit_value)
     if problem:
         raise ConversionError('its commit %s' % problem)
