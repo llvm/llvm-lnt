@@ -232,6 +232,9 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
   return <div className={styles.status}>{message}</div>
 }
 
+/** The keys that move the highlight among the suggestions. */
+const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'])
+
 /**
  * The input and its button. The list opens when the user types, as well as on ArrowDown and from
  * the button, as React Aria opens it.
@@ -241,6 +244,11 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
  * does. An Enter pressed before the suggestions for its text have arrived is held until they do,
  * and dropped if the text changes meanwhile, as leaving the combobox does by putting back the
  * value's text.
+ *
+ * Only a suggestion the user moved to from the keyboard since the text last changed counts as
+ * highlighted. React Aria also highlights one on its own, as the list opens or the pointer passes
+ * over it, which may be a suggestion for earlier text, still shown while those for the text typed
+ * load (AR9): Enter must not pick that one.
  */
 function Field({
   query,
@@ -261,6 +269,8 @@ function Field({
   })
   // The text the held Enter was pressed on, if any.
   const held = useRef<string | null>(null)
+  // The text the user last moved the highlight from the keyboard on, if any.
+  const navigatedOn = useRef<string | null>(null)
 
   const enter = (entered: string) => {
     const match = exactMatch(suggestions.items, entered)
@@ -283,8 +293,10 @@ function Field({
   })
 
   const onKeyDownCapture = (event: KeyboardEvent) => {
+    if (NAVIGATION_KEYS.has(event.key)) navigatedOn.current = query
     if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-    if (state.selectionManager.focusedKey !== null || query === '') return
+    const navigated = navigatedOn.current === query
+    if (query === '' || (navigated && state.selectionManager.focusedKey !== null)) return
     // Ours rather than React Aria's, which would put the value's text back, and no form's either.
     event.preventDefault()
     event.stopPropagation()
