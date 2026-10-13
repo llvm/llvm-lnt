@@ -16,9 +16,7 @@ Contents
 
    tools
 
-   mirror_v4
-
-   import_v4_mirror
+   migrating_to_v5
 
    concepts
 
