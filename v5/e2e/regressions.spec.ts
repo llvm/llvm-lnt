@@ -276,21 +276,27 @@ test.describe('the commit picker', () => {
   test('creates nothing while it holds text that was not picked', async ({ page, request }) => {
     const form = page.getByRole('form', { name: 'New regression' })
     const picker = form.getByRole('combobox', { name: 'Commit' })
+    const create = form.getByRole('button', { name: 'Create', includeHidden: true })
     const title = `e2e unpicked commit ${Date.now()}`
     try {
       await form.getByLabel('Title').fill(title)
+      // Create is brought into view before typing, and waited for, since React Aria closes the list
+      // when the page scrolls, which puts back the text of the picker's value.
+      await create.scrollIntoViewIfNeeded()
+      await expect(create).toBeInViewport()
 
       await picker.fill('r55')
-      const create = form.getByRole('button', { name: 'Create', includeHidden: true })
       await expect(create).toBeDisabled()
       const reason = 'Pick a commit from the list, or clear the field.'
       await expect(form.getByText(reason)).toBeVisible()
       await expect(create).toHaveAccessibleDescription(reason)
 
       // A click on Create keeps the focus, and so the text, in the picker, and creates nothing.
-      // The mouse is driven directly: Playwright's own click waits for the button to be enabled.
-      const box = (await create.boundingBox())!
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+      // The mouse is driven directly: Playwright's click waits for the button to be enabled, and
+      // its hover does not. Nor does it scroll, with `scroll: 'none'`.
+      await create.hover({ scroll: 'none' })
+      await page.mouse.down()
+      await page.mouse.up()
       await page.waitForTimeout(500)
       await expect(picker).toHaveValue('r55')
       await expect(picker).toBeFocused()
