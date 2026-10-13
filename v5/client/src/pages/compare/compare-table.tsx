@@ -134,12 +134,7 @@ export function CompareTable({
       },
       ...shownColumns.map((column): Column<Row> => ({
         id: column.id,
-        header:
-          column.headerTitle === undefined ? (
-            column.header
-          ) : (
-            <span title={column.headerTitle}>{column.header}</span>
-          ),
+        header: column.header,
         looks: column.looks,
         className: column.id === 'test' ? styles.testColumn : undefined,
         cell: (row) =>

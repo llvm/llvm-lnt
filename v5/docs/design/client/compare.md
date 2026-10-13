@@ -198,9 +198,11 @@ all use these rows.
   | P-value  | `pvalue`       | no       | Welch's t-test p-value, as for the P-value knob, whether or not the knob is enabled; 0 where the knob treats the change as deterministic | The knob would be skipped |
 
   Statistics are computed over the side's samples for the test (see
-  Computation Reference), ignoring the sample and run aggregation settings.
-  Hovering a column's header says so. A p-value below 0.0001 is shown in
-  exponent notation (`2.01e-29`).
+  Computation Reference), from all its selected runs together, before any
+  aggregation: the sample and run aggregation settings do not affect them. A
+  line above the Columns menu's items says that they are computed over all
+  samples without aggregation. A p-value below 0.0001 is shown in exponent
+  notation (`2.01e-29`).
 
   A per-side statistic adds an A and a B column. Optional columns sit between
   Ratio and Status, in the order above, A before B. They are empty on the

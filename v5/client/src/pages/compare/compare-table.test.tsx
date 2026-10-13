@@ -252,6 +252,24 @@ describe('optional columns (CP2)', () => {
     ])
   })
 
+  it('says what the statistics are computed over in the menu, not on their headers', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&columns=samples&columns=pvalue`)
+    await comparison()
+
+    for (const header of within(await table('Comparison')).getAllByRole('columnheader')) {
+      expect(header.querySelector('[title]')).toBeNull()
+    }
+
+    // The line labels the group of the menu's items.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Columns' }))
+    expect(
+      within(screen.getByRole('menu')).getByRole('group', {
+        name: 'Computed over all samples without aggregation.',
+      }),
+    ).toBeInTheDocument()
+  })
+
   it("shows each side's statistics, empty on the geomean and N/A without samples", async () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&columns=samples&columns=mean&columns=pvalue`)
