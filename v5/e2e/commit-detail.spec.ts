@@ -120,7 +120,7 @@ const RUNS: OwnRun[] = [1, 2, 3].map((ordinal) => ({
   machine: 'm1',
   commit: `c${ordinal}`,
   ordinal,
-  tests: [{ name: 'bench' }],
+  tests: [{ name: 'bench', samples: [{}] }],
 }))
 
 test('its ordinal and tag are edited by a holder of manage scope', async ({

@@ -2,18 +2,18 @@
 
 Two things live here: the shape of the body `POST /api/suites/{testsuite}/runs` accepts, and the
 step that resolves it against a suite's schema. Neither touches a database. A submission is the one
-request whose meaning depends on the suite -- its metric names are columns the schema declares, its
-arrays expand into rows -- so the work of reading it is worth doing once, in front of the write,
-rather than interleaved with the inserts. `validate_submission` either returns the whole of what the
+request whose meaning depends on the suite -- the keys of its samples are columns the schema
+declares -- so the work of reading it is worth doing once, in front of the write, rather than
+interleaved with the inserts. `validate_submission` either returns the whole of what the
 run write needs or raises, so nothing half-validated ever reaches a statement.
 
 The run endpoints that address a run rather than create one take their UUID from a path segment,
 and read it through `entities.UuidKey`: the normalization a body's UUID gets has to be the same one
 a path gets, or the two would disagree about which run is which.
 
-Test entries are the reason the payload model cannot describe the request on its own: a metric name
-is data, not part of the format, so `TestEntry` accepts extra keys and `validate_submission` decides
-what they mean. Everything else here is declared, and `extra="forbid"` makes a misspelled key a 400
+Samples are the reason the payload model cannot describe the request on its own: a metric name is
+data, not part of the format, so a sample is an open mapping and `validate_submission` decides what
+its keys mean. Everything else here is declared, and `extra="forbid"` makes a misspelled key a 400
 rather than a value silently dropped.
 
 A test entry's profile is decoded, validated and encoded for storage by `profile_document`, which
@@ -29,7 +29,7 @@ from math import isfinite
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, WithJsonSchema
 
 from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
@@ -38,6 +38,7 @@ from lnt_v5.suites.entities import (
     CLIENT_UUID_FORMAT,
     ClientUuid,
     CommitObject,
+    DeclaredValue,
     FieldValue,
     MachineObject,
     declared_by_name,
@@ -91,26 +92,31 @@ TestName = Annotated[
 ]
 
 
-# `extra="allow"`, alone among the models here, because the keys beside the two reserved ones are
-# the suite's metric names -- data rather than format, which no static model can enumerate. They are
-# validated against the schema by `validate_submission`; what this model contributes is the shape of
-# `name` and `profile`, and the fact that everything else is a metric.
+# A sample's values are validated against the suite's metrics by `validate_submission` rather than
+# by the model, so that a value of the wrong type, or a null, gets a message naming the test, the
+# sample and the metric. The document still publishes the values a metric can take: those of a
+# sample read back (`DeclaredValue`), with no null.
+SampleValue = Annotated[Any, WithJsonSchema(TypeAdapter(DeclaredValue).json_schema())]
+
+
 class TestEntry(BaseModel):
-    """The results of one test: its `name`, an optional `profile`, and one key per metric, named
-    after the metric.
+    """The results of one test: its `name`, its `samples`, and an optional `profile`."""
 
-    Each metric's value is either a single value or an array of values, one per repetition of the
-    test. Each array element is recorded as a separate sample. All arrays in one entry must have the
-    same length, and single values next to them are repeated in each sample. An entry without any
-    metric still records that the test ran.
-
-    Values must have the JSON type of their metric. Metrics the schema doesn't define are rejected,
-    and so are nulls: leave out metrics that have no value.
-    """
-
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     name: TestName
+    samples: list[dict[str, SampleValue]] = Field(
+        min_length=1,
+        description=(
+            "One object per measurement of the test in this run, so a test measured several "
+            "times has several. Each object maps metric names to values, and holds only the "
+            "metrics that this measurement has a value for: leave out the others rather than "
+            "sending null. Values must have the JSON type of their metric, and metrics the schema "
+            "doesn't define are rejected. An empty object records that the test ran without a "
+            "value for any metric."
+        ),
+        examples=[[examples.SAMPLE_METRICS]],
+    )
     profile: str | None = Field(
         default=None,
         description=(
@@ -176,11 +182,10 @@ class SubmittedCommit:
 class SubmittedTest:
     """One test entry, resolved into the rows it stands for.
 
-    `samples` holds one mapping of metric column values per `{suite}.sample` row, and is never
-    empty: O1 gives an entry `max(1, array length)` rows, so an entry carrying no metric values at
-    all still records that the test ran in this run.
+    `samples` holds one mapping of metric column values per `{suite}.sample` row, one per sample the
+    entry carries, and is never empty: O1 requires every entry to record that its test ran.
 
-    Every mapping carries every metric the suite declares, with `None` where the entry had no value
+    Every mapping carries every metric the suite declares, with `None` where the sample had no value
     -- which is what an omitted metric means anyway (O1). Uniform key sets are a promise the write
     layer relies on; see `_samples`, which establishes it.
     """
@@ -235,24 +240,24 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     declared = declared_by_name(schema, Metric)
     for entry in body.tests:
         if entry.name in seen:
-            # O1: one entry per test. The format already expresses a test measured several times
-            # with an array value, and D5 allows at most one profile per run+test pair, so two
-            # entries for one test could not both be stored. Refused here rather than discovered as
-            # an integrity failure halfway through writing the run.
+            # O1: one entry per test. A test measured several times has several samples in one
+            # entry, and D5 allows at most one profile per run+test pair, so two entries for one
+            # test could not both be stored. Refused here rather than discovered as an integrity
+            # failure halfway through writing the run.
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
                 f"two test entries name '{entry.name}'; a test measured several times in one run "
-                f"is submitted as one entry with array values, not as several entries",
+                f"is submitted as one entry with several samples, not as several entries",
             )
         seen.add(entry.name)
-        with _naming(entry):
+        with _within(f"test '{entry.name}'"):
             samples.append(_samples(declared, entry))
 
     # A second pass, because encoding a profile is by far the most expensive part of validation:
     # a submission refused for one of its samples is refused before any of that work is done.
     tests: list[SubmittedTest] = []
     for entry, rows in zip(body.tests, samples, strict=True):
-        with _naming(entry):
+        with _within(f"test '{entry.name}'"):
             profile = None if entry.profile is None else stored_profile(entry.profile)
         tests.append(SubmittedTest(name=entry.name, samples=rows, profile=profile))
 
@@ -267,12 +272,13 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
 
 
 @contextmanager
-def _naming(entry: TestEntry) -> Iterator[None]:
-    """Say which test entry a 400 raised inside is about, since a submission carries thousands."""
+def _within(label: str) -> Iterator[None]:
+    """Say which part of the submission a 400 raised inside is about, such as a test entry, since a
+    submission carries thousands of them."""
     try:
         yield
     except ApiError as error:
-        raise ApiError(error.code, f"test '{entry.name}': {error.message}") from error
+        raise ApiError(error.code, f"{label}: {error.message}") from error
 
 
 def _reject_unstorable(value: Any, where: str) -> None:
@@ -324,74 +330,42 @@ def _submitted_fields(
 
 
 def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str, Any]]:
-    """The sample rows one test entry stands for (O1).
-
-    Array values are what make this more than a rename: a test measured several times in one run
-    sends an array per metric, and the entry expands into one row per element, with the scalar
-    metrics repeated across them. All the arrays therefore describe the same repetitions and must
-    agree on how many there were.
+    """The sample rows one test entry stands for, one per sample it carries (O1).
 
     `declared` is the suite's metrics by name, built once for the whole submission by the caller.
     """
-    scalars: dict[str, Any] = {}
-    arrays: dict[str, list[Any]] = {}
-    repetitions: int | None = None
-
-    # `model_extra` is everything that is not `name` or `profile`, which O1 reserves; the schema
-    # refuses a metric named either, so a suite can never hold one this loop would hide (D5).
-    for key, value in (entry.model_extra or {}).items():
-        metric = declared.get(key)
-        if metric is None:
-            raise undeclared(key, Metric, declared)
-        if not isinstance(value, list):
-            scalars[key] = _measured(metric, value)
-            continue
-        if not value:
-            # O1: an empty array would produce no rows at all, silently discarding every scalar
-            # metric in the same entry -- which is never what a producer meant.
-            raise ApiError(
-                ErrorCode.INVALID_REQUEST,
-                f"'{key}' is an empty array; a metric with no values is omitted from the test "
-                f"entry rather than sent as an empty array",
-            )
-        if repetitions is not None and len(value) != repetitions:
-            raise ApiError(
-                ErrorCode.INVALID_REQUEST,
-                f"'{key}' carries {len(value)} values, but another metric in this entry carries "
-                f"{repetitions}; every array in one test entry describes the same repetitions and "
-                f"must be the same length",
-            )
-        repetitions = len(value)
-        arrays[key] = [_measured(metric, element) for element in value]
-
-    # Every row carries every declared metric, `None` where the entry sent no value -- which is
-    # what a metric the submission omits means anyway (O1). That uniformity is what lets the write
-    # layer put the whole submission in one statement: SQLAlchemy Core compiles an executemany from
-    # the *first* mapping it is given and binds every later one to those same columns, so rows that
-    # disagree on which keys they carry silently write the wrong columns, or drop values entirely.
-    # Established here, where the rows are made, rather than repaired by whoever writes them.
-    measured = {name: scalars.get(name) for name in declared}
-
-    # O1: an entry yields max(1, array length) rows. With no arrays that is the single row which
-    # records that the test ran in this run, whether or not it carries any metric value.
-    count = 1 if repetitions is None else repetitions
-    return [
-        measured | {key: values[index] for key, values in arrays.items()} for index in range(count)
-    ]
+    rows = []
+    for index, sample in enumerate(entry.samples):
+        # Every row carries every declared metric, `None` where the sample has no value -- which is
+        # what a metric the sample omits means anyway (O1). That uniformity is what lets the write
+        # layer put the whole submission in one statement: SQLAlchemy Core compiles an executemany
+        # from the *first* mapping it is given and binds every later one to those same columns, so
+        # rows that disagree on which keys they carry silently write the wrong columns, or drop
+        # values entirely. Established here, where the rows are made, rather than repaired by
+        # whoever writes them.
+        row: dict[str, Any] = dict.fromkeys(declared)
+        with _within(f"samples[{index}]"):
+            for key, value in sample.items():
+                metric = declared.get(key)
+                if metric is None:
+                    raise undeclared(key, Metric, declared)
+                row[key] = _measured(metric, value)
+        rows.append(row)
+    return rows
 
 
 def _measured(metric: Metric, value: Any) -> Any:
     """One metric value, typed per D3, or a 400.
 
     A null is refused rather than stored. O1 makes an absent measurement an absent key, so a null
-    is a producer emitting a fixed row of metrics without saying which of them it actually has --
+    is a producer emitting a fixed set of metrics without saying which of them it actually has --
     and every `{suite}.sample` column is nullable anyway, so accepting it would buy nothing and
     lose the one signal that the producer is confused.
     """
     if value is None:
         raise ApiError(
             ErrorCode.INVALID_REQUEST,
-            f"'{metric.name}' is null; a metric with no value is omitted from the test entry "
-            f"rather than sent as null",
+            f"'{metric.name}' is null; a metric with no value is omitted from the sample rather "
+            f"than sent as null",
         )
     return validate_value(metric, value)

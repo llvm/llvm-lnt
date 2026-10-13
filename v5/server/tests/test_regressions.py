@@ -29,7 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, insert, select, update
 
-from conftest import code_of, recent, run_payload, uuids_in, walk_cursor, walk_pages
+from conftest import code_of, entry, recent, run_payload, uuids_in, walk_cursor, walk_pages
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
@@ -94,8 +94,8 @@ def data(api_client: TestClient, submitter: dict[str, str], suite: SuiteTables) 
             machine={"name": machine},
             commit={"value": "abc123"},
             tests=[
-                {"name": "suite/one", "execution_time": 1.0},
-                {"name": "suite/two", "execution_time": 2.0},
+                entry("suite/one", {"execution_time": 1.0}),
+                entry("suite/two", {"execution_time": 2.0}),
             ],
         )
         assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
@@ -1356,7 +1356,7 @@ class TestAddIndicators:
         body = run_payload(
             machine={"name": "linux"},
             commit={"value": "abc123"},
-            tests=[{"name": test, "execution_time": 1.0, "compile_time": 1.0} for test in tests],
+            tests=[entry(test, {"execution_time": 1.0, "compile_time": 1.0}) for test in tests],
         )
         assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
         indicators = [

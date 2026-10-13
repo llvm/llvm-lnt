@@ -25,95 +25,187 @@
   "tests": [
     {
       "name": "std::print(\"Hello,_World!\")",
-      "execution_time": 218.4430733121028
+      "samples": [
+        {
+          "execution_time": 218.4430733121028
+        }
+      ]
     },
     {
       "name": "std::vprint_unicode(\"Hello,_World!\")",
-      "execution_time": 204.5837225990591
+      "samples": [
+        {
+          "execution_time": 204.5837225990591
+        }
+      ]
     },
     {
       "name": "BM_BitsetToString<1048576>/Dense_(90%)/90",
-      "execution_time": 128007.58517930038
+      "samples": [
+        {
+          "execution_time": 128007.58517930038
+        }
+      ]
     },
     {
       "name": "std::format(double)_(value:_-inf,_fmt:_{:0^17500_0})",
-      "execution_time": 190.03063317750755
+      "samples": [
+        {
+          "execution_time": 190.03063317750755
+        }
+      ]
     },
     {
       "name": "std::format(float)_(value:_random,_fmt:_{:0^17500_0L})",
-      "execution_time": 250.56974077636113
+      "samples": [
+        {
+          "execution_time": 250.56974077636113
+        }
+      ]
     },
     {
       "name": "filesystem::path::ctor(std::string_const&)/1024",
-      "execution_time": 12134.175204262718
+      "samples": [
+        {
+          "execution_time": 12134.175204262718
+        }
+      ]
     },
     {
       "name": "std::make_heap+std::sort_heap(deque<int>)_(ascending)/1024",
-      "execution_time": 19084.961209058372
+      "samples": [
+        {
+          "execution_time": 19084.961209058372
+        }
+      ]
     },
     {
       "name": "std::deque<int>::operator=(const_Self&)_(cheap_elements)/32",
-      "execution_time": 6.01521466587009
+      "samples": [
+        {
+          "execution_time": 6.01521466587009
+        }
+      ]
     },
     {
       "name": "std::multimap<std::string,_int>::operator=(const_Self&)_(into_populated_Container)/8192",
-      "execution_time": 223501.09621714265
+      "samples": [
+        {
+          "execution_time": 223501.09621714265
+        }
+      ]
     },
     {
       "name": "std::unordered_multimap<int,_int>::ctor(const_Self&,_const_allocator_type&)/32",
-      "execution_time": 289.44483048818944
+      "samples": [
+        {
+          "execution_time": 289.44483048818944
+        }
+      ]
     },
     {
       "name": "std::vector<std::string>::insert(begin,_input-iter,_input-iter)_(half_filled)_(expensive_elements)/8192",
-      "execution_time": 103533.79774372122
+      "samples": [
+        {
+          "execution_time": 103533.79774372122
+        }
+      ]
     },
     {
       "name": "BM_num_get<void*>",
-      "execution_time": 51.58459337300904
+      "samples": [
+        {
+          "execution_time": 51.58459337300904
+        }
+      ]
     },
     {
       "name": "BM_num_put<const_void*>",
-      "execution_time": 12.943626870657164
+      "samples": [
+        {
+          "execution_time": 12.943626870657164
+        }
+      ]
     },
     {
       "name": "BM_format_to_back_inserter<std::vector<char>>/string_len_60",
-      "execution_time": 31.767285952061798
+      "samples": [
+        {
+          "execution_time": 31.767285952061798
+        }
+      ]
     },
     {
       "name": "bm_lexicographical_compare<signed_char>/64",
-      "execution_time": 2.3566989748877316
+      "samples": [
+        {
+          "execution_time": 2.3566989748877316
+        }
+      ]
     },
     {
       "name": "dynamic_cast_(Chain,_1_level)",
-      "execution_time": 1.4510024753344426
+      "samples": [
+        {
+          "execution_time": 1.4510024753344426
+        }
+      ]
     },
     {
       "name": "static_cast",
-      "execution_time": 0.22471965247531972
+      "samples": [
+        {
+          "execution_time": 0.22471965247531972
+        }
+      ]
     },
     {
       "name": "CastTo<B<Width_/_2,_Depth>>",
-      "execution_time": 3230.5992588118906
+      "samples": [
+        {
+          "execution_time": 3230.5992588118906
+        }
+      ]
     },
     {
       "name": "rng::minmax(std::deque<__int128>)/64",
-      "execution_time": 39.46744102000831
+      "samples": [
+        {
+          "execution_time": 39.46744102000831
+        }
+      ]
     },
     {
       "name": "std::find_if(vector<char>)_(bail_25%)/8",
-      "execution_time": 1.1628126380497492
+      "samples": [
+        {
+          "execution_time": 1.1628126380497492
+        }
+      ]
     },
     {
       "name": "std::rotate(vector<int>)_(by_1/3)/50",
-      "execution_time": 41.08651259143274
+      "samples": [
+        {
+          "execution_time": 41.08651259143274
+        }
+      ]
     },
     {
       "name": "std::set_intersection(set<int>)_(spread_1:8)/32",
-      "execution_time": 45.508375407041996
+      "samples": [
+        {
+          "execution_time": 45.508375407041996
+        }
+      ]
     },
     {
       "name": "std::stable_sort(vector<int>)_(heap)/8192",
-      "execution_time": 15072.336127512994
+      "samples": [
+        {
+          "execution_time": 15072.336127512994
+        }
+      ]
     }
   ]
 }

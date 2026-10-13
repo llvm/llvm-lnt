@@ -145,13 +145,10 @@ class TestEntryNames:
             SuiteSchema.model_validate(schema(metrics=[{"name": "machine_id", "type": "real"}]))
 
     @pytest.mark.parametrize("name", ["name", "profile"])
-    def test_a_metric_cannot_take_a_reserved_submission_key(self, name: str) -> None:
-        # O1: a test entry is `name` plus metric values, with `profile` carrying base64 profile
-        # data. A metric called either could never be given a value, so the suite is refused
-        # rather than created in a state where one of its metrics is unreachable. This is not a
-        # column collision -- `profile` is a table of its own -- so the message must not say it is.
-        with pytest.raises(ValidationError, match="reserved key inside a submission"):
-            SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
+    def test_a_metric_may_share_a_name_with_a_key_of_a_test_entry(self, name: str) -> None:
+        # O1: a test entry's metrics are in its samples, apart from its `name` and `profile`.
+        parsed = SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
+        assert [metric.name for metric in parsed.metrics] == [name]
 
 
 class TestTypes:

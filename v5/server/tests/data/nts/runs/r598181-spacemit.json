@@ -33,269 +33,509 @@
   "tests": [
     {
       "name": "External/SPEC/CFP2017rate/508.namd_r/508.namd_r",
-      "execution_time": [
-        5.45914,
-        5.45921,
-        5.45907
-      ],
-      "hash": "b7ef9d74e703524aaa12ae371d442dac",
-      "code_size": 391022.0
+      "samples": [
+        {
+          "execution_time": 5.45914,
+          "hash": "b7ef9d74e703524aaa12ae371d442dac",
+          "code_size": 391022.0
+        },
+        {
+          "execution_time": 5.45921,
+          "hash": "b7ef9d74e703524aaa12ae371d442dac",
+          "code_size": 391022.0
+        },
+        {
+          "execution_time": 5.45907,
+          "hash": "b7ef9d74e703524aaa12ae371d442dac",
+          "code_size": 391022.0
+        }
+      ]
     },
     {
       "name": "External/SPEC/CFP2017rate/519.lbm_r/519.lbm_r",
-      "execution_time": [
-        4.79488,
-        4.79531,
-        4.80141
-      ],
-      "hash": "3f985575b46de2b48f71142d6688c710",
-      "code_size": 10230.0
+      "samples": [
+        {
+          "execution_time": 4.79488,
+          "hash": "3f985575b46de2b48f71142d6688c710",
+          "code_size": 10230.0
+        },
+        {
+          "execution_time": 4.79531,
+          "hash": "3f985575b46de2b48f71142d6688c710",
+          "code_size": 10230.0
+        },
+        {
+          "execution_time": 4.80141,
+          "hash": "3f985575b46de2b48f71142d6688c710",
+          "code_size": 10230.0
+        }
+      ]
     },
     {
       "name": "External/SPEC/CINT2017rate/505.mcf_r/505.mcf_r",
-      "execution_time": [
-        8.10663,
-        8.12252,
-        8.17288
-      ],
-      "hash": "9a9cc5e6904ff692f4ece501e70ed99c",
-      "code_size": 15044.0
+      "samples": [
+        {
+          "execution_time": 8.10663,
+          "hash": "9a9cc5e6904ff692f4ece501e70ed99c",
+          "code_size": 15044.0
+        },
+        {
+          "execution_time": 8.12252,
+          "hash": "9a9cc5e6904ff692f4ece501e70ed99c",
+          "code_size": 15044.0
+        },
+        {
+          "execution_time": 8.17288,
+          "hash": "9a9cc5e6904ff692f4ece501e70ed99c",
+          "code_size": 15044.0
+        }
+      ]
     },
     {
       "name": "External/SPEC/CINT2017rate/523.xalancbmk_r/523.xalancbmk_r",
-      "execution_time": [
-        1.03136,
-        1.03151,
-        1.03182
-      ],
-      "hash": "083c20f4380c2189d87cf151bba41757",
-      "code_size": 2000862.0
+      "samples": [
+        {
+          "execution_time": 1.03136,
+          "hash": "083c20f4380c2189d87cf151bba41757",
+          "code_size": 2000862.0
+        },
+        {
+          "execution_time": 1.03151,
+          "hash": "083c20f4380c2189d87cf151bba41757",
+          "code_size": 2000862.0
+        },
+        {
+          "execution_time": 1.03182,
+          "hash": "083c20f4380c2189d87cf151bba41757",
+          "code_size": 2000862.0
+        }
+      ]
     },
     {
       "name": "MultiSource/Applications/kimwitu++/kc",
-      "execution_time": [
-        124177.0,
-        127946.0,
-        127906.0
-      ],
-      "hash": "38617ede175ef3db9e6d40cbecbcafc8",
-      "code_size": 338724.0
+      "samples": [
+        {
+          "execution_time": 124177.0,
+          "hash": "38617ede175ef3db9e6d40cbecbcafc8",
+          "code_size": 338724.0
+        },
+        {
+          "execution_time": 127946.0,
+          "hash": "38617ede175ef3db9e6d40cbecbcafc8",
+          "code_size": 338724.0
+        },
+        {
+          "execution_time": 127906.0,
+          "hash": "38617ede175ef3db9e6d40cbecbcafc8",
+          "code_size": 338724.0
+        }
+      ]
     },
     {
       "name": "MultiSource/Applications/JM/lencod/lencod",
-      "execution_time": [
-        2.1001,
-        2.10044,
-        2.10109
-      ],
-      "hash": "adc24e8e4824f15f738b4c648d45fd07",
-      "code_size": 588890.0
+      "samples": [
+        {
+          "execution_time": 2.1001,
+          "hash": "adc24e8e4824f15f738b4c648d45fd07",
+          "code_size": 588890.0
+        },
+        {
+          "execution_time": 2.10044,
+          "hash": "adc24e8e4824f15f738b4c648d45fd07",
+          "code_size": 588890.0
+        },
+        {
+          "execution_time": 2.10109,
+          "hash": "adc24e8e4824f15f738b4c648d45fd07",
+          "code_size": 588890.0
+        }
+      ]
     },
     {
       "name": "MultiSource/Benchmarks/7zip/7zip-benchmark",
-      "execution_time": [
-        1.02368,
-        1.02343,
-        1.02262
-      ],
-      "hash": "eec273a5c6683eb7ae9ade6002036d1f",
-      "code_size": 701804.0
+      "samples": [
+        {
+          "execution_time": 1.02368,
+          "hash": "eec273a5c6683eb7ae9ade6002036d1f",
+          "code_size": 701804.0
+        },
+        {
+          "execution_time": 1.02343,
+          "hash": "eec273a5c6683eb7ae9ade6002036d1f",
+          "code_size": 701804.0
+        },
+        {
+          "execution_time": 1.02262,
+          "hash": "eec273a5c6683eb7ae9ade6002036d1f",
+          "code_size": 701804.0
+        }
+      ]
     },
     {
       "name": "MultiSource/Benchmarks/DOE-ProxyApps-C++/CLAMR/CLAMR",
-      "execution_time": [
-        4.45619,
-        4.45684,
-        4.45589
-      ],
-      "hash": "3c16e26eb5149dc350df3af520ad5712",
-      "code_size": 148050.0
+      "samples": [
+        {
+          "execution_time": 4.45619,
+          "hash": "3c16e26eb5149dc350df3af520ad5712",
+          "code_size": 148050.0
+        },
+        {
+          "execution_time": 4.45684,
+          "hash": "3c16e26eb5149dc350df3af520ad5712",
+          "code_size": 148050.0
+        },
+        {
+          "execution_time": 4.45589,
+          "hash": "3c16e26eb5149dc350df3af520ad5712",
+          "code_size": 148050.0
+        }
+      ]
     },
     {
       "name": "MultiSource/Benchmarks/ASCI_Purple/SMG2000/smg2000",
-      "execution_time": [
-        3.71655,
-        3.7144,
-        3.71246
-      ],
-      "hash": "5cb33404d1105614272cfe702252bf98",
-      "code_size": 161454.0
+      "samples": [
+        {
+          "execution_time": 3.71655,
+          "hash": "5cb33404d1105614272cfe702252bf98",
+          "code_size": 161454.0
+        },
+        {
+          "execution_time": 3.7144,
+          "hash": "5cb33404d1105614272cfe702252bf98",
+          "code_size": 161454.0
+        },
+        {
+          "execution_time": 3.71246,
+          "hash": "5cb33404d1105614272cfe702252bf98",
+          "code_size": 161454.0
+        }
+      ]
     },
     {
       "name": "SingleSource/Benchmarks/Adobe-C++/loop_unroll",
-      "execution_time": [
-        1.30127,
-        1.30166,
-        1.30197
-      ],
-      "hash": "2f0205dca22411c4d517289a71f8a7a7",
-      "code_size": 164442.0
+      "samples": [
+        {
+          "execution_time": 1.30127,
+          "hash": "2f0205dca22411c4d517289a71f8a7a7",
+          "code_size": 164442.0
+        },
+        {
+          "execution_time": 1.30166,
+          "hash": "2f0205dca22411c4d517289a71f8a7a7",
+          "code_size": 164442.0
+        },
+        {
+          "execution_time": 1.30197,
+          "hash": "2f0205dca22411c4d517289a71f8a7a7",
+          "code_size": 164442.0
+        }
+      ]
     },
     {
       "name": "SingleSource/Benchmarks/Dhrystone/dry",
-      "execution_time": [
-        93390.7,
-        92665.9,
-        93546.5
-      ],
-      "hash": "05b5006ca9bcc6043140f78bd3a277a8",
-      "code_size": 342.0
+      "samples": [
+        {
+          "execution_time": 93390.7,
+          "hash": "05b5006ca9bcc6043140f78bd3a277a8",
+          "code_size": 342.0
+        },
+        {
+          "execution_time": 92665.9,
+          "hash": "05b5006ca9bcc6043140f78bd3a277a8",
+          "code_size": 342.0
+        },
+        {
+          "execution_time": 93546.5,
+          "hash": "05b5006ca9bcc6043140f78bd3a277a8",
+          "code_size": 342.0
+        }
+      ]
     },
     {
       "name": "SingleSource/Benchmarks/Misc-C++/Large/ray",
-      "execution_time": [
-        4.25941,
-        4.26217,
-        4.27555
-      ],
-      "hash": "2e2c56e3a4dadd2d8911ef9fca47a3fa",
-      "code_size": 2744.0
+      "samples": [
+        {
+          "execution_time": 4.25941,
+          "hash": "2e2c56e3a4dadd2d8911ef9fca47a3fa",
+          "code_size": 2744.0
+        },
+        {
+          "execution_time": 4.26217,
+          "hash": "2e2c56e3a4dadd2d8911ef9fca47a3fa",
+          "code_size": 2744.0
+        },
+        {
+          "execution_time": 4.27555,
+          "hash": "2e2c56e3a4dadd2d8911ef9fca47a3fa",
+          "code_size": 2744.0
+        }
+      ]
     },
     {
       "name": "SingleSource/Benchmarks/Shootout-C++/EH/Shootout-C++-except",
-      "execution_time": [
-        729398.0,
-        728825.0,
-        729277.0
-      ],
-      "hash": "8fc0da4b9ef3947de2d934d1a454722e",
-      "code_size": 640.0
+      "samples": [
+        {
+          "execution_time": 729398.0,
+          "hash": "8fc0da4b9ef3947de2d934d1a454722e",
+          "code_size": 640.0
+        },
+        {
+          "execution_time": 728825.0,
+          "hash": "8fc0da4b9ef3947de2d934d1a454722e",
+          "code_size": 640.0
+        },
+        {
+          "execution_time": 729277.0,
+          "hash": "8fc0da4b9ef3947de2d934d1a454722e",
+          "code_size": 640.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/Builtins/Int128/Builtins",
-      "hash": "179ba93d11a64c85997f89266ca06ae4",
-      "code_size": 159104.0
+      "samples": [
+        {
+          "hash": "179ba93d11a64c85997f89266ca06ae4",
+          "code_size": 159104.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/Builtins/Int128/Builtins.test:BM_DivideIntrinsic128SmallDivisor<__int128_t>",
-      "execution_time": [
-        42.11552948179712,
-        42.115504819380384,
-        42.12174969750534
+      "samples": [
+        {
+          "execution_time": 42.11552948179712
+        },
+        {
+          "execution_time": 42.115504819380384
+        },
+        {
+          "execution_time": 42.12174969750534
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/harris/harris",
-      "hash": "1605a74f293917bf0827d17ba99079c8",
-      "code_size": 156348.0
+      "samples": [
+        {
+          "hash": "1605a74f293917bf0827d17ba99079c8",
+          "code_size": 156348.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/harris/harris.test:BENCHMARK_HARRIS/256/256",
-      "execution_time": [
-        1401.443822937626,
-        1413.3946526104419,
-        1408.77495951417
+      "samples": [
+        {
+          "execution_time": 1401.443822937626
+        },
+        {
+          "execution_time": 1413.3946526104419
+        },
+        {
+          "execution_time": 1408.77495951417
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/harris/harris.test:BENCHMARK_HARRIS/2048/2048",
-      "execution_time": [
-        49417.020785714274,
-        48862.50278571426,
-        48359.919642857145
+      "samples": [
+        {
+          "execution_time": 49417.020785714274
+        },
+        {
+          "execution_time": 48862.50278571426
+        },
+        {
+          "execution_time": 48359.919642857145
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/LCALS/SubsetALambdaLoops/lcalsALambda",
-      "hash": "6da2c6461b3805981d4852ebc814e1cd",
-      "code_size": 193552.0
+      "samples": [
+        {
+          "hash": "6da2c6461b3805981d4852ebc814e1cd",
+          "code_size": 193552.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/LCALS/SubsetALambdaLoops/lcalsALambda.test:BM_PRESSURE_CALC_LAMBDA/44217",
-      "execution_time": [
-        134.6315461538462,
-        134.6448428543951,
-        134.64219042123477
+      "samples": [
+        {
+          "execution_time": 134.6315461538462
+        },
+        {
+          "execution_time": 134.6448428543951
+        },
+        {
+          "execution_time": 134.64219042123477
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/LoopInterchange/LoopInterchange",
-      "hash": "d65c1e55782da5d43b21bd8e2cd98a96",
-      "code_size": 151280.0
+      "samples": [
+        {
+          "hash": "d65c1e55782da5d43b21bd8e2cd98a96",
+          "code_size": 151280.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/LoopInterchange/LoopInterchange.test:BENCHMARK_LI1",
-      "execution_time": [
-        716.5357328556806,
-        712.3956394279877,
-        721.9461309278352
+      "samples": [
+        {
+          "execution_time": 716.5357328556806
+        },
+        {
+          "execution_time": 712.3956394279877
+        },
+        {
+          "execution_time": 721.9461309278352
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/LoopVectorization/LoopEpilogueVectorizationBenchmarks",
-      "hash": "e4a5180584b74b7bb5e05ed4a2063550",
-      "code_size": 161920.0
+      "samples": [
+        {
+          "hash": "e4a5180584b74b7bb5e05ed4a2063550",
+          "code_size": 161920.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/LoopVectorization/LoopEpilogueVectorizationBenchmarks.test:benchAutoVec<uint8_t>/65",
-      "execution_time": [
-        20.395401154621897,
-        20.630193947063205,
-        20.449934377405175
+      "samples": [
+        {
+          "execution_time": 20.395401154621897
+        },
+        {
+          "execution_time": 20.630193947063205
+        },
+        {
+          "execution_time": 20.449934377405175
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/MemFunctions/MemFunctions",
-      "hash": "1af2449631469fbe82c0358ddb5d38c7",
-      "code_size": 260380.0
+      "samples": [
+        {
+          "hash": "1af2449631469fbe82c0358ddb5d38c7",
+          "code_size": 260380.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/MemFunctions/MemFunctions.test:BM_MemCmp<1, EqZero, First>",
-      "execution_time": [
-        5909.69282452542,
-        5909.5012537464645,
-        5909.167681305042
+      "samples": [
+        {
+          "execution_time": 5909.69282452542
+        },
+        {
+          "execution_time": 5909.5012537464645
+        },
+        {
+          "execution_time": 5909.167681305042
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/MemFunctions/MemFunctions.test:BM_MemCmp<64, LessThanZero, Last>",
-      "execution_time": [
-        2373.1606985216604,
-        2357.842254948996,
-        2352.5247841789705
+      "samples": [
+        {
+          "execution_time": 2373.1606985216604
+        },
+        {
+          "execution_time": 2357.842254948996
+        },
+        {
+          "execution_time": 2352.5247841789705
+        }
       ]
     },
     {
       "name": "MicroBenchmarks/SLPVectorization/SLPVectorizationBenchmarks",
-      "hash": "8c9de7ae8e48238bd41306bce5b10549",
-      "code_size": 157276.0
+      "samples": [
+        {
+          "hash": "8c9de7ae8e48238bd41306bce5b10549",
+          "code_size": 157276.0
+        }
+      ]
     },
     {
       "name": "MicroBenchmarks/SLPVectorization/SLPVectorizationBenchmarks.test:benchmark_multiply_accumulate_runtime_checks_pass<4, double>",
-      "execution_time": [
-        5.459514645594547,
-        5.459428668845005,
-        5.459543716183977
+      "samples": [
+        {
+          "execution_time": 5.459514645594547
+        },
+        {
+          "execution_time": 5.459428668845005
+        },
+        {
+          "execution_time": 5.459543716183977
+        }
       ]
     },
     {
       "name": "tools/fpcmp-target",
-      "execution_time": [
-        1363.96,
-        1403.5,
-        1606.17
-      ],
-      "hash": "c38a8964e482cfe04ec538cc6cddbda1"
+      "samples": [
+        {
+          "execution_time": 1363.96,
+          "hash": "c38a8964e482cfe04ec538cc6cddbda1"
+        },
+        {
+          "execution_time": 1403.5,
+          "hash": "c38a8964e482cfe04ec538cc6cddbda1"
+        },
+        {
+          "execution_time": 1606.17,
+          "hash": "c38a8964e482cfe04ec538cc6cddbda1"
+        }
+      ]
     },
     {
       "name": "tools/test/abrt",
-      "execution_time": [
-        3460.38,
-        3382.79,
-        3843.33
-      ],
-      "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
-      "code_size": 192.0
+      "samples": [
+        {
+          "execution_time": 3460.38,
+          "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
+          "code_size": 192.0
+        },
+        {
+          "execution_time": 3382.79,
+          "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
+          "code_size": 192.0
+        },
+        {
+          "execution_time": 3843.33,
+          "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
+          "code_size": 192.0
+        }
+      ]
     },
     {
       "name": "tools/test/ret0",
-      "execution_time": [
-        5078.04,
-        5600.08,
-        5864.16
-      ],
-      "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
-      "code_size": 188.0
+      "samples": [
+        {
+          "execution_time": 5078.04,
+          "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
+          "code_size": 188.0
+        },
+        {
+          "execution_time": 5600.08,
+          "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
+          "code_size": 188.0
+        },
+        {
+          "execution_time": 5864.16,
+          "hash": "63c9fa2450d95fdc20cf441e78eab4bf",
+          "code_size": 188.0
+        }
+      ]
     }
   ]
 }

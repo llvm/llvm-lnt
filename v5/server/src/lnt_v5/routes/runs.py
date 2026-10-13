@@ -114,15 +114,17 @@ _SUBMIT_EXAMPLES = {
             "tests": [
                 {
                     "name": examples.TEST,
-                    "execution_time": [3.284, 3.291, 3.279],
-                    "instructions": 14211.0,
-                    "cycles": 9874.0,
+                    "samples": [
+                        examples.SAMPLE_METRICS,
+                        examples.SAMPLE_METRICS | {"execution_time": 3.291},
+                        {"execution_time": 3.279},
+                    ],
                 },
                 {
                     "name": examples.OTHER_TEST,
-                    "execution_time": 412038.7,
-                    "instructions": 1932456.0,
-                    "cycles": 1508732.0,
+                    "samples": [
+                        {"execution_time": 412038.7, "instructions": 1932456.0, "cycles": 1508732.0}
+                    ],
                 },
             ],
         },

@@ -344,7 +344,7 @@ test.describe('the Test Suites tab', () => {
           format_version: '5',
           machine: { name: 'm1', fields: { hardware: 'Apple M4' } },
           commit: { value: 'c1', ordinal: 1 },
-          tests: [{ name: 'bench', execution_time: 1.5, compile_time: 0.25 }],
+          tests: [{ name: 'bench', samples: [{ execution_time: 1.5, compile_time: 0.25 }] }],
         },
       })
       expect(submitted.status(), await submitted.text()).toBe(201)

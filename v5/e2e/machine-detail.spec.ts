@@ -14,7 +14,7 @@ import { column, rows, table } from './tables.ts'
 type Schemas = components['schemas']
 
 /** A machine `m1` with one run. */
-const RUNS = [{ machine: 'm1', commit: 'c1', ordinal: 1, tests: [{ name: 'bench' }] }]
+const RUNS = [{ machine: 'm1', commit: 'c1', ordinal: 1, tests: [{ name: 'bench', samples: [{}] }] }]
 
 test('the Machines tab links to the page of each machine, whose trail leads back', async ({
   page,

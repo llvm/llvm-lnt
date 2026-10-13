@@ -142,7 +142,7 @@ BUG = "https://github.com/llvm/llvm-project/issues/160237"
 API_KEY_NAME = "libcxx-ci-linux"
 API_KEY_TOKEN = "3f0ac1129b6e4d7a8c5f2e1b0d9a7c6e5f4b3a2918d7c6b5a4f3e2d1c0b9a8f7"
 
-# A test's samples in one run, as a run submission and the sample list carry them.
+# A sample of a test, as a run submission and the sample list carry its metrics.
 SAMPLE_METRICS: dict[str, Any] = {
     "execution_time": 3.284,
     "instructions": 14211.0,

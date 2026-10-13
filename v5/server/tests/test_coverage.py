@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, select, text
 
-from conftest import run_payload
+from conftest import entry, run_payload
 from introspection import counting_statements
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
@@ -120,10 +120,15 @@ class TestSubmission:
     def test_records_each_metric_that_has_a_value(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
-        # Scalars repeat across the rows an array expands into (O1); one value is enough either way.
+        # One sample with a value is enough: the samples of a test need not agree (O1).
         submit(
-            {"name": "a", "execution_time": [1.0, 2.0, 3.0], "compile_time": 0.5},
-            {"name": "b", "execution_time": 1.0},
+            entry(
+                "a",
+                {"execution_time": 1.0, "compile_time": 0.5},
+                {"execution_time": 2.0},
+                {"execution_time": 3.0},
+            ),
+            entry("b", {"execution_time": 1.0}),
         )
 
         assert assert_derivable(db_engine, suite) == {
@@ -135,31 +140,31 @@ class TestSubmission:
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
         # O1: such an entry is still a sample, and `machine=` alone has to find it.
-        submit({"name": "a"})
+        submit(entry("a"))
 
         assert assert_derivable(db_engine, suite) == {("linux", "a"): (False, False)}
 
     def test_adds_to_what_earlier_submissions_recorded(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0})
-        submit({"name": "a", "compile_time": 1.0}, commit="def456")
+        submit(entry("a", {"execution_time": 1.0}))
+        submit(entry("a", {"compile_time": 1.0}), commit="def456")
 
         assert assert_derivable(db_engine, suite) == {("linux", "a"): (True, True)}
 
     def test_a_submission_without_a_metric_does_not_clear_it(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0})
-        submit({"name": "a"}, commit="def456")
+        submit(entry("a", {"execution_time": 1.0}))
+        submit(entry("a"), commit="def456")
 
         assert assert_derivable(db_engine, suite) == {("linux", "a"): (True, False)}
 
     def test_keeps_each_machine_apart(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0}, machine="linux")
-        submit({"name": "a", "compile_time": 1.0}, machine="darwin")
+        submit(entry("a", {"execution_time": 1.0}), machine="linux")
+        submit(entry("a", {"compile_time": 1.0}), machine="darwin")
 
         assert assert_derivable(db_engine, suite) == {
             ("linux", "a"): (True, False),
@@ -171,10 +176,14 @@ class TestSubmission:
     ) -> None:
         # A machine normally reports the same tests and metrics on every run, so the common
         # submission must leave its rows alone rather than churn a new version of each.
-        submit({"name": "a", "execution_time": 1.0}, {"name": "b"})
+        submit(entry("a", {"execution_time": 1.0}), entry("b"))
         before = row_versions(db_engine)
 
-        submit({"name": "a", "execution_time": 2.0}, {"name": "b"}, commit="def456")
+        submit(
+            entry("a", {"execution_time": 2.0}),
+            entry("b"),
+            commit="def456",
+        )
 
         assert row_versions(db_engine) == before
 
@@ -183,9 +192,9 @@ class TestSubmission:
     ) -> None:
         # O8: the coverage rows are written in one statement, like the samples.
         with counting_statements("nts.test_coverage") as one_test:
-            submit({"name": "a", "execution_time": 1.0})
+            submit(entry("a", {"execution_time": 1.0}))
         with counting_statements("nts.test_coverage") as many_tests:
-            submit(*({"name": f"t{index}", "execution_time": 1.0} for index in range(500)))
+            submit(*(entry(f"t{index}", {"execution_time": 1.0}) for index in range(500)))
 
         assert len(many_tests) == len(one_test) == 1
 
@@ -208,7 +217,7 @@ class TestSubmission:
         tables = make_api_suite({"name": "bare"})
         runs = RUNS_PATH.format(testsuite="bare")
         for commit in ("abc", "def"):
-            body = run_payload(commit={"value": commit}, tests=[{"name": "a"}])
+            body = run_payload(commit={"value": commit}, tests=[entry("a")])
             assert api_client.post(runs, json=body, headers=submitter).status_code == 201
 
         with db_engine.connect() as connection:
@@ -229,8 +238,12 @@ class TestDeletion:
         suite: SuiteTables,
         submit: Callable[..., str],
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0})
-        doomed = submit({"name": "a", "compile_time": 1.0}, {"name": "b"}, commit="def")
+        submit(entry("a", {"execution_time": 1.0}))
+        doomed = submit(
+            entry("a", {"compile_time": 1.0}),
+            entry("b"),
+            commit="def",
+        )
 
         assert api_client.delete(f"{RUNS}/{doomed}", headers=manage).status_code == 204
         assert stored(db_engine, suite) == {
@@ -246,8 +259,8 @@ class TestDeletion:
         suite: SuiteTables,
         submit: Callable[..., str],
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0}, machine="linux", commit="doomed")
-        submit({"name": "a", "execution_time": 1.0}, machine="darwin", commit="doomed")
+        submit(entry("a", {"execution_time": 1.0}), machine="linux", commit="doomed")
+        submit(entry("a", {"execution_time": 1.0}), machine="darwin", commit="doomed")
 
         assert api_client.delete(f"{COMMITS}/doomed", headers=manage).status_code == 204
         assert stored(db_engine, suite) == {
@@ -263,8 +276,8 @@ class TestDeletion:
         suite: SuiteTables,
         submit: Callable[..., str],
     ) -> None:
-        submit({"name": "a"}, machine="linux")
-        submit({"name": "a"}, machine="darwin")
+        submit(entry("a"), machine="linux")
+        submit(entry("a"), machine="darwin")
 
         assert api_client.delete(f"{MACHINES}/darwin", headers=manage).status_code == 204
         assert assert_derivable(db_engine, suite) == {("linux", "a"): (False, False)}
@@ -279,7 +292,7 @@ class TestSchemaChange:
         suite: SuiteTables,
         submit: Callable[..., str],
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0}, {"name": "b"})
+        submit(entry("a", {"execution_time": 1.0}), entry("b"))
         patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
         response = api_client.patch(f"{SUITES_PATH}/nts/schema", json=patch, headers=manage)
         assert response.status_code == 200, response.text
@@ -288,7 +301,7 @@ class TestSchemaChange:
         with db_engine.connect() as connection:
             assert [row.size for row in connection.execute(read)] == [False, False]
 
-        submit({"name": "a", "size": 4}, commit="def")
+        submit(entry("a", {"size": 4}), commit="def")
 
         with db_engine.connect() as connection:
             assert [row.size for row in connection.execute(read)] == [True, False]
@@ -301,7 +314,7 @@ class TestSchemaChange:
         suite: SuiteTables,
         submit: Callable[..., str],
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0, "compile_time": 1.0})
+        submit(entry("a", {"execution_time": 1.0, "compile_time": 1.0}))
         patch = {"metrics": {"remove": ["compile_time"]}}
 
         response = api_client.patch(
@@ -331,7 +344,7 @@ class TestConcurrency:
         orders = [names, list(reversed(names)), names[20:] + names[:20], names[1::2] + names[::2]]
 
         def entries(order: list[str], metric: str) -> list[dict[str, Any]]:
-            return [{"name": name, metric: 1.0} for name in order]
+            return [entry(name, {metric: 1.0}) for name in order]
 
         running = [
             background(submit, *entries(order, metric), commit=f"c{i}")

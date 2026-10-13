@@ -48,12 +48,6 @@ NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 RESERVED_SUITE_NAMES = frozenset({"public", "information_schema"})
 RESERVED_SUITE_PREFIX = "pg_"
 
-# O1: a test entry in a submission is `name` plus metric values, with `profile` carrying the test's
-# profile document (O7). A metric called either could never be given a value, so a schema
-# declaring one is rejected rather than accepted into a state where one of its metrics is
-# unreachable. This is a property of the submission format, not of any table's columns.
-RESERVED_TEST_ENTRY_KEYS = frozenset({"name", "profile"})
-
 Name = Annotated[str, StringConstraints(pattern=NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)]
 
 # D4: the free text an entry carries for the UI -- `display_name`, `unit` and `unit_abbrev` -- which
@@ -168,9 +162,9 @@ class _SearchableEntry(Entry):
 # A column on `{suite}.sample`, and a flag on `{suite}.test_coverage` (D5).
 class Metric(Entry):
     """Something the suite's tests measure, such as execution time. In a run submission, each
-    test reports its values under the metric's name.
+    sample of a test reports its value under the metric's name.
 
-    The name can't be `id`, `run_id`, `test_id`, `machine_id`, `name` or `profile`.
+    The name can't be `id`, `run_id`, `test_id` or `machine_id`.
     """
 
     model_config = ConfigDict(json_schema_extra={"examples": [examples.METRICS[0]]})
@@ -195,18 +189,6 @@ class Metric(Entry):
             "better, as for a time."
         ),
     )
-
-    @model_validator(mode="after")
-    def _reject_reserved_submission_key(self) -> Self:
-        # A second, unrelated rule: these names are unusable not because the sample table has them,
-        # but because the submission format spells them (see RESERVED_TEST_ENTRY_KEYS).
-        if self.name in RESERVED_TEST_ENTRY_KEYS:
-            raise ValueError(
-                f"'{self.name}' is a reserved key inside a submission's test entries, so no "
-                f"metric may be named it; reserved: "
-                f"{', '.join(sorted(RESERVED_TEST_ENTRY_KEYS))}"
-            )
-        return self
 
 
 # Optional metadata on `{suite}.commit` (D5).

@@ -127,7 +127,7 @@ test('deleting the run shows its machine', async ({ page, request, tokenFor, sig
     machine: 'm1',
     commit,
     ordinal,
-    tests: [{ name: 'bench', execution_time: [1, 2] }],
+    tests: [{ name: 'bench', samples: [{ execution_time: 1 }, { execution_time: 2 }] }],
   })
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite, uuids) => {
     const [first, second] = uuids

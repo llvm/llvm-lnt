@@ -27,7 +27,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, delete, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
-from conftest import code_of, run_payload
+from conftest import code_of, entry, run_payload
 from introspection import counted, counting_statements
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.commits import COMMITS_PATH, Commits
@@ -910,7 +910,7 @@ def linux(api_client: TestClient, submitter: dict[str, str], tables: SuiteTables
     body = run_payload(
         machine={"name": "linux"},
         commit={"value": "abc"},
-        tests=[{"name": "suite/one", "execution_time": 1.0}],
+        tests=[entry("suite/one", {"execution_time": 1.0})],
     )
     assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
 
@@ -1161,7 +1161,7 @@ class TestContendingWithASchemaChange:
         body = run_payload(
             machine={"name": "linux"},
             commit={"value": "abc"},
-            tests=[{"name": "suite/one", "execution_time": 1.0}],
+            tests=[entry("suite/one", {"execution_time": 1.0})],
         )
 
         response = deadlocked(
