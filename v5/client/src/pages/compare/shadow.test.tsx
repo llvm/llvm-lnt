@@ -11,7 +11,6 @@ import { chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
-
 /** The shadow's line, if drawn: its points' log2 ratios, and their tests. */
 function line() {
   const trace = chart().data[1] as PlotData | undefined
@@ -63,6 +62,7 @@ describe('the shadow (CP8)', () => {
     const user = userEvent.setup()
     await user.click(pinButton()!)
     expect(chip()).toHaveTextContent('Shadow: c2 on m1')
+    expect(screen.getByRole('button', { name: 'Dismiss the shadow' })).toHaveFocus()
     expect(pinButton()).toBeNull()
     expect(query()).toMatchObject({
       suite_shadow_b: ['libcxx'],
@@ -106,6 +106,51 @@ describe('the shadow (CP8)', () => {
     expect(pinButton()).toHaveFocus()
   })
 
+  it('is offered only once there is a comparison', async () => {
+    mockWorld(WORLD)
+    renderPage(COMPARED.replace('&metric=execution_time', ''))
+    expect(await screen.findByText('Select a metric.')).toBeInTheDocument()
+    expect(pinButton()).toBeNull()
+  })
+
+  it("keeps side B's runs and run aggregation as they were when pinned", async () => {
+    // Side B has three runs at c2, whose a is 4, 8 and 16 against side A's 1.
+    mockWorld({
+      runs: { 'm1/c1': ['1'], 'm1/c2': ['3', '6', '7'] },
+      samples: { '1': [['a', 1]], '3': [['a', 4]], '6': [['a', 8]], '7': [['a', 16]] },
+    })
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+    await user.click(runBox('7', 'B'))
+    await pickOption('Run aggregation B', 'min')
+    await user.click(pinButton()!)
+    expect(query()).toMatchObject({
+      runs_shadow_b: [uuidOf('3'), uuidOf('6')],
+      run_agg_shadow_b: ['min'],
+    })
+    await waitFor(() => expect(line()?.y).toEqual([2]))
+
+    // Side B changes, but not the shadow: min(4, 8), against 1.
+    await user.click(runBox('7', 'B'))
+    await pickOption('Run aggregation B', 'max')
+    await waitFor(() => expect((chart().data[0] as PlotData).y).toEqual([4]))
+    expect(line()?.y).toEqual([2])
+  })
+
+  it('draws its line, and fits it, when no compared test has a bar', async () => {
+    // Side B, run 4, has none of side A's tests, whose shadow ratio is 4.
+    mockWorld({
+      runs: { 'm1/c1': ['1'], 'm1/c2': ['3'], 'm2/c2': ['4'] },
+      samples: { '1': [['a', 1]], '3': [['a', 4]], '4': [['z', 1]] },
+    })
+    renderPage(SHADOWED)
+
+    await waitFor(() => expect(line()?.y).toEqual([2]))
+    expect(chart().layout.annotations).toEqual([])
+    expect(Math.max(...(chart().layout.yaxis!.tickvals as number[]))).toBeGreaterThan(1.5)
+  })
+
   it('is dismissed by a swap', async () => {
     mockWorld(WORLD)
     renderPage(SHADOWED)
@@ -129,6 +174,27 @@ describe('the shadow (CP8)', () => {
     await pick('Commit A', 'c2')
     await waitFor(() => expect(chip()).toBeNull())
     expect(query().machine_shadow_b).toBeUndefined()
+  })
+
+  it("is dismissed by another machine on side A, keeping side A's commit", async () => {
+    mockWorld({ ...WORLD, runs: { ...WORLD.runs, 'm2/c1': ['5'] } })
+    renderPage(SHADOWED)
+    await waitFor(() => expect(line()).toBeDefined())
+
+    await pick('Machine A', 'm2')
+    await waitFor(() => expect(chip()).toBeNull())
+    expect(query().commit_a).toEqual(['c1'])
+  })
+
+  it("is dismissed when the user deselects every run of side A at once", async () => {
+    mockWorld()
+    renderPage(SHADOWED)
+    await waitFor(() => expect(line()).toBeDefined())
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
+    await waitFor(() => expect(chip()).toBeNull())
   })
 
   it("is dismissed when the user changes side A's runs", async () => {
@@ -155,6 +221,22 @@ describe('the shadow (CP8)', () => {
     await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
     expect(query().machine_shadow_b).toBeUndefined()
     expect(screen.queryByText(/could not be/)).toBeNull()
+  })
+
+  it('is dropped when side A has no commit', async () => {
+    mockWorld(WORLD)
+    renderPage(SHADOWED.replace('&commit_a=c1', ''))
+    await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
+    expect(query().commit_shadow_b).toBeUndefined()
+  })
+
+  it('is dropped whole when its suite does not exist', async () => {
+    mockWorld(WORLD)
+    const bogus = SHADOWED.replace('suite_shadow_b=libcxx', 'suite_shadow_b=bogus')
+    renderPage(`${bogus}&run_agg_shadow_b=min`)
+    await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
+    expect(query().run_agg_shadow_b).toBeUndefined()
+    expect(query().machine_shadow_b).toBeUndefined()
   })
 
   it('is dropped when the URL names only part of it', async () => {
@@ -186,6 +268,35 @@ describe('the shadow (CP8)', () => {
     ).toBeInTheDocument()
     await comparison()
     expect(line()).toBeUndefined()
+  })
+
+  it('says when its runs could not be listed, still comparing', async () => {
+    mockWorld({
+      ...WORLD,
+      runsAnswer: (query) =>
+        query.get('machine') === 'm1' && query.get('commit') === 'c2'
+          ? errorResponse(500, 'internal_error', 'Boom')
+          : undefined,
+    })
+    renderPage(SHADOWED)
+
+    expect(
+      await screen.findByText(/The shadow's runs could not be listed: Boom/),
+    ).toBeInTheDocument()
+    await comparison()
+    expect(line()).toBeUndefined()
+  })
+
+  it("reports a run side B shares with it once, as side B's", async () => {
+    mockWorld({
+      ...WORLD,
+      sampleAnswer: (hex) =>
+        hex === '3' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(`${COMPARED}${SHADOW}`)
+
+    expect(await screen.findByText(/The samples of a run could not be loaded/)).toBeInTheDocument()
+    expect(screen.queryByText(/of the shadow could not be loaded/)).toBeNull()
   })
 
   it('highlights no row when a point of the line is hovered', async () => {

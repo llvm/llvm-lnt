@@ -160,20 +160,27 @@ test('overlays a pinned side B on the chart once side B changes', async ({ page,
   await expect(page.getByText(/^Shadow:/)).toHaveText(
     `Shadow: ${newer.fields.svn_revision} on ${LINUX}×`,
   )
+  await expect(page.getByRole('button', { name: 'Dismiss the shadow' })).toBeFocused()
   // Side B on the experiment: its comparison is the bars, and the newest commit's the line.
-  await page.getByRole('combobox', { name: 'Commit B' }).fill(EXPERIMENT)
+  // Typed key by key, as a user does: `fill`, which sets the whole text at once, is sometimes lost
+  // when the focus comes from the chip's button.
+  const commitB = page.getByRole('combobox', { name: 'Commit B' })
+  await commitB.click()
+  await commitB.press('ControlOrMeta+a')
+  await commitB.pressSequentially(EXPERIMENT)
   await page.getByRole('option', { name: EXPERIMENT, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${EXPERIMENT}(&|$)`))
   await expect(page).toHaveURL(new RegExp(`[?&]commit_shadow_b=${newer.value}(&|$)`))
   const traces = () =>
     plotOf(page).evaluate((element) =>
-      (element as PlotDiv)._fullData.map((trace) => [trace.name, trace.y.length]),
+      (element as PlotDiv)._fullData.map((trace) => ({ name: trace.name, y: trace.y })),
     )
-  await expect.poll(traces).toEqual([
-    ['comparison', expect.any(Number)],
-    ['shadow', expect.any(Number)],
+  await expect.poll(async () => (await traces()).map((trace) => trace.name)).toEqual([
+    'comparison',
+    'shadow',
   ])
-  const [[, bars], [, points]] = await traces()
-  expect(points).toBeGreaterThan(10)
-  expect(points).toBeLessThanOrEqual(bars as number)
+  // The line goes through a point per test, sorted by its own ratios.
+  const points = (await traces())[1].y
+  expect(points.length).toBeGreaterThan(10)
+  expect(points).toEqual([...points].sort((x, y) => x - y))
 })

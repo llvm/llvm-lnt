@@ -388,9 +388,20 @@ function ComparePage() {
     () => (pinned ? notifying(selectionA, () => update(NO_SHADOW)) : selectionA),
     [pinned, selectionA, update],
   )
-  const pin = () => update(sideChanges('shadow_b', b.settings))
-  // Once the shadow is dismissed, its chip is gone: the focus goes to the button pinning another.
+  // Once the shadow is pinned, the button pinning it is gone: the focus goes to its chip's button
+  // dismissing it. Once dismissed, it goes back to the button pinning another.
   const pinButton = useRef<HTMLButtonElement>(null)
+  const chipArea = useRef<HTMLDivElement>(null)
+  const justPinned = useRef(false)
+  useEffect(() => {
+    if (!pinned || !justPinned.current) return
+    justPinned.current = false
+    chipArea.current?.querySelector('button')?.focus()
+  }, [pinned])
+  const pin = () => {
+    justPinned.current = true
+    update(sideChanges('shadow_b', b.settings))
+  }
 
   // How far the selected runs' samples are loaded, each run once, even when both sides select it.
   const mainRuns = new Set([...chosenRuns(a), ...chosenRuns(b)])
@@ -509,29 +520,31 @@ function ComparePage() {
           onRetry={() => shadowFailed.forEach((state) => state.retry())}
         />
       )}
-      <ChipList
-        label="Shadow"
-        chips={
-          pinned
-            ? [
-                {
-                  key: 'shadow',
-                  mark: (
-                    <span
-                      className={styles.shadowMark}
-                      style={{ background: SHADOW_COLOR }}
-                      aria-hidden="true"
-                    />
-                  ),
-                  text: `Shadow: ${shadow.display} on ${shadowSide.settings.machine}`,
-                },
-              ]
-            : []
-        }
-        removeLabel={() => 'Dismiss the shadow'}
-        onRemove={() => update(NO_SHADOW)}
-        focusWhenEmpty={() => pinButton.current}
-      />
+      <div ref={chipArea}>
+        <ChipList
+          label="Shadow"
+          chips={
+            pinned
+              ? [
+                  {
+                    key: 'shadow',
+                    mark: (
+                      <span
+                        className={styles.shadowMark}
+                        style={{ background: SHADOW_COLOR }}
+                        aria-hidden="true"
+                      />
+                    ),
+                    text: `Shadow: ${shadow.display} on ${shadowSide.settings.machine}`,
+                  },
+                ]
+              : []
+          }
+          removeLabel={() => 'Dismiss the shadow'}
+          onRemove={() => update(NO_SHADOW)}
+          focusWhenEmpty={() => pinButton.current}
+        />
+      </div>
       {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"

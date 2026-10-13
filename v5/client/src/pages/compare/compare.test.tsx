@@ -16,7 +16,6 @@ import { chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
-
 /** The bars of the chart, as their log2 ratios. */
 const barsOf = () => (chart().data[0] as PlotData).y as number[]
 
