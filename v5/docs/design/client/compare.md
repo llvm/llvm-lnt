@@ -65,7 +65,8 @@ Each side has its own controls:
   Disabled while at most one run is selected.
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
-commit, runs and run aggregation. Nothing needs to be fetched again.
+commit, runs and run aggregation, each side keeping the runs it had selected. No
+samples need to be fetched again.
 
 Global controls, shared by both sides:
 
@@ -118,7 +119,8 @@ controls change.
 selected metric on at least one side. Tests are matched by name, even when the
 two sides use different suites. The table shows the rows that match the test
 filter. When "Hide noise" is checked, it also leaves out the rows classified as
-noise. The geomean summary row is always first, whatever the sort.
+noise. The geomean summary row is always first, whatever the sort, and is left
+out when the table has no other row.
 
 | Column   | Description                                              |
 |----------|----------------------------------------------------------|
@@ -386,6 +388,8 @@ page.
   profiles of each of them. This never delays the comparison.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
+  A side whose URL names no runs can only ask for samples once its runs are
+  listed.
   If a value turns out to be unusable, whatever was fetched for it is
   discarded, and an error for it is not reported.
 
@@ -432,7 +436,8 @@ All selection state is encoded as query parameters for shareability:
 
 `runs_a`, `runs_b`, `hidden_test` and `columns` repeat their parameter once per
 value (see AR2 "State"). `runs_a` and `runs_b` are left out when all of the
-side's runs are selected, which is the default.
+side's runs are selected, which is the default. They are left out too when none
+is, since the URL cannot say so: loading such a URL selects every run.
 
 A value the page cannot use is dropped (see AR2 "State"):
 - a suite or machine that does not exist, or a commit the side's commit picker

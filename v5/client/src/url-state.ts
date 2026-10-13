@@ -15,8 +15,16 @@
  * `useUrlState` needs a `UrlStateProvider` inside the router.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, type RefObject } from 'react'
-import { useLocation, useNavigate, type Location } from 'react-router'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type RefObject,
+} from 'react'
+import { useLocation, useNavigate, useNavigationType, type Location } from 'react-router'
 import { parseNumber } from './format'
 
 /**
@@ -213,6 +221,19 @@ export function useUrlState<P extends Params>(
   }, [rewrites, update])
 
   return [values, update]
+}
+
+/**
+ * A key that changes whenever the user navigates to the page -- a link to it while on it, say -- but
+ * not when the page's own changes to its settings replace the history entry (AR2 "State"). A page
+ * rendered under it starts afresh on each visit, in the state the new URL describes.
+ */
+export function useVisitKey(): string {
+  const location = useLocation()
+  const navigation = useNavigationType()
+  const [visit, setVisit] = useState(location.key)
+  if (navigation !== 'REPLACE' && location.key !== visit) setVisit(location.key)
+  return visit
 }
 
 /** The parts of a query result that say whether its data can be relied on. */

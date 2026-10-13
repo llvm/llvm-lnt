@@ -41,6 +41,17 @@ export interface Suggestions {
 
 function noMore() {}
 
+/** The suggestions of a combobox that has none to offer, while it is disabled. */
+export const NO_SUGGESTIONS: Suggestions = {
+  items: [],
+  isLoading: false,
+  hasMore: false,
+  isLoadingMore: false,
+  loadMore: noMore,
+  error: null,
+  search: noMore,
+}
+
 /**
  * Suggestions from `all`, filtered by case-insensitive substring (AR9). Undefined while `all` is
  * still being loaded, or if loading it failed with `error`. Memoize `all`, as the suggestions are

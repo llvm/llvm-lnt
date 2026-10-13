@@ -1,0 +1,144 @@
+/**
+ * One side of the Compare page (CP1): its suite, machine, commit and runs, as the URL names them,
+ * checked against what the API holds, and the selection among the runs.
+ */
+
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import type { Schemas } from '../../api/client'
+import { commitRunsQuery, runRefKey, type RunRef } from '../../api/runs'
+import type { SuiteSchema } from '../../api/suites'
+import { useMachineSuggestions } from '../../components/machine-suggestions'
+import { useRangeSelection, type RowSelection } from '../../components/range-selection'
+import { useDropUnusable } from '../../url-state'
+import { useStoreValue, ValueStore } from '../../value-store'
+import {
+  sideChanges,
+  sideSettings,
+  type Settings,
+  type SideId,
+  type SideSettings,
+} from './settings'
+
+type Run = Schemas['Run']
+
+export interface Side {
+  id: SideId
+  settings: SideSettings
+  update(changes: Partial<SideSettings>): void
+  /** The side's suite, once the suites are known to hold it. */
+  schema: SuiteSchema | undefined
+  /** The suite's machines, and the suggestions of the combobox picking one. */
+  machines: ReturnType<typeof useMachineSuggestions>
+  /** The runs of the machine at the commit, in the order they were submitted. */
+  runs: UseQueryResult<Run[]>
+  /** The selection among the runs. */
+  selection: RowSelection
+  /**
+   * The runs selected, once the selection is known: once the side's runs are listed, and it has
+   * been filled for them from the URL. Undefined until then.
+   */
+  selected: ReadonlySet<string> | undefined
+  /** The runs whose samples the side asks for: those it lists, or until it does, the URL's. */
+  refs: RunRef[]
+  /**
+   * Those whose samples it wants, by `runRefKey`: those selected, or until that is known, the
+   * URL's.
+   */
+  wanted: string[]
+}
+
+/** The runs as the URL holds them: left out when every run is selected. */
+function runsParam(uuids: readonly string[], selected: ReadonlySet<string>): string[] {
+  return selected.size === uuids.length ? [] : uuids.filter((uuid) => selected.has(uuid))
+}
+
+const NO_RUNS: string[] = []
+
+/**
+ * The side `id`, as `all`, the page's settings, set it, which `update` changes. `suites` lists the
+ * suites of the instance.
+ */
+export function useSide(
+  id: SideId,
+  all: Settings,
+  update: (changes: Partial<Settings>) => void,
+  suites: UseQueryResult<SuiteSchema[]>,
+): Side {
+  const settings = sideSettings(all, id)
+  const { suite, machine, commit } = settings
+  const schema = suites.data?.find((entry) => entry.name === suite)
+  const updateSide = useCallback(
+    (changes: Partial<SideSettings>) => update(sideChanges(id, changes)),
+    [id, update],
+  )
+
+  // A suite or a machine that does not exist is dropped, and what depends on it (AR2 "State").
+  useDropUnusable(
+    suites,
+    (list) => suite === '' || list.some((entry) => entry.name === suite),
+    () => updateSide({ suite: '', machine: '', commit: '', runs: [] }),
+  )
+  const machines = useMachineSuggestions(suite, schema !== undefined)
+  useDropUnusable(
+    machines.machines,
+    (names) => machine === '' || names.includes(machine),
+    () => updateSide({ machine: '', commit: '', runs: [] }),
+  )
+
+  // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
+  const listed = suite !== '' && machine !== '' && commit !== ''
+  const runs = useQuery({ ...commitRunsQuery(suite, machine, commit), enabled: listed })
+  const uuids = useMemo(() => runs.data?.map((run) => run.uuid), [runs.data])
+
+  // The selection among the runs. It is filled once for each list of runs, from the URL, or with
+  // every run when the URL names none of them. It is only known once it has been.
+  const key = [suite, machine, commit].join('\0')
+  const { rows, selected } = useRangeSelection(uuids, uuids ?? NO_RUNS)
+  // The runs the selection was last filled for, by `key`. Set by the effect that fills the
+  // selection, like the selection itself, and so kept in a store like it, rather than in state.
+  const [filledFor] = useState(() => new ValueStore<string | null>(null))
+  const filled = useStoreValue(filledFor, (value) => value)
+  const fromUrl = settings.runs
+  // Before the page is painted, so that the runs never show unselected meanwhile.
+  useLayoutEffect(() => {
+    if (uuids === undefined || filled === key) return
+    filledFor.set(key)
+    const kept = fromUrl.filter((uuid) => uuids.includes(uuid))
+    rows.replace(kept.length > 0 ? kept : uuids)
+  }, [uuids, filled, filledFor, key, fromUrl, rows])
+  const known = uuids !== undefined && filled === key
+
+  // The selection, in the URL, unless it is every run, the default.
+  useEffect(() => {
+    if (known) updateSide({ runs: runsParam(uuids, selected) })
+  }, [known, selected, uuids, updateSide])
+
+  // The runs whose samples the side needs, as text so that they are the same arrays for as long
+  // as they are the same runs.
+  const asked = listed ? (uuids ?? fromUrl) : NO_RUNS
+  const askedText = asked.join(',')
+  const refs = useMemo(
+    () => (askedText === '' ? [] : askedText.split(',').map((uuid) => ({ suite, uuid }))),
+    [suite, askedText],
+  )
+  const wantedText = (known ? uuids.filter((uuid) => selected.has(uuid)) : asked).join(',')
+  const wanted = useMemo(
+    () =>
+      wantedText === '' ? [] : wantedText.split(',').map((uuid) => runRefKey({ suite, uuid })),
+    [suite, wantedText],
+  )
+
+  return {
+    id,
+    settings,
+    update: updateSide,
+    schema,
+    machines,
+    runs,
+    selection: rows,
+    selected: known ? selected : undefined,
+    refs,
+    wanted,
+  }
+}

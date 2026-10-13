@@ -56,6 +56,8 @@ interface Props<Row> {
   onSort?(sort: TableSort): void
   /** Whether the row is the one whose deletion, or revocation, is being confirmed. */
   confirming?: (row: Row) => boolean
+  /** Rows shown before the others, whatever the sort, such as one summing them up. */
+  pinned?: Row[]
 }
 
 /**
@@ -80,6 +82,7 @@ function DataTableImpl<Row>({
   sort,
   onSort,
   confirming,
+  pinned,
 }: Props<Row>) {
   const sortKey = columns.find((column) => column.id === sort?.column)?.sortKey
   const direction = sort?.direction
@@ -133,7 +136,7 @@ function DataTableImpl<Row>({
             </td>
           </tr>
         ) : (
-          sorted.map((row) => {
+          [...(pinned ?? []), ...sorted].map((row) => {
             const props = rowProps?.(row)
             return (
               <tr

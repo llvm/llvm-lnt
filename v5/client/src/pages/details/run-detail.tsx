@@ -1,8 +1,8 @@
 import { useDeferredValue, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
-import { api, authedApi, errorMessage, MAX_PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
-import { runKey, useRun, useRunProfiles } from '../../api/runs'
+import { authedApi, errorMessage, unwrap, type Schemas } from '../../api/client'
+import { fetchSamplePage, runKey, useRun, useRunProfiles } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
 import { ButtonLink } from '../../components/button-link'
@@ -59,14 +59,7 @@ export default function RunDetail() {
 function useSamples(suite: string, uuid: string) {
   return useCursorPages({
     queryKey: [...runKey(suite, uuid), 'samples'],
-    fetchPage: (cursor, signal) =>
-      unwrap(
-        api.GET('/api/suites/{testsuite}/runs/{uuid}/samples', {
-          // I2's largest page: a run can have thousands of samples.
-          params: { path: { testsuite: suite, uuid }, query: { cursor, limit: MAX_PAGE_SIZE } },
-          signal,
-        }),
-      ),
+    fetchPage: (cursor, signal) => fetchSamplePage(suite, uuid, cursor, signal),
     // A run's samples never change (E6).
     staleTime: Infinity,
   })

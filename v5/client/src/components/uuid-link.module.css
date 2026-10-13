@@ -1,0 +1,5 @@
+/* An identifier, in a fixed-width font (see data-table.module.css). */
+.uuid {
+  font-family: var(--lnt-font-mono);
+  white-space: nowrap;
+}
