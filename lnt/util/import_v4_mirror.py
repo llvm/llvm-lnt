@@ -22,7 +22,7 @@ import uuid
 import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TextIO
 
 from lnt.util.mirror_v4 import (FORMAT_VERSION, MANIFEST, machine_path,
                                 run_path, schema_path)
@@ -618,18 +618,26 @@ def _describe(plan: Plan, run: MirroredRun) -> str:
                                           machine.get('name'))
 
 
-def dry_run(mirror_dir: str, suite: str, target_suite: str,
+def convert(mirror_dir: str, suite: str, out: TextIO,
+            target_suite: str | None = None,
             override: JSONObject | None = None,
-            commit_field: str | None = None, echo: Echo = print) -> int:
-    """Plan the import and convert every run, without submitting anything.
+            commit_field: str | None = None, schema_out: str | None = None,
+            echo: Echo = print) -> int:
+    """Convert every run of `suite` in the mirror at `mirror_dir`.
 
+    Each run's submission is written to `out` as a line of JSON, and the
+    target schema to the file `schema_out`, if given. `echo` gets the report.
     Returns the number of runs that cannot be converted. Raises PlanError if
-    the suite cannot be imported at all.
+    the suite cannot be converted at all.
     """
     mirrored = read_mirror(mirror_dir, suite, commit_field)
-    echo("Importing suite '%s' of %s (database '%s') into suite '%s' "
-         '(dry run)' % (suite, mirrored.url, mirrored.database, target_suite))
+    target_suite = target_suite if target_suite is not None else suite
+    echo("Converting suite '%s' of %s (database '%s') into suite '%s'"
+         % (suite, mirrored.url, mirrored.database, target_suite))
     plan = make_plan(mirrored, target_suite, override)
+    if schema_out is not None:
+        with open(schema_out, 'w') as f:
+            f.write(json.dumps(plan.schema, indent=2) + '\n')
 
     echo('Schema: %d metric(s) and %d machine field(s)%s'
          % (len(plan.schema.get('metrics', [])),
@@ -638,7 +646,7 @@ def dry_run(mirror_dir: str, suite: str, target_suite: str,
     for machine_id in sorted(plan.machines, key=int):
         v4_name = mirrored.machines[machine_id]['name']
         if plan.machines[machine_id]['name'] != v4_name:
-            echo('  machine %s (%s) is imported as %r'
+            echo('  machine %s (%s) is renamed %r'
                  % (machine_id, v4_name, plan.machines[machine_id]['name']))
     ordered = sum(1 for value in plan.ordinals.values() if value is not None)
     echo('Commits: %d, of which %d have an ordinal'
@@ -650,10 +658,12 @@ def dry_run(mirror_dir: str, suite: str, target_suite: str,
     failures = 0
     for run in mirrored.runs:
         try:
-            convert_run(plan, run, read_run(mirrored, run))
+            submission = convert_run(plan, run, read_run(mirrored, run))
         except ConversionError as e:
             failures += 1
             echo('  %s: %s' % (_describe(plan, run), e))
+            continue
+        out.write(json.dumps(submission) + '\n')
     echo('Converted %d run(s) of %d machine(s); %d failure(s).'
          % (len(mirrored.runs) - failures, len(plan.machines), failures))
     return failures

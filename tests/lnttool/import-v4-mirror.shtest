@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test `lnt v5 import-v4-mirror --dry-run` on a mirror of a real v4 instance.
+# Test `lnt v5 import-v4-mirror` on a mirror of a real v4 instance.
 #
 # RUN: rm -rf %t.instance %t.tmp %t.pg.log && mkdir -p %t.tmp
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
@@ -28,19 +28,20 @@ lnt import -s nts --select-machine split "${INSTANCE}" "${TMP}/os-upgrade.json"
 lnt mirror-v4 "${URL}" "${MIRROR}" --suite nts
 lnt mirror-v4 "${URL}" "${MIRROR}" --suite compile
 
-lnt v5 import-v4-mirror "${MIRROR}" --suite nts --target-suite nts --dry-run \
-    > "${TMP}/nts.txt"
+lnt v5 import-v4-mirror "${MIRROR}" --suite nts > "${TMP}/nts.jsonl" \
+    2> "${TMP}/nts.txt"
+test "$(wc -l < "${TMP}/nts.jsonl")" -eq 3
 # RUN: filecheck %s --check-prefix=NTS < %t.tmp/nts.txt
-# NTS: Importing suite 'nts' of http://localhost:9097 (database 'default') into suite 'nts' (dry run)
+# NTS: Converting suite 'nts' of http://localhost:9097 (database 'default') into suite 'nts'
 # NTS-NEXT: Schema: {{[0-9]+}} metric(s) and 4 machine field(s)
-# NTS-NEXT:   machine 2 (localhost__clang_DEV__x86_64) is imported as 'localhost__clang_DEV__x86_64-import-2'
+# NTS-NEXT:   machine 2 (localhost__clang_DEV__x86_64) is renamed 'localhost__clang_DEV__x86_64-import-2'
 # NTS-NEXT: Commits: 3, of which 3 have an ordinal
 # NTS-NEXT: Converted 3 run(s) of 2 machine(s); 0 failure(s).
 
-lnt v5 import-v4-mirror "${MIRROR}" --suite compile --target-suite compile \
-    --dry-run > "${TMP}/compile.txt"
+lnt v5 import-v4-mirror "${MIRROR}" --suite compile > /dev/null \
+    2> "${TMP}/compile.txt"
 # RUN: filecheck %s --check-prefix=COMPILE < %t.tmp/compile.txt
-# COMPILE: Importing suite 'compile' of http://localhost:9097 (database 'default') into suite 'compile' (dry run)
+# COMPILE: Converting suite 'compile' of http://localhost:9097 (database 'default') into suite 'compile'
 # COMPILE: Converted 4 run(s) of {{[0-9]+}} machine(s); 0 failure(s).
 
 # The run submitted first, as it is converted: its machine keeps the fields

@@ -1,5 +1,5 @@
-# Test `lnt v5 import-v4-mirror --dry-run`, and the conversion it performs,
-# on mirrors built by hand.
+# Test `lnt v5 import-v4-mirror`, and the conversion it performs, on mirrors
+# built by hand.
 #
 # RUN: rm -rf %t.dir && mkdir -p %t.dir
 # RUN: python %s %t.dir > %t.out
@@ -96,9 +96,12 @@ def make_mirror(name, machines, schema=SCHEMA, unfetched=(), database='default')
 
 
 def import_(*args):
+    """Run the command, and print its report and how many runs it wrote."""
     result = CliRunner().invoke(action_import_v4_mirror, list(args))
-    print(result.output, end='')
-    print('exit: %d' % result.exit_code)
+    print(result.stderr, end='')
+    print('written: %d, exit: %d' % (len(result.stdout.splitlines()),
+                                     result.exit_code))
+    return result
 
 
 def dump(value):
@@ -122,7 +125,13 @@ plan = make_plan(mirrored, 'target')
 dump(plan.schema)
 for r in mirrored.runs:
     dump(convert_run(plan, r, read_run(mirrored, r)))
-import_(basic, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+result = import_(basic, '--suite', 'nts', '--target-suite', 'target',
+                 '--schema-out', os.path.join(TMP, 'basic-schema.json'))
+print('stdout is the submissions:', [json.loads(line) for line in
+                                     result.stdout.splitlines()] ==
+      [convert_run(plan, r, read_run(mirrored, r)) for r in mirrored.runs])
+with open(os.path.join(TMP, 'basic-schema.json')) as f:
+    print('--schema-out is the schema:', json.load(f) == plan.schema)
 
 # The v4 metric types, mapped. A display name equal to the metric's name and
 # an empty unit become null, and keys v5 doesn't know are dropped.
@@ -229,12 +238,14 @@ import_(basic, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 # CHECK-NEXT:   "value": "r2147483648"
 # CHECK-NEXT:  },
 #
-# CHECK:      Importing suite 'nts' of http://v4.example.com (database 'default') into suite 'target' (dry run)
+# CHECK:      Converting suite 'nts' of http://v4.example.com (database 'default') into suite 'target'
 # CHECK-NEXT: Schema: 3 metric(s) and 3 machine field(s)
 # CHECK-NEXT: Commits: 3, of which 1 have an ordinal
 # CHECK-NEXT: Warning: the mirror lacks 1 run(s) that the v4 instance listed
 # CHECK-NEXT: Converted 3 run(s) of 2 machine(s); 0 failure(s).
-# CHECK-NEXT: exit: 0
+# CHECK-NEXT: written: 3, exit: 0
+# CHECK-NEXT: stdout is the submissions: True
+# CHECK-NEXT: --schema-out is the schema: True
 
 
 # ---------------------------------------------------------------------------
@@ -244,11 +255,13 @@ print('# MACHINE NAMES')
 D = [{'id': i, 'name': 'dup'} for i in (4, 9, 7)]
 S = {'id': 5, 'name': 'with/slash'}
 names = make_mirror('names', [(m, []) for m in D + [S]])
-import_(names, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(names, '--suite', 'nts')
+# The target suite has the mirrored suite's name by default.
 # CHECK-LABEL: # MACHINE NAMES
-# CHECK:      machine 5 (with/slash) is imported as 'with_slash'
-# CHECK-NEXT: machine 7 (dup) is imported as 'dup-import-7'
-# CHECK-NEXT: machine 9 (dup) is imported as 'dup-import-9'
+# CHECK-NEXT: Converting suite 'nts' of http://v4.example.com (database 'default') into suite 'nts'
+# CHECK:      machine 5 (with/slash) is renamed 'with_slash'
+# CHECK-NEXT: machine 7 (dup) is renamed 'dup-import-7'
+# CHECK-NEXT: machine 9 (dup) is renamed 'dup-import-9'
 # CHECK:      exit: 0
 
 # Names that end up the same, or that v5 does not accept, are errors.
@@ -257,11 +270,11 @@ clash = make_mirror('clash', [
     ({'id': 3, 'name': 'x'}, []), ({'id': 4, 'name': 'x-import-5'}, []),
     ({'id': 5, 'name': 'x'}, []), ({'id': 6, 'name': '..'}, []),
 ])
-import_(clash, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(clash, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: machine 6: its name '..' cannot appear in a URL path
 # CHECK-NEXT: error: machines 1, 2 would all be named 'a_b'
 # CHECK-NEXT: error: machines 4, 5 would all be named 'x-import-5'
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +289,7 @@ bad_schema['run_fields'].append({'name': 'other', 'order': True})
 M = {'id': 1, 'name': 'm', 'tracked': 'yes', 'count': 3}
 plan_errors = make_mirror('plan-errors', [
     (M, [run(1, M, 'r5', []), run(2, M, '5', [])])], schema=bad_schema)
-import_(plan_errors, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(plan_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-LABEL: # PLAN ERRORS
 # CHECK:      error: the schema has 2 run fields marked "order", rather than exactly one
 # CHECK-NEXT: error: metric 'blob': type 'Blob' cannot be imported
@@ -284,27 +297,27 @@ import_(plan_errors, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 # CHECK-NEXT: error: metrics entry 'run_id': the name is reserved by v5
 # CHECK-NEXT: error: machine_fields entry 'tracked': the name is reserved by v5
 # CHECK-NEXT: error: machine 1 (m): 3 is not a valid value for field 'count'
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # Two revisions with the same ordinal.
 M = {'id': 1, 'name': 'm'}
 ordinals = make_mirror('ordinals', [
     (M, [run(1, M, 'r5', []), run(2, M, '5', []), run(3, M, '6', [])])])
-import_(ordinals, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(ordinals, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: commits '5', 'r5' would all have ordinal 5
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # An invalid target suite name.
-import_(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts', '--dry-run')
+import_(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts')
 # CHECK:      error: suite name: 'pg_nts' is reserved by v5
-import_(ordinals, '--suite', 'nts', '--target-suite', 'nts\n', '--dry-run')
+import_(ordinals, '--suite', 'nts', '--target-suite', 'nts\n')
 # CHECK:      error: suite name: 'nts\n' is not a valid v5 name
 
 # A revision followed by anything else has no ordinal.
 M = {'id': 1, 'name': 'm'}
 newline = make_mirror('newline', [(M, [run(1, M, '5', []),
                                        run(2, M, '5\n', [])])])
-import_(newline, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(newline, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      Commits: 2, of which 1 have an ordinal
 # CHECK:      exit: 0
 
@@ -327,7 +340,7 @@ for r in mirrored.runs:
     submission = convert_run(plan, r, read_run(mirrored, r))
     print(r.id, json.dumps(submission['commit'], sort_keys=True),
           sorted(submission['run_parameters']))
-import_(by_sha, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
+import_(by_sha, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_sha')
 # CHECK-LABEL: # COMMIT FIELD
 # CHECK-NEXT: 1 {"ordinal": 100, "value": "aaa"} ['end_time', 'llvm_project_revision', 'start_time']
@@ -338,10 +351,10 @@ import_(by_sha, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
 # CHECK:      exit: 0
 
 # A field that no run has is most likely a typo.
-import_(by_sha, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
+import_(by_sha, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_hsa')
 # CHECK:      error: --commit-field: no run has a git_hsa
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # The runs of a commit must agree on its ordinal.
 disagree = make_mirror('disagree', [(M, [
@@ -350,11 +363,11 @@ disagree = make_mirror('disagree', [(M, [
     run(3, M, '102', [], git_sha='ccc'),
     run(4, M, 'r102', [], git_sha='ddd'),
 ])])
-import_(disagree, '--suite', 'nts', '--target-suite', 'target', '--dry-run',
+import_(disagree, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_sha')
 # CHECK:      error: the runs of commit 'aaa' do not agree on its ordinal
 # CHECK-NEXT: error: commits 'ccc', 'ddd' would all have ordinal 102
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +389,7 @@ run_errors = make_mirror('run-errors', [(M, runs)])
 # Damage run 7's file.
 with open(os.path.join(run_errors, 'nts/runs/7.json.gz'), 'wb') as f:
     f.write(gzip.compress(b'{}'))
-import_(run_errors, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(run_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-LABEL: # RUN ERRORS
 # CHECK:      run 1 of machine 1 (m): its commit 'a/b' cannot appear in a URL path
 # CHECK-NEXT: run 2 of machine 1 (m): it has no valid llvm_project_revision: None
@@ -388,7 +401,7 @@ import_(run_errors, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
 # CHECK-NEXT: run 8 of machine 1 (m): test 't', metric 'hash': 'a\x00b' is not a valid text value
 # CHECK-NEXT: run 9 of machine 1 (m): test 't', metric 'compile_time': {{[0-9]+}} is not a valid real value
 # CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 9 failure(s).
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +426,7 @@ def fix_units(schema):
 
 # A schema that declares what the derived one does can differ in anything else.
 import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
-        '--dry-run', '--schema', override('good', fix_units))
+        '--schema', override('good', fix_units))
 # CHECK-LABEL: # SCHEMA OVERRIDE
 # CHECK:      Schema: 4 metric(s) and 2 machine field(s), from --schema
 # CHECK:      exit: 0
@@ -426,11 +439,11 @@ def break_it(schema):
 
 
 import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
-        '--dry-run', '--schema', override('bad', break_it))
+        '--schema', override('bad', break_it))
 # CHECK:      error: --schema: its name is 'other' rather than the target suite's, 'target'
 # CHECK-NEXT: error: --schema: metrics does not declare 'compile_time'
 # CHECK-NEXT: error: --schema: machine_fields entry 'cpu' has type 'integer' rather than 'text'
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 
 def malform(schema):
@@ -441,13 +454,13 @@ def malform(schema):
 
 # A malformed schema is reported rather than crashing the command.
 import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
-        '--dry-run', '--schema', override('malformed', malform))
+        '--schema', override('malformed', malform))
 # CHECK:      error: --schema: its name is ['target'] rather than the target suite's, 'target'
 # CHECK-NEXT: error: --schema: metrics entry 'compile_time' has type [] rather than 'real'
 # CHECK-NEXT: error: suite name: ['target'] is not a valid v5 name
 # CHECK-NEXT: error: metrics entry 'compile_time': [] is not a v5 type
 # CHECK-NEXT: error: metrics entry {}: {} is not a valid v5 name
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # Samples are checked against the target schema, which can declare metrics
 # that the v4 schema does not.
@@ -455,31 +468,31 @@ M = {'id': 1, 'name': 'm', 'os': 'linux', 'cpu': 'x86'}
 extra_metric = make_mirror('extra-metric', [
     (M, [run(1, M, '1', [sample('t', extra=1.5)])])])
 import_(extra_metric, '--suite', 'nts', '--target-suite', 'target',
-        '--dry-run', '--schema', override('extra', fix_units))
+        '--schema', override('extra', fix_units))
 # CHECK:      Converted 1 run(s) of 1 machine(s); 0 failure(s).
-# CHECK-NEXT: exit: 0
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 0
 
 
 # ---------------------------------------------------------------------------
 print('# MIRROR ERRORS')
-import_(basic, '--suite', 'compile', '--target-suite', 'target', '--dry-run')
+import_(basic, '--suite', 'compile', '--target-suite', 'target')
 # CHECK-LABEL: # MIRROR ERRORS
 # CHECK:      error: {{.*}}basic cannot be imported: there is no suite 'compile' in the mirror
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 with open(os.path.join(basic, 'nts/schema.json'), 'a') as f:
     f.write(' ')
-import_(basic, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(basic, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: {{.*}}basic cannot be imported: nts/schema.json does not have the hash the manifest records
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 with open(os.path.join(names, 'manifest.json')) as f:
     manifest = json.load(f)
 manifest['format_version'] = '2'
 write(os.path.join(names, 'manifest.json'), json.dumps(manifest).encode())
-import_(names, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(names, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: {{.*}}names cannot be imported: its format version is '2', but only version '1' can be imported
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # A malformed mirror is reported rather than crashing the command.
 M = {'id': 1, 'name': 'm'}
@@ -488,17 +501,12 @@ with open(os.path.join(malformed, 'manifest.json')) as f:
     manifest = json.load(f)
 del manifest['source']
 write(os.path.join(malformed, 'manifest.json'), json.dumps(manifest).encode())
-import_(malformed, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(malformed, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: {{.*}}malformed cannot be imported: it is malformed (KeyError('source'))
-# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 manifest['suites']['nts']['machines'] = []
 write(os.path.join(malformed, 'manifest.json'), json.dumps(manifest).encode())
-import_(malformed, '--suite', 'nts', '--target-suite', 'target', '--dry-run')
+import_(malformed, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: {{.*}}malformed cannot be imported: it is malformed (AttributeError({{.*}}))
-# CHECK-NEXT: exit: 1
-
-# Only dry runs are supported so far.
-import_(basic, '--suite', 'nts', '--target-suite', 'target')
-# CHECK:      Error: only --dry-run is supported for now
-# CHECK-NEXT: exit: 2
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
