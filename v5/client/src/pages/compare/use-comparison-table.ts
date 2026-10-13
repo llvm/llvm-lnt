@@ -9,10 +9,10 @@ import { useRangeSelection } from '../../components/range-selection'
 import type { TableSort } from '../../components/table-sort'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
-import { COLUMNS, comparisonCsv, sortComparison } from './columns'
+import { comparisonCsv, sortComparison, tableColumns } from './columns'
 import type { TableView } from './compare-table'
 import { geomeanRow, summaryCounts, type ComparisonRow } from './comparison'
-import { HIDDEN_IN_URL, type Settings } from './settings'
+import { HIDDEN_IN_URL, PARAMS, type Settings } from './settings'
 import type { Comparison } from './use-comparison'
 
 const NO_TESTS: string[] = []
@@ -45,9 +45,16 @@ export function useComparisonTable(
   )
   const counts = useMemo(() => summaryCounts(matching), [matching])
 
+  const columns = useMemo(() => tableColumns(settings.columns), [settings.columns])
+
   // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
+  // A sort by a column that is not shown is the default one, and is dropped from the URL (CP7).
   // The same sort object from one render to the next, for the table not to render again.
-  const { column, direction } = settings.sort
+  const usable = columns.some((entry) => entry.id === settings.sort.column)
+  const { column, direction } = usable ? settings.sort : PARAMS.sort.default
+  useEffect(() => {
+    if (!usable) update({ sort: PARAMS.sort.default })
+  }, [usable, update])
   const sort = useMemo(() => ({ column, direction }), [column, direction])
   const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
   const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
@@ -66,8 +73,8 @@ export function useComparisonTable(
   )
   const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
   const csv = useMemo(
-    () => (compared.length === 0 ? null : () => comparisonCsv(COLUMNS, geomean, compared)),
-    [compared, geomean],
+    () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
+    [columns, compared, geomean],
   )
 
   // The hidden tests, in the URL while there are few enough of them to share (CP7). A long list
@@ -84,7 +91,7 @@ export function useComparisonTable(
 
   const view: TableView = {
     rows: sorted,
-    columns: COLUMNS,
+    columns,
     tests: sortedTests,
     hidden,
     summary: filter.active

@@ -182,8 +182,8 @@ all use these rows.
   written at full precision, and an N/A cell is left empty. The button briefly
   shows whether the copy succeeded. It is hidden when there is no compared row.
 - **Optional columns**: a "Columns" button on the summary message row opens a
-  menu of checkboxes adding statistics columns to the table, all off by
-  default:
+  menu of checkboxes, one per key below, adding statistics columns to the
+  table, all off by default:
 
   | Column   | Key            | Per side | Value                                        | N/A when                          |
   |----------|----------------|----------|----------------------------------------------|-----------------------------------|
@@ -197,7 +197,8 @@ all use these rows.
 
   Statistics are computed over the side's samples for the test (see
   Computation Reference), ignoring the sample and run aggregation settings.
-  Hovering a column's header says so.
+  Hovering a column's header says so. A p-value below 0.0001 is shown in
+  exponent notation (`2.01e-29`).
 
   A per-side statistic adds an A and a B column. Optional columns sit between
   Ratio and Status, in the order above, A before B. They are empty on the
