@@ -77,5 +77,5 @@ e.g. `D5`, `I4` or `GR8`.
 | [Detail Pages](client/details.md) | DT | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |
 | [Graph](client/graph.md) | GR | Time-series visualization: multi-machine, lazy loading, test selection, baselines, point details, regression annotations |
 | [Compare](client/compare.md) | CP | Side-by-side comparison of two commits: selection panel, comparison table, ratio chart, geomean summary, shadow trace, adding to a regression |
-| [Profiles](client/profiles.md) | PF | A/B profile viewer: cascading pickers, counter stats bar, function selector, disassembly view |
+| [Profiles](client/profiles.md) | PF | A/B profile viewer: side selection, counter comparison, function selection, disassembly view |
 | [Admin](client/admin.md) | AD | API key management, test suite management |

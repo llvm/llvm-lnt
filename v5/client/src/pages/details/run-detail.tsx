@@ -93,7 +93,7 @@ function RunContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
           <Actions schema={schema} run={run.data} metric={metric} />
           <Samples
             schema={schema}
-            uuid={uuid}
+            run={run.data}
             samples={samples}
             profiles={profiles}
             metric={metric}
@@ -186,7 +186,7 @@ const testOf = (row: Row) => row.sample.test
 
 interface SamplesProps {
   schema: SuiteSchema
-  uuid: string
+  run: Run
   samples: CursorPages<Sample>
   /** The tests of the run that have a profile. */
   profiles: UseQueryResult<Schemas['RunProfile'][]>
@@ -204,7 +204,7 @@ interface SamplesProps {
  * They are shown as they arrive, page after page, and filtered by test name locally (DT2).
  */
 function Samples(props: SamplesProps) {
-  const { schema, uuid, samples, profiles, metric, onMetric } = props
+  const { schema, run, samples, profiles, metric, onMetric } = props
   const suite = schema.name
   // Sorted, filtered and rendered once React has had the time, so that pages arriving, and a new
   // metric, do not hold up typing in the filter either.
@@ -213,8 +213,8 @@ function Samples(props: SamplesProps) {
   const filter = useTextFilter(rows, testOf, props.filterText, props.onFilter)
   const columns = useDeferredValue(
     useMemo(
-      () => sampleColumns(suite, uuid, metric, profiles.data),
-      [suite, uuid, metric, profiles.data],
+      () => sampleColumns(suite, run, metric, profiles.data),
+      [suite, run, metric, profiles.data],
     ),
   )
 
@@ -293,7 +293,7 @@ function sortedRows(samples: Sample[]): Row[] {
 
 function sampleColumns(
   suite: string,
-  uuid: string,
+  run: Run,
   metric: Metric | undefined,
   profiles: Schemas['RunProfile'][] | undefined,
 ): Column<Row>[] {
@@ -308,13 +308,14 @@ function sampleColumns(
   }
   const profiled = new Set(profiles?.map((profile) => profile.test))
   if (profiled.size > 0) {
+    const runSide = { suite, machine: run.machine, commit: run.commit, run: run.uuid }
     columns.push({
       id: 'profile',
       header: <VisuallyHidden>Profile</VisuallyHidden>,
       looks: ['nowrap'],
       cell: (row) =>
         profiled.has(row.sample.test) && (
-          <Link to={profilesPath({ suite, run: uuid, test: row.sample.test })}>Profile</Link>
+          <Link to={profilesPath({ ...runSide, test: row.sample.test })}>Profile</Link>
         ),
     })
   }

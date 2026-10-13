@@ -407,11 +407,16 @@ describe('the Profile column (CP2)', () => {
     )
   }
 
+  /** The commit of each run of COMPARED, by hex: side A's runs are at c1, and side B's at c2. */
+  const COMMITS: Record<string, string> = { '1': 'c1', '2': 'c1', '3': 'c2' }
+
   /** The Profiles page's URL, with each side given as `[run hex, test]`. */
   function profilesUrl(...sides: [string, string][]) {
     const letters = ['a', 'b']
     const params = sides.flatMap(([hex, test], i) => [
       [`suite_${letters[i]}`, 'libcxx'],
+      [`machine_${letters[i]}`, 'm1'],
+      [`commit_${letters[i]}`, COMMITS[hex]],
       [`run_${letters[i]}`, uuidOf(hex)],
       [`test_${letters[i]}`, test],
     ])

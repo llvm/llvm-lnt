@@ -22,13 +22,13 @@ async function linkQuery(page: Page, name: string) {
   return Object.fromEntries(new URL((await link.getAttribute('href'))!, 'http://x').searchParams)
 }
 
-/** The UUID of the newest run that `query` selects. */
+/** The newest run that `query` selects. */
 async function newestRun(request: Parameters<typeof json>[0], query: string) {
   const runs = await json<Schemas['RunCursorPage']>(
     request,
     `/api/suites/libcxx/runs?${query}&sort=-submitted_at&limit=1`,
   )
-  return runs.items[0].uuid
+  return runs.items[0]
 }
 
 test('shows the run, and its samples sorted and filtered by test name', async ({ page }) => {
@@ -78,14 +78,20 @@ test('keeps the metric in the URL, and passes it on to the comparisons', async (
 })
 
 test('links to the profile of a test that has one', async ({ page, request }) => {
-  const uuid = await newestRun(request, `machine=${MACOS}&has_profiles=true`)
+  const { uuid, commit } = await newestRun(request, `machine=${MACOS}&has_profiles=true`)
   await page.goto(`/suites/libcxx/runs/${uuid}`)
 
   await page.getByRole('searchbox', { name: 'Filter tests' }).fill(PROFILED_TEST)
   const row = rows(table(page, 'Samples')).filter({ hasText: PROFILED_TEST }).first()
   await expect(row.getByRole('link', { name: 'Profile' })).toHaveAttribute(
     'href',
-    `/profiles?${new URLSearchParams({ suite_a: 'libcxx', run_a: uuid, test_a: PROFILED_TEST })}`,
+    `/profiles?${new URLSearchParams({
+      suite_a: 'libcxx',
+      machine_a: MACOS,
+      commit_a: commit,
+      run_a: uuid,
+      test_a: PROFILED_TEST,
+    })}`,
   )
 })
 
@@ -96,7 +102,7 @@ test('compares the run with the commit before it on its machine', async ({ page,
     `/api/suites/libcxx/commits?machine=${MACOS}&sort=-ordinal&limit=2`,
   )
   const [newest, previous] = commits.items
-  const uuid = await newestRun(request, `machine=${MACOS}&commit=${newest.value}`)
+  const { uuid } = await newestRun(request, `machine=${MACOS}&commit=${newest.value}`)
   await page.goto(`/suites/libcxx/runs/${uuid}`)
 
   expect(await linkQuery(page, 'Compare with previous commit')).toEqual({
@@ -115,7 +121,8 @@ test('cannot compare with a previous commit when the run’s commit has no ordin
   page,
   request,
 }) => {
-  await page.goto(`/suites/libcxx/runs/${await newestRun(request, `commit=${EXPERIMENT}`)}`)
+  const { uuid } = await newestRun(request, `commit=${EXPERIMENT}`)
+  await page.goto(`/suites/libcxx/runs/${uuid}`)
 
   const link = page.getByRole('main').getByRole('link', { name: 'Compare with previous commit' })
   await expect(link).toHaveAttribute('aria-disabled', 'true')

@@ -95,9 +95,13 @@ test('links a test to its profile on both sides', async ({ page, request }) => {
   const row = rows(table(page, 'Comparison')).filter({ hasText: PROFILED_TEST }).first()
   const profiles = new URLSearchParams({
     suite_a: 'libcxx',
+    machine_a: LINUX,
+    commit_a: newest.value,
     run_a: runA,
     test_a: PROFILED_TEST,
     suite_b: 'libcxx',
+    machine_b: LINUX,
+    commit_b: EXPERIMENT,
     run_b: runB,
     test_b: PROFILED_TEST,
   })

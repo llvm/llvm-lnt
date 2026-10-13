@@ -58,14 +58,14 @@ describe('graphPath', () => {
 
 describe('profilesPath', () => {
   it('sets side A, with a test name of any characters', () => {
-    expect(profilesPath({ suite: 'nts', run: 'uuid-1', test: 'a/b c&d' })).toBe(
-      '/profiles?suite_a=nts&run_a=uuid-1&test_a=a%2Fb+c%26d',
-    )
+    expect(
+      profilesPath({ suite: 'nts', machine: 'm', commit: 'c', run: 'uuid-1', test: 'a/b c&d' }),
+    ).toBe('/profiles?suite_a=nts&machine_a=m&commit_a=c&run_a=uuid-1&test_a=a%2Fb+c%26d')
   })
 
   it('sets side B after side A', () => {
-    expect(
-      profilesPath({ suite: 'nts', run: 'u1', test: 't' }, { suite: 'x', run: 'u2', test: 't' }),
-    ).toBe('/profiles?suite_a=nts&run_a=u1&test_a=t&suite_b=x&run_b=u2&test_b=t')
+    expect(profilesPath({ suite: 'nts', run: 'u1', test: 't' }, { suite: 'x', commit: 'c2' })).toBe(
+      '/profiles?suite_a=nts&run_a=u1&test_a=t&suite_b=x&commit_b=c2',
+    )
   })
 })

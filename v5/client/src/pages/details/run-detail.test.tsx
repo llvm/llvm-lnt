@@ -431,7 +431,7 @@ describe('the Run Detail page', () => {
       )
       expect(within(samples).getAllByRole('link', { name: 'Profile' })[0]).toHaveAttribute(
         'href',
-        `/profiles?suite_a=libcxx&run_a=${UUID}&test_a=b%2Ftest`,
+        `/profiles?suite_a=libcxx&machine_a=linux-x86_64&commit_a=abc123&run_a=${UUID}&test_a=b%2Ftest`,
       )
       expect(main().getByRole('status')).toHaveTextContent('4 samples')
     })
