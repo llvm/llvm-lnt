@@ -6,6 +6,8 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
+import { Link } from 'react-router'
+import { VisuallyHidden } from 'react-aria-components'
 import { CopyButton } from '../../components/copy-button'
 import { DataTable, type Column } from '../../components/data-table'
 import type { RowSelection } from '../../components/range-selection'
@@ -72,6 +74,10 @@ export interface TableView {
   geomean: Values
   /** What the table says when it has no row, and why. */
   empty: string
+  /** The Profiles page of each test that has a profile, by test. */
+  links: ReadonlyMap<string, string>
+  /** Whether any compared test has a profile, which the Profile column is shown for. */
+  profiled: boolean
   sort: TableSort
   onSort(sort: TableSort): void
   /** The compared rows as CSV, or null when there is none to copy (CP2 "Copy as CSV"). */
@@ -89,7 +95,8 @@ interface Props extends TableView {
 
 /**
  * The comparison table (CP2): a row per test, with a checkbox hiding it, each side's value, how
- * they differ and the test's status, sorted by any column, with the geomean summary row first.
+ * they differ, the test's status and a link to its profiles, if it has any, sorted by any column
+ * but the last, with the geomean summary row first.
  * Rows are hidden and shown with their checkboxes, a click on the row, a range at a time with Shift
  * (AR10), or all but one with a double-click.
  */
@@ -108,12 +115,14 @@ export function CompareTable({
   csv,
   hovered,
   emphasis,
+  links,
+  profiled,
 }: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
 
-  const columns = useMemo(
-    (): Column<Row>[] => [
+  const columns = useMemo(() => {
+    const all: Column<Row>[] = [
       {
         id: 'show',
         header: <SelectAllBox rows={hidden} shown={tests} label="Show all tests shown" />,
@@ -142,9 +151,20 @@ export function CompareTable({
         // Only says that the column can be sorted by: the rows come sorted (see `sortComparison`).
         sortKey: () => null,
       })),
-    ],
-    [hidden, tests, store, shownColumns, hovered],
-  )
+    ]
+    if (profiled) {
+      all.push({
+        id: 'profile',
+        header: <VisuallyHidden>Profile</VisuallyHidden>,
+        looks: ['nowrap'],
+        cell: (row) => {
+          const to = row.test === null ? undefined : links.get(row.test)
+          return to === undefined ? null : <Link to={to}>Profile</Link>
+        },
+      })
+    }
+    return all
+  }, [hidden, tests, store, shownColumns, hovered, profiled, links])
 
   const rowProps = useCallback(
     (row: Row) => {

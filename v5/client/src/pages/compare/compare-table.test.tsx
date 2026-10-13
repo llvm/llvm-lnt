@@ -1,9 +1,13 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { errorResponse, mockApi } from '../../test/mock-api'
+import { server } from '../../test/server'
 import { headersOf, main, query, renderPage, search, table } from '../../test/page'
 import { mockClipboard } from '../../test/clipboard'
-import { COMPARED, comparison, mockWorld, NOISY, runBox, showBox } from './compare-world'
+import { uuidOf } from '../../test/fixtures'
+import { COMPARED, comparison, mockWorld, NOISY, ROWS, runBox, showBox } from './compare-world'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -384,5 +388,183 @@ describe('Copy as CSV (CP2)', () => {
       'a,100,100.5,0.5,0.5,1.005,Regressed',
       'c,,5,,,,',
     ])
+  })
+})
+
+describe('the Profile column (CP2)', () => {
+  /** The runs of COMPARED with profiles, by hex: those of side A (1, 2), and side B's (3). */
+  const PROFILES = { '1': ['a', 'b'], '2': ['a'], '3': ['a', 'c'] }
+
+  /** The Profile links of the comparison table, by the test of their row. */
+  async function profileLinks() {
+    const rows = within(await table('Comparison')).getAllByRole('row').slice(1)
+    return Object.fromEntries(
+      rows.flatMap((row) => {
+        const link = within(row).queryByRole('link', { name: 'Profile' })
+        const test = within(row).getAllByRole('cell')[1].textContent
+        return link === null ? [] : [[test, link.getAttribute('href')]]
+      }),
+    )
+  }
+
+  /** The Profiles page's URL, with each side given as `[run hex, test]`. */
+  function profilesUrl(...sides: [string, string][]) {
+    const letters = ['a', 'b']
+    const params = sides.flatMap(([hex, test], i) => [
+      [`suite_${letters[i]}`, 'libcxx'],
+      [`run_${letters[i]}`, uuidOf(hex)],
+      [`test_${letters[i]}`, test],
+    ])
+    return `/profiles?${new URLSearchParams(params)}`
+  }
+
+  it("links each test to the latest selected run's profile on each side", async () => {
+    mockWorld({ profiles: PROFILES })
+    renderPage(COMPARED)
+
+    // A test with a profile on side B only has it shown on side A of the Profiles page.
+    await waitFor(async () =>
+      expect(await profileLinks()).toEqual({
+        a: profilesUrl(['2', 'a'], ['3', 'a']),
+        b: profilesUrl(['1', 'b']),
+        c: profilesUrl(['3', 'c']),
+      }),
+    )
+    expect(screen.getByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()
+  })
+
+  it('follows the runs selected', async () => {
+    mockWorld({ profiles: PROFILES })
+    renderPage(COMPARED)
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+
+    await userEvent.setup().click(runBox('2', 'A'))
+    await waitFor(async () =>
+      expect((await profileLinks()).a).toBe(profilesUrl(['1', 'a'], ['3', 'a'])),
+    )
+  })
+
+  it('is not shown when no test compared has a profile', async () => {
+    mockWorld({ profiles: { '1': ['elsewhere'] } })
+    renderPage(COMPARED)
+
+    expect(await comparison()).toEqual(ROWS)
+    expect(screen.queryByRole('columnheader', { name: 'Profile' })).not.toBeInTheDocument()
+  })
+
+  it('says when profiles could not be listed, linking those of the other side', async () => {
+    let fail = true
+    mockWorld({
+      profiles: PROFILES,
+      profilesAnswer: (hex) =>
+        hex === '3' && fail ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(COMPARED)
+
+    expect(
+      await screen.findByText(/The profiles could not be listed: Boom/),
+    ).toBeInTheDocument()
+    await waitFor(async () =>
+      expect(await profileLinks()).toEqual({
+        a: profilesUrl(['2', 'a']),
+        b: profilesUrl(['1', 'b']),
+      }),
+    )
+
+    fail = false
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(async () =>
+      expect((await profileLinks()).c).toBe(profilesUrl(['3', 'c'])),
+    )
+    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+  })
+
+  it("links none of a side's profiles until all its selected runs' are listed", async () => {
+    mockWorld({
+      profiles: PROFILES,
+      profilesAnswer: (hex) =>
+        hex === '2' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(COMPARED)
+
+    // Side A's run 1 is listed, but not its latest, so none of side A's profiles is linked.
+    expect(await screen.findByText(/The profiles could not be listed/)).toBeInTheDocument()
+    await waitFor(async () =>
+      expect(await profileLinks()).toEqual({
+        a: profilesUrl(['3', 'a']),
+        c: profilesUrl(['3', 'c']),
+      }),
+    )
+  })
+
+  it('says when the runs with profiles could not be listed, still comparing', async () => {
+    let fail = true
+    mockWorld({
+      profiles: PROFILES,
+      runsAnswer: (query) =>
+        query.has('has_profiles') && fail
+          ? errorResponse(500, 'internal_error', 'Boom')
+          : undefined,
+    })
+    renderPage(COMPARED)
+
+    expect(
+      await screen.findByText(/The profiles could not be listed: Boom/),
+    ).toBeInTheDocument()
+    expect(await comparison()).toEqual(ROWS)
+
+    fail = false
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+  })
+
+  it('swaps the links with the sides', async () => {
+    mockWorld({ profiles: PROFILES })
+    renderPage(COMPARED)
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
+    await waitFor(async () =>
+      expect((await profileLinks()).a).toBe(profilesUrl(['3', 'a'], ['2', 'a'])),
+    )
+  })
+
+  it('is shown whatever the filter, while a test of the comparison has a profile', async () => {
+    mockWorld({ profiles: { '1': ['b'] } })
+    renderPage(`${COMPARED}&test_filter=c`)
+
+    expect(await screen.findByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()
+    expect(await profileLinks()).toEqual({})
+  })
+
+  it('reports nothing for a machine that does not exist, before it is dropped', async () => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let profiled = false
+    mockWorld({
+      runsAnswer: (query) => {
+        if (query.get('machine') !== 'bogus') return undefined
+        if (query.has('has_profiles')) profiled = true
+        return errorResponse(404, 'not_found', 'No such machine')
+      },
+    })
+    // Holding the machines back, so that the machine is not known not to exist meanwhile, and
+    // answering the commit's lookup as the API does for a machine that does not exist.
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/machines', async () => {
+        await held
+      }),
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (new URL(request.url).searchParams.get('machine') === 'bogus')
+          return errorResponse(404, 'not_found', 'No such machine') as never
+      }),
+    )
+    renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')
+
+    await waitFor(() => expect(profiled).toBe(true))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+    release()
+    await waitFor(() => expect(query().machine_a).toBeUndefined())
   })
 })
