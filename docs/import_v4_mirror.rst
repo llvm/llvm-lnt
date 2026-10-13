@@ -11,11 +11,11 @@ instance, through the v5 REST API.
 Example
 -------
 
-To import the ``nts`` suite of a mirror of the ``spec`` database into the
-``spec_nts`` suite of a v5 instance::
+To import the ``nts`` suite of a mirror into the ``nts`` suite of a v5
+instance::
 
     lnt v5 import-v4-mirror ./lnt-mirror --suite nts \
-        --target https://lnt.example.com --target-suite spec_nts --token <token>
+        --target https://lnt.example.com --target-suite nts --token <token>
 
 Adding ``--dry-run`` checks that the whole suite can be converted, without
 contacting the v5 instance. See ``lnt v5 import-v4-mirror --help`` for the
