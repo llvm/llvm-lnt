@@ -18,8 +18,6 @@ import type { CompareColumn, GeomeanRow, Row } from './columns'
 import type { ComparisonRow, Values } from './comparison'
 import styles from './compare.module.css'
 
-type ProfileMap = ReadonlyMap<string, string>
-
 /**
  * The geomean summary row, which the table shows first whatever the sort, and only while it has
  * other rows (see `DataTable`). Its values here are not read: its cells read them from a store, so
@@ -40,12 +38,6 @@ function HoverMark({ store, test }: { store: ValueStore<string | null>; test: st
 function GeomeanCell({ store, column }: { store: ValueStore<Values>; column: CompareColumn }) {
   const values = useStoreValue(store, (value) => value)
   return column.cell({ ...values, test: null })
-}
-
-/** The link to the Profiles page of `test`, if `store` holds one (CP2 "Profile column"). */
-function ProfileLink({ store, test }: { store: ValueStore<ProfileMap>; test: string }) {
-  const to = useStoreValue(store, (links) => links.get(test))
-  return to === undefined ? null : <Link to={to}>Profile</Link>
 }
 
 const testOf = (row: Row) => row.test ?? ''
@@ -83,7 +75,7 @@ export interface TableView {
   /** What the table says when it has no row, and why. */
   empty: string
   /** The Profiles page of each test that has a profile, by test. */
-  links: ProfileMap
+  links: ReadonlyMap<string, string>
   /** Whether any compared test has a profile, which the Profile column is shown for. */
   profiled: boolean
   sort: TableSort
@@ -128,9 +120,6 @@ export function CompareTable({
 }: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
-  // Read by the Profile column's cells, so that the rows need not render again as profiles arrive.
-  const [linkStore] = useState(() => new ValueStore(links))
-  useLayoutEffect(() => linkStore.set(links), [links, linkStore])
 
   const columns = useMemo(() => {
     const all: Column<Row>[] = [
@@ -168,11 +157,14 @@ export function CompareTable({
         id: 'profile',
         header: <VisuallyHidden>Profile</VisuallyHidden>,
         looks: ['nowrap'],
-        cell: (row) => (row.test === null ? null : <ProfileLink store={linkStore} test={row.test} />),
+        cell: (row) => {
+          const to = row.test === null ? undefined : links.get(row.test)
+          return to === undefined ? null : <Link to={to}>Profile</Link>
+        },
       })
     }
     return all
-  }, [hidden, tests, store, shownColumns, hovered, profiled, linkStore])
+  }, [hidden, tests, store, shownColumns, hovered, profiled, links])
 
   const rowProps = useCallback(
     (row: Row) => {

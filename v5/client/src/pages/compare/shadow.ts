@@ -10,7 +10,6 @@ import { useRunSamples, type SampleState } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { commitLookupKey, commitLookupQuery } from '../../components/commit-lookup'
 import type { RowSelection } from '../../components/range-selection'
-import { useSameElements } from '../../same-elements'
 import type { Metric } from '../../schema'
 import { useDropUnusable } from '../../url-state'
 import { chartBars, type Bar } from './chart'
@@ -157,8 +156,6 @@ export function useShadow(
 /**
  * The shadow's line: the tests the chart plots, `plotted`, compared between side A and the shadow,
  * sorted by their own ratios. Nothing unless side A's suite and the shadow's both offer `metric`.
- * Every test's point is computed once, and those of the tests the chart plots kept, the same for as
- * long as they are the same, as the noise is classified anew.
  */
 export function useShadowLine(
   shadow: Shadow,
@@ -181,11 +178,9 @@ export function useShadowLine(
         : NO_BARS,
     [pinned, tests, valuesA, values, biggerIsBetter],
   )
-  return useSameElements(
-    useMemo(() => {
-      if (bars.length === 0) return NO_BARS
-      const kept = new Set(plotted.map((row) => row.test))
-      return bars.filter((bar) => kept.has(bar.test))
-    }, [bars, plotted]),
-  )
+  return useMemo(() => {
+    if (bars.length === 0) return NO_BARS
+    const kept = new Set(plotted.map((row) => row.test))
+    return bars.filter((bar) => kept.has(bar.test))
+  }, [bars, plotted])
 }

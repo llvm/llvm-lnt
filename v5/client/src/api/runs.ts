@@ -163,8 +163,6 @@ export function useRunSamples(
         fetchEveryPage((cursor) => fetchSamplePage(run.suite, run.uuid, cursor, signal)),
       enabled: wanted.has(runRefKey(run)),
       staleTime: Infinity,
-      // Samples are read whole, never compared with previous ones.
-      structuralSharing: false,
     })),
     combine,
   })
