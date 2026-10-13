@@ -270,13 +270,14 @@ function testEntries(
     const ipc = 1.5 + 2.5 * hashed()
     const rss = 1.5 + 38 * hashed()
     const clock = CLOCK_GHZ[machine]
+    const cycles = times.map((time) => round(time * clock * (1 + 0.005 * gaussian(rand))))
     const instructions = round(level * clock * ipc * (1 + 0.002 * gaussian(rand)))
     const maxRss = round(rss * (1 + 0.01 * gaussian(rand)))
     return {
       name: test,
-      samples: times.map((time) => ({
+      samples: times.map((time, i) => ({
         execution_time: round(time),
-        cycles: round(time * clock * (1 + 0.005 * gaussian(rand))),
+        cycles: cycles[i],
         instructions,
         max_rss: maxRss,
       })),

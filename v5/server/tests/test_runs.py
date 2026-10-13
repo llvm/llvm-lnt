@@ -408,13 +408,7 @@ class TestImplicitCreation:
     def test_creates_every_test_it_names(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        submitted(
-            tests=[
-                entry("suite/one"),
-                entry("suite/two"),
-                entry("other/three"),
-            ]
-        )
+        submitted(tests=[entry("suite/one"), entry("suite/two"), entry("other/three")])
 
         assert counted(db_engine, suite, "test") == 3
 
@@ -542,6 +536,23 @@ class TestMetadataReconciliation:
 
     def test_refuses_an_undeclared_field(self, submit: Callable[..., Any]) -> None:
         response = submit(machine={"name": "linux", "fields": {"kernel": "6.1"}})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize(
+        "tests",
+        [
+            [entry("suite/one", {"execution_tmie": 1.5})],
+            [{"name": "suite/one", "samples": []}],
+            [{"name": "suite/one", "samples": [{}], "execution_time": 1.5}],
+        ],
+    )
+    def test_refuses_a_test_entry_that_does_not_validate(
+        self, submit: Callable[..., Any], tests: list[Any]
+    ) -> None:
+        # An undeclared metric in a sample (O1, E4), and a malformed entry.
+        response = submit(tests=tests)
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -865,8 +876,11 @@ class TestMetricsNamedLikeTheKeysOfATestEntry:
             ],
             key=repr,
         )
-        points = api_client.post(f"{base}/query", json={"metric": "profile"}).json()["items"]
-        assert [(point["test"], point["value"]) for point in points] == [("bench", 2.5)]
+        for metric, values in (("name", [1.5, 3.5]), ("profile", [2.5])):
+            points = api_client.post(f"{base}/query", json={"metric": metric}).json()["items"]
+            assert sorted((point["test"], point["value"]) for point in points) == [
+                ("bench", value) for value in values
+            ]
         for metric in ("name", "profile"):
             query = urlencode({"machine": "linux", "metric": metric})
             tests = api_client.get(f"{base}/tests?{query}").json()["items"]

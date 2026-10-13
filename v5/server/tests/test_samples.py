@@ -138,11 +138,7 @@ class TestList:
     def test_covers_every_test_the_run_measured(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit(
-            entry("a"),
-            entry("b"),
-            entry("c"),
-        )
+        run = submit(entry("a"), entry("b"), entry("c"))
 
         assert {item["test"] for item in listed(api_client, run).json()["items"]} == {"a", "b", "c"}
 
@@ -215,10 +211,7 @@ class TestTestFilter:
     def test_keeps_only_that_tests_samples(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit(
-            entry("a", {"execution_time": 1.0}),
-            entry("b", {"execution_time": 2.0}),
-        )
+        run = submit(entry("a", {"execution_time": 1.0}), entry("b", {"execution_time": 2.0}))
 
         items = listed(api_client, run, "test=a").json()["items"]
 
@@ -229,10 +222,7 @@ class TestTestFilter:
     ) -> None:
         # The whole reason this is a query parameter: `/runs/{uuid}/tests/suite%2Fone/samples`
         # decodes back to a path separator before routing and reaches no route at all.
-        run = submit(
-            entry(SLASHED, {"execution_time": 1.0}),
-            entry("other"),
-        )
+        run = submit(entry(SLASHED, {"execution_time": 1.0}), entry("other"))
 
         items = listed(api_client, run, f"test={SLASHED}").json()["items"]
 
@@ -318,10 +308,7 @@ class TestPagination:
     def test_the_filter_survives_a_page_boundary(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit(
-            {"name": "a", "samples": [{"execution_time": 1.0}] * 5},
-            entry("b"),
-        )
+        run = submit({"name": "a", "samples": [{"execution_time": 1.0}] * 5}, entry("b"))
 
         served = walk(api_client, run, "test=a&limit=2")
 

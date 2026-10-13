@@ -179,11 +179,7 @@ class TestSubmission:
         submit(entry("a", {"execution_time": 1.0}), entry("b"))
         before = row_versions(db_engine)
 
-        submit(
-            entry("a", {"execution_time": 2.0}),
-            entry("b"),
-            commit="def456",
-        )
+        submit(entry("a", {"execution_time": 2.0}), entry("b"), commit="def456")
 
         assert row_versions(db_engine) == before
 
@@ -239,11 +235,7 @@ class TestDeletion:
         submit: Callable[..., str],
     ) -> None:
         submit(entry("a", {"execution_time": 1.0}))
-        doomed = submit(
-            entry("a", {"compile_time": 1.0}),
-            entry("b"),
-            commit="def",
-        )
+        doomed = submit(entry("a", {"compile_time": 1.0}), entry("b"), commit="def")
 
         assert api_client.delete(f"{RUNS}/{doomed}", headers=manage).status_code == 204
         assert stored(db_engine, suite) == {

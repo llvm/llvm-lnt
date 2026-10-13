@@ -100,7 +100,7 @@ O2).
   - Two entries with the same test name are rejected with 400: a test measured
     several times in one run has one entry with several samples, and D5 allows
     only one profile per run and test.
-  - `samples` is required, and holds one object per sample: one per
+  - `samples` is required, and holds the test's samples: one object per
     repetition of the test in this run. Each object maps metric names to
     values, and holds only the metrics that sample has a value for, so the
     samples of one test need not have the same metrics.

@@ -134,11 +134,7 @@ class TestList:
 class TestSearch:
     @pytest.fixture(autouse=True)
     def tests(self, submit: Callable[..., str]) -> None:
-        submit(
-            entry("suite/BenchmarkOne"),
-            entry("suite/other"),
-            entry("100%/odd"),
-        )
+        submit(entry("suite/BenchmarkOne"), entry("suite/other"), entry("100%/odd"))
 
     def test_matches_a_substring_of_the_name(self, api_client: TestClient) -> None:
         assert names_in(listed(api_client, "search=Bench")) == ["suite/BenchmarkOne"]
@@ -194,10 +190,7 @@ class TestMetricFilter:
     def test_keeps_only_tests_with_a_value_for_that_metric(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        submit(
-            entry("a", {"execution_time": 1.0}),
-            entry("b", {"compile_time": 2.0}),
-        )
+        submit(entry("a", {"execution_time": 1.0}), entry("b", {"compile_time": 2.0}))
 
         assert names_in(listed(api_client, "metric=execution_time")) == ["a"]
 

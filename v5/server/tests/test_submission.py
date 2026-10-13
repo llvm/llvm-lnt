@@ -323,24 +323,18 @@ class TestTestEntries:
 
     def test_rejects_two_entries_naming_one_test(self) -> None:
         message = refused(
-            tests=[
-                entry("bench", {"execution_time": 1.0}),
-                entry("bench", {"execution_time": 2.0}),
-            ]
+            tests=[entry("bench", {"execution_time": 1.0}), entry("bench", {"execution_time": 2.0})]
         )
         assert "two test entries name 'bench'" in message
 
     def test_keeps_the_order_the_submission_gave(self) -> None:
-        result = validated(
-            tests=[
-                entry("c"),
-                entry("a"),
-                entry("b"),
-            ]
-        )
+        result = validated(tests=[entry("c"), entry("a"), entry("b")])
         assert [test.name for test in result.tests] == ["c", "a", "b"]
 
-    @pytest.mark.parametrize("body", [{"name": "bench"}, {"name": "bench", "samples": []}])
+    @pytest.mark.parametrize(
+        "body",
+        [{"name": "bench"}, {"name": "bench", "samples": None}, {"name": "bench", "samples": []}],
+    )
     def test_requires_at_least_one_sample(self, body: dict[str, Any]) -> None:
         # O1: every entry records that its test ran, which takes a sample.
         with pytest.raises(ValidationError):
@@ -481,16 +475,17 @@ class TestProfiles:
     """How an entry's profile reaches `profile_document`, where the document itself is tested."""
 
     def test_an_entry_with_one_carries_the_profile_to_store(self) -> None:
-        stored = one_test(profile=encoded_profile()).profile
+        test = one_test(profile=encoded_profile())
 
-        assert stored is not None
-        assert stored.counters == PROFILE_DOCUMENT["counters"]
+        assert test.samples == [row()]
+        assert test.profile is not None
+        assert test.profile.counters == PROFILE_DOCUMENT["counters"]
 
     @pytest.mark.parametrize("value", [None, ...])
     def test_an_entry_without_one_carries_no_profile(self, value: Any) -> None:
         # Explicit null and omission mean the same thing: no profile.
-        entry = {} if value is ... else {"profile": value}
-        assert one_test(**entry).profile is None
+        keys = {} if value is ... else {"profile": value}
+        assert one_test(**keys).profile is None
 
     def test_a_sample_is_refused_before_any_profile_is_encoded(
         self, monkeypatch: pytest.MonkeyPatch

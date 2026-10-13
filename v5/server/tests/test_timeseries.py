@@ -208,12 +208,7 @@ class TestQueryPoint:
     def test_skips_the_samples_with_no_value_for_the_metric(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        submit(
-            "linux",
-            "abc",
-            entry("measured", {"execution_time": 1.0}),
-            entry("not"),
-        )
+        submit("linux", "abc", entry("measured", {"execution_time": 1.0}), entry("not"))
 
         assert [point["test"] for point in points(api_client, metric="execution_time")] == [
             "measured"
@@ -270,12 +265,7 @@ class TestQueryFilters:
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
         # I1: no path could carry this name, which is why the filter lives in the body.
-        submit(
-            "linux",
-            "abc",
-            entry(SLASHED, {"execution_time": 1.0}),
-            entry("other"),
-        )
+        submit("linux", "abc", entry(SLASHED, {"execution_time": 1.0}), entry("other"))
 
         assert [p["test"] for p in points(api_client, metric="execution_time", test=[SLASHED])] == [
             SLASHED
@@ -401,12 +391,7 @@ class TestQueryFilters:
     ) -> None:
         # GR9: a baseline is fetched with `{machine, metric, commit}`: every test's
         # value on one machine at one commit, whatever the commit's ordinal.
-        baseline = submit(
-            "linux",
-            "base",
-            entry("a", {"execution_time": 1.0}),
-            entry("b"),
-        )
+        baseline = submit("linux", "base", entry("a", {"execution_time": 1.0}), entry("b"))
         submit("darwin", "base", entry("a", {"execution_time": 2.0}))
         submit("linux", "other", entry("a", {"execution_time": 3.0}))
 
@@ -723,10 +708,7 @@ class TestTrends:
         place: Callable[..., None],
     ) -> None:
         submit(
-            "linux",
-            "abc",
-            entry("a", {"execution_time": 1.0}),
-            entry("b", {"execution_time": 4.0}),
+            "linux", "abc", entry("a", {"execution_time": 1.0}), entry("b", {"execution_time": 4.0})
         )
         place("abc", ordinal=1)
 
@@ -815,12 +797,7 @@ class TestTrends:
         place: Callable[..., None],
     ) -> None:
         # D3: the geomean of integers is not an integer, and endpoints.md returns it as a real.
-        submit(
-            "linux",
-            "abc",
-            entry("a", {"compile_status": 2}),
-            entry("b", {"compile_status": 8}),
-        )
+        submit("linux", "abc", entry("a", {"compile_status": 2}), entry("b", {"compile_status": 8}))
         place("abc", ordinal=1)
 
         assert trends(api_client, metric="compile_status", machine=["linux"])[0][
@@ -849,11 +826,7 @@ class TestTrends:
     ) -> None:
         for machine in ("linux", "darwin"):
             for index in (2, 1):
-                submit(
-                    machine,
-                    f"c{index}",
-                    entry("t", {"execution_time": float(index)}),
-                )
+                submit(machine, f"c{index}", entry("t", {"execution_time": float(index)}))
         place("c1", ordinal=1)
         place("c2", ordinal=2)
 
@@ -972,11 +945,7 @@ class TestTrendsFilters:
             submit("linux", f"c{index}", entry("t", {"execution_time": 1.0}))
             place(f"c{index}", ordinal=index)
         # A median of 1 but a minimum of -1, so only the median gives this commit a geomean.
-        submit(
-            "linux",
-            "c3",
-            entry("t", {"execution_time": -1.0}, {"execution_time": 3.0}),
-        )
+        submit("linux", "c3", entry("t", {"execution_time": -1.0}, {"execution_time": 3.0}))
         place("c3", ordinal=3)
 
         def window(sample_agg: str) -> list[int]:
