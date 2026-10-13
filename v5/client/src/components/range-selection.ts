@@ -228,3 +228,43 @@ export function useRangeSelection(
   })
   return { selected, rows }
 }
+
+/**
+ * A selection among the rows of a list (AR10) that its owner holds, such as one kept in the URL:
+ * the selection is `selected`, and every change to it is handed to `onChange` rather than kept.
+ * `shown` are the rows in view, in order, which a range selected with Shift spans. Only the anchor
+ * is kept here.
+ */
+export function useControlledSelection(
+  selected: ReadonlySet<string>,
+  shown: readonly string[],
+  onChange: (selected: ReadonlySet<string>) => void,
+): RowSelection {
+  const [store] = useState(() => new SelectionStore({ selected, anchor: null }))
+  // Read when a checkbox is clicked, so that the selection keeps its identity.
+  const latest = useRef({ shown, onChange })
+  useLayoutEffect(() => {
+    latest.current = { shown, onChange }
+  })
+  // Before the page is painted, so that the checkboxes never show another selection.
+  useLayoutEffect(() => {
+    if (store.get().selected !== selected) store.set({ ...store.get(), selected })
+  }, [selected, store])
+
+  const [rows] = useState<RowSelection>(() => {
+    const change = (next: Selection) => {
+      store.set({ ...store.get(), anchor: next.anchor })
+      latest.current.onChange(next.selected)
+    }
+    return {
+      subscribe: store.subscribe,
+      selected: () => store.get().selected,
+      limit: () => null,
+      inverted: () => false,
+      click: (key, shift) => change(clickRow(store.get(), latest.current.shown, key, shift)),
+      setRows: (keys, select) => change(setRows(store.get(), keys, select)),
+      replace: (keys) => change(replaceRows(store.get(), keys)),
+    }
+  })
+  return rows
+}

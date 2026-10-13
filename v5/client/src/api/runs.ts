@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
-import { api, unwrap } from './client'
+import { useCallback } from 'react'
+import { queryOptions, useQueries, useQuery } from '@tanstack/react-query'
+import { api, MAX_PAGE_SIZE, unwrap, type Schemas } from './client'
 import { withCommits } from './commits'
+import { fetchEveryPage } from './fetch-every-page'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
 
@@ -20,11 +22,7 @@ export function fetchRuns(suite: string, query: RunListQuery, signal?: AbortSign
  * One page of `GET /runs` (E4), and its commits, resolved in one call for the whole page. Run lists
  * show each run's commit by its display value, which the runs do not carry (AR6).
  */
-export async function fetchRunPage(
-  suite: string,
-  query: RunListQuery,
-  signal?: AbortSignal,
-) {
+export async function fetchRunPage(suite: string, query: RunListQuery, signal?: AbortSignal) {
   const page = await fetchRuns(suite, query, signal)
   return withCommits(
     suite,
@@ -71,5 +69,96 @@ export function useRunProfiles(suite: string, uuid: string) {
     },
     // A run's profiles never change (O7).
     staleTime: Infinity,
+  })
+}
+
+/**
+ * The runs of `machine` at `commit` (E4), every one of them, in the order they were submitted: the
+ * runs a side of the Compare page selects among (CP1).
+ */
+export function commitRunsQuery(suite: string, machine: string, commit: string) {
+  const query = { machine, commit }
+  return queryOptions({
+    queryKey: [...queryKeys.runs(suite), 'of-commit', query],
+    queryFn: ({ signal }) =>
+      fetchEveryPage((cursor) =>
+        fetchRuns(suite, { ...query, sort: 'submitted_at', limit: MAX_PAGE_SIZE, cursor }, signal),
+      ),
+  })
+}
+
+type Sample = Schemas['Sample']
+
+/** One page of the samples of the run `uuid` (E6), I2's largest: a run can have thousands. */
+export function fetchSamplePage(
+  suite: string,
+  uuid: string,
+  cursor: string | null,
+  signal?: AbortSignal,
+) {
+  return unwrap(
+    api.GET('/api/suites/{testsuite}/runs/{uuid}/samples', {
+      params: { path: { testsuite: suite, uuid }, query: { cursor, limit: MAX_PAGE_SIZE } },
+      signal,
+    }),
+  )
+}
+
+/** A run of a suite, whose samples `useRunSamples` loads. */
+export interface RunRef {
+  suite: string
+  uuid: string
+}
+
+/** What identifies a run among those of every suite: neither a suite name nor a UUID has a `/`. */
+export function runRefKey({ suite, uuid }: RunRef): string {
+  return `${suite}/${uuid}`
+}
+
+/** The runs of `lists`, each once. */
+export function uniqueRuns(...lists: (readonly RunRef[])[]): RunRef[] {
+  const unique = new Map(lists.flat().map((ref) => [runRefKey(ref), ref]))
+  return [...unique.values()]
+}
+
+/** How far a run's samples are loaded. */
+export interface SampleState {
+  /** Every sample of the run, once they have all arrived. */
+  samples: Sample[] | undefined
+  /** Why they could not be, if they could not. */
+  error: Error | null
+  /** Fetch them again, after a failure. */
+  retry(): void
+}
+
+/**
+ * The samples of `runs` (E6), each run's fetched whole, and kept for good once they are, since a
+ * run's samples never change. Only the runs `wanted` names (by `runRefKey`) are fetched. A run that
+ * is no longer wanted but is still among `runs` goes on loading, whereas one that leaves `runs`
+ * stops (CP6).
+ */
+export function useRunSamples(
+  runs: readonly RunRef[],
+  wanted: ReadonlySet<string>,
+): ReadonlyMap<string, SampleState> {
+  const combine = useCallback(
+    (results: { data?: Sample[]; error: Error | null; refetch: () => unknown }[]) =>
+      new Map(
+        results.map(({ data, error, refetch }, i): [string, SampleState] => [
+          runRefKey(runs[i]),
+          { samples: data, error, retry: () => void refetch() },
+        ]),
+      ),
+    [runs],
+  )
+  return useQueries({
+    queries: runs.map((run) => ({
+      queryKey: [...runKey(run.suite, run.uuid), 'sample-list'],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        fetchEveryPage((cursor) => fetchSamplePage(run.suite, run.uuid, cursor, signal)),
+      enabled: wanted.has(runRefKey(run)),
+      staleTime: Infinity,
+    })),
+    combine,
   })
 }

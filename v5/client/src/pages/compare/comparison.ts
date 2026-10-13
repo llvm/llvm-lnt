@@ -356,6 +356,17 @@ export const CATEGORIES = [...COMPARABLE, 'onlyA', 'onlyB', 'na'] as const
 
 export type Category = (typeof CATEGORIES)[number]
 
+/** How the table and the summary bar name each category, and so each status. */
+export const CATEGORY_LABELS: Record<Category, string> = {
+  improved: 'Improved',
+  regressed: 'Regressed',
+  noise: 'Noise',
+  unchanged: 'Unchanged',
+  onlyA: 'Only in A',
+  onlyB: 'Only in B',
+  na: 'N/A',
+}
+
 /** The summary bar's category of a row: its status, or the side it has a value on, if only one. */
 export function categoryOf(row: Values): Category {
   if (row.a === null) return 'onlyB'
