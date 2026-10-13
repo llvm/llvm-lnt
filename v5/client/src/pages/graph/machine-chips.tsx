@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react'
+import { ChipList } from '../../components/chip-list'
 import { Combobox } from '../../components/combobox'
 import { useLocalSuggestions } from '../../components/suggestions'
 import { markerOf } from './chart'
-import { ChipList } from '../../components/chip-list'
 import styles from './graph.module.css'
 
 interface Props {

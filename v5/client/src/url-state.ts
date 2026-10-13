@@ -186,11 +186,12 @@ export const PendingLocation = createContext<RefObject<Location> | null>(null)
  *
  * Declare `params` once, outside the component, so that it is the same object on every render.
  * Parameters it does not declare are left as they are, so that several parts of a page can each
- * keep their own. A setting keeps the same value, the same array for a list, for as long as its
- * values in the URL do not change, so that it can be a dependency of a memo. Changes compose, even
- * several within one event handler. A change made after the path has changed -- a debounced
- * search landing after the user navigated away -- is ignored, rather than applied to the page now
- * showing.
+ * keep their own. A setting normally keeps the same value, the same array for a list, for as long
+ * as its values in the URL do not change, so that a memo depending on it is not computed again.
+ * This is not guaranteed -- a render React throws away can cost a reuse -- so nothing may rely on
+ * it for correctness, only to avoid recomputation. Changes compose, even several within one event
+ * handler. A change made after the path has changed -- a debounced search landing after the user
+ * navigated away -- is ignored, rather than applied to the page now showing.
  */
 export function useUrlState<P extends Params>(
   params: P,

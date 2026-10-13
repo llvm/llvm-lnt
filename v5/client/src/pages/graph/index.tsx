@@ -368,7 +368,7 @@ function GraphPage() {
           settings.test_filter_regex,
           settings.sample_agg,
           settings.run_agg,
-          settings.baseline.join('\n'),
+          settings.baseline,
           mode,
         ]}
       />
