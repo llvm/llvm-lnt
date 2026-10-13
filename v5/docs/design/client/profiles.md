@@ -13,23 +13,23 @@ show a profile on its own, and when both do, the page compares them. Layout:
 ```
 # Profiles
 
-+-- Side A --------------------------------+   +-- Side B --------------------------------+
-| Suite    [libcxx                       v] |   | Suite    [libcxx                       v] |
-| Machine  [linux-x86_64                  ] |   | Machine  [linux-x86_64                  ] |
-| Commit   [0f985af790f8                  ] |   | Commit   [014621ede7c1                  ] |
-| Run      [2026-08-25, 2:22 PM 573af861 v] |   | Run      [2026-08-31, 3:03 PM f1668bea v] |
-| Test     [std::stable_sort(vector<int>)_] |   | Test     [std::stable_sort(vector<int>)_] |
-+-------------------------------------------+   +-------------------------------------------+
++-- Side A -------------------------------------------+   +-- Side B -------------------------------------------+
+| Suite    [libcxx                       v]           |   | Suite    [libcxx                       v]           |
+| Machine  [linux-x86_64                  ]           |   | Machine  [linux-x86_64                  ]           |
+| Commit   [0f985af790f8                  ]           |   | Commit   [014621ede7c1                  ]           |
+| Run      [2026-08-25, 2:22 PM 573af861 v] 573af861  |   | Run      [2026-08-31, 3:03 PM f1668bea v] f1668bea  |
+| Test     [std::stable_sort(vector<int>)_]           |   | Test     [std::stable_sort(vector<int>)_]           |
++-----------------------------------------------------+   +-----------------------------------------------------+
 
 Counter           A                B                Difference
 -----------------------------------------------------------------
 branch-misses     4555556          4555556          0%
-cycles            3555555556       2844444444       -20.0%  =====
+cycles            3555555556       2844444444       -20%    =====
 instructions      8222222222       8222222222       0%
 
 Counter [cycles v]   Values [Relative % v]
 
-Function [(47.0%) __stable_sort<...>     ]       Function [(37.6%) __stable_sort<...>     ]
+Function [__stable_sort<...>     ] (47%)         Function [__stable_sort<...>     ] (37.6%)
 
 cycles    Address     Instruction                cycles    Address     Instruction
           0x401000    push   rbp                           0x401000    push   rbp
@@ -75,8 +75,8 @@ or tests.
 - **Run**: a dropdown over the selected machine's runs at the selected commit
   that have profiles, in the order they were submitted, each showing its
   submission time and its shortened UUID. Disabled until a commit is selected,
-  showing "Select a commit first". Whenever the side's commit or machine
-  changes, the latest of these runs is selected. Beside the dropdown, the
+  showing "Select a commit first". Whenever the user's picks change the side's
+  commit or machine, the latest of these runs is selected. Beside the dropdown, the
   selected run's shortened UUID links to its Run Detail page.
 - **Test**: a combobox (see AR14) over the tests that have a profile in the
   selected run, sorted by name and filtered locally. Disabled until a run is
@@ -108,10 +108,14 @@ Difference:
 - A negative Difference is green and a positive one red, since every counter
   counts events (cycles, instructions, misses...), of which fewer is better.
   The Difference cell also holds a bar of that color, whose length is
-  proportional to the Difference, up to 100%.
+  proportional to the Difference's absolute value, and full from 100% up.
 
 When only one side shows a profile, the table has the columns Counter and
 Value, holding that profile's top-level counters.
+
+The table's shape depends only on which sides show a profile. While a side's
+counters are loading, or if they cannot be fetched, its column is empty, and
+the other side's values are shown.
 
 
 ### PF4: Counter and Function Selection
@@ -120,10 +124,14 @@ Two controls, shared by both sides, sit in a controls panel below the counter
 comparison: the **Counter** and the **Values** (see PF6).
 
 The Counter dropdown offers every top-level counter of the profiles shown,
-sorted by name, and starts on the first of them. It goes back to the first when
-the profiles shown change so that they no longer have the counter selected. It
-selects the counter shown everywhere below: in the function selectors and in the
-disassembly views.
+sorted by name. It starts on the first counter that every profile shown has, or
+on the first one offered when they have none in common, and goes back to it
+when the profiles shown change so that none of them has the counter selected.
+It selects the counter shown everywhere below: in the function selectors and in
+the disassembly views. When the profiles shown have no counters at all, the
+Counter dropdown says so, functions are sorted by name, and the disassembly
+views have no value column. The Counter and the Values are shown once a side
+shows a profile.
 
 Each side that shows a profile then has a **function selector**: a combobox
 (see AR14) over the functions of its profile, filtered locally (see AR9).
@@ -137,10 +145,12 @@ Each side that shows a profile then has a **function selector**: a combobox
   heat scale (see PF6). A function without the counter, or a profile whose
   top-level value for it is 0, has no badge. The selected function's badge is
   also shown beside the combobox.
-- A side starts on its hottest function. When the side's profile changes, it
-  keeps its function if the new profile has a function of that name.
-  Otherwise, when both sides show profiles of the same test, it takes the other
-  side's function if the new profile has it, and else its hottest function.
+- A side starts on its hottest function, unless the URL names another (see
+  PF9). When the user's picks change the side's profile to another profile of
+  the same test, the side keeps its function if the new profile has a function
+  of that name. Otherwise, when both sides show profiles of the same test, it
+  takes the other side's function if the new profile has it, and else its
+  hottest function.
 - Changing the counter re-sorts the suggestions, but does not change the
   functions selected.
 
@@ -173,7 +183,9 @@ never make the page lag, as AR9 requires of filters.
 ### PF6: Values
 
 The API serves raw counts only (see E7), so every percentage is computed by the
-page. The **Values** dropdown says how a disassembly view shows an instruction's
+page. Every percentage on the page, in the counter comparison as well, is shown
+with one decimal place, except that whole numbers drop the trailing `.0`, as in
+CP4. The **Values** dropdown says how a disassembly view shows an instruction's
 value for the selected counter:
 
 - **Relative %** (the default): the instruction's share of the function's
@@ -249,9 +261,11 @@ All selection state is encoded as query parameters for shareability:
 - `counter`
 - `values`: `absolute` or `cumulative`
 
-As AR2 "State" describes, a run is left out of the URL when it is the latest
-of its side's runs, a function when it is its side's hottest, and the counter
-and the Values when they are their defaults.
+As AR2 "State" describes, a function is left out of the URL when it is its
+side's hottest, and the counter and the Values when they are their defaults. A
+selected run is always kept, however, although the latest run is selected by
+default: which run is the latest can change as runs are submitted, and a link
+to a profile must keep showing that profile.
 
 A value the page cannot use is dropped (see AR2 "State"):
 - a suite or machine that does not exist, a commit the side's commit picker
@@ -259,7 +273,9 @@ A value the page cannot use is dropped (see AR2 "State"):
   without a machine, along with whatever PF2 clears when that control is
   cleared;
 - a run that is not in the side's run list, which selects the latest run
-  instead;
-- a test the side's run has no profile of, along with the side's function;
-- a function the side's profile does not have;
+  instead, or a run named without a commit;
+- a test the side's run has no profile of, or a test named without a run,
+  along with the side's function;
+- a function the side's profile does not have, or a function named without a
+  test;
 - a counter that the profiles shown do not have, or an unknown Values setting.
