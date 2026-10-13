@@ -241,10 +241,7 @@ function ComparePage() {
   }, [usable, update])
   const sort = useMemo(() => ({ column, direction }), [column, direction])
   const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
-  const sorted = useMemo(
-    () => sortComparison(shown, columns, column, direction),
-    [shown, columns, column, direction],
-  )
+  const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
   const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
 
   // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
@@ -281,7 +278,8 @@ function ComparePage() {
     [update],
   )
   // Whether the table still shows the noise as it was classified before the latest change.
-  const reclassifying = noise !== noiseSet || hideNoise !== settings.hide_noise
+  const reclassifying =
+    noise !== noiseSet || hideNoise !== settings.hide_noise || deferredOptional !== optional
 
   const swap = () => {
     update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })

@@ -193,7 +193,8 @@ all use these rows.
 
   Statistics are computed over the side's samples for the test (see
   Computation Reference), ignoring the sample and run aggregation settings.
-  Hovering a column's header says so.
+  Hovering a column's header says so. A p-value below 0.0001 is shown in
+  exponent notation (`2.01e-29`).
 
   A per-side statistic adds an A and a B column. Optional columns sit between
   Ratio and Status, in the order above, A before B. They are empty on the

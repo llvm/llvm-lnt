@@ -31,7 +31,7 @@ export function ColumnsMenu({ shown, onChange }: Props) {
           }
         >
           {OPTIONAL_KEYS.map((key) => (
-            <MenuItem key={key} id={key} className={shared.option}>
+            <MenuItem key={key} id={key} textValue={optionalLabel(key)} className={shared.option}>
               {({ isSelected }) => (
                 <>
                   <span aria-hidden="true" className={styles.menuCheck}>

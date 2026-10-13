@@ -169,6 +169,10 @@ type Statistic = { label: string; format: (value: number) => string } & (
 
 const toFixed2 = (value: number) => value.toFixed(2)
 
+/** A p-value: below 0.0001, in exponent notation, rather than with dozens of zeros. */
+const formatPValue = (value: number) =>
+  value !== 0 && value < 1e-4 ? value.toExponential(2) : formatNumber(value)
+
 /** The optional statistics (CP2 "Optional columns"), each over a side's samples for a test. */
 const STATISTICS: Record<OptionalKey, Statistic> = {
   samples: { label: 'Samples', format: String, perSide: true, of: (side) => side.count },
@@ -178,7 +182,7 @@ const STATISTICS: Record<OptionalKey, Statistic> = {
   max: { label: 'Max', format: formatNumber, perSide: true, of: (side) => side.max },
   stddev: { label: 'Std dev', format: formatNumber, perSide: true, of: (side) => side.stddev },
   cv: { label: 'CV %', format: toFixed2, perSide: true, of: (side) => side.cv },
-  pvalue: { label: 'P-value', format: formatNumber, perSide: false, of: (row) => row.pValue },
+  pvalue: { label: 'P-value', format: formatPValue, perSide: false, of: (row) => row.pValue },
 }
 
 /** How the Columns menu names the optional statistic `key`. */
@@ -186,13 +190,18 @@ export function optionalLabel(key: OptionalKey): string {
   return STATISTICS[key].label
 }
 
-const STATISTICS_TITLE =
+/** What a statistic's header says on hover: what it is computed over (CP2 "Optional columns"). */
+const OVER_A_SIDE =
   "Over all the samples of the side's selected runs, whatever the sample and run aggregation."
+const OVER_BOTH_SIDES =
+  "Welch's t-test over all the samples of both sides' selected runs, whatever the sample and run " +
+  'aggregation.'
 
 /** A statistic of each test, as a column, empty on the geomean row. */
 function statisticColumn(
   id: string,
   header: string,
+  headerTitle: string,
   value: (row: ComparisonRow) => number | null,
   format: (value: number) => string,
 ): CompareColumn {
@@ -200,11 +209,12 @@ function statisticColumn(
   return {
     id,
     header,
-    headerTitle: STATISTICS_TITLE,
+    headerTitle,
     looks: ['numeric', 'nowrap'],
     cell: (row) => {
-      const statistic = valueOf(row)
-      return row.test === null ? null : statistic === null ? NA : format(statistic)
+      if (row.test === null) return null
+      const statistic = value(row)
+      return statistic === null ? NA : format(statistic)
     },
     sortKey: value,
     csv: valueOf,
@@ -215,10 +225,24 @@ function statisticColumn(
 function optionalColumns(key: OptionalKey): CompareColumn[] {
   const statistic = STATISTICS[key]
   const { label, format } = statistic
-  if (!statistic.perSide) return [statisticColumn(key, label, statistic.of, format)]
+  if (!statistic.perSide) {
+    return [statisticColumn(key, label, OVER_BOTH_SIDES, statistic.of, format)]
+  }
   return [
-    statisticColumn(`${key}_a`, `${label} A`, (row) => statistic.of(row.statisticsA), format),
-    statisticColumn(`${key}_b`, `${label} B`, (row) => statistic.of(row.statisticsB), format),
+    statisticColumn(
+      `${key}_a`,
+      `${label} A`,
+      OVER_A_SIDE,
+      (row) => statistic.of(row.statisticsA),
+      format,
+    ),
+    statisticColumn(
+      `${key}_b`,
+      `${label} B`,
+      OVER_A_SIDE,
+      (row) => statistic.of(row.statisticsB),
+      format,
+    ),
   ]
 }
 
@@ -231,17 +255,19 @@ export function tableColumns(shown: readonly OptionalKey[]): CompareColumn[] {
   return [...COLUMNS.slice(0, -1), ...optional, ...COLUMNS.slice(-1)]
 }
 
-/** Every column the table can sort by, as `sort` names them (CP7). */
-export const SORTABLE = tableColumns(OPTIONAL_KEYS).map((column) => column.id)
+/** Every column of the table, whichever optional ones are shown. */
+const ALL_COLUMNS = tableColumns(OPTIONAL_KEYS)
 
-/** `rows`, sorted by the column `id` of `columns` in `direction` (see `sortRows`). */
+/** Every column the table can sort by, as `sort` names them (CP7). */
+export const SORTABLE = ALL_COLUMNS.map((column) => column.id)
+
+/** `rows`, sorted by the column `id` in `direction` (see `sortRows`). */
 export function sortComparison(
   rows: ComparisonRow[],
-  columns: readonly CompareColumn[],
   id: string,
   direction: SortDirection,
 ): ComparisonRow[] {
-  const column = columns.find((entry) => entry.id === id)
+  const column = ALL_COLUMNS.find((entry) => entry.id === id)
   return column === undefined ? rows : sortRows(rows, column.sortKey, direction)
 }
 

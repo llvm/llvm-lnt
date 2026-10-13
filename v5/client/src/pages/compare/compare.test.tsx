@@ -705,6 +705,67 @@ describe('optional columns (CP2)', () => {
     expect(await listedTests()).toEqual(['d', 'a', 'b', 'c'])
   })
 
+  it('shows the p-value whether or not its knob is enabled, 0 for a deterministic change', async () => {
+    const tight = (base: number) =>
+      [0, 1, 2, 1, 0].map((i): [string, number] => ['b', base + i / 100])
+    mockWorld({
+      samples: {
+        '1': [['a', 2], ['a', 2], ...tight(1)],
+        '2': [],
+        '3': [['a', 3], ['a', 3], ...tight(2)],
+      },
+    })
+    renderPage(`${COMPARED}&columns=pvalue`)
+
+    const rows = await comparison()
+    expect(
+      rows
+        .find((row) => row.startsWith('a |'))
+        ?.split(' | ')
+        .at(-2),
+    ).toBe('0')
+    // A tiny p-value, in exponent notation.
+    expect(
+      rows
+        .find((row) => row.startsWith('b |'))
+        ?.split(' | ')
+        .at(-2),
+    ).toMatch(/^\d\.\d\de-\d+$/)
+  })
+
+  it('sorts by a statistic from its header, and keeps the sort when another column goes', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&columns=samples&columns=mean`)
+    await comparison()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: /^Mean B/ }))
+    await waitFor(() => expect(query().sort).toEqual(['mean_b']))
+    expect(await listedTests()).toEqual(['d', 'c', 'a', 'b'])
+
+    await user.click(screen.getByRole('button', { name: 'Columns' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Samples' }))
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(query().columns).toEqual(['mean']))
+    expect(query().sort).toEqual(['mean_b'])
+  })
+
+  it('is used from the keyboard, finding a statistic by its name', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+
+    screen.getByRole('button', { name: 'Columns' }).focus()
+    await user.keyboard('{Enter}')
+    // Typing moves to the statistic whose name starts with what is typed. A space would be taken as
+    // more of it, so Enter toggles it.
+    await user.keyboard('st')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(query().columns).toEqual(['stddev']))
+  })
+
   it('drops a sort by a column that is not shown', async () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&sort=mean_a`)
