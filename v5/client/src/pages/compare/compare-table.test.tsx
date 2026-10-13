@@ -1,9 +1,12 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { headersOf, main, query, renderPage, search, table } from '../../test/page'
 import { mockClipboard } from '../../test/clipboard'
 import { COMPARED, comparison, mockWorld, NOISY, runBox, showBox } from './compare-world'
+
+// The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
+vi.mock('../../components/chart', () => import('../../test/chart'))
 
 /** The tests the comparison table lists, in order, without the geomean. */
 const listedTests = async () => (await comparison()).slice(1).map((row) => row.split(' | ')[0])

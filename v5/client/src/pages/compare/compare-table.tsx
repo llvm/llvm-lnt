@@ -26,6 +26,12 @@ const PINNED: GeomeanRow[] = [
   { test: null, a: null, b: null, delta: null, deltaPct: null, ratio: null, status: 'na' },
 ]
 
+/** A test's name, marked while its bar is hovered on the chart, which highlights its row (CP5). */
+function HoverMark({ store, test }: { store: ValueStore<string | null>; test: string }) {
+  const hovered = useStoreValue(store, (shown) => shown === test)
+  return <span className={hovered ? styles.hovered : undefined}>{test}</span>
+}
+
 /** A cell of the geomean row, as `column` shows the values `store` holds. */
 function GeomeanCell({ store, column }: { store: ValueStore<Values>; column: CompareColumn }) {
   const values = useStoreValue(store, (value) => value)
@@ -75,6 +81,10 @@ export interface TableView {
 interface Props extends TableView {
   /** The Columns menu, on the summary message's row. */
   menu: ReactNode
+  /** The test whose bar is hovered on the chart, whose row the table highlights (CP5). */
+  hovered: ValueStore<string | null>
+  /** Where the table says which test's row is hovered, for the chart to outline its bar. */
+  emphasis: ValueStore<string | null>
 }
 
 /**
@@ -96,6 +106,8 @@ export function CompareTable({
   sort,
   onSort,
   csv,
+  hovered,
+  emphasis,
 }: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
@@ -120,18 +132,24 @@ export function CompareTable({
           ),
         looks: column.looks,
         cell: (row) =>
-          row.test === null ? <GeomeanCell store={store} column={column} /> : column.cell(row),
+          row.test === null ? (
+            <GeomeanCell store={store} column={column} />
+          ) : column.id === 'test' ? (
+            <HoverMark store={hovered} test={row.test} />
+          ) : (
+            column.cell(row)
+          ),
         // Only says that the column can be sorted by: the rows come sorted (see `sortComparison`).
         sortKey: () => null,
       })),
     ],
-    [hidden, tests, store, shownColumns],
+    [hidden, tests, store, shownColumns, hovered],
   )
 
   const rowProps = useCallback(
     (row: Row) => {
       const { test } = row
-      if (test === null) return {}
+      if (test === null) return { onMouseEnter: () => emphasis.set(null) }
       return {
         className: styles.testRow,
         onClick: (event: MouseEvent) => {
@@ -146,9 +164,10 @@ export function CompareTable({
         onMouseDown: (event: MouseEvent) => {
           if (event.shiftKey || event.detail > 1) event.preventDefault()
         },
+        onMouseEnter: () => emphasis.set(test),
       }
     },
-    [hidden, tests],
+    [hidden, tests, emphasis],
   )
 
   return (
@@ -165,18 +184,26 @@ export function CompareTable({
           {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
         </div>
       </div>
-      <DataTable
-        label="Comparison"
-        columns={columns}
-        rows={rows}
-        rowKey={testOf}
-        rowProps={rowProps}
-        pinned={PINNED}
-        empty={empty}
-        sort={sort}
-        onSort={onSort}
-        presorted
-      />
+      {/* Leaving a row for another outlines the other's bar at once, with no gap between. */}
+      <div
+        onMouseLeave={() => emphasis.set(null)}
+        onMouseOver={(event) => {
+          if ((event.target as Element).closest('thead') !== null) emphasis.set(null)
+        }}
+      >
+        <DataTable
+          label="Comparison"
+          columns={columns}
+          rows={rows}
+          rowKey={testOf}
+          rowProps={rowProps}
+          pinned={PINNED}
+          empty={empty}
+          sort={sort}
+          onSort={onSort}
+          presorted
+        />
+      </div>
     </>
   )
 }

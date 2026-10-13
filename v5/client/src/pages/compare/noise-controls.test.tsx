@@ -1,9 +1,12 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { query, renderPage } from '../../test/page'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { COMPARED, comparison, mockWorld, NOISY } from './compare-world'
+
+// The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
+vi.mock('../../components/chart', () => import('../../test/chart'))
 
 const statusOf = async (test: string) =>
   (await comparison())

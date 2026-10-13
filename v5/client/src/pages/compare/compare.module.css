@@ -1,5 +1,20 @@
 /* The Compare page (CP1-CP7). */
 
+/* The chart (CP3), and what is drawn over its plot, which lets the pointer through. */
+.chartArea {
+  position: relative;
+}
+
+.chart {
+  height: 360px;
+}
+
+.overlay {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 /* The two sides, the swap button between them. */
 .sides {
   display: grid;
@@ -146,6 +161,10 @@
 .testRow {
   cursor: pointer;
   user-select: none;
+}
+
+.testRow:has(.hovered) {
+  background: color-mix(in srgb, var(--lnt-accent) 10%, transparent);
 }
 
 .testRow:has(> td > input[type='checkbox']:not(:checked)) {

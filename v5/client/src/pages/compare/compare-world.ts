@@ -6,6 +6,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
+import type { PlotData } from 'plotly.js'
 import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
@@ -24,6 +25,7 @@ import { uuidPrefix } from '../../format'
 import { mockApi } from '../../test/mock-api'
 import { mockCommits, mockMachines, mockRuns, mockSuites, rowsOf, table } from '../../test/page'
 import { server } from '../../test/server'
+import { chartProps } from '../../test/chart-props'
 
 /** A suite declaring libcxx's metric alike, and one of its own. */
 const OTHER_SUITE: SuiteSchema = {
@@ -169,6 +171,12 @@ export const NOISY: World = {
     ],
   },
 }
+
+/** What the page last handed its chart (see test/chart.tsx). */
+export const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
+
+/** The bars of the chart, as their log2 ratios. */
+export const barsOf = () => (chart().data[0] as PlotData).y as number[]
 
 /** The rows of the comparison table, once it shows, without the cell of their checkbox. */
 export async function comparison() {

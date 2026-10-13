@@ -1,12 +1,15 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
 import { currentUrl, main, query, renderPage } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, pick, ROWS, runBox, sideOf } from './compare-world'
+
+// The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
+vi.mock('../../components/chart', () => import('../../test/chart'))
 
 describe('the Compare page (CP1)', () => {
   it('says what it needs before it can compare, a step at a time', async () => {

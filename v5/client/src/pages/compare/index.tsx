@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import { useSuites } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -7,10 +7,12 @@ import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import { labelOf } from '../../schema'
 import { useUrlState, useVisitKey } from '../../url-state'
+import { ValueStore } from '../../value-store'
 import type { NoiseKnob } from './comparison'
 import { ColumnsMenu } from './columns-menu'
-import { failedRuns, runCount, waiting } from './loading'
+import { chosenRuns, failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
+import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
 import { NOISE_PARAMS, noiseSettings, PARAMS } from './settings'
@@ -32,6 +34,9 @@ export default function Compare() {
 function ComparePage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
+  // The test whose row is hovered in the table, and the one whose bar is hovered on the chart (CP5).
+  const [emphasis] = useState(() => new ValueStore<string | null>(null))
+  const [hovered] = useState(() => new ValueStore<string | null>(null))
 
   const sides = useSides(settings, update, suites)
   const { a, b } = sides
@@ -44,6 +49,7 @@ function ComparePage() {
     [update],
   )
 
+  const noise = noiseSettings(settings)
   const failed = failedRuns(a, b, sides.states)
   const wait = waiting(a, b, sides.states, {
     suitesPending: suites.isPending,
@@ -110,7 +116,7 @@ function ComparePage() {
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
           <NoiseControls
-            noise={noiseSettings(settings)}
+            noise={noise}
             onNoise={onNoise}
             hideNoise={settings.hide_noise}
             onHideNoise={(hide) => update({ hide_noise: hide })}
@@ -130,12 +136,21 @@ function ComparePage() {
         <p className={styles.note}>{wait.text}</p>
       ) : wait === null ? (
         <>
+          <CompareChart
+            rows={table.plotted}
+            noisePct={noise.pct}
+            revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
+            emphasis={emphasis}
+            hovered={hovered}
+          />
           <SummaryBar counts={table.counts} />
           <CompareTable
             {...table.view}
             menu={
               <ColumnsMenu shown={settings.columns} onChange={(keys) => update({ columns: keys })} />
             }
+            hovered={hovered}
+            emphasis={emphasis}
           />
         </>
       ) : null}
