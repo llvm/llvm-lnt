@@ -105,7 +105,7 @@ interface KnobProps {
   knob: Knob
   /** The knob's value, or null while it is disabled. */
   value: number | null
-  /** Held by `NoiseControls`. */
+  /** Each knob's value as the panel last closed (see `NoiseControls`). */
   kept: RefObject<KeptValues>
   onChange(knob: NoiseKnob, value: number | null): void
 }

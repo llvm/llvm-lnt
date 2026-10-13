@@ -138,7 +138,7 @@ describe('noise (CP1)', () => {
     const threshold = () => screen.getByRole('textbox', { name: 'Delta % below threshold' })
     const knob = () => screen.getByRole('checkbox', { name: 'Delta % below' })
 
-    // Disabled before typing pauses, so that 60 is never applied.
+    // Disabled before typing pauses, so that only closing the panel can keep 60.
     await open()
     await user.click(knob())
     await user.clear(threshold())
@@ -213,10 +213,11 @@ describe('noise (CP1)', () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&noise_pval=2&noise_floor=abc`)
     await comparison()
+    const user = userEvent.setup()
 
     await waitFor(() => expect(query().noise_pval).toBeUndefined())
     expect(query().noise_floor).toBeUndefined()
-    await userEvent.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    await user.click(screen.getByRole('button', { name: /Noise filtering/ }))
     const threshold = screen.getByRole('textbox', { name: 'P-value above threshold' })
     expect(threshold).toBeDisabled()
     expect(threshold).toHaveValue('0.05')
