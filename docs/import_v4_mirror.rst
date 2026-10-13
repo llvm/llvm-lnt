@@ -5,12 +5,7 @@ Importing a v4 Mirror into v5
 
 ``lnt v5 import-v4-mirror`` imports a test suite from a mirror made by
 ``lnt mirror-v4`` (see :ref:`mirror_v4`) into a test suite of an LNT v5
-instance, through the v5 REST API. It is meant for moving an instance from v4 to
-v5: the mirror is a snapshot of the v4 instance, imported once.
-
-The v5 concepts and formats referred to below (the test suite schema, the run
-submission format, the error codes) are specified in ``v5/docs/design``, and
-sections of it are referred to by their identifiers, e.g. ``D4``.
+instance, through the v5 REST API.
 
 
 Example
@@ -50,7 +45,7 @@ Conversion
 Schema
 ~~~~~~
 
-The target suite's schema (D4) is derived from the v4 schema and the suite's
+The target suite's schema is derived from the v4 schema and the suite's
 machines:
 
 - **Metrics**: one per v4 metric, with the same name. ``Real`` becomes ``real``,
@@ -62,15 +57,15 @@ machines:
 - **Machine fields**: one ``text`` field per v4 machine field, followed by one
   ``text`` field per other key found on any of the suite's machines, other than
   ``id`` and ``name``, in alphabetical order. v4 machines can hold keys that
-  their schema does not declare, whereas v5 machines cannot (O2).
+  their schema does not declare, whereas v5 machines cannot.
 - **Commit fields**: none.
 - **Run fields**: the v4 schema must have exactly one run field marked
   ``order``, which defines commits (see below). Other run fields are not
   declared anywhere: v5 runs have no declared fields, so their values go into
   ``run_parameters``.
 
-The derived schema must be a valid v5 schema (D4): a name that v5 does not
-accept, or that collides with a built-in column (D5), is an error.
+The derived schema must be one that v5 accepts, e.g. every name in it must be
+a valid v5 name: it is an error otherwise.
 
 The v4 instance may report the schema inaccurately (see :ref:`mirror_v4`), so
 ``--schema FILE`` replaces the derived schema with a v5 schema document, in the
@@ -86,40 +81,41 @@ the instance's administrator chooses which machines are tracked once the import
 is done. Its fields are the values of its keys, other than ``id`` and
 ``name``, that are not null. Every value must be a string.
 
-Its name is the v4 machine's name, with every ``/`` replaced by ``_``, since a v5
-machine name cannot contain one (I1). v4 machine names are not unique, whereas
-v5 machine names are: among the v4 machines with the same name, the one with
+Its name is the v4 machine's name, with every ``/`` replaced by ``_``, since a
+v5 machine name cannot contain one. v4 machine names are not unique, whereas v5
+machine names are: among the v4 machines with the same name, the one with
 the lowest identifier keeps the name, and each of the others gets a suffix
 ``-import-<id>``, where ``<id>`` is its v4 identifier. For example, v4 machines
 352 and 372, both named ``x86_64-O3``, become ``x86_64-O3`` and
 ``x86_64-O3-import-372``.
 
-The resulting names must be unique, and valid v5 machine names (D5, I1): it is
-an error otherwise.
+The resulting names must be unique, and valid v5 machine names: it is an error
+otherwise.
 
 Commits
 ~~~~~~~
 
 A run's commit is the value of its order field, as a string, unchanged. It must
-be a valid v5 commit value (D5, I1).
+be a valid v5 commit value.
 
 The commit's ordinal is the number the value holds when it matches
-``^r?[0-9]+$`` (e.g. ``602079`` or ``r602079``), provided it fits the ordinal's
-column (D5). Any other commit has no ordinal. Two different values with the
-same ordinal (e.g. ``602079`` and ``r602079``) are an error, since ordinals are
-unique (O6).
+``^r?[0-9]+$`` (e.g. ``602079`` or ``r602079``), provided it fits in a 32-bit
+signed integer, like every v5 ordinal. Any other commit has no ordinal. Two
+different values with the same ordinal (e.g. ``602079`` and ``r602079``) are an
+error, since v5 ordinals are unique within a suite.
 
 Commits get no tag and no fields.
 
 Runs
 ~~~~
 
-Each v4 run becomes one v5 run submission (O1):
+Each v4 run becomes one v5 run submission:
 
 - ``uuid``: the version 5 UUID of the v4 run's API URL, in the ``URL``
-  namespace of RFC 9562, i.e. of ``<url>/api/db_<database>/v4/<suite>/runs/<id>``
-  where ``<url>`` and ``<database>`` are the mirror's ``source``. Importing the
-  same run again therefore always names the same v5 run.
+  namespace of RFC 9562, i.e. of
+  ``<url>/api/db_<database>/v4/<suite>/runs/<id>``, where ``<url>`` and
+  ``<database>`` are the mirror's ``source``. Importing the same run again
+  therefore always names the same v5 run.
 - ``machine``: the run's machine, as described above.
 - ``commit``: ``value`` and, if it has one, ``ordinal``, as described above.
 - ``run_parameters``: every key of the v4 run that is not null, except ``id``,
@@ -131,7 +127,8 @@ Each v4 run becomes one v5 run submission (O1):
   are not null in it, even if that leaves none. A key of a v4 sample other than
   ``id``, ``run_id``, ``name`` and the suite's metrics is an error.
 
-The command checks each value against its metric's type, as D3 defines it.
+Each sample value must have its metric's type in the target schema: a number
+for ``real``, a whole number for ``integer``, and a string for ``text``.
 
 
 Submission
@@ -139,8 +136,8 @@ Submission
 
 1. If the target suite does not exist, the command creates it with the schema
    above, which requires a token with ``manage`` scope. If it exists, its
-   schema must be the one the command would create, normalized as D4
-   describes: it is an error otherwise, and nothing is submitted.
+   schema must be the one above: it is an error otherwise, and nothing is
+   submitted.
 2. The command lists the runs the target suite already has, and skips those
    whose UUID it would submit. This is how an interrupted import resumes.
 3. The other runs are submitted in increasing order of their v4 identifier, by
