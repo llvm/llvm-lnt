@@ -280,8 +280,9 @@ test.describe('the commit picker', () => {
     const title = `e2e unpicked commit ${Date.now()}`
     try {
       await form.getByLabel('Title').fill(title)
-      // Create is brought into view before typing, and waited for, since React Aria closes the list
-      // when the page scrolls, which puts back the text of the picker's value.
+      // The press below does not scroll, so Create is brought into view now, before the list
+      // opens: React Aria closes the list when the page scrolls, which puts back the text of the
+      // picker's value. Waiting until it is in view lets the scroll event arrive first.
       await create.scrollIntoViewIfNeeded()
       await expect(create).toBeInViewport()
 
@@ -292,8 +293,8 @@ test.describe('the commit picker', () => {
       await expect(create).toHaveAccessibleDescription(reason)
 
       // A click on Create keeps the focus, and so the text, in the picker, and creates nothing.
-      // The mouse is driven directly: Playwright's click waits for the button to be enabled, and
-      // its hover does not. Nor does it scroll, with `scroll: 'none'`.
+      // The mouse is pressed after `hover`, which, unlike Playwright's click, does not wait for the
+      // button to be enabled. `scroll: 'none'` keeps it from scrolling, which would close the list.
       await create.hover({ scroll: 'none' })
       await page.mouse.down()
       await page.mouse.up()
