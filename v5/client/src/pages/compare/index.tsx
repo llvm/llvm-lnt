@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
 import { runRefKey, uniqueRuns, useRunSamples, type SampleState } from '../../api/runs'
-import { useSuites, type SuiteSchema } from '../../api/suites'
+import { useSuites } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
@@ -11,10 +11,10 @@ import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useTextFilter } from '../../components/use-text-filter'
-import { compareStrings, plural } from '../../format'
+import { compareStrings } from '../../format'
 import { useSameElements } from '../../same-elements'
-import { isNumeric, labelOf, type Metric } from '../../schema'
-import { useDropUnusable, useUrlState, useVisitKey } from '../../url-state'
+import { labelOf } from '../../schema'
+import { useUrlState, useVisitKey } from '../../url-state'
 import { ValueStore } from '../../value-store'
 import {
   compareRows,
@@ -31,6 +31,8 @@ import { AddToRegression } from './add-to-regression'
 import { chartBars, SHADOW_COLOR, type Bar } from './chart'
 import { comparisonCsv, sortComparison, tableColumns } from './columns'
 import { ColumnsMenu } from './columns-menu'
+import { chosenRuns, loadProgress, missingInput, runCount } from './loading'
+import { offeredMetrics, useMetric } from './metrics'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
@@ -66,41 +68,11 @@ const NOISE_PARAMS = {
 const testOf = (row: ComparisonRow) => row.test
 
 /**
- * The metrics the page offers (CP1): those of the one suite selected, or, with two, those both
- * declare alike, numeric, with the same `bigger_is_better` and `unit`. Labelled as the first
- * suite labels them.
- */
-function offeredMetrics(a: SuiteSchema | undefined, b: SuiteSchema | undefined): Metric[] {
-  const [first, second] = a === undefined ? [b, undefined] : [a, b]
-  return (first?.metrics ?? []).filter(
-    (entry) =>
-      isNumeric(entry) &&
-      (second === undefined ||
-        second.metrics.some(
-          (other) =>
-            other.name === entry.name &&
-            isNumeric(other) &&
-            other.bigger_is_better === entry.bigger_is_better &&
-            other.unit === entry.unit,
-        )),
-  )
-}
-
-/**
  * The Compare page (CP1-CP7), started afresh whenever the user navigates to it -- a link to another
  * comparison while on this one, say -- so that it shows what the new URL names.
  */
 export default function Compare() {
   return <ComparePage key={useVisitKey()} />
-}
-
-/** The runs `side` has selected, by `runRefKey`, in the order they were submitted. */
-function chosenRuns(side: Side): string[] {
-  const { selected, runs, settings } = side
-  if (selected === undefined || runs.data === undefined) return []
-  return runs.data
-    .filter((run) => selected.has(run.uuid))
-    .map((run) => runRefKey({ suite: settings.suite, uuid: run.uuid }))
 }
 
 /**
@@ -181,13 +153,8 @@ function ComparePage() {
   const shadowSide = useSide('shadow_b', settings, update, suites)
   const shadow = useShadow(shadowSide, a.settings.commit, update)
 
-  // The metric, once the suites are known to offer it (CP1).
-  const offered = useMemo(() => offeredMetrics(a.schema, b.schema), [a.schema, b.schema])
-  const metric = offered.find((entry) => entry.name === settings.metric)
-  useDropUnusable(
-    suites,
-    () => settings.metric === '' || metric !== undefined,
-    () => update({ metric: '' }),
+  const { offered, metric } = useMetric(a.schema, b.schema, settings.metric, suites, () =>
+    update({ metric: '' }),
   )
 
   // The samples of both sides' runs, and the shadow's, asked for together, each run once.
@@ -383,16 +350,7 @@ function ComparePage() {
     update(sideChanges('shadow_b', b.settings))
   }
 
-  // How far the selected runs' samples are loaded, each run once, even when both sides select it.
-  const mainRuns = new Set([...chosenRuns(a), ...chosenRuns(b)])
-  const chosen = [...mainRuns].map((key) => states.get(key))
-  const loaded = chosen.filter((state) => state?.samples !== undefined).length
-  const failed = chosen.filter(hasFailed)
-  // Those of the shadow's runs that are not the sides', whose failures are reported already.
-  const shadowFailed = chosenRuns(shadowSide)
-    .filter((key) => !mainRuns.has(key))
-    .map((key) => states.get(key))
-    .filter(hasFailed)
+  const { total: chosen, loaded, failed, shadowFailed } = loadProgress(a, b, shadowSide, states)
   const missing = suites.isPending ? null : missingInput(a, b, offered.length, metric !== undefined)
   return (
     <section>
@@ -540,7 +498,7 @@ function ComparePage() {
         b.selected === undefined ? (
         <Loading label="Loading runs..." />
       ) : tests === undefined ? (
-        <Loading label={`Loading samples: ${loaded} of ${chosen.length} runs...`} />
+        <Loading label={`Loading samples: ${loaded} of ${chosen} runs...`} />
       ) : (
         <>
           <CompareChart
@@ -585,29 +543,4 @@ function ComparePage() {
       )}
     </section>
   )
-}
-
-/** Whether the samples of a run could not be loaded. */
-function hasFailed(state: SampleState | undefined): state is SampleState {
-  return state?.error != null
-}
-
-/** `a run`, or `3 runs`. */
-function runCount(count: number): string {
-  return count === 1 ? 'a run' : plural(count, 'run')
-}
-
-/** What the comparison still needs before it can be computed, if anything (CP6 "Empty states"). */
-function missingInput(a: Side, b: Side, offered: number, chosen: boolean): string | null {
-  for (const side of [a, b]) {
-    const letter = side.id.toUpperCase()
-    const { machine, commit } = side.settings
-    if (side.schema === undefined) return `Select a suite for side ${letter}.`
-    if (machine === '') return `Select a machine for side ${letter}.`
-    if (commit === '') return `Select a commit for side ${letter}.`
-    if (side.selected?.size === 0) return `Select a run for side ${letter}.`
-  }
-  if (offered === 0) return 'The two suites have no metric that can be compared.'
-  if (!chosen) return 'Select a metric.'
-  return null
 }
