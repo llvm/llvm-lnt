@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Data, PlotData, PlotMouseEvent } from 'plotly.js'
 import type { Aggregation } from '../../aggregation'
 import type { MarkedRegression } from '../../api/regressions'
@@ -27,7 +27,8 @@ import {
 } from './chart'
 import { PointDetails } from './point-details'
 import { RegressionDetails } from './regression-details'
-import { combineRuns, pointsOf, runValues, type Point } from './points'
+import { combineRuns, pointsOf, runSamples, runValues, type Point } from './points'
+import { SampleCloud, type Pinned } from './sample-cloud'
 import styles from './graph.module.css'
 
 interface Props {
@@ -139,8 +140,14 @@ interface PointKey {
 /** What details are open: a point's (GR11), or a regression's (GR15). */
 type Opened = { kind: 'point'; point: PointKey } | { kind: 'regression'; uuid: string }
 
+/** A point drawn: its trace, and its index among the trace's points. */
+interface PointAt {
+  trace: Trace
+  index: number
+}
+
 /** The trace of `key` among `traces`, and the index of its point at `key.commit`, if any. */
-function findPoint(traces: Trace[], { machine, test, commit }: PointKey) {
+function findPoint(traces: Trace[], { machine, test, commit }: PointKey): PointAt | null {
   const trace = traces.find((drawn) => drawn.machine === machine && drawn.test === test)
   const index = trace?.points.findIndex((point) => point.commit === commit) ?? -1
   return trace === undefined || index < 0 ? null : { trace, index }
@@ -151,9 +158,10 @@ function samplesAt(measurements: readonly Measurement[], commit: string) {
   return measurements.filter((measurement) => measurement.commit === commit)
 }
 
-/** The values of the runs of `measurements` at `commit`, in the order they were submitted. */
-function runsAt(measurements: readonly Measurement[], commit: string, sampleAgg: Aggregation) {
-  const runs = runValues(samplesAt(measurements, commit), sampleAgg)
+/** The runs of `samples`, in the order they were submitted, each with its own ascending (GR11). */
+function runsOf(samples: readonly Measurement[]) {
+  const runs = runSamples(samples)
+  for (const run of runs) run.samples.sort((a, b) => a - b)
   return runs.sort((a, b) => compareStrings(a.submitted, b.submitted))
 }
 
@@ -312,12 +320,14 @@ export function GraphChart({
     })
   }, [commits, displayValue, revision, metric, empty, placed])
 
-  // Where the plot draws, to place the hovered point's samples and the details over it. Nothing
-  // drawn depends on it, so that a draw does not ask for another.
+  // Where the plot draws, to place the points' samples and the details over it. Nothing drawn
+  // depends on it, so that a draw does not ask for another.
   const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<Opened | null>(null)
   const container = useRef<HTMLDivElement>(null)
+  // The samples of the point whose details are open, a press on which leaves them open (GR11).
+  const pinnedCloud = useRef<SVGSVGElement>(null)
   // Closed from the keyboard or its button, the details give the focus back to the chart, rather
   // than to the page; closed by a press elsewhere, they leave it where the press put it.
   const close = useCallback((returnFocus = false) => {
@@ -359,85 +369,86 @@ export function GraphChart({
     if (curve.kind === 'regression') setOpen({ kind: 'regression', uuid: curve.uuid })
   }
 
-  // The samples of the point hovered, if it has several (GR10).
-  let scatter = null
-  const hoveredAt = hoveredPoint && findPoint(traces, hoveredPoint)
-  if (geometry !== null && hoveredAt) {
-    const { trace, index } = hoveredAt
-    const point = trace.points[index]
-    const samples = samplesAt(series.measurementsOf(trace.machine, trace.test), point.commit)
-    if (samples.length > 1) {
-      const { area } = geometry
-      const x = geometry.x(point.position) - area.left
-      scatter = (
-        <svg
-          className={styles.scatter}
-          style={{ left: area.left, top: area.top, width: area.width, height: area.height }}
-          aria-hidden="true"
-        >
-          {samples.map((sample, i) => (
-            <circle
-              key={i}
-              cx={x}
-              cy={geometry.y(sample.value) - area.top}
-              r={4}
-              fill={trace.color}
-              fillOpacity={0.3}
-            />
-          ))}
-        </svg>
-      )
-    }
-  }
-
   // The details opened (GR11, GR15), which close once what they are about is no longer drawn.
   const openPoint = open?.kind === 'point' ? findPoint(traces, open.point) : null
   const openMark =
     open?.kind === 'regression' ? marks.find((mark) => mark.uuid === open.uuid) : undefined
   if (open !== null && !openPoint && openMark === undefined) setOpen(null)
+  const hoveredAt = hoveredPoint && findPoint(traces, hoveredPoint)
+  const clouds: ReactNode[] = []
   let details = null
-  if (geometry !== null && schema !== undefined) {
+  if (geometry !== null) {
     const { area } = geometry
     const sideOf = (x: number) => (x < area.left + area.width / 2 ? 'right' : 'left')
-    if (openPoint && metric !== undefined) {
-      const { trace, index } = openPoint
-      const point = trace.points[index]
-      const x = geometry.x(point.position)
-      details = (
-        <PointDetails
-          key={`${trace.machine}\0${trace.test}\0${point.commit}`}
-          schema={schema}
-          metric={metric}
-          machine={trace.machine}
-          test={trace.test}
-          point={point}
-          display={displayValue(point.commit)}
-          runs={runsAt(series.measurementsOf(trace.machine, trace.test), point.commit, sampleAgg)}
-          previous={trace.points[index - 1] ?? null}
-          state={series.stateOf(trace.machine, trace.test)}
-          sampleAgg={sampleAgg}
-          runAgg={runAgg}
-          at={{ x, y: geometry.y(point.value), side: sideOf(x) }}
-          onClose={close}
-        />
+    const keyOf = ({ trace, index }: PointAt) =>
+      `${trace.machine}\0${trace.test}\0${trace.points[index].commit}`
+    const samplesOf = ({ trace, index }: PointAt) =>
+      samplesAt(series.measurementsOf(trace.machine, trace.test), trace.points[index].commit)
+    // The samples of a point, if it has several (GR10).
+    const cloud = (at: PointAt, samples: Measurement[], pinned?: Pinned) => {
+      if (samples.length < 2) return
+      const { trace, index } = at
+      clouds.push(
+        <SampleCloud
+          key={keyOf(at)}
+          samples={samples}
+          geometry={geometry}
+          position={trace.points[index].position}
+          color={trace.color}
+          pinned={pinned}
+        />,
       )
-    } else if (openMark !== undefined) {
-      const { uuid, commit, stack, tests } = openMark
-      const x = geometry.x(positions.get(commit)!)
-      // On the axis of the markers, which spans the plot from 0 at the bottom to 1 at the top.
-      const y = area.top + (1 - markerHeight(stack)) * area.height
-      details = (
-        <RegressionDetails
-          key={uuid}
-          schema={schema}
-          regression={placed.find((regression) => regression.uuid === uuid)!}
-          tests={tests}
-          display={displayValue(commit)}
-          // Below the marker, at the top of the plot, rather than above the plot.
-          at={{ x, y, side: sideOf(x), align: 'start' }}
-          onClose={close}
-        />
-      )
+    }
+    // The point hovered's, unless its details are open, which show them already.
+    if (hoveredAt && (!openPoint || keyOf(hoveredAt) !== keyOf(openPoint))) {
+      cloud(hoveredAt, samplesOf(hoveredAt))
+    }
+    if (schema !== undefined) {
+      if (openPoint && metric !== undefined) {
+        const { trace, index } = openPoint
+        const point = trace.points[index]
+        const x = geometry.x(point.position)
+        const side = sideOf(x)
+        const samples = samplesOf(openPoint)
+        // The open point's, as long as its details are open.
+        cloud(openPoint, samples, { metric, details: side, ref: pinnedCloud })
+        details = (
+          <PointDetails
+            key={keyOf(openPoint)}
+            schema={schema}
+            metric={metric}
+            machine={trace.machine}
+            test={trace.test}
+            point={point}
+            display={displayValue(point.commit)}
+            runs={runsOf(samples)}
+            previous={trace.points[index - 1] ?? null}
+            state={series.stateOf(trace.machine, trace.test)}
+            sampleAgg={sampleAgg}
+            runAgg={runAgg}
+            at={{ x, y: geometry.y(point.value), side }}
+            companion={pinnedCloud}
+            onClose={close}
+          />
+        )
+      } else if (openMark !== undefined) {
+        const { uuid, commit, stack, tests } = openMark
+        const x = geometry.x(positions.get(commit)!)
+        // On the axis of the markers, which spans the plot from 0 at the bottom to 1 at the top.
+        const y = area.top + (1 - markerHeight(stack)) * area.height
+        details = (
+          <RegressionDetails
+            key={uuid}
+            schema={schema}
+            regression={placed.find((regression) => regression.uuid === uuid)!}
+            tests={tests}
+            display={displayValue(commit)}
+            // Below the marker, at the top of the plot, rather than above the plot.
+            at={{ x, y, side: sideOf(x), align: 'start' }}
+            onClose={close}
+          />
+        )
+      }
     }
   }
 
@@ -455,7 +466,7 @@ export function GraphChart({
         onDraw={setGeometry}
         onRelayout={() => close()}
       />
-      {scatter}
+      {clouds}
       {details}
     </div>
   )

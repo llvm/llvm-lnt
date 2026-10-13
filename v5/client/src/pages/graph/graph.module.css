@@ -90,6 +90,25 @@
   pointer-events: none;
 }
 
+/* The samples of the point whose details are open, whose tooltips show on hover (GR10). */
+.pinnedSample {
+  pointer-events: auto;
+}
+
+/* A sample's tooltip (GR10), which looks like the chart's own, and lets the pointer through. */
+.sampleTip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 6px;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font: 13px 'Open Sans', verdana, arial, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* The row of the test whose line is hovered on the chart (GR7). */
 .testRow:has(.hovered) {
   background: color-mix(in srgb, var(--lnt-accent) 10%, transparent);

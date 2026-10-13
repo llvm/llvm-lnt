@@ -103,7 +103,7 @@ test("lists the tests of a Dashboard card's machines, and plots none", async ({ 
   await expect(tracesOf(page)).toHaveCount(0)
 })
 
-test("shows a point's samples on hover, and its details on a click (GR10, GR11)", async ({
+test("shows a point's samples on hover, and keeps them with its details (GR10, GR11)", async ({
   page,
   request,
 }) => {
@@ -122,13 +122,16 @@ test("shows a point's samples on hover, and its details on a click (GR10, GR11)"
     data: { metric: 'execution_time', machine: LINUX, test: [TEST], commit },
   })
   expect(response.status(), await response.text()).toBe(200)
-  const samples = ((await response.json()) as ListPage<unknown>).items.length
+  const { items } = (await response.json()) as ListPage<{ run_uuid: string }>
+  const samples = items.length
   expect(samples).toBeGreaterThan(1)
 
   const position = await pointOf(page, 0, index)
+  const plotLabel = page.locator('.hoverlayer')
+  const circles = page.locator('svg[class*="scatter"] circle')
   await plotOf(page).hover({ position })
-  await expect(page.locator('.hoverlayer')).toContainText('Click for details')
-  await expect(page.locator('svg[class*="scatter"] circle')).toHaveCount(samples)
+  await expect(plotLabel).toContainText('Click for details')
+  await expect(circles).toHaveCount(samples)
 
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog')
@@ -137,6 +140,30 @@ test("shows a point's samples on hover, and its details on a click (GR10, GR11)"
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare with previous commit' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
+
+  // The samples stay while the details are open, wherever the pointer is.
+  await plotOf(page).hover({ position: { x: 5, y: 5 } })
+  await expect(circles).toHaveCount(samples)
+
+  // Hovering one shows its tooltip in place of Plotly's. The sample at the point's value, which is
+  // their median, is within the plot whatever its range, and over the point itself: Plotly's label
+  // shows beside it.
+  await plotOf(page).hover({ position: { x: position.x + 6, y: position.y } })
+  await expect(plotLabel).toContainText('Click for details')
+  const top = (await plotOf(page).boundingBox())!.y + position.y
+  const nearest = await circles.evaluateAll((all, top) => {
+    const off = all.map((circle) => Math.abs(circle.getBoundingClientRect().y + 4 - top))
+    return off.indexOf(Math.min(...off))
+  }, top)
+  const median = circles.nth(nearest)
+  await median.hover()
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toContainText(items[0].run_uuid.slice(0, 8))
+  await expect(plotLabel).not.toContainText('Click for details')
+
+  // Pressing it leaves the details open, with the focus for Escape to close them, and their links.
+  await median.click()
+  await expect(details).toBeFocused()
 
   await details.getByRole('table', { name: 'Runs' }).getByRole('link').first().click()
   await expect(page).toHaveURL(/\/suites\/libcxx\/runs\//)

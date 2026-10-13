@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import styles from './graph.module.css'
 
 /**
@@ -18,6 +18,8 @@ interface Props {
   /** What its header shows. */
   title: ReactNode
   at: Anchor
+  /** What belongs with it, besides itself: a press on it is no press outside. */
+  companion?: RefObject<Element | null>
   /** Close it: by the keyboard or its button (`returnFocus`), or by a press outside it. */
   onClose(returnFocus?: boolean): void
   children: ReactNode
@@ -26,21 +28,23 @@ interface Props {
 /**
  * A dialog beside a place on the chart -- a point (GR11), a regression's marker (GR15) -- which
  * takes the focus and stays open as the pointer moves, so that its links can be followed, until
- * Escape, its close button, or a press outside it. It is not a React Aria popover, which places
- * itself again only on a resize, closes on a scroll or a blur, and, modal, would take the press
- * that opens another one's dialog.
+ * Escape, its close button, or a press outside it and its companion. It is not a React Aria
+ * popover, which places itself again only on a resize, closes on a scroll or a blur, and, modal,
+ * would take the press that opens another one's dialog.
  */
-export function ChartDialog({ label, title, at, onClose, children }: Props) {
+export function ChartDialog({ label, title, at, companion, onClose, children }: Props) {
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => root.current?.focus(), [])
   useEffect(() => {
     // A press on another point closes this one before the click opens that one's.
     const onPointerDown = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) onClose()
+      const target = event.target as Node
+      if (root.current?.contains(target) || companion?.current?.contains(target)) return
+      onClose()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [onClose])
+  }, [onClose, companion])
 
   return (
     <div

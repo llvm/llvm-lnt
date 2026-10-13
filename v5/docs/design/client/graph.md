@@ -247,22 +247,30 @@ cursor is within a few pixels of a data point, so that tooltips are not sticky.
 When hovering over a point that has more than one sample, its samples (see
 GR1) are shown, before any aggregation, as a scatter of markers at the point's
 x-position, in the same trace color but faded (opacity 0.3). This scatter is
-computed lazily on hover and removed on unhover. Showing it does not rescale
-the chart: a sample outside the y-axis range is not shown.
+computed lazily on hover and removed on unhover, unless the point's details are
+open (see below). Showing it does not rescale the chart: a sample outside the
+y-axis range is not shown.
+
+While a point's details are open (GR11), its scatter stays shown, wherever the
+pointer is, and is removed when they close. Hovering another point meanwhile
+shows that point's scatter as well, as above. Hovering a marker of the open
+point's scatter shows a tooltip with that sample's value and its run: the run's
+submission time and shortened UUID, as the details list them.
 
 
 ### GR11: Point Details
 
-Clicking a data point opens a popover anchored to it, which takes the focus and
-stays open as the pointer moves, so that its links can be followed. It shows:
+Clicking a data point opens a popover beside it, without covering its scatter
+(GR10), which takes the focus and stays open as the pointer moves, so that its
+links can be followed. It shows:
 
 - the test name;
 - the machine, linking to its Machine Detail page;
 - the commit, linking to its Commit Detail page;
 - the point's value and run count;
 - the point's runs, in the order they were submitted, each with its submission
-  time, its shortened UUID linking to its Run Detail page, and its per-run value
-  (see GR1). The list scrolls when it is long;
+  time, its shortened UUID linking to its Run Detail page, and the values of its
+  samples (GR1), in ascending order. The list scrolls when it is long;
 - "Compare with previous commit": a link to the Compare page set up to compare
   this point with the previous point of the same trace. Side A is the previous
   point's commit, side B this point's commit, both in this suite and on this
@@ -276,7 +284,8 @@ stays open as the pointer moves, so that its links can be followed. It shows:
 
 While it is open, the popover follows its point -- as more data arrives, the
 chart is resized or the page scrolls -- and updates its contents as the data
-arrives. It closes on Escape, on its close button, on a click outside it, and on
+arrives. It closes on Escape, on its close button, on a click anywhere but on it
+or a marker of its point's scatter, and on
 any change to the chart other than data arriving, such as a zoom or pan, or a
 change to the selected tests, machines, metric, filter, aggregation, baselines
 or regression annotation mode, and once its point is no longer drawn. Moving
