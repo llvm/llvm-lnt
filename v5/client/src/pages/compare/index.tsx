@@ -52,7 +52,7 @@ function ComparePage() {
   const comparison = useComparison(sides, metric, settings)
   const table = useComparisonTable(comparison, settings, update, profiles.links)
   const { plotted } = table
-  const line = useShadowLine(shadow, metric, settings.sample_agg, comparison, plotted)
+  const line = useShadowLine(shadow, metric, settings, comparison, plotted)
 
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
@@ -124,6 +124,12 @@ function ComparePage() {
               onChange={(value) => update({ metric: value })}
             />
           )}
+          <Select<Aggregation>
+            label="Run aggregation"
+            options={AGGREGATION_OPTIONS}
+            value={settings.run_agg}
+            onChange={(value) => update({ run_agg: value })}
+          />
           <Select<Aggregation>
             label="Sample aggregation"
             options={AGGREGATION_OPTIONS}

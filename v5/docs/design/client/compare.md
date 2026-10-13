@@ -17,10 +17,10 @@ suite-agnostic: each side selects its own suite. Layout:
 | Commit           [0f985af790f8     ] |       | Commit           [014621ede7c1               ] |
 | Runs             [-] Run            |       | Runs             [x] Run                      |
 |                  [x] 2026-08-25 ... |       |                  [x] 2026-08-31, 3:03 PM ...  |
-| Run aggregation  [median         v] |       | Run aggregation  [median                   v] |
 +-------------------------------------+       +-----------------------------------------------+
 
-Metric [Execution Time v]  Sample aggregation [median v]  [ ] Hide noise  > Noise filtering
+Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
+[ ] Hide noise  > Noise filtering
 [Filter tests...] [ ] Regex                                                [Add to regression]
 
 <progress and errors>
@@ -60,13 +60,10 @@ Each side has its own controls:
   selected one at a time, a range at a time with Shift, or all at once from the
   header (see AR10). Before a commit is selected, the list says "Select a
   commit first".
-- **Run aggregation**: how the selected runs' values are combined (see CP2
-  "Aggregation pipeline"): median, mean, min or max, median by default.
-  Disabled while at most one run is selected.
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
-commit, runs and run aggregation, each side keeping the runs it had selected. No
-samples need to be fetched again.
+commit and runs, each side keeping the runs it had selected. No samples need to
+be fetched again.
 
 Global controls, shared by both sides:
 
@@ -80,6 +77,10 @@ Global controls, shared by both sides:
   and again if a side's suite changes so that the selected metric is no longer
   offered. Before any suite is selected, the metric area says "Select a suite
   to load metrics..." instead, and when no metric is offered, it says so.
+- **Run aggregation**: how each side's selected runs' values are combined (see
+  CP2 "Aggregation pipeline"): median, mean, min or max, median by default. It
+  is the same for both sides, so that Value A and Value B measure the same
+  thing.
 - **Sample aggregation**: how a test's samples within one run are combined (see
   CP2 "Aggregation pipeline"): median, mean, min or max, median by default.
 - **Hide noise**: a checkbox that removes the rows classified as noise from the
@@ -220,9 +221,9 @@ produced by a two-stage aggregation pipeline:
 1. **Sample aggregation** (within each run): when a test appears multiple times
    in a run's samples, the sample aggregation function (median/mean/min/max)
    reduces them to one value per test per run.
-2. **Run aggregation** (across selected runs): per-run values are reduced by the
-   run aggregation function (median/mean/min/max, independently selectable per
-   side) to produce the final `vA` and `vB`.
+2. **Run aggregation** (across selected runs): each side's per-run values are
+   reduced by the run aggregation function (median/mean/min/max) to produce the
+   final `vA` and `vB`.
 
 Only samples with a value for the metric are used. A run with no such sample
 for a test is left out of that test's run aggregation.
@@ -420,9 +421,9 @@ row the filter keeps.
 ### CP7: URL State
 
 All selection state is encoded as query parameters for shareability:
-- `suite_a`, `machine_a`, `commit_a`, `runs_a`, `run_agg_a`
-- `suite_b`, `machine_b`, `commit_b`, `runs_b`, `run_agg_b`
-- `metric`, `sample_agg`
+- `suite_a`, `machine_a`, `commit_a`, `runs_a`
+- `suite_b`, `machine_b`, `commit_b`, `runs_b`
+- `metric`, `run_agg`, `sample_agg`
 - `noise_pct`, `noise_pval`, `noise_floor`: present only while the knob is
   enabled, holding the value the knob uses (see CP1). A disabled knob's value
   is not saved in the URL.
@@ -497,10 +498,10 @@ pinned.
 **Scope:** chart only -- no table columns, no summary bar counts. Add to
 Regression (see CP9) operates on the main comparison only.
 
-**What it follows.** The shadow follows changes to the metric, the sample
-aggregation, side A's run aggregation and the compared rows. It keeps side B's
-suite, machine, commit, runs and run aggregation as they were when pinned,
-whatever happens to side B afterwards. Its runs are kept as the URL holds them
+**What it follows.** The shadow follows changes to the metric, the run and
+sample aggregations and the compared rows. It keeps side B's suite, machine,
+commit and runs as they were when pinned, whatever happens to side B
+afterwards. Its runs are kept as the URL holds them
 (see CP7): when every run of side B was selected, the shadow selects every run
 of its commit. Changing side A's suite, machine, commit or runs, or swapping
 the sides, dismisses the shadow.
@@ -511,8 +512,8 @@ loaded. If some cannot be fetched, the line is not drawn, and the error is
 reported.
 
 **URL encoding:** the shadow is encoded like a side, with the suffix `shadow_b`:
-`suite_shadow_b`, `machine_shadow_b`, `commit_shadow_b`, `runs_shadow_b` and
-`run_agg_shadow_b`, following the same rules (see CP7). The shadow is dropped
+`suite_shadow_b`, `machine_shadow_b`, `commit_shadow_b` and `runs_shadow_b`,
+following the same rules (see CP7). The shadow is dropped
 if its suite, machine or commit is missing or unusable, or if side A has no
 commit. When
 unusable runs are dropped from side A's URL values, the shadow is kept.

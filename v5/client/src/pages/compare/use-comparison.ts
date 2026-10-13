@@ -5,7 +5,6 @@
  */
 
 import { useDeferredValue, useMemo } from 'react'
-import type { Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
 import type { SampleState } from '../../api/runs'
 import { useSameElements } from '../../same-elements'
@@ -45,17 +44,17 @@ function useRunSamplesOf(
 
 /**
  * The side's samples for each test, once its selected runs' samples have arrived and `metric` is
- * known, and its value of each. The samples are the same for as long as the side's runs' are, so
- * that they are not combined again when only another side's change.
+ * known, and its value of each, with the aggregations `settings` holds. The samples are the same
+ * for as long as the side's runs' are, so that they are not combined again when only another
+ * side's change.
  */
 export function useSideComparison(
   side: Side,
   states: ReadonlyMap<string, SampleState>,
   metric: string | undefined,
-  sampleAgg: Aggregation,
+  { sample_agg: sampleAgg, run_agg: runAgg }: Settings,
 ) {
   const runSamples = useSameElements(useRunSamplesOf(side, states))
-  const { runAgg } = side.settings
   const samples = useMemo(
     () => (runSamples && metric !== undefined ? sideSamples(runSamples, metric) : undefined),
     [runSamples, metric],
@@ -87,8 +86,8 @@ export function useComparison(
   metric: Metric | undefined,
   settings: Settings,
 ): Comparison {
-  const sideA = useSideComparison(a, states, metric?.name, settings.sample_agg)
-  const sideB = useSideComparison(b, states, metric?.name, settings.sample_agg)
+  const sideA = useSideComparison(a, states, metric?.name, settings)
+  const sideB = useSideComparison(b, states, metric?.name, settings)
   const { samples: samplesA, values: valuesA } = sideA
   const { samples: samplesB, values: valuesB } = sideB
   const tests = useMemo(

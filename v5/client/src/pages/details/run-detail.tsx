@@ -165,7 +165,7 @@ function Actions({ schema, run, metric }: ActionsProps) {
         leaveTo: machinePath(suite, run.machine),
       }}
     >
-      <ButtonLink to={comparePath(alone, undefined, metric?.name)}>Compare with...</ButtonLink>
+      <ButtonLink to={comparePath(alone, undefined, { metric: metric?.name })}>Compare with...</ButtonLink>
       <CompareWithPrevious schema={schema} run={run} metric={metric?.name}>
         Compare with previous commit
       </CompareWithPrevious>

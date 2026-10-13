@@ -1,5 +1,4 @@
 import { useMemo, type ReactNode } from 'react'
-import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { SuiteSchema } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
@@ -27,11 +26,10 @@ interface Props {
 
 /**
  * A side's controls (CP1): its suite, machine and commit, each choice clearing what depends on it,
- * the runs of the machine at the commit, every one selected to begin with, and how they are
- * combined.
+ * and the runs of the machine at the commit, every one selected to begin with.
  */
 export function SidePanel({ side, title, suites, action }: Props) {
-  const { settings, schema, machines, selected, update: onChange } = side
+  const { settings, schema, machines, update: onChange } = side
   const { suite, machine, commit } = settings
   const filters = useMemo(() => ({ machine }), [machine])
   const letter = side.id.toUpperCase()
@@ -93,13 +91,6 @@ export function SidePanel({ side, title, suites, action }: Props) {
           />
         )}
         <RunList side={side} />
-        <Select<Aggregation>
-          label={`Run aggregation ${letter}`}
-          options={AGGREGATION_OPTIONS}
-          value={settings.runAgg}
-          onChange={(value) => onChange({ runAgg: value })}
-          isDisabled={selected === undefined || selected.size <= 1}
-        />
       </section>
       {machines.machines.isError && (
         <ErrorMessage

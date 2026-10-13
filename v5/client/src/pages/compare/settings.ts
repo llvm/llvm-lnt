@@ -29,18 +29,17 @@ export const PARAMS = {
   commit_a: stringParam(),
   /** The runs selected, unless every run is. */
   runs_a: listParam(),
-  run_agg_a: enumParam(AGGREGATIONS, 'median'),
   suite_b: stringParam(),
   machine_b: stringParam(),
   commit_b: stringParam(),
   runs_b: listParam(),
-  run_agg_b: enumParam(AGGREGATIONS, 'median'),
   suite_shadow_b: stringParam(),
   machine_shadow_b: stringParam(),
   commit_shadow_b: stringParam(),
   runs_shadow_b: listParam(),
-  run_agg_shadow_b: enumParam(AGGREGATIONS, 'median'),
   metric: stringParam(),
+  // How both sides' runs, and the shadow's, are combined, and the samples within each run (CP1).
+  run_agg: enumParam(AGGREGATIONS, 'median'),
   sample_agg: enumParam(AGGREGATIONS, 'median'),
   // Each noise knob's value, present exactly while the knob is enabled (CP1).
   noise_pct: optionalNumberParam(0),
@@ -65,7 +64,6 @@ export interface SideSettings {
   machine: string
   commit: string
   runs: string[]
-  runAgg: Settings['run_agg_a']
 }
 
 /** The parameter of each of a side's settings, without the suffix naming the side. */
@@ -74,7 +72,6 @@ const SIDE_PARAMS = {
   machine: 'machine',
   commit: 'commit',
   runs: 'runs',
-  runAgg: 'run_agg',
 } as const
 
 export function sideSettings(settings: Settings, side: SideId): SideSettings {
@@ -116,5 +113,4 @@ export const NO_SHADOW: Partial<Settings> = sideChanges('shadow_b', {
   machine: '',
   commit: '',
   runs: [],
-  runAgg: PARAMS.run_agg_shadow_b.default,
 })

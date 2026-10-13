@@ -6,7 +6,6 @@
 
 import { useCallback, useEffect, useMemo } from 'react'
 import { skipToken, useQuery, type UseQueryResult } from '@tanstack/react-query'
-import type { Aggregation } from '../../aggregation'
 import { useRunSamples, type SampleState } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { commitLookupKey, commitLookupQuery } from '../../components/commit-lookup'
@@ -20,7 +19,6 @@ import { chosenRuns, hasFailed, sidesRuns } from './loading'
 import { offeredMetrics } from './metrics'
 import {
   NO_SHADOW,
-  PARAMS,
   sideChanges,
   type Settings,
   type SideSettings,
@@ -69,8 +67,7 @@ export interface Shadow {
   /** Its commit's display value (AR6), or its commit string until that is known. */
   display: string
   /**
-   * Side A, as its panel changes it: any change by the user to what side A is dismisses the shadow,
-   * but not one to its run aggregation, which the shadow follows.
+   * Side A, as its panel changes it: any change by the user to what side A is dismisses the shadow.
    */
   dismissingA: Side
   /** Pin side B as it is as the shadow. */
@@ -95,14 +92,9 @@ export function useShadow(
   suites: UseQueryResult<SuiteSchema[]>,
 ): Shadow {
   const side = useSide('shadow_b', all, update, suites)
-  const { suite, machine, commit, runs, runAgg } = side.settings
+  const { suite, machine, commit, runs } = side.settings
   const pinned = side.named
-  const partlyNamed =
-    suite !== '' ||
-    machine !== '' ||
-    commit !== '' ||
-    runs.length > 0 ||
-    runAgg !== PARAMS.run_agg_shadow_b.default
+  const partlyNamed = suite !== '' || machine !== '' || commit !== '' || runs.length > 0
   const orphan = partlyNamed && (!pinned || a.settings.commit === '')
   useEffect(() => {
     if (orphan) update(NO_SHADOW)
@@ -132,7 +124,7 @@ export function useShadow(
     (changes: Partial<SideSettings>) =>
       update({
         ...sideChanges('a', changes),
-        ...(pinned && Object.keys(changes).some((key) => key !== 'runAgg') ? NO_SHADOW : {}),
+        ...(pinned ? NO_SHADOW : {}),
       }),
     [pinned, update],
   )
@@ -171,7 +163,7 @@ export function useShadow(
 export function useShadowLine(
   shadow: Shadow,
   metric: Metric | undefined,
-  sampleAgg: Aggregation,
+  settings: Settings,
   { tests, valuesA, biggerIsBetter }: Comparison,
   plotted: readonly ComparisonRow[],
 ): Bar[] {
@@ -181,12 +173,7 @@ export function useShadowLine(
     () => offeredMetrics(schemaA, side.schema).some((entry) => entry.name === metric?.name),
     [schemaA, side.schema, metric?.name],
   )
-  const { values } = useSideComparison(
-    side,
-    states,
-    offered ? metric?.name : undefined,
-    sampleAgg,
-  )
+  const { values } = useSideComparison(side, states, offered ? metric?.name : undefined, settings)
   const bars = useMemo(
     () =>
       pinned && tests && valuesA && values

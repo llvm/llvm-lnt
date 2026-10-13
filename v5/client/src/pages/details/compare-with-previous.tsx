@@ -30,7 +30,7 @@ export function CompareWithPrevious({ schema, run, metric, children }: Props) {
       ? comparePath(
           { suite, machine: run.machine, commit: previous.commit.value },
           { suite, machine: run.machine, commit: run.commit, runs: [run.uuid] },
-          metric,
+          { metric },
         )
       : null
   return (

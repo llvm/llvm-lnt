@@ -96,9 +96,9 @@ describe('the Compare page (CP1)', () => {
     expect(await main().findByText('Select a run for side A.')).toBeInTheDocument()
   })
 
-  it('combines the runs with each side’s run aggregation', async () => {
+  it('combines each side’s runs with the run aggregation', async () => {
     mockWorld()
-    renderPage(`${COMPARED}&run_agg_a=max`)
+    renderPage(`${COMPARED}&run_agg=max`)
 
     expect((await comparison())[1]).toBe('a | 3 | 4 | 1 | +33.33% | 1.3333 | Regressed')
   })
@@ -155,12 +155,13 @@ describe('the Compare page (CP1)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
-    await pickOption('Run aggregation B', 'max')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Swap sides' }))
+    await user.click(runBox('1', 'B'))
 
-    await waitFor(() => expect(query().run_agg_b).toEqual(['max']))
-    expect(query().run_agg_a).toBeUndefined()
-    // Side B is now c1, whose largest value of a is run 2's.
+    await waitFor(() => expect(query().runs_b).toEqual([uuidOf('2')]))
+    expect(query().runs_a).toBeUndefined()
+    // Side B is now c1, of which only run 2 is selected.
     await waitFor(async () =>
       expect((await comparison())[1]).toBe('a | 4 | 3 | -1 | -25.00% | 0.7500 | Improved'),
     )

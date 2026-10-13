@@ -115,29 +115,29 @@ describe('the shadow (CP8)', () => {
     expect(pinButton()).toBeNull()
   })
 
-  it("keeps side B's runs and run aggregation as they were when pinned", async () => {
+  it("keeps side B's runs as they were when pinned, and follows the run aggregation", async () => {
     // Side B has three runs at c2, whose a is 4, 8 and 16 against side A's 1.
     mockWorld({
       runs: { 'm1/c1': ['1'], 'm1/c2': ['3', '6', '7'] },
       samples: { '1': [['a', 1]], '3': [['a', 4]], '6': [['a', 8]], '7': [['a', 16]] },
     })
-    renderPage(COMPARED)
+    renderPage(`${COMPARED}&run_agg=min`)
     await comparison()
     const user = userEvent.setup()
-    await user.click(runBox('7', 'B'))
-    await pickOption('Run aggregation B', 'min')
+    await user.click(runBox('3', 'B'))
     await user.click(pinButton()!)
-    expect(query()).toMatchObject({
-      runs_shadow_b: [uuidOf('3'), uuidOf('6')],
-      run_agg_shadow_b: ['min'],
-    })
-    await waitFor(() => expect(line()?.y).toEqual([2]))
+    expect(query()).toMatchObject({ runs_shadow_b: [uuidOf('6'), uuidOf('7')] })
+    await waitFor(() => expect(line()?.y).toEqual([3]))
 
-    // Side B changes, but not the shadow: min(4, 8), against 1.
-    await user.click(runBox('7', 'B'))
-    await pickOption('Run aggregation B', 'max')
-    await waitFor(() => expect(barsOf()).toEqual([4]))
-    expect(line()?.y).toEqual([2])
+    // Side B changes, but not the shadow: min(8, 16), against 1.
+    await user.click(runBox('3', 'B'))
+    await waitFor(() => expect(barsOf()).toEqual([2]))
+    expect(line()?.y).toEqual([3])
+
+    // The run aggregation changes both: max(8, 16) for the shadow, max(4, 8, 16) for side B.
+    await pickOption('Run aggregation', 'max')
+    await waitFor(() => expect(line()?.y).toEqual([4]))
+    expect(barsOf()).toEqual([4])
   })
 
   it('draws its line, and fits it, when no compared test has a bar', async () => {
@@ -163,13 +163,13 @@ describe('the shadow (CP8)', () => {
     expect(query().commit_shadow_b).toBeUndefined()
   })
 
-  it("is dismissed by another commit on side A, but not by side A's run aggregation", async () => {
+  it('is dismissed by another commit on side A, but not by the run aggregation', async () => {
     mockWorld()
     renderPage(SHADOWED)
     // Side A's runs 1 and 2 give a 2, by their median, and the shadow's run 3, 4.
     await waitFor(() => expect(line()?.y).toEqual([1]))
 
-    await pickOption('Run aggregation A', 'min')
+    await pickOption('Run aggregation', 'min')
     await waitFor(() => expect(line()?.y).toEqual([2]))
     expect(chip()).not.toBeNull()
 
@@ -235,17 +235,17 @@ describe('the shadow (CP8)', () => {
   it('is dropped whole when its suite does not exist', async () => {
     mockWorld(WORLD)
     const bogus = SHADOWED.replace('suite_shadow_b=libcxx', 'suite_shadow_b=bogus')
-    renderPage(`${bogus}&run_agg_shadow_b=min`)
+    renderPage(bogus)
     await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
-    expect(query().run_agg_shadow_b).toBeUndefined()
     expect(query().machine_shadow_b).toBeUndefined()
+    expect(query().commit_shadow_b).toBeUndefined()
   })
 
   it('is dropped when the URL names only part of it', async () => {
     mockWorld(WORLD)
-    renderPage(`${COMPARED}&suite_shadow_b=libcxx&run_agg_shadow_b=min`)
+    renderPage(`${COMPARED}&suite_shadow_b=libcxx&runs_shadow_b=${uuidOf('3')}`)
     await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
-    expect(query().run_agg_shadow_b).toBeUndefined()
+    expect(query().runs_shadow_b).toBeUndefined()
   })
 
   it("draws nothing when its suite does not offer the metric as side A's does", async () => {

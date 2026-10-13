@@ -13,7 +13,7 @@ describe('comparePath', () => {
     const path = comparePath(
       { suite: 'nts', machine: 'm1', commit: 'abc', runs: ['r1', 'r2'] },
       { suite: 'nts', machine: 'm1', commit: 'def', runs: ['r3'] },
-      'execution_time',
+      { metric: 'execution_time' },
     )
     expect(path).toBe(
       '/compare?suite_a=nts&machine_a=m1&commit_a=abc&runs_a=r1&runs_a=r2' +
@@ -21,16 +21,15 @@ describe('comparePath', () => {
     )
   })
 
-  it("sets each side's run aggregation and the sample aggregation, with CP7 names", () => {
+  it('sets the run and sample aggregations, with CP7 names', () => {
     const path = comparePath(
-      { suite: 'nts', commit: 'abc', runAgg: 'max' },
-      { suite: 'nts', commit: 'def', runAgg: 'max' },
-      'execution_time',
-      'min',
+      { suite: 'nts', commit: 'abc' },
+      { suite: 'nts', commit: 'def' },
+      { metric: 'execution_time', sampleAgg: 'min', runAgg: 'max' },
     )
     expect(path).toBe(
-      '/compare?suite_a=nts&commit_a=abc&run_agg_a=max&suite_b=nts&commit_b=def&run_agg_b=max' +
-        '&metric=execution_time&sample_agg=min',
+      '/compare?suite_a=nts&commit_a=abc&suite_b=nts&commit_b=def' +
+        '&metric=execution_time&run_agg=max&sample_agg=min',
     )
   })
 })

@@ -7,7 +7,7 @@ import { waiting, type SideProgress } from './loading'
 function side(id: 'a' | 'b', overrides: Partial<SideProgress> = {}): SideProgress {
   return {
     id,
-    settings: { suite: 'libcxx', machine: 'm1', commit: 'c1', runs: [], runAgg: 'median' },
+    settings: { suite: 'libcxx', machine: 'm1', commit: 'c1', runs: [] },
     schema: SUITE,
     selected: new Set(['1']),
     wanted: ['libcxx/1'],
