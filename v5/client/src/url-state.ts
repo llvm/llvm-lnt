@@ -26,6 +26,7 @@ import {
 } from 'react'
 import { useLocation, useNavigate, useNavigationType, type Location } from 'react-router'
 import { parseNumber } from './format'
+import { sameElements } from './same-elements'
 
 /**
  * How one setting is read from and written to the URL. (Methods rather than function-typed
@@ -101,7 +102,7 @@ export function enumListParam<const T extends string>(options: readonly T[]): Pa
 
 /** Whether `value` is `param`'s default, and so absent from the URL. */
 export function isDefault<T>(param: Param<T>, value: T): boolean {
-  return sameValues(param.serialize(value), param.serialize(param.default))
+  return sameElements(param.serialize(value), param.serialize(param.default))
 }
 
 /**
@@ -137,19 +138,37 @@ function canonical<T>(param: Param<T>, value: T): string[] {
   return isDefault(param, value) ? [] : param.serialize(value)
 }
 
-function sameValues(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((value, i) => value === b[i])
+/** A setting as last read: the URL's values it was read from, and the value they gave. */
+interface Reading {
+  raw: string[]
+  value: unknown
 }
 
-/** The settings, and the values to rewrite: unusable ones to their default, others canonically. */
-function read<P extends Params>(params: P, search: URLSearchParams) {
+/**
+ * The settings, and the values to rewrite: unusable ones to their default, others canonically. A
+ * setting whose values in the URL are those of its reading in `readings` keeps the value it had,
+ * the same array for a list, so that what a page computes from it is not computed again whenever
+ * another setting changes. `readings` is updated with what is read.
+ */
+function read<P extends Params>(
+  params: P,
+  search: URLSearchParams,
+  readings: Map<string, Reading>,
+) {
   const values: Record<string, unknown> = {}
   const rewrites: Record<string, unknown> = {}
   for (const [key, param] of Object.entries(params)) {
     const raw = search.getAll(key)
-    const value = raw.length === 0 ? param.default : (param.parse(raw) ?? param.default)
+    const last = readings.get(key)
+    const value =
+      last !== undefined && sameElements(last.raw, raw)
+        ? last.value
+        : raw.length === 0
+          ? param.default
+          : (param.parse(raw) ?? param.default)
+    readings.set(key, { raw, value })
     values[key] = value
-    if (!sameValues(raw, canonical(param, value))) rewrites[key] = value
+    if (!sameElements(raw, canonical(param, value))) rewrites[key] = value
   }
   return { values: values as ValuesOf<P>, rewrites: rewrites as Partial<ValuesOf<P>> }
 }
@@ -167,9 +186,11 @@ export const PendingLocation = createContext<RefObject<Location> | null>(null)
  *
  * Declare `params` once, outside the component, so that it is the same object on every render.
  * Parameters it does not declare are left as they are, so that several parts of a page can each
- * keep their own. Changes compose, even several within one event handler. A change made after the
- * path has changed -- a debounced search landing after the user navigated away -- is ignored,
- * rather than applied to the page now showing.
+ * keep their own. A setting keeps the same value, the same array for a list, for as long as its
+ * values in the URL do not change, so that it can be a dependency of a memo. Changes compose, even
+ * several within one event handler. A change made after the path has changed -- a debounced
+ * search landing after the user navigated away -- is ignored, rather than applied to the page now
+ * showing.
  */
 export function useUrlState<P extends Params>(
   params: P,
@@ -179,9 +200,11 @@ export function useUrlState<P extends Params>(
   const pendingRef = useContext(PendingLocation)
   if (pendingRef === null) throw new Error('useUrlState must be used inside a UrlStateProvider')
 
+  // What each setting was last read as, which only ever lets a setting keep the value it had.
+  const [readings] = useState(() => new Map<string, Reading>())
   const { values, rewrites } = useMemo(
-    () => read(params, new URLSearchParams(location.search)),
-    [params, location.search],
+    () => read(params, new URLSearchParams(location.search), readings),
+    [params, location.search, readings],
   )
 
   const { pathname } = location
@@ -196,7 +219,7 @@ export function useUrlState<P extends Params>(
         const param = params[key]
         if (param === undefined || value === undefined) continue
         const items = canonical(param, value)
-        if (sameValues(search.getAll(key), items)) continue
+        if (sameElements(search.getAll(key), items)) continue
         changed = true
         search.delete(key)
         for (const item of items) search.append(key, item)

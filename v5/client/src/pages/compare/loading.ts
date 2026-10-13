@@ -1,17 +1,15 @@
 /** How far the Compare page is from a comparison (CP6): what it still needs, and what it loads. */
 
 import type { SampleState } from '../../api/runs'
-import { runRefKey } from '../../api/runs'
 import { plural } from '../../format'
 import type { Side } from './use-side'
 
-/** The runs `side` has selected, by `runRefKey`, in the order they were submitted. */
+/**
+ * The runs `side` has selected, by `runRefKey`, in the order they were submitted, once the
+ * selection is known: then they are those it wants the samples of.
+ */
 export function chosenRuns(side: Side): string[] {
-  const { selected, runs, settings } = side
-  if (selected === undefined || runs.data === undefined) return []
-  return runs.data
-    .filter((run) => selected.has(run.uuid))
-    .map((run) => runRefKey({ suite: settings.suite, uuid: run.uuid }))
+  return side.selected === undefined ? [] : side.wanted
 }
 
 /** Whether the samples of a run could not be loaded. */
@@ -19,9 +17,9 @@ function hasFailed(state: SampleState | undefined): state is SampleState {
   return state?.error != null
 }
 
-export interface Progress {
+interface Progress {
   /** How many runs the two sides select, each once, even when both sides select it. */
-  total: number
+  chosen: number
   /** How many of those have their samples. */
   loaded: number
   /** Those whose samples could not be loaded. */
@@ -40,7 +38,7 @@ export function loadProgress(
   const main = new Set([...chosenRuns(a), ...chosenRuns(b)])
   const chosen = [...main].map((key) => states.get(key))
   return {
-    total: chosen.length,
+    chosen: chosen.length,
     loaded: chosen.filter((state) => state?.samples !== undefined).length,
     failed: chosen.filter(hasFailed),
     // The sides' failures are reported already.

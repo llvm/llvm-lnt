@@ -10,7 +10,6 @@ import { commitRunsQuery, runRefKey, type RunRef } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { useRangeSelection, type RowSelection } from '../../components/range-selection'
-import { useSameElements } from '../../same-elements'
 import { useDropUnusable } from '../../url-state'
 import { useStoreValue, ValueStore } from '../../value-store'
 import {
@@ -136,12 +135,18 @@ export function useSide(
     else if (!named) updateSide({ runs: [] })
   }, [known, named, selected, uuids, updateSide])
 
-  // The runs whose samples the side needs, the same arrays for as long as they are the same runs.
-  const asked = useSameElements(named ? (uuids ?? fromUrl) : NO_RUNS)
+  // The runs whose samples the side needs.
+  const asked = named ? (uuids ?? fromUrl) : NO_RUNS
   const refs = useMemo(() => asked.map((uuid) => ({ suite, uuid })), [suite, asked])
   // Once the runs are listed, those the selection holds, or is about to be filled with.
-  const chosen = useSameElements(
-    known ? uuids.filter((uuid) => selected.has(uuid)) : named ? (fill ?? asked) : asked,
+  const chosen = useMemo(
+    () =>
+      known && uuids !== undefined
+        ? uuids.filter((uuid) => selected.has(uuid))
+        : named
+          ? (fill ?? asked)
+          : asked,
+    [known, uuids, selected, named, fill, asked],
   )
   const wanted = useMemo(() => chosen.map((uuid) => runRefKey({ suite, uuid })), [suite, chosen])
 

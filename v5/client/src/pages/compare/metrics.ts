@@ -1,10 +1,12 @@
 /** The metrics the Compare page offers (CP1), and the one it compares. */
 
-import type { UseQueryResult } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import type { UseQueryResult } from '@tanstack/react-query'
 import type { SuiteSchema } from '../../api/suites'
 import { isNumeric, type Metric } from '../../schema'
 import { useDropUnusable } from '../../url-state'
+import type { Settings } from './settings'
+import type { Side } from './use-side'
 
 /**
  * The metrics compared between `a` and `b` (CP1): those of the one suite given, or, with two,
@@ -28,18 +30,22 @@ export function offeredMetrics(a: SuiteSchema | undefined, b: SuiteSchema | unde
 }
 
 /**
- * The metrics the two sides' suites offer, and among them the metric `name`, the one selected, once
- * it is known to be offered. One the suites do not offer is dropped (AR2 "State") through `drop`.
+ * The metrics the suites of `a` and `b` offer, and among them the metric `all` selects, once it is
+ * known to be offered. One the suites do not offer is dropped (AR2 "State").
  */
 export function useMetric(
-  a: SuiteSchema | undefined,
-  b: SuiteSchema | undefined,
-  name: string,
+  a: Side,
+  b: Side,
+  all: Settings,
+  update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
-  drop: () => void,
 ): { offered: Metric[]; metric: Metric | undefined } {
-  const offered = useMemo(() => offeredMetrics(a, b), [a, b])
-  const metric = offered.find((entry) => entry.name === name)
-  useDropUnusable(suites, () => name === '' || metric !== undefined, drop)
+  const offered = useMemo(() => offeredMetrics(a.schema, b.schema), [a.schema, b.schema])
+  const metric = offered.find((entry) => entry.name === all.metric)
+  useDropUnusable(
+    suites,
+    () => all.metric === '' || metric !== undefined,
+    () => update({ metric: '' }),
+  )
   return { offered, metric }
 }

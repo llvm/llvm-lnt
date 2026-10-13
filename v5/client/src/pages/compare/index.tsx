@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
-import { runRefKey, uniqueRuns, useRunSamples, type SampleState } from '../../api/runs'
+import { uniqueRuns, useRunSamples, type SampleState } from '../../api/runs'
 import { useSuites } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -83,15 +83,13 @@ function useRunSamplesOf(
   side: Side,
   states: ReadonlyMap<string, SampleState>,
 ): Sample[][] | undefined {
-  const { selected, runs } = side
-  const { suite } = side.settings
+  const { selected, wanted } = side
   return useMemo(() => {
-    if (selected === undefined || selected.size === 0 || runs.data === undefined) return undefined
-    const samples = runs.data
-      .filter((run) => selected.has(run.uuid))
-      .map((run) => states.get(runRefKey({ suite, uuid: run.uuid }))?.samples)
+    // Once the selection is known, the runs the side wants are those it has selected.
+    if (selected === undefined || selected.size === 0) return undefined
+    const samples = wanted.map((key) => states.get(key)?.samples)
     return samples.every((entry) => entry !== undefined) ? samples : undefined
-  }, [selected, runs.data, suite, states])
+  }, [selected, wanted, states])
 }
 
 /**
@@ -153,9 +151,7 @@ function ComparePage() {
   const shadowSide = useSide('shadow_b', settings, update, suites)
   const shadow = useShadow(shadowSide, a.settings.commit, update)
 
-  const { offered, metric } = useMetric(a.schema, b.schema, settings.metric, suites, () =>
-    update({ metric: '' }),
-  )
+  const { offered, metric } = useMetric(a, b, settings, update, suites)
 
   // The samples of both sides' runs, and the shadow's, asked for together, each run once.
   const refs = useMemo(
@@ -221,9 +217,8 @@ function ComparePage() {
   )
   const counts = useMemo(() => summaryCounts(matching), [matching])
 
-  // The table's columns, with the optional ones shown, the same for as long as those are: the
-  // URL's list is a new array whenever any setting changes.
-  const optional = useSameElements(settings.columns)
+  // The table's columns, with the optional ones shown.
+  const optional = settings.columns
   // The table follows the columns shown once it has had the time to render them, as for the noise.
   const deferredOptional = useDeferredValue(optional)
   const columns = useMemo(() => tableColumns(deferredOptional), [deferredOptional])
@@ -350,7 +345,7 @@ function ComparePage() {
     update(sideChanges('shadow_b', b.settings))
   }
 
-  const { total: chosen, loaded, failed, shadowFailed } = loadProgress(a, b, shadowSide, states)
+  const { chosen, loaded, failed, shadowFailed } = loadProgress(a, b, shadowSide, states)
   const missing = suites.isPending ? null : missingInput(a, b, offered.length, metric !== undefined)
   return (
     <section>
