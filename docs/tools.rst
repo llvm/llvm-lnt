@@ -35,6 +35,10 @@ Client-Side Tools
     server's REST API. Running it again brings the mirror up to date. See
     :ref:`mirror_v4` for the details and the mirror's format.
 
+  ``lnt v5 import-v4-mirror <mirror dir> --suite <suite> --target <v5 url> --target-suite <name>``
+    Import a test suite from a mirror made by ``lnt mirror-v4`` into a test
+    suite of an LNT v5 instance. See :ref:`import_v4_mirror`.
+
   ``lnt showtests``
     List available built-in tests. See the :ref:`tests` documentation for more
     details on this tool.
