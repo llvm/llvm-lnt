@@ -612,6 +612,21 @@ describe('Combobox with server-side suggestions', () => {
     expect(listbox()).toBeNull()
   })
 
+  it('enters the text typed, rather than a suggestion for earlier text the pointer is on', async () => {
+    serveCommits()
+    const user = userEvent.setup()
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
+    await user.click(input())
+    await user.paste(COMMITS[2].value)
+    // The list opens on the suggestions for no text, which the pointer highlights one of.
+    await waitFor(() => expect(options()).toHaveLength(2))
+    await user.hover(screen.getAllByRole('option')[0])
+
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(value()).toBe(COMMITS[2].value))
+  })
+
   it('searches a held Enter at once, even for typed text', async () => {
     const requests = serveCommits()
     const user = userEvent.setup()
