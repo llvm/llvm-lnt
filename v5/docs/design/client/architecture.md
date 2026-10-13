@@ -49,14 +49,15 @@ within the UI causes a full page reload.
   and every count derived from them, as soon as the page loads. A value the
   page cannot use (a machine or test that does not exist, a metric the page
   does not offer) is dropped, and the page uses its default for that setting
-  instead. Only a complete response can show that a value is unusable -- for
-  a list, every page of it: a request that is still loading, or has failed,
-  drops nothing. The same holds for what a page keeps selected while what it is
-  chosen from changes (the Graph's selected tests when the machines change,
-  say): an item is dropped once every list it depends on has loaded whole, and
-  not before. A setting holding several values repeats its parameter once per
-  value, as the API does (see I3). A form's inputs -- what a panel is about to
-  create or add -- are not settings, and are not kept in the URL.
+  instead. A value is only found unusable from a complete response: for a
+  list, once all of its pages have loaded. Nothing is dropped while a request
+  is still loading, or after it has failed. The same goes for a selection that
+  depends on a list. For example, when the machines change on the Graph page, a
+  selected test that the new test lists don't have is deselected only once
+  every machine's test list has loaded. A setting holding several values
+  repeats its parameter once per value, as the API does (see I3). The inputs of
+  a form, such as what a panel is about to create or add, are not settings, and
+  are not kept in the URL.
 
 
 ## AR3: Page Hierarchy
@@ -145,9 +146,9 @@ arrive, gives way to the error in the same way if the first page cannot be
 fetched. If a later page cannot be, it keeps the rows it has, says that they are
 incomplete, and offers to load the rest.
 
-Outside a table too, when something a page needs cannot be fetched, the page
-says what could not be loaded, with a way to try again, and keeps showing what
-it can.
+This also applies outside tables: when a page cannot fetch something it needs,
+it says what could not be loaded, offers a way to try again, and keeps showing
+everything else it can.
 
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
@@ -185,8 +186,8 @@ Test Suites tabs' searches (TS1), commit pickers (AR15) and the regression
 picker (CP9) -- ask the server again as the user types (debounced), from the
 first page. A response for earlier text never replaces the one for the current
 text, though the previous results may stay up until the current ones arrive.
-A picker among them loads its suggestions a page at a time: scrolling to the end
-of them loads the next page.
+Pickers load their suggestions a page at a time: scrolling to the end of the
+suggestions loads the next page.
 
 
 ## AR10: Range Selection

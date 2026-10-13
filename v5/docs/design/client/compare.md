@@ -45,10 +45,11 @@ Each side has its own controls:
   the suite clears the side's machine, commit and runs.
 - **Machine**: a combobox (see AR14) over the selected suite's machines. The
   suite's full machine list is fetched once and filtered locally (see AR9).
-  Disabled until a suite is selected, showing "Select a suite first". Picking
-  another machine keeps the side's commit if the commit picker still offers it
-  (see AR15), with every run of the new machine at it selected, and clears it
-  otherwise. Clearing the machine clears the commit and the runs.
+  Disabled until a suite is selected, showing "Select a suite first". When the
+  user picks another machine, the side keeps its commit if the new machine has
+  runs at that commit (checked as AR15 describes), and selects all of those
+  runs. Otherwise, the commit is cleared. Clearing the machine clears the
+  commit and the runs.
 - **Commit**: a commit picker (see AR15) over the commits at which the selected
   machine has runs. Disabled until a machine is selected, showing "Select a
   machine first". Clearing the commit clears the runs.
@@ -63,9 +64,8 @@ Each side has its own controls:
   "Aggregation pipeline"): median, mean, min or max, median by default.
   Disabled while at most one run is selected.
 
-A **Swap sides** button between the two sides exchanges everything each side
-holds: its suite, machine, commit, runs and run aggregation, along with what
-has been fetched or looked up for them.
+A **Swap sides** button between the two sides exchanges their suite, machine,
+commit, runs and run aggregation. Nothing needs to be fetched again.
 
 Global controls, shared by both sides:
 
@@ -84,41 +84,41 @@ Global controls, shared by both sides:
 - **Hide noise**: a checkbox that removes the rows classified as noise from the
   table and the chart.
 - **Noise filtering**: a section, collapsed by default, holding three
-  independent knobs. Each knob has a checkbox enabling it, unchecked by
-  default, and a value. A test
-  is classified as **noise** if any enabled knob triggers for it; with every
-  knob disabled, no test is noise. Each knob's label has a help tooltip saying
-  what the knob does.
+  independent knobs. Each knob has a checkbox to enable it (off by default) and
+  a value. A test is classified as **noise** if any enabled knob triggers for
+  it. When every knob is disabled, no test is noise. Each knob's label has a
+  help tooltip saying what the knob does.
   - **Delta % below** (1 by default, at least 0): triggers when |Delta %| is
     below the value.
   - **P-value above** (0.05 by default, between 0 and 1): triggers when the
     p-value of Welch's t-test between the two sides' samples for the test (see
     CP2 "Computation Reference") exceeds the value, i.e. the difference is not
     statistically significant. Skipped when either side has fewer than 2
-    samples. When both sides have zero variance, the knob is skipped if their
-    means are equal, and does not trigger otherwise, since the change is then
-    deterministic (its p-value is taken as 0).
+    samples. If both sides have zero variance, the knob is skipped when their
+    means are equal. When they differ, the change is deterministic, so the knob
+    does not trigger (its p-value is taken as 0).
   - **Absolute below** (0 by default, at least 0): triggers when
     max(|Value A|, |Value B|) is below the value, which is in the metric's raw
     unit. For measurements too small to be meaningful.
 
-  A value outside its knob's range, or that is not a number, shows the red halo
-  (see AR11), and the knob keeps applying its last valid value.
+  If the user enters a value that is not a number, or is out of range, the
+  input shows the red halo (see AR11), and the knob keeps using its last valid
+  value.
 - **Test filter**: a text filter on test names, with regex mode (see AR9).
 
-There is no Compare button. There is a comparison once both sides have at least
-one run selected, a metric is selected, and every selected run's samples have
-loaded (see CP6). It always reflects the current controls.
+There is no Compare button. The comparison is computed automatically once both
+sides have at least one run selected, a metric is selected, and the samples of
+every selected run have loaded (see CP6). After that, it updates whenever the
+controls change.
 
 
 ### CP2: Comparison Table
 
-**Rows.** The comparison holds one row per test that has a value for the metric
-on at least one side, i.e. among that side's samples for the test (see
-Computation Reference). Tests are matched by name, including across suites. The
-table shows the rows the test filter keeps, minus those classified as noise
-while "Hide noise" is checked, with the geomean summary row first whatever the
-sort.
+**Rows.** The comparison has one row for each test that has a value for the
+selected metric on at least one side. Tests are matched by name, even when the
+two sides use different suites. The table shows the rows that match the test
+filter. When "Hide noise" is checked, it also leaves out the rows classified as
+noise. The geomean summary row is always first, whatever the sort.
 
 | Column   | Description                                              |
 |----------|----------------------------------------------------------|
@@ -130,25 +130,26 @@ sort.
 | Ratio    | `vB / vA`; same quantity plotted on the chart as `log2(Ratio)` |
 | Status   | Improved / Regressed / Unchanged / Noise / N/A; see Computation Reference for classification rules |
 
-**Hidden tests.** Each row has a checkbox, checked unless its test is hidden.
-Unchecking it hides the test: its row stays in the table, greyed, in its place
-in the sort order, and the test is no longer compared (see below). Every test is
-shown by default, and there is no limit on how many are. A click on a row, a
-Shift-click (see AR10) and the header checkbox act as in the Graph's test table
-(see GR7), over the rows the table shows. A double-click on a row hides every
-other row the table shows, and a double-click on the only row shown shows every
-row the table shows. Neither changes a test the table does not show.
+**Hidden tests.** Each row has a checkbox, checked by default. Unchecking it
+hides the test: the row stays in the table, greyed out and in the same
+position, but the test no longer counts in the comparison's results (see
+"Compared rows" below). There is no limit on how many tests can be shown.
+Clicking a row, Shift-clicking (see AR10) and the header checkbox work as in
+the Graph's test table (see GR7), on the rows currently in the table.
+Double-clicking a row hides all the other rows in the table. Double-clicking it
+again, when it is the only row shown, shows all of them again. Tests that are
+not in the table, because of the filter or "Hide noise", are never affected.
 
-The test filter and "Hide noise" never change which tests are hidden: clearing
-the filter brings back the rows it hid, as they were. When the comparison
-changes -- another commit, other runs, another metric -- the hidden tests it
-still holds stay hidden, the tests it gains are shown, and the hidden tests it
-no longer holds are forgotten, once the new comparison is complete (see AR2
-"State").
+The test filter and "Hide noise" don't change which tests are hidden: when the
+filter is cleared, the rows it removed come back with the checkboxes they had.
+When the comparison changes (another commit, other runs, another metric), a
+hidden test that is still in the comparison stays hidden, and new tests are
+shown. Hidden tests that are no longer in the comparison are forgotten, but
+only once the new comparison has fully loaded (see AR2 "State").
 
-**Compared rows** are the rows the table shows that are not hidden. The chart
+**Compared rows** are the rows in the table whose checkbox is checked. The chart
 (see CP3), the geomean summary row, Copy as CSV and Add to Regression (see CP9)
-all operate on them.
+all use these rows.
 
 - **Geomean summary row**: no checkbox; see Computation Reference.
 - **Sorting**: by any column, by clicking its header. The default is Delta %
@@ -158,16 +159,16 @@ all operate on them.
 - **Status colors**: green for improved, red for regressed. Noise rows show a
   grey "noise" label, whose tooltip lists each knob that triggered, with the
   test's value and the knob's threshold.
-- **Sample count tooltips**: Value A and Value B show how many of the side's
-  samples for the test, and how many of its selected runs, produced the value,
-  e.g. "6 samples across 2 runs". Delta, Delta % and Ratio show both sides: "A:
+- **Sample count tooltips**: Value A and Value B have a tooltip saying how many
+  samples and runs the value was computed from, e.g. "6 samples across 2
+  runs". Delta, Delta % and Ratio show both sides: "A:
   6 samples across 2 runs, B: 4 samples across 1 run". A side with no value,
   and the geomean summary row, have no tooltip.
 - **Summary message**: above the rows, a message says how many of the table's
   rows are shown, as the Graph's test table does (see GR6): "120 of 150 tests
   shown", or with the test filter set, "30 of 42 matching tests shown (150
-  total)". Rows removed by "Hide noise" are counted in none of these. While the
-  URL cannot hold the hidden tests (see CP7), the message says so.
+  total)". Rows removed by "Hide noise" are not counted. When too many tests
+  are hidden for the URL to record them (see CP7), the message says so.
 - **Copy as CSV**: a clipboard button at the end of the summary message row
   copies the compared rows as CSV, in the current sort order, with the geomean
   summary row first. The columns are the table's: Test, Value A, Value B,
@@ -194,8 +195,8 @@ all operate on them.
 
   A per-side statistic adds an A and a B column. Optional columns sit between
   Ratio and Status, in the order above, A before B. They are empty on the
-  geomean summary row. They are sortable, and hiding the column the table is
-  sorted by returns the table to its default sort.
+  geomean summary row. They are sortable. If the column the table is sorted by
+  is removed, the table goes back to its default sort.
 - **Profile column**: when either side has a profile for a test in its
   selected runs, a "Profile" link leads to the Profiles page, pre-populated as
   PF1 describes.
@@ -203,10 +204,11 @@ all operate on them.
 
 #### Computation Reference
 
-**A side's samples for a test** are the samples of the test, in the side's
-selected runs, that have a value for the metric. Pooled across those runs, a
-run with N of them contributing N values, they are what the P-value knob, the
-optional statistics columns and the sample count tooltips use.
+**A side's samples for a test** are all the samples of that test, across the
+side's selected runs, that have a value for the selected metric. A run with N
+such samples contributes N values. The P-value knob, the optional statistics
+columns and the sample count tooltips all use these samples, before any
+aggregation.
 
 **Aggregation pipeline.** The values `vA` and `vB` shown in the table are
 produced by a two-stage aggregation pipeline:
@@ -217,8 +219,8 @@ produced by a two-stage aggregation pipeline:
    run aggregation function (median/mean/min/max, independently selectable per
    side) to produce the final `vA` and `vB`.
 
-Only the side's samples for the test take part, and a run with none of them
-contributes no per-run value.
+Only samples with a value for the metric are used. A run with no such sample
+for a test is left out of that test's run aggregation.
 
 **Per-test derived columns** (given `vA`, `vB` as defined above):
 
@@ -239,7 +241,8 @@ Notes:
 are N/A. When `vA = 0` (a zero baseline), Delta is computed, but Delta %, Ratio
 and Status are N/A. Noise knobs are not evaluated for these tests.
 
-**Status classification** (checked in this order, for the other tests):
+**Status classification** (for tests whose status is not N/A, checked in this
+order):
 1. If any enabled noise knob triggers -> `noise`
 2. If `Delta = 0` -> `unchanged`
 3. If `bigger_is_better` and `Delta > 0` -> `improved`
@@ -293,8 +296,8 @@ falls inside the band has `|Delta %| < threshold`.
 
 ### CP3: Chart
 
-Sorted ratio chart (relative performance chart) of the compared rows (see CP2),
-leaving off those that cannot be plotted (see Computation Reference):
+A bar chart of the compared rows (see CP2), sorted by ratio. Rows that cannot be
+plotted are left out (see Computation Reference).
 - **X-axis**: tests, sorted by ratio, ascending
 - **Y-axis**: `log2(Ratio)` -- see Computation Reference. Tick labels show the
   equivalent percentage change at "nice" values (+/-1%, +/-5%, +/-10%,
@@ -306,11 +309,11 @@ Interactivity:
 - **Hover**: tooltip showing test name, exact ratio, the values of both sides,
   and Delta %. It also highlights the bar's table row (see CP5).
 - **Zoom**: dragging zooms into part of the chart, and double-clicking resets
-  the zoom. A zoom the user made is kept across every change except a
-  replacement of the comparison -- another suite, machine, commit or runs on
-  either side, swapping the sides, or another metric -- which resets it.
-  Without one, both axes fit what is plotted: the bars, the shadow trace and
-  the noise band. Zooming does not change the table.
+  the zoom. The user's zoom is kept when settings change, but is reset when the
+  comparison is replaced: a different suite, machine, commit or runs on either
+  side, swapping the sides, or a different metric. When the user hasn't
+  zoomed, both axes fit everything plotted: the bars, the shadow trace and the
+  noise band. Zooming does not filter the table.
 - **Noise band**: see Computation Reference for how the Delta % threshold is
   converted to log2 space. The p-value and absolute floor knobs do not have
   chart-level visualization.
@@ -335,8 +338,9 @@ counts in exactly one category:
 | Only in B  | have a value on side B only                |
 | N/A        | have a value on both sides, with a zero baseline |
 
-Each category shows a dot of its color -- the status colors of CP2 for Improved
-and Regressed, and grey for the others -- its label and its count.
+Each category shows a colored dot, its label and its count. The dot is green
+for Improved and red for Regressed (the status colors of CP2), and grey for the
+others.
 
 **Comparable categories** (Improved, Regressed, Noise, Unchanged) also show a
 percentage, whose denominator is the sum of comparable categories only.
@@ -344,8 +348,9 @@ Percentages use one decimal place, except whole numbers drop the trailing `.0`
 (e.g. `25%` not `25.0%`). When there are no comparable tests, they show just
 the count. A tooltip on each count explains the denominator.
 
-**What is counted**: the tests of the comparison that the test filter keeps,
-hidden or not, and noise or not, whatever "Hide noise" says.
+**What is counted**: every test in the comparison that matches the test
+filter, including hidden tests and noise tests, even when "Hide noise" is
+checked.
 
 Categories with a count of zero are shown muted rather than hidden, so that the
 bar's layout stays stable. When there is no comparison, the bar renders nothing.
@@ -353,8 +358,8 @@ bar's layout stays stable. When there is no comparison, the bar renders nothing.
 
 ### CP5: Chart-Table Sync
 
-The chart shows the compared rows (see CP2), so the table's filter, "Hide
-noise" and hidden tests apply to both. Hovering a chart bar highlights its table
+The chart shows the compared rows (see CP2), so the test filter, "Hide noise"
+and the hidden tests affect the chart and the table in the same way. Hovering a chart bar highlights its table
 row, and hovering a table row highlights its chart bar. Neither scrolls the
 page.
 
@@ -362,41 +367,40 @@ page.
 ### CP6: Data Flow
 
 - Each side's metrics come from its suite's schema, as listed by `GET suites`.
-- A suite's machines come from `GET machines`, fetched once per suite while the
-  page is open, whichever side or shadow needs them. A side's commit picker
+- A suite's machines come from `GET machines`. They are fetched once per suite,
+  and shared by both sides and the shadow. A side's commit picker
   searches `GET commits?machine={name}&sort=-first_seen` (see AR15).
 - A side's runs come from `GET runs?machine={name}&commit={value}`, every page
-  of it. Until the list has loaded whole, the side has no runs to compare.
+  of it. The side has no runs to compare until the whole list has loaded.
 - The samples of each selected run come from `GET runs/{uuid}/samples`, every
-  page of it, in as few requests as the API allows. The samples of every
-  run of the sides' and the shadow's commits are kept once fetched, so that no
-  other change to the controls -- the metric, an aggregation, the noise
-  settings, the run selection, the hidden tests, swapping the sides, pinning a
-  shadow -- fetches them again. A run's samples stop loading once it is no
-  longer a run of either side's or the shadow's commit, without disturbing the
-  others.
-- The Profile column needs to know which tests of each side have a profile. A
-  side's runs with profiles come from
-  `GET runs?machine={name}&commit={value}&has_profiles=true`, and the profiles
-  of each of them from `GET runs/{uuid}/profiles`. They never delay the
-  comparison.
-- On load, the requests the URL's values determine are sent at once, without
-  waiting for those values to be checked. What is fetched for a value found
-  unusable is discarded, including a failure, which is not reported.
+  page of it, in as few requests as the API allows. Once fetched, a run's
+  samples are kept for as long as the run belongs to one of the sides' or the
+  shadow's commits. This way, changing the metric, an aggregation, the noise
+  settings, the run selection or the hidden tests, swapping the sides, or
+  pinning a shadow never fetches them again. If a run stops belonging to any of
+  those commits while its samples are loading, its loading stops, without
+  affecting the other runs.
+- The Profile column needs to know which tests of each side have a profile. For
+  each side, `GET runs?machine={name}&commit={value}&has_profiles=true` lists
+  the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
+  profiles of each of them. This never delays the comparison.
+- When the page is loaded from a URL, it sends all the requests that the URL's
+  values call for at once, without first checking that the values are usable.
+  If a value turns out to be unusable, whatever was fetched for it is
+  discarded, and an error for it is not reported.
 
-While the selected runs' samples are loading, a progress indicator says how
-many of them have loaded, where the comparison will be: a comparison that does
-not match the controls is never shown.
+While the samples are loading, a progress indicator shows how many of the
+selected runs have loaded, in place of the comparison. The page never shows a
+comparison that does not match the current controls.
 
-When something the page needs cannot be fetched -- the suites, a suite's
-machines, a side's runs, a commit lookup, a selected run's samples or profiles,
-the shadow's runs or samples -- the page says so (see AR7). If any selected
-run's samples cannot all be fetched, there is no comparison, rather than one
-silently based on fewer runs. A failure to fetch profiles only leaves out the
-Profile links it would have given.
+When the page cannot fetch something it needs -- the suites, a suite's machines,
+a side's runs, a commit lookup, a selected run's samples or profiles, the
+shadow's runs or samples -- it says so (see AR7). If the samples of any selected
+run cannot be fetched, no comparison is shown, rather than one silently based on
+fewer runs. If profiles cannot be fetched, only the Profile links are missing.
 
-**Empty states.** Where the comparison would be, the page says what is missing
-while something it needs is: a suite, a machine, a commit, a selected run on a
+**Empty states.** Until the comparison can be computed, the page says in its
+place what is still missing: a suite, a machine, a commit, a selected run on a
 side, or the metric. Once there is a comparison, the table says
 `No test has a value for this metric.` when it holds no row,
 `No tests match the filter.` when the filter keeps none, and
@@ -410,9 +414,9 @@ All selection state is encoded as query parameters for shareability:
 - `suite_a`, `machine_a`, `commit_a`, `runs_a`, `run_agg_a`
 - `suite_b`, `machine_b`, `commit_b`, `runs_b`, `run_agg_b`
 - `metric`, `sample_agg`
-- `noise_pct`, `noise_pval`, `noise_floor`: present exactly while their knob is
-  enabled, holding the value it applies (see CP1). A disabled knob's value is
-  not kept in the URL.
+- `noise_pct`, `noise_pval`, `noise_floor`: present only while the knob is
+  enabled, holding the value the knob uses (see CP1). A disabled knob's value
+  is not saved in the URL.
 - `hide_noise=true`
 - `test_filter`, and `test_filter_regex=true` when its regex mode is on (see
   AR9)
@@ -427,19 +431,20 @@ All selection state is encoded as query parameters for shareability:
 - The shadow trace's parameters (see CP8)
 
 `runs_a`, `runs_b`, `hidden_test` and `columns` repeat their parameter once per
-value (see AR2 "State"). `runs_a` and `runs_b` are left out while every run of
-their side is selected, which is the default.
+value (see AR2 "State"). `runs_a` and `runs_b` are left out when all of the
+side's runs are selected, which is the default.
 
 A value the page cannot use is dropped (see AR2 "State"):
-- a suite, machine or commit the side cannot have (a commit as AR15 describes),
-  along with what CP1 clears with it;
-- a run its side's run list does not hold; if none of the side's runs is left,
-  every run is selected;
+- a suite or machine that does not exist, or a commit the side's commit picker
+  would not offer (see AR15), along with whatever CP1 clears when that control
+  is cleared;
+- a run that is not in the side's run list; if this leaves no run, all of the
+  side's runs are selected;
 - a metric the page does not offer;
-- a noise value that is not a number, or is outside its knob's range, which
-  leaves the knob disabled;
-- a `sort` naming a column that is not shown, for the default sort;
-- a hidden test the comparison does not hold.
+- a noise value that is not a number or is out of range; the knob is then
+  disabled;
+- a `sort` on a column that is not shown; the default sort is used instead;
+- a hidden test that is not in the comparison.
 
 
 ### CP8: Shadow Trace (Comparison Overlay)
@@ -464,65 +469,67 @@ The pin button is shown only while there is a comparison and no shadow is
 pinned.
 
 **Rendering:**
-- The shadow comparison is computed as the main one, between side A and the
-  shadow's runs. The line plots the tests of the compared rows (see CP2) that
-  can be plotted in the shadow comparison, each at its shadow ratio.
-- The line is sorted by its own ratio and plotted at its own positions, not
-  those of the main bars; the X-axis range fits whichever of the two has more
-  tests. Its color is distinct from the status colors of the bars, and there is
+- The shadow comparison is computed the same way as the main one, between side
+  A and the shadow's runs. The line plots the same tests as the bars (the
+  compared rows, see CP2), each at its ratio in the shadow comparison, leaving
+  out those that cannot be plotted there.
+- The line is sorted by its own ratios, so a test's point on the line is not
+  necessarily above its bar. The X-axis is wide enough for whichever of the two
+  has more tests. Its color is distinct from the status colors of the bars, and there is
   no legend: the chip identifies the trace.
 - Hovering a shadow point shows the same information as a main bar, with a
   "(shadow)" label. Table-to-chart hover highlighting targets the main bars
   only.
-- If the selected metric is not comparable between side A's suite and the
-  shadow's, under CP1's rule for a metric compared across suites, the shadow
+- If side A's suite and the shadow's suite don't both offer the selected
+  metric, under CP1's rule for comparing a metric across suites, the shadow
   draws nothing.
 
 **Scope:** chart only -- no table columns, no summary bar counts. Add to
 Regression (see CP9) operates on the main comparison only.
 
-**What it follows.** The shadow follows the metric, the sample aggregation,
-side A's run aggregation and the compared rows. It keeps side B's suite,
+**What it follows.** The shadow follows changes to the metric, the sample
+aggregation, side A's run aggregation and the compared rows. It keeps side B's suite,
 machine, commit, runs and run aggregation as they were when pinned, whatever
 happens to side B afterwards. Changing side A's suite, machine, commit or runs,
 or swapping the sides, dismisses the shadow.
 
 **Data:** the shadow's samples are fetched like a side's (see CP6). The main
-comparison never waits for them. The line is drawn once all of them have
-loaded, and not at all if some could not be, which is reported.
+comparison never waits for them. The line is drawn only once all of them have
+loaded. If some cannot be fetched, the line is not drawn, and the error is
+reported.
 
 **URL encoding:** the shadow is encoded like a side, with the suffix `shadow_b`:
 `suite_shadow_b`, `machine_shadow_b`, `commit_shadow_b`, `runs_shadow_b` and
 `run_agg_shadow_b`, following the same rules (see CP7). The shadow is dropped
-when its suite, machine or commit is unusable, or while side A has no commit.
-Dropping runs from side A's URL values does not dismiss it.
+if its suite, machine or commit is unusable, or if side A has no commit. When
+unusable runs are dropped from side A's URL values, the shadow is kept.
 
 
 ### CP9: Add to Regression
 
 A collapsible panel (button: "Add to regression" in the controls area) creates
-regression indicators from the comparison. It works on side B: its indicators
-name side B's machine, the selected metric, and the test of each compared row
-(see CP2) that has a value on side B -- a test without one was not measured
-there, and side B's suite may not even have it. The regression they go to
-belongs to side B's suite.
+regression indicators from the comparison. It works on side B: each indicator
+names side B's machine, the selected metric, and a test. One indicator is
+created for each compared row (see CP2) that has a value on side B. Rows
+without one are skipped: the test was not measured on side B, and side B's
+suite may not even have it. The regression belongs to side B's suite.
 
 The button requires `triage` scope (see AR17). It is disabled, with an
-explanation, while no row would give an indicator, and while more would than one
-request can carry (I2's maximum page size; see E8). When expanded, the panel
+explanation, when there would be no indicators, or more than one request can
+carry (I2's maximum page size; see E8). When expanded, the panel
 offers:
 - "Create new regression" -- a title input, which may be left empty, and a
   button that creates a regression in side B's suite, attributed to side B's
   commit, with those indicators.
-- "Add to existing" -- a regression picker over side B's suite, which searches
-  the server (see AR9) from the first page of `GET regressions?sort=-created_at`,
-  matching the title or a prefix of the UUID; adds the indicators to the
-  selected regression. Each suggestion shows the regression's title, or
+- "Add to existing" -- a regression picker over side B's suite. It searches the
+  server (see AR9), starting from the first page of
+  `GET regressions?sort=-created_at`, and matches the title or a prefix of the
+  UUID. Picking a regression adds the indicators to it. Each suggestion shows the regression's title, or
   `(untitled)` and its shortened UUID when it has none.
 
 The panel is a form (see AR2 "State"). Its buttons are disabled whenever the
-"Add to regression" button would be, and changing side B's suite, or swapping
-the sides, clears the regression picked. If creating the regression or adding
+"Add to regression" button is. Changing side B's suite, or swapping the sides,
+clears the picked regression. If creating the regression or adding
 the indicators fails, the panel stays open and says why.
 
 Once the regression is created, or the indicators added, the panel collapses
@@ -531,8 +538,8 @@ the panel is opened again:
 - "Regression created: " followed by a link to the new regression's detail
   page;
 - "Added N indicators to " followed by a link to the regression's detail page,
-  where N counts only the indicators the request created, followed by how many
-  already existed and were not added again, if any (as in DT4).
+  where N is the number of new indicators. If some already existed, the message
+  also says how many (as in DT4).
 
 Each link's text is the regression's title, or its shortened UUID when it has
 none.
