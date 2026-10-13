@@ -1,12 +1,20 @@
 /**
- * One side of the Compare page (CP1): its suite, machine, commit and runs, as the URL names them,
- * checked against what the API holds, and the selection among the runs.
+ * The sides of the Compare page (CP1): each one's suite, machine, commit and runs, as the URL names
+ * them, checked against what the API holds, and the selection among the runs. The shadow (CP8) is
+ * read like a side.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
-import { commitRunsQuery, runRefKey, type RunRef } from '../../api/runs'
+import {
+  commitRunsQuery,
+  runRefKey,
+  uniqueRuns,
+  useRunSamples,
+  type RunRef,
+  type SampleState,
+} from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { useRangeSelection, type RowSelection } from '../../components/range-selection'
@@ -163,4 +171,52 @@ export function useSide(
     refs,
     wanted,
   }
+}
+
+/** The two sides of the comparison, and the shadow, read like a side (CP8). */
+export interface Sides {
+  a: Side
+  b: Side
+  shadow: Side
+  /** Whether the sides have been swapped an odd number of times. */
+  swapped: boolean
+  /** Swap the sides (CP1), with the changes `also` to the URL, made in the same go. */
+  swap(also?: Partial<Settings>): void
+  /** How far the samples of each of their runs are loaded, by `runRefKey`. */
+  states: ReadonlyMap<string, SampleState>
+}
+
+/**
+ * The sides, with the settings `all` gives them, which `update` changes, and their runs' samples,
+ * each run's asked for once, whichever sides have it. `suites` lists the suites of the instance.
+ */
+export function useSides(
+  all: Settings,
+  update: (changes: Partial<Settings>) => void,
+  suites: UseQueryResult<SuiteSchema[]>,
+): Sides {
+  // Which side each of these two holds. Swapping the sides swaps them, so that each side keeps
+  // what it holds in memory, such as its runs selected, rather than reading it from the URL again,
+  // which cannot say that none is.
+  const [swapped, setSwapped] = useState(false)
+  const first = useSide(swapped ? 'b' : 'a', all, update, suites)
+  const second = useSide(swapped ? 'a' : 'b', all, update, suites)
+  const [a, b] = swapped ? [second, first] : [first, second]
+  const shadow = useSide('shadow_b', all, update, suites)
+
+  const refs = useMemo(
+    () => uniqueRuns(first.refs, second.refs, shadow.refs),
+    [first.refs, second.refs, shadow.refs],
+  )
+  const wanted = useMemo(
+    () => new Set([...first.wanted, ...second.wanted, ...shadow.wanted]),
+    [first.wanted, second.wanted, shadow.wanted],
+  )
+  const states = useRunSamples(refs, wanted)
+
+  const swap = (also: Partial<Settings> = {}) => {
+    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...also })
+    setSwapped(!swapped)
+  }
+  return { a, b, shadow, swapped, swap, states }
 }

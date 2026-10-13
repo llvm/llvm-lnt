@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
-import { uniqueRuns, useRunSamples, type SampleState } from '../../api/runs'
+import type { SampleState } from '../../api/runs'
 import { useSuites } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -48,7 +48,7 @@ import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useProfileLinks } from './use-profile-links'
 import { useShadow } from './use-shadow'
-import { runsListFailed, useSide, type Side } from './use-side'
+import { runsListFailed, useSides, type Side } from './use-side'
 import styles from './compare.module.css'
 
 type Sample = Schemas['Sample']
@@ -137,32 +137,15 @@ function notifying(selection: RowSelection, onChange: () => void): RowSelection 
 function ComparePage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
-  // Which side each of these two holds. Swapping the sides swaps them, so that each side keeps
-  // what it holds in memory, such as its runs selected, rather than reading it from the URL again,
-  // which cannot say that none is.
-  const [swapped, setSwapped] = useState(false)
   // The test whose row is hovered in the table, and the one whose bar is hovered on the chart (CP5).
   const [emphasis] = useState(() => new ValueStore<string | null>(null))
   const [hovered] = useState(() => new ValueStore<string | null>(null))
-  const first = useSide(swapped ? 'b' : 'a', settings, update, suites)
-  const second = useSide(swapped ? 'a' : 'b', settings, update, suites)
-  const [a, b] = swapped ? [second, first] : [first, second]
-  // The shadow (CP8), read like a side.
-  const shadowSide = useSide('shadow_b', settings, update, suites)
+  const sides = useSides(settings, update, suites)
+  const { a, b, shadow: shadowSide, swapped, states } = sides
   const shadow = useShadow(shadowSide, a.settings.commit, update)
 
   const { offered, metric } = useMetric(a, b, settings, update, suites)
 
-  // The samples of both sides' runs, and the shadow's, asked for together, each run once.
-  const refs = useMemo(
-    () => uniqueRuns(first.refs, second.refs, shadowSide.refs),
-    [first.refs, second.refs, shadowSide.refs],
-  )
-  const wanted = useMemo(
-    () => new Set([...first.wanted, ...second.wanted, ...shadowSide.wanted]),
-    [first.wanted, second.wanted, shadowSide.wanted],
-  )
-  const states = useRunSamples(refs, wanted)
   const profiles = useProfileLinks(a, b)
 
   // The comparison, each step computed again only when what it depends on changes.
@@ -312,10 +295,7 @@ function ComparePage() {
 
   // Swapping the sides, or changing what side A is, dismisses the shadow (CP8). Changing side A's
   // run aggregation does not: the shadow follows it.
-  const swap = () => {
-    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...NO_SHADOW })
-    setSwapped(!swapped)
-  }
+  const swap = () => sides.swap(NO_SHADOW)
   const { pinned } = shadow
   const updateA = useCallback(
     (changes: Partial<SideSettings>) =>
