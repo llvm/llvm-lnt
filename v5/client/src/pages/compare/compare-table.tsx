@@ -183,7 +183,7 @@ export function CompareTable({
           {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
         </div>
       </div>
-      {/* Leaving a row for another outlines the other's bar at once, without outlining none between. */}
+      {/* Leaving a row for another outlines the other's bar at once, with no gap between. */}
       <div
         onMouseLeave={() => emphasis.set(null)}
         onMouseOver={(event) => {

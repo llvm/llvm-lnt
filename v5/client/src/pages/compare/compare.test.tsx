@@ -10,6 +10,7 @@ import { pickOption, selectButton } from '../../test/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { mockClipboard } from '../../test/clipboard'
 import { uuidOf } from '../../test/fixtures'
+import type { PlotGeometry } from '../../components/chart'
 import { chartProps } from '../../test/chart-props'
 import { COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
 
@@ -885,14 +886,43 @@ describe('the chart (CP3)', () => {
     renderPage(COMPARED)
     await comparison()
     const user = userEvent.setup()
-    const revision = chart().layout.uirevision
+    const ticks = () => chart().layout.yaxis?.ticktext
+    const zoom = () =>
+      act(() =>
+        chart().onRelayout?.({
+          'yaxis.range[0]': Math.log2(0.98),
+          'yaxis.range[1]': Math.log2(1.02),
+        } as PlotRelayoutEvent),
+      )
 
+    zoom()
+    const zoomed = ticks()
+    const revision = chart().layout.uirevision
     await pickOption('Sample aggregation', 'max')
-    await waitFor(() => expect(query().sample_agg).toEqual(['max']))
+    search('Filter tests', 'a')
+    await user.click(screen.getByRole('checkbox', { name: 'Hide noise' }))
+    await waitFor(() => expect(query()).toMatchObject({ hide_noise: ['true'], test_filter: ['a'] }))
+    expect(ticks()).toEqual(zoomed)
     expect(chart().layout.uirevision).toBe(revision)
 
+    // Swapped there and back: Plotly forgets the zoom as soon as the comparison is another.
+    await user.click(screen.getByRole('button', { name: 'Swap sides' }))
+    await user.click(screen.getByRole('button', { name: 'Swap sides' }))
+    await waitFor(() => expect(ticks()).not.toEqual(zoomed))
+
+    zoom()
     await user.click(runBox('2', 'A'))
-    await waitFor(() => expect(chart().layout.uirevision).not.toBe(revision))
+    await waitFor(() => expect(ticks()).not.toEqual(zoomed))
+  })
+
+  it('plots only the tests the filter keeps', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+
+    search('Filter tests', 'd')
+
+    await waitFor(() => expect(barsOf()).toEqual([Math.log2(1.5)]))
   })
 
   it('highlights the row of the bar hovered, and outlines the bar of the row hovered', async () => {
@@ -903,6 +933,14 @@ describe('the chart (CP3)', () => {
     const event = (index: number) =>
       ({ points: [{ data: chart().data[0], pointNumber: index }] }) as unknown as PlotMouseEvent &
         PlotHoverEvent
+    // Where the plot draws, as the chart reports it once drawn: a slot of 100 pixels per bar.
+    const geometry: PlotGeometry = {
+      area: { left: 0, top: 0, width: 200, height: 100 },
+      x: (value) => 50 + 100 * value,
+      y: (value) => 50 - 50 * value,
+    }
+    act(() => chart().onDraw?.(geometry))
+    const outline = () => document.querySelector('svg rect')
 
     act(() => chart().onHover?.(event(1)))
     expect(name('d')).toHaveClass('hovered')
@@ -911,10 +949,20 @@ describe('the chart (CP3)', () => {
 
     const data = chart().data
     fireEvent.mouseEnter(screen.getByRole('cell', { name: 'a' }).closest('tr')!)
-    expect(chart().layout.shapes).toEqual([expect.objectContaining({ type: 'rect', x0: -0.5 })])
+    // a's bar, the first, as wide as the bar itself.
+    expect(outline()).toHaveAttribute('x', '5')
+    expect(outline()).toHaveAttribute('width', '90')
     // The bars themselves are left as they are.
     expect(chart().data).toBe(data)
+
+    // b has no bar to outline.
+    fireEvent.mouseEnter(screen.getByRole('cell', { name: 'b' }).closest('tr')!)
+    expect(outline()).toBeNull()
+    fireEvent.mouseEnter(screen.getByRole('cell', { name: 'd' }).closest('tr')!)
+    fireEvent.mouseLeave(screen.getByRole('table', { name: 'Comparison' }).parentElement!)
+    expect(outline()).toBeNull()
   })
+
 })
 
 describe('the summary bar (CP4)', () => {

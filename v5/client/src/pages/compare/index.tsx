@@ -261,6 +261,12 @@ function ComparePage() {
     [sorted, hiddenTests],
   )
   const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  // The same, in no particular order, for the chart, which sorts them its own way: sorting the
+  // table by another column leaves it as it is.
+  const plotted = useMemo(
+    () => shown.filter((row) => !hiddenTests.has(row.test)),
+    [shown, hiddenTests],
+  )
   const csv = useMemo(
     () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
     [columns, compared, geomean],
@@ -374,7 +380,7 @@ function ComparePage() {
       ) : (
         <>
           <CompareChart
-            rows={compared}
+            rows={plotted}
             noisePct={noise.pct}
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}

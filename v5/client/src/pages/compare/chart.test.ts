@@ -5,7 +5,6 @@ import {
   chartExtent,
   compareLayout,
   noiseBand,
-  emphasisShape,
   ratioTicks,
   type Bar,
 } from './chart'
@@ -71,8 +70,27 @@ describe('ratioTicks', () => {
     expect(ticktext.length).toBeLessThanOrEqual(10)
   })
 
-  it('labels 0% alone when the range holds no other candidate', () => {
+  it('labels 0% alone when the range is 0% alone', () => {
     expect(ratioTicks(0, 0)).toEqual({ tickvals: [0], ticktext: ['0%'] })
+  })
+
+  it('labels a range away from 0% within it', () => {
+    for (const [from, to] of [
+      [2, 5],
+      [21, 49],
+      [100, 200],
+    ]) {
+      const [min, max] = [Math.log2(1 + from / 100), Math.log2(1 + to / 100)]
+      const { tickvals, ticktext } = ratioTicks(min, max)
+      expect(tickvals.length).toBeGreaterThanOrEqual(2)
+      expect(tickvals.every((at) => at >= min - 0.02 * (max - min))).toBe(true)
+      expect(ticktext).not.toContain('0%')
+    }
+  })
+
+  it('labels extreme ratios too', () => {
+    expect(ratioTicks(Math.log2(1e-4), 0).ticktext).toContain('-99.99%')
+    expect(ratioTicks(0, Math.log2(2000)).ticktext.at(-1)).toMatch(/^\+\d+%$/)
   })
 })
 
@@ -108,9 +126,6 @@ describe('barTrace', () => {
     ])
   })
 
-  it('outlines the bar emphasized with a shape, from 0 to its height', () => {
-    expect(emphasisShape(bars[2], 2)).toMatchObject({ type: 'rect', x0: 1.5, x1: 2.5, y0: 0, y1: 1 })
-  })
 })
 
 describe('compareLayout', () => {
