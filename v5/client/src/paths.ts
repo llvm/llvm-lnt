@@ -103,15 +103,21 @@ export function comparePath(
   ])
 }
 
-/** The Profiles page (PF9), with side A set to the profile of `test` in `run`, as far as given. */
-export function profilesPath({
-  suite,
-  run,
-  test,
-}: { suite?: string; run?: string; test?: string } = {}): string {
+/** One side of the Profiles page (PF9): the profile of `test` in `run`, as far as given. */
+interface ProfileSide {
+  suite?: string
+  run?: string
+  test?: string
+}
+
+/** The Profiles page (PF9), with side A, and side B, set as far as given. */
+export function profilesPath(a: ProfileSide = {}, b: ProfileSide = {}): string {
   return withQuery('/profiles', [
-    ['suite_a', suite],
-    ['run_a', run],
-    ['test_a', test],
+    ['suite_a', a.suite],
+    ['run_a', a.run],
+    ['test_a', a.test],
+    ['suite_b', b.suite],
+    ['run_b', b.run],
+    ['test_b', b.test],
   ])
 }

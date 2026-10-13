@@ -5,7 +5,7 @@
 
 import type { APIRequestContext } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { LINUX } from '../tools/synthetic.ts'
+import { EXPERIMENT, LINUX, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { pickOption } from './select.ts'
 import { plotOf, type PlotDiv } from './plot.ts'
@@ -61,4 +61,39 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
 
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
   await expect(page).toHaveURL(new RegExp(`commit_a=${older.value}.*commit_b=${newer.value}`))
+})
+
+test('links a test to its profile on both sides', async ({ page, request }) => {
+  const [, newest] = await newestCommits(request)
+  // The run of LINUX at `commit` that has profiles: there is one at each of these commits.
+  const profiledRun = async (commit: string) => {
+    const path = `/api/suites/libcxx/runs?machine=${LINUX}&commit=${commit}&has_profiles=true`
+    return (await json<Schemas['RunCursorPage']>(request, path)).items[0].uuid
+  }
+  const [runA, runB] = [await profiledRun(newest.value), await profiledRun(EXPERIMENT)]
+  const query = new URLSearchParams({
+    suite_a: 'libcxx',
+    machine_a: LINUX,
+    commit_a: newest.value,
+    suite_b: 'libcxx',
+    machine_b: LINUX,
+    commit_b: EXPERIMENT,
+    metric: 'execution_time',
+    test_filter: PROFILED_TEST,
+  })
+  await page.goto(`/compare?${query}`)
+
+  const row = rows(table(page, 'Comparison')).filter({ hasText: PROFILED_TEST }).first()
+  const profiles = new URLSearchParams({
+    suite_a: 'libcxx',
+    run_a: runA,
+    test_a: PROFILED_TEST,
+    suite_b: 'libcxx',
+    run_b: runB,
+    test_b: PROFILED_TEST,
+  })
+  await expect(row.getByRole('link', { name: 'Profile' })).toHaveAttribute(
+    'href',
+    `/profiles?${profiles}`,
+  )
 })

@@ -55,8 +55,8 @@ export function useRun(suite: string, uuid: string) {
 }
 
 /** The tests of the run `uuid` that have a profile, each with its profile's UUID (E7). */
-export function useRunProfiles(suite: string, uuid: string) {
-  return useQuery({
+export function runProfilesQuery(suite: string, uuid: string) {
+  return queryOptions({
     queryKey: [...runKey(suite, uuid), 'profiles'],
     queryFn: async ({ signal }) => {
       const { items } = await unwrap(
@@ -73,19 +73,21 @@ export function useRunProfiles(suite: string, uuid: string) {
 }
 
 /**
- * The runs of `machine` at `commit` (E4), every one of them, in the order they were submitted: the
- * runs a side of the Compare page selects among (CP1).
+ * The runs of `machine` at `commit` (E4), every one of them, or only those with profiles, in the
+ * order they were submitted: the runs a side of the Compare page selects among (CP1).
  */
-export function commitRunsQuery(suite: string, machine: string, commit: string) {
+export function commitRunsQuery(
+  suite: string,
+  machine: string,
+  commit: string,
+  { profiled = false } = {},
+) {
+  const query = { machine, commit, ...(profiled && { has_profiles: true }) }
   return queryOptions({
-    queryKey: [...queryKeys.runs(suite), 'of-commit', { machine, commit }],
+    queryKey: [...queryKeys.runs(suite), 'of-commit', query],
     queryFn: ({ signal }) =>
       fetchEveryPage((cursor) =>
-        fetchRuns(
-          suite,
-          { machine, commit, sort: 'submitted_at', limit: MAX_PAGE_SIZE, cursor },
-          signal,
-        ),
+        fetchRuns(suite, { ...query, sort: 'submitted_at', limit: MAX_PAGE_SIZE, cursor }, signal),
       ),
   })
 }
@@ -116,6 +118,12 @@ export interface RunRef {
 /** What identifies a run among those of every suite: neither a suite name nor a UUID has a `/`. */
 export function runRefKey({ suite, uuid }: RunRef): string {
   return `${suite}/${uuid}`
+}
+
+/** The runs of `first` and `second`, each once. */
+export function uniqueRuns(first: readonly RunRef[], second: readonly RunRef[]): RunRef[] {
+  const unique = new Map([...first, ...second].map((ref) => [runRefKey(ref), ref]))
+  return [...unique.values()]
 }
 
 /** How far a run's samples are loaded. */

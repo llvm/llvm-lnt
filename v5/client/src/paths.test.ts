@@ -63,4 +63,10 @@ describe('profilesPath', () => {
       '/profiles?suite_a=nts&run_a=uuid-1&test_a=a%2Fb+c%26d',
     )
   })
+
+  it('sets side B after side A', () => {
+    expect(
+      profilesPath({ suite: 'nts', run: 'u1', test: 't' }, { suite: 'x', run: 'u2', test: 't' }),
+    ).toBe('/profiles?suite_a=nts&run_a=u1&test_a=t&suite_b=x&run_b=u2&test_b=t')
+  })
 })

@@ -6,6 +6,8 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
+import { Link } from 'react-router'
+import { VisuallyHidden } from 'react-aria-components'
 import { CopyButton } from '../../components/copy-button'
 import { DataTable, type Column } from '../../components/data-table'
 import type { RowSelection } from '../../components/range-selection'
@@ -15,6 +17,8 @@ import { useStoreValue, ValueStore } from '../../value-store'
 import type { CompareColumn, GeomeanRow, Row } from './columns'
 import type { ComparisonRow, Values } from './comparison'
 import styles from './compare.module.css'
+
+type ProfileMap = ReadonlyMap<string, string>
 
 /**
  * The geomean summary row, which the table shows first whatever the sort, and only while it has
@@ -36,6 +40,12 @@ function HoverMark({ store, test }: { store: ValueStore<string | null>; test: st
 function GeomeanCell({ store, column }: { store: ValueStore<Values>; column: CompareColumn }) {
   const values = useStoreValue(store, (value) => value)
   return column.cell({ ...values, test: null })
+}
+
+/** The link to the Profiles page of `test`, if `store` holds one (CP2 "Profile column"). */
+function ProfileLink({ store, test }: { store: ValueStore<ProfileMap>; test: string }) {
+  const to = useStoreValue(store, (links) => links.get(test))
+  return to === undefined ? null : <Link to={to}>Profile</Link>
 }
 
 const testOf = (row: Row) => row.test ?? ''
@@ -73,6 +83,10 @@ interface Props {
   geomean: Values
   /** What the table says when it has no row, and why. */
   empty: string
+  /** The Profiles page of each test that has a profile, by test. */
+  profiles: ProfileMap
+  /** Whether any compared test has a profile, which the Profile column is shown for. */
+  profiled: boolean
   /** The test whose bar is hovered on the chart, whose row the table highlights (CP5). */
   hovered: ValueStore<string | null>
   /** Where the table says which test's row is hovered, for the chart to outline its bar. */
@@ -87,7 +101,8 @@ interface Props {
 
 /**
  * The comparison table (CP2): a row per test, with a checkbox hiding it, each side's value, how
- * they differ and the test's status, sorted by any column, with the geomean summary row first.
+ * they differ, the test's status and a link to its profiles, if it has any, sorted by any column
+ * but the last, with the geomean summary row first.
  * Rows are hidden and shown with their checkboxes, a click on the row, a range at a time with Shift
  * (AR10), or all but one with a double-click.
  */
@@ -107,12 +122,17 @@ export function CompareTable({
   csv,
   hovered,
   emphasis,
+  profiles,
+  profiled,
 }: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
+  // Read by the Profile column's cells, so that the rows need not render again as profiles arrive.
+  const [links] = useState(() => new ValueStore(profiles))
+  useLayoutEffect(() => links.set(profiles), [profiles, links])
 
-  const columns = useMemo(
-    (): Column<Row>[] => [
+  const columns = useMemo(() => {
+    const all: Column<Row>[] = [
       {
         id: 'show',
         header: <SelectAllBox rows={hidden} shown={tests} label="Show all tests shown" />,
@@ -141,9 +161,17 @@ export function CompareTable({
         // Only says that the column can be sorted by: the rows come sorted (see `sortComparison`).
         sortKey: () => null,
       })),
-    ],
-    [hidden, tests, store, shownColumns, hovered],
-  )
+    ]
+    if (profiled) {
+      all.push({
+        id: 'profile',
+        header: <VisuallyHidden>Profile</VisuallyHidden>,
+        looks: ['nowrap'],
+        cell: (row) => (row.test === null ? null : <ProfileLink store={links} test={row.test} />),
+      })
+    }
+    return all
+  }, [hidden, tests, store, shownColumns, hovered, profiled, links])
 
   const rowProps = useCallback(
     (row: Row) => {

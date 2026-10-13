@@ -386,7 +386,8 @@ page.
 - The Profile column needs to know which tests of each side have a profile. For
   each side, `GET runs?machine={name}&commit={value}&has_profiles=true` lists
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
-  profiles of each of them. This never delays the comparison.
+  profiles of each of them that is selected. This never delays the
+  comparison.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   A side whose URL names no runs can only ask for samples once its runs are

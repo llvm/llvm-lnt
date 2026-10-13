@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
-import { runRefKey, useRunSamples, type RunRef, type SampleState } from '../../api/runs'
+import { runRefKey, uniqueRuns, useRunSamples, type SampleState } from '../../api/runs'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
@@ -32,6 +32,7 @@ import { NoiseControls } from './noise-controls'
 import { HIDDEN_IN_URL, PARAMS, sideChanges, type Settings } from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
+import { useProfileLinks } from './use-profile-links'
 import { useSide, type Side } from './use-side'
 import styles from './compare.module.css'
 
@@ -144,12 +145,6 @@ function useSideComparison(
   return { samples, values }
 }
 
-/** The runs of `first` and `second`, each once. */
-function uniqueRuns(first: RunRef[], second: RunRef[]): RunRef[] {
-  const unique = new Map([...first, ...second].map((ref) => [runRefKey(ref), ref]))
-  return [...unique.values()]
-}
-
 function ComparePage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
@@ -180,6 +175,7 @@ function ComparePage() {
     [first.wanted, second.wanted],
   )
   const states = useRunSamples(refs, wanted)
+  const profiles = useProfileLinks(a, b)
 
   // The comparison, each step computed again only when what it depends on changes.
   const { sample_agg: sampleAgg } = settings
@@ -266,6 +262,13 @@ function ComparePage() {
   const plotted = useMemo(
     () => shown.filter((row) => !hiddenTests.has(row.test)),
     [shown, hiddenTests],
+  )
+  // Whether to show the Profile column: whether any test compared has a profile, whatever the
+  // filter, so that the columns stay the same as it changes.
+  const { links } = profiles
+  const profiled = useMemo(
+    () => allTests?.some((test) => links.has(test)) ?? false,
+    [allTests, links],
   )
   const csv = useMemo(
     () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
@@ -368,6 +371,13 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
+      {profiles.failure !== null && (
+        <ErrorMessage
+          context="The profiles could not be listed"
+          error={profiles.failure.error}
+          onRetry={profiles.failure.retry}
+        />
+      )}
       {suites.isPending ? (
         <Loading />
       ) : missing !== null ? (
@@ -404,6 +414,8 @@ function ComparePage() {
             busy={reclassifying}
             hovered={hovered}
             emphasis={emphasis}
+            profiles={links}
+            profiled={profiled}
             empty={
               rows.length === 0
                 ? 'No test has a value for this metric.'
