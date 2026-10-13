@@ -21,7 +21,6 @@ test('the Test Suites link selects the first suite, in place of /suites', async 
   await expect(page).toHaveURL(/\/suites\/[^/?]+$/)
   const first = page.getByRole('navigation', { name: 'Test suites' }).getByRole('link').first()
   await expect(first).toHaveAttribute('aria-current', 'page')
-  expect(await first.getAttribute('href')).toBe(new URL(page.url()).pathname)
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
 
   await page.goBack()

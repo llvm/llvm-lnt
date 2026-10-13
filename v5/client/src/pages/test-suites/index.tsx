@@ -24,7 +24,7 @@ export default function TestSuites() {
   } else if (suites.isError) {
     content = <ErrorMessage error={suites.error} />
   } else if (suite === undefined) {
-    // `/suites` stands for the first suite, in its place in the history (TS1).
+    // `/suites` gives way to the first suite, which takes its place in the history (TS1).
     const first = suites.data.at(0)
     content =
       first === undefined ? (
