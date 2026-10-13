@@ -77,13 +77,21 @@ function ComparePage() {
         />
       )}
       <div className={styles.sides}>
-        <SidePanel side={shadow.sideA} title="Side A (Baseline)" suites={suites.data ?? []} />
+        <SidePanel
+          side={shadow.dismissingA}
+          title="Side A (Baseline)"
+          suites={suites.data ?? []}
+        />
         <button
           type="button"
           className={styles.swap}
           aria-label="Swap sides"
           title="Swap sides"
-          onClick={shadow.swap}
+          onClick={() => {
+            // Swapping the sides dismisses the shadow (CP8).
+            sides.swap()
+            shadow.dismiss()
+          }}
         >
           ⇄
         </button>

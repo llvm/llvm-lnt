@@ -33,9 +33,9 @@ const NO_BARS: Bar[] = []
 const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
 /**
- * `selection`, whose clicks also call `onChange`: side A's runs, which dismiss the shadow when the
- * user changes them. Filling the selection from the URL, which the side does to the selection
- * itself, does not.
+ * `selection`, every change through which also calls `onChange`: side A's runs, which dismiss the
+ * shadow when the user changes them from the side's panel. The side filling its selection from the
+ * URL, which it does through the selection itself rather than this one, does not.
  */
 function notifying(selection: RowSelection, onChange: () => void): RowSelection {
   return {
@@ -46,6 +46,10 @@ function notifying(selection: RowSelection, onChange: () => void): RowSelection 
     },
     setRows: (keys, select) => {
       selection.setRows(keys, select)
+      onChange()
+    },
+    replace: (keys) => {
+      selection.replace(keys)
       onChange()
     },
   }
@@ -60,10 +64,11 @@ export interface Shadow {
   pinned: boolean
   /** Its commit's display value (AR6), or its commit string until that is known. */
   display: string
-  /** Side A, whose changes by the user dismiss the shadow, but for its run aggregation. */
-  sideA: Side
-  /** Swap the sides, which dismisses the shadow. */
-  swap(): void
+  /**
+   * Side A, as its panel changes it: any change by the user to what side A is dismisses the shadow,
+   * but not one to its run aggregation, which the shadow follows.
+   */
+  dismissingA: Side
   /** Pin side B as it is as the shadow. */
   pin(): void
   dismiss(): void
@@ -72,21 +77,20 @@ export interface Shadow {
 }
 
 /**
- * The shadow, with the settings `all` gives it, which `update` changes, beside `sides`. Its samples
- * are asked for apart from the sides', but a run they share is fetched once. It is dropped, as AR2
- * says of a value that cannot be used (CP8), when:
+ * The shadow, with the settings `all` gives it, which `update` changes, beside sides `a` and `b`.
+ * Its samples are asked for apart from the sides', but a run they share is fetched once. It is
+ * dropped, as AR2 says of a value that cannot be used (CP8), when:
  * - the URL names only part of it, as when `useSide` has dropped its suite or machine;
  * - its commit is not one of its machine's, as its picker found when side B held it;
  * - side A has no commit.
  */
 export function useShadow(
-  sides: Sides,
+  { a, b }: Pick<Sides, 'a' | 'b'>,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
 ): Shadow {
   const side = useSide('shadow_b', all, update, suites)
-  const { a, b } = sides
   const { suite, machine, commit, runs, runAgg } = side.settings
   const pinned = side.named
   const partlyNamed =
@@ -118,8 +122,7 @@ export function useShadow(
   const wanted = useMemo(() => new Set(side.wanted), [side.wanted])
   const states = useRunSamples(side.refs, wanted)
 
-  // Swapping the sides, or changing what side A is, dismisses the shadow. Changing side A's run
-  // aggregation does not: the shadow follows it.
+  // Changing what side A is dismisses the shadow; so does swapping the sides, which the page does.
   const dismiss = useCallback(() => update(NO_SHADOW), [update])
   const updateA = useCallback(
     (changes: Partial<SideSettings>) =>
@@ -134,11 +137,6 @@ export function useShadow(
     () => (pinned ? notifying(selectionA, dismiss) : selectionA),
     [pinned, selectionA, dismiss],
   )
-  const swap = () => {
-    sides.swap()
-    dismiss()
-  }
-
   const pin = () => update(sideChanges('shadow_b', b.settings))
 
   // The failures of the runs the sides select are reported as theirs.
@@ -153,8 +151,7 @@ export function useShadow(
     states,
     pinned,
     display: lookup.data?.text ?? commit,
-    sideA: { ...a, update: updateA, selection: runsA },
-    swap,
+    dismissingA: { ...a, update: updateA, selection: runsA },
     pin,
     dismiss,
     failed,
@@ -175,7 +172,7 @@ export function useShadowLine(
   plotted: readonly ComparisonRow[],
 ): Bar[] {
   const { side, states, pinned } = shadow
-  const schemaA = shadow.sideA.schema
+  const schemaA = shadow.dismissingA.schema
   const offered = useMemo(
     () => offeredMetrics(schemaA, side.schema).some((entry) => entry.name === metric?.name),
     [schemaA, side.schema, metric?.name],
