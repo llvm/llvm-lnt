@@ -35,6 +35,7 @@ import styles from './compare.module.css'
 type Sample = Schemas['Sample']
 
 const NO_ROWS: ComparisonRow[] = []
+const NO_TESTS: string[] = []
 
 /** The URL parameter of each noise knob (CP7). */
 const NOISE_PARAMS = {
@@ -84,7 +85,7 @@ function chosenRuns(side: Side): string[] {
 
 /**
  * The samples of each of the runs `side` has selected, in the order they were submitted, once they
- * have all arrived.
+ * have all arrived. With no run selected, there is nothing to compare, rather than nothing compared.
  */
 function useRunSamplesOf(
   side: Side,
@@ -93,7 +94,7 @@ function useRunSamplesOf(
   const { selected, runs } = side
   const { suite } = side.settings
   return useMemo(() => {
-    if (selected === undefined || runs.data === undefined) return undefined
+    if (selected === undefined || selected.size === 0 || runs.data === undefined) return undefined
     const samples = runs.data
       .filter((run) => selected.has(run.uuid))
       .map((run) => states.get(runRefKey({ suite, uuid: run.uuid }))?.samples)
@@ -247,7 +248,7 @@ function ComparePage() {
   // from the URL stays there until the comparison is complete, which may leave few enough of them.
   const shared = hiddenTests.size <= HIDDEN_IN_URL
   const hiddenSorted = useMemo(
-    () => (shared ? [...hiddenTests].sort(compareStrings) : []),
+    () => (shared ? [...hiddenTests].sort(compareStrings) : NO_TESTS),
     [hiddenTests, shared],
   )
   const complete = tests !== undefined

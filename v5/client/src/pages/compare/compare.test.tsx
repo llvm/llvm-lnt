@@ -606,6 +606,33 @@ describe('hidden tests (CP2)', () => {
     await waitFor(() => expect(query().hidden_test).toEqual(['d']))
   })
 
+  it('keeps the hidden tests while a side has no run selected', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&hidden_test=b`)
+    await comparison()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
+    expect(await main().findByText('Select a run for side A.')).toBeInTheDocument()
+    await user.click(runBox('1', 'A'))
+
+    await comparison()
+    expect(showBox('b')).not.toBeChecked()
+    expect(query().hidden_test).toEqual(['b'])
+  })
+
+  it('offers nothing to copy when every row is hidden', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+
+    await userEvent.setup().click(screen.getByRole('checkbox', { name: 'Show all tests shown' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Copy as CSV' })).not.toBeInTheDocument(),
+    )
+  })
+
   it('says when there are too many hidden tests for the URL', async () => {
     const tests = Array.from({ length: 12 }, (_, i): [string, number] => [`t${i}`, i + 1])
     mockWorld({ samples: { '1': tests, '2': tests, '3': tests } })
@@ -638,7 +665,7 @@ describe('Copy as CSV (CP2)', () => {
     expect(lines).toEqual([
       'd,2,3,1,50,1.5,Regressed',
       'a,100,100.5,0.5,0.5,1.005,Regressed',
-      'c,,5,,,,N/A',
+      'c,,5,,,,',
     ])
   })
 })

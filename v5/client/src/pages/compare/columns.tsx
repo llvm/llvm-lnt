@@ -141,7 +141,7 @@ export const COLUMNS: CompareColumn[] = [
     cell: (row) => statusLabel(row.status, row.test === null ? undefined : row.noise),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row) => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),
-    csv: (row) => CATEGORY_LABELS[row.status],
+    csv: (row) => (row.status === 'na' ? null : CATEGORY_LABELS[row.status]),
   },
 ]
 
