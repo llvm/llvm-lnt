@@ -49,9 +49,15 @@ within the UI causes a full page reload.
   and every count derived from them, as soon as the page loads. A value the
   page cannot use (a machine or test that does not exist, a metric the page
   does not offer) is dropped, and the page uses its default for that setting
-  instead. Only a successful response can show that a value is unusable: a
-  failed request drops nothing. A setting holding several values repeats its
-  parameter once per value, as the API does (see I3).
+  instead. A value is only found unusable from a complete response: for a
+  list, once all of its pages have loaded. Nothing is dropped while a request
+  is still loading, or after it has failed. The same goes for a selection that
+  depends on a list. For example, when the machines change on the Graph page, a
+  selected test that the new test lists don't have is deselected only once
+  every machine's test list has loaded. A setting holding several values
+  repeats its parameter once per value, as the API does (see I3). The inputs of
+  a form, such as what a panel is about to create or add, are not settings, and
+  are not kept in the URL.
 
 
 ## AR3: Page Hierarchy
@@ -124,7 +130,7 @@ These hold on every page, unless the page specifies otherwise.
   `https` URL, and plain text otherwise, since the API stores any string.
 
 
-## AR7: Paginated Tables
+## AR7: Paginated Tables and Fetch Errors
 
 A table that shows a paginated endpoint (see I2) a page at a time has
 `[<- Previous]` and `[Next ->]` below it. Pagination is forward-only, so
@@ -139,6 +145,10 @@ A table that loads every page of a paginated endpoint, showing the rows as they
 arrive, gives way to the error in the same way if the first page cannot be
 fetched. If a later page cannot be, it keeps the rows it has, says that they are
 incomplete, and offers to load the rest.
+
+This also applies outside tables: when a page cannot fetch something it needs,
+it says what could not be loaded, offers a way to try again, and keeps showing
+everything else it can.
 
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
@@ -176,6 +186,8 @@ Test Suites tabs' searches (TS1), commit pickers (AR15) and the regression
 picker (CP9) -- ask the server again as the user types (debounced), from the
 first page. A response for earlier text never replaces the one for the current
 text, though the previous results may stay up until the current ones arrive.
+Pickers load their suggestions a page at a time: scrolling to the end of the
+suggestions loads the next page.
 
 
 ## AR10: Range Selection
@@ -268,8 +280,7 @@ machine can have tens of thousands of commits. The search covers the display
 value the suggestions show only if the schema marks the display field
 `searchable` (see O4).
 
-A page of matches need not hold every matching commit: scrolling to the end of
-the suggestions loads the next page. A commit the picker is given rather than
+A commit the picker is given rather than
 chosen -- restored from the URL, or kept while its filters change -- is looked
 up with the picker's filters plus `commit=` (see E3). The lookup returns
 the commit, with its display value, only if the picker would offer it.

@@ -45,9 +45,8 @@ the suite is a query parameter, not a path segment.
   the selector.
 
 - **Selection across changes**: Changing the metric or the machines keeps the
-  selected tests that the new test list holds, and deselects the others, but
-  only once every machine's test list has loaded: a list that is still loading,
-  or has failed to load, deselects nothing.
+  selected tests that the new test list holds, and deselects the others, once
+  every machine's test list has loaded (see AR2 "State").
 
 - **Multi-machine trace naming and symbols**: Each trace is named `{test name} -
   {machine name}` (test name first for natural sorting). Machines are visually
@@ -122,7 +121,7 @@ commits would have no position on the x-axis.
 When something the page needs cannot be fetched -- the suites, the machine
 list, a test list, a scaffold, the data of the selected tests, a baseline, or
 the regression annotations -- the page says what could not be loaded, with a
-way to try again, as AR7 describes for a table, and keeps showing what it
+way to try again (see AR7), and keeps showing what it
 already has: traces that are drawn stay drawn, and other machines are
 unaffected.
 

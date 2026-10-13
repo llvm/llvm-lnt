@@ -344,8 +344,8 @@ page (`/suites/{ts}?tab=regressions`).
 
 The panel adds indicators to the regression: one for every machine and test
 selected, on the metric selected. It shows the metric, the machines and the
-tests side by side, in the order they are picked. It is a form, so none of its
-settings are kept in the URL, as with CP9's panel.
+tests side by side, in the order they are picked. It is a form (see AR2
+"State").
 
 - Metric: a dropdown over every metric of the suite, which starts on the metric
   Run Detail selects by default (DT2). A suite with no metrics has no dropdown,
@@ -361,9 +361,8 @@ settings are kept in the URL, as with CP9's panel.
   Each list says how many of its items are selected, and how many of those its
   filter hides.
 - A machine or test that its list no longer offers, because the metric or the
-  machines selected have changed, is deselected, but only once every list it
-  depends on has loaded: a list that is still loading, or has failed to load,
-  deselects nothing. Until then, nothing can be added.
+  machines selected have changed, is deselected once every list it depends on
+  has loaded (see AR2 "State"). Until then, nothing can be added.
 - Preview: "This will add N indicators", for every machine and test selected.
 - "Add" adds them all in one request. It is disabled, saying why on hover, when:
   - the API token does not have `triage` scope,
