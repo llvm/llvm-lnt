@@ -7,6 +7,7 @@ import {
   CATEGORY_LABELS,
   STATUSES,
   type ComparisonRow,
+  type NoiseReason,
   type SideStatistics,
   type Status,
   type Values,
@@ -89,15 +90,39 @@ const COLUMNS: Column<Row>[] = [
     id: 'status',
     header: 'Status',
     looks: ['nowrap'],
-    cell: (row) => <StatusLabel status={row.status} />,
+    cell: (row) => (
+      <StatusLabel status={row.status} noise={row.test === null ? undefined : row.noise} />
+    ),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row): SortKey => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),
   },
 ]
 
-/** A row's status, in its colour: green for improved, red for regressed, grey otherwise (CP2). */
-function StatusLabel({ status }: { status: Status }) {
-  return <span className={clsx(styles.status, styles[status])}>{CATEGORY_LABELS[status]}</span>
+/** Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2). */
+function describeNoise({ knob, value, threshold }: NoiseReason): string {
+  switch (knob) {
+    case 'pct':
+      return `Delta ${value.toFixed(2)}% below ${threshold}% threshold`
+    case 'pval':
+      return `p-value ${formatNumber(value)} above ${threshold}`
+    case 'floor':
+      return `max(|A|, |B|) = ${formatNumber(value)} below floor of ${threshold}`
+  }
+}
+
+/**
+ * A row's status, in its colour: green for improved, red for regressed, grey otherwise, and for
+ * noise, the knobs that classified it so on hover (CP2).
+ */
+function StatusLabel({ status, noise = [] }: { status: Status; noise?: NoiseReason[] }) {
+  return (
+    <span
+      className={clsx(styles.status, styles[status])}
+      title={noise.length > 0 ? noise.map(describeNoise).join('\n') : undefined}
+    >
+      {CATEGORY_LABELS[status]}
+    </span>
+  )
 }
 
 const testOf = (row: Row) => row.test ?? ''
@@ -106,10 +131,12 @@ interface Props {
   /** The rows the table shows, by test name. */
   rows: ComparisonRow[]
   geomean: Values
-  /** How many tests the comparison holds. */
+  /** How many tests the comparison holds, without the noise when it is hidden. */
   total: number
   /** Whether the test filter is set. */
   filtered: boolean
+  /** What the table says when it has no row, and why. */
+  empty: string
   sort: TableSort
   onSort(sort: TableSort): void
 }
@@ -118,7 +145,7 @@ interface Props {
  * The comparison table (CP2): a row per test, each side's value, how they differ, and the test's
  * status, sorted by any column, with the geomean summary row first whatever the sort.
  */
-export function CompareTable({ rows, geomean, total, filtered, sort, onSort }: Props) {
+export function CompareTable({ rows, geomean, total, filtered, empty, sort, onSort }: Props) {
   // Shown only while the table has other rows (see `DataTable`).
   const pinned = useMemo((): GeomeanRow[] => [{ ...geomean, test: null }], [geomean])
   return (
@@ -134,7 +161,7 @@ export function CompareTable({ rows, geomean, total, filtered, sort, onSort }: P
         rows={rows}
         rowKey={testOf}
         pinned={pinned}
-        empty={total === 0 ? 'No test has a value for this metric.' : 'No tests match the filter.'}
+        empty={empty}
         sort={sort}
         onSort={onSort}
       />

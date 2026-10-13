@@ -6,6 +6,7 @@ import {
   booleanParam,
   enumParam,
   listParam,
+  optionalNumberParam,
   stringParam,
   trimmedStringParam,
 } from '../../url-state'
@@ -30,6 +31,11 @@ export const PARAMS = {
   run_agg_b: enumParam(AGGREGATIONS, 'median'),
   metric: stringParam(),
   sample_agg: enumParam(AGGREGATIONS, 'median'),
+  // Each noise knob's value, present exactly while the knob is enabled (CP1).
+  noise_pct: optionalNumberParam(0),
+  noise_pval: optionalNumberParam(0, 1),
+  noise_floor: optionalNumberParam(0),
+  hide_noise: booleanParam(false),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
   // Delta % descending by default (CP2).

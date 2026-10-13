@@ -61,6 +61,43 @@
   color: var(--lnt-muted);
 }
 
+/* "Hide noise", and the noise knobs, which their button shows and hides (CP1). */
+.noise {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+}
+
+.checkbox,
+.knob {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+}
+
+.disclosure {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-3);
+}
+
+.knobs[hidden] {
+  display: none;
+}
+
+.knobValue {
+  width: 5rem;
+}
+
 /* How many of the table's tests are shown, above it. */
 .count {
   margin: 0 0 var(--lnt-space-2);

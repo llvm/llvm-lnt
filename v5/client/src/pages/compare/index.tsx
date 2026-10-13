@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
 import { runRefKey, useRunSamples, type RunRef, type SampleState } from '../../api/runs'
@@ -20,9 +20,10 @@ import {
   sideValues,
   summaryCounts,
   type ComparisonRow,
-  type NoiseSettings,
+  type NoiseKnob,
 } from './comparison'
 import { CompareTable } from './compare-table'
+import { NoiseControls } from './noise-controls'
 import { PARAMS, sideChanges } from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
@@ -30,9 +31,6 @@ import { useSide, type Side } from './use-side'
 import styles from './compare.module.css'
 
 type Sample = Schemas['Sample']
-
-/** The noise knobs, all disabled: the page does not offer them yet. */
-const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
 const NO_ROWS: ComparisonRow[] = []
 const testOf = (row: ComparisonRow) => row.test
@@ -178,12 +176,17 @@ function ComparePage() {
     [samplesA, samplesB],
   )
   const biggerIsBetter = metric?.bigger_is_better ?? false
+  // The noise settings applied, which follow those set once the page has had the time to classify
+  // every test again, so that a change to a knob never holds up the page while thousands of rows
+  // are classified and rendered.
+  const { noise_pct: pct, noise_pval: pval, noise_floor: floor } = settings
+  const noise = useDeferredValue(useMemo(() => ({ pct, pval, floor }), [pct, pval, floor]))
   const rows = useMemo(
     () =>
       tests && valuesA && valuesB
-        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise: NO_NOISE })
+        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise })
         : NO_ROWS,
-    [tests, valuesA, valuesB, biggerIsBetter],
+    [tests, valuesA, valuesB, biggerIsBetter, noise],
   )
   const filter = useTextFilter(
     rows,
@@ -193,8 +196,22 @@ function ComparePage() {
     { regex: settings.test_filter_regex },
   )
   const matching = filter.rows
-  const geomean = useMemo(() => geomeanRow(matching, biggerIsBetter), [matching, biggerIsBetter])
+  // The rows the table shows: those the filter keeps, without the noise when it is hidden.
+  const hideNoise = settings.hide_noise
+  const shown = useMemo(
+    () => (hideNoise ? matching.filter((row) => row.status !== 'noise') : matching),
+    [matching, hideNoise],
+  )
+  const total = useMemo(
+    () => (hideNoise ? rows.filter((row) => row.status !== 'noise').length : rows.length),
+    [rows, hideNoise],
+  )
+  const geomean = useMemo(() => geomeanRow(shown, biggerIsBetter), [shown, biggerIsBetter])
   const counts = useMemo(() => summaryCounts(matching), [matching])
+  const onNoise = useCallback(
+    (knob: NoiseKnob, value: number | null) => update({ [`noise_${knob}`]: value }),
+    [update],
+  )
 
   // The same objects from one render to the next, for the table not to render again.
   const { column, direction } = settings.sort
@@ -262,6 +279,12 @@ function ComparePage() {
             regex={settings.test_filter_regex}
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
+          <NoiseControls
+            noise={{ pct, pval, floor }}
+            onNoise={onNoise}
+            hideNoise={hideNoise}
+            onHideNoise={(hide) => update({ hide_noise: hide })}
+          />
         </div>
       </ControlsPanel>
       {failed.length > 0 && (
@@ -284,10 +307,17 @@ function ComparePage() {
         <>
           <SummaryBar counts={counts} />
           <CompareTable
-            rows={matching}
+            rows={shown}
             geomean={geomean}
-            total={rows.length}
+            total={total}
             filtered={filter.active}
+            empty={
+              rows.length === 0
+                ? 'No test has a value for this metric.'
+                : matching.length === 0
+                  ? 'No tests match the filter.'
+                  : 'Every matching test is classified as noise.'
+            }
             sort={sort}
             onSort={onSort}
           />
