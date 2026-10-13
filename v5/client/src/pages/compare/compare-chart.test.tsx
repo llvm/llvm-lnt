@@ -1,18 +1,15 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { act } from 'react'
-import type { PlotData, PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
+import type { PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { query, renderPage, search } from '../../test/page'
 import { pickOption } from '../../test/select'
 import type { PlotGeometry } from '../../components/chart'
-import { chart, COMPARED, comparison, mockWorld, NOISY, runBox, showBox } from './compare-world'
+import { barsOf, chart, COMPARED, comparison, mockWorld, NOISY, runBox, showBox } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
-
-/** The bars of the chart, as their log2 ratios. */
-const barsOf = () => (chart().data[0] as PlotData).y as number[]
 
 describe('the chart (CP3)', () => {
   it('plots a bar per compared test that can be, by ratio', async () => {

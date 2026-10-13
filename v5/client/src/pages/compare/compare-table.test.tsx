@@ -9,7 +9,7 @@ import { mockClipboard } from '../../test/clipboard'
 import { uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, NOISY, ROWS, runBox, showBox } from './compare-world'
 
-// The tests check what the page hands Plotly to draw (see test/chart.tsx).
+// The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
 /** The tests the comparison table lists, in order, without the geomean. */

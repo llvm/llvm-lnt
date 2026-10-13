@@ -4,16 +4,21 @@ import type { SampleState } from '../../api/runs'
 import { plural } from '../../format'
 import type { Side } from './use-side'
 
+/** What the page's progress reads of a side. */
+export type SideProgress = Pick<Side, 'id' | 'settings' | 'schema' | 'selected' | 'wanted'> & {
+  runs: Pick<Side['runs'], 'isError'>
+}
+
 /**
  * The runs `side` has selected, by `runRefKey`, in the order they were submitted, once the
  * selection is known: then they are those it wants the samples of.
  */
-export function chosenRuns(side: Side): string[] {
+export function chosenRuns(side: Pick<Side, 'selected' | 'wanted'>): string[] {
   return side.selected === undefined ? [] : side.wanted
 }
 
 /** The runs `a` and `b` have selected, each once, even when both sides select it. */
-export function sidesRuns(a: Side, b: Side): Set<string> {
+export function sidesRuns(a: SideProgress, b: SideProgress): Set<string> {
   return new Set([...chosenRuns(a), ...chosenRuns(b)])
 }
 
@@ -24,8 +29,8 @@ export function hasFailed(state: SampleState | undefined): state is SampleState 
 
 /** The runs `a` and `b` have selected whose samples could not be loaded, as `states` has them. */
 export function failedRuns(
-  a: Side,
-  b: Side,
+  a: SideProgress,
+  b: SideProgress,
   states: ReadonlyMap<string, SampleState>,
 ): SampleState[] {
   return [...sidesRuns(a, b)].map((key) => states.get(key)).filter(hasFailed)
@@ -37,7 +42,12 @@ export function runCount(count: number): string {
 }
 
 /** What the comparison still needs before it can be computed, if anything (CP6 "Empty states"). */
-function missingInput(a: Side, b: Side, offered: number, chosen: boolean): string | null {
+function missingInput(
+  a: SideProgress,
+  b: SideProgress,
+  offered: number,
+  chosen: boolean,
+): string | null {
   for (const side of [a, b]) {
     const letter = side.id.toUpperCase()
     const { machine, commit } = side.settings
@@ -75,8 +85,8 @@ interface Status {
  * `states` has, or null once it shows it.
  */
 export function waiting(
-  a: Side,
-  b: Side,
+  a: SideProgress,
+  b: SideProgress,
   states: ReadonlyMap<string, SampleState>,
   { suitesPending, offered, metric, compared }: Status,
 ): Waiting | null {

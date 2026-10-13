@@ -5,7 +5,7 @@ import { query, renderPage } from '../../test/page'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { COMPARED, comparison, mockWorld, NOISY } from './compare-world'
 
-// The tests check what the page hands Plotly to draw (see test/chart.tsx).
+// The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
 const statusOf = async (test: string) =>

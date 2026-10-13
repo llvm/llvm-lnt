@@ -6,7 +6,7 @@ import { uuidOf } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
-import { chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
+import { barsOf, chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -75,7 +75,7 @@ describe('the shadow (CP8)', () => {
     expect(line()?.y).toEqual([-1, 1, 2])
     expect((chart().data[1] as PlotData).hovertemplate).toContain('(shadow)')
     // The bars are the main comparison's.
-    expect((chart().data[0] as PlotData).y).toEqual([-1, 1, 1])
+    expect(barsOf()).toEqual([-1, 1, 1])
   })
 
   it('is restored from the URL, without fetching any sample twice', async () => {
@@ -136,7 +136,7 @@ describe('the shadow (CP8)', () => {
     // Side B changes, but not the shadow: min(4, 8), against 1.
     await user.click(runBox('7', 'B'))
     await pickOption('Run aggregation B', 'max')
-    await waitFor(() => expect((chart().data[0] as PlotData).y).toEqual([4]))
+    await waitFor(() => expect(barsOf()).toEqual([4]))
     expect(line()?.y).toEqual([2])
   })
 

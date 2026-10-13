@@ -8,7 +8,7 @@ import { pickOption, selectButton } from '../../test/select'
 import { uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, pick, ROWS, runBox } from './compare-world'
 
-// The tests check what the page hands Plotly to draw (see test/chart.tsx).
+// The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
 describe('the Compare page (CP1)', () => {

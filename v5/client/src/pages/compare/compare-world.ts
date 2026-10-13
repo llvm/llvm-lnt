@@ -6,6 +6,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
+import type { PlotData } from 'plotly.js'
 import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
@@ -159,32 +160,6 @@ export const COMPARED =
   '/compare?suite_a=libcxx&machine_a=m1&commit_a=c1&suite_b=libcxx&machine_b=m1&commit_b=c2' +
   '&metric=execution_time'
 
-/** What the page last handed its chart (see test/chart.tsx). */
-export const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
-
-/** The rows of the comparison table, once it shows, without the cell of their checkbox. */
-export async function comparison() {
-  return rowsOf(await table('Comparison')).map((row) => row.replace(/^ \| /, ''))
-}
-
-/** The checkbox of the run `hex` of `side`. */
-export function runBox(hex: string, side: 'A' | 'B') {
-  return screen.getByRole('checkbox', { name: `Run ${uuidPrefix(uuidOf(hex))} of side ${side}` })
-}
-
-/**
- * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
- * never emptied meanwhile: that would clear the combobox's value (AR14).
- */
-export async function pick(label: string, name: string) {
-  const user = userEvent.setup()
-  const input = await screen.findByRole('combobox', { name: label })
-  await waitFor(() => expect(input).toBeEnabled())
-  await user.tripleClick(input)
-  await user.keyboard(name)
-  await user.click(await screen.findByRole('option', { name }))
-}
-
 /** The comparison of COMPARED: a is regressed, b is on side A only, c on side B only. */
 export const ROWS = [
   'Geomean | 2 | 4 | 2 | +100.00% | 2.0000 | Regressed',
@@ -194,7 +169,7 @@ export const ROWS = [
 ]
 
 /** A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only. */
-export const NOISY = {
+export const NOISY: World = {
   samples: {
     '1': [
       ['a', 100],
@@ -210,8 +185,37 @@ export const NOISY = {
       ['c', 5],
       ['d', 3],
     ],
-  } as Record<string, [string, number][]>,
+  },
+}
+
+/** What the page last handed its chart (see test/chart.tsx). */
+export const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
+
+/** The bars of the chart, as their log2 ratios. */
+export const barsOf = () => (chart().data[0] as PlotData).y as number[]
+
+/** The rows of the comparison table, once it shows, without the cell of their checkbox. */
+export async function comparison() {
+  return rowsOf(await table('Comparison')).map((row) => row.replace(/^ \| /, ''))
+}
+
+/** The checkbox of the run `hex` of `side`. */
+export function runBox(hex: string, side: 'A' | 'B') {
+  return screen.getByRole('checkbox', { name: `Run ${uuidPrefix(uuidOf(hex))} of side ${side}` })
 }
 
 /** The checkbox showing `test`'s row (CP2 "Hidden tests"). */
 export const showBox = (test: string) => screen.getByRole('checkbox', { name: `Show ${test}` })
+
+/**
+ * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
+ * never emptied meanwhile: that would clear the combobox's value (AR14).
+ */
+export async function pick(label: string, name: string) {
+  const user = userEvent.setup()
+  const input = await screen.findByRole('combobox', { name: label })
+  await waitFor(() => expect(input).toBeEnabled())
+  await user.tripleClick(input)
+  await user.keyboard(name)
+  await user.click(await screen.findByRole('option', { name }))
+}
