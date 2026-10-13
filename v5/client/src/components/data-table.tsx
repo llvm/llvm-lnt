@@ -54,6 +54,8 @@ interface Props<Row> {
    */
   sort?: TableSort
   onSort?(sort: TableSort): void
+  /** The rows come in the order `sort` says already, which the table shows as it is. */
+  presorted?: boolean
   /** Whether the row is the one whose deletion, or revocation, is being confirmed. */
   confirming?: (row: Row) => boolean
   /** Rows shown before the others, whatever the sort, such as one summing them up. */
@@ -83,12 +85,13 @@ function DataTableImpl<Row>({
   onSort,
   confirming,
   pinned,
+  presorted = false,
 }: Props<Row>) {
   const sortKey = columns.find((column) => column.id === sort?.column)?.sortKey
   const direction = sort?.direction
   const sorted = useMemo(
-    () => (sortKey && direction ? sortRows(rows, sortKey, direction) : rows),
-    [rows, sortKey, direction],
+    () => (!presorted && sortKey && direction ? sortRows(rows, sortKey, direction) : rows),
+    [rows, sortKey, direction, presorted],
   )
   return (
     <table

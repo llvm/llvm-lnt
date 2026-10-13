@@ -14,6 +14,9 @@ import {
 /** The two sides of the comparison: A, the baseline, and B, the new one. */
 export type SideId = 'a' | 'b'
 
+/** At most how many hidden tests the URL holds (CP7). */
+export const HIDDEN_IN_URL = 10
+
 /** The columns of the comparison table, as `sort` names them (CP2). */
 const SORTABLE = ['test', 'value_a', 'value_b', 'delta', 'delta_pct', 'ratio', 'status']
 
@@ -36,6 +39,8 @@ export const PARAMS = {
   noise_pval: optionalNumberParam(0, 1),
   noise_floor: optionalNumberParam(0),
   hide_noise: booleanParam(false),
+  /** The tests hidden (CP2), while there are few enough of them to share (see `HIDDEN_IN_URL`). */
+  hidden_test: listParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
   // Delta % descending by default (CP2).

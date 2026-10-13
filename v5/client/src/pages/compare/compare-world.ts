@@ -142,9 +142,9 @@ export const COMPARED =
   '/compare?suite_a=libcxx&machine_a=m1&commit_a=c1&suite_b=libcxx&machine_b=m1&commit_b=c2' +
   '&metric=execution_time'
 
-/** The rows of the comparison table, once it shows. */
+/** The rows of the comparison table, once it shows, without the cell of their checkbox. */
 export async function comparison() {
-  return rowsOf(await table('Comparison'))
+  return rowsOf(await table('Comparison')).map((row) => row.replace(/^ \| /, ''))
 }
 
 /** The checkbox of the run `hex` of `side`. */

@@ -98,7 +98,25 @@
   width: 5rem;
 }
 
-/* How many of the table's tests are shown, above it. */
+/* How many of the table's tests are shown, and Copy as CSV, above it. */
+.countRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lnt-space-3);
+}
+
+/* A test's row, which a click hides or shows (CP2), and greys out while it is hidden. */
+.testRow {
+  cursor: pointer;
+  user-select: none;
+}
+
+.testRow:has(> td > input[type='checkbox']:not(:checked)) {
+  color: var(--lnt-muted);
+  opacity: 0.6;
+}
+
 .count {
   margin: 0 0 var(--lnt-space-2);
   color: var(--lnt-muted);

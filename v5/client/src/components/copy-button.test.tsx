@@ -25,6 +25,17 @@ describe('CopyButton', () => {
     expect(screen.getByRole('status')).toHaveTextContent('')
   })
 
+  it('computes what it copies only once clicked, when given a function', async () => {
+    const writeText = mockClipboard()
+    const compute = vi.fn(() => 'computed')
+    render(<CopyButton text={compute}>Copy to clipboard</CopyButton>)
+    expect(compute).not.toHaveBeenCalled()
+
+    await act(async () => fireEvent.click(button()))
+
+    expect(writeText).toHaveBeenCalledWith('computed')
+  })
+
   it('says that it could not copy when the browser refuses', async () => {
     mockClipboard(() => Promise.reject(new Error('Denied')))
     render(<CopyButton text="the token">Copy to clipboard</CopyButton>)

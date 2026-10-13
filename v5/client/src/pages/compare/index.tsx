@@ -1,15 +1,16 @@
-import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
 import { runRefKey, useRunSamples, type RunRef, type SampleState } from '../../api/runs'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
+import { useRangeSelection } from '../../components/range-selection'
 import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useTextFilter } from '../../components/use-text-filter'
-import { plural } from '../../format'
+import { compareStrings, plural } from '../../format'
 import { isNumeric, labelOf, type Metric } from '../../schema'
 import { useDropUnusable, useUrlState, useVisitKey } from '../../url-state'
 import {
@@ -22,9 +23,10 @@ import {
   type ComparisonRow,
   type NoiseKnob,
 } from './comparison'
+import { comparisonCsv, sortComparison } from './columns'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
-import { PARAMS, sideChanges, type Settings } from './settings'
+import { HIDDEN_IN_URL, PARAMS, sideChanges, type Settings } from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useSide, type Side } from './use-side'
@@ -214,19 +216,51 @@ function ComparePage() {
     () => (hideNoise ? rows.filter((row) => row.status !== 'noise').length : rows.length),
     [rows, hideNoise],
   )
-  const geomean = useMemo(() => geomeanRow(shown, biggerIsBetter), [shown, biggerIsBetter])
   const counts = useMemo(() => summaryCounts(matching), [matching])
+
+  // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
+  // The same sort object from one render to the next, for the table not to render again.
+  const { column, direction } = settings.sort
+  const sort = useMemo(() => ({ column, direction }), [column, direction])
+  const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
+  const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
+  const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
+
+  // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
+  // and neither the filter nor "Hide noise" changes them.
+  const allTests = useMemo(() => tests?.map((entry) => entry.test), [tests])
+  const { selected: hiddenTests, rows: hidden } = useRangeSelection(allTests, sortedTests, {
+    inverted: true,
+    initial: settings.hidden_test,
+  })
+  const compared = useMemo(
+    () => sorted.filter((row) => !hiddenTests.has(row.test)),
+    [sorted, hiddenTests],
+  )
+  const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  const csv = useMemo(
+    () => (compared.length === 0 ? null : () => comparisonCsv(geomean, compared)),
+    [compared, geomean],
+  )
+
+  // The hidden tests, in the URL while there are few enough of them to share (CP7). A long list
+  // from the URL stays there until the comparison is complete, which may leave few enough of them.
+  const shared = hiddenTests.size <= HIDDEN_IN_URL
+  const hiddenSorted = useMemo(
+    () => (shared ? [...hiddenTests].sort(compareStrings) : []),
+    [hiddenTests, shared],
+  )
+  const complete = tests !== undefined
+  useEffect(() => {
+    if (shared || complete) update({ hidden_test: hiddenSorted })
+  }, [hiddenSorted, shared, complete, update])
+
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
     [update],
   )
   // Whether the table still shows the noise as it was classified before the latest change.
   const reclassifying = noise !== noiseSet || hideNoise !== settings.hide_noise
-
-  // The same objects from one render to the next, for the table not to render again.
-  const { column, direction } = settings.sort
-  const sort = useMemo(() => ({ column, direction }), [column, direction])
-  const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
 
   const swap = () => {
     update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
@@ -317,10 +351,17 @@ function ComparePage() {
         <>
           <SummaryBar counts={counts} />
           <CompareTable
-            rows={shown}
+            rows={sorted}
+            tests={sortedTests}
+            hidden={hidden}
+            summary={
+              filter.active
+                ? `${compared.length} of ${shown.length} matching tests shown (${total} total)`
+                : `${compared.length} of ${total} tests shown`
+            }
+            notInUrl={shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`}
             geomean={geomean}
-            total={total}
-            filtered={filter.active}
+            csv={csv}
             busy={reclassifying}
             empty={
               rows.length === 0
