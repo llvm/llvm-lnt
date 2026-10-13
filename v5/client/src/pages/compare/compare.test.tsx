@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
@@ -7,6 +7,7 @@ import { currentUrl, main, query, renderPage } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, pick, ROWS, runBox, sideOf } from './compare-world'
+import { SummaryBar } from './summary-bar'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -317,6 +318,31 @@ describe('the summary bar (CP4)', () => {
       'Only in B 1',
       'N/A 0',
     ])
+  })
+
+  it('explains the denominator of a share, and what N/A counts, on hover', () => {
+    const counts = { improved: 0, regressed: 1, noise: 0, unchanged: 0, onlyA: 1, onlyB: 1, na: 0 }
+    render(<SummaryBar counts={counts} />)
+
+    const bar = within(screen.getByRole('list', { name: 'Summary' }))
+    const share = 'Out of the 1 test improved, regressed, noise or unchanged.'
+    const comparable = ['Improved 0 (0%)', 'Regressed 1 (100%)', 'Noise 0 (0%)', 'Unchanged 0 (0%)']
+    for (const category of comparable) {
+      expect(bar.getByText(category)).toHaveAttribute('title', share)
+    }
+    expect(bar.getByText('Only in A 1')).not.toHaveAttribute('title')
+    expect(bar.getByText('Only in B 1')).not.toHaveAttribute('title')
+    expect(bar.getByText('N/A 0')).toHaveAttribute(
+      'title',
+      expect.stringMatching(/^Tests with a value on both sides, but a Value A of 0: .* N\/A\./),
+    )
+  })
+
+  it('explains no denominator while there is no share', () => {
+    const counts = { improved: 0, regressed: 0, noise: 0, unchanged: 0, onlyA: 1, onlyB: 1, na: 0 }
+    render(<SummaryBar counts={counts} />)
+
+    expect(screen.getByText('Improved 0')).not.toHaveAttribute('title')
   })
 })
 
