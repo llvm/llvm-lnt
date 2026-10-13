@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockClipboard } from '../../test/clipboard'
+import { mockClipboard } from '../test/clipboard'
 import { CopyButton, FEEDBACK_MS } from './copy-button'
 
 function button() {

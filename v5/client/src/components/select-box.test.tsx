@@ -6,15 +6,33 @@ import { SelectAllBox, SelectBox } from './select-box'
 
 const ROWS = ['a', 'b', 'c', 'd']
 
-/** A list of `ROWS`, each with a checkbox, under a select-all checkbox. */
-function List({ shown = ROWS, limit }: { shown?: string[]; limit?: SelectionLimit }) {
-  const { rows } = useRangeSelection(undefined, shown, { limit })
+/**
+ * A list of `ROWS`, each with a checkbox, under a select-all checkbox, and what is selected. With
+ * `inverted`, its selection is of the rows hidden.
+ */
+function List({
+  shown = ROWS,
+  limit,
+  inverted,
+  initial,
+}: {
+  shown?: string[]
+  limit?: SelectionLimit
+  inverted?: true
+  initial?: string[]
+}) {
+  const { rows, selected } = useRangeSelection(
+    undefined,
+    shown,
+    inverted ? { inverted, initial } : { limit, initial },
+  )
   return (
     <>
       <SelectAllBox rows={rows} shown={shown} label="Select all" />
       {shown.map((key) => (
         <SelectBox key={key} rows={rows} rowKey={key} label={`Select ${key}`} />
       ))}
+      <output aria-label="Selected">{[...selected].sort().join(',')}</output>
     </>
   )
 }
@@ -68,6 +86,64 @@ describe('SelectAllBox', () => {
   it('cannot be used with no rows shown', () => {
     render(<List shown={[]} />)
     expect(all()).toBeDisabled()
+  })
+})
+
+const hidden = () => screen.getByRole('status', { name: 'Selected' }).textContent
+
+describe('A list whose selection is of the rows hidden (CP2)', () => {
+  it('checks the box of every row not hidden, every one to begin with', async () => {
+    const user = userEvent.setup()
+    render(<List inverted />)
+    expect(checked()).toEqual(ROWS)
+
+    await user.click(box('b'))
+    expect(checked()).toEqual(['a', 'c', 'd'])
+    expect(hidden()).toBe('b')
+  })
+
+  it('hides or shows a range with Shift held, as the row clicked now is', async () => {
+    const user = userEvent.setup()
+    render(<List inverted />)
+
+    await user.click(box('a'))
+    await user.keyboard('{Shift>}')
+    await user.click(box('c'))
+    await user.keyboard('{/Shift}')
+    expect(hidden()).toBe('a,b,c')
+
+    // Showing b, then c with Shift held, shows them both.
+    await user.click(box('b'))
+    await user.keyboard('{Shift>}')
+    await user.click(box('c'))
+    await user.keyboard('{/Shift}')
+    expect(hidden()).toBe('a')
+  })
+
+  it('hides every row shown from the header if none is hidden, else shows them all', async () => {
+    const user = userEvent.setup()
+    render(<List inverted />)
+    expect(all()).toBeChecked()
+
+    await user.click(all())
+    expect(hidden()).toBe('a,b,c,d')
+    expect(all()).not.toBeChecked()
+
+    await user.click(box('c'))
+    expect(all()).toBePartiallyChecked()
+    await user.click(all())
+    expect(hidden()).toBe('')
+    expect(all()).toBeChecked()
+  })
+
+  it('changes only the rows shown from the header', async () => {
+    const user = userEvent.setup()
+    render(<List inverted shown={['a', 'b']} initial={['c']} />)
+
+    await user.click(all())
+    expect(hidden()).toBe('a,b,c')
+    await user.click(all())
+    expect(hidden()).toBe('c')
   })
 })
 

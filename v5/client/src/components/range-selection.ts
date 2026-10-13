@@ -102,6 +102,11 @@ export interface RowSelection {
   /** The list's limit, if it has one. */
   limit(): SelectionLimit | null
   /**
+   * Whether the selection is of the rows hidden rather than shown (see `inverted` below), which
+   * the rows' checkboxes show unchecked.
+   */
+  inverted(): boolean
+  /**
    * The row `key` was clicked, with Shift held or not (see `clickRow`). Like the other changes
    * below, it does nothing, anchor included, when it would select more rows than the limit.
    */
@@ -144,18 +149,35 @@ class SelectionStore {
   }
 }
 
-interface Options {
-  /**
-   * At most how many rows can be selected (GR7): nothing that would select more does anything. A
-   * list keeps the limit it starts with.
-   */
-  limit?: SelectionLimit
+interface CommonOptions {
   /**
    * The rows selected to begin with, such as those a URL names. Beyond `limit`, the first ones
    * are kept. Those that are not offered are deselected once that is known, like any other.
    */
   initial?: readonly string[]
 }
+
+/** A list whose selection is of the rows shown, such as the tests the Graph page plots. */
+interface ShownOptions extends CommonOptions {
+  /**
+   * At most how many rows can be selected (GR7): nothing that would select more does anything. A
+   * list keeps the limit it starts with.
+   */
+  limit?: SelectionLimit
+  inverted?: false
+}
+
+/**
+ * A list whose selection is of the rows hidden, such as the tests the Compare page hides (CP2):
+ * every row is shown to begin with, and a row that comes later is shown too. Such a list has no
+ * limit.
+ */
+interface HiddenOptions extends CommonOptions {
+  inverted: true
+  limit?: never
+}
+
+type Options = ShownOptions | HiddenOptions
 
 /**
  * A selection among the rows of a list (AR10). `shown` are the rows in view, in order, which a
@@ -167,9 +189,10 @@ interface Options {
 export function useRangeSelection(
   offered: readonly string[] | undefined,
   shown: readonly string[],
-  { limit: initialLimit, initial = [] }: Options = {},
+  { limit: initialLimit, inverted = false, initial = [] }: Options = {},
 ): RangeSelection {
   const [limit] = useState(initialLimit ?? null)
+  const [hides] = useState(inverted)
   const [store] = useState(() => {
     const kept = [...new Set(initial)].slice(0, limit?.count)
     return new SelectionStore({ selected: new Set(kept), anchor: null })
@@ -197,6 +220,7 @@ export function useRangeSelection(
       subscribe: store.subscribe,
       selected: () => store.get().selected,
       limit: () => limit,
+      inverted: () => hides,
       click: (key, shift) => change(clickRow(store.get(), shownRef.current, key, shift)),
       setRows: (keys, select) => change(setRows(store.get(), keys, select)),
       replace: (keys) => change(replaceRows(store.get(), keys)),

@@ -14,6 +14,12 @@ describe('aggregate', () => {
     expect(aggregate([3, -1, 2], 'max')).toBe(3)
   })
 
+  it('takes the mean of equal values as exactly their value', () => {
+    // Summed, then divided, three times 0.1 make 0.30000000000000004 / 3 = 0.10000000000000002.
+    expect(aggregate([0.1, 0.1, 0.1], 'mean')).toBe(0.1)
+    expect(aggregate([0.609, 0.609, 0.609, 0.609, 0.609, 0.609, 0.609], 'mean')).toBe(0.609)
+  })
+
   it('leaves the values it is given as they are', () => {
     const values = [3, 1, 2]
     aggregate(values, 'median')

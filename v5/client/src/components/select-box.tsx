@@ -13,11 +13,12 @@ interface SelectBoxProps {
 /**
  * The state of a row's checkbox: checked, unchecked, or unchecked and disabled because selecting
  * its row would take the list past its limit. A string, since `useSyncExternalStore` compares
- * snapshots by identity.
+ * snapshots by identity. In a list whose selection is of the rows hidden, which has no limit, the
+ * box is checked while its row is not selected.
  */
 function boxState(rows: RowSelection, key: string): 'on' | 'off' | 'full' {
   const selected = rows.selected()
-  if (selected.has(key)) return 'on'
+  if (selected.has(key) !== rows.inverted()) return 'on'
   return wouldExceed(selected, [key], rows.limit()) ? 'full' : 'off'
 }
 
@@ -58,6 +59,9 @@ interface SelectAllBoxProps {
  * The checkbox selecting every row shown of a list, or, once they all are, none of them: checked
  * when they all are, and indeterminate when only some are. It cannot select them all when that
  * would take the list past its limit, and says why on hover.
+ *
+ * In a list whose selection is of the rows hidden, it shows every row shown, or, once none of
+ * them is hidden, hides them all: checked when none is hidden.
  */
 export function SelectAllBox({ rows, shown, label }: SelectAllBoxProps) {
   const part = useSyncExternalStore(rows.subscribe, () => selectedPart(rows.selected(), shown))
@@ -69,16 +73,18 @@ export function SelectAllBox({ rows, shown, label }: SelectAllBoxProps) {
   useLayoutEffect(() => {
     if (box.current) box.current.indeterminate = part === 'some'
   }, [part])
+  const inverted = rows.inverted()
+  const isChecked = part === (inverted ? 'none' : 'all')
   return (
     <input
       ref={box}
       type="checkbox"
       className={styles.box}
       aria-label={label}
-      checked={part === 'all'}
+      checked={isChecked}
       disabled={shown.length === 0 || full}
       title={full ? rows.limit()?.why : undefined}
-      onChange={() => rows.setRows(shown, part !== 'all')}
+      onChange={() => rows.setRows(shown, isChecked === inverted)}
     />
   )
 }
