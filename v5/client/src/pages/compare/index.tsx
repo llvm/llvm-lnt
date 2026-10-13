@@ -24,7 +24,7 @@ import {
 } from './comparison'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
-import { PARAMS, sideChanges } from './settings'
+import { PARAMS, sideChanges, type Settings } from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useSide, type Side } from './use-side'
@@ -33,6 +33,13 @@ import styles from './compare.module.css'
 type Sample = Schemas['Sample']
 
 const NO_ROWS: ComparisonRow[] = []
+
+/** The URL parameter of each noise knob (CP7). */
+const NOISE_PARAMS = {
+  pct: 'noise_pct',
+  pval: 'noise_pval',
+  floor: 'noise_floor',
+} as const satisfies Record<NoiseKnob, keyof Settings>
 const testOf = (row: ComparisonRow) => row.test
 
 /**
@@ -180,7 +187,8 @@ function ComparePage() {
   // every test again, so that a change to a knob never holds up the page while thousands of rows
   // are classified and rendered.
   const { noise_pct: pct, noise_pval: pval, noise_floor: floor } = settings
-  const noise = useDeferredValue(useMemo(() => ({ pct, pval, floor }), [pct, pval, floor]))
+  const noiseSet = useMemo(() => ({ pct, pval, floor }), [pct, pval, floor])
+  const noise = useDeferredValue(noiseSet)
   const rows = useMemo(
     () =>
       tests && valuesA && valuesB
@@ -197,7 +205,7 @@ function ComparePage() {
   )
   const matching = filter.rows
   // The rows the table shows: those the filter keeps, without the noise when it is hidden.
-  const hideNoise = settings.hide_noise
+  const hideNoise = useDeferredValue(settings.hide_noise)
   const shown = useMemo(
     () => (hideNoise ? matching.filter((row) => row.status !== 'noise') : matching),
     [matching, hideNoise],
@@ -209,9 +217,11 @@ function ComparePage() {
   const geomean = useMemo(() => geomeanRow(shown, biggerIsBetter), [shown, biggerIsBetter])
   const counts = useMemo(() => summaryCounts(matching), [matching])
   const onNoise = useCallback(
-    (knob: NoiseKnob, value: number | null) => update({ [`noise_${knob}`]: value }),
+    (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
     [update],
   )
+  // Whether the table still shows the noise as it was classified before the latest change.
+  const reclassifying = noise !== noiseSet || hideNoise !== settings.hide_noise
 
   // The same objects from one render to the next, for the table not to render again.
   const { column, direction } = settings.sort
@@ -280,9 +290,9 @@ function ComparePage() {
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
           <NoiseControls
-            noise={{ pct, pval, floor }}
+            noise={noiseSet}
             onNoise={onNoise}
-            hideNoise={hideNoise}
+            hideNoise={settings.hide_noise}
             onHideNoise={(hide) => update({ hide_noise: hide })}
           />
         </div>
@@ -311,6 +321,7 @@ function ComparePage() {
             geomean={geomean}
             total={total}
             filtered={filter.active}
+            busy={reclassifying}
             empty={
               rows.length === 0
                 ? 'No test has a value for this metric.'

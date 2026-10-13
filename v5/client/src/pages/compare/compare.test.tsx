@@ -376,7 +376,7 @@ describe('noise (CP1)', () => {
     expect(await statusOf('d')).toBe('Regressed')
     expect(screen.getByText('Noise', { selector: '[title]' })).toHaveAttribute(
       'title',
-      'Delta 0.50% below 1% threshold',
+      'Delta 0.5% below 1% threshold',
     )
   })
 
@@ -401,6 +401,66 @@ describe('noise (CP1)', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Delta % below' }))
     await waitFor(() => expect(query().noise_pct).toBeUndefined())
     await waitFor(async () => expect(await statusOf('d')).toBe('Regressed'))
+  })
+
+  it('applies only the value typed once typing pauses, and none once disabled meanwhile', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&noise_pct=1`)
+    await comparison()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Noise filtering/ }))
+    const threshold = screen.getByRole('textbox', { name: 'Delta % below threshold' })
+
+    await user.clear(threshold)
+    await user.type(threshold, '60')
+    // Not yet: neither 6 on the way, nor 60.
+    expect(query().noise_pct).toEqual(['1'])
+    await user.click(screen.getByRole('checkbox', { name: 'Delta % below' }))
+    await new Promise((resolve) => setTimeout(resolve, SEARCH_DELAY_MS + 100))
+    expect(query().noise_pct).toBeUndefined()
+
+    // Enabled again, with the value typed.
+    await user.click(screen.getByRole('checkbox', { name: 'Delta % below' }))
+    expect(query().noise_pct).toEqual(['60'])
+  })
+
+  it('starts collapsed, and hides the noise on request', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&noise_pct=1`)
+    await comparison()
+    const user = userEvent.setup()
+
+    expect(screen.getByRole('button', { name: /Noise filtering/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.queryByRole('checkbox', { name: 'Delta % below' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Hide noise' }))
+
+    expect(query().hide_noise).toEqual(['true'])
+    await waitFor(async () => expect(await statusOf('a')).toBeUndefined())
+  })
+
+  it('lists every knob that classified a test as noise', async () => {
+    mockWorld({
+      samples: {
+        '1': [
+          ['a', 1],
+          ['a', 2],
+        ],
+        '2': [['a', 1]],
+        '3': [
+          ['a', 1.004],
+          ['a', 2],
+        ],
+      },
+    })
+    renderPage(`${COMPARED}&noise_pct=50&noise_pval=0.05&noise_floor=10`)
+
+    expect(await statusOf('a')).toBe('Noise')
+    expect(screen.getByText('Noise', { selector: '[title]' }).getAttribute('title')).toMatch(
+      /^Delta .*% below 50% threshold\np-value .* above 0.05\nmax\(\|A\|, \|B\|\) = .* below floor of 10$/,
+    )
   })
 
   it('keeps applying the last valid value while the text is not one', async () => {

@@ -102,7 +102,7 @@ const COLUMNS: Column<Row>[] = [
 function describeNoise({ knob, value, threshold }: NoiseReason): string {
   switch (knob) {
     case 'pct':
-      return `Delta ${value.toFixed(2)}% below ${threshold}% threshold`
+      return `Delta ${formatNumber(value)}% below ${threshold}% threshold`
     case 'pval':
       return `p-value ${formatNumber(value)} above ${threshold}`
     case 'floor':
@@ -137,6 +137,8 @@ interface Props {
   filtered: boolean
   /** What the table says when it has no row, and why. */
   empty: string
+  /** Whether the rows are about to be replaced, by those of another classification of the noise. */
+  busy: boolean
   sort: TableSort
   onSort(sort: TableSort): void
 }
@@ -145,7 +147,7 @@ interface Props {
  * The comparison table (CP2): a row per test, each side's value, how they differ, and the test's
  * status, sorted by any column, with the geomean summary row first whatever the sort.
  */
-export function CompareTable({ rows, geomean, total, filtered, empty, sort, onSort }: Props) {
+export function CompareTable({ rows, geomean, total, filtered, empty, busy, sort, onSort }: Props) {
   // Shown only while the table has other rows (see `DataTable`).
   const pinned = useMemo((): GeomeanRow[] => [{ ...geomean, test: null }], [geomean])
   return (
@@ -162,6 +164,7 @@ export function CompareTable({ rows, geomean, total, filtered, empty, sort, onSo
         rowKey={testOf}
         pinned={pinned}
         empty={empty}
+        busy={busy}
         sort={sort}
         onSort={onSort}
       />
