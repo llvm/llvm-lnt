@@ -72,20 +72,17 @@ Machines
 ~~~~~~~~
 
 Each v4 machine becomes an untracked v5 machine. The intent is for the
-instance's administrator to manually select which machines are to be tracked on
-the dashboard. Its fields are the values of its keys, other than ``id`` and
-``name``, that are not null. Every value must be a string.
+instance's administrator to manually select which machines are to be tracked
+on the dashboard. Each machine's non-null fields are carried over from v4.
 
 Its name is the v4 machine's name, with every ``/`` replaced by ``_``, since a
-v5 machine name cannot contain one. v4 machine names are not unique, whereas v5
-machine names are: among the v4 machines with the same name, the one with
-the lowest identifier keeps the name, and each of the others gets a suffix
-``-import-<id>``, where ``<id>`` is its v4 identifier. For example, v4 machines
-352 and 372, both named ``x86_64-O3``, become ``x86_64-O3`` and
-``x86_64-O3-import-372``.
-
-The resulting names must be unique, and valid v5 machine names: it is an error
-otherwise.
+v5 machine name cannot contain slashes. v5 machine names are unique, but LNT v4
+allows multiple machines to share the same name. For that reason, the import
+script remaps machines with duplicate names: among the v4 machines with the same
+name, the one with the lowest identifier (in the v4 DB) keeps the name, and each
+of the others gets a suffix ``-import-<id>``, where ``<id>`` is its v4 DB id.
+For example, v4 machines with IDs ``352`` and ``372``, both named ``x86_64-O3``,
+become  ``x86_64-O3`` and ``x86_64-O3-import-372``.
 
 Commits
 ~~~~~~~
@@ -107,23 +104,18 @@ Runs
 Each v4 run becomes one v5 run submission:
 
 - ``uuid``: the version 5 UUID of the v4 run's API URL, in the ``URL``
-  namespace of RFC 9562, i.e. of
-  ``<url>/api/db_<database>/v4/<suite>/runs/<id>``, where ``<url>`` and
-  ``<database>`` are the mirror's ``source``. Importing the same run again
-  therefore always names the same v5 run.
+  namespace of RFC 9562, i.e. of ``<url>/api/db_<database>/v4/<suite>/runs/<id>``,
+  where ``<url>`` and ``<database>`` are the mirror's ``source``. This scheme
+  ensures that importing the same run again always names the same v5 run.
 - ``machine``: the run's machine, as described above.
 - ``commit``: ``value`` and, if it has one, ``ordinal``, as described above.
 - ``run_parameters``: every key of the v4 run that is not null, except ``id``,
-  ``order_id``, ``order_by`` and the order field. This keeps ``start_time`` and
-  ``end_time``: the v5 run's ``submitted_at`` is the time of the import, which
-  is when v5 receives it.
+  ``order_id``, ``order_by`` and the order field.
 - ``tests``: one entry per test name, in the order the names first appear among
   the v4 samples. Each v4 sample becomes one v5 sample, holding the metrics that
-  are not null in it, even if that leaves none. A key of a v4 sample other than
-  ``id``, ``run_id``, ``name`` and the suite's metrics is an error.
+  are not null in it, even if that leaves none.
 
-Each sample value must have its metric's type in the target schema: a number
-for ``real``, a whole number for ``integer``, and a string for ``text``.
+Each sample value must have its metric's type in the target schema.
 
 
 Submission
@@ -134,13 +126,13 @@ Submission
    schema must be the one above: it is an error otherwise, and nothing is
    submitted.
 2. The command lists the runs the target suite already has, and skips those
-   whose UUID it would submit. This is how an interrupted import resumes.
-3. The other runs are submitted in increasing order of their v4 identifier, by
-   ``--workers`` concurrent requests. A ``409 duplicate`` means the run was
-   submitted already, and counts as a success. Network errors, 5xx responses and
-   ``409 retry`` are retried a few times. Any other failure, and any run that
-   cannot be converted, is reported along with the v4 run and machine it
-   concerns, and the command carries on with the next run.
+   whose UUID it would submit. This allows resuming an interrupted import.
+3. The other runs are submitted in increasing order of their v4 identifier.
+   A ``409 duplicate`` means the run was submitted already, and counts as a
+   success. Network errors, 5xx responses and ``409 retry`` are retried a few
+   times. Any other failure, and any run that cannot be converted, is reported
+   along with the v4 run and machine it concerns, and the command carries on
+   with the next run.
 
 The command exits with a non-zero status if any run failed. Running it again
 submits only the runs that are still missing.
