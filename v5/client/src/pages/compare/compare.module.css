@@ -93,6 +93,35 @@
   color: var(--lnt-muted);
 }
 
+/* "Hide noise", and the button opening the noise knobs (CP1). */
+.noiseControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+}
+
+.checkbox,
+.knobLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+}
+
+/* The noise knobs' panel: a knob per row, its checkbox and label, then its value. */
+.knobs {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: var(--lnt-space-2) var(--lnt-space-3);
+  padding: var(--lnt-space-3);
+  outline: none;
+}
+
+.knobValue {
+  width: 5rem;
+}
+
 /* How many of the table's tests are shown, above it. */
 .count {
   margin: 0 0 var(--lnt-space-2);

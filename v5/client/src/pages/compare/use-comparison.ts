@@ -16,16 +16,14 @@ import {
   sideValues,
   type ComparedTest,
   type ComparisonRow,
-  type NoiseSettings,
 } from './comparison'
 import { chosenRuns } from './loading'
-import type { Settings } from './settings'
+import { noiseSettings, type Settings } from './settings'
 import type { Side, Sides } from './use-side'
 
 type Sample = Schemas['Sample']
 
 const NO_ROWS: ComparisonRow[] = []
-const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
 /**
  * The samples of each of the runs `side` has selected, in the order they were submitted, once they
@@ -90,12 +88,13 @@ export function useComparison(
     [samplesA, samplesB],
   )
   const biggerIsBetter = metric?.bigger_is_better ?? false
+  const { pct, pval, floor } = noiseSettings(settings)
   const rows = useMemo(
     () =>
       tests && valuesA && valuesB
-        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise: NO_NOISE })
+        ? compareRows(tests, valuesA, valuesB, { biggerIsBetter, noise: { pct, pval, floor } })
         : NO_ROWS,
-    [tests, valuesA, valuesB, biggerIsBetter],
+    [tests, valuesA, valuesB, biggerIsBetter, pct, pval, floor],
   )
   return { tests, rows, biggerIsBetter }
 }

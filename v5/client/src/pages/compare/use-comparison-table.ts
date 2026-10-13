@@ -1,6 +1,6 @@
 /**
- * The Compare page's table (CP2), from the comparison's rows: the rows the test filter keeps,
- * sorted, the geomean summary row, and what the table says of them, with the settings the URL
+ * The Compare page's table (CP2), from the comparison's rows: the rows the test filter and "Hide
+ * noise" keep, sorted, the geomean summary row, and what the table says of them, with the settings the URL
  * keeps of them (CP7).
  */
 
@@ -28,8 +28,18 @@ export function useComparisonTable(
     (text) => update({ test_filter: text }),
     { regex: settings.test_filter_regex },
   )
-  const shown = filter.rows
-  const counts = useMemo(() => summaryCounts(shown), [shown])
+  const matching = filter.rows
+  // The rows the table shows: those the filter keeps, without the noise when it is hidden.
+  const shown = useMemo(
+    () => (settings.hide_noise ? matching.filter((row) => row.status !== 'noise') : matching),
+    [matching, settings.hide_noise],
+  )
+  const total = useMemo(
+    () =>
+      settings.hide_noise ? rows.filter((row) => row.status !== 'noise').length : rows.length,
+    [rows, settings.hide_noise],
+  )
+  const counts = useMemo(() => summaryCounts(matching), [matching])
 
   // The same sort object from one render to the next, for the table not to render again.
   const { column, direction } = settings.sort
@@ -42,11 +52,15 @@ export function useComparisonTable(
     rows: sorted,
     columns: COLUMNS,
     summary: filter.active
-      ? `${shown.length} of ${shown.length} matching tests shown (${rows.length} total)`
-      : `${shown.length} of ${rows.length} tests shown`,
+      ? `${shown.length} of ${shown.length} matching tests shown (${total} total)`
+      : `${shown.length} of ${total} tests shown`,
     geomean,
     empty:
-      rows.length === 0 ? 'No test has a value for this metric.' : 'No tests match the filter.',
+      rows.length === 0
+        ? 'No test has a value for this metric.'
+        : matching.length === 0
+          ? 'No tests match the filter.'
+          : 'Every matching test is classified as noise.',
     sort,
     onSort,
   }
