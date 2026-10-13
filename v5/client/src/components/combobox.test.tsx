@@ -186,6 +186,29 @@ describe('Combobox with local suggestions', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('picks a suggestion moved to with End, on Enter', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker />)
+
+    await user.type(input(), 'linu')
+    await user.keyboard('{End}{Enter}')
+
+    expect(value()).toBe('linux-aarch64')
+  })
+
+  it('picks the suggestion the pointer is on, on Enter, among those for the text', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker />)
+
+    // Pasted rather than typed: React Aria highlights nothing on hover after typing.
+    await user.click(input())
+    await user.paste('linu')
+    await user.hover(screen.getByRole('option', { name: 'linux-aarch64' }))
+    await user.keyboard('{Enter}')
+
+    expect(value()).toBe('linux-aarch64')
+  })
+
   it('picks the highlighted suggestion on Enter, even when the text matches another', async () => {
     const user = userEvent.setup()
     renderWithProviders(<MachinePicker machines={NESTED} />)
