@@ -1,5 +1,4 @@
 import clsx from 'clsx'
-import help from '../../components/help-label.module.css'
 import { plural } from '../../format'
 import { CATEGORIES, CATEGORY_LABELS, COMPARABLE, formatShare, type Category } from './comparison'
 import styles from './compare.module.css'
@@ -7,8 +6,8 @@ import styles from './compare.module.css'
 const isComparable = (category: Category) => (COMPARABLE as readonly string[]).includes(category)
 
 const NA_HELP =
-  'Tests with a value on both sides, but a Value A of 0: their Delta %, Ratio and Status are N/A. ' +
-  'Tests with a value on one side only count in Only in A or Only in B.'
+  'Tests with a value on both sides, but a Value A of 0: their Delta %, Ratio and Status are ' +
+  'N/A. Tests with a value on one side only count in Only in A or Only in B.'
 
 /**
  * How many tests fall in each category (CP4), with the share of each comparable category among the
@@ -30,7 +29,7 @@ export function SummaryBar({ counts }: { counts: Record<Category, number> }) {
         return (
           <li key={category} className={clsx(styles.category, count === 0 && styles.muted)}>
             <span className={clsx(styles.dot, styles[category])} aria-hidden="true" />
-            <span title={tooltip} className={tooltip && help.label}>
+            <span title={tooltip} className={tooltip && styles.explained}>
               {CATEGORY_LABELS[category]}{' '}
               {share ? `${count} (${formatShare(count, comparable)})` : count}
             </span>
