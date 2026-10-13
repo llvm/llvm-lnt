@@ -186,6 +186,29 @@ describe('Combobox with local suggestions', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('picks a suggestion moved to with End, on Enter', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker />)
+
+    await user.type(input(), 'linu')
+    await user.keyboard('{End}{Enter}')
+
+    expect(value()).toBe('linux-aarch64')
+  })
+
+  it('picks the suggestion the pointer is on, on Enter, among those for the text', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker />)
+
+    // Pasted rather than typed: React Aria highlights nothing on hover after typing.
+    await user.click(input())
+    await user.paste('linu')
+    await user.hover(screen.getByRole('option', { name: 'linux-aarch64' }))
+    await user.keyboard('{Enter}')
+
+    expect(value()).toBe('linux-aarch64')
+  })
+
   it('picks the highlighted suggestion on Enter, even when the text matches another', async () => {
     const user = userEvent.setup()
     renderWithProviders(<MachinePicker machines={NESTED} />)
@@ -610,6 +633,21 @@ describe('Combobox with server-side suggestions', () => {
     await waitFor(() => expect(value()).toBe(COMMITS[2].value))
     expect(input()).toHaveValue('014621e')
     expect(listbox()).toBeNull()
+  })
+
+  it('enters the text typed, rather than a suggestion for earlier text the pointer is on', async () => {
+    serveCommits()
+    const user = userEvent.setup()
+    renderWithProviders(<ServerCommitPicker delayMs={60_000} />)
+    await user.click(input())
+    await user.paste(COMMITS[2].value)
+    // The list opens on the suggestions for no text, which the pointer highlights one of.
+    await waitFor(() => expect(options()).toHaveLength(2))
+    await user.hover(screen.getAllByRole('option')[0])
+
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(value()).toBe(COMMITS[2].value))
   })
 
   it('searches a held Enter at once, even for typed text', async () => {

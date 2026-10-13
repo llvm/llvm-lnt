@@ -232,6 +232,9 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
   return <div className={styles.status}>{message}</div>
 }
 
+/** The keys that move the highlight among the suggestions. */
+const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'])
+
 /**
  * The input and its button. The list opens when the user types, as well as on ArrowDown and from
  * the button, as React Aria opens it.
@@ -241,6 +244,11 @@ function EmptyState({ suggestions }: { suggestions: Suggestions }) {
  * does. An Enter pressed before the suggestions for its text have arrived is held until they do,
  * and dropped if the text changes meanwhile, as leaving the combobox does by putting back the
  * value's text.
+ *
+ * While the list still shows the suggestions for earlier text, as it does until those for the
+ * text typed arrive (AR9), only a suggestion the user moved to from the keyboard since the text last
+ * changed counts as highlighted. The one the pointer is on, which React Aria highlights too, even
+ * when the list opens under a resting pointer, is not for this text: Enter must not pick it.
  */
 function Field({
   query,
@@ -261,6 +269,8 @@ function Field({
   })
   // The text the held Enter was pressed on, if any.
   const held = useRef<string | null>(null)
+  // Whether the user has moved the highlight from the keyboard since the text last changed.
+  const navigated = useRef(false)
 
   const enter = (entered: string) => {
     const match = exactMatch(suggestions.items, entered)
@@ -283,8 +293,11 @@ function Field({
   })
 
   const onKeyDownCapture = (event: KeyboardEvent) => {
-    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-    if (state.selectionManager.focusedKey !== null || query === '') return
+    if (event.nativeEvent.isComposing) return
+    if (NAVIGATION_KEYS.has(event.key)) navigated.current = true
+    if (event.key !== 'Enter' || query === '') return
+    const highlighted = state.selectionManager.focusedKey !== null
+    if (highlighted && (navigated.current || !suggestions.isLoading)) return
     // Ours rather than React Aria's, which would put the value's text back, and no form's either.
     event.preventDefault()
     event.stopPropagation()
@@ -300,7 +313,10 @@ function Field({
     <div
       className={styles.field}
       onKeyDownCapture={onKeyDownCapture}
-      onInput={() => state.open()}
+      onInput={() => {
+        navigated.current = false
+        state.open()
+      }}
     >
       {children}
       <Button className={styles.button}>▾</Button>
