@@ -74,8 +74,8 @@ accept, or that collides with a built-in column (D5), is an error.
 
 The v4 instance may report the schema inaccurately (see :ref:`mirror_v4`), so
 ``--schema FILE`` replaces the derived schema with a v5 schema document, in the
-format ``GET /api/suites/{name}`` returns. Its ``name`` is replaced by the
-target suite's. It must declare every metric and machine field that the derived
+format ``GET /api/suites/{name}`` returns. Its ``name`` must be the target
+suite's, and it must declare every metric and machine field that the derived
 schema declares, with the same type; it may differ in anything else.
 
 Machines
