@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigationType } from 'react-router'
-import { AGGREGATIONS, type Aggregation } from '../../aggregation'
+import { AGGREGATION_OPTIONS, AGGREGATIONS, type Aggregation } from '../../aggregation'
 import { useMachineNames } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
@@ -75,8 +75,6 @@ const PARAMS = {
   regressions: enumParam(ANNOTATIONS.map((option) => option.value), 'off'),
   baseline: baselineParam(),
 }
-
-const AGGREGATION_OPTIONS = AGGREGATIONS.map((value) => ({ value, label: value }))
 
 const NO_NAMES: string[] = []
 const NO_SUITES: SuiteSchema[] = []

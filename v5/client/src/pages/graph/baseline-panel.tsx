@@ -4,9 +4,9 @@ import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { Select } from '../../components/select'
-import type { Suggestion, Suggestions } from '../../components/suggestions'
+import { NO_SUGGESTIONS, type Suggestion } from '../../components/suggestions'
 import { formatBaseline, type Baseline, type BaselineState } from './baselines'
-import { ChipList } from './chip-list'
+import { ChipList } from '../../components/chip-list'
 import styles from './graph.module.css'
 
 interface Props {
@@ -123,15 +123,4 @@ function BaselineForm({ suites, onAdd }: Pick<Props, 'suites' | 'onAdd'>) {
       )}
     </div>
   )
-}
-
-/** The suggestions of the commit picker until a machine is picked: none, as it is disabled. */
-const NO_SUGGESTIONS: Suggestions = {
-  items: [],
-  search: () => {},
-  hasMore: false,
-  loadMore: () => {},
-  isLoading: false,
-  isLoadingMore: false,
-  error: null,
 }

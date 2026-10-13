@@ -63,6 +63,14 @@ export function currentUrl() {
   return screen.getByTestId('url').textContent
 }
 
+/** The query of the URL the page is at, by parameter, whatever their order. */
+export function query() {
+  const params = new URLSearchParams(currentUrl()!.split('?')[1] ?? '')
+  const entries: Record<string, string[]> = {}
+  for (const [key, value] of params) (entries[key] ??= []).push(value)
+  return entries
+}
+
 /** The suites the mocked API holds, as it lists them, and how many times it was asked. */
 export interface SuiteStore {
   suites: SuiteSchema[]

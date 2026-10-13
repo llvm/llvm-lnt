@@ -13,6 +13,7 @@ import { useScopeGate } from '../../auth/scope'
 import { ButtonLink } from '../../components/button-link'
 import { DataTable } from '../../components/data-table'
 import { ErrorMessage, Loaded } from '../../components/feedback'
+import { HelpLabel } from '../../components/help-label'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
@@ -108,10 +109,9 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
   return (
     <InfoRow
       label={
-        // Not a <label>, which would flip the flag when clicked for its help.
-        <span id={labelId} className={styles.help} title={UNTRACKED_HELP}>
+        <HelpLabel id={labelId} help={UNTRACKED_HELP}>
           Tracked
-        </span>
+        </HelpLabel>
       }
     >
       {/* Not optimistic: the box shows the flag the API holds. While a change is under way, the

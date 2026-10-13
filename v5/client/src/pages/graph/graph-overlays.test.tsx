@@ -8,7 +8,7 @@ import type { SuiteSchema } from '../../api/suites'
 import type { PlotGeometry } from '../../components/chart'
 import { cursorPage, metric, regression, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockRegressions, renderPage, search } from '../../test/page'
+import { currentUrl, gate, main, mockRegressions, query, renderPage, search } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
@@ -19,7 +19,6 @@ import {
   listed,
   mockWorld,
   pointOf,
-  query,
   testTable,
   type Sample,
 } from './graph-world'

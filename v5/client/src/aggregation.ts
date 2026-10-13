@@ -11,6 +11,9 @@ export type Aggregation = Schemas['SampleAggregation']
 /** Every aggregation, the default first. */
 export const AGGREGATIONS: readonly Aggregation[] = ['median', 'mean', 'min', 'max']
 
+/** Every aggregation, as the options of a `Select`. */
+export const AGGREGATION_OPTIONS = AGGREGATIONS.map((value) => ({ value, label: value }))
+
 /** The median of `sorted`, which is sorted: the mean of the middle two for an even count (O9). */
 function median(sorted: number[]): number {
   const middle = sorted.length >> 1

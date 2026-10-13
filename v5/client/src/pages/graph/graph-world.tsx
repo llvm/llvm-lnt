@@ -13,14 +13,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { chartProps } from '../../test/chart-props'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
 import { mockApi } from '../../test/mock-api'
-import {
-  currentUrl,
-  main,
-  mockCommits,
-  mockMachines,
-  mockSuites,
-  mockTests,
-} from '../../test/page'
+import { main, mockCommits, mockMachines, mockSuites, mockTests } from '../../test/page'
 import { server } from '../../test/server'
 
 /** libcxx, with two numeric metrics and one that cannot be plotted. */
@@ -181,14 +174,6 @@ export async function addMachine(name: string) {
   await waitFor(() => expect(input).toBeEnabled())
   await user.type(input, name)
   await user.click(await screen.findByRole('option', { name }))
-}
-
-/** The query of the URL the page is at, by parameter, whatever their order. */
-export function query() {
-  const params = new URLSearchParams(currentUrl()!.split('?')[1] ?? '')
-  const entries: Record<string, string[]> = {}
-  for (const [key, value] of params) (entries[key] ??= []).push(value)
-  return entries
 }
 
 export const GRAPHED = '/graph?suite=libcxx&machine=m1&machine=m2&metric=execution_time'
