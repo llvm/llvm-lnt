@@ -24,6 +24,7 @@ import {
   type ComparisonRow,
   type NoiseKnob,
 } from './comparison'
+import { AddToRegression } from './add-to-regression'
 import { comparisonCsv, sortComparison, tableColumns, type OptionalKey } from './columns'
 import { ColumnsMenu } from './columns-menu'
 import { CompareChart } from './compare-chart'
@@ -256,6 +257,7 @@ function ComparePage() {
     () => sorted.filter((row) => !hiddenTests.has(row.test)),
     [sorted, hiddenTests],
   )
+  const complete = tests !== undefined
   const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
   // The same, in no particular order, for the chart, which sorts them its own way: sorting the
   // table by another column leaves it as it is.
@@ -264,11 +266,16 @@ function ComparePage() {
     [shown, hiddenTests],
   )
   // Whether to show the Profile column: whether any test of the comparison has a profile, whatever
-  // the filter, "Hide noise" and the hidden tests, so that the columns stay the same as they change.
+  // the filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
   const { links } = profiles
   const profiled = useMemo(
     () => allTests?.some((test) => links.has(test)) ?? false,
     [allTests, links],
+  )
+  // The tests Add to Regression makes indicators of: the compared ones with a value on side B.
+  const regressionTests = useMemo(
+    () => (complete ? compared.filter((row) => row.b !== null).map(testOf) : undefined),
+    [complete, compared],
   )
   const csv = useMemo(
     () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
@@ -282,7 +289,6 @@ function ComparePage() {
     () => (shared ? [...hiddenTests].sort(compareStrings) : NO_TESTS),
     [hiddenTests, shared],
   )
-  const complete = tests !== undefined
   useEffect(() => {
     if (shared || complete) update({ hidden_test: hiddenSorted })
   }, [hiddenSorted, shared, complete, update])
@@ -363,6 +369,14 @@ function ComparePage() {
             onHideNoise={(hide) => update({ hide_noise: hide })}
           />
         </div>
+        <AddToRegression
+          suite={b.settings.suite}
+          machine={b.settings.machine}
+          commit={b.settings.commit}
+          metric={metric?.name ?? ''}
+          tests={regressionTests}
+          pickKey={`${b.settings.suite}\0${swapped}`}
+        />
       </ControlsPanel>
       {failed.length > 0 && (
         <ErrorMessage
