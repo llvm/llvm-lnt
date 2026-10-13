@@ -49,9 +49,14 @@ within the UI causes a full page reload.
   and every count derived from them, as soon as the page loads. A value the
   page cannot use (a machine or test that does not exist, a metric the page
   does not offer) is dropped, and the page uses its default for that setting
-  instead. Only a successful response can show that a value is unusable: a
-  failed request drops nothing. A setting holding several values repeats its
-  parameter once per value, as the API does (see I3).
+  instead. Only a complete response can show that a value is unusable -- for
+  a list, every page of it: a request that is still loading, or has failed,
+  drops nothing. The same holds for what a page keeps selected while what it is
+  chosen from changes (the Graph's selected tests when the machines change,
+  say): an item is dropped once every list it depends on has loaded whole, and
+  not before. A setting holding several values repeats its parameter once per
+  value, as the API does (see I3). A form's inputs -- what a panel is about to
+  create or add -- are not settings, and are not kept in the URL.
 
 
 ## AR3: Page Hierarchy
@@ -140,6 +145,10 @@ arrive, gives way to the error in the same way if the first page cannot be
 fetched. If a later page cannot be, it keeps the rows it has, says that they are
 incomplete, and offers to load the rest.
 
+Outside a table too, when something a page needs cannot be fetched, the page
+says what could not be loaded, with a way to try again, and keeps showing what
+it can.
+
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
 get the same answer.
@@ -176,6 +185,8 @@ Test Suites tabs' searches (TS1), commit pickers (AR15) and the regression
 picker (CP9) -- ask the server again as the user types (debounced), from the
 first page. A response for earlier text never replaces the one for the current
 text, though the previous results may stay up until the current ones arrive.
+A picker among them loads its suggestions a page at a time: scrolling to the end
+of them loads the next page.
 
 
 ## AR10: Range Selection
@@ -268,8 +279,7 @@ machine can have tens of thousands of commits. The search covers the display
 value the suggestions show only if the schema marks the display field
 `searchable` (see O4).
 
-A page of matches need not hold every matching commit: scrolling to the end of
-the suggestions loads the next page. A commit the picker is given rather than
+A commit the picker is given rather than
 chosen -- restored from the URL, or kept while its filters change -- is looked
 up with the picker's filters plus `commit=` (see E3). The lookup returns
 the commit, with its display value, only if the picker would offer it.

@@ -54,7 +54,7 @@ performance trends across all test suites.
   fetched, including after the commit range changes, rather than the chart of
   the previous range.
 - Error state: the card says why its data could not be fetched, with a way to
-  try again, as AR7 describes for a table.
+  try again (see AR7).
 
 ## DA3: Why per-machine traces (not a single aggregate)
 
