@@ -308,7 +308,7 @@ class TestPagination:
     def test_the_filter_survives_a_page_boundary(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "a", "samples": [{"execution_time": 1.0}] * 5}, entry("b"))
+        run = submit(entry("a", *[{"execution_time": 1.0}] * 5), entry("b"))
 
         served = walk(api_client, run, "test=a&limit=2")
 

@@ -739,6 +739,21 @@ class TestRunOperations:
         assert submission["machine"]["$ref"].endswith("/MachineObject")
         assert submission["commit"]["$ref"].endswith("/CommitObject")
 
+    def test_a_submitted_sample_takes_the_values_a_sample_is_read_back_with(
+        self, client: TestClient
+    ) -> None:
+        # O1: a sample holds only the metrics it has a value for, so a value is never null, and
+        # each is a single value.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        entry = schemas["TestEntry"]
+        samples = entry["properties"]["samples"]
+        read_back = schemas["Sample"]["properties"]["metrics"]["additionalProperties"]
+
+        assert entry["additionalProperties"] is False
+        assert set(entry["required"]) == {"name", "samples"}
+        assert samples["minItems"] == 1
+        assert samples["items"]["additionalProperties"] == read_back
+
 
 class TestReadOperations:
     """I8: the lists that read runs, tests and samples back."""
@@ -837,21 +852,6 @@ class TestReadOperations:
 
         assert set(sample["required"]) == set(sample["properties"]) == {"test", "metrics"}
         assert {"type": "null"} not in values["anyOf"]
-
-    def test_a_submitted_sample_takes_the_values_a_sample_is_read_back_with(
-        self, client: TestClient
-    ) -> None:
-        # O1: a sample holds only the metrics it has a value for, so a value is never null, and
-        # each is a single value.
-        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
-        entry = schemas["TestEntry"]
-        samples = entry["properties"]["samples"]
-        read_back = schemas["Sample"]["properties"]["metrics"]["additionalProperties"]
-
-        assert entry["additionalProperties"] is False
-        assert set(entry["required"]) == {"name", "samples"}
-        assert samples["minItems"] == 1
-        assert samples["items"]["additionalProperties"] == read_back
 
 
 RUN_PROFILES = RUN_PROFILES_PATH

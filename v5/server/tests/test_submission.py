@@ -435,6 +435,10 @@ class TestSampleRows:
             }
         ]
 
+    def test_each_empty_sample_yields_a_row(self) -> None:
+        # O1: `[{}, {}]` records that the test ran twice without a value for any metric.
+        assert one_test({}, {}).samples == [row(), row()]
+
     def test_yields_one_row_per_sample_in_order(self) -> None:
         assert one_test(
             {"execution_time": 0.1}, {"execution_time": 0.2}, {"execution_time": 0.3}

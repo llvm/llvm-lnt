@@ -540,23 +540,6 @@ class TestMetadataReconciliation:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    @pytest.mark.parametrize(
-        "tests",
-        [
-            [entry("suite/one", {"execution_tmie": 1.5})],
-            [{"name": "suite/one", "samples": []}],
-            [{"name": "suite/one", "samples": [{}], "execution_time": 1.5}],
-        ],
-    )
-    def test_refuses_a_test_entry_that_does_not_validate(
-        self, submit: Callable[..., Any], tests: list[Any]
-    ) -> None:
-        # An undeclared metric in a sample (O1, E4), and a malformed entry.
-        response = submit(tests=tests)
-
-        assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
-
 
 class TestOrdinal:
     """O6, inline: a submission may place a commit in the order but may never move it."""
@@ -825,15 +808,29 @@ class TestSamples:
         with counting_statements("INSERT INTO nts.sample") as many_rows:
             submitted(
                 tests=[
-                    {
-                        "name": f"suite/test-{index:04d}",
-                        "samples": [{"execution_time": float(index)}] * 10,
-                    }
+                    entry(f"suite/test-{index:04d}", *[{"execution_time": float(index)}] * 10)
                     for index in range(100)
                 ]
             )
 
         assert len(many_rows) == len(one_row) == 1
+
+    @pytest.mark.parametrize(
+        "tests",
+        [
+            [entry("suite/one", {"execution_tmie": 1.5})],
+            [{"name": "suite/one", "samples": []}],
+            [{"name": "suite/one", "samples": [{}], "execution_time": 1.5}],
+        ],
+    )
+    def test_refuses_a_test_entry_that_does_not_validate(
+        self, submit: Callable[..., Any], tests: list[Any]
+    ) -> None:
+        # An undeclared metric in a sample (O1, E4), and a malformed entry.
+        response = submit(tests=tests)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 class TestMetricsNamedLikeTheKeysOfATestEntry:

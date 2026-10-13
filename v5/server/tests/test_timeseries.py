@@ -573,10 +573,7 @@ class TestQueryPagination:
         # Three commits of three tests, each measured twice, so that page boundaries fall both
         # between distinct sort values and between rows the sort leaves tied.
         for c in range(3):
-            entries = [
-                {"name": f"t{t}", "samples": [{"execution_time": 10.0 * c + t}] * 2}
-                for t in range(3)
-            ]
+            entries = [entry(f"t{t}", *[{"execution_time": 10.0 * c + t}] * 2) for t in range(3)]
             submit("linux", f"c{c}", *entries)
             place(f"c{c}", ordinal=c)
 
