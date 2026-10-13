@@ -13,6 +13,7 @@ import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings, plural } from '../../format'
 import { isNumeric, labelOf, type Metric } from '../../schema'
 import { useDropUnusable, useUrlState, useVisitKey } from '../../url-state'
+import { ValueStore } from '../../value-store'
 import {
   compareRows,
   geomeanRow,
@@ -25,6 +26,7 @@ import {
 } from './comparison'
 import { comparisonCsv, sortComparison, tableColumns, type OptionalKey } from './columns'
 import { ColumnsMenu } from './columns-menu'
+import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
 import { HIDDEN_IN_URL, PARAMS, sideChanges, type Settings } from './settings'
@@ -155,6 +157,9 @@ function ComparePage() {
   // what it holds in memory, such as its runs selected, rather than reading it from the URL again,
   // which cannot say that none is.
   const [swapped, setSwapped] = useState(false)
+  // The test whose row is hovered in the table, and the one whose bar is hovered on the chart (CP5).
+  const [emphasis] = useState(() => new ValueStore<string | null>(null))
+  const [hovered] = useState(() => new ValueStore<string | null>(null))
   const first = useSide(swapped ? 'b' : 'a', settings, update, suites)
   const second = useSide(swapped ? 'a' : 'b', settings, update, suites)
   const [a, b] = swapped ? [second, first] : [first, second]
@@ -368,6 +373,13 @@ function ComparePage() {
         <Loading label={`Loading samples: ${loaded} of ${chosen.length} runs...`} />
       ) : (
         <>
+          <CompareChart
+            rows={compared}
+            noisePct={noise.pct}
+            revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
+            emphasis={emphasis}
+            hovered={hovered}
+          />
           <SummaryBar counts={counts} />
           <CompareTable
             rows={sorted}
@@ -384,6 +396,8 @@ function ComparePage() {
             geomean={geomean}
             csv={csv}
             busy={reclassifying}
+            hovered={hovered}
+            emphasis={emphasis}
             empty={
               rows.length === 0
                 ? 'No test has a value for this metric.'

@@ -1,5 +1,10 @@
 /* The Compare page (CP1-CP7). */
 
+/* The chart (CP3). */
+.chart {
+  height: 360px;
+}
+
 /* The two sides, the swap button between them. */
 .sides {
   display: grid;
@@ -122,6 +127,10 @@
 .testRow {
   cursor: pointer;
   user-select: none;
+}
+
+.testRow:has(.hovered) {
+  background: var(--lnt-panel);
 }
 
 .testRow:has(> td > input[type='checkbox']:not(:checked)) {

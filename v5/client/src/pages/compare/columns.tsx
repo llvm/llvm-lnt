@@ -47,13 +47,13 @@ function formatValue(value: number | null): string {
 }
 
 /** Delta %, with its sign, to 2 decimal places. */
-function formatDeltaPct(value: number | null): string {
+export function formatDeltaPct(value: number | null): string {
   if (value === null) return NA
   return `${value > 0 ? '+' : value < 0 ? '-' : ''}${Math.abs(value).toFixed(2)}%`
 }
 
 /** A ratio, to 4 decimal places. */
-function formatRatio(value: number | null): string {
+export function formatRatio(value: number | null): string {
   return value === null ? NA : value.toFixed(4)
 }
 

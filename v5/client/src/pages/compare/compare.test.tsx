@@ -1,6 +1,8 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { act } from 'react'
+import type { PlotData, PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
+import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
 import { currentUrl, headersOf, main, query, renderPage, search, table } from '../../test/page'
@@ -8,7 +10,17 @@ import { pickOption, selectButton } from '../../test/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { mockClipboard } from '../../test/clipboard'
 import { uuidOf } from '../../test/fixtures'
+import { chartProps } from '../../test/chart-props'
 import { COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
+
+// The tests check what the page hands Plotly to draw (see test/chart.tsx).
+vi.mock('../../components/chart', () => import('../../test/chart'))
+
+/** What the page last handed its chart. */
+const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
+
+/** The bars of the chart, as their log2 ratios. */
+const barsOf = () => (chart().data[0] as PlotData).y as number[]
 
 /** The comparison of COMPARED: a is regressed, b is on side A only, c on side B only. */
 const ROWS = [
@@ -812,6 +824,96 @@ describe('Copy as CSV (CP2)', () => {
       'a,100,100.5,0.5,0.5,1.005,Regressed',
       'c,,5,,,,',
     ])
+  })
+})
+
+describe('the chart (CP3)', () => {
+  it('plots a bar per compared test that can be, by ratio', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+
+    // b and c have a value on one side only.
+    expect(barsOf()).toEqual([Math.log2(1.005), Math.log2(1.5)])
+
+    await userEvent.setup().click(showBox('d'))
+    await waitFor(() => expect(barsOf()).toEqual([Math.log2(1.005)]))
+  })
+
+  it("draws the Delta % knob's noise band", async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&noise_pct=5`)
+    await comparison()
+
+    expect(chart().layout.shapes?.map((shape) => shape.y0)).toEqual([
+      Math.log2(1.05),
+      Math.log2(0.95),
+    ])
+  })
+
+  it('says when there is nothing to plot', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&hidden_test=a&hidden_test=d`)
+    await comparison()
+
+    expect(chart().layout.annotations?.[0].text).toBe('No data to plot')
+    expect(screen.getByRole('img', { name: 'Ratio of B to A by test: no data to plot' }))
+  })
+
+  it('labels the y-axis with the percentage changes of the range zoomed to, until reset', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const ticks = () => chart().layout.yaxis?.ticktext
+
+    expect(ticks()).toContain('+50%')
+    act(() =>
+      chart().onRelayout?.({
+        'yaxis.range[0]': Math.log2(0.98),
+        'yaxis.range[1]': Math.log2(1.02),
+      } as PlotRelayoutEvent),
+    )
+    expect(ticks()).toContain('+1%')
+    expect(ticks()).not.toContain('+50%')
+
+    act(() => chart().onRelayout?.({ 'yaxis.autorange': true } as PlotRelayoutEvent))
+    expect(ticks()).toContain('+50%')
+  })
+
+  it('keeps a zoom across settings, until the comparison is replaced', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+    const revision = chart().layout.uirevision
+
+    await pickOption('Sample aggregation', 'max')
+    await waitFor(() => expect(query().sample_agg).toEqual(['max']))
+    expect(chart().layout.uirevision).toBe(revision)
+
+    await user.click(runBox('2', 'A'))
+    await waitFor(() => expect(chart().layout.uirevision).not.toBe(revision))
+  })
+
+  it('highlights the row of the bar hovered, and outlines the bar of the row hovered', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const name = (test: string) => screen.getByRole('cell', { name: test }).querySelector('span')
+    const event = (index: number) =>
+      ({ points: [{ data: chart().data[0], pointNumber: index }] }) as unknown as PlotMouseEvent &
+        PlotHoverEvent
+
+    act(() => chart().onHover?.(event(1)))
+    expect(name('d')).toHaveClass('hovered')
+    act(() => chart().onUnhover?.(event(1)))
+    expect(name('d')).not.toHaveClass('hovered')
+
+    const data = chart().data
+    fireEvent.mouseEnter(screen.getByRole('cell', { name: 'a' }).closest('tr')!)
+    expect(chart().layout.shapes).toEqual([expect.objectContaining({ type: 'rect', x0: -0.5 })])
+    // The bars themselves are left as they are.
+    expect(chart().data).toBe(data)
   })
 })
 

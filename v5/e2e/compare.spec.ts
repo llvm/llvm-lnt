@@ -8,6 +8,7 @@ import type { components } from '../client/src/api/schema.d.ts'
 import { LINUX } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { pickOption } from './select.ts'
+import { plotOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
@@ -33,6 +34,10 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   const statuses = await column(comparison, 6)
   expect(statuses.slice(1).every((status) => status !== 'N/A')).toBe(true)
   await expect(page.getByRole('list', { name: 'Summary' })).toContainText('Only in A 0')
+  // A bar per compared test.
+  const drawn = () =>
+    plotOf(page).evaluate((element) => (element as PlotDiv)._fullData?.[0]?.y.length ?? 0)
+  await expect.poll(drawn).toBe((await rows(comparison).count()) - 1)
 })
 
 test('compares two commits chosen from scratch', async ({ page, request }) => {
