@@ -72,6 +72,12 @@ export function useComparisonTable(
     [sorted, hiddenTests],
   )
   const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  // The same, in no particular order, for the chart, which sorts them its own way: sorting the
+  // table by another column leaves it as it is.
+  const plotted = useMemo(
+    () => shown.filter((row) => !hiddenTests.has(row.test)),
+    [shown, hiddenTests],
+  )
   const csv = useMemo(
     () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
     [columns, compared, geomean],
@@ -116,5 +122,7 @@ export function useComparisonTable(
     filter,
     /** How many of the tests the filter keeps fall in each category of the summary bar (CP4). */
     counts,
+    /** The compared rows (CP2), in no particular order: those the chart plots. */
+    plotted,
   }
 }
