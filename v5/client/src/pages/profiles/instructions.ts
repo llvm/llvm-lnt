@@ -104,3 +104,25 @@ export function textColumns(text: string): number {
   }
   return widest
 }
+
+/**
+ * How many columns of a fixed-width font the widest of `values` takes, whichever way it is shown
+ * (PF6), so that a column sized to it never cuts one off. A value is shown to 6 significant digits
+ * but with its whole integer part (AR6): none from 1 up is longer than both 7 characters (`1.23456`)
+ * and the largest value, and none below 1 longer than `0.`, the smallest value's zeros after the
+ * point, and 6 digits. No percentage is longer than those.
+ */
+export function valueColumns(values: InstructionValues | undefined): number {
+  let largest = 0
+  let smallest = Infinity
+  for (const raw of values?.raw ?? []) {
+    if (raw > largest) largest = raw
+    if (raw > 0 && raw < smallest) smallest = raw
+  }
+  let columns = Math.max(7, formatNumber(largest).length)
+  if (smallest < 1) {
+    const zeros = Math.max(0, -Math.floor(Math.log10(smallest)) - 1)
+    columns = Math.max(columns, 2 + zeros + 6)
+  }
+  return columns
+}

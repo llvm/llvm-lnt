@@ -1,8 +1,8 @@
 /**
  * The data of a profile (E7), read by its UUID: its metadata and top-level counters, its functions,
  * and a function's disassembly. A profile never changes once submitted (O7), so none of it is ever
- * fetched again while it is cached. The Profiles page keeps all of it for as long as it is open,
- * and forgets it once it has left (PF8; see `forgetProfiles`).
+ * fetched again while it is cached. The Profiles page keeps all of it for as long as it is open
+ * (PF8), and forgets it once it has left, as profiles can be large (see `forgetProfiles`).
  */
 
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
@@ -69,7 +69,7 @@ export function disassemblyQuery(suite: string, uuid: string, name: string) {
 
 /**
  * Forget the profile data that nothing shows, which the Profiles page keeps for as long as it is
- * open (PF8), once it has left.
+ * open (PF8), once it has left: PF8 lets it, and a profile can be large (O7).
  */
 export function forgetProfiles(client: QueryClient): void {
   forgetEverySuiteLater(client, queryKeys.profiles)

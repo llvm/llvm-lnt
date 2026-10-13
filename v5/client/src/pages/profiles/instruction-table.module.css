@@ -77,8 +77,8 @@
 
 /*
  * A cell's content, cut to the height of a row, should an instruction's text hold a line break, and
- * as wide as its column's widest, in a fixed-width font, so that the column holds still while rows
- * are rendered and dropped.
+ * at least as wide as its column's widest, in a fixed-width font, so that the column holds still
+ * while rows are rendered and dropped. It fills a column that its header makes wider.
  */
 .content {
   composes: mono from '../../components/data-table.module.css';
@@ -89,16 +89,16 @@
 }
 
 .value {
-  width: var(--value-width);
+  min-width: var(--value-width);
   text-align: right;
 }
 
 .address {
-  width: var(--address-width);
+  min-width: var(--address-width);
 }
 
 .text {
-  width: var(--text-width);
+  min-width: var(--text-width);
 }
 
 .spacer {

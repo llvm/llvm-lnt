@@ -124,7 +124,8 @@ describe('InstructionTable', () => {
     expect(rowOf(0)).toHaveTextContent('insn 0')
 
     // Scrolled to the 50,000th row: those around it are rendered instead.
-    const scroller = table.parentElement!
+    const scroller = screen.getByRole('region', { name: 'Disassembly' })
+    expect(scroller).toContainElement(table)
     scroller.scrollTop = 50_000 * 24
     fireEvent.scroll(scroller)
 

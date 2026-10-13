@@ -1,11 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
-import { formatNumber } from '../../format'
 import { heatColor } from './heat'
 import {
   formatInstructionValue,
   textColumns,
+  valueColumns,
   type Instruction,
   type InstructionValues,
   type ValueMode,
@@ -41,17 +41,6 @@ function instructionWidths(instructions: readonly Instruction[]) {
     text = Math.max(text, textColumns(instruction.text))
   }
   return { address: formatAddress(address).length, text }
-}
-
-/**
- * How wide the value column must be, in columns of a fixed-width font, for every value. A value is
- * shown to 6 significant digits but with its whole integer part (AR6), so none is longer than both
- * 7 characters (`1.23456`) and the largest value. No percentage is either.
- */
-function valueWidth(values: InstructionValues | undefined): number {
-  let largest = 0
-  for (const raw of values?.raw ?? []) largest = Math.max(largest, raw)
-  return Math.max(7, formatNumber(largest).length)
 }
 
 interface Props {
@@ -94,7 +83,7 @@ export const InstructionTable = memo(function InstructionTable({
   const [height] = useState(rowHeight)
   // Apart, so that changing the counter does not go through every instruction's text again.
   const widths = useMemo(() => instructionWidths(instructions), [instructions])
-  const valueColumns = useMemo(() => valueWidth(values), [values])
+  const valueWidth = useMemo(() => valueColumns(values), [values])
   // The React Compiler cannot memoize what uses TanStack Virtual's result. There is no compiler here,
   // and the virtualizer is passed to no memoized computation, only read while rendering.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -124,7 +113,7 @@ export const InstructionTable = memo(function InstructionTable({
   const columns = counter === undefined ? 2 : 3
   const style = {
     '--row-height': `${height}px`,
-    '--value-width': `${valueColumns}ch`,
+    '--value-width': `${valueWidth}ch`,
     '--address-width': `${widths.address}ch`,
     '--text-width': `${widths.text}ch`,
   } as CSSProperties
@@ -134,8 +123,8 @@ export const InstructionTable = memo(function InstructionTable({
       {counter !== undefined && values === undefined && (
         <p className={styles.note}>This function does not have the counter {counter}.</p>
       )}
-      {/* Focusable, so that it can be scrolled from the keyboard. */}
-      <div ref={scroller} className={styles.scroller} tabIndex={0}>
+      {/* Focusable, so that it can be scrolled from the keyboard, and named for when it has focus. */}
+      <div ref={scroller} className={styles.scroller} tabIndex={0} role="region" aria-label={label}>
         <table
           className={styles.table}
           aria-label={label}

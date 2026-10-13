@@ -4,6 +4,7 @@ import {
   hottestOrder,
   instructionValues,
   textColumns,
+  valueColumns,
   type Instruction,
   type InstructionValues,
   type ValueMode,
@@ -97,5 +98,34 @@ describe('textColumns', () => {
     expect(textColumns('a\nlonger line')).toBe(11)
     expect(textColumns('longer line\na')).toBe(11)
     expect(textColumns('𝔸𝔹')).toBe(2)
+  })
+})
+
+describe('valueColumns', () => {
+  const modes: ValueMode[] = ['relative', 'absolute', 'cumulative']
+
+  it.each([
+    [[1, 2, 3]],
+    [[0.000123456, 5]],
+    [[0.5, 0.123456]],
+    [[0.000999999]],
+    [[1.23456, 0]],
+    [[123456789.5, 0.25]],
+    [[1e-9, 1]],
+  ])('is as wide as the widest of %j, however it is shown', (raws) => {
+    const values = instructionValues(instructions(...raws), 'cycles')!
+    const widest = Math.max(...modes.flatMap((mode) => shown(values, mode).map((s) => s.length)))
+    expect(valueColumns(values)).toBeGreaterThanOrEqual(widest)
+  })
+
+  it('fits a small value in full', () => {
+    const values = instructionValues(instructions(0.000123456), 'cycles')!
+    expect(formatInstructionValue(values, 0, 'absolute')).toBe('0.000123456')
+    expect(valueColumns(values)).toBe(11)
+  })
+
+  it('is 7 columns without values', () => {
+    expect(valueColumns(undefined)).toBe(7)
+    expect(valueColumns(instructionValues(instructions(0, 0), 'cycles'))).toBe(7)
   })
 })

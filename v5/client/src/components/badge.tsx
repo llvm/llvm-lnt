@@ -12,7 +12,7 @@ interface Props {
   children: ReactNode
 }
 
-/** A small grey label marking what it follows, which explains itself on hover. */
+/** A small label marking what it follows, grey unless colored, which explains itself on hover. */
 export function Badge({ help, color, children }: Props) {
   return (
     <span

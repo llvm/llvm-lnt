@@ -47,8 +47,9 @@ interface CommonProps {
   onPendingChange?: (pending: boolean) => void
   /**
    * What the list shows for a suggestion, if more than its text, such as a badge beside it. Its
-   * text is still what the input shows once it is picked, and what assistive technology reads.
-   * Memoize it, as every suggestion is rendered again when it changes.
+   * text is still what the input shows once it is picked, and what typing to it matches, whereas
+   * what this renders, badge included, is what assistive technology reads as its name. Memoize
+   * it, as every suggestion is rendered again when it changes.
    */
   renderSuggestion?: (suggestion: Suggestion) => ReactNode
   /**
@@ -253,7 +254,11 @@ function List({
       {/* Rendered again for a new `renderSuggestion`, which React Aria would not do on its own. */}
       <Collection items={suggestions.items} dependencies={[renderSuggestion]}>
         {(item) => (
-          <ListBoxItem id={item.key} textValue={item.text} className={shared.option}>
+          <ListBoxItem
+            id={item.key}
+            textValue={item.text}
+            className={clsx(shared.option, virtualized && styles.virtualOption)}
+          >
             {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
             {renderSuggestion ? () => renderSuggestion(item) : item.text}
           </ListBoxItem>

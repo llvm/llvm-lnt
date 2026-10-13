@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
@@ -405,6 +405,27 @@ function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion 
   )
 }
 
+describe('useLocalSuggestions', () => {
+  it('filters in a deferred render, loading until it has caught up with the text', () => {
+    const renders: { isLoading: boolean; items: string[] }[] = []
+    const { result } = renderHook(() => {
+      const suggestions = useLocalSuggestions(MACHINES)
+      renders.push({ isLoading: suggestions.isLoading, items: suggestions.items.map((i) => i.key) })
+      return suggestions
+    })
+    renders.length = 0
+
+    act(() => result.current.search('mac'))
+
+    // The text first, with the suggestions for the previous one, then the suggestions for it.
+    expect(renders[0]).toEqual({
+      isLoading: true,
+      items: ['linux-x86_64', 'linux-aarch64', 'macos-arm64'],
+    })
+    expect(renders.at(-1)).toEqual({ isLoading: false, items: ['macos-arm64'] })
+  })
+})
+
 describe('Combobox handing on what is picked', () => {
   /** A combobox adding the machines picked to a list, as the Graph page adds machine chips. */
   function MachineAdder() {
@@ -583,10 +604,17 @@ describe('Combobox with many suggestions, or more than text', () => {
     expect(shown[0]).toBe('function_0')
     expect(shown.length).toBeGreaterThan(0)
     expect(shown.length).toBeLessThan(100)
+    // Every suggestion counts, rendered or not, for assistive technology.
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '10000')
 
     await user.type(input(), 'function_999')
     expect(options()[0]).toBe('function_999')
     expect(options().every((option) => option?.startsWith('function_999'))).toBe(true)
+
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '11')
+
+    await user.type(input(), 'x')
+    expect(within(listbox()!).getByText('No matches.')).toBeVisible()
 
     await user.clear(input())
     await user.type(input(), 'function_')

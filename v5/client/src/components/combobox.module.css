@@ -60,3 +60,8 @@
   max-height: inherit;
   overflow: auto;
 }
+
+/* A virtualized list is not sized by its suggestions: a long name breaks anywhere rather than overflow. */
+.virtualOption {
+  overflow-wrap: anywhere;
+}
