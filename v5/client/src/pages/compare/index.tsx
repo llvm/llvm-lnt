@@ -273,9 +273,10 @@ function ComparePage() {
     [allTests, links],
   )
   // The tests Add to Regression makes indicators of: the compared ones with a value on side B.
+  // In no particular order, as the chart's, so that sorting the table does not change them.
   const regressionTests = useMemo(
-    () => (complete ? compared.filter((row) => row.b !== null).map(testOf) : undefined),
-    [complete, compared],
+    () => (complete ? plotted.filter((row) => row.b !== null).map(testOf) : undefined),
+    [complete, plotted],
   )
   const csv = useMemo(
     () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
@@ -375,7 +376,7 @@ function ComparePage() {
           commit={b.settings.commit}
           metric={metric?.name ?? ''}
           tests={regressionTests}
-          pickKey={`${b.settings.suite}\0${swapped}`}
+          swapped={swapped}
         />
       </ControlsPanel>
       {failed.length > 0 && (

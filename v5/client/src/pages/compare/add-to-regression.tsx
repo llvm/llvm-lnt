@@ -2,10 +2,11 @@ import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
-import { queryKeys } from '../../api/keys'
 import {
+  addIndicators,
   INDICATOR_BATCH,
   regressionChanged,
+  regressionCreated,
   regressionKey,
   TEXT_LENGTH,
   withIndicators,
@@ -41,8 +42,8 @@ interface Props {
   metric: string
   /** The tests of the compared rows with a value on side B, or undefined with no comparison. */
   tests: readonly string[] | undefined
-  /** What the regression picked belongs to: it is forgotten whenever this changes. */
-  pickKey: string
+  /** Whether the sides are swapped: the regression picked is forgotten whenever they are. */
+  swapped: boolean
 }
 
 /**
@@ -50,7 +51,7 @@ interface Props {
  * existing one, an indicator for each compared test with a value on side B, on side B's machine,
  * for the metric. It is a form: nothing of it is kept in the URL.
  */
-export function AddToRegression({ suite, machine, commit, metric, tests, pickKey }: Props) {
+export function AddToRegression({ suite, machine, commit, metric, tests, swapped }: Props) {
   const triage = useScopeGate('triage')
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -64,23 +65,12 @@ export function AddToRegression({ suite, machine, commit, metric, tests, pickKey
           body,
         }),
       ),
-    onSuccess: async (created, { suite: testsuite }) => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.regressions(testsuite),
-        refetchType: 'none',
-      })
-      // Stored after, which leaves it fresh, for its page to show at once.
-      queryClient.setQueryData(regressionKey(testsuite, created.uuid), created)
-    },
+    onSuccess: (created, { suite: testsuite }) =>
+      regressionCreated(queryClient, testsuite, created),
   })
   const add = useMutation({
     mutationFn: ({ suite: testsuite, regression, indicators }: AddVariables) =>
-      unwrap(
-        authedApi.POST('/api/suites/{testsuite}/regressions/{uuid}/indicators', {
-          params: { path: { testsuite, uuid: regression.uuid } },
-          body: { indicators },
-        }),
-      ),
+      addIndicators(testsuite, regression.uuid, indicators),
     // A fetch of the regression under way could land after the answer, and show it as it was.
     onMutate: ({ suite: testsuite, regression }) =>
       queryClient.cancelQueries({ queryKey: regressionKey(testsuite, regression.uuid) }),
@@ -99,6 +89,8 @@ export function AddToRegression({ suite, machine, commit, metric, tests, pickKey
   else if (tests.length > INDICATOR_BATCH) {
     why = `One request can add at most ${plural(INDICATOR_BATCH, 'indicator')}: hide some tests.`
   }
+
+  const blocked = why !== undefined || pending
 
   // The indicators, as the comparison is when the button is clicked: it may change before the
   // answer.
@@ -171,15 +163,16 @@ export function AddToRegression({ suite, machine, commit, metric, tests, pickKey
         <div className={styles.regressionPanel}>
           {why !== undefined && <p className={styles.note}>{why}</p>}
           <CreateForm
-            disabled={why !== undefined || pending}
+            disabled={blocked}
             creating={create.isPending}
             error={create.error}
             onCreate={onCreate}
           />
+          {/* The regression picked is one of side B's suite, as the sides were. */}
           <AddForm
-            key={pickKey}
+            key={`${suite}\0${swapped}`}
             suite={suite}
-            disabled={why !== undefined || pending}
+            disabled={blocked}
             adding={add.isPending}
             error={add.error}
             onAdd={onAdd}
