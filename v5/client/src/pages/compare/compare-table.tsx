@@ -134,7 +134,7 @@ export function CompareTable({ rows, geomean, total, filtered, sort, onSort }: P
         rows={rows}
         rowKey={testOf}
         pinned={pinned}
-        empty={filtered ? 'No tests match the filter.' : 'No test has a value for this metric.'}
+        empty={total === 0 ? 'No test has a value for this metric.' : 'No tests match the filter.'}
         sort={sort}
         onSort={onSort}
       />

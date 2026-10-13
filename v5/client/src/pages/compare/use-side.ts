@@ -56,8 +56,8 @@ function runsParam(uuids: readonly string[], selected: ReadonlySet<string>): str
 const NO_RUNS: string[] = []
 
 /**
- * The side `id`, as `all`, the page's settings, set it, which `update` changes. `suites` lists the
- * suites of the instance.
+ * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
+ * lists the suites of the instance.
  */
 export function useSide(
   id: SideId,
@@ -100,19 +100,29 @@ export function useSide(
   const [filledFor] = useState(() => new ValueStore<string | null>(null))
   const filled = useStoreValue(filledFor, (value) => value)
   const fromUrl = settings.runs
-  // Before the page is painted, so that the runs never show unselected meanwhile.
+  // What the selection is filled with: the runs the URL names, or every run when it names none.
+  const fill = useMemo(() => {
+    const kept = fromUrl.filter((uuid) => uuids?.includes(uuid))
+    return kept.length > 0 ? kept : uuids
+  }, [fromUrl, uuids])
+  // Before the page is painted, so that the runs never show unselected meanwhile. While there are
+  // no runs listed, the selection is filled for none, so that it is filled again for the next ones,
+  // even those it was filled for before.
   useLayoutEffect(() => {
-    if (uuids === undefined || filled === key) return
-    filledFor.set(key)
-    const kept = fromUrl.filter((uuid) => uuids.includes(uuid))
-    rows.replace(kept.length > 0 ? kept : uuids)
-  }, [uuids, filled, filledFor, key, fromUrl, rows])
+    if (fill === undefined) filledFor.set(null)
+    else if (filled !== key) {
+      filledFor.set(key)
+      rows.replace(fill)
+    }
+  }, [fill, filled, filledFor, key, rows])
   const known = uuids !== undefined && filled === key
 
-  // The selection, in the URL, unless it is every run, the default.
+  // The selection, in the URL, unless it is every run, the default. Without a commit, there is
+  // none to keep (AR2 "State").
   useEffect(() => {
     if (known) updateSide({ runs: runsParam(uuids, selected) })
-  }, [known, selected, uuids, updateSide])
+    else if (!listed) updateSide({ runs: [] })
+  }, [known, listed, selected, uuids, updateSide])
 
   // The runs whose samples the side needs, as text so that they are the same arrays for as long
   // as they are the same runs.
@@ -122,7 +132,13 @@ export function useSide(
     () => (askedText === '' ? [] : askedText.split(',').map((uuid) => ({ suite, uuid }))),
     [suite, askedText],
   )
-  const wantedText = (known ? uuids.filter((uuid) => selected.has(uuid)) : asked).join(',')
+  // Once the runs are listed, those the selection holds, or is about to be filled with.
+  const chosen = known
+    ? uuids.filter((uuid) => selected.has(uuid))
+    : listed
+      ? (fill ?? asked)
+      : asked
+  const wantedText = chosen.join(',')
   const wanted = useMemo(
     () =>
       wantedText === '' ? [] : wantedText.split(',').map((uuid) => runRefKey({ suite, uuid })),

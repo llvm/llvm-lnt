@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { errorResponse } from '../../test/mock-api'
+import { errorResponse, mockApi } from '../../test/mock-api'
+import { server } from '../../test/server'
 import { currentUrl, main, query, renderPage, search } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { uuidOf } from '../../test/fixtures'
@@ -65,6 +66,29 @@ describe('the Compare page (CP1)', () => {
     expect(query().runs_a).toEqual([uuidOf('2')])
   })
 
+  it('selects every run again when a commit is picked again', async () => {
+    mockWorld()
+    renderPage(`${COMPARED}&runs_a=${uuidOf('1')}`)
+    await comparison()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Clear Commit A' }))
+    await waitFor(() => expect(query().commit_a).toBeUndefined())
+    await pick('Commit A', 'c1')
+
+    await waitFor(() => expect(runBox('2', 'A')).toBeChecked())
+    expect(runBox('1', 'A')).toBeChecked()
+    expect(query().runs_a).toBeUndefined()
+  })
+
+  it('asks only for the samples of the runs selected', async () => {
+    const sampled = mockWorld()
+    renderPage(`${COMPARED}&runs_a=${uuidOf('1')}`)
+    await comparison()
+
+    expect([...sampled].sort()).toEqual(['1', '3'])
+  })
+
   it('needs a run on each side', async () => {
     mockWorld()
     renderPage(COMPARED)
@@ -115,6 +139,38 @@ describe('the Compare page (CP1)', () => {
     expect(query()).toMatchObject({ runs_a: [uuidOf('2')], runs_b: [uuidOf('1')] })
   })
 
+  it('swaps a side with no run selected, which the URL cannot hold', async () => {
+    mockWorld()
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('checkbox', { name: 'Select all runs of side A' }))
+    expect(await main().findByText('Select a run for side A.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Swap sides' }))
+
+    expect(await main().findByText('Select a run for side B.')).toBeInTheDocument()
+    expect(runBox('1', 'B')).not.toBeChecked()
+    expect(runBox('3', 'A')).toBeChecked()
+    expect(query()).toMatchObject({ commit_a: ['c2'], commit_b: ['c1'] })
+  })
+
+  it('changes the swapped sides through their own controls', async () => {
+    mockWorld()
+    renderPage(COMPARED)
+    await comparison()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
+    await pickOption('Run aggregation B', 'max')
+
+    await waitFor(() => expect(query().run_agg_b).toEqual(['max']))
+    expect(query().run_agg_a).toBeUndefined()
+    // Side B is now c1, whose largest value of a is run 2's.
+    await waitFor(async () =>
+      expect((await comparison())[1]).toBe('a | 4 | 3 | -1 | -25.00% | 0.7500 | Improved'),
+    )
+  })
+
   it('keeps the commit when another machine has runs at it, with every one selected', async () => {
     mockWorld()
     renderPage(`/compare?suite_a=libcxx&machine_a=m1&commit_a=c2`)
@@ -158,6 +214,17 @@ describe('the metric (CP1)', () => {
     ])
   })
 
+  it('drops the metric when a suite picked does not offer it', async () => {
+    mockWorld()
+    renderPage('/compare?suite_a=other&metric=compile_time')
+    expect(await screen.findByRole('button', { name: /Metric$/ })).toHaveTextContent('Compile Time')
+
+    await pickOption('Suite B', 'libcxx')
+
+    await waitFor(() => expect(query().metric).toBeUndefined())
+    expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
+  })
+
   it('says when no metric can be compared, and drops one the suites do not offer', async () => {
     mockWorld()
     renderPage('/compare?suite_a=libcxx&suite_b=millis&metric=execution_time')
@@ -173,6 +240,25 @@ describe('the metric (CP1)', () => {
     await waitFor(() => expect(query().suite_b).toBeUndefined())
     expect(query().metric).toEqual(['execution_time'])
     expect(selectButton('Metric')).toHaveTextContent('Execution Time')
+  })
+})
+
+describe('the sample aggregation (CP1)', () => {
+  it("combines a test's samples within each run", async () => {
+    mockWorld({
+      samples: {
+        '1': [
+          ['a', 1],
+          ['a', 5],
+        ],
+        '2': [['a', 3]],
+        '3': [['a', 4]],
+      },
+    })
+    renderPage(`${COMPARED}&sample_agg=max`)
+
+    // Per run, the largest are 5 and 3, whose median is 4.
+    expect((await comparison())[1]).toBe('a | 4 | 4 | 0 | 0.00% | 1.0000 | Unchanged')
   })
 })
 
@@ -294,6 +380,42 @@ describe('loading (CP6)', () => {
     fail = false
     await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
     expect(await comparison()).toEqual(ROWS)
+  })
+
+  it('reports runs that could not be listed, and waits for none', async () => {
+    mockWorld({
+      runsAnswer: (machine) =>
+        machine === 'm1' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(COMPARED)
+
+    expect(await screen.findAllByText(/The runs could not be listed: Boom/)).toHaveLength(2)
+    expect(screen.queryByText(/Loading/)).not.toBeInTheDocument()
+  })
+
+  it('says how many runs have their samples while they load', async () => {
+    let release = () => {}
+    const waiting = new Promise<void>((resolve) => (release = resolve))
+    mockWorld()
+    // Holding run 3's samples back, then answering as the world does.
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', async ({ params }) => {
+        if (params.uuid === uuidOf('3')) await waiting
+      }),
+    )
+    renderPage(COMPARED)
+
+    expect(await screen.findByText('Loading samples: 2 of 3 runs...')).toBeInTheDocument()
+    release()
+    expect(await comparison()).toEqual(ROWS)
+  })
+
+  it('drops the runs of a side without a commit', async () => {
+    mockWorld()
+    renderPage(`/compare?suite_b=libcxx&machine_b=m1&runs_b=${uuidOf('3')}`)
+
+    await waitFor(() => expect(query().runs_b).toBeUndefined())
+    expect(query().machine_b).toEqual(['m1'])
   })
 
   it('drops a machine that does not exist, without reporting its runs', async () => {

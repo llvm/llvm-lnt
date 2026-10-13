@@ -69,18 +69,25 @@ interface World {
   samples?: Record<string, [string, number][]>
   /** How `GET runs/{uuid}/samples` answers a run, by its UUID's hex, if not with its samples. */
   sampleAnswer?: (hex: string) => Response | undefined
+  /** How `GET runs` answers for a machine, if not with its runs. */
+  runsAnswer?: (machine: string) => Response | undefined
 }
 
 /** The hex a run's UUID is made of (see `uuidOf`). */
 const hexOf = (uuid: string) => uuid[0]
 
-/** Mock the API for the Compare page: the suites, and the world described in each of them. */
+/**
+ * Mock the API for the Compare page: the suites, and the world described in each of them. Returns
+ * the hex of each run whose samples were asked for, in order.
+ */
 export function mockWorld({
   suites = [SUITE, OTHER_SUITE, MILLIS_SUITE],
   runs = RUNS,
   samples = SAMPLES,
   sampleAnswer,
+  runsAnswer,
 }: World = {}) {
+  const sampled: string[] = []
   mockSuites(suites)
   mockMachines(() => ({ items: MACHINES.map((name) => machine(name)) }))
   // The commits a machine has runs at, as a commit picker lists or looks them up (AR15).
@@ -108,9 +115,17 @@ export function mockWorld({
       ),
     )
   })
+  // After `mockRuns`, whose answers it takes precedence over, falling back on them.
+  server.use(
+    mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
+      const answer = runsAnswer?.(new URL(request.url).searchParams.get('machine')!)
+      if (answer !== undefined) return answer as never
+    }),
+  )
   server.use(
     mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', ({ params }) => {
       const hex = hexOf(params.uuid)
+      sampled.push(hex)
       const answer = sampleAnswer?.(hex)
       if (answer !== undefined) return answer as never
       const items: Schemas['Sample'][] = (samples[hex] ?? []).map(([test, value]) =>
@@ -119,6 +134,7 @@ export function mockWorld({
       return HttpResponse.json(cursorPage(items))
     }),
   )
+  return sampled
 }
 
 /** The URL of a comparison of libcxx's m1 at c1 (runs 1 and 2) with m1 at c2 (run 3). */

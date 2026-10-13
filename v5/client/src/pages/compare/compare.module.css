@@ -70,7 +70,7 @@
 
 /* The colours of the statuses (CP2, CP4): green for improved, red for regressed, grey otherwise. */
 .improved {
-  --status-color: #15803d;
+  --status-color: var(--lnt-success);
 }
 
 .regressed {

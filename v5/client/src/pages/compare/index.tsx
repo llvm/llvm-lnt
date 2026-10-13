@@ -66,36 +66,31 @@ export default function Compare() {
   return <ComparePage key={useVisitKey()} />
 }
 
-/** The runs a side compares, as far as they are known, with how far their samples are loaded. */
-interface Compared {
-  /** Each selected run's samples, in the order the runs were submitted, once they all arrived. */
-  runSamples: Sample[][] | undefined
-  /** How many selected runs there are, and how many have their samples. */
-  total: number
-  loaded: number
-  /** The selected runs whose samples could not be fetched. */
-  failed: SampleState[]
+/** The runs `side` has selected, by `runRefKey`, in the order they were submitted. */
+function chosenRuns(side: Side): string[] {
+  const { selected, runs, settings } = side
+  if (selected === undefined || runs.data === undefined) return []
+  return runs.data
+    .filter((run) => selected.has(run.uuid))
+    .map((run) => runRefKey({ suite: settings.suite, uuid: run.uuid }))
 }
 
-const NOTHING_COMPARED: Compared = { runSamples: undefined, total: 0, loaded: 0, failed: [] }
-
-/** What a side compares, from its selected runs, as `states` has loaded them. */
-function useCompared(side: Side, states: ReadonlyMap<string, SampleState>): Compared {
+/**
+ * The samples of each of the runs `side` has selected, in the order they were submitted, once they
+ * have all arrived.
+ */
+function useRunSamplesOf(
+  side: Side,
+  states: ReadonlyMap<string, SampleState>,
+): Sample[][] | undefined {
   const { selected, runs } = side
   const { suite } = side.settings
   return useMemo(() => {
-    if (selected === undefined || runs.data === undefined) return NOTHING_COMPARED
-    const chosen = runs.data
+    if (selected === undefined || runs.data === undefined) return undefined
+    const samples = runs.data
       .filter((run) => selected.has(run.uuid))
-      .map((run) => states.get(runRefKey({ suite, uuid: run.uuid })))
-    const samples = chosen.map((state) => state?.samples)
-    const loaded = samples.filter((entry) => entry !== undefined).length
-    return {
-      runSamples: loaded === chosen.length ? (samples as Sample[][]) : undefined,
-      total: chosen.length,
-      loaded,
-      failed: chosen.filter((state): state is SampleState => state?.error != null),
-    }
+      .map((run) => states.get(runRefKey({ suite, uuid: run.uuid }))?.samples)
+    return samples.every((entry) => entry !== undefined) ? samples : undefined
   }, [selected, runs.data, suite, states])
 }
 
@@ -116,8 +111,8 @@ function useSameElements<T>(array: readonly T[] | undefined): readonly T[] | und
 }
 
 /**
- * What a side compares (see `useCompared`), and from it, once `metric` is known, the side's samples
- * for each test and its value of each.
+ * The side's samples for each test, once its selected runs' samples have arrived and `metric` is
+ * known, and its value of each.
  */
 function useSideComparison(
   side: Side,
@@ -125,8 +120,7 @@ function useSideComparison(
   metric: string | undefined,
   sampleAgg: Aggregation,
 ) {
-  const compared = useCompared(side, states)
-  const runSamples = useSameElements(compared.runSamples)
+  const runSamples = useSameElements(useRunSamplesOf(side, states))
   const { runAgg } = side.settings
   const samples = useMemo(
     () => (runSamples && metric !== undefined ? sideSamples(runSamples, metric) : undefined),
@@ -136,7 +130,7 @@ function useSideComparison(
     () => samples && sideValues(samples, sampleAgg, runAgg),
     [samples, sampleAgg, runAgg],
   )
-  return { ...compared, samples, values }
+  return { samples, values }
 }
 
 /** The runs of `first` and `second`, each once. */
@@ -212,10 +206,11 @@ function ComparePage() {
     setSwapped(!swapped)
   }
 
-  const failed = [...sideA.failed, ...sideB.failed]
-  const ready = tests !== undefined
+  // How far the selected runs' samples are loaded, each run once, even when both sides select it.
+  const chosen = [...new Set([...chosenRuns(a), ...chosenRuns(b)])].map((key) => states.get(key))
+  const loaded = chosen.filter((state) => state?.samples !== undefined).length
+  const failed = chosen.filter((state): state is SampleState => state?.error != null)
   const missing = suites.isPending ? null : missingInput(a, b, offered.length, metric !== undefined)
-  const total = sideA.total + sideB.total
   return (
     <section>
       <h1>Compare</h1>
@@ -280,8 +275,11 @@ function ComparePage() {
         <Loading />
       ) : missing !== null ? (
         <p className={styles.note}>{missing}</p>
-      ) : failed.length > 0 ? null : !ready ? (
-        <Loading label={`Loading samples: ${sideA.loaded + sideB.loaded} of ${total} runs...`} />
+      ) : failed.length > 0 || a.runs.isError || b.runs.isError ? null : a.selected === undefined ||
+        b.selected === undefined ? (
+        <Loading label="Loading runs..." />
+      ) : tests === undefined ? (
+        <Loading label={`Loading samples: ${loaded} of ${chosen.length} runs...`} />
       ) : (
         <>
           <SummaryBar counts={counts} />
