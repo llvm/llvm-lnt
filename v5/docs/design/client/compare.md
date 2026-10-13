@@ -23,7 +23,9 @@ suite-agnostic: each side selects its own suite. Layout:
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
 [ ] Hide noise  [Noise filtering v]
-[Filter tests...] [ ] Regex                                                [Add to regression]
+[Filter tests...] [ ] Regex
+
+> Add to regression
 
 <progress and errors>
 [Shadow: 0f69d2804b9b on linux-x86_64  x]
@@ -521,18 +523,25 @@ unusable runs are dropped from side A's URL values, the shadow is kept.
 
 ### CP9: Add to Regression
 
-A collapsible panel (button: "Add to regression" in the controls area) creates
-regression indicators from the comparison. It works on side B: each indicator
+A box of its own, below the controls shared by both sides, creates regression
+indicators from the comparison. Its header, "Add to regression", expands and
+collapses it, with an arrow saying which it does; the box starts collapsed. It
+works on side B: each indicator
 names side B's machine, the selected metric, and a test. One indicator is
 created for each compared row (see CP2) that has a value on side B. Rows
 without one are skipped: the test was not measured on side B, and side B's
 suite may not even have it. The regression belongs to side B's suite.
 
-The button requires `triage` scope (see AR17). While the panel is collapsed,
-the button is disabled, with an explanation, when there would be no
-indicators, or more than one request can carry (I2's maximum page size; see
-E8). While it is expanded, the button collapses it, except while a request is
-under way. When expanded, the panel offers:
+The header requires `triage` scope (see AR17). While the box is collapsed, the
+header is disabled, with an explanation, when there would be no indicators, or
+more than one request can carry (I2's maximum page size; see E8). While it is
+expanded, the header collapses it, except while a request is under way.
+
+When expanded, the box first says what the indicators are: the metric, side B's
+machine and suite, how many tests compared they cover, and side B's commit,
+shown by its display value (see AR6), which a new regression is attributed to.
+It also says how many tests compared are left out for having no value on side
+B. It follows the compared rows as they change. Then it offers:
 - "Create new regression" -- a title input, which may be left empty, and a
   button that creates a regression in side B's suite, attributed to side B's
   commit, with those indicators.
@@ -545,15 +554,15 @@ under way. When expanded, the panel offers:
   picked, the button does nothing, and the panel says so, as for a commit
   picker (see AR15).
 
-The panel is a form (see AR2 "State"). When there would be no indicators, or
+The box is a form (see AR2 "State"). When there would be no indicators, or
 too many, its buttons are disabled, and it says why. Changing side B's suite,
 or swapping the sides, clears the picked regression. If creating the
-regression or adding the indicators fails, the panel stays open and says why.
+regression or adding the indicators fails, the box stays open and says why.
 
-Collapsing the panel clears its title and picked regression. Once the
-regression is created, or the indicators added, the panel collapses back to
-its button, which takes the focus, and a message beside the button says what
-was done, until the panel is opened again:
+Collapsing the box clears its title and picked regression. Once the regression
+is created, or the indicators added, the box collapses, its header takes the
+focus, and a message beside the header says what was done, until the box is
+opened again:
 - "Regression created: " followed by a link to the new regression's detail
   page;
 - "Added N indicators to " followed by a link to the regression's detail page,

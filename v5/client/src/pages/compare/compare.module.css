@@ -137,9 +137,29 @@
   width: 5rem;
 }
 
-/* Add to Regression (CP9): its button, what was done beside it, and the panel it opens. */
+/* Add to Regression (CP9): a box of its own, its header, what was done beside it, and what it
+   expands to. */
 .addToRegression {
-  margin-top: var(--lnt-space-3);
+  flex-basis: 100%;
+}
+
+.disclosure {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.disclosure:disabled {
+  color: var(--lnt-muted);
+  cursor: default;
+}
+
+.regressionSummary {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .addRow {

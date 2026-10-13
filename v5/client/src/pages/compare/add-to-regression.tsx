@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
 import {
   addIndicators,
@@ -11,7 +11,9 @@ import {
   TEXT_LENGTH,
   withIndicators,
 } from '../../api/regressions'
+import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
+import { commitLookupQuery } from '../../components/commit-lookup'
 import { ErrorMessage } from '../../components/feedback'
 import { pendingGuard } from '../../components/pending-guard'
 import {
@@ -38,9 +40,13 @@ interface Report {
 interface Props {
   /** Side B's suite, machine and commit, which the regression and its indicators are of. */
   suite: string
+  /** Side B's suite, once the suites are known to hold it, which shows its commit (AR6). */
+  schema: SuiteSchema | undefined
   machine: string
   commit: string
   metric: string
+  /** How the metric is labelled (AR6). */
+  metricLabel: string
   /** The compared rows (CP2), in no particular order, or undefined with no comparison. */
   rows: readonly ComparisonRow[] | undefined
   /** Whether the sides are swapped: the regression picked is forgotten whenever they are. */
@@ -48,11 +54,20 @@ interface Props {
 }
 
 /**
- * Add to Regression (CP9): a button opening a panel that creates a regression, or adds to an
- * existing one, an indicator for each compared test with a value on side B, on side B's machine,
- * for the metric. It is a form: nothing of it is kept in the URL.
+ * Add to Regression (CP9): a box of its own, which its header expands, that creates a regression,
+ * or adds to an existing one, an indicator for each compared test with a value on side B, on side
+ * B's machine, for the metric, and says so. It is a form: nothing of it is kept in the URL.
  */
-export function AddToRegression({ suite, machine, commit, metric, rows, swapped }: Props) {
+export function AddToRegression({
+  suite,
+  schema,
+  machine,
+  commit,
+  metric,
+  metricLabel,
+  rows,
+  swapped,
+}: Props) {
   const triage = useScopeGate('triage')
   // The tests made indicators of: those of the rows with a value on side B, whose suite may not
   // even have the others' tests. In no particular order, so that sorting the table changes nothing.
@@ -160,12 +175,13 @@ export function AddToRegression({ suite, machine, commit, metric, rows, swapped 
         <button
           ref={toggleRef}
           type="button"
+          className={styles.disclosure}
           aria-expanded={open}
           disabled={pending || (!open && why !== undefined)}
           title={open ? undefined : why}
           onClick={toggle}
         >
-          Add to regression
+          <span aria-hidden="true">{open ? '▾' : '▸'}</span> Add to regression
         </button>
         {report !== null && (
           <span role="status">
@@ -179,6 +195,16 @@ export function AddToRegression({ suite, machine, commit, metric, rows, swapped 
       </div>
       {open && (
         <div className={styles.regressionPanel}>
+          {schema !== undefined && tests !== undefined && tests.length > 0 && (
+            <Summary
+              schema={schema}
+              machine={machine}
+              commit={commit}
+              metric={metricLabel}
+              tests={tests.length}
+              skipped={(rows?.length ?? 0) - tests.length}
+            />
+          )}
           {why !== undefined && (
             <p id={whyId} className={styles.note}>
               {why}
@@ -204,6 +230,36 @@ export function AddToRegression({ suite, machine, commit, metric, rows, swapped 
         </div>
       )}
     </div>
+  )
+}
+
+interface SummaryProps {
+  schema: SuiteSchema
+  machine: string
+  commit: string
+  metric: string
+  /** How many indicators there are, and how many compared tests are left out of them. */
+  tests: number
+  skipped: number
+}
+
+/**
+ * What the indicators are, and which commit a new regression is attributed to (CP9): side B's,
+ * by its display value once known, which its picker has looked up already (AR15).
+ */
+function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryProps) {
+  const lookup = useQuery(commitLookupQuery(schema, { machine }, commit))
+  const leftOut =
+    skipped === 1
+      ? ' 1 test compared has no value on side B, and is left out.'
+      : ` ${skipped} tests compared have no value on side B, and are left out.`
+  return (
+    <p className={styles.regressionSummary}>
+      An indicator for each of the {plural(tests, 'test')} compared: <strong>{metric}</strong> on{' '}
+      <strong>{machine}</strong>, in <strong>{schema.name}</strong>. A new regression is attributed
+      to commit <strong>{lookup.data?.text ?? commit}</strong>.
+      {skipped > 0 && leftOut}
+    </p>
   )
 }
 

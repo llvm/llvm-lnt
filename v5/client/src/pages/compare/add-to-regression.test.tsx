@@ -97,6 +97,18 @@ describe('Add to Regression (CP9)', () => {
     expect(toggle()).toBeDisabled()
   })
 
+  it('says what the indicators are, and the commit a new regression is attributed to', async () => {
+    mockWorld()
+    await openPanel()
+
+    // a and c have a value on side B, and b has none.
+    expect(screen.getByText(/^An indicator for each of the 2 tests compared/).textContent).toBe(
+      'An indicator for each of the 2 tests compared: Execution Time on m1, in libcxx. A new ' +
+        'regression is attributed to commit c2. 1 test compared has no value on side B, and is ' +
+        'left out.',
+    )
+  })
+
   it("creates a regression of side B's commit, with the compared tests B has a value for", async () => {
     mockWorld()
     const requests = mockCreate()

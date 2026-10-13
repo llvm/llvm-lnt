@@ -125,11 +125,15 @@ function ComparePage() {
             onHideNoise={(hide) => update({ hide_noise: hide })}
           />
         </div>
+      </ControlsPanel>
+      <ControlsPanel>
         <AddToRegression
           suite={b.settings.suite}
+          schema={b.schema}
           machine={b.settings.machine}
           commit={b.settings.commit}
           metric={metric?.name ?? ''}
+          metricLabel={metric === undefined ? '' : labelOf(metric)}
           rows={comparison.tests === undefined ? undefined : table.plotted}
           swapped={sides.swapped}
         />
