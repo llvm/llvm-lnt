@@ -253,6 +253,14 @@
   width: 1.2em;
 }
 
+/* What the Columns menu's statistics are computed over, above them, wrapped to a narrow width. */
+.menuNote {
+  max-width: 14rem;
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  color: var(--lnt-muted);
+  font-size: 0.8rem;
+}
+
 /* A test's row, which a click hides or shows (CP2), and greys out while it is hidden. */
 .testRow {
   cursor: pointer;

@@ -252,6 +252,31 @@ describe('optional columns (CP2)', () => {
     ])
   })
 
+  it('says what the statistics are computed over, in the menu and on their headers', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&columns=samples&columns=pvalue`)
+    await comparison()
+
+    for (const side of ['A', 'B']) {
+      expect(screen.getByText(`Samples ${side}`)).toHaveAttribute(
+        'title',
+        `All of side ${side}'s samples for the test, from every selected run, before any aggregation.`,
+      )
+    }
+    expect(screen.getByText('P-value')).toHaveAttribute(
+      'title',
+      "Welch's t-test between both sides' samples for the test, from all their selected runs, " +
+        'before any aggregation.',
+    )
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Columns' }))
+    expect(
+      within(screen.getByRole('menu')).getByText(
+        "Over every sample of each side's selected runs, before any aggregation.",
+      ),
+    ).toBeInTheDocument()
+  })
+
   it("shows each side's statistics, empty on the geomean and N/A without samples", async () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&columns=samples&columns=mean&columns=pvalue`)

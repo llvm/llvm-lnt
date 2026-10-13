@@ -1,6 +1,14 @@
-import { Button, Menu, MenuItem, MenuTrigger, type Selection } from 'react-aria-components'
+import {
+  Button,
+  Header,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuTrigger,
+  type Selection,
+} from 'react-aria-components'
 import { Popover } from '../../components/popover'
-import { OPTIONAL_KEYS, optionalLabel, type OptionalKey } from './columns'
+import { OPTIONAL_KEYS, optionalLabel, STATISTICS_OVER, type OptionalKey } from './columns'
 import shared from '../../components/dropdown.module.css'
 import styles from './compare.module.css'
 
@@ -12,7 +20,8 @@ interface Props {
 
 /**
  * The Columns menu (CP2 "Optional columns"): a checkbox per optional statistic, which adds its
- * columns to the table. The menu stays open while they are checked and unchecked.
+ * columns to the table, below a line saying what they are computed over. The menu stays open while
+ * they are checked and unchecked.
  */
 export function ColumnsMenu({ shown, onChange }: Props) {
   return (
@@ -30,18 +39,21 @@ export function ColumnsMenu({ shown, onChange }: Props) {
             onChange(OPTIONAL_KEYS.filter((key) => selection === 'all' || selection.has(key)))
           }
         >
-          {OPTIONAL_KEYS.map((key) => (
-            <MenuItem key={key} id={key} textValue={optionalLabel(key)} className={shared.option}>
-              {({ isSelected }) => (
-                <>
-                  <span aria-hidden="true" className={styles.menuCheck}>
-                    {isSelected ? '✓' : ''}
-                  </span>
-                  {optionalLabel(key)}
-                </>
-              )}
-            </MenuItem>
-          ))}
+          <MenuSection>
+            <Header className={styles.menuNote}>{STATISTICS_OVER}</Header>
+            {OPTIONAL_KEYS.map((key) => (
+              <MenuItem key={key} id={key} textValue={optionalLabel(key)} className={shared.option}>
+                {({ isSelected }) => (
+                  <>
+                    <span aria-hidden="true" className={styles.menuCheck}>
+                      {isSelected ? '✓' : ''}
+                    </span>
+                    {optionalLabel(key)}
+                  </>
+                )}
+              </MenuItem>
+            ))}
+          </MenuSection>
         </Menu>
       </Popover>
     </MenuTrigger>

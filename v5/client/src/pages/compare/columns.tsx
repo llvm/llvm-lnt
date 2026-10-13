@@ -190,12 +190,19 @@ export function optionalLabel(key: OptionalKey): string {
   return STATISTICS[key].label
 }
 
-/** What a statistic's header says on hover: what it is computed over (CP2 "Optional columns"). */
-const OVER_A_SIDE =
-  "Over all the samples of the side's selected runs, whatever the sample and run aggregation."
+/**
+ * What the statistics are computed over (CP2 "Optional columns"): as the Columns menu says it, then
+ * as a header says it on hover, for a per-side statistic and for the p-value.
+ */
+export const STATISTICS_OVER =
+  "Over every sample of each side's selected runs, before any aggregation."
+
+const overSide = (side: 'A' | 'B') =>
+  `All of side ${side}'s samples for the test, from every selected run, before any aggregation.`
+
 const OVER_BOTH_SIDES =
-  "Welch's t-test over all the samples of both sides' selected runs, whatever the sample and run " +
-  'aggregation.'
+  "Welch's t-test between both sides' samples for the test, from all their selected runs, before " +
+  'any aggregation.'
 
 /** A statistic of each test, as a column, empty on the geomean row. */
 function statisticColumn(
@@ -232,14 +239,14 @@ function optionalColumns(key: OptionalKey): CompareColumn[] {
     statisticColumn(
       `${key}_a`,
       `${label} A`,
-      OVER_A_SIDE,
+      overSide('A'),
       (row) => statistic.of(row.statisticsA),
       format,
     ),
     statisticColumn(
       `${key}_b`,
       `${label} B`,
-      OVER_A_SIDE,
+      overSide('B'),
       (row) => statistic.of(row.statisticsB),
       format,
     ),
