@@ -232,7 +232,9 @@ describe('the point details (GR11)', () => {
       ['c10', 'r1', 1],
       // Submitted after r3, though listed first.
       ['c20', 'r2', 2, '2026-08-26T10:00:00Z'],
+      // Two samples, so that a run's value is its samples combined, not one of them.
       ['c20', 'r3', 4, '2026-08-25T10:00:00Z'],
+      ['c20', 'r3', 6, '2026-08-25T10:00:00Z'],
     ],
   }
 
@@ -266,8 +268,9 @@ describe('the point details (GR11)', () => {
       '/suites/libcxx/runs/r3',
       '/suites/libcxx/runs/r2',
     ])
+    // r3's samples combined by max, and the runs' values by min.
     expect(runs.map((run) => within(run).getAllByRole('cell').at(-1)?.textContent)).toEqual([
-      '4',
+      '6',
       '2',
     ])
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })
