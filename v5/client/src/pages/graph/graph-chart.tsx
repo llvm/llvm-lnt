@@ -360,13 +360,16 @@ export function GraphChart({
     setHoveredPoint(null)
     hovered.set(null)
   }
+  // Whether the click opened details, which take the place of the hover label (GR11, GR15).
   const onClick = (event: PlotMouseEvent) => {
     const at = curveAt(event)
     // Plotly reports a click of any button: only the main one opens details.
-    if (at === undefined || event.event.button !== 0) return
+    if (at === undefined || event.event.button !== 0) return false
     const { curve } = at
     if (curve.kind === 'trace') setOpen({ kind: 'point', point: pointOf(curve.trace, at.index) })
-    if (curve.kind === 'regression') setOpen({ kind: 'regression', uuid: curve.uuid })
+    else if (curve.kind === 'regression') setOpen({ kind: 'regression', uuid: curve.uuid })
+    else return false
+    return true
   }
 
   // The details opened (GR11, GR15), which close once what they are about is no longer drawn.

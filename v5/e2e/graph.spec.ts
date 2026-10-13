@@ -136,6 +136,8 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog')
   await expect(details).toBeFocused()
+  // The details take the place of Plotly's label, which would linger over the samples.
+  await expect(plotLabel).not.toContainText('Click for details')
   expect(await details.getAttribute('aria-label')).toMatch(`${TEST} on ${LINUX} at `)
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare with previous commit' })
@@ -191,6 +193,7 @@ test("marks a regression at its commit, and shows its details from its marker (G
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog', { name: 'Regression: std::format slowdown' })
   await expect(details).toBeFocused()
+  await expect(page.locator('.hoverlayer')).not.toContainText('std::format slowdown')
   await details.getByRole('link', { name: `${uuid.slice(0, 8)}…` }).click()
   await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
 })

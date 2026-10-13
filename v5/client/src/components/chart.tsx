@@ -87,8 +87,11 @@ export interface ChartProps {
   onHover?(event: PlotHoverEvent): void
   /** The pointer has left the point it was over. */
   onUnhover?(event: PlotMouseEvent): void
-  /** A point was clicked: the one whose hover label shows. */
-  onClick?(event: PlotMouseEvent): void
+  /**
+   * A point was clicked: the one whose hover label shows. Returns `true` when the click opened
+   * something over the point, such as its details, which then take the place of its hover label.
+   */
+  onClick?(event: PlotMouseEvent): boolean | void
   /**
    * The plot was drawn, after a change to what it draws, a zoom, or a resize: where it draws now.
    * Something placed over the plot with it is placed again here. What the chart draws must not
@@ -184,7 +187,9 @@ export function Chart({
         state.ready = true
         plot.on('plotly_hover', (event) => onHover(event))
         plot.on('plotly_unhover', (event) => onUnhover(event))
-        plot.on('plotly_click', (event) => onClick(event))
+        plot.on('plotly_click', (event) => {
+          if (onClick(event) === true) library.Fx.unhover(div)
+        })
         // A draw under way when the plot is freed ends after it, with nothing left to report.
         plot.on('plotly_afterplot', () => {
           if (state.live) onDraw(div)

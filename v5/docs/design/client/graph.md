@@ -262,7 +262,8 @@ submission time and shortened UUID, as the details list them.
 
 Clicking a data point opens a popover beside it, without covering its scatter
 (GR10), which takes the focus and stays open as the pointer moves, so that its
-links can be followed. It shows:
+links can be followed. It takes the place of the point's tooltip, which is
+hidden until the pointer moves again. It shows:
 
 - the test name;
 - the machine, linking to its Machine Detail page;
@@ -285,12 +286,11 @@ links can be followed. It shows:
 While it is open, the popover follows its point -- as more data arrives, the
 chart is resized or the page scrolls -- and updates its contents as the data
 arrives. It closes on Escape, on its close button, on a click anywhere but on it
-or a marker of its point's scatter, and on
-any change to the chart other than data arriving, such as a zoom or pan, or a
-change to the selected tests, machines, metric, filter, aggregation, baselines
-or regression annotation mode, and once its point is no longer drawn. Moving
-the focus out of it does not close it. A click on another point opens that
-point's popover instead.
+or a marker of its point's scatter, and on any change to the chart other than
+data arriving, such as a zoom or pan, or a change to the selected tests,
+machines, metric, filter, aggregation, baselines or regression annotation mode,
+and once its point is no longer drawn. Moving the focus out of it does not close
+it. A click on another point opens that point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or
 nothing.
 
