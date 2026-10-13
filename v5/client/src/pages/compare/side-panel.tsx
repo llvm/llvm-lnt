@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { SuiteSchema } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
@@ -21,6 +21,8 @@ interface Props {
   /** The side's heading: "Side A (Baseline)" or "Side B (New)". */
   title: string
   suites: SuiteSchema[]
+  /** What the heading offers to do with the side, if anything, such as pinning it (CP8). */
+  action?: ReactNode
 }
 
 /**
@@ -28,7 +30,7 @@ interface Props {
  * the runs of the machine at the commit, every one selected to begin with, and how they are
  * combined.
  */
-export function SidePanel({ side, title, suites }: Props) {
+export function SidePanel({ side, title, suites, action }: Props) {
   const { settings, schema, machines, selected, update: onChange } = side
   const { suite, machine, commit } = settings
   const filters = useMemo(() => ({ machine }), [machine])
@@ -38,7 +40,10 @@ export function SidePanel({ side, title, suites }: Props) {
   return (
     <ControlsPanel>
       <section className={styles.side} aria-label={title}>
-        <h2 className={styles.sideTitle}>{title}</h2>
+        <div className={styles.sideHeader}>
+          <h2 className={styles.sideTitle}>{title}</h2>
+          {action}
+        </div>
         <Select
           label={`Suite ${letter}`}
           options={suites.map(({ name }) => ({ value: name, label: name }))}

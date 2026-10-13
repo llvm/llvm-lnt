@@ -323,8 +323,9 @@ Interactivity:
   converted to log2 space. The p-value and absolute floor knobs do not have
   chart-level visualization.
 - **Empty state**: when there is a comparison but none of its compared rows can
-  be plotted, the chart area displays "No data to plot", as on the Graph page
-  (see GR12). CP6 says what is shown while there is no comparison.
+  be plotted, in it or in the shadow's (see CP8), the chart area displays "No
+  data to plot", as on the Graph page (see GR12). CP6 says what is shown while
+  there is no comparison.
 
 
 ### CP4: Comparison Summary Bar

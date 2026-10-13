@@ -1,11 +1,11 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
 import { runRefKey, uniqueRuns, useRunSamples, type SampleState } from '../../api/runs'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
-import { useRangeSelection } from '../../components/range-selection'
+import { useRangeSelection, type RowSelection } from '../../components/range-selection'
 import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
@@ -23,17 +23,27 @@ import {
   summaryCounts,
   type ComparisonRow,
   type NoiseKnob,
+  type NoiseSettings,
 } from './comparison'
 import { AddToRegression } from './add-to-regression'
+import { chartBars, type Bar } from './chart'
 import { comparisonCsv, sortComparison, tableColumns, type OptionalKey } from './columns'
 import { ColumnsMenu } from './columns-menu'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
-import { HIDDEN_IN_URL, PARAMS, sideChanges, type Settings } from './settings'
+import {
+  HIDDEN_IN_URL,
+  NO_SHADOW,
+  PARAMS,
+  sideChanges,
+  type Settings,
+  type SideSettings,
+} from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useProfileLinks } from './use-profile-links'
+import { useShadow } from './use-shadow'
 import { useSide, type Side } from './use-side'
 import styles from './compare.module.css'
 
@@ -41,6 +51,9 @@ type Sample = Schemas['Sample']
 
 const NO_ROWS: ComparisonRow[] = []
 const NO_TESTS: string[] = []
+const NO_BARS: Bar[] = []
+/** No noise knob enabled: the shadow's line needs no statuses. */
+const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
 /** The URL parameter of each noise knob (CP7). */
 const NOISE_PARAMS = {
@@ -146,6 +159,32 @@ function useSideComparison(
   return { samples, values }
 }
 
+/**
+ * `selection`, whose changes also call `onChange`: side A's runs, which dismiss the shadow when the
+ * user changes them (CP8). Filling the selection from the URL, which calls `replace` on the
+ * selection itself, does not.
+ */
+function notifying(selection: RowSelection, onChange: () => void): RowSelection {
+  return {
+    subscribe: (listener) => selection.subscribe(listener),
+    selected: () => selection.selected(),
+    limit: () => selection.limit(),
+    inverted: () => selection.inverted(),
+    click: (key, shift) => {
+      selection.click(key, shift)
+      onChange()
+    },
+    setRows: (keys, select) => {
+      selection.setRows(keys, select)
+      onChange()
+    },
+    replace: (keys) => {
+      selection.replace(keys)
+      onChange()
+    },
+  }
+}
+
 function ComparePage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
@@ -159,6 +198,9 @@ function ComparePage() {
   const first = useSide(swapped ? 'b' : 'a', settings, update, suites)
   const second = useSide(swapped ? 'a' : 'b', settings, update, suites)
   const [a, b] = swapped ? [second, first] : [first, second]
+  // The shadow (CP8), read like a side.
+  const shadowSide = useSide('shadow_b', settings, update, suites)
+  const shadow = useShadow(shadowSide, a, update)
 
   // The metric, once the suites are known to offer it (CP1).
   const offered = useMemo(() => offeredMetrics(a.schema, b.schema), [a.schema, b.schema])
@@ -169,11 +211,14 @@ function ComparePage() {
     () => update({ metric: '' }),
   )
 
-  // The samples of both sides' runs, asked for together, each run once.
-  const refs = useMemo(() => uniqueRuns(first.refs, second.refs), [first.refs, second.refs])
+  // The samples of both sides' runs, and the shadow's, asked for together, each run once.
+  const refs = useMemo(
+    () => uniqueRuns(first.refs, second.refs, shadowSide.refs),
+    [first.refs, second.refs, shadowSide.refs],
+  )
   const wanted = useMemo(
-    () => new Set([...first.wanted, ...second.wanted]),
-    [first.wanted, second.wanted],
+    () => new Set([...first.wanted, ...second.wanted, ...shadowSide.wanted]),
+    [first.wanted, second.wanted, shadowSide.wanted],
   )
   const states = useRunSamples(refs, wanted)
   const profiles = useProfileLinks(a, b)
@@ -184,6 +229,7 @@ function ComparePage() {
   const sideB = useSideComparison(b, states, metric?.name, sampleAgg)
   const { samples: samplesA, values: valuesA } = sideA
   const { samples: samplesB, values: valuesB } = sideB
+  const { values: valuesShadow } = useSideComparison(shadowSide, states, metric?.name, sampleAgg)
   const tests = useMemo(
     () => (samplesA && samplesB ? joinSides(samplesA, samplesB) : undefined),
     [samplesA, samplesB],
@@ -272,6 +318,22 @@ function ComparePage() {
     () => allTests?.some((test) => links.has(test)) ?? false,
     [allTests, links],
   )
+  // The shadow's line (CP8): the tests the chart plots, compared between side A and the shadow,
+  // sorted by their own ratios. Nothing, unless side A's suite and the shadow's offer the metric.
+  const shadowOffered = useMemo(
+    () => offeredMetrics(a.schema, shadowSide.schema).some((entry) => entry.name === metric?.name),
+    [a.schema, shadowSide.schema, metric?.name],
+  )
+  const shadowPoints = useMemo(
+    () =>
+      shadow.pinned && shadowOffered && valuesA && valuesShadow
+        ? chartBars(
+            compareRows(plotted, valuesA, valuesShadow, { biggerIsBetter, noise: NO_NOISE }),
+          )
+        : NO_BARS,
+    [shadow.pinned, shadowOffered, valuesA, valuesShadow, plotted, biggerIsBetter],
+  )
+
   // The tests Add to Regression makes indicators of: the compared ones with a value on side B.
   // In no particular order, as the chart's, so that sorting the table does not change them.
   const regressionTests = useMemo(
@@ -302,15 +364,55 @@ function ComparePage() {
   const reclassifying =
     noise !== noiseSet || hideNoise !== settings.hide_noise || deferredOptional !== optional
 
+  // Swapping the sides, or changing what side A is, dismisses the shadow (CP8). Changing side A's
+  // run aggregation does not: the shadow follows it.
   const swap = () => {
-    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
+    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...NO_SHADOW })
     setSwapped(!swapped)
+  }
+  const { pinned } = shadow
+  const updateA = useCallback(
+    (changes: Partial<SideSettings>) =>
+      update({
+        ...sideChanges('a', changes),
+        ...(pinned && Object.keys(changes).some((key) => key !== 'runAgg') ? NO_SHADOW : {}),
+      }),
+    [pinned, update],
+  )
+  const { selection: selectionA } = a
+  const runsA = useMemo(
+    () => (pinned ? notifying(selectionA, () => update(NO_SHADOW)) : selectionA),
+    [pinned, selectionA, update],
+  )
+  const pin = () => update(sideChanges('shadow_b', b.settings))
+  // Once the shadow is dismissed, its chip is gone: the focus goes to the button pinning another.
+  const pinButton = useRef<HTMLButtonElement>(null)
+  const dismissed = useRef(false)
+  useEffect(() => {
+    if (pinned || !dismissed.current) return
+    dismissed.current = false
+    pinButton.current?.focus()
+  }, [pinned])
+  const dismiss = () => {
+    dismissed.current = true
+    update(NO_SHADOW)
   }
 
   // How far the selected runs' samples are loaded, each run once, even when both sides select it.
   const chosen = [...new Set([...chosenRuns(a), ...chosenRuns(b)])].map((key) => states.get(key))
   const loaded = chosen.filter((state) => state?.samples !== undefined).length
   const failed = chosen.filter((state): state is SampleState => state?.error != null)
+  // Those of the shadow's runs, but those of the sides, already reported.
+  const mainRuns = new Set([...chosenRuns(a), ...chosenRuns(b)])
+  const shadowFailed = chosenRuns(shadowSide)
+    .filter((key) => !mainRuns.has(key))
+    .map((key) => states.get(key))
+    .filter((state): state is SampleState => state?.error != null)
+  // As for a side's (see `RunList`): not for a machine that may not exist.
+  const shadowMachines = shadowSide.machines.machines
+  const shadowMachineKnown = shadowMachines.data?.includes(shadowSide.settings.machine) ?? false
+  const shadowRunsFailed =
+    shadowSide.runs.isError && (shadowMachines.isError || shadowMachineKnown)
   const missing = suites.isPending ? null : missingInput(a, b, offered.length, metric !== undefined)
   return (
     <section>
@@ -323,7 +425,11 @@ function ComparePage() {
         />
       )}
       <div className={styles.sides}>
-        <SidePanel side={a} title="Side A (Baseline)" suites={suites.data ?? []} />
+        <SidePanel
+          side={{ ...a, update: updateA, selection: runsA }}
+          title="Side A (Baseline)"
+          suites={suites.data ?? []}
+        />
         <button
           type="button"
           className={styles.swap}
@@ -333,7 +439,19 @@ function ComparePage() {
         >
           ⇄
         </button>
-        <SidePanel side={b} title="Side B (New)" suites={suites.data ?? []} />
+        <SidePanel
+          side={b}
+          title="Side B (New)"
+          suites={suites.data ?? []}
+          action={
+            tests !== undefined &&
+            !pinned && (
+              <button type="button" ref={pinButton} onClick={pin}>
+                Pin as shadow
+              </button>
+            )
+          }
+        />
       </div>
       <ControlsPanel>
         <div className={styles.settings}>
@@ -386,6 +504,31 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
+      {shadowRunsFailed && (
+        <ErrorMessage
+          context="The shadow's runs could not be listed"
+          error={shadowSide.runs.error}
+          onRetry={() => void shadowSide.runs.refetch()}
+        />
+      )}
+      {shadowFailed.length > 0 && (
+        <ErrorMessage
+          context={
+            `The samples of ${runCount(shadowFailed.length)} of the shadow could not be loaded`
+          }
+          error={shadowFailed[0].error}
+          onRetry={() => shadowFailed.forEach((state) => state.retry())}
+        />
+      )}
+      {pinned && (
+        <p className={styles.shadowChip}>
+          <span className={styles.shadowMark} aria-hidden="true" />
+          Shadow: {shadow.display} on {shadowSide.settings.machine}
+          <button type="button" aria-label="Dismiss the shadow" onClick={dismiss}>
+            ×
+          </button>
+        </p>
+      )}
       {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"
@@ -406,6 +549,7 @@ function ComparePage() {
         <>
           <CompareChart
             rows={plotted}
+            shadow={shadowPoints}
             noisePct={noise.pct}
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}

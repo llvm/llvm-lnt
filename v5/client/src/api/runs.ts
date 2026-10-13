@@ -120,9 +120,9 @@ export function runRefKey({ suite, uuid }: RunRef): string {
   return `${suite}/${uuid}`
 }
 
-/** The runs of `first` and `second`, each once. */
-export function uniqueRuns(first: readonly RunRef[], second: readonly RunRef[]): RunRef[] {
-  const unique = new Map([...first, ...second].map((ref) => [runRefKey(ref), ref]))
+/** The runs of `lists`, each once. */
+export function uniqueRuns(...lists: (readonly RunRef[])[]): RunRef[] {
+  const unique = new Map(lists.flat().map((ref) => [runRefKey(ref), ref]))
   return [...unique.values()]
 }
 

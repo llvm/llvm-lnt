@@ -147,3 +147,33 @@ test('adds the comparison to a new regression, then to that one', async ({
     )
   })
 })
+
+test('overlays a pinned side B on the chart once side B changes', async ({ page, request }) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+  )
+  await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+
+  await page.getByRole('button', { name: 'Pin as shadow' }).click()
+  await expect(page.getByText(/^Shadow:/)).toHaveText(
+    `Shadow: ${newer.fields.svn_revision} on ${LINUX}×`,
+  )
+  // Side B on the experiment: its comparison is the bars, and the newest commit's the line.
+  await page.getByRole('combobox', { name: 'Commit B' }).fill(EXPERIMENT)
+  await page.getByRole('option', { name: EXPERIMENT, exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${EXPERIMENT}(&|$)`))
+  await expect(page).toHaveURL(new RegExp(`[?&]commit_shadow_b=${newer.value}(&|$)`))
+  const traces = () =>
+    plotOf(page).evaluate((element) =>
+      (element as PlotDiv)._fullData.map((trace) => [trace.name, trace.y.length]),
+    )
+  await expect.poll(traces).toEqual([
+    ['comparison', expect.any(Number)],
+    ['shadow', expect.any(Number)],
+  ])
+  const [[, bars], [, points]] = await traces()
+  expect(points).toBeGreaterThan(10)
+  expect(points).toBeLessThanOrEqual(bars as number)
+})

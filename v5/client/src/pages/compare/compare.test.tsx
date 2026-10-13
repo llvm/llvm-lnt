@@ -1140,7 +1140,6 @@ describe('the chart (CP3)', () => {
     fireEvent.mouseLeave(screen.getByRole('table', { name: 'Comparison' }).parentElement!)
     expect(outline()).toBeNull()
   })
-
 })
 
 describe('the summary bar (CP4)', () => {
