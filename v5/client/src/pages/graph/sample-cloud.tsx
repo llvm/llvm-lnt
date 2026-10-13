@@ -88,9 +88,9 @@ export function SampleCloud({ samples, geometry, position, color, pinned }: Prop
             transform: `translate(${onRight ? '8px' : 'calc(-100% - 8px)'}, -50%)`,
           }}
         >
-          <strong>{formatMetricValue(shown.value, pinned.metric)}</strong>
           <span>{formatTimestamp(shown.submitted)}</span>
           <span>{shortUuid(shown.run)}</span>
+          <span>Value: {formatMetricValue(shown.value, pinned.metric)}</span>
         </div>
       )}
     </>

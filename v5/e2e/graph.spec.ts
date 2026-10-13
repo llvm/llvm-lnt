@@ -160,7 +160,8 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   const median = circles.nth(nearest)
   await median.hover()
   const tip = page.getByRole('tooltip')
-  await expect(tip).toContainText(items[0].run_uuid.slice(0, 8))
+  const run = items[0].run_uuid.slice(0, 8)
+  await expect(tip.locator('span')).toHaveText([/^\d{4}-\d\d-\d\d, /, `${run}…`, /^Value: \d/])
   await expect(plotLabel).not.toContainText('Click for details')
 
   // Pressing it leaves the details open, with the focus for Escape to close them, and their links.

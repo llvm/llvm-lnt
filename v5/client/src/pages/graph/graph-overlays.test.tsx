@@ -527,9 +527,12 @@ describe('the samples of the point whose details are open (GR10, GR11)', () => {
 
     fireEvent.pointerEnter(circle)
     const tip = screen.getByRole('tooltip')
-    expect(within(tip).getByText('6')).toBeInTheDocument()
-    expect(within(tip).getByText(formatTimestamp('2026-08-25T10:00:00Z'))).toBeInTheDocument()
-    expect(within(tip).getByText(shortUuid('r3'))).toBeInTheDocument()
+    // Its run, as the details list it, then its value.
+    expect([...tip.children].map((line) => line.textContent)).toEqual([
+      formatTimestamp('2026-08-25T10:00:00Z'),
+      shortUuid('r3'),
+      'Value: 6',
+    ])
     // Beside the sample, at c20's position, 1, and its value, 6, away from the details.
     expect(tip).toHaveStyle({ left: '150px', top: '340px' })
     expect(tip.style.transform).toMatch(/^translate\(calc\(-100% - 8px\)/)
