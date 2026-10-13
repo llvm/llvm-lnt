@@ -13,7 +13,7 @@ export function chosenRuns(side: Side): string[] {
 }
 
 /** Whether the samples of a run could not be loaded. */
-function hasFailed(state: SampleState | undefined): state is SampleState {
+export function hasFailed(state: SampleState | undefined): state is SampleState {
   return state?.error != null
 }
 
@@ -24,28 +24,19 @@ interface Progress {
   loaded: number
   /** Those whose samples could not be loaded. */
   failed: SampleState[]
-  /** Those of the shadow's runs that are not the sides', whose samples could not be loaded. */
-  shadowFailed: SampleState[]
 }
 
-/** How far the samples of the runs `a`, `b` and `shadow` select are loaded, by `states`. */
+/** How far the samples of the runs `a` and `b` select are loaded, by `states`. */
 export function loadProgress(
   a: Side,
   b: Side,
-  shadow: Side,
   states: ReadonlyMap<string, SampleState>,
 ): Progress {
-  const main = new Set([...chosenRuns(a), ...chosenRuns(b)])
-  const chosen = [...main].map((key) => states.get(key))
+  const chosen = [...new Set([...chosenRuns(a), ...chosenRuns(b)])].map((key) => states.get(key))
   return {
     chosen: chosen.length,
     loaded: chosen.filter((state) => state?.samples !== undefined).length,
     failed: chosen.filter(hasFailed),
-    // The sides' failures are reported already.
-    shadowFailed: chosenRuns(shadow)
-      .filter((key) => !main.has(key))
-      .map((key) => states.get(key))
-      .filter(hasFailed),
   }
 }
 

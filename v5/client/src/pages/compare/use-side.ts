@@ -173,11 +173,10 @@ export function useSide(
   }
 }
 
-/** The two sides of the comparison, and the shadow, read like a side (CP8). */
+/** The two sides of the comparison. */
 export interface Sides {
   a: Side
   b: Side
-  shadow: Side
   /** Whether the sides have been swapped an odd number of times. */
   swapped: boolean
   /** Swap the sides (CP1). */
@@ -188,7 +187,8 @@ export interface Sides {
 
 /**
  * The sides, with the settings `all` gives them, which `update` changes, and their runs' samples,
- * each run's asked for once, whichever sides have it. `suites` lists the suites of the instance.
+ * each run's asked for once, even when both sides have it. `suites` lists the suites of the
+ * instance.
  */
 export function useSides(
   all: Settings,
@@ -202,15 +202,11 @@ export function useSides(
   const first = useSide(swapped ? 'b' : 'a', all, update, suites)
   const second = useSide(swapped ? 'a' : 'b', all, update, suites)
   const [a, b] = swapped ? [second, first] : [first, second]
-  const shadow = useSide('shadow_b', all, update, suites)
 
-  const refs = useMemo(
-    () => uniqueRuns(first.refs, second.refs, shadow.refs),
-    [first.refs, second.refs, shadow.refs],
-  )
+  const refs = useMemo(() => uniqueRuns(first.refs, second.refs), [first.refs, second.refs])
   const wanted = useMemo(
-    () => new Set([...first.wanted, ...second.wanted, ...shadow.wanted]),
-    [first.wanted, second.wanted, shadow.wanted],
+    () => new Set([...first.wanted, ...second.wanted]),
+    [first.wanted, second.wanted],
   )
   const states = useRunSamples(refs, wanted)
 
@@ -218,5 +214,5 @@ export function useSides(
     update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
     setSwapped(!swapped)
   }
-  return { a, b, shadow, swapped, swap, states }
+  return { a, b, swapped, swap, states }
 }
