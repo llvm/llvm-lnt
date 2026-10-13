@@ -17,6 +17,7 @@ from .send_run_comparison import action_send_run_comparison
 from .showtests import action_showtests
 from .submit import action_submit
 from .updatedb import action_updatedb
+from .v5 import group_v5
 from .viewcomparison import action_view_comparison
 
 
@@ -59,3 +60,4 @@ main.add_command(action_updatedb)
 main.add_command(action_view_comparison)
 main.add_command(group_admin)
 main.add_command(group_runtest)
+main.add_command(group_v5)

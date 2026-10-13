@@ -1,0 +1,64 @@
+#!/bin/bash
+# Test `lnt v5 import-v4-mirror --dry-run` on a mirror of a real v4 instance.
+#
+# RUN: rm -rf %t.instance %t.tmp %t.pg.log && mkdir -p %t.tmp
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         -- %{utils}/server_wrapper.sh --fail-on-error %t.instance 9097 \
+# RUN:             /bin/bash %s %t.tmp %t.instance %{shared_inputs}
+
+set -eux
+
+TMP="$1"
+INSTANCE="$2"
+SHARED_INPUTS="$3"
+
+URL="http://localhost:9097"
+MIRROR="${TMP}/mirror"
+
+# v4 can create a second machine of the same name when its fields change, and
+# used to do so by default.
+sed -e 's/"os": "Darwin 11.3.0"/"os": "Darwin 11.4.0"/' \
+    -e 's/"start_time": "2012-04-11T16:28:23"/"start_time": "2012-05-11T16:28:23"/' \
+    -e 's/"llvm_project_revision": "154331"/"llvm_project_revision": "154400"/' \
+    "${SHARED_INPUTS}/base-reports/nts-run1.json" > "${TMP}/os-upgrade.json"
+lnt import -s nts --select-machine split "${INSTANCE}" "${TMP}/os-upgrade.json"
+
+lnt mirror-v4 "${URL}" "${MIRROR}" --suite nts
+lnt mirror-v4 "${URL}" "${MIRROR}" --suite compile
+
+lnt v5 import-v4-mirror "${MIRROR}" --suite nts --target-suite nts --dry-run \
+    > "${TMP}/nts.txt"
+# RUN: filecheck %s --check-prefix=NTS < %t.tmp/nts.txt
+# NTS: Importing suite 'nts' of http://localhost:9097 (database 'default') into suite 'nts' (dry run)
+# NTS-NEXT: Schema: {{[0-9]+}} metric(s) and 4 machine field(s)
+# NTS-NEXT:   machine 2 (localhost__clang_DEV__x86_64) is imported as 'localhost__clang_DEV__x86_64-import-2'
+# NTS-NEXT: Commits: 3, of which 3 have an ordinal
+# NTS-NEXT: Converted 3 run(s) of 2 machine(s); 0 failure(s).
+
+lnt v5 import-v4-mirror "${MIRROR}" --suite compile --target-suite compile \
+    --dry-run > "${TMP}/compile.txt"
+# RUN: filecheck %s --check-prefix=COMPILE < %t.tmp/compile.txt
+# COMPILE: Importing suite 'compile' of http://localhost:9097 (database 'default') into suite 'compile' (dry run)
+# COMPILE: Converted 4 run(s) of {{[0-9]+}} machine(s); 0 failure(s).
+
+# The run submitted first, as it is converted: its machine keeps the fields
+# that the nts schema does not declare, and its revision is its ordinal.
+python - "${MIRROR}" > "${TMP}/run.txt" <<'EOF'
+import json, sys
+from lnt.util.import_v4_mirror import convert_run, make_plan, read_mirror, read_run
+mirrored = read_mirror(sys.argv[1], 'nts')
+plan = make_plan(mirrored, 'nts')
+run = mirrored.runs[0]
+submission = convert_run(plan, run, read_run(mirrored, run))
+print(json.dumps(submission['machine'], sort_keys=True))
+print(json.dumps(submission['commit'], sort_keys=True))
+print(submission['run_parameters']['start_time'])
+print(sum(len(test['samples']) for test in submission['tests']))
+EOF
+# RUN: filecheck %s --check-prefix=CONVERTED < %t.tmp/run.txt
+# CONVERTED: {"fields": {"hardware": "x86_64", "hostname": "localhost", "os": "Darwin 11.3.0", "uname": "Darwin localhost 11.3.0 {{.*}}"}, "name": "localhost__clang_DEV__x86_64", "tracked": false}
+# CONVERTED-NEXT: {"ordinal": 154331, "value": "154331"}
+# CONVERTED-NEXT: 2012-04-11T16:28:23
+# CONVERTED-NEXT: {{[1-9][0-9]*}}
