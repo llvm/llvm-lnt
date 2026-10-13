@@ -25,12 +25,25 @@ const state = (state: Partial<SampleState>): SampleState => ({
 
 const LOADED = new Map([['libcxx/1', state({ samples: [] })]])
 
-const READY = { suitesPending: false, offered: 1, metric: true, compared: false }
+const READY = {
+  suitesPending: false,
+  suitesFailed: false,
+  offered: 1,
+  metric: true,
+  compared: false,
+}
 
 describe('waiting', () => {
   it('waits for the suites first', () => {
     expect(waiting(side('a'), side('b'), LOADED, { ...READY, suitesPending: true })).toEqual({
       kind: 'loading',
+    })
+  })
+
+  it('shows nothing once the suites could not be listed, which is reported already', () => {
+    const noSuite = side('a', { schema: undefined })
+    expect(waiting(noSuite, side('b'), LOADED, { ...READY, suitesFailed: true })).toEqual({
+      kind: 'failed',
     })
   })
 

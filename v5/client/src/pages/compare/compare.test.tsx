@@ -345,6 +345,22 @@ describe('loading (CP6)', () => {
     expect(await comparison()).toEqual(ROWS)
   })
 
+  it('says only that the suites could not be listed, not what the sides miss', async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/suites', () =>
+        errorResponse(500, 'internal_error', 'The suites broke.'),
+      ),
+    )
+    renderPage(COMPARED)
+
+    expect(
+      await main().findByText(/The test suites could not be listed: The suites broke\./),
+    ).toBeInTheDocument()
+    expect(main().queryByText('Select a suite for side A.')).not.toBeInTheDocument()
+    expect(main().queryByText('Select a suite to load metrics...')).not.toBeInTheDocument()
+  })
+
   it('drops the runs of a side without a commit', async () => {
     mockWorld()
     renderPage(`/compare?suite_b=libcxx&machine_b=m1&runs_b=${uuidOf('3')}`)

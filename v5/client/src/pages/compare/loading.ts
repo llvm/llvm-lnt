@@ -71,8 +71,9 @@ export type Waiting =
   | { kind: 'failed' }
 
 interface Status {
-  /** Whether the suites are still being listed. */
+  /** Whether the suites are still being listed, and whether they could not be. */
   suitesPending: boolean
+  suitesFailed: boolean
   /** How many metrics the page offers, and whether one is chosen. */
   offered: number
   metric: boolean
@@ -88,9 +89,11 @@ export function waiting(
   a: SideProgress,
   b: SideProgress,
   states: ReadonlyMap<string, SampleState>,
-  { suitesPending, offered, metric, compared }: Status,
+  { suitesPending, suitesFailed, offered, metric, compared }: Status,
 ): Waiting | null {
   if (suitesPending) return { kind: 'loading' }
+  // Without the suites, the sides cannot be checked: not even whether the URL's suites exist.
+  if (suitesFailed) return { kind: 'failed' }
   const missing = missingInput(a, b, offered, metric)
   if (missing !== null) return { kind: 'missing', text: missing }
   const chosen = [...sidesRuns(a, b)].map((key) => states.get(key))

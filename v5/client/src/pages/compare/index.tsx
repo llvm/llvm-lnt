@@ -63,6 +63,7 @@ function ComparePage() {
   const failed = failedRuns(a, b, sides.states)
   const wait = waiting(a, b, sides.states, {
     suitesPending: suites.isPending,
+    suitesFailed: suites.isError,
     offered: offered.length,
     metric: metric !== undefined,
     compared: tests !== undefined,
@@ -104,9 +105,9 @@ function ComparePage() {
       </div>
       <ControlsPanel>
         <div className={styles.settings}>
-          {a.schema === undefined && b.schema === undefined ? (
+          {a.settings.suite === '' && b.settings.suite === '' ? (
             <p className={styles.note}>Select a suite to load metrics...</p>
-          ) : offered.length === 0 ? (
+          ) : a.schema === undefined && b.schema === undefined ? null : offered.length === 0 ? (
             <p className={styles.note}>No metric can be compared.</p>
           ) : (
             <Select
