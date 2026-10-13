@@ -1,6 +1,7 @@
 /**
  * What the Compare page's chart draws (CP3): a bar per compared test, sorted by ratio, on a log2
- * axis labelled with percentage changes, and the noise band, computed apart from the chart.
+ * axis labelled with percentage changes, the noise band, and the shadow's line (CP8), computed
+ * apart from the chart.
  */
 
 import type { Layout, PlotData, Shape } from 'plotly.js'
@@ -50,11 +51,15 @@ const STATUS_COLORS: Record<Status, string> = {
   na: '#9ca3af',
 }
 
+/** The colour of the shadow's line (CP8): apart from those of the statuses. */
+export const SHADOW_COLOR = '#7c3aed'
+
 /**
- * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, the exact
- * ratio, both sides' values and Delta % (CP3). Test names are escaped: Plotly reads them as HTML.
+ * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, followed by
+ * `label` if any, the exact ratio, both sides' values and Delta % (CP3). Test names are escaped:
+ * Plotly reads them as HTML.
  */
-function plotted(bars: readonly Bar[]): Partial<PlotData> {
+function plotted(bars: readonly Bar[], label = ''): Partial<PlotData> {
   return {
     x: bars.map((_, i) => i),
     y: bars.map((bar) => bar.y),
@@ -66,7 +71,7 @@ function plotted(bars: readonly Bar[]): Partial<PlotData> {
       formatDeltaPct(bar.deltaPct),
     ]) as unknown as PlotData['customdata'],
     hovertemplate:
-      '<b>%{customdata[0]}</b><br>Ratio: %{customdata[1]}<br>A: %{customdata[2]}<br>' +
+      `<b>%{customdata[0]}</b>${label}<br>Ratio: %{customdata[1]}<br>A: %{customdata[2]}<br>` +
       'B: %{customdata[3]}<br>Delta %: %{customdata[4]}<extra></extra>',
   }
 }
@@ -78,6 +83,18 @@ export function barTrace(bars: readonly Bar[]): Partial<PlotData> {
     name: 'comparison',
     ...plotted(bars),
     marker: { color: bars.map((bar) => STATUS_COLORS[bar.status]) },
+  }
+}
+
+/** The shadow's comparison, as a thin line through its points, sorted by their own ratios (CP8). */
+export function shadowTrace(points: readonly Bar[]): Partial<PlotData> {
+  return {
+    type: 'scatter',
+    mode: 'lines+markers',
+    name: 'shadow',
+    ...plotted(points, ' (shadow)'),
+    line: { color: SHADOW_COLOR, width: 1.5 },
+    marker: { color: SHADOW_COLOR, size: 4 },
   }
 }
 
@@ -151,18 +168,21 @@ export function ratioTicks(min: number, max: number): { tickvals: number[]; tick
 }
 
 /**
- * The range the chart spans when not zoomed: its bars, from 0, and the noise band, if any, which
- * the ticks are computed over.
+ * The range the chart spans when not zoomed: its bars, from 0, the shadow's points, if any, and the
+ * noise band, if any, which the ticks are computed over.
  */
 export function chartExtent(
   bars: readonly Bar[],
   band: { upper: number; lower: number } | null,
+  shadow: readonly Bar[] = [],
 ): [number, number] {
   let min = Math.min(0, band?.lower ?? 0)
   let max = Math.max(0, band?.upper ?? 0)
-  for (const { y } of bars) {
-    if (y < min) min = y
-    if (y > max) max = y
+  for (const list of [bars, shadow]) {
+    for (const { y } of list) {
+      if (y < min) min = y
+      if (y > max) max = y
+    }
   }
   return [min, max]
 }

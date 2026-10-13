@@ -155,3 +155,40 @@ test('adds the comparison to a new regression, then to that one', async ({
     )
   })
 })
+
+test('overlays a pinned side B on the chart once side B changes', async ({ page, request }) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+  )
+  await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+
+  await page.getByRole('button', { name: 'Pin as shadow' }).click()
+  await expect(page.getByText(/^Shadow:/)).toHaveText(
+    `Shadow: ${newer.fields.svn_revision} on ${LINUX}×`,
+  )
+  await expect(page.getByRole('button', { name: 'Dismiss the shadow' })).toBeFocused()
+  // Side B on the experiment: its comparison is the bars, and the newest commit's the line.
+  // Typed key by key, as a user does: `fill`, which sets the whole text at once, is sometimes lost
+  // when the focus comes from the chip's button.
+  const commitB = sideOf(page, 'B').getByRole('combobox', { name: 'Commit' })
+  await commitB.click()
+  await commitB.press('ControlOrMeta+a')
+  await commitB.pressSequentially(EXPERIMENT)
+  await page.getByRole('option', { name: EXPERIMENT, exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${EXPERIMENT}(&|$)`))
+  await expect(page).toHaveURL(new RegExp(`[?&]commit_shadow_b=${newer.value}(&|$)`))
+  const traces = () =>
+    plotOf(page).evaluate((element) =>
+      (element as PlotDiv)._fullData.map((trace) => ({ name: trace.name, y: trace.y })),
+    )
+  await expect.poll(async () => (await traces()).map((trace) => trace.name)).toEqual([
+    'comparison',
+    'shadow',
+  ])
+  // The line goes through a point per test, sorted by its own ratios.
+  const points = (await traces())[1].y
+  expect(points.length).toBeGreaterThan(10)
+  expect(points).toEqual([...points].sort((x, y) => x - y))
+})

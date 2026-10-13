@@ -328,9 +328,10 @@ Interactivity:
 - **Noise band**: see Computation Reference for how the Delta % threshold is
   converted to log2 space. The p-value and absolute floor knobs do not have
   chart-level visualization.
-- **Empty state**: when there is a comparison but none of its compared rows can
-  be plotted, the chart area displays "No data to plot", as on the Graph page
-  (see GR12). CP6 says what is shown while there is no comparison.
+- **Empty state**: when there is a comparison but neither the bars nor the
+  shadow's line (see CP8) have anything to plot, the chart area displays "No
+  data to plot", as on the Graph page (see GR12). CP6 says what is shown while
+  there is no comparison.
 
 
 ### CP4: Comparison Summary Bar
@@ -486,13 +487,13 @@ pinned.
 
 **Rendering:**
 - The shadow comparison is computed the same way as the main one, between side
-  A and the shadow's runs. The line plots the same tests as the bars (the
-  compared rows, see CP2), each at its ratio in the shadow comparison, leaving
-  out those that cannot be plotted there.
+  A and the shadow's runs. The line plots the compared rows (see CP2) that can
+  be plotted in the shadow comparison, each at its ratio there. A test can
+  have a point without a bar, or a bar without a point.
 - The line is sorted by its own ratios, so a test's point on the line is not
   necessarily above its bar. The X-axis is wide enough for whichever of the two
-  has more tests. Its color is distinct from the status colors of the bars, and there is
-  no legend: the chip identifies the trace.
+  has more tests. Its color is distinct from the status colors of the bars, and
+  there is no legend: the chip identifies the trace.
 - Hovering a shadow point shows the same information as a main bar, with a
   "(shadow)" label. Table-to-chart hover highlighting targets the main bars
   only.
@@ -506,8 +507,9 @@ Regression (see CP9) operates on the main comparison only.
 **What it follows.** The shadow follows changes to the metric, the run and
 sample aggregations and the compared rows. It keeps side B's suite, machine,
 commit and runs as they were when pinned, whatever happens to side B
-afterwards. Changing side A's suite, machine, commit or runs,
-or swapping the sides, dismisses the shadow.
+afterwards. Its runs are kept as the URL holds them (see CP7): when every run
+of side B was selected, the shadow selects every run of its commit. Changing side A's suite, machine, commit or runs, or swapping
+the sides, dismisses the shadow.
 
 **Data:** the shadow's samples are fetched like a side's (see CP6). The main
 comparison never waits for them. The line is drawn only once all of them have
@@ -516,9 +518,9 @@ reported.
 
 **URL encoding:** the shadow is encoded like a side, with the suffix `shadow_b`:
 `suite_shadow_b`, `machine_shadow_b`, `commit_shadow_b` and `runs_shadow_b`,
-following the same rules (see CP7). The shadow is dropped
-if its suite, machine or commit is unusable, or if side A has no commit. When
-unusable runs are dropped from side A's URL values, the shadow is kept.
+following the same rules (see CP7). The shadow is dropped if its suite, machine
+or commit is missing or unusable, or if side A has no commit. When unusable
+runs are dropped from side A's URL values, the shadow is kept.
 
 
 ### CP9: Add to Regression

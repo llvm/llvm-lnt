@@ -29,6 +29,13 @@
   gap: var(--lnt-space-2);
 }
 
+.sideHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
 .sideTitle {
   margin: 0;
   font-size: 1.1rem;
@@ -135,6 +142,12 @@
 
 .knobValue {
   width: 5rem;
+}
+
+/* The mark of the shadow's chip (CP8): a stroke of its line. */
+.shadowMark {
+  width: 1rem;
+  height: 2px;
 }
 
 /* Add to Regression (CP9): a box of its own, its header, what was done beside it, and what it
