@@ -1,0 +1,150 @@
+/* The Compare page (CP1-CP7). */
+
+/* The two sides, the swap button between them. */
+.sides {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: var(--lnt-space-3);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.swap {
+  align-self: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: 50%;
+  background: var(--lnt-bg);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+/* A side's runs, each with its checkbox. */
+.runs {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* Like the label of the fields above it, with its checkbox above those of the runs. */
+.runsLegend {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+  padding: 0 0 0 calc(var(--lnt-space-2) + 1px);
+}
+
+/* The runs of a side (CP1), in a box of their own, which scrolls once they are many. */
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+  max-height: 12rem;
+  overflow: auto;
+  padding: var(--lnt-space-2);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+}
+
+.run {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.runTime {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The run's UUID, out of the way until hovered, when it shows as the link it is. */
+.runUuid {
+  color: var(--lnt-muted);
+  text-decoration: none;
+}
+
+.runUuid:hover,
+.runUuid:focus-visible {
+  color: var(--lnt-accent);
+  text-decoration: underline;
+}
+
+/* The settings shared by both sides. */
+.settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
+}
+
+.note {
+  color: var(--lnt-muted);
+}
+
+/* How many of the table's tests are shown, above it. */
+.count {
+  margin: 0 0 var(--lnt-space-2);
+  color: var(--lnt-muted);
+  font-size: 0.9rem;
+}
+
+/* The colours of the statuses (CP2, CP4): green for improved, red for regressed, grey otherwise. */
+.improved {
+  --status-color: var(--lnt-success);
+}
+
+.regressed {
+  --status-color: var(--lnt-danger);
+}
+
+.noise,
+.unchanged,
+.na,
+.onlyA,
+.onlyB {
+  --status-color: var(--lnt-muted);
+}
+
+.status {
+  color: var(--status-color);
+  font-weight: 600;
+}
+
+/* The summary bar (CP4). */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-3);
+  margin: var(--lnt-space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.category {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+}
+
+.muted {
+  opacity: 0.5;
+}
+
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--status-color);
+}

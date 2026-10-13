@@ -250,9 +250,9 @@ describe('the point details (GR11)', () => {
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare).toHaveAttribute(
       'href',
-      '/compare?suite_a=libcxx&machine_a=m1&commit_a=c10&run_agg_a=min' +
-        '&suite_b=libcxx&machine_b=m1&commit_b=c20&run_agg_b=min' +
-        '&metric=execution_time&sample_agg=max',
+      '/compare?suite_a=libcxx&machine_a=m1&commit_a=c10' +
+        '&suite_b=libcxx&machine_b=m1&commit_b=c20' +
+        '&metric=execution_time&run_agg=min&sample_agg=max',
     )
     // Beside the point, at c20's position, 1, and its value, 2.
     expect(dialog).toHaveStyle({ left: '150px', top: '380px' })

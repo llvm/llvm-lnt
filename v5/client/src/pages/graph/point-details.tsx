@@ -53,9 +53,9 @@ export function PointDetails({
 }: Props) {
   const suite = schema.name
 
-  // A side's aggregation in the comparison's URL, unless it is Compare's default.
+  // An aggregation in the comparison's URL, unless it is Compare's default.
   const unlessDefault = (how: Aggregation) => (how === 'median' ? undefined : how)
-  const side = (commit: string) => ({ suite, machine, commit, runAgg: unlessDefault(runAgg) })
+  const side = (commit: string) => ({ suite, machine, commit })
   let compare: string | null = null
   let why: string | undefined
   if (state === 'loading') why = "The test's data is still loading."
@@ -65,8 +65,7 @@ export function PointDetails({
     compare = comparePath(
       side(previous.commit),
       side(point.commit),
-      metric.name,
-      unlessDefault(sampleAgg),
+      { metric: metric.name, sampleAgg: unlessDefault(sampleAgg), runAgg: unlessDefault(runAgg) },
     )
   }
 
