@@ -65,13 +65,12 @@ function isolate(rows: RowSelection, test: string, shown: readonly string[]) {
   rows.replace(next)
 }
 
-interface Props {
+/** What the table shows, computed from the comparison (see `useComparisonTable`). */
+export interface TableView {
   /** The rows the table shows, in the order they are sorted in. */
   rows: ComparisonRow[]
   /** The columns after the checkbox column, the optional statistics included. */
   columns: CompareColumn[]
-  /** The Columns menu, on the summary message's row. */
-  menu: ReactNode
   /** Their tests, in the same order. */
   tests: string[]
   /** The selection of the hidden tests. */
@@ -83,20 +82,25 @@ interface Props {
   geomean: Values
   /** What the table says when it has no row, and why. */
   empty: string
-  /** The Profiles page of each test that has a profile, by test. */
-  links: ProfileMap
   /** Whether any compared test has a profile, which the Profile column is shown for. */
   profiled: boolean
-  /** The test whose bar is hovered on the chart, whose row the table highlights (CP5). */
-  hovered: ValueStore<string | null>
-  /** Where the table says which test's row is hovered, for the chart to outline its bar. */
-  emphasis: ValueStore<string | null>
   /** Whether the rows are about to be replaced, by those of another classification of the noise. */
   busy: boolean
   sort: TableSort
   onSort(sort: TableSort): void
   /** The compared rows as CSV, or null when there is none to copy (CP2 "Copy as CSV"). */
   csv: (() => string) | null
+}
+
+interface Props extends TableView {
+  /** The Columns menu, on the summary message's row. */
+  menu: ReactNode
+  /** The Profiles page of each test that has a profile, by test. */
+  links: ProfileMap
+  /** The test whose bar is hovered on the chart, whose row the table highlights (CP5). */
+  hovered: ValueStore<string | null>
+  /** Where the table says which test's row is hovered, for the chart to outline its bar. */
+  emphasis: ValueStore<string | null>
 }
 
 /**

@@ -1,30 +1,24 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import { useSuites } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
-import { useRangeSelection, type RowSelection } from '../../components/range-selection'
+import type { RowSelection } from '../../components/range-selection'
 import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
-import type { TableSort } from '../../components/table-sort'
-import { useTextFilter } from '../../components/use-text-filter'
-import { compareStrings } from '../../format'
 import { useSameElements } from '../../same-elements'
 import { labelOf } from '../../schema'
 import { useUrlState, useVisitKey } from '../../url-state'
 import { ValueStore } from '../../value-store'
 import {
   compareRows,
-  geomeanRow,
-  summaryCounts,
   type ComparisonRow,
   type NoiseKnob,
   type NoiseSettings,
 } from './comparison'
 import { AddToRegression } from './add-to-regression'
 import { chartBars, SHADOW_COLOR, type Bar } from './chart'
-import { comparisonCsv, sortComparison, tableColumns } from './columns'
 import { ColumnsMenu } from './columns-menu'
 import { chosenRuns, loadProgress, missingInput, runCount } from './loading'
 import { offeredMetrics, useMetric } from './metrics'
@@ -32,7 +26,6 @@ import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
 import {
-  HIDDEN_IN_URL,
   NO_SHADOW,
   NOISE_PARAMS,
   noiseSettings,
@@ -43,12 +36,12 @@ import {
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useComparison, useSideComparison } from './use-comparison'
+import { useComparisonTable } from './use-comparison-table'
 import { useProfileLinks } from './use-profile-links'
 import { useShadow } from './use-shadow'
 import { runsListFailed, useSides } from './use-side'
 import styles from './compare.module.css'
 
-const NO_TESTS: string[] = []
 const NO_BARS: Bar[] = []
 /** No noise knob enabled: the shadow's line needs no statuses. */
 const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
@@ -97,7 +90,7 @@ function ComparePage() {
   const profiles = useProfileLinks(a, b)
 
   const comparison = useComparison(sides, metric, settings)
-  const { tests, rows, valuesA, biggerIsBetter, noise } = comparison
+  const { tests, valuesA, biggerIsBetter, noise } = comparison
   // The shadow's values, unless side A's suite and the shadow's do not both offer the metric, in
   // which case the shadow draws nothing (CP8).
   const shadowOffered = useMemo(
@@ -111,71 +104,8 @@ function ComparePage() {
     shadowMetric,
     settings.sample_agg,
   )
-  const filter = useTextFilter(
-    rows,
-    testOf,
-    settings.test_filter,
-    (text) => update({ test_filter: text }),
-    { regex: settings.test_filter_regex },
-  )
-  const matching = filter.rows
-  // The rows the table shows: those the filter keeps, without the noise when it is hidden.
-  const hideNoise = useDeferredValue(settings.hide_noise)
-  const shown = useMemo(
-    () => (hideNoise ? matching.filter((row) => row.status !== 'noise') : matching),
-    [matching, hideNoise],
-  )
-  const total = useMemo(
-    () => (hideNoise ? rows.filter((row) => row.status !== 'noise').length : rows.length),
-    [rows, hideNoise],
-  )
-  const counts = useMemo(() => summaryCounts(matching), [matching])
-
-  // The table's columns, with the optional ones shown.
-  const optional = settings.columns
-  // The table follows the columns shown once it has had the time to render them, as for the noise.
-  const deferredOptional = useDeferredValue(optional)
-  const columns = useMemo(() => tableColumns(deferredOptional), [deferredOptional])
-
-  // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
-  // A sort by a column that is not shown is the default one, and is dropped from the URL (CP7).
-  // The same sort object from one render to the next, for the table not to render again.
-  const usable = columns.some((entry) => entry.id === settings.sort.column)
-  const { column, direction } = usable ? settings.sort : PARAMS.sort.default
-  useEffect(() => {
-    if (!usable) update({ sort: PARAMS.sort.default })
-  }, [usable, update])
-  const sort = useMemo(() => ({ column, direction }), [column, direction])
-  const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
-  const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
-  const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
-
-  // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
-  // and neither the filter nor "Hide noise" changes them.
-  const allTests = useMemo(() => tests?.map((entry) => entry.test), [tests])
-  const { selected: hiddenTests, rows: hidden } = useRangeSelection(allTests, sortedTests, {
-    inverted: true,
-    initial: settings.hidden_test,
-  })
-  const compared = useMemo(
-    () => sorted.filter((row) => !hiddenTests.has(row.test)),
-    [sorted, hiddenTests],
-  )
-  const complete = tests !== undefined
-  const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
-  // The same, in no particular order, for the chart, which sorts them its own way: sorting the
-  // table by another column leaves it as it is.
-  const plotted = useMemo(
-    () => shown.filter((row) => !hiddenTests.has(row.test)),
-    [shown, hiddenTests],
-  )
-  // Whether to show the Profile column: whether any test of the comparison has a profile, whatever
-  // the filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
-  const { links } = profiles
-  const profiled = useMemo(
-    () => allTests?.some((test) => links.has(test)) ?? false,
-    [allTests, links],
-  )
+  const table = useComparisonTable(comparison, settings, update, profiles.links)
+  const { plotted } = table
   // The shadow's line (CP8): the tests the chart plots, compared between side A and the shadow,
   // sorted by their own ratios. Every test's point is computed once, and those of the tests the
   // chart plots kept, the same for as long as they are the same, as the noise is classified anew.
@@ -194,35 +124,10 @@ function ComparePage() {
     }, [shadowBars, plotted]),
   )
 
-  // The tests Add to Regression makes indicators of: the compared ones with a value on side B.
-  // In no particular order, as the chart's, so that sorting the table does not change them.
-  const regressionTests = useMemo(
-    () => (complete ? plotted.filter((row) => row.b !== null).map(testOf) : undefined),
-    [complete, plotted],
-  )
-  const csv = useMemo(
-    () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
-    [columns, compared, geomean],
-  )
-
-  // The hidden tests, in the URL while there are few enough of them to share (CP7). A long list
-  // from the URL stays there until the comparison is complete, which may leave few enough of them.
-  const shared = hiddenTests.size <= HIDDEN_IN_URL
-  const hiddenSorted = useMemo(
-    () => (shared ? [...hiddenTests].sort(compareStrings) : NO_TESTS),
-    [hiddenTests, shared],
-  )
-  useEffect(() => {
-    if (shared || complete) update({ hidden_test: hiddenSorted })
-  }, [hiddenSorted, shared, complete, update])
-
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
     [update],
   )
-  // Whether the table still shows the noise as it was classified before the latest change.
-  const reclassifying =
-    comparison.classifying || hideNoise !== settings.hide_noise || deferredOptional !== optional
 
   // Swapping the sides, or changing what side A is, dismisses the shadow (CP8). Changing side A's
   // run aggregation does not: the shadow follows it.
@@ -322,7 +227,7 @@ function ComparePage() {
             onChange={(value) => update({ sample_agg: value })}
           />
           <RegexFilter
-            filter={filter}
+            filter={table.filter}
             label="Filter tests"
             placeholder="Filter tests..."
             regex={settings.test_filter_regex}
@@ -340,7 +245,7 @@ function ComparePage() {
           machine={b.settings.machine}
           commit={b.settings.commit}
           metric={metric?.name ?? ''}
-          tests={regressionTests}
+          rows={tests === undefined ? undefined : plotted}
           swapped={swapped}
         />
       </ControlsPanel>
@@ -418,35 +323,15 @@ function ComparePage() {
             emphasis={emphasis}
             hovered={hovered}
           />
-          <SummaryBar counts={counts} />
+          <SummaryBar counts={table.counts} />
           <CompareTable
-            rows={sorted}
-            columns={columns}
-            menu={<ColumnsMenu shown={optional} onChange={(keys) => update({ columns: keys })} />}
-            tests={sortedTests}
-            hidden={hidden}
-            summary={
-              filter.active
-                ? `${compared.length} of ${shown.length} matching tests shown (${total} total)`
-                : `${compared.length} of ${total} tests shown`
+            {...table.view}
+            menu={
+              <ColumnsMenu shown={table.optional} onChange={(keys) => update({ columns: keys })} />
             }
-            notInUrl={shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`}
-            geomean={geomean}
-            csv={csv}
-            busy={reclassifying}
+            links={profiles.links}
             hovered={hovered}
             emphasis={emphasis}
-            links={links}
-            profiled={profiled}
-            empty={
-              rows.length === 0
-                ? 'No test has a value for this metric.'
-                : matching.length === 0
-                  ? 'No tests match the filter.'
-                  : 'Every matching test is classified as noise.'
-            }
-            sort={sort}
-            onSort={onSort}
           />
         </>
       )}

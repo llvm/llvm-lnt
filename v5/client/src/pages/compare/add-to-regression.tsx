@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
@@ -21,6 +21,7 @@ import {
 } from '../../components/regression-picker'
 import { plural, shortUuid } from '../../format'
 import { regressionPath } from '../../paths'
+import type { ComparisonRow } from './comparison'
 import styles from './compare.module.css'
 
 type IndicatorObject = Schemas['IndicatorObject']
@@ -40,8 +41,8 @@ interface Props {
   machine: string
   commit: string
   metric: string
-  /** The tests of the compared rows with a value on side B, or undefined with no comparison. */
-  tests: readonly string[] | undefined
+  /** The compared rows (CP2), in no particular order, or undefined with no comparison. */
+  rows: readonly ComparisonRow[] | undefined
   /** Whether the sides are swapped: the regression picked is forgotten whenever they are. */
   swapped: boolean
 }
@@ -51,8 +52,14 @@ interface Props {
  * existing one, an indicator for each compared test with a value on side B, on side B's machine,
  * for the metric. It is a form: nothing of it is kept in the URL.
  */
-export function AddToRegression({ suite, machine, commit, metric, tests, swapped }: Props) {
+export function AddToRegression({ suite, machine, commit, metric, rows, swapped }: Props) {
   const triage = useScopeGate('triage')
+  // The tests made indicators of: those of the rows with a value on side B, whose suite may not
+  // even have the others' tests. In no particular order, so that sorting the table changes nothing.
+  const tests = useMemo(
+    () => rows?.filter((row) => row.b !== null).map((row) => row.test),
+    [rows],
+  )
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [report, setReport] = useState<Report | null>(null)

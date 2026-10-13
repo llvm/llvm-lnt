@@ -1,0 +1,147 @@
+/**
+ * The Compare page's table (CP2), from the comparison's rows: the rows the test filter and "Hide
+ * noise" keep, sorted, the hidden tests, the geomean summary row, and what the table says of them,
+ * with the settings the URL keeps of them (CP7).
+ */
+
+import { useCallback, useDeferredValue, useEffect, useMemo } from 'react'
+import { useRangeSelection } from '../../components/range-selection'
+import type { TableSort } from '../../components/table-sort'
+import { useTextFilter } from '../../components/use-text-filter'
+import { compareStrings } from '../../format'
+import { comparisonCsv, sortComparison, tableColumns } from './columns'
+import type { TableView } from './compare-table'
+import { geomeanRow, summaryCounts, type ComparisonRow } from './comparison'
+import { HIDDEN_IN_URL, PARAMS, type Settings } from './settings'
+import type { Comparison } from './use-comparison'
+
+const NO_TESTS: string[] = []
+
+const testOf = (row: ComparisonRow) => row.test
+
+/**
+ * The table of `comparison`, with the page's `settings`, which `update` changes, and the Profiles
+ * page of each test that has a profile, `links`.
+ */
+export function useComparisonTable(
+  { tests, rows, biggerIsBetter, classifying }: Comparison,
+  settings: Settings,
+  update: (changes: Partial<Settings>) => void,
+  links: ReadonlyMap<string, string>,
+) {
+  const filter = useTextFilter(
+    rows,
+    testOf,
+    settings.test_filter,
+    (text) => update({ test_filter: text }),
+    { regex: settings.test_filter_regex },
+  )
+  const matching = filter.rows
+  // The rows the table shows: those the filter keeps, without the noise when it is hidden.
+  const hideNoise = useDeferredValue(settings.hide_noise)
+  const shown = useMemo(
+    () => (hideNoise ? matching.filter((row) => row.status !== 'noise') : matching),
+    [matching, hideNoise],
+  )
+  const total = useMemo(
+    () => (hideNoise ? rows.filter((row) => row.status !== 'noise').length : rows.length),
+    [rows, hideNoise],
+  )
+  const counts = useMemo(() => summaryCounts(matching), [matching])
+
+  // The table's columns, with the optional ones shown, which it follows once it has had the time
+  // to render them, as it does the noise.
+  const optional = settings.columns
+  const deferredOptional = useDeferredValue(optional)
+  const columns = useMemo(() => tableColumns(deferredOptional), [deferredOptional])
+
+  // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
+  // A sort by a column that is not shown is the default one, and is dropped from the URL (CP7).
+  // The same sort object from one render to the next, for the table not to render again.
+  const usable = columns.some((entry) => entry.id === settings.sort.column)
+  const { column, direction } = usable ? settings.sort : PARAMS.sort.default
+  useEffect(() => {
+    if (!usable) update({ sort: PARAMS.sort.default })
+  }, [usable, update])
+  const sort = useMemo(() => ({ column, direction }), [column, direction])
+  const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
+  const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
+  const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
+
+  // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
+  // and neither the filter nor "Hide noise" changes them.
+  const allTests = useMemo(() => tests?.map((entry) => entry.test), [tests])
+  const { selected: hiddenTests, rows: hidden } = useRangeSelection(allTests, sortedTests, {
+    inverted: true,
+    initial: settings.hidden_test,
+  })
+  const compared = useMemo(
+    () => sorted.filter((row) => !hiddenTests.has(row.test)),
+    [sorted, hiddenTests],
+  )
+  const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  // The same, in no particular order, for the chart, which sorts them its own way: sorting the
+  // table by another column leaves it as it is.
+  const plotted = useMemo(
+    () => shown.filter((row) => !hiddenTests.has(row.test)),
+    [shown, hiddenTests],
+  )
+  // Whether to show the Profile column: whether any test of the comparison has a profile, whatever
+  // the filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
+  const profiled = useMemo(
+    () => allTests?.some((test) => links.has(test)) ?? false,
+    [allTests, links],
+  )
+  const csv = useMemo(
+    () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
+    [columns, compared, geomean],
+  )
+
+  // The hidden tests, in the URL while there are few enough of them to share (CP7). A long list
+  // from the URL stays there until the comparison is complete, which may leave few enough of them.
+  const complete = tests !== undefined
+  const shared = hiddenTests.size <= HIDDEN_IN_URL
+  const hiddenSorted = useMemo(
+    () => (shared ? [...hiddenTests].sort(compareStrings) : NO_TESTS),
+    [hiddenTests, shared],
+  )
+  useEffect(() => {
+    if (shared || complete) update({ hidden_test: hiddenSorted })
+  }, [hiddenSorted, shared, complete, update])
+
+  const view: TableView = {
+    rows: sorted,
+    columns,
+    tests: sortedTests,
+    hidden,
+    summary: filter.active
+      ? `${compared.length} of ${shown.length} matching tests shown (${total} total)`
+      : `${compared.length} of ${total} tests shown`,
+    notInUrl: shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`,
+    geomean,
+    csv,
+    // Whether the rows shown are about to be replaced, once the latest change is applied to them.
+    busy: classifying || hideNoise !== settings.hide_noise || deferredOptional !== optional,
+    profiled,
+    empty:
+      rows.length === 0
+        ? 'No test has a value for this metric.'
+        : matching.length === 0
+          ? 'No tests match the filter.'
+          : 'Every matching test is classified as noise.',
+    sort,
+    onSort,
+  }
+  return {
+    /** What the table shows. */
+    view,
+    /** The test filter, which its input drives. */
+    filter,
+    /** How many of the tests the filter keeps fall in each category of the summary bar (CP4). */
+    counts,
+    /** The compared rows (CP2), in no particular order: those the chart plots. */
+    plotted,
+    /** The optional columns shown, which the Columns menu changes. */
+    optional,
+  }
+}
