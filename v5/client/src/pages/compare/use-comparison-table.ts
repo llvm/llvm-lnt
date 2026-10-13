@@ -122,6 +122,7 @@ export function useComparisonTable(
     csv,
     // Whether the rows shown are about to be replaced, once the latest change is applied to them.
     busy: classifying || hideNoise !== settings.hide_noise || deferredOptional !== optional,
+    links,
     profiled,
     empty:
       rows.length === 0
@@ -141,7 +142,5 @@ export function useComparisonTable(
     counts,
     /** The compared rows (CP2), in no particular order: those the chart plots. */
     plotted,
-    /** The optional columns shown, which the Columns menu changes. */
-    optional,
   }
 }

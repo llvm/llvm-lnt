@@ -85,6 +85,8 @@ describe('the shadow (CP8)', () => {
     await waitFor(() => expect(line()?.y).toEqual([-1, 1, 2]))
     expect(chip()).toHaveTextContent('Shadow: c2 on m1')
     expect([...sampled].sort()).toEqual(['1', '3', '4'])
+    // Only pinning it gives the focus to its chip.
+    expect(screen.getByRole('button', { name: 'Dismiss the shadow' })).not.toHaveFocus()
   })
 
   it('plots only the tests the chart plots', async () => {

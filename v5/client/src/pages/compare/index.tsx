@@ -11,7 +11,7 @@ import { ValueStore } from '../../value-store'
 import type { NoiseKnob } from './comparison'
 import { AddToRegression } from './add-to-regression'
 import { ColumnsMenu } from './columns-menu'
-import { chosenRuns, loadProgress, missingInput, runCount } from './loading'
+import { chosenRuns, failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
@@ -28,7 +28,7 @@ import { useSides } from './use-side'
 import styles from './compare.module.css'
 
 /**
- * The Compare page (CP1-CP7), started afresh whenever the user navigates to it -- a link to another
+ * The Compare page (CP1-CP9), started afresh whenever the user navigates to it -- a link to another
  * comparison while on this one, say -- so that it shows what the new URL names.
  */
 export default function Compare() {
@@ -44,24 +44,28 @@ function ComparePage() {
 
   const sides = useSides(settings, update, suites)
   const { a, b } = sides
-  // The button pinning the shadow, and what holds its chip, which take the focus in turn (CP8).
+  // The button pinning the shadow, which takes the focus once the shadow is dismissed (CP8).
   const pinButton = useRef<HTMLButtonElement>(null)
-  const chipArea = useRef<HTMLDivElement>(null)
-  const shadow = useShadow(sides, settings, update, suites, chipArea)
+  const shadow = useShadow(sides, settings, update, suites)
   const { offered, metric } = useMetric(a, b, settings, update, suites)
   const profiles = useProfileLinks(a, b)
   const comparison = useComparison(sides, metric, settings)
   const table = useComparisonTable(comparison, settings, update, profiles.links)
   const { plotted } = table
-  const line = useShadowLine(shadow, a, metric, settings.sample_agg, comparison, plotted)
+  const line = useShadowLine(shadow, metric, settings.sample_agg, comparison, plotted)
 
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
     [update],
   )
   const { tests } = comparison
-  const { chosen, loaded, failed } = loadProgress(a, b, sides.states)
-  const missing = suites.isPending ? null : missingInput(a, b, offered.length, metric !== undefined)
+  const failed = failedRuns(a, b, sides.states)
+  const wait = waiting(a, b, sides.states, {
+    suitesPending: suites.isPending,
+    offered: offered.length,
+    metric: metric !== undefined,
+    compared: tests !== undefined,
+  })
   return (
     <section>
       <h1>Compare</h1>
@@ -148,7 +152,7 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
-      <ShadowStatus shadow={shadow} chipArea={chipArea} pinButton={pinButton} />
+      <ShadowStatus shadow={shadow} pinButton={pinButton} />
       {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"
@@ -156,16 +160,11 @@ function ComparePage() {
           onRetry={profiles.failure.retry}
         />
       )}
-      {suites.isPending ? (
-        <Loading />
-      ) : missing !== null ? (
-        <p className={styles.note}>{missing}</p>
-      ) : failed.length > 0 || a.runs.isError || b.runs.isError ? null : a.selected === undefined ||
-        b.selected === undefined ? (
-        <Loading label="Loading runs..." />
-      ) : tests === undefined ? (
-        <Loading label={`Loading samples: ${loaded} of ${chosen} runs...`} />
-      ) : (
+      {wait?.kind === 'loading' ? (
+        <Loading label={wait.label} />
+      ) : wait?.kind === 'missing' ? (
+        <p className={styles.note}>{wait.text}</p>
+      ) : wait === null ? (
         <>
           <CompareChart
             rows={plotted}
@@ -179,14 +178,13 @@ function ComparePage() {
           <CompareTable
             {...table.view}
             menu={
-              <ColumnsMenu shown={table.optional} onChange={(keys) => update({ columns: keys })} />
+              <ColumnsMenu shown={settings.columns} onChange={(keys) => update({ columns: keys })} />
             }
-            links={profiles.links}
             hovered={hovered}
             emphasis={emphasis}
           />
         </>
-      )}
+      ) : null}
     </section>
   )
 }

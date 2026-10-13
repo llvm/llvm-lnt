@@ -4,7 +4,7 @@
  * to it: what dismisses it, pinning it, and the line it draws. `ShadowStatus` shows its chip.
  */
 
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { skipToken, useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Aggregation } from '../../aggregation'
 import { useRunSamples, type SampleState } from '../../api/runs'
@@ -16,7 +16,7 @@ import type { Metric } from '../../schema'
 import { useDropUnusable } from '../../url-state'
 import { chartBars, type Bar } from './chart'
 import { compareRows, type ComparisonRow, type NoiseSettings } from './comparison'
-import { chosenRuns, hasFailed } from './loading'
+import { chosenRuns, hasFailed, sidesRuns } from './loading'
 import { offeredMetrics } from './metrics'
 import {
   NO_SHADOW,
@@ -54,7 +54,7 @@ function notifying(selection: RowSelection, onChange: () => void): RowSelection 
 export interface Shadow {
   /** The shadow, read like a side. */
   side: Side
-  /** How far the samples of its runs are loaded, by `runRefKey`. */
+  /** How far the samples of its runs are loaded, by `runRefKey`, for its line. */
   states: ReadonlyMap<string, SampleState>
   /** Whether a shadow is pinned: whether the URL names its suite, machine and commit. */
   pinned: boolean
@@ -64,7 +64,7 @@ export interface Shadow {
   sideA: Side
   /** Swap the sides, which dismisses the shadow. */
   swap(): void
-  /** Pin side B as it is as the shadow, which gives the focus to its chip. */
+  /** Pin side B as it is as the shadow. */
   pin(): void
   dismiss(): void
   /** Those of its runs that the sides do not select, whose samples could not be loaded. */
@@ -73,8 +73,7 @@ export interface Shadow {
 
 /**
  * The shadow, with the settings `all` gives it, which `update` changes, beside `sides`. Its samples
- * are asked for apart from the sides', but a run they share is fetched once. Once pinned, the
- * button dismissing it in `chipArea`, its chip, takes the focus. It is dropped, as AR2
+ * are asked for apart from the sides', but a run they share is fetched once. It is dropped, as AR2
  * says of a value that cannot be used (CP8), when:
  * - the URL names only part of it, as when `useSide` has dropped its suite or machine;
  * - its commit is not one of its machine's, as its picker found when side B held it;
@@ -85,19 +84,18 @@ export function useShadow(
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
-  chipArea: RefObject<HTMLDivElement | null>,
 ): Shadow {
   const side = useSide('shadow_b', all, update, suites)
   const { a, b } = sides
   const { suite, machine, commit, runs, runAgg } = side.settings
   const pinned = side.named
-  const named =
+  const partlyNamed =
     suite !== '' ||
     machine !== '' ||
     commit !== '' ||
     runs.length > 0 ||
     runAgg !== PARAMS.run_agg_shadow_b.default
-  const orphan = named && (!pinned || a.settings.commit === '')
+  const orphan = partlyNamed && (!pinned || a.settings.commit === '')
   useEffect(() => {
     if (orphan) update(NO_SHADOW)
   }, [orphan, update])
@@ -141,21 +139,10 @@ export function useShadow(
     dismiss()
   }
 
-  // Once the shadow is pinned, the button pinning it is gone: the focus goes to its chip's button
-  // dismissing it.
-  const justPinned = useRef(false)
-  useEffect(() => {
-    if (!pinned || !justPinned.current) return
-    justPinned.current = false
-    chipArea.current?.querySelector('button')?.focus()
-  }, [pinned, chipArea])
-  const pin = () => {
-    justPinned.current = true
-    update(sideChanges('shadow_b', b.settings))
-  }
+  const pin = () => update(sideChanges('shadow_b', b.settings))
 
   // The failures of the runs the sides select are reported as theirs.
-  const ofSides = new Set([...chosenRuns(a), ...chosenRuns(b)])
+  const ofSides = sidesRuns(a, b)
   const failed = chosenRuns(side)
     .filter((key) => !ofSides.has(key))
     .map((key) => states.get(key))
@@ -182,16 +169,16 @@ export function useShadow(
  */
 export function useShadowLine(
   shadow: Shadow,
-  a: Side,
   metric: Metric | undefined,
   sampleAgg: Aggregation,
   { tests, valuesA, biggerIsBetter }: Comparison,
   plotted: readonly ComparisonRow[],
 ): Bar[] {
   const { side, states, pinned } = shadow
+  const schemaA = shadow.sideA.schema
   const offered = useMemo(
-    () => offeredMetrics(a.schema, side.schema).some((entry) => entry.name === metric?.name),
-    [a.schema, side.schema, metric?.name],
+    () => offeredMetrics(schemaA, side.schema).some((entry) => entry.name === metric?.name),
+    [schemaA, side.schema, metric?.name],
   )
   const { values } = useSideComparison(
     side,

@@ -75,13 +75,15 @@ export interface TableView {
   tests: string[]
   /** The selection of the hidden tests. */
   hidden: RowSelection
-  /** How many rows are shown, that is not hidden, and the summary message they make. */
+  /** The summary message: how many rows are shown, that is not hidden, of how many. */
   summary: string
   /** Why the URL does not hold the hidden tests, when it does not (CP7). */
   notInUrl?: string
   geomean: Values
   /** What the table says when it has no row, and why. */
   empty: string
+  /** The Profiles page of each test that has a profile, by test. */
+  links: ProfileMap
   /** Whether any compared test has a profile, which the Profile column is shown for. */
   profiled: boolean
   /** Whether the rows are about to be replaced, by those of another classification of the noise. */
@@ -95,8 +97,6 @@ export interface TableView {
 interface Props extends TableView {
   /** The Columns menu, on the summary message's row. */
   menu: ReactNode
-  /** The Profiles page of each test that has a profile, by test. */
-  links: ProfileMap
   /** The test whose bar is hovered on the chart, whose row the table highlights (CP5). */
   hovered: ValueStore<string | null>
   /** Where the table says which test's row is hovered, for the chart to outline its bar. */

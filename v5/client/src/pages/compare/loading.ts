@@ -12,32 +12,23 @@ export function chosenRuns(side: Side): string[] {
   return side.selected === undefined ? [] : side.wanted
 }
 
+/** The runs `a` and `b` have selected, each once, even when both sides select it. */
+export function sidesRuns(a: Side, b: Side): Set<string> {
+  return new Set([...chosenRuns(a), ...chosenRuns(b)])
+}
+
 /** Whether the samples of a run could not be loaded. */
 export function hasFailed(state: SampleState | undefined): state is SampleState {
   return state?.error != null
 }
 
-interface Progress {
-  /** How many runs the two sides select, each once, even when both sides select it. */
-  chosen: number
-  /** How many of those have their samples. */
-  loaded: number
-  /** Those whose samples could not be loaded. */
-  failed: SampleState[]
-}
-
-/** How far the samples of the runs `a` and `b` select are loaded, by `states`. */
-export function loadProgress(
+/** The runs `a` and `b` have selected whose samples could not be loaded, as `states` has them. */
+export function failedRuns(
   a: Side,
   b: Side,
   states: ReadonlyMap<string, SampleState>,
-): Progress {
-  const chosen = [...new Set([...chosenRuns(a), ...chosenRuns(b)])].map((key) => states.get(key))
-  return {
-    chosen: chosen.length,
-    loaded: chosen.filter((state) => state?.samples !== undefined).length,
-    failed: chosen.filter(hasFailed),
-  }
+): SampleState[] {
+  return [...sidesRuns(a, b)].map((key) => states.get(key)).filter(hasFailed)
 }
 
 /** `a run`, or `3 runs`. */
@@ -46,7 +37,7 @@ export function runCount(count: number): string {
 }
 
 /** What the comparison still needs before it can be computed, if anything (CP6 "Empty states"). */
-export function missingInput(a: Side, b: Side, offered: number, chosen: boolean): string | null {
+function missingInput(a: Side, b: Side, offered: number, chosen: boolean): string | null {
   for (const side of [a, b]) {
     const letter = side.id.toUpperCase()
     const { machine, commit } = side.settings
@@ -58,4 +49,46 @@ export function missingInput(a: Side, b: Side, offered: number, chosen: boolean)
   if (offered === 0) return 'The two suites have no metric that can be compared.'
   if (!chosen) return 'Select a metric.'
   return null
+}
+
+/**
+ * What the page shows in place of the comparison while there is none (CP6): that it is loading,
+ * what it still needs, or nothing, when what it could not load is reported already.
+ */
+export type Waiting =
+  | { kind: 'loading'; label?: string }
+  | { kind: 'missing'; text: string }
+  | { kind: 'failed' }
+
+interface Status {
+  /** Whether the suites are still being listed. */
+  suitesPending: boolean
+  /** How many metrics the page offers, and whether one is chosen. */
+  offered: number
+  metric: boolean
+  /** Whether the comparison is computed. */
+  compared: boolean
+}
+
+/**
+ * What the page waits for before it can show the comparison of `a` and `b`, whose runs' samples
+ * `states` has, or null once it shows it.
+ */
+export function waiting(
+  a: Side,
+  b: Side,
+  states: ReadonlyMap<string, SampleState>,
+  { suitesPending, offered, metric, compared }: Status,
+): Waiting | null {
+  if (suitesPending) return { kind: 'loading' }
+  const missing = missingInput(a, b, offered, metric)
+  if (missing !== null) return { kind: 'missing', text: missing }
+  const chosen = [...sidesRuns(a, b)].map((key) => states.get(key))
+  if (chosen.some(hasFailed) || a.runs.isError || b.runs.isError) return { kind: 'failed' }
+  if (a.selected === undefined || b.selected === undefined) {
+    return { kind: 'loading', label: 'Loading runs...' }
+  }
+  if (compared) return null
+  const loaded = chosen.filter((state) => state?.samples !== undefined).length
+  return { kind: 'loading', label: `Loading samples: ${loaded} of ${chosen.length} runs...` }
 }
