@@ -158,10 +158,10 @@ only once the new comparison has fully loaded (see AR2 "State").
 all use these rows.
 
 - **Geomean summary row**: no checkbox; see Computation Reference.
-- **Sorting**: by any column, by clicking its header. The default is Delta %
-  descending. N/A sorts last in both directions. Status sorts improved,
-  regressed, noise, unchanged, then N/A. Ties are broken by test name,
-  ascending.
+- **Sorting**: by any column but the checkboxes, by clicking its header. The
+  default is Delta % descending. N/A sorts last in both directions. Status
+  sorts improved, regressed, noise, unchanged, then N/A. Ties are broken by
+  test name, ascending.
 - **Status colors**: green for improved, red for regressed. Noise rows show a
   grey "noise" label, whose tooltip lists each knob that triggered, with the
   test's value and the knob's threshold.

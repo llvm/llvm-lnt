@@ -1,6 +1,6 @@
 /**
- * The columns of the comparison table (CP2), each defined once for the table's cells and the order
- * its rows are sorted in.
+ * The columns of the comparison table (CP2), each defined once for the table's cells, the order its
+ * rows are sorted in, and what Copy as CSV writes.
  */
 
 import type { ReactNode } from 'react'
@@ -17,6 +17,7 @@ import {
   type Status,
   type Values,
 } from './comparison'
+import { toCsv, type CsvCell } from './csv'
 import styles from './compare.module.css'
 
 /** The geomean summary row (CP2), told apart from the tests' rows by the absence of a test. */
@@ -32,6 +33,8 @@ export interface CompareColumn {
   cell(row: Row): ReactNode
   /** What a test's row is sorted by: null for N/A, which sorts last in both directions. */
   sortKey(row: ComparisonRow): SortKey
+  /** What Copy as CSV writes of the row: a number at full precision, null for N/A. */
+  csv(row: Row): CsvCell
 }
 
 const NA = 'N/A'
@@ -86,6 +89,7 @@ function numberColumn(
     looks: ['numeric', 'nowrap'],
     cell: (row) => <span title={title(row)}>{format(value(row))}</span>,
     sortKey: value,
+    csv: value,
   }
 }
 
@@ -123,6 +127,7 @@ export const COLUMNS: CompareColumn[] = [
     header: 'Test',
     cell: (row) => (row.test === null ? <strong>Geomean</strong> : row.test),
     sortKey: (row) => row.test,
+    csv: (row) => row.test ?? 'Geomean',
   },
   numberColumn('value_a', 'Value A', (row) => row.a, formatValue, titleA),
   numberColumn('value_b', 'Value B', (row) => row.b, formatValue, titleB),
@@ -136,6 +141,7 @@ export const COLUMNS: CompareColumn[] = [
     cell: (row) => statusLabel(row.status, row.test === null ? undefined : row.noise),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row) => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),
+    csv: (row) => (row.status === 'na' ? null : CATEGORY_LABELS[row.status]),
   },
 ]
 
@@ -150,4 +156,18 @@ export function sortComparison(
 ): ComparisonRow[] {
   const column = COLUMNS.find((entry) => entry.id === id)
   return column === undefined ? rows : sortRows(rows, column.sortKey, direction)
+}
+
+/** The compared rows as CSV (CP2 "Copy as CSV"): the columns' headers, the geomean, the rows. */
+export function comparisonCsv(
+  columns: readonly CompareColumn[],
+  geomean: Values,
+  rows: readonly ComparisonRow[],
+): string {
+  const geomeanRow: GeomeanRow = { ...geomean, test: null }
+  return toCsv([
+    columns.map((column) => column.header),
+    columns.map((column) => column.csv(geomeanRow)),
+    ...rows.map((row) => columns.map((column) => column.csv(row))),
+  ])
 }

@@ -16,6 +16,9 @@ import {
 /** The two sides of the comparison: A, the baseline, and B, the new one. */
 export type SideId = 'a' | 'b'
 
+/** At most how many hidden tests the URL holds (CP7). */
+export const HIDDEN_IN_URL = 10
+
 export const PARAMS = {
   suite_a: stringParam(),
   machine_a: stringParam(),
@@ -35,6 +38,8 @@ export const PARAMS = {
   noise_pval: optionalNumberParam(0, 1),
   noise_floor: optionalNumberParam(0),
   hide_noise: booleanParam(false),
+  /** The tests hidden (CP2), while there are few enough of them to share (see `HIDDEN_IN_URL`). */
+  hidden_test: listParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
   // Delta % descending by default (CP2).
