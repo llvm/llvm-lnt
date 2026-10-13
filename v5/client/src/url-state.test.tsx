@@ -81,6 +81,34 @@ describe('useUrlState', () => {
     expect(result.current.url).toBe('/graph?metric=compile_time&filter=x')
   })
 
+  it('keeps the same value for a setting whose values in the URL did not change', () => {
+    const result = renderSettings('/graph?machine=a&machine=b')
+    const machines = result.current.state.machine
+
+    act(() => result.current.setState({ metric: 'compile_time' }))
+    expect(result.current.state.machine).toBe(machines)
+
+    act(() => result.current.setState({ machine: ['a'] }))
+    expect(result.current.state.machine).toEqual(['a'])
+    act(() => result.current.setState({ machine: ['a', 'b'] }))
+    expect(result.current.state.machine).not.toBe(machines)
+    expect(result.current.state.machine).toEqual(['a', 'b'])
+  })
+
+  it('reads a setting afresh for other parameters of the same name', () => {
+    // Both spell `a` alike in the URL, but read it differently.
+    const list = { x: listParam() }
+    const single = { x: stringParam() }
+    const { result, rerender } = renderHook(({ params }) => useUrlState(params)[0], {
+      ...providers({ url: '/graph?x=a' }),
+      initialProps: { params: list as typeof list | typeof single },
+    })
+    expect(result.current.x).toEqual(['a'])
+
+    rerender({ params: single })
+    expect(result.current.x).toBe('a')
+  })
+
   it('leaves alone the parameters it does not declare', () => {
     const result = renderSettings('/graph?tab=runs&metric=a')
 
