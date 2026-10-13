@@ -199,9 +199,9 @@ all use these rows.
 
   Statistics are computed over the side's samples for the test (see
   Computation Reference), from all its selected runs together, before any
-  aggregation: the sample and run aggregation settings do not affect them. The
-  Columns menu says so in a line above its items, and each statistic column's
-  header says so on hover. A p-value below 0.0001 is shown in exponent
+  aggregation: the sample and run aggregation settings do not affect them. A
+  line above the Columns menu's items says that they are computed over all
+  samples without aggregation. A p-value below 0.0001 is shown in exponent
   notation (`2.01e-29`).
 
   A per-side statistic adds an A and a B column. Optional columns sit between

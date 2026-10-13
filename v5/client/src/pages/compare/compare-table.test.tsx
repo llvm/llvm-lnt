@@ -252,28 +252,20 @@ describe('optional columns (CP2)', () => {
     ])
   })
 
-  it('says what the statistics are computed over, in the menu and on their headers', async () => {
+  it('says what the statistics are computed over in the menu, not on their headers', async () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&columns=samples&columns=pvalue`)
     await comparison()
 
-    for (const side of ['A', 'B']) {
-      expect(screen.getByText(`Samples ${side}`)).toHaveAttribute(
-        'title',
-        `All of side ${side}'s samples for the test, from every selected run, before any aggregation.`,
-      )
+    for (const header of within(await table('Comparison')).getAllByRole('columnheader')) {
+      expect(header.querySelector('[title]')).toBeNull()
     }
-    expect(screen.getByText('P-value')).toHaveAttribute(
-      'title',
-      "Welch's t-test between both sides' samples for the test, from all their selected runs, " +
-        'before any aggregation.',
-    )
 
     // The line labels the group of the menu's items.
     await userEvent.setup().click(screen.getByRole('button', { name: 'Columns' }))
     expect(
       within(screen.getByRole('menu')).getByRole('group', {
-        name: "Over every sample of each side's selected runs, before any aggregation.",
+        name: 'Computed over all samples without aggregation.',
       }),
     ).toBeInTheDocument()
   })

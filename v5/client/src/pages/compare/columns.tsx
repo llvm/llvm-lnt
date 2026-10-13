@@ -29,8 +29,6 @@ export interface CompareColumn {
   /** How `sort` names the column (CP7). */
   id: string
   header: string
-  /** What the header explains on hover, if anything. */
-  headerTitle?: string
   looks?: readonly CellLook[]
   cell(row: Row): ReactNode
   /** What a test's row is sorted by: null for N/A, which sorts last in both directions. */
@@ -190,25 +188,13 @@ export function optionalLabel(key: OptionalKey): string {
   return STATISTICS[key].label
 }
 
-/**
- * What the statistics are computed over (CP2 "Optional columns"): as the Columns menu says it, then
- * as a header says it on hover, for a per-side statistic and for the p-value.
- */
-export const STATISTICS_OVER =
-  "Over every sample of each side's selected runs, before any aggregation."
-
-const overSide = (side: 'A' | 'B') =>
-  `All of side ${side}'s samples for the test, from every selected run, before any aggregation.`
-
-const OVER_BOTH_SIDES =
-  "Welch's t-test between both sides' samples for the test, from all their selected runs, before " +
-  'any aggregation.'
+/** What the Columns menu says the statistics are computed over (CP2 "Optional columns"). */
+export const STATISTICS_OVER = 'Computed over all samples without aggregation.'
 
 /** A statistic of each test, as a column, empty on the geomean row. */
 function statisticColumn(
   id: string,
   header: string,
-  headerTitle: string,
   value: (row: ComparisonRow) => number | null,
   format: (value: number) => string,
 ): CompareColumn {
@@ -216,7 +202,6 @@ function statisticColumn(
   return {
     id,
     header,
-    headerTitle,
     looks: ['numeric', 'nowrap'],
     cell: (row) => {
       if (row.test === null) return null
@@ -233,23 +218,11 @@ function optionalColumns(key: OptionalKey): CompareColumn[] {
   const statistic = STATISTICS[key]
   const { label, format } = statistic
   if (!statistic.perSide) {
-    return [statisticColumn(key, label, OVER_BOTH_SIDES, statistic.of, format)]
+    return [statisticColumn(key, label, statistic.of, format)]
   }
   return [
-    statisticColumn(
-      `${key}_a`,
-      `${label} A`,
-      overSide('A'),
-      (row) => statistic.of(row.statisticsA),
-      format,
-    ),
-    statisticColumn(
-      `${key}_b`,
-      `${label} B`,
-      overSide('B'),
-      (row) => statistic.of(row.statisticsB),
-      format,
-    ),
+    statisticColumn(`${key}_a`, `${label} A`, (row) => statistic.of(row.statisticsA), format),
+    statisticColumn(`${key}_b`, `${label} B`, (row) => statistic.of(row.statisticsB), format),
   ]
 }
 
