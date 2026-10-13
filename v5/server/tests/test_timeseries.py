@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, run_payload, walk_cursor
+from conftest import code_of, entry, run_payload, walk_cursor
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
@@ -90,7 +90,7 @@ def series(
     without reading the database.
     """
     runs = [
-        submit("linux", f"c{index}", {"name": "t", "execution_time": float(index)})
+        submit("linux", f"c{index}", entry("t", {"execution_time": float(index)}))
         for index in range(1, 4)
     ]
     for index in range(1, 4):
@@ -144,7 +144,7 @@ class TestQueryPoint:
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
-        run = submit("linux", "abc", {"name": SLASHED, "execution_time": 1.25})
+        run = submit("linux", "abc", entry(SLASHED, {"execution_time": 1.25}))
         place("abc", ordinal=42, tag="release-18.1")
 
         assert points(api_client, metric="execution_time") == [
@@ -166,7 +166,7 @@ class TestQueryPoint:
     ) -> None:
         # I4 grants this endpoint the denormalization by name, and I4's general rule makes a
         # documented key present-and-null rather than absent.
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
 
         point = points(api_client, metric="execution_time")[0]
 
@@ -176,7 +176,7 @@ class TestQueryPoint:
     def test_echoes_the_metric_the_request_named(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0, "compile_time": 2.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0, "compile_time": 2.0}))
 
         assert [point["metric"] for point in points(api_client, metric="compile_time")] == [
             "compile_time"
@@ -191,7 +191,7 @@ class TestQueryPoint:
     ) -> None:
         # D3 and I4: a value uses the JSON representation of its declared type and is never
         # stringified. A metric need not be numeric to be queried -- only to be averaged.
-        submit("linux", "abc", {"name": "t", metric: value})
+        submit("linux", "abc", entry("t", {metric: value}))
 
         assert [point["value"] for point in points(api_client, metric=metric)] == [value]
 
@@ -199,7 +199,7 @@ class TestQueryPoint:
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
         # D3: ISO 8601 in UTC with a `Z` suffix, whatever offset it was submitted with.
-        submit("linux", "abc", {"name": "t", "built_at": "2026-01-02T05:04:05+02:00"})
+        submit("linux", "abc", entry("t", {"built_at": "2026-01-02T05:04:05+02:00"}))
 
         assert [p["value"] for p in points(api_client, metric="built_at")] == [
             "2026-01-02T03:04:05Z"
@@ -208,7 +208,7 @@ class TestQueryPoint:
     def test_skips_the_samples_with_no_value_for_the_metric(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        submit("linux", "abc", {"name": "measured", "execution_time": 1.0}, {"name": "not"})
+        submit("linux", "abc", entry("measured", {"execution_time": 1.0}), entry("not"))
 
         assert [point["test"] for point in points(api_client, metric="execution_time")] == [
             "measured"
@@ -217,8 +217,12 @@ class TestQueryPoint:
     def test_serves_one_point_per_repetition(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        # O1: an array value is one sample per element, and each is its own point.
-        submit("linux", "abc", {"name": "t", "execution_time": [1.0, 2.0, 3.0]})
+        # O1: each of a test's samples is its own point.
+        submit(
+            "linux",
+            "abc",
+            entry("t", {"execution_time": 1.0}, {"execution_time": 2.0}, {"execution_time": 3.0}),
+        )
 
         values = [point["value"] for point in points(api_client, metric="execution_time")]
 
@@ -229,8 +233,8 @@ class TestQueryFilters:
     def test_keeps_only_the_named_machines_values(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
-        submit("darwin", "abc", {"name": "t", "execution_time": 2.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
+        submit("darwin", "abc", entry("t", {"execution_time": 2.0}))
 
         assert [
             p["value"] for p in points(api_client, metric="execution_time", machine="linux")
@@ -248,9 +252,9 @@ class TestQueryFilters:
         submit(
             "linux",
             "abc",
-            {"name": "a", "execution_time": 1.0},
-            {"name": "b", "execution_time": 2.0},
-            {"name": "c", "execution_time": 3.0},
+            entry("a", {"execution_time": 1.0}),
+            entry("b", {"execution_time": 2.0}),
+            entry("c", {"execution_time": 3.0}),
         )
 
         served = points(api_client, metric="execution_time", test=["a", "c"])
@@ -261,7 +265,7 @@ class TestQueryFilters:
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
         # I1: no path could carry this name, which is why the filter lives in the body.
-        submit("linux", "abc", {"name": SLASHED, "execution_time": 1.0}, {"name": "other"})
+        submit("linux", "abc", entry(SLASHED, {"execution_time": 1.0}), entry("other"))
 
         assert [p["test"] for p in points(api_client, metric="execution_time", test=[SLASHED])] == [
             SLASHED
@@ -271,7 +275,7 @@ class TestQueryFilters:
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
         # I3, the same answer a `test=` query parameter gets elsewhere.
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
 
         response = query(api_client, metric="execution_time", test=["t", "nope"])
 
@@ -283,7 +287,7 @@ class TestQueryFilters:
     ) -> None:
         # Deliberately not the same as omitting the key: a client that narrowed to an empty set
         # asked for nothing, and answering with the whole suite would be a far larger query.
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
 
         assert points(api_client, metric="execution_time", test=[]) == []
 
@@ -320,7 +324,7 @@ class TestQueryFilters:
         # endpoints.md: a commit with no ordinal is in no range of ordinals. Distinct from the
         # exclusion `sort=commit` causes -- `sort` is omitted here, and O5's "no data is excluded"
         # is about the ordering rather than about the filters beside it.
-        submit("linux", "unordered", {"name": "t", "execution_time": 9.0})
+        submit("linux", "unordered", entry("t", {"execution_time": 9.0}))
 
         served = points(api_client, metric="execution_time", after_commit="c1")
 
@@ -345,7 +349,7 @@ class TestQueryFilters:
         submit: Callable[..., dict[str, Any]],
         bound: str,
     ) -> None:
-        submit("linux", "unordered", {"name": "t", "execution_time": 9.0})
+        submit("linux", "unordered", entry("t", {"execution_time": 9.0}))
 
         response = query(api_client, metric="execution_time", **{bound: "unordered"})
 
@@ -387,9 +391,9 @@ class TestQueryFilters:
     ) -> None:
         # GR9: a baseline is fetched with `{machine, metric, commit}`: every test's
         # value on one machine at one commit, whatever the commit's ordinal.
-        baseline = submit("linux", "base", {"name": "a", "execution_time": 1.0}, {"name": "b"})
-        submit("darwin", "base", {"name": "a", "execution_time": 2.0})
-        submit("linux", "other", {"name": "a", "execution_time": 3.0})
+        baseline = submit("linux", "base", entry("a", {"execution_time": 1.0}), entry("b"))
+        submit("darwin", "base", entry("a", {"execution_time": 2.0}))
+        submit("linux", "other", entry("a", {"execution_time": 3.0}))
 
         served = points(api_client, machine="linux", metric="execution_time", commit="base")
 
@@ -472,7 +476,7 @@ class TestQuerySort:
     ) -> None:
         # O5: a commit with no ordinal has no position in that order, and a null sort key would
         # compare as unknown against a cursor and vanish from every page anyway.
-        submit("linux", "unordered", {"name": "t", "execution_time": 9.0})
+        submit("linux", "unordered", entry("t", {"execution_time": 9.0}))
 
         served = points(api_client, metric="execution_time", sort="commit")
 
@@ -484,7 +488,7 @@ class TestQuerySort:
         series: list[dict[str, Any]],
         submit: Callable[..., dict[str, Any]],
     ) -> None:
-        submit("linux", "unordered", {"name": "t", "execution_time": 9.0})
+        submit("linux", "unordered", entry("t", {"execution_time": 9.0}))
 
         served = points(api_client, metric="execution_time")
 
@@ -496,9 +500,9 @@ class TestQuerySort:
         submit(
             "linux",
             "abc",
-            {"name": "b", "execution_time": 1.0},
-            {"name": "a", "execution_time": 2.0},
-            {"name": "c", "execution_time": 3.0},
+            entry("b", {"execution_time": 1.0}),
+            entry("a", {"execution_time": 2.0}),
+            entry("c", {"execution_time": 3.0}),
         )
 
         assert [p["test"] for p in points(api_client, metric="execution_time", sort="test")] == [
@@ -534,7 +538,7 @@ class TestQueryPagination:
     @pytest.fixture
     def many(self, submit: Callable[..., dict[str, Any]], place: Callable[..., None]) -> None:
         for index in range(7):
-            submit("linux", f"c{index}", {"name": "t", "execution_time": float(index)})
+            submit("linux", f"c{index}", entry("t", {"execution_time": float(index)}))
             place(f"c{index}", ordinal=index)
 
     def test_serves_one_page_at_a_time(self, api_client: TestClient, many: None) -> None:
@@ -551,7 +555,7 @@ class TestQueryPagination:
         submit(
             "linux",
             "abc",
-            *({"name": f"t{index}", "execution_time": 1.0} for index in range(DEFAULT_LIMIT + 5)),
+            *(entry(f"t{index}", {"execution_time": 1.0}) for index in range(DEFAULT_LIMIT + 5)),
         )
 
         assert len(points(api_client, metric="execution_time")) == DEFAULT_LIMIT == 25
@@ -569,7 +573,7 @@ class TestQueryPagination:
         # Three commits of three tests, each measured twice, so that page boundaries fall both
         # between distinct sort values and between rows the sort leaves tied.
         for c in range(3):
-            entries = [{"name": f"t{t}", "execution_time": [10.0 * c + t] * 2} for t in range(3)]
+            entries = [entry(f"t{t}", *[{"execution_time": 10.0 * c + t}] * 2) for t in range(3)]
             submit("linux", f"c{c}", *entries)
             place(f"c{c}", ordinal=c)
 
@@ -587,7 +591,7 @@ class TestQueryPagination:
     def test_the_filters_survive_a_page_boundary(
         self, api_client: TestClient, many: None, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        submit("darwin", "c0", {"name": "t", "execution_time": 99.0})
+        submit("darwin", "c0", entry("t", {"execution_time": 99.0}))
 
         served = walk(api_client, metric="execution_time", machine="linux", limit=2)
 
@@ -667,7 +671,7 @@ class TestTrends:
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
         # The run's commit has no ordinal, so it has no place in a trend.
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
 
         response = trend_query(api_client, metric="execution_time", machine=["linux"])
 
@@ -680,7 +684,7 @@ class TestTrends:
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
-        run = submit("linux", "abc", {"name": "t", "execution_time": 4.0})
+        run = submit("linux", "abc", entry("t", {"execution_time": 4.0}))
         place("abc", ordinal=7, tag="release-18.1")
 
         assert trends(api_client, metric="execution_time", machine=["linux"]) == [
@@ -701,10 +705,7 @@ class TestTrends:
         place: Callable[..., None],
     ) -> None:
         submit(
-            "linux",
-            "abc",
-            {"name": "a", "execution_time": 1.0},
-            {"name": "b", "execution_time": 4.0},
+            "linux", "abc", entry("a", {"execution_time": 1.0}), entry("b", {"execution_time": 4.0})
         )
         place("abc", ordinal=1)
 
@@ -722,7 +723,11 @@ class TestTrends:
         expected: float,
     ) -> None:
         # The median by default. test_summaries.py covers each aggregation and the per-test stage.
-        submit("linux", "abc", {"name": "t", "execution_time": [6.0, 1.0, 2.0]})
+        submit(
+            "linux",
+            "abc",
+            entry("t", {"execution_time": 6.0}, {"execution_time": 1.0}, {"execution_time": 2.0}),
+        )
         place("abc", ordinal=1)
         requested = {} if aggregation is None else {"sample_agg": aggregation}
 
@@ -738,8 +743,8 @@ class TestTrends:
     ) -> None:
         # Several runs per machine and commit are legal (E4), and a trend point
         # covers all of them rather than one.
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
-        latest = submit("linux", "abc", {"name": "t", "execution_time": 9.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
+        latest = submit("linux", "abc", entry("t", {"execution_time": 9.0}))
         place("abc", ordinal=1)
 
         item = trends(api_client, metric="execution_time", machine=["linux"])[0]
@@ -756,10 +761,10 @@ class TestTrends:
         submit(
             "linux",
             "abc",
-            {"name": "a", "execution_time": 1.0},
-            {"name": "b", "execution_time": 4.0},
-            {"name": "c", "execution_time": 0.0},
-            {"name": "d", "execution_time": -8.0},
+            entry("a", {"execution_time": 1.0}),
+            entry("b", {"execution_time": 4.0}),
+            entry("c", {"execution_time": 0.0}),
+            entry("d", {"execution_time": -8.0}),
         )
         place("abc", ordinal=1)
 
@@ -773,8 +778,8 @@ class TestTrends:
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
-        submit("linux", "good", {"name": "t", "execution_time": 2.0})
-        submit("linux", "bad", {"name": "t", "execution_time": -2.0})
+        submit("linux", "good", entry("t", {"execution_time": 2.0}))
+        submit("linux", "bad", entry("t", {"execution_time": -2.0}))
         place("good", ordinal=1)
         place("bad", ordinal=2)
 
@@ -789,12 +794,7 @@ class TestTrends:
         place: Callable[..., None],
     ) -> None:
         # D3: the geomean of integers is not an integer, and endpoints.md returns it as a real.
-        submit(
-            "linux",
-            "abc",
-            {"name": "a", "compile_status": 2},
-            {"name": "b", "compile_status": 8},
-        )
+        submit("linux", "abc", entry("a", {"compile_status": 2}), entry("b", {"compile_status": 8}))
         place("abc", ordinal=1)
 
         assert trends(api_client, metric="compile_status", machine=["linux"])[0][
@@ -807,8 +807,8 @@ class TestTrends:
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
-        submit("linux", "ordered", {"name": "t", "execution_time": 1.0})
-        submit("linux", "unordered", {"name": "t", "execution_time": 2.0})
+        submit("linux", "ordered", entry("t", {"execution_time": 1.0}))
+        submit("linux", "unordered", entry("t", {"execution_time": 2.0}))
         place("ordered", ordinal=1)
 
         served = trends(api_client, metric="execution_time", machine=["linux"])
@@ -823,7 +823,7 @@ class TestTrends:
     ) -> None:
         for machine in ("linux", "darwin"):
             for index in (2, 1):
-                submit(machine, f"c{index}", {"name": "t", "execution_time": float(index)})
+                submit(machine, f"c{index}", entry("t", {"execution_time": float(index)}))
         place("c1", ordinal=1)
         place("c2", ordinal=2)
 
@@ -845,7 +845,7 @@ class TestTrendsFilters:
         place: Callable[..., None],
     ) -> None:
         for machine in ("linux", "darwin", "windows"):
-            submit(machine, "abc", {"name": "t", "execution_time": 1.0})
+            submit(machine, "abc", entry("t", {"execution_time": 1.0}))
         place("abc", ordinal=1)
 
         served = trends(api_client, metric="execution_time", machine=["linux", "windows"])
@@ -867,7 +867,7 @@ class TestTrendsFilters:
     ) -> None:
         # endpoints.md: `tracked` governs *automatic* selection (D5), and a machine named here was
         # chosen deliberately. The Dashboard applies the flag when it picks the names.
-        submit("retired", "abc", {"name": "t", "execution_time": 1.0})
+        submit("retired", "abc", entry("t", {"execution_time": 1.0}))
         place("abc", ordinal=1)
         patched = api_client.patch(
             f"{SUITES_PATH}/nts/machines/retired", json={"tracked": False}, headers=manage
@@ -886,7 +886,7 @@ class TestTrendsFilters:
         place: Callable[..., None],
     ) -> None:
         for index in range(5):
-            submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
+            submit("linux", f"c{index}", entry("t", {"execution_time": 1.0}))
             place(f"c{index}", ordinal=index)
 
         served = trends(api_client, metric="execution_time", machine=["linux"], last_n=2)
@@ -902,7 +902,7 @@ class TestTrendsFilters:
         # The cutoff is the Nth-highest ordinal, and there is none when the suite holds fewer than
         # N commits; that has to mean "keep everything" rather than "keep nothing". The omitted
         # case takes the same path, with `last_n` defaulting to DEFAULT_LAST_N.
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
         place("abc", ordinal=1)
 
         assert len(trends(api_client, metric="execution_time", machine=["linux"], last_n=1000)) == 1
@@ -916,15 +916,15 @@ class TestTrendsFilters:
         place: Callable[..., None],
     ) -> None:
         for index in range(4):
-            submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
+            submit("linux", f"c{index}", entry("t", {"execution_time": 1.0}))
             place(f"c{index}", ordinal=index)
         # Newer commits that do not count: one with no run at all, one only another machine ran,
         # and two the machine ran without a positive value for the metric.
         created = api_client.post(COMMITS, json={"value": "c4", "ordinal": 4}, headers=submitter)
         assert created.status_code == 201, created.text
-        submit("darwin", "c5", {"name": "t", "execution_time": 1.0})
-        submit("linux", "c6", {"name": "t", "compile_time": 1.0})
-        submit("linux", "c7", {"name": "t", "execution_time": -1.0})
+        submit("darwin", "c5", entry("t", {"execution_time": 1.0}))
+        submit("linux", "c6", entry("t", {"compile_time": 1.0}))
+        submit("linux", "c7", entry("t", {"execution_time": -1.0}))
         for index in (5, 6, 7):
             place(f"c{index}", ordinal=index)
 
@@ -939,10 +939,10 @@ class TestTrendsFilters:
         place: Callable[..., None],
     ) -> None:
         for index in range(3):
-            submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
+            submit("linux", f"c{index}", entry("t", {"execution_time": 1.0}))
             place(f"c{index}", ordinal=index)
         # A median of 1 but a minimum of -1, so only the median gives this commit a geomean.
-        submit("linux", "c3", {"name": "t", "execution_time": [-1.0, 3.0]})
+        submit("linux", "c3", entry("t", {"execution_time": -1.0}, {"execution_time": 3.0}))
         place("c3", ordinal=3)
 
         def window(sample_agg: str) -> list[int]:
@@ -967,9 +967,9 @@ class TestTrendsFilters:
         # A machine that stopped reporting inside the window yields a trendline that stops, rather
         # than one stretched back over older commits.
         for index in range(4):
-            submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
+            submit("linux", f"c{index}", entry("t", {"execution_time": 1.0}))
             place(f"c{index}", ordinal=index)
-        submit("retired", "c0", {"name": "t", "execution_time": 1.0})
+        submit("retired", "c0", entry("t", {"execution_time": 1.0}))
 
         served = trends(api_client, metric="execution_time", machine=["linux", "retired"], last_n=2)
 

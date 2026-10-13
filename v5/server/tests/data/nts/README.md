@@ -35,10 +35,9 @@ mirror on 2026-09-25, without recording the v4 run ids, and converted from that 
   can contain, so that a search for it only matches the field.
 - `run_parameters`: every other v4 run field, verbatim, except v4's bookkeeping (`id`,
   `order_id`, `order_by`).
-- `tests`: v4 reports one sample per repetition, so each test's samples are merged into one entry.
-  A metric whose value differs between repetitions becomes an array; one that is the same on
-  every repetition (`code_size`, `hash`) stays a scalar, which O1 repeats on each sample, so the
-  stored samples are the same either way. Metrics v4 reports as null are omitted.
+- `tests`: v4 reports one sample per repetition, as a separate entry with the test's name, so the
+  entries of each test are merged into one, with each repetition one of its `samples`. Metrics v4
+  reports as null are omitted from the sample.
 - `uuid` is random, generated once, so that the runs are submitted under client-provided UUIDs.
 
 ## Trimming

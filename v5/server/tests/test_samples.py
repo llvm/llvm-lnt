@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, run_payload, walk_pages
+from conftest import code_of, entry, run_payload, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
@@ -90,7 +90,7 @@ class TestList:
     def test_carries_the_test_name_and_the_metrics(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": SLASHED, "execution_time": 1.25, "compile_status": 0})
+        run = submit(entry(SLASHED, {"execution_time": 1.25, "compile_status": 0}))
 
         assert listed(api_client, run).json()["items"] == [
             {"test": SLASHED, "metrics": {"execution_time": 1.25, "compile_status": 0}}
@@ -101,7 +101,7 @@ class TestList:
     ) -> None:
         # I4's stated exception: unlike a `fields` dict, `metrics` does not carry a null per
         # declared key. A suite's metric list is long and any one test populates little of it.
-        run = submit({"name": "t", "execution_time": 1.25})
+        run = submit(entry("t", {"execution_time": 1.25}))
 
         assert listed(api_client, run).json()["items"] == [
             {"test": "t", "metrics": {"execution_time": 1.25}}
@@ -110,25 +110,27 @@ class TestList:
     def test_a_run_that_measured_a_test_and_no_metric_is_still_a_sample(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # O1: an entry carrying nothing but a name still records that the test ran.
-        run = submit({"name": "t"})
+        # O1: an empty sample still records that the test ran.
+        run = submit(entry("t"))
 
         assert listed(api_client, run).json()["items"] == [{"test": "t", "metrics": {}}]
 
     def test_repetitions_are_separate_and_indistinguishable(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # O1: an array value is one sample per element, and endpoints.md makes those repetitions
-        # indistinguishable by design -- nothing in the object tells them apart, so a test may only
-        # ask what the set of them is.
-        run = submit({"name": "t", "execution_time": [1.0, 2.0], "compile_time": 0.5})
+        # O1: each of a test's samples is one sample here, with the metrics it was submitted with,
+        # and endpoints.md makes those repetitions indistinguishable by design -- nothing in the
+        # object tells them apart, so a test may only ask what the set of them is.
+        run = submit(
+            entry("t", {"execution_time": 1.0, "compile_time": 0.5}, {"execution_time": 2.0})
+        )
 
         items = listed(api_client, run).json()["items"]
 
         assert sorted(items, key=repr) == sorted(
             [
                 {"test": "t", "metrics": {"execution_time": 1.0, "compile_time": 0.5}},
-                {"test": "t", "metrics": {"execution_time": 2.0, "compile_time": 0.5}},
+                {"test": "t", "metrics": {"execution_time": 2.0}},
             ],
             key=repr,
         )
@@ -136,15 +138,15 @@ class TestList:
     def test_covers_every_test_the_run_measured(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "a"}, {"name": "b"}, {"name": "c"})
+        run = submit(entry("a"), entry("b"), entry("c"))
 
         assert {item["test"] for item in listed(api_client, run).json()["items"]} == {"a", "b", "c"}
 
     def test_serves_only_this_runs_samples(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        mine = submit({"name": "a"})
-        submit({"name": "b"})
+        mine = submit(entry("a"))
+        submit(entry("b"))
 
         assert [item["test"] for item in listed(api_client, mine).json()["items"]] == ["a"]
 
@@ -154,13 +156,15 @@ class TestList:
         # D3 and I4: a value uses the JSON representation of its declared type and is never
         # stringified, so an integer comes back an integer rather than "3".
         run = submit(
-            {
-                "name": "t",
-                "execution_time": 1.5,
-                "compile_status": 3,
-                "toolchain": "clang-21",
-                "started_at": "2026-04-01T12:00:00Z",
-            }
+            entry(
+                "t",
+                {
+                    "execution_time": 1.5,
+                    "compile_status": 3,
+                    "toolchain": "clang-21",
+                    "started_at": "2026-04-01T12:00:00Z",
+                },
+            )
         )
 
         assert listed(api_client, run).json()["items"][0]["metrics"] == {
@@ -173,7 +177,7 @@ class TestList:
     def test_accepts_the_run_uuid_in_either_case(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "t"})
+        run = submit(entry("t"))
 
         assert listed(api_client, run.upper()).json() == listed(api_client, run).json()
 
@@ -189,14 +193,14 @@ class TestList:
         assert api_client.get(f"{SUITES_PATH}/nope/runs/{uuid4()}/samples").status_code == 404
 
     def test_needs_no_credential(self, api_client: TestClient, submit: Callable[..., str]) -> None:
-        run = submit({"name": "t"})
+        run = submit(entry("t"))
 
         assert listed(api_client, run).status_code == 200
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "t"})
+        run = submit(entry("t"))
 
         assert "<title>LNT</title>" not in listed(api_client, run).text
 
@@ -207,7 +211,7 @@ class TestTestFilter:
     def test_keeps_only_that_tests_samples(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "a", "execution_time": 1.0}, {"name": "b", "execution_time": 2.0})
+        run = submit(entry("a", {"execution_time": 1.0}), entry("b", {"execution_time": 2.0}))
 
         items = listed(api_client, run, "test=a").json()["items"]
 
@@ -218,7 +222,7 @@ class TestTestFilter:
     ) -> None:
         # The whole reason this is a query parameter: `/runs/{uuid}/tests/suite%2Fone/samples`
         # decodes back to a path separator before routing and reaches no route at all.
-        run = submit({"name": SLASHED, "execution_time": 1.0}, {"name": "other"})
+        run = submit(entry(SLASHED, {"execution_time": 1.0}), entry("other"))
 
         items = listed(api_client, run, f"test={SLASHED}").json()["items"]
 
@@ -227,7 +231,10 @@ class TestTestFilter:
     def test_keeps_every_repetition_of_that_test(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "a", "execution_time": [1.0, 2.0, 3.0]}, {"name": "b"})
+        run = submit(
+            entry("a", {"execution_time": 1.0}, {"execution_time": 2.0}, {"execution_time": 3.0}),
+            entry("b"),
+        )
 
         assert len(listed(api_client, run, "test=a").json()["items"]) == 3
 
@@ -236,8 +243,8 @@ class TestTestFilter:
     ) -> None:
         # endpoints.md: the test exists in the suite, so this is an ordinary empty answer rather
         # than an error -- the same treatment a `machine=` naming a machine with no runs gets.
-        submit({"name": "elsewhere"})
-        run = submit({"name": "here"})
+        submit(entry("elsewhere"))
+        run = submit(entry("here"))
 
         response = listed(api_client, run, "test=elsewhere")
 
@@ -248,7 +255,7 @@ class TestTestFilter:
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # I3: filtering by a nonexistent test name is 404, exactly as a nonexistent machine is.
-        run = submit({"name": "t"})
+        run = submit(entry("t"))
 
         response = listed(api_client, run, "test=nope")
 
@@ -259,7 +266,7 @@ class TestTestFilter:
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # Both are 404s, but the one the path names is the one to report.
-        submit({"name": "t"})
+        submit(entry("t"))
 
         response = listed(api_client, str(uuid4()), "test=t")
 
@@ -270,7 +277,7 @@ class TestTestFilter:
 class TestPagination:
     @pytest.fixture
     def run(self, submit: Callable[..., str]) -> str:
-        return submit(*({"name": f"t{index}", "execution_time": 1.0} for index in range(7)))
+        return submit(*(entry(f"t{index}", {"execution_time": 1.0}) for index in range(7)))
 
     def test_serves_one_page_at_a_time(self, api_client: TestClient, run: str) -> None:
         response = listed(api_client, run, "limit=3")
@@ -286,7 +293,7 @@ class TestPagination:
     def test_pages_the_repetitions_of_one_test_too(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "t", "execution_time": [1.0, 2.0, 3.0, 4.0, 5.0]})
+        run = submit(entry("t", *({"execution_time": float(value)} for value in range(1, 6))))
 
         served = walk(api_client, run, "test=t&limit=2")
 
@@ -301,7 +308,7 @@ class TestPagination:
     def test_the_filter_survives_a_page_boundary(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        run = submit({"name": "a", "execution_time": [1.0] * 5}, {"name": "b"})
+        run = submit(entry("a", *[{"execution_time": 1.0}] * 5), entry("b"))
 
         served = walk(api_client, run, "test=a&limit=2")
 
@@ -311,7 +318,7 @@ class TestPagination:
         self, api_client: TestClient, run: str, submit: Callable[..., str]
     ) -> None:
         # One table and one order for every run's samples: only the path tells them apart.
-        other = submit({"name": "t0", "execution_time": 1.0})
+        other = submit(entry("t0", {"execution_time": 1.0}))
         cursor = listed(api_client, run, "limit=2").json()["cursor"]["next"]
 
         response = listed(api_client, other, f"limit=2&cursor={cursor}")

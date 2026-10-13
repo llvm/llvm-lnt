@@ -1,8 +1,8 @@
 """The run submission payload and its validation (O1, O7).
 
 Pure unit tests: `validate_submission` reaches no database, so the suite's schema is built here
-rather than through the API. What is interesting is almost all in the edges -- which shapes of
-metric value produce which rows, and which are refused.
+rather than through the API. What is interesting is almost all in the edges -- which test entries
+and samples produce which rows, and which are refused.
 
 Two layers reject a bad submission, and the tests say which one they mean. The payload model
 answers a malformed *format* with a pydantic `ValidationError`, which the framework renders as I4's
@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from conftest import PROFILE_DOCUMENT, encoded_profile, run_payload
+from conftest import PROFILE_DOCUMENT, encoded_profile, entry, run_payload
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites import submission
 from lnt_v5.suites.schema import SuiteSchema
@@ -67,13 +67,13 @@ def refused(**overrides: Any) -> str:
     return caught.value.message
 
 
-def one_test(**entry: Any) -> Any:
-    """A submission carrying a single test entry, validated."""
-    return validated(tests=[{"name": "bench", **entry}]).tests[0]
+def one_test(*samples: dict[str, Any], **keys: Any) -> Any:
+    """A submission carrying a single test entry, `bench` (see `entry`), validated."""
+    return validated(tests=[entry("bench", *samples, **keys)]).tests[0]
 
 
-def refused_test(**entry: Any) -> str:
-    return refused(tests=[{"name": "bench", **entry}])
+def refused_test(*samples: dict[str, Any], **keys: Any) -> str:
+    return refused(tests=[entry("bench", *samples, **keys)])
 
 
 def row(**measured: Any) -> dict[str, Any]:
@@ -209,7 +209,7 @@ class TestNulCharacter:
         [
             {"machine": {"name": "lin\x00ux"}},
             {"commit": {"value": "abc\x00123"}},
-            {"tests": [{"name": "suite/be\x00nch"}]},
+            {"tests": [entry("suite/be\x00nch")]},
         ],
     )
     def test_rejects_one_in_an_identity_attribute_or_a_test_name(
@@ -226,7 +226,7 @@ class TestNulCharacter:
         )
 
     def test_rejects_one_in_a_text_metric(self) -> None:
-        assert "'notes' is declared" in refused_test(notes="cle\x00an")
+        assert "'notes' is declared" in refused_test({"notes": "cle\x00an"})
 
     @pytest.mark.parametrize(
         ("blob", "where"),
@@ -305,43 +305,61 @@ class TestMachineAndCommit:
             parsed(commit={"value": ".."})
 
 
-class TestTestNames:
+class TestTestEntries:
     def test_requires_a_name(self) -> None:
         with pytest.raises(ValidationError):
-            parsed(tests=[{"execution_time": 1.0}])
+            parsed(tests=[{"samples": [{}]}])
 
     @pytest.mark.parametrize("name", ["", "a" * (NAME_LENGTH + 1)])
     def test_bounds_the_name(self, name: str) -> None:
         with pytest.raises(ValidationError):
-            parsed(tests=[{"name": name}])
+            parsed(tests=[entry(name)])
 
     @pytest.mark.parametrize("name", ["a", "a" * NAME_LENGTH, "test.suite/benchmark", ".", ".."])
     def test_does_not_require_the_name_to_be_addressable(self, name: str) -> None:
         # I1 exempts test names deliberately: they legitimately contain '/', and there is no
         # endpoint that could refuse one, since tests are created implicitly.
-        assert validated(tests=[{"name": name}]).tests[0].name == name
+        assert validated(tests=[entry(name)]).tests[0].name == name
 
     def test_rejects_two_entries_naming_one_test(self) -> None:
         message = refused(
-            tests=[
-                {"name": "bench", "execution_time": 1.0},
-                {"name": "bench", "execution_time": 2.0},
-            ]
+            tests=[entry("bench", {"execution_time": 1.0}), entry("bench", {"execution_time": 2.0})]
         )
         assert "two test entries name 'bench'" in message
 
     def test_keeps_the_order_the_submission_gave(self) -> None:
-        result = validated(tests=[{"name": "c"}, {"name": "a"}, {"name": "b"}])
+        result = validated(tests=[entry("c"), entry("a"), entry("b")])
         assert [test.name for test in result.tests] == ["c", "a", "b"]
+
+    @pytest.mark.parametrize(
+        "body",
+        [{"name": "bench"}, {"name": "bench", "samples": None}, {"name": "bench", "samples": []}],
+    )
+    def test_requires_at_least_one_sample(self, body: dict[str, Any]) -> None:
+        # O1: every entry records that its test ran, which takes a sample.
+        with pytest.raises(ValidationError):
+            parsed(tests=[body])
+
+    @pytest.mark.parametrize("sample", [None, 1.5, [{"execution_time": 1.5}]])
+    def test_requires_each_sample_to_be_an_object(self, sample: Any) -> None:
+        with pytest.raises(ValidationError):
+            parsed(tests=[{"name": "bench", "samples": [sample]}])
+
+    def test_rejects_an_unknown_key(self) -> None:
+        # A metric goes in a sample, not beside them.
+        with pytest.raises(ValidationError):
+            parsed(tests=[{"name": "bench", "samples": [{}], "execution_time": 1.5}])
 
 
 class TestMetricValues:
     def test_reads_a_scalar_of_each_declared_type(self) -> None:
         test = one_test(
-            execution_time=1.5,
-            compile_status=0,
-            notes="clean",
-            measured_at="2026-04-15T14:30:00Z",
+            {
+                "execution_time": 1.5,
+                "compile_status": 0,
+                "notes": "clean",
+                "measured_at": "2026-04-15T14:30:00Z",
+            }
         )
         [sample] = test.samples
         assert sample["execution_time"] == 1.5
@@ -351,12 +369,12 @@ class TestMetricValues:
 
     def test_reads_a_whole_number_as_an_integer(self) -> None:
         # D3's leniency, reused from the declared-field path.
-        assert one_test(compile_status=8.0).samples[0]["compile_status"] == 8
+        assert one_test({"compile_status": 8.0}).samples[0]["compile_status"] == 8
 
     def test_reads_an_integer_as_a_real(self) -> None:
         # The other direction of D3's leniency: JSON has one number type, so a producer that
         # happens to measure exactly 2 seconds writes `2`.
-        value = one_test(execution_time=2).samples[0]["execution_time"]
+        value = one_test({"execution_time": 2}).samples[0]["execution_time"]
         assert isinstance(value, float)
         assert value == 2.0
 
@@ -365,6 +383,7 @@ class TestMetricValues:
         [
             ("execution_time", "1.5"),
             ("execution_time", True),
+            ("execution_time", [1.5, 1.6]),
             ("compile_status", 8.5),
             ("compile_status", "8"),
             ("notes", 5),
@@ -373,43 +392,41 @@ class TestMetricValues:
         ],
     )
     def test_rejects_a_value_of_the_wrong_type(self, metric: str, value: Any) -> None:
-        message = refused_test(**{metric: value})
-        assert message.startswith("test 'bench': ")
+        # An array included: a test's repetitions are its samples, each with a single value.
+        message = refused_test({metric: value})
+        assert message.startswith("test 'bench': samples[0]: ")
         assert f"'{metric}' is declared" in message
 
     @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
     def test_rejects_a_non_finite_real(self, value: float) -> None:
         # D3: JSON has no literal for any of these, and none survives the round trip -- a stored
         # one comes back as `null`, indistinguishable from a metric the sample does not have.
-        assert "'execution_time' is declared" in refused_test(execution_time=value)
-
-    def test_rejects_a_non_finite_element_of_an_array(self) -> None:
-        assert "'execution_time' is declared" in refused_test(execution_time=[1.0, float("nan")])
+        assert "'execution_time' is declared" in refused_test({"execution_time": value})
 
     def test_rejects_an_undeclared_metric(self) -> None:
-        message = refused_test(execution_tmie=1.0)
+        message = refused_test({"execution_tmie": 1.0})
         assert "'execution_tmie' is not declared in this test suite's metrics" in message
         assert "execution_time" in message  # the message lists what is declared
 
     def test_rejects_a_null_metric(self) -> None:
         # O1: a metric with no value is omitted, not sent as null.
-        assert "'execution_time' is null" in refused_test(execution_time=None)
+        assert "'execution_time' is null" in refused_test({"execution_time": None})
 
-    def test_names_the_test_the_failure_is_about(self) -> None:
+    def test_names_the_test_and_the_sample_the_failure_is_about(self) -> None:
         message = refused(
-            tests=[{"name": "good", "execution_time": 1.0}, {"name": "bad", "execution_time": "x"}]
+            tests=[
+                entry("good", {"execution_time": 1.0}),
+                entry("bad", {"execution_time": 1.0}, {"execution_time": "x"}),
+            ]
         )
-        assert message.startswith("test 'bad': ")
+        assert message.startswith("test 'bad': samples[1]: ")
 
 
 class TestSampleRows:
-    def test_an_entry_with_no_arrays_yields_one_row(self) -> None:
-        assert one_test(execution_time=1.5).samples == [row(execution_time=1.5)]
-
-    def test_an_entry_with_no_metrics_yields_one_row_of_nulls(self) -> None:
+    def test_an_empty_sample_yields_one_row_of_nulls(self) -> None:
         # O1: the row records that the test ran in this run even when it measured nothing, and
         # every declared metric is present and null -- which is what "no value" means.
-        assert one_test().samples == [
+        assert one_test({}).samples == [
             {
                 "execution_time": None,
                 "compile_status": None,
@@ -418,82 +435,61 @@ class TestSampleRows:
             }
         ]
 
-    def test_an_entry_carrying_only_a_profile_yields_one_row_of_nulls(self) -> None:
-        test = one_test(profile=encoded_profile())
-        assert test.samples == [row()]
-        assert test.profile is not None
+    def test_each_empty_sample_yields_a_row(self) -> None:
+        # O1: `[{}, {}]` records that the test ran twice without a value for any metric.
+        assert one_test({}, {}).samples == [row(), row()]
 
-    def test_every_row_carries_the_same_keys_whatever_the_entry_sent(self) -> None:
-        # The invariant the write layer binds its one executemany to: SQLAlchemy Core takes its
-        # column list from the first mapping, so rows that disagree on their keys would write the
-        # wrong columns. Established here rather than repaired by whoever writes them.
-        entries: list[dict[str, Any]] = [
-            {},
-            {"execution_time": 1.5},
-            {"notes": "clean", "compile_status": [0, 1]},
-        ]
-        declared = {metric.name for metric in NTS.metrics}
-
-        for entry in entries:
-            for sample in one_test(**entry).samples:
-                assert set(sample) == declared
-
-    def test_an_array_yields_one_row_per_element(self) -> None:
-        assert one_test(execution_time=[0.1, 0.2, 0.3]).samples == [
+    def test_yields_one_row_per_sample_in_order(self) -> None:
+        assert one_test(
+            {"execution_time": 0.1}, {"execution_time": 0.2}, {"execution_time": 0.3}
+        ).samples == [
             row(execution_time=0.1),
             row(execution_time=0.2),
             row(execution_time=0.3),
         ]
 
-    def test_a_single_element_array_yields_one_row(self) -> None:
-        assert one_test(execution_time=[0.1]).samples == [row(execution_time=0.1)]
-
-    def test_repeats_scalars_across_the_rows(self) -> None:
-        assert one_test(execution_time=[0.1, 0.2], notes="clean").samples == [
-            row(execution_time=0.1, notes="clean"),
-            row(execution_time=0.2, notes="clean"),
+    def test_the_samples_of_a_test_need_not_have_the_same_metrics(self) -> None:
+        # The case the format exists for: a repetition that recorded only its status.
+        assert one_test(
+            {"execution_time": 13.8, "compile_status": 1, "notes": "clean"},
+            {"compile_status": 1},
+            {},
+        ).samples == [
+            row(execution_time=13.8, compile_status=1, notes="clean"),
+            row(compile_status=1),
+            row(),
         ]
 
-    def test_reads_arrays_of_equal_length_side_by_side(self) -> None:
-        assert one_test(execution_time=[0.1, 0.2], compile_status=[0, 1]).samples == [
-            row(execution_time=0.1, compile_status=0),
-            row(execution_time=0.2, compile_status=1),
+    def test_every_row_carries_the_same_keys_whatever_the_sample_sent(self) -> None:
+        # The invariant the write layer binds its one executemany to: SQLAlchemy Core takes its
+        # column list from the first mapping, so rows that disagree on their keys would write the
+        # wrong columns. Established here rather than repaired by whoever writes them.
+        samples: list[dict[str, Any]] = [
+            {},
+            {"execution_time": 1.5},
+            {"notes": "clean", "compile_status": 0},
         ]
+        declared = {metric.name for metric in NTS.metrics}
 
-    def test_types_every_element(self) -> None:
-        assert one_test(compile_status=[8.0, 9]).samples == [
-            row(compile_status=8),
-            row(compile_status=9),
-        ]
-        assert "'compile_status' is declared" in refused_test(compile_status=[0, "1"])
-
-    def test_rejects_arrays_of_different_lengths(self) -> None:
-        message = refused_test(execution_time=[0.1, 0.2], compile_status=[0])
-        assert "must be the same length" in message
-
-    def test_rejects_an_empty_array(self) -> None:
-        # O1: it would produce no rows at all, silently discarding the scalar metrics beside it.
-        message = refused_test(execution_time=[], notes="clean")
-        assert "'execution_time' is an empty array" in message
-
-    def test_rejects_a_null_element(self) -> None:
-        assert "'execution_time' is null" in refused_test(execution_time=[0.1, None])
+        for sample in one_test(*samples).samples:
+            assert set(sample) == declared
 
 
 class TestProfiles:
     """How an entry's profile reaches `profile_document`, where the document itself is tested."""
 
     def test_an_entry_with_one_carries_the_profile_to_store(self) -> None:
-        stored = one_test(profile=encoded_profile()).profile
+        test = one_test(profile=encoded_profile())
 
-        assert stored is not None
-        assert stored.counters == PROFILE_DOCUMENT["counters"]
+        assert test.samples == [row()]
+        assert test.profile is not None
+        assert test.profile.counters == PROFILE_DOCUMENT["counters"]
 
     @pytest.mark.parametrize("value", [None, ...])
     def test_an_entry_without_one_carries_no_profile(self, value: Any) -> None:
         # Explicit null and omission mean the same thing: no profile.
-        entry = {} if value is ... else {"profile": value}
-        assert one_test(**entry).profile is None
+        keys = {} if value is ... else {"profile": value}
+        assert one_test(**keys).profile is None
 
     def test_a_sample_is_refused_before_any_profile_is_encoded(
         self, monkeypatch: pytest.MonkeyPatch
@@ -505,8 +501,8 @@ class TestProfiles:
 
         message = refused(
             tests=[
-                {"name": "first", "profile": encoded_profile()},
-                {"name": "second", "execution_time": "slow"},
+                entry("first", profile=encoded_profile()),
+                entry("second", {"execution_time": "slow"}),
             ]
         )
 

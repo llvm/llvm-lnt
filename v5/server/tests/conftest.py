@@ -422,7 +422,7 @@ def run_payload(**overrides: Any) -> dict[str, Any]:
 
     Here rather than in one of the test modules because both the endpoint tests and the pure
     validation tests build on it, and O1's shape should not have to be edited in two places. The
-    default `tests` is empty: a test that cares about what an entry expands into says so.
+    default `tests` is empty: a test that cares about what its test entries become says so.
     """
     return {
         "format_version": "5",
@@ -430,6 +430,12 @@ def run_payload(**overrides: Any) -> dict[str, Any]:
         "commit": {"value": "abc123"},
         "tests": [],
     } | overrides
+
+
+def entry(name: str, *samples: dict[str, Any], **keys: Any) -> dict[str, Any]:
+    """A test entry of a run submission (O1): the test `name`, its `samples`, or one empty sample if
+    none is given, and any other `keys`, such as a `profile`."""
+    return {"name": name, "samples": list(samples) or [{}], **keys}
 
 
 # A small, valid O7 profile document, for the tests that need a profile without caring which.

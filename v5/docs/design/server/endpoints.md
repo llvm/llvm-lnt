@@ -260,7 +260,7 @@ with the submission (see O2). A profile that O7 refuses is rejected with 400.
 
 | Route | Success | Errors |
 |-------|---------|--------|
-| `POST /runs` | 201 with the created run in its detail form, and a `Location` header pointing at its detail route | 400 for an undeclared key in `machine.fields` or `commit.fields`; 409 `duplicate` for a UUID a run already has (see O1); 409 `conflict` for metadata that contradicts what is stored, including a contradicted `ordinal` (see O2), or for an `ordinal` already held by another commit (see O6) |
+| `POST /runs` | 201 with the created run in its detail form, and a `Location` header pointing at its detail route | 400 for an undeclared key in `machine.fields` or `commit.fields`, or an undeclared metric in a test's `samples`; 409 `duplicate` for a UUID a run already has (see O1); 409 `conflict` for metadata that contradicts what is stored, including a contradicted `ordinal` (see O2), or for an `ordinal` already held by another commit (see O6) |
 | `DELETE /runs/{uuid}` | 204 | |
 
 **Filters:**

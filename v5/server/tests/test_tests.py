@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, run_payload, walk_pages
+from conftest import code_of, entry, run_payload, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
@@ -83,15 +83,15 @@ class TestList:
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # endpoints.md: an object rather than a bare string, so the list can gain a key later.
-        submit({"name": "suite/one"})
+        submit(entry("suite/one"))
 
         assert listed(api_client).json()["items"] == [{"name": "suite/one"}]
 
     def test_lists_the_tests_submission_created(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        submit({"name": "a"}, {"name": "b"})
-        submit({"name": "c"})
+        submit(entry("a"), entry("b"))
+        submit(entry("c"))
 
         assert sorted(names_in(listed(api_client))) == ["a", "b", "c"]
 
@@ -99,8 +99,8 @@ class TestList:
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # The filters are EXISTS subqueries rather than joins for exactly this reason.
-        submit({"name": "a", "execution_time": [1.0, 2.0]})
-        submit({"name": "a", "execution_time": 3.0})
+        submit(entry("a", {"execution_time": 1.0}, {"execution_time": 2.0}))
+        submit(entry("a", {"execution_time": 3.0}))
 
         assert names_in(listed(api_client)) == ["a"]
 
@@ -111,14 +111,14 @@ class TestList:
         manage: dict[str, str],
     ) -> None:
         # D5: nothing deletes a test, so deleting every run that measured it leaves it behind.
-        submit({"name": "a"})
+        submit(entry("a"))
         uuid = api_client.get(f"{RUNS}").json()["items"][0]["uuid"]
 
         assert api_client.delete(f"{RUNS}/{uuid}", headers=manage).status_code == 204
         assert names_in(listed(api_client)) == ["a"]
 
     def test_needs_no_credential(self, api_client: TestClient, submit: Callable[..., str]) -> None:
-        submit({"name": "a"})
+        submit(entry("a"))
 
         assert listed(api_client).status_code == 200
 
@@ -134,7 +134,7 @@ class TestList:
 class TestSearch:
     @pytest.fixture(autouse=True)
     def tests(self, submit: Callable[..., str]) -> None:
-        submit({"name": "suite/BenchmarkOne"}, {"name": "suite/other"}, {"name": "100%/odd"})
+        submit(entry("suite/BenchmarkOne"), entry("suite/other"), entry("100%/odd"))
 
     def test_matches_a_substring_of_the_name(self, api_client: TestClient) -> None:
         assert names_in(listed(api_client, "search=Bench")) == ["suite/BenchmarkOne"]
@@ -153,8 +153,8 @@ class TestMachineFilter:
     def test_keeps_only_tests_with_data_on_that_machine(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        submit({"name": "a"}, machine="linux")
-        submit({"name": "b"}, machine="darwin")
+        submit(entry("a"), machine="linux")
+        submit(entry("b"), machine="darwin")
 
         assert names_in(listed(api_client, "machine=linux")) == ["a"]
 
@@ -162,7 +162,7 @@ class TestMachineFilter:
         self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
     ) -> None:
         # D5: what the filter reads only accumulates, so deleting runs does not show here.
-        uuid = submit({"name": "a"}, machine="linux")
+        uuid = submit(entry("a"), machine="linux")
 
         assert api_client.delete(f"{RUNS}/{uuid}", headers=manage).status_code == 204
         assert names_in(listed(api_client, "machine=linux")) == ["a"]
@@ -170,8 +170,8 @@ class TestMachineFilter:
     def test_forgets_a_machines_tests_once_the_machine_is_deleted(
         self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
     ) -> None:
-        submit({"name": "a"}, machine="linux")
-        submit({"name": "a"}, machine="darwin")
+        submit(entry("a"), machine="linux")
+        submit(entry("a"), machine="darwin")
 
         assert api_client.delete(f"{MACHINES}/darwin", headers=manage).status_code == 204
         assert names_in(listed(api_client, "machine=linux")) == ["a"]
@@ -190,7 +190,7 @@ class TestMetricFilter:
     def test_keeps_only_tests_with_a_value_for_that_metric(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        submit({"name": "a", "execution_time": 1.0}, {"name": "b", "compile_time": 2.0})
+        submit(entry("a", {"execution_time": 1.0}), entry("b", {"compile_time": 2.0}))
 
         assert names_in(listed(api_client, "metric=execution_time")) == ["a"]
 
@@ -199,14 +199,14 @@ class TestMetricFilter:
     ) -> None:
         # O1: an entry with no metric values still produces a sample row, and every metric on it
         # is NULL. The filter asks for non-NULL, so such a test does not match.
-        submit({"name": "a"})
+        submit(entry("a"))
 
         assert names_in(listed(api_client, "metric=execution_time")) == []
 
     def test_counts_every_machine(self, api_client: TestClient, submit: Callable[..., str]) -> None:
-        submit({"name": "a", "execution_time": 1.0}, machine="linux")
-        submit({"name": "b", "execution_time": 1.0}, machine="darwin")
-        submit({"name": "c", "compile_time": 1.0}, machine="darwin")
+        submit(entry("a", {"execution_time": 1.0}), machine="linux")
+        submit(entry("b", {"execution_time": 1.0}), machine="darwin")
+        submit(entry("c", {"compile_time": 1.0}), machine="darwin")
 
         assert sorted(names_in(listed(api_client, "metric=execution_time"))) == ["a", "b"]
 
@@ -214,7 +214,7 @@ class TestMetricFilter:
         self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
     ) -> None:
         # D5: as for `machine=`, deleting runs does not take a test out of this filter.
-        with_time = submit({"name": "a", "execution_time": 1.0})
+        with_time = submit(entry("a", {"execution_time": 1.0}))
 
         assert api_client.delete(f"{RUNS}/{with_time}", headers=manage).status_code == 204
         assert names_in(listed(api_client, "metric=execution_time")) == ["a"]
@@ -250,9 +250,9 @@ class TestMetricFilter:
 class TestFiltersTogether:
     @pytest.fixture(autouse=True)
     def tests(self, submit: Callable[..., str]) -> None:
-        submit({"name": "both", "execution_time": 1.0}, machine="linux")
-        submit({"name": "wrong_machine", "execution_time": 1.0}, machine="darwin")
-        submit({"name": "wrong_metric", "compile_time": 1.0}, machine="linux")
+        submit(entry("both", {"execution_time": 1.0}), machine="linux")
+        submit(entry("wrong_machine", {"execution_time": 1.0}), machine="darwin")
+        submit(entry("wrong_metric", {"compile_time": 1.0}), machine="linux")
 
     def test_describe_one_set_of_samples_rather_than_two(self, api_client: TestClient) -> None:
         # endpoints.md: `?machine=m&metric=x` asks which tests have an `x` value *on that machine*.
@@ -263,8 +263,8 @@ class TestFiltersTogether:
     ) -> None:
         # The independent reading would let this through: it has data on linux, and it has an
         # `execution_time` somewhere. It has no `execution_time` on linux.
-        submit({"name": "split", "compile_time": 1.0}, machine="linux")
-        submit({"name": "split", "execution_time": 1.0}, machine="darwin")
+        submit(entry("split", {"compile_time": 1.0}), machine="linux")
+        submit(entry("split", {"execution_time": 1.0}), machine="darwin")
 
         assert "split" not in names_in(listed(api_client, "machine=linux&metric=execution_time"))
 
@@ -278,7 +278,7 @@ class TestPagination:
     @pytest.fixture(autouse=True)
     def tests(self, submit: Callable[..., str]) -> list[str]:
         names = [f"t{index}" for index in range(7)]
-        submit(*({"name": name, "execution_time": 1.0} for name in names))
+        submit(*(entry(name, {"execution_time": 1.0}) for name in names))
         return names
 
     def test_serves_one_page_at_a_time(self, api_client: TestClient) -> None:
@@ -295,7 +295,7 @@ class TestPagination:
     def test_the_filters_survive_a_page_boundary(
         self, api_client: TestClient, submit: Callable[..., str], tests: list[str]
     ) -> None:
-        submit(*({"name": f"other{index}"} for index in range(4)), machine="darwin")
+        submit(*(entry(f"other{index}") for index in range(4)), machine="darwin")
 
         assert sorted(walk(api_client, "machine=linux&limit=2")) == sorted(tests)
 

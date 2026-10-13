@@ -41,8 +41,8 @@ the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
 - `run_parameters`: every other v4 run field, verbatim, except v4's bookkeeping (`id`,
   `order_id`, `order_by`).
 - `tests`: these bots report one sample per test per run, repeating a commit with several runs
-  instead, so every metric is a scalar. Only `execution_time` is reported; v4 reports the other
-  metrics as null, and they are omitted.
+  instead, so every test has a single sample. Only `execution_time` is reported; v4 reports the
+  other metrics as null, and they are omitted.
 - `uuid` is random, generated once, so that the runs are submitted under client-provided UUIDs.
 
 ## Trimming

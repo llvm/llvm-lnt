@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select
 
-from conftest import run_payload
+from conftest import entry, run_payload
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.aggregation import SampleAggregation, geomean
@@ -25,7 +25,7 @@ COUNT = Metric.model_validate({"name": "count", "type": "integer"})
 LABEL = Metric.model_validate({"name": "label", "type": "text"})
 
 
-def entry(name: str, *samples: dict[str, Any]) -> SubmittedTest:
+def validated_test(name: str, *samples: dict[str, Any]) -> SubmittedTest:
     """A test entry as validation produces it: every sample carries every metric (see O1)."""
     every = {"time": None, "count": None, "label": None}
     return SubmittedTest(name=name, samples=[every | sample for sample in samples], profile=None)
@@ -80,38 +80,45 @@ class TestSummarize:
         # One test measured three times and one measured once count equally: the geomean of the two
         # medians (2 and 8), not of the four samples.
         summaries = summarized(
-            entry("a", {"time": 1.0}, {"time": 2.0}, {"time": 3.0}), entry("b", {"time": 8.0})
+            validated_test("a", {"time": 1.0}, {"time": 2.0}, {"time": 3.0}),
+            validated_test("b", {"time": 8.0}),
         )
 
         assert summaries["time", SampleAggregation.MEDIAN] == pytest.approx(4.0)
         assert summaries["time", SampleAggregation.MAX] == pytest.approx(math.sqrt(3.0 * 8.0))
 
     def test_a_test_with_no_value_for_the_metric_takes_no_part(self) -> None:
-        summaries = summarized(entry("a", {"time": 4.0}), entry("b", {"count": 7}))
+        summaries = summarized(
+            validated_test("a", {"time": 4.0}), validated_test("b", {"count": 7})
+        )
 
         assert summaries["time", SampleAggregation.MEAN] == pytest.approx(4.0)
         assert summaries["count", SampleAggregation.MEAN] == pytest.approx(7.0)
 
     def test_skips_the_tests_whose_aggregate_is_not_positive(self) -> None:
         # The median of [-1, 3] is 1 and its min is -1, so only the min skips the test.
-        summaries = summarized(entry("a", {"time": -1.0}, {"time": 3.0}), entry("b", {"time": 4.0}))
+        summaries = summarized(
+            validated_test("a", {"time": -1.0}, {"time": 3.0}), validated_test("b", {"time": 4.0})
+        )
 
         assert summaries["time", SampleAggregation.MEDIAN] == pytest.approx(2.0)
         assert summaries["time", SampleAggregation.MIN] == pytest.approx(4.0)
 
     def test_nothing_positive_has_no_geomean(self) -> None:
-        summaries = summarized(entry("a", {"time": -1.0}, {"time": 3.0}))
+        summaries = summarized(validated_test("a", {"time": -1.0}, {"time": 3.0}))
 
         assert ("time", SampleAggregation.MIN) not in summaries
         assert ("time", SampleAggregation.MAX) in summaries
 
     def test_an_integer_metric_is_averaged_in_floating_point(self) -> None:
-        summaries = summarized(entry("a", {"count": 1}, {"count": 2}), entry("b", {"count": 6}))
+        summaries = summarized(
+            validated_test("a", {"count": 1}, {"count": 2}), validated_test("b", {"count": 6})
+        )
 
         assert summaries["count", SampleAggregation.MEAN] == pytest.approx(3.0)
 
     def test_only_numeric_metrics_have_one(self) -> None:
-        summaries = summarized(entry("a", {"label": "x", "time": 1.0}))
+        summaries = summarized(validated_test("a", {"label": "x", "time": 1.0}))
 
         assert {name for name, _ in summaries} == {"time"}
 
@@ -163,8 +170,8 @@ class TestSubmission:
         self.submit(
             api_client,
             submitter,
-            {"name": "a", "time": [1.0, 2.0, 3.0]},
-            {"name": "b", "time": 8.0, "size": 5},
+            entry("a", {"time": 1.0}, {"time": 2.0}, {"time": 3.0}),
+            entry("b", {"time": 8.0, "size": 5}),
         )
 
         stored = self.stored(db_engine, suite)
@@ -184,7 +191,7 @@ class TestSubmission:
     ) -> None:
         # D3 accepts any finite real, so this must not be a 500.
         huge = sys.float_info.max * 0.75
-        self.submit(api_client, submitter, {"name": "a", "time": [huge, huge]})
+        self.submit(api_client, submitter, entry("a", {"time": huge}, {"time": huge}))
 
         stored = self.stored(db_engine, suite)
 
@@ -199,7 +206,7 @@ class TestSubmission:
         db_engine: Engine,
         suite: SuiteTables,
     ) -> None:
-        run = self.submit(api_client, submitter, {"name": "a", "time": 1.0})
+        run = self.submit(api_client, submitter, entry("a", {"time": 1.0}))
 
         response = api_client.delete(
             f"{RUNS_PATH.format(testsuite='nts')}/{run['uuid']}", headers=manage
@@ -216,7 +223,7 @@ class TestSubmission:
         db_engine: Engine,
         suite: SuiteTables,
     ) -> None:
-        self.submit(api_client, submitter, {"name": "a", "time": 1.0, "size": 2})
+        self.submit(api_client, submitter, entry("a", {"time": 1.0, "size": 2}))
 
         response = api_client.patch(
             f"{SUITES_PATH}/nts/schema?confirm=true",

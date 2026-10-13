@@ -1729,9 +1729,9 @@ export interface components {
         /**
          * Metric
          * @description Something the suite's tests measure, such as execution time. In a run submission, each
-         *     test reports its values under the metric's name.
+         *     sample of a test reports its value under the metric's name.
          *
-         *     The name can't be `id`, `run_id`, `test_id`, `machine_id`, `name` or `profile`.
+         *     The name can't be `id`, `run_id`, `test_id` or `machine_id`.
          * @example {
          *       "bigger_is_better": false,
          *       "display_name": "Execution Time",
@@ -1794,9 +1794,9 @@ export interface components {
         /**
          * MetricInput
          * @description Something the suite's tests measure, such as execution time. In a run submission, each
-         *     test reports its values under the metric's name.
+         *     sample of a test reports its value under the metric's name.
          *
-         *     The name can't be `id`, `run_id`, `test_id`, `machine_id`, `name` or `profile`.
+         *     The name can't be `id`, `run_id`, `test_id` or `machine_id`.
          * @example {
          *       "bigger_is_better": false,
          *       "display_name": "Execution Time",
@@ -2854,16 +2854,7 @@ export interface components {
         };
         /**
          * TestEntry
-         * @description The results of one test: its `name`, an optional `profile`, and one key per metric, named
-         *     after the metric.
-         *
-         *     Each metric's value is either a single value or an array of values, one per repetition of the
-         *     test. Each array element is recorded as a separate sample. All arrays in one entry must have the
-         *     same length, and single values next to them are repeated in each sample. An entry without any
-         *     metric still records that the test ran.
-         *
-         *     Values must have the JSON type of their metric. Metrics the schema doesn't define are rejected,
-         *     and so are nulls: leave out metrics that have no value.
+         * @description The results of one test: its `name`, its `samples`, and an optional `profile`.
          */
         TestEntry: {
             /**
@@ -2873,12 +2864,24 @@ export interface components {
              */
             name: string;
             /**
+             * Samples
+             * @description One object per repetition of the test in this run, so a test run several times has several. Each object maps metric names to values, and holds only the metrics that this repetition has a value for: leave out the others rather than sending null. Values must have the JSON type of their metric, and metrics the schema doesn't define are rejected. An empty object records that the test ran without a value for any metric.
+             * @example [
+             *       {
+             *         "cycles": 9874,
+             *         "execution_time": 3.284,
+             *         "instructions": 14211
+             *       }
+             *     ]
+             */
+            samples: {
+                [key: string]: number | string;
+            }[];
+            /**
              * Profile
              * @description The test's profile: a profile document (the JSON returned by `GET /api/suites/{testsuite}/profiles/{uuid}/document`), gzip-compressed and then base64-encoded. Limits: 4 MiB compressed, 32 MiB uncompressed, 10000 functions, 100000 instructions per function, and 2048 bytes per function name (in UTF-8). Null is the same as leaving it out.
              */
             profile?: string | null;
-        } & {
-            [key: string]: unknown;
         };
         /**
          * TrendPoint

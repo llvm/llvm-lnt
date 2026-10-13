@@ -109,22 +109,8 @@ EVERY_SUITE = pytest.mark.parametrize("dataset", sorted(DATASETS), indirect=True
 
 
 def samples(entry: dict[str, Any]) -> list[dict[str, Any]]:
-    """The samples a test entry stands for (O1), shaped like the sample list's items.
-
-    One per array element, with the entry's scalars repeated on each.
-    """
-    metrics = {key: value for key, value in entry.items() if key != "name"}
-    count = max((len(value) for value in metrics.values() if isinstance(value, list)), default=1)
-    return [
-        {
-            "test": entry["name"],
-            "metrics": {
-                key: value[index] if isinstance(value, list) else value
-                for key, value in metrics.items()
-            },
-        }
-        for index in range(count)
-    ]
+    """The samples a test entry stands for (O1), shaped like the sample list's items."""
+    return [{"test": entry["name"], "metrics": metrics} for metrics in entry["samples"]]
 
 
 def canonical(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -414,7 +400,7 @@ class TestTests:
                     for run in dataset.submissions
                     if run["machine"]["name"] == machine
                     for entry in run["tests"]
-                    if metric in entry
+                    if any(metric in sample for sample in entry["samples"])
                 }
 
                 query = urlencode({"machine": machine, "metric": metric})

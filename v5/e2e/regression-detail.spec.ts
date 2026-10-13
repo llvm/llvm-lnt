@@ -71,7 +71,7 @@ const RUNS: OwnRun[] = [1, 2].map((ordinal) => ({
   machine: 'm1',
   commit: `c${ordinal}`,
   ordinal,
-  tests: [{ name: 'bench' }],
+  tests: [{ name: 'bench', samples: [{}] }],
 }))
 
 test('every field is edited by a holder of triage scope', async ({
@@ -158,7 +158,7 @@ const MEASURED: OwnRun[] = ['m1', 'm2'].map((machine, i) => ({
   machine,
   commit: `c${i + 1}`,
   ordinal: i + 1,
-  tests: [1, 2, 3, 4].map((n) => ({ name: `t${n}`, execution_time: n })),
+  tests: [1, 2, 3, 4].map((n) => ({ name: `t${n}`, samples: [{ execution_time: n }] })),
 }))
 
 test('indicators are added across machines, filtered and removed', async ({
@@ -224,9 +224,9 @@ const DIFFERENT: OwnRun[] = [
     commit: 'c1',
     ordinal: 1,
     tests: [
-      { name: 'shared', execution_time: 1 },
-      { name: 'only-m1', execution_time: 2 },
-      { name: 'built', execution_time: 3, compile_time: 4 },
+      { name: 'shared', samples: [{ execution_time: 1 }] },
+      { name: 'only-m1', samples: [{ execution_time: 2 }] },
+      { name: 'built', samples: [{ execution_time: 3, compile_time: 4 }] },
     ],
   },
   {
@@ -234,8 +234,8 @@ const DIFFERENT: OwnRun[] = [
     commit: 'c2',
     ordinal: 2,
     tests: [
-      { name: 'shared', execution_time: 1 },
-      { name: 'only-m2', execution_time: 2 },
+      { name: 'shared', samples: [{ execution_time: 1 }] },
+      { name: 'only-m2', samples: [{ execution_time: 2 }] },
     ],
   },
 ]

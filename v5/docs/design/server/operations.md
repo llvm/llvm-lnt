@@ -44,8 +44,10 @@ O2).
   "tests": [
     {
       "name": "test.suite/benchmark",
-      "execution_time": 1.23,
-      "compile_time": 0.45,
+      "samples": [
+        {"execution_time": 1.23, "compile_time": 0.45},
+        {"execution_time": 1.25}
+      ],
       "profile": "<base64 of a gzip-compressed profile document>"
     }
   ]
@@ -92,27 +94,25 @@ O2).
   field list, so this is a free-form blob rather than a `fields` dict. Its only
   validation is D3's rule on values that cannot be stored.
 - `tests`: required list of test entries, which may be empty. Each entry has a
-  `name` plus metric values.
+  `name`, its `samples`, and optionally a `profile`.
   - `name` is required, non-empty, and no longer than `{suite}.test.name`
     allows (see D5).
-  - Two entries with the same test name are rejected with 400: repetitions are
-    expressed with arrays, and D5 allows only one profile per run and test.
-  - A metric value may be a scalar or an array. An array (e.g.
-    `"execution_time": [0.1, 0.2]`) creates one sample per element. All arrays
-    in one test entry must have the same length, and scalar values are
-    repeated in every resulting sample. An empty array is rejected with 400.
-  - An entry creates `max(1, array length)` samples, so an entry with no
-    metric values still records that the test ran.
-  - Every metric key must be declared in the schema's `metrics`; an undeclared
-    one is rejected with 400. Values are typed per D3.
-  - A metric with no value must be omitted from the entry rather than sent as
-    `"metric": null`, and a `null` element inside an array is rejected.
+  - Two entries with the same test name are rejected with 400: a test measured
+    several times in one run has one entry with several samples, and D5 allows
+    only one profile per run and test.
+  - `samples` is required, and holds the test's samples: one object per
+    repetition of the test in this run. Each object maps metric names to
+    values, and holds only the metrics that sample has a value for, so the
+    samples of one test need not have the same metrics.
+  - `samples` must not be empty, since every entry records that its test ran
+    in this run. A sample may be empty: `[{}]` records that the test ran
+    without a value for any metric, and `[{}, {}]` that it ran twice.
+  - Every key in a sample must be declared in the schema's `metrics`; an
+    undeclared one is rejected with 400. Values are typed per D3.
+  - A metric with no value must be omitted from the sample rather than sent as
+    `"metric": null`.
   - An optional `profile` holds the test's profile: a JSON profile document,
     gzip-compressed and base64-encoded (see O7).
-  - `name` and `profile` are reserved keys in a test entry, so neither can be a
-    metric name. This is enforced when the schema is created rather than at
-    submission (see D5), so that a suite can never have a metric that no
-    submission could fill.
 
 **Null values.** An explicit `null` means "omitted" on `uuid`,
 `commit.ordinal`, `commit.tag`, a test entry's `profile`, and each entry of

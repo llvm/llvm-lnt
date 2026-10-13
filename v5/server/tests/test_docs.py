@@ -29,7 +29,7 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import DEFAULT_LAST_N, QUERY_PATH, TRENDS_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.schema import RESERVED_TEST_ENTRY_KEYS, CommitField, MachineField, Metric
+from lnt_v5.suites.schema import CommitField, MachineField, Metric
 
 
 class TestOpenApiDocument:
@@ -738,6 +738,21 @@ class TestRunOperations:
 
         assert submission["machine"]["$ref"].endswith("/MachineObject")
         assert submission["commit"]["$ref"].endswith("/CommitObject")
+
+    def test_a_submitted_sample_takes_the_values_a_sample_is_read_back_with(
+        self, client: TestClient
+    ) -> None:
+        # O1: a sample holds only the metrics it has a value for, so a value is never null, and
+        # each is a single value.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        entry = schemas["TestEntry"]
+        samples = entry["properties"]["samples"]
+        read_back = schemas["Sample"]["properties"]["metrics"]["additionalProperties"]
+
+        assert entry["additionalProperties"] is False
+        assert set(entry["required"]) == {"name", "samples"}
+        assert samples["minItems"] == 1
+        assert samples["items"]["additionalProperties"] == read_back
 
 
 class TestReadOperations:
@@ -1521,8 +1536,6 @@ class TestStatedFacts:
     @pytest.mark.parametrize("entry", [Metric, CommitField, MachineField])
     def test_an_entry_lists_the_names_it_cannot_take(self, client: TestClient, entry: Any) -> None:
         reserved = set().union(*entry.RESERVED_COLUMNS.values())
-        if entry is Metric:
-            reserved |= RESERVED_TEST_ENTRY_KEYS
         schema = client.get("/api/openapi.json").json()["components"]["schemas"][entry.__name__]
 
         assert {name for name in reserved if f"`{name}`" in schema["description"]} == reserved

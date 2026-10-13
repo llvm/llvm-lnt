@@ -535,8 +535,7 @@ as `{suite}.commit`, and the tables below are named that way.
 - Dynamic columns are created from the schema's metrics (see D3 for the
   type-to-column mapping).
 - Metric names must not collide with the built-in column names (`id`,
-  `run_id`, `test_id`), with those of `{suite}.test_coverage`, or with the keys
-  the submission format reserves in a test entry (see O1).
+  `run_id`, `test_id`), or with those of `{suite}.test_coverage`.
 
 #### `{suite}.test_coverage`
 

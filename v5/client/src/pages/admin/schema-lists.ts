@@ -47,8 +47,8 @@ interface ListInfo {
   /** The type a new entry starts with: the commonest one. */
   type: AttributeType
   /**
-   * The names D4's rule allows but the list does not: the built-in columns of the table its entries
-   * become columns of (D5), and for a metric, the keys a test entry of a submission reserves (O1).
+   * The names D4's rule allows but the list does not: the built-in columns of the tables its entries
+   * become columns of (D5).
    */
   reserved: readonly string[]
 }
@@ -60,7 +60,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     noun: 'metric',
     keys: ['display_name', 'unit', 'unit_abbrev', 'bigger_is_better'],
     type: 'real',
-    reserved: ['id', 'machine_id', 'name', 'profile', 'run_id', 'test_id'],
+    reserved: ['id', 'machine_id', 'run_id', 'test_id'],
   },
   commit_fields: {
     heading: 'Commit Fields',

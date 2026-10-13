@@ -215,7 +215,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 
 | Code | Status | Meaning |
 |------|--------|---------|
-| `invalid_request` | 400 | The request is malformed or invalid: bad syntax, a failed validation, an unknown query parameter (see I3), an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
+| `invalid_request` | 400 | The request is malformed or invalid: bad syntax, a failed validation, an unknown query parameter (see I3), a key the request body does not define, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
 | `unauthorized` | 401 | A credential was required and no usable one was sent, or the `Authorization` header does not hold a usable one (see I5) |
 | `forbidden` | 403 | The token is valid, but its scope is insufficient (see I5) |
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |

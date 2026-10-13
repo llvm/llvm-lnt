@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
-from conftest import code_of, encoded_profile, run_payload
+from conftest import code_of, encoded_profile, entry, run_payload
 from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
@@ -114,7 +114,7 @@ def submit(
     """Submit a run whose test entries are `(test name, encoded profile or None)`, and name it."""
 
     def post(*tests: tuple[str, str | None]) -> str:
-        entries = [{"name": name, "profile": profile} for name, profile in tests]
+        entries: list[dict[str, Any]] = [entry(name, profile=profile) for name, profile in tests]
         response = api_client.post(RUNS, json=run_payload(tests=entries), headers=submitter)
         assert response.status_code == 201, response.text
         return str(response.json()["uuid"])

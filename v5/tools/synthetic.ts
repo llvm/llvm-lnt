@@ -237,7 +237,8 @@ function baselines(realRuns: Submission[]) {
     if (runs.length === 0) throw new Error(`No real libcxx runs of ${machine} to start from`)
     const values = new Map<string, number[]>()
     for (const test of runs.flatMap((run) => run.tests)) {
-      values.set(test.name, [...(values.get(test.name) ?? []), test.execution_time as number])
+      const times = test.samples.map((sample) => sample.execution_time as number)
+      values.set(test.name, [...(values.get(test.name) ?? []), ...times])
     }
     const mean = (v: number[]) => v.reduce((a, b) => a + b) / v.length
     tests.set(machine, new Map([...values].map(([test, v]) => [test, mean(v)])))
@@ -269,12 +270,16 @@ function testEntries(
     const ipc = 1.5 + 2.5 * hashed()
     const rss = 1.5 + 38 * hashed()
     const clock = CLOCK_GHZ[machine]
+    const instructions = round(level * clock * ipc * (1 + 0.002 * gaussian(rand)))
+    const maxRss = round(rss * (1 + 0.01 * gaussian(rand)))
     return {
       name: test,
-      execution_time: times.map(round),
-      cycles: times.map((time) => round(time * clock * (1 + 0.005 * gaussian(rand)))),
-      instructions: round(level * clock * ipc * (1 + 0.002 * gaussian(rand))),
-      max_rss: round(rss * (1 + 0.01 * gaussian(rand))),
+      samples: times.map((time) => ({
+        execution_time: round(time),
+        cycles: round(time * clock * (1 + 0.005 * gaussian(rand))),
+        instructions,
+        max_rss: maxRss,
+      })),
     }
   })
 }

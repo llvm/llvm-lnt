@@ -1,9 +1,9 @@
 """The run endpoints (E4).
 
 Driven over the real application and a real database, because almost everything worth checking here
-is what PostgreSQL ends up holding: the rows a submission expands into (O1), the machine, commit and
-tests it creates on the way (O2, O8), the cascade a delete reaches, and the atomicity that has to
-hold across all of it.
+is what PostgreSQL ends up holding: the rows a submission's samples become (O1), the machine,
+commit and tests it creates on the way (O2, O8), the cascade a delete reaches, and the atomicity
+that has to hold across all of it.
 
 The payload's own validation lives in `test_submission.py`, which drives `validate_submission`
 directly; this module checks that the endpoint wires it up, and then everything that only exists
@@ -28,6 +28,7 @@ from conftest import (
     PROFILE_DOCUMENT,
     code_of,
     encoded_profile,
+    entry,
     recent,
     run_payload,
     uuids_in,
@@ -76,7 +77,7 @@ METRICS = [metric["name"] for metric in NTS["metrics"]]
 # What a submission measures when the test does not care what it measured. `conftest.run_payload`
 # defaults to no tests at all, which is the minimal O1 body; most of these tests want a run that
 # produced a row, so they start from one entry instead.
-MEASURED = [{"name": "suite/one", "execution_time": 1.5}]
+MEASURED = [entry("suite/one", {"execution_time": 1.5})]
 
 # What endpoints.md scopes above `read`, with a body each accepts.
 WRITES = [
@@ -252,7 +253,7 @@ class TestSubmit:
             {"machine": {"name": "linux", "fields": {"hardware": "x86\x0064"}}},
             {"run_parameters": {"build_config": "Rel\x00ease"}},
             {"run_parameters": {"bu\x00ild": "Release"}},
-            {"tests": [{"name": "suite/o\x00ne"}]},
+            {"tests": [entry("suite/o\x00ne")]},
         ],
     )
     def test_a_nul_character_anywhere_is_a_bad_request_rather_than_a_fault(
@@ -342,7 +343,7 @@ class TestUuid:
         given = "550e8400-e29b-41d4-a716-446655440000"
         submit(uuid=given)
 
-        submit(uuid=given, tests=[{"name": "suite/other", "execution_time": 9.0}])
+        submit(uuid=given, tests=[entry("suite/other", {"execution_time": 9.0})])
 
         assert counted(db_engine, suite, "run") == 1
         assert [row["test"] for row in samples(db_engine, suite)] == ["suite/one"]
@@ -407,7 +408,7 @@ class TestImplicitCreation:
     def test_creates_every_test_it_names(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        submitted(tests=[{"name": "suite/one"}, {"name": "suite/two"}, {"name": "other/three"}])
+        submitted(tests=[entry("suite/one"), entry("suite/two"), entry("other/three")])
 
         assert counted(db_engine, suite, "test") == 3
 
@@ -636,14 +637,14 @@ class TestTag:
 
 
 class TestSamples:
-    """O1: what a test entry expands into, as the rows PostgreSQL ends up holding."""
+    """O1: what a test entry's samples become, as the rows PostgreSQL ends up holding."""
 
-    def test_stores_the_scalars_an_entry_carries(
+    def test_stores_the_values_a_sample_carries(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        submitted(tests=[{"name": "suite/one", "execution_time": 1.5, "compile_status": 0}])
+        submitted(tests=[entry("suite/one", {"execution_time": 1.5, "compile_status": 0})])
 
-        # The metric the entry did not mention is NULL, which is what "no value" means (O1).
+        # The metric the sample did not mention is NULL, which is what "no value" means (O1).
         assert samples(db_engine, suite) == [
             {
                 "test": "suite/one",
@@ -653,24 +654,33 @@ class TestSamples:
             }
         ]
 
-    def test_an_array_becomes_one_row_per_element(
-        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
-    ) -> None:
-        submitted(tests=[{"name": "suite/one", "execution_time": [1.0, 2.0, 3.0]}])
-
-        assert [row["execution_time"] for row in samples(db_engine, suite)] == [1.0, 2.0, 3.0]
-
-    def test_scalars_are_repeated_across_the_rows_an_array_produces(
+    def test_each_sample_becomes_one_row(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
         submitted(
             tests=[
-                {
-                    "name": "suite/one",
-                    "execution_time": [1.0, 2.0],
-                    "compile_time": [10.0, 20.0],
-                    "compile_status": 0,
-                }
+                entry(
+                    "suite/one",
+                    {"execution_time": 1.0},
+                    {"execution_time": 2.0},
+                    {"execution_time": 3.0},
+                )
+            ]
+        )
+
+        assert [row["execution_time"] for row in samples(db_engine, suite)] == [1.0, 2.0, 3.0]
+
+    def test_the_samples_of_a_test_keep_their_own_metrics(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        # A repetition that recorded only its status, beside one that recorded everything.
+        submitted(
+            tests=[
+                entry(
+                    "suite/one",
+                    {"execution_time": 1.0, "compile_time": 10.0, "compile_status": 1},
+                    {"compile_status": 1},
+                )
             ]
         )
 
@@ -680,13 +690,13 @@ class TestSamples:
                     "test": "suite/one",
                     "execution_time": 1.0,
                     "compile_time": 10.0,
-                    "compile_status": 0,
+                    "compile_status": 1,
                 },
                 {
                     "test": "suite/one",
-                    "execution_time": 2.0,
-                    "compile_time": 20.0,
-                    "compile_status": 0,
+                    "execution_time": None,
+                    "compile_time": None,
+                    "compile_status": 1,
                 },
             ],
             key=repr,
@@ -695,9 +705,8 @@ class TestSamples:
     def test_an_entry_with_no_metrics_still_records_that_the_test_ran(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # O1: an entry yields max(1, array length) rows, so this one is a row of nothing but the
-        # run and test it belongs to.
-        submitted(tests=[{"name": "suite/one"}])
+        # O1: an empty sample is a row of nothing but the run and test it belongs to.
+        submitted(tests=[entry("suite/one")])
 
         assert samples(db_engine, suite) == [
             {
@@ -721,9 +730,9 @@ class TestSamples:
         """
         submitted(
             tests=[
-                {"name": "suite/one", "compile_time": 10.0},
-                {"name": "suite/two", "execution_time": 2.0, "compile_status": 1},
-                {"name": "suite/three"},
+                entry("suite/one", {"compile_time": 10.0}),
+                entry("suite/two", {"execution_time": 2.0, "compile_status": 1}),
+                entry("suite/three"),
             ]
         )
 
@@ -754,8 +763,8 @@ class TestSamples:
     def test_attaches_every_sample_to_the_run_that_carried_it(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        first = submitted(tests=[{"name": "suite/one", "execution_time": 1.0}])
-        submitted(tests=[{"name": "suite/one", "execution_time": 2.0}])
+        first = submitted(tests=[entry("suite/one", {"execution_time": 1.0})])
+        submitted(tests=[entry("suite/one", {"execution_time": 2.0})])
 
         with db_engine.connect() as connection:
             attached = connection.execute(
@@ -772,7 +781,11 @@ class TestSamples:
         # caller is that every row arrives.
         submitted(
             tests=[
-                {"name": f"suite/test-{index:04d}", "execution_time": [float(index), 0.5]}
+                entry(
+                    f"suite/test-{index:04d}",
+                    {"execution_time": float(index)},
+                    {"execution_time": 0.5},
+                )
                 for index in range(500)
             ]
         )
@@ -791,16 +804,86 @@ class TestSamples:
         insert.
         """
         with counting_statements("INSERT INTO nts.sample") as one_row:
-            submitted(tests=[{"name": "suite/one", "execution_time": 1.0}])
+            submitted(tests=[entry("suite/one", {"execution_time": 1.0})])
         with counting_statements("INSERT INTO nts.sample") as many_rows:
             submitted(
                 tests=[
-                    {"name": f"suite/test-{index:04d}", "execution_time": [float(index)] * 10}
+                    entry(f"suite/test-{index:04d}", *[{"execution_time": float(index)}] * 10)
                     for index in range(100)
                 ]
             )
 
         assert len(many_rows) == len(one_row) == 1
+
+    @pytest.mark.parametrize(
+        "tests",
+        [
+            [entry("suite/one", {"execution_tmie": 1.5})],
+            [{"name": "suite/one", "samples": []}],
+            [{"name": "suite/one", "samples": [{}], "execution_time": 1.5}],
+        ],
+    )
+    def test_refuses_a_test_entry_that_does_not_validate(
+        self, submit: Callable[..., Any], tests: list[Any]
+    ) -> None:
+        # An undeclared metric in a sample (O1, E4), and a malformed entry.
+        response = submit(tests=tests)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+
+class TestMetricsNamedLikeTheKeysOfATestEntry:
+    """A metric may be named `name` or `profile`, since a test entry's metrics are in its samples.
+
+    Read back through every endpoint that serves a metric by name, since `name` is also a column of
+    the test table that a sample is joined to.
+    """
+
+    def test_reads_back_as_submitted(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        make_api_suite: Callable[[dict[str, Any]], SuiteTables],
+    ) -> None:
+        make_api_suite(
+            {
+                "name": "keys",
+                "metrics": [{"name": "name", "type": "real"}, {"name": "profile", "type": "real"}],
+            }
+        )
+        base = f"{SUITES_PATH}/keys"
+        body = run_payload(
+            commit={"value": "abc123", "ordinal": 1},
+            tests=[
+                entry(
+                    "bench", {"name": 1.5, "profile": 2.5}, {"name": 3.5}, profile=encoded_profile()
+                )
+            ],
+        )
+        response = api_client.post(f"{base}/runs", json=body, headers=submitter)
+        assert response.status_code == 201, response.text
+        run = response.json()["uuid"]
+
+        listed = api_client.get(f"{base}/runs/{run}/samples").json()["items"]
+        assert sorted(listed, key=repr) == sorted(
+            [
+                {"test": "bench", "metrics": {"name": 1.5, "profile": 2.5}},
+                {"test": "bench", "metrics": {"name": 3.5}},
+            ],
+            key=repr,
+        )
+        for metric, values in (("name", [1.5, 3.5]), ("profile", [2.5])):
+            points = api_client.post(f"{base}/query", json={"metric": metric}).json()["items"]
+            assert sorted((point["test"], point["value"]) for point in points) == [
+                ("bench", value) for value in values
+            ]
+        for metric in ("name", "profile"):
+            query = urlencode({"machine": "linux", "metric": metric})
+            tests = api_client.get(f"{base}/tests?{query}").json()["items"]
+            assert tests == [{"name": "bench"}]
+        profiles = api_client.get(f"{base}/runs/{run}/profiles").json()["items"]
+        assert [profile["test"] for profile in profiles] == ["bench"]
 
 
 class TestProfiles:
@@ -811,7 +894,7 @@ class TestProfiles:
     ) -> None:
         # A function's instructions are stored in an encoding of the server's own (D5), so they are
         # checked by reading them back; `test_profile_document.py` covers the document in detail.
-        submitted(tests=[{"name": "suite/one", "profile": encoded_profile()}])
+        submitted(tests=[entry("suite/one", profile=encoded_profile())])
 
         stored = profiles(db_engine, suite)
         assert [row["test"] for row in stored] == ["suite/one"]
@@ -836,8 +919,8 @@ class TestProfiles:
         # the submission format has nowhere to put one for a profile.
         submitted(
             tests=[
-                {"name": "suite/one", "profile": encoded_profile()},
-                {"name": "suite/two", "profile": encoded_profile()},
+                entry("suite/one", profile=encoded_profile()),
+                entry("suite/two", profile=encoded_profile()),
             ]
         )
 
@@ -849,7 +932,7 @@ class TestProfiles:
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
         # D5 gives the column a default, so the value comes from the database's clock.
-        submitted(tests=[{"name": "suite/one", "profile": encoded_profile()}])
+        submitted(tests=[entry("suite/one", profile=encoded_profile())])
 
         assert recent(profiles(db_engine, suite)[0]["created_at"])
 
@@ -858,9 +941,9 @@ class TestProfiles:
     ) -> None:
         # D5's unique constraint is on (run_id, test_id), so the same test profiled in two runs is
         # two rows rather than a duplicate.
-        entry = [{"name": "suite/one", "profile": encoded_profile()}]
-        submitted(tests=entry)
-        submitted(tests=entry)
+        tests = [entry("suite/one", profile=encoded_profile())]
+        submitted(tests=tests)
+        submitted(tests=tests)
 
         assert counted(db_engine, suite, "profile") == 2
 
@@ -869,9 +952,9 @@ class TestProfiles:
     ) -> None:
         submitted(
             tests=[
-                {"name": "suite/one", "profile": encoded_profile()},
-                {"name": "suite/two"},
-                {"name": "suite/three", "profile": None},
+                entry("suite/one", profile=encoded_profile()),
+                entry("suite/two"),
+                entry("suite/three", profile=None),
             ]
         )
 
@@ -889,9 +972,9 @@ class TestProfiles:
 
         submitted(
             tests=[
-                {"name": "suite/one", "profile": profile(1)},
-                {"name": "suite/two"},
-                {"name": "suite/three", "profile": profile(3)},
+                entry("suite/one", profile=profile(1)),
+                entry("suite/two"),
+                entry("suite/three", profile=profile(3)),
             ]
         )
 
@@ -902,7 +985,7 @@ class TestProfiles:
         # One case rather than the matrix: what the endpoint owes is that a profile O7 refuses
         # comes back as I4's 400 in the error envelope. Which profiles are refused is
         # `test_profile_document.py`'s, which settles it without a CREATE SCHEMA per case.
-        response = submit(tests=[{"name": "suite/one", "profile": "not base64!"}])
+        response = submit(tests=[entry("suite/one", profile="not base64!")])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -914,8 +997,8 @@ class TestProfiles:
         # entry costs the first one nothing.
         submit(
             tests=[
-                {"name": "suite/one", "execution_time": 1.0},
-                {"name": "suite/two", "profile": "not base64!"},
+                entry("suite/one", {"execution_time": 1.0}),
+                entry("suite/two", profile="not base64!"),
             ]
         )
 
@@ -961,7 +1044,7 @@ class TestAtomicity:
         return submit(
             machine={"name": "brand-new", "fields": {"hardware": "x86_64"}},
             commit={"value": "abc123", "ordinal": 2},
-            tests=[{"name": "suite/one", "execution_time": 1.0, "profile": encoded_profile()}],
+            tests=[entry("suite/one", {"execution_time": 1.0}, profile=encoded_profile())],
         )
 
     def test_the_submission_is_refused(self, failed_halfway: Any) -> None:
@@ -998,7 +1081,7 @@ class TestConcurrentSubmission:
     def submitted_at_once(
         self, api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
     ) -> Iterator[list[Any]]:
-        tests = [{"name": f"suite/test-{index}"} for index in range(8)]
+        tests = [entry(f"suite/test-{index}") for index in range(8)]
 
         def send(index: int) -> Any:
             return api_client.post(
@@ -1242,7 +1325,7 @@ class TestListFilters:
     def test_keeps_only_runs_carrying_profiles(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile()}])
+        profiled = run_at(tests=[entry("suite/one", profile=encoded_profile())])
         bare = run_at()
 
         assert uuids_in(listed(api_client, "has_profiles=true")) == [profiled]
@@ -1251,7 +1334,7 @@ class TestListFilters:
     def test_omitting_has_profiles_returns_both(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile()}])
+        profiled = run_at(tests=[entry("suite/one", profile=encoded_profile())])
         bare = run_at()
 
         assert set(uuids_in(listed(api_client))) == {profiled, bare}
@@ -1559,11 +1642,9 @@ class TestDelete:
         submitted: Callable[..., Any],
     ) -> None:
         doomed = submitted(
-            tests=[{"name": "suite/one", "execution_time": 1.0, "profile": encoded_profile()}]
+            tests=[entry("suite/one", {"execution_time": 1.0}, profile=encoded_profile())]
         )
-        submitted(
-            tests=[{"name": "suite/one", "execution_time": 2.0, "profile": encoded_profile()}]
-        )
+        submitted(tests=[entry("suite/one", {"execution_time": 2.0}, profile=encoded_profile())])
 
         api_client.delete(f"{RUNS}/{doomed['uuid']}", headers=manage)
 

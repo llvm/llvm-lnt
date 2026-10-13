@@ -184,7 +184,7 @@ other types, and changing an entry's type away from `text` clears them. Checking
 one commit field unchecks it on the others, since at most one can have it.
 
 As the user types a name, the editor checks it against D4's rules for names, including the
-names that D5 and O1 reserve, and for uniqueness within its list. A name that fails shows the red
+names that D5 reserves, and for uniqueness within its list. A name that fails shows the red
 halo (see AR11), and says why on hover. "Create" or "Save" is disabled while any name fails or is
 empty, and when disabled, says why on hover. The server validates everything else when the schema
 is submitted.
