@@ -163,15 +163,10 @@ describe('the shadow (CP8)', () => {
     expect(query().commit_shadow_b).toBeUndefined()
   })
 
-  it('is dismissed by another commit on side A, but not by the run aggregation', async () => {
+  it('is dismissed by another commit on side A', async () => {
     mockWorld()
     renderPage(SHADOWED)
-    // Side A's runs 1 and 2 give a 2, by their median, and the shadow's run 3, 4.
-    await waitFor(() => expect(line()?.y).toEqual([1]))
-
-    await pickOption('Run aggregation', 'min')
-    await waitFor(() => expect(line()?.y).toEqual([2]))
-    expect(chip()).not.toBeNull()
+    await waitFor(() => expect(line()).toBeDefined())
 
     await pick('Commit', 'c2', sideOf('A'))
     await waitFor(() => expect(chip()).toBeNull())

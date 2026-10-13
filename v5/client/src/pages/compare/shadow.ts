@@ -163,7 +163,7 @@ export function useShadow(
 export function useShadowLine(
   shadow: Shadow,
   metric: Metric | undefined,
-  settings: Settings,
+  aggregations: Pick<Settings, 'sample_agg' | 'run_agg'>,
   { tests, valuesA, biggerIsBetter }: Comparison,
   plotted: readonly ComparisonRow[],
 ): Bar[] {
@@ -173,7 +173,7 @@ export function useShadowLine(
     () => offeredMetrics(schemaA, side.schema).some((entry) => entry.name === metric?.name),
     [schemaA, side.schema, metric?.name],
   )
-  const { values } = useSideComparison(side, states, offered ? metric?.name : undefined, settings)
+  const { values } = useSideComparison(side, states, offered ? metric?.name : undefined, aggregations)
   const bars = useMemo(
     () =>
       pinned && tests && valuesA && values

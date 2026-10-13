@@ -1,5 +1,4 @@
 import { useMemo, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import type { SuiteSchema } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
@@ -8,6 +7,7 @@ import { ErrorMessage, Loading } from '../../components/feedback'
 import { SelectBox } from '../../components/select-box'
 import { Select } from '../../components/select'
 import { NO_SUGGESTIONS } from '../../components/suggestions'
+import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
 import { runPath } from '../../paths'
 import { runsListFailed, type Side } from './use-side'
@@ -132,13 +132,12 @@ function RunList({ side }: { side: Side }) {
               label={`Run ${uuidPrefix(run.uuid)}`}
             />
             <span className={styles.runTime}>{formatTimestamp(run.submitted_at)}</span>
-            <Link
+            <UuidLink
+              uuid={run.uuid}
               to={runPath(settings.suite, run.uuid)}
-              title={run.uuid}
+              label="UUID"
               className={styles.runUuid}
-            >
-              UUID <span className={styles.mono}>{uuidPrefix(run.uuid)}</span>
-            </Link>
+            />
           </div>
         ))}
       </div>

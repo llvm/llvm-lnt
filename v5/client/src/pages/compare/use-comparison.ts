@@ -52,7 +52,7 @@ export function useSideComparison(
   side: Side,
   states: ReadonlyMap<string, SampleState>,
   metric: string | undefined,
-  { sample_agg: sampleAgg, run_agg: runAgg }: Settings,
+  { sample_agg: sampleAgg, run_agg: runAgg }: Pick<Settings, 'sample_agg' | 'run_agg'>,
 ) {
   const runSamples = useSameElements(useRunSamplesOf(side, states))
   const samples = useMemo(

@@ -66,28 +66,19 @@ export interface SideSettings {
   runs: string[]
 }
 
-/** The parameter of each of a side's settings, without the suffix naming the side. */
-const SIDE_PARAMS = {
-  suite: 'suite',
-  machine: 'machine',
-  commit: 'commit',
-  runs: 'runs',
-} as const
-
+/** The settings of `side`, each the URL's parameter of the same name, suffixed with the side's. */
 export function sideSettings(settings: Settings, side: SideId): SideSettings {
-  const entries = Object.entries(SIDE_PARAMS).map(([key, param]) => [
-    key,
-    settings[`${param}_${side}`],
-  ])
-  return Object.fromEntries(entries) as SideSettings
+  return {
+    suite: settings[`suite_${side}`],
+    machine: settings[`machine_${side}`],
+    commit: settings[`commit_${side}`],
+    runs: settings[`runs_${side}`],
+  }
 }
 
 /** The changes to the URL that give `side` the settings `changes`. */
 export function sideChanges(side: SideId, changes: Partial<SideSettings>): Partial<Settings> {
-  const entries = Object.entries(changes).map(([key, value]) => [
-    `${SIDE_PARAMS[key as keyof SideSettings]}_${side}`,
-    value,
-  ])
+  const entries = Object.entries(changes).map(([key, value]) => [`${key}_${side}`, value])
   return Object.fromEntries(entries) as Partial<Settings>
 }
 

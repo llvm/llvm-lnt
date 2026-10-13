@@ -3,7 +3,7 @@
  * synthetic commit, three samples per test and run.
  */
 
-import type { APIRequestContext } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, LINUX, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -13,6 +13,11 @@ import { plotOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
+
+/** The controls of `side`, whose fields are named without it: "Suite", "Machine", "Commit". */
+function sideOf(page: Page, side: 'A' | 'B') {
+  return page.getByRole('region', { name: new RegExp(`^Side ${side} `) })
+}
 
 /** The two newest commits LINUX has runs at, by ordinal: the older first. */
 async function newestCommits(request: APIRequestContext) {
@@ -49,8 +54,7 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
     ['A', older],
     ['B', newer],
   ] as const) {
-    // The side's fields are named without it.
-    const controls = page.getByRole('region', { name: new RegExp(`^Side ${side} `) })
+    const controls = sideOf(page, side)
     await pickOption(controls, 'Suite', 'libcxx')
     const machine = controls.getByRole('combobox', { name: 'Machine' })
     await machine.fill(LINUX)
@@ -166,9 +170,7 @@ test('overlays a pinned side B on the chart once side B changes', async ({ page,
   // Side B on the experiment: its comparison is the bars, and the newest commit's the line.
   // Typed key by key, as a user does: `fill`, which sets the whole text at once, is sometimes lost
   // when the focus comes from the chip's button.
-  const commitB = page
-    .getByRole('region', { name: /^Side B / })
-    .getByRole('combobox', { name: 'Commit' })
+  const commitB = sideOf(page, 'B').getByRole('combobox', { name: 'Commit' })
   await commitB.click()
   await commitB.press('ControlOrMeta+a')
   await commitB.pressSequentially(EXPERIMENT)

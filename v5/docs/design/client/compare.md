@@ -59,9 +59,8 @@ Each side has its own controls:
   when they are many. Each run shows its submission time and its shortened UUID
   linking to its Run Detail page. Every run is selected when a commit is
   picked, unless the URL names some of them (see CP7). Rows are selected one at
-  a time, or a range at a time with Shift (see AR10). Unlike AR10's lists, it
-  has no checkbox selecting every row: every run is selected to begin with.
-  Before a commit is selected, the list says "Select a commit first".
+  a time, or a range at a time with Shift (see AR10). Before a commit is
+  selected, the list says "Select a commit first".
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to

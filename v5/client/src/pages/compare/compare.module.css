@@ -92,17 +92,12 @@
 .runUuid {
   color: var(--lnt-muted);
   text-decoration: none;
-  white-space: nowrap;
 }
 
 .runUuid:hover,
 .runUuid:focus-visible {
   color: var(--lnt-accent);
   text-decoration: underline;
-}
-
-.mono {
-  font-family: var(--lnt-font-mono);
 }
 
 /* The settings shared by both sides. */
