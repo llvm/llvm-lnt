@@ -62,6 +62,7 @@ function variance(values: readonly number[], m: number): number {
   return values.reduce((sum, value) => sum + (value - m) ** 2, 0) / (values.length - 1)
 }
 
+/** The statistics of `values`, a side's samples for a test. */
 export function statisticsOf(values: readonly number[]): Statistics {
   if (values.length === 0) {
     return { count: 0, mean: null, median: null, min: null, max: null, stddev: null, cv: null }
@@ -172,7 +173,6 @@ export interface ComparedTest {
    */
   pValue: number | null
 }
-
 
 /**
  * The tests of the comparison: every test with a value on at least one side, by name, matched
@@ -287,7 +287,7 @@ function noiseOf(
   return reasons
 }
 
-interface RowOptions {
+export interface RowOptions {
   biggerIsBetter: boolean
   noise: NoiseSettings
 }
@@ -373,7 +373,10 @@ export function summaryCounts(rows: readonly Values[]): Record<Category, number>
   return counts
 }
 
-/** `count` as a percentage of `total`, to one decimal place, without a trailing `.0` (CP4). */
+/**
+ * `count` as a percentage of `total`, which is not 0, to one decimal place, without a trailing `.0`
+ * (CP4).
+ */
 export function formatShare(count: number, total: number): string {
   return `${((count / total) * 100).toFixed(1).replace(/\.0$/, '')}%`
 }

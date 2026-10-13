@@ -86,6 +86,10 @@ describe('statisticsOf', () => {
     expect(statisticsOf([3])).toMatchObject({ count: 1, mean: 3, stddev: null, cv: null })
   })
 
+  it('has no deviation at all for equal values, even those a sum does not keep exact', () => {
+    expect(statisticsOf([0.1, 0.1, 0.1])).toMatchObject({ mean: 0.1, stddev: 0, cv: 0 })
+  })
+
   it('has no CV when the mean is 0, and takes it over the absolute mean', () => {
     expect(statisticsOf([-1, 1]).cv).toBeNull()
     expect(statisticsOf([-1, -3]).cv).toBeCloseTo((Math.SQRT2 / 2) * 100)
@@ -140,6 +144,11 @@ describe('welchTTest', () => {
   it('is skipped without variance and with equal means, and 0 with different means', () => {
     expect(welchTTest([3, 3], [3, 3, 3])).toBeNull()
     expect(welchTTest([3, 3], [4, 4])).toBe(0)
+  })
+
+  it('sees no variance in equal values, even those a sum does not keep exact', () => {
+    expect(welchTTest([0.1, 0.1, 0.1], [0.1, 0.1])).toBeNull()
+    expect(welchTTest(Array(27).fill(0.609), Array(30).fill(0.609))).toBeNull()
   })
 })
 
@@ -222,6 +231,7 @@ describe('compareRows', () => {
       noise: [{ knob: 'pval', value: 0.2, threshold: 0.05 }],
     })
     expect(row(1, 2, { noise, pValue: 0.01 }).status).toBe('regressed')
+    expect(row(1, 2, { noise, pValue: 0.05 }).status).toBe('regressed')
     expect(row(1, 2, { noise, pValue: null }).status).toBe('regressed')
     // A deterministic change.
     expect(row(1, 2, { noise, pValue: 0 }).status).toBe('regressed')
