@@ -17,13 +17,18 @@ function median(sorted: number[]): number {
   return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+/** The arithmetic mean of `values`, at least one. */
+export function mean(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
 /** `values`, at least one, combined into one with `how`. */
 export function aggregate(values: readonly number[], how: Aggregation): number {
   switch (how) {
     case 'median':
       return median([...values].sort((a, b) => a - b))
     case 'mean':
-      return values.reduce((sum, value) => sum + value, 0) / values.length
+      return mean(values)
     case 'min':
       return Math.min(...values)
     case 'max':

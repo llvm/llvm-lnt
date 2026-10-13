@@ -70,6 +70,18 @@ export function formatNumber(value: number): string {
   return NUMBER.format(value)
 }
 
+/**
+ * The number `text` spells in decimal notation (`2`, `-0.5`, `.5`, `1e-3`), if it is one between
+ * `min` and `max`, both included, or undefined otherwise. Strict, unlike `Number`, which reads an
+ * empty text as 0 and accepts spaces around it or `0x10`: shared by a setting kept in the URL and
+ * the input it is typed in, so that both accept the same texts.
+ */
+export function parseNumber(text: string, min = -Infinity, max = Infinity): number | undefined {
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(text)) return undefined
+  const value = Number(text)
+  return Number.isFinite(value) && value >= min && value <= max ? value : undefined
+}
+
 /** `count noun`, with the noun in the plural unless the count is one: `1 run`, `3 runs`. */
 export function plural(count: number, noun: string): string {
   return `${count} ${count === 1 ? noun : `${noun}s`}`

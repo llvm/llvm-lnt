@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatNumber,
   formatTimestamp,
+  parseNumber,
   plural,
   regressionTitle,
   shortUuid,
@@ -75,5 +76,28 @@ describe('plural', () => {
     expect(plural(0, 'run')).toBe('0 runs')
     expect(plural(1, 'run')).toBe('1 run')
     expect(plural(12, 'run')).toBe('12 runs')
+  })
+})
+
+describe('parseNumber', () => {
+  it('reads a number in decimal notation', () => {
+    expect(parseNumber('2')).toBe(2)
+    expect(parseNumber('-0.5')).toBe(-0.5)
+    expect(parseNumber('.5')).toBe(0.5)
+    expect(parseNumber('3.')).toBe(3)
+    expect(parseNumber('1e-3')).toBe(0.001)
+  })
+
+  it('rejects any other text, which Number would read as a number', () => {
+    for (const text of ['', ' ', ' 1', '1 ', '0x10', 'Infinity', '1e400', '1,5', '.']) {
+      expect(parseNumber(text)).toBeUndefined()
+    }
+  })
+
+  it('rejects a number outside its range, its bounds included', () => {
+    expect(parseNumber('0', 0, 1)).toBe(0)
+    expect(parseNumber('1', 0, 1)).toBe(1)
+    expect(parseNumber('-0.1', 0, 1)).toBeUndefined()
+    expect(parseNumber('1.1', 0, 1)).toBeUndefined()
   })
 })

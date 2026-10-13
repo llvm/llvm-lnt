@@ -12,6 +12,7 @@ import {
   enumListParam,
   enumParam,
   listParam,
+  optionalNumberParam,
   stringParam,
   tabSettings,
   trimmedStringParam,
@@ -149,6 +150,23 @@ describe('useUrlState', () => {
 
     expect(result.current.state).toEqual({ search: 'linux x86' })
     expect(result.current.url).toBe('/x?search=linux+x86')
+  })
+
+  it('reads an optional number within its range, and drops anything else', () => {
+    const KNOBS = { pct: optionalNumberParam(0), pval: optionalNumberParam(0, 1) }
+    const { result } = renderHook(
+      () => {
+        const [state, setState] = useUrlState(KNOBS)
+        const { pathname, search } = useLocation()
+        return { state, setState, url: pathname + search }
+      },
+      providers({ url: '/x?pct=2.5&pval=1.5' }),
+    )
+
+    expect(result.current.state).toEqual({ pct: 2.5, pval: null })
+    expect(result.current.url).toBe('/x?pct=2.5')
+    act(() => result.current.setState({ pct: null, pval: 0.05 }))
+    expect(result.current.url).toBe('/x?pval=0.05')
   })
 
   it('keeps the hash', () => {
