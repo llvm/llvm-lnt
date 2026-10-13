@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { Alert, ErrorMessage, Loading } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
@@ -15,6 +15,7 @@ import styles from './test-suites.module.css'
 /** The Test Suites page (TS1): the suite picker, and the selected suite's tabs. */
 export default function TestSuites() {
   const { suite } = useParams()
+  const { search } = useLocation()
   const suites = useSuites()
 
   let content
@@ -22,17 +23,25 @@ export default function TestSuites() {
     content = <Loading label="Loading test suites..." />
   } else if (suites.isError) {
     content = <ErrorMessage error={suites.error} />
+  } else if (suite === undefined) {
+    // `/suites` gives way to the first suite, which takes its place in the history (TS1).
+    const first = suites.data.at(0)
+    content =
+      first === undefined ? (
+        <SuitePicker suites={suites.data} />
+      ) : (
+        <Navigate to={{ pathname: suitePath(first.name), search }} replace />
+      )
   } else {
     const schema = suites.data.find((entry) => entry.name === suite)
     content = (
       <>
         <SuitePicker suites={suites.data} selected={suite} />
-        {suite !== undefined &&
-          (schema === undefined ? (
-            <Alert>Test suite '{suite}' not found.</Alert>
-          ) : (
-            <SuiteTabs key={suite} schema={schema} />
-          ))}
+        {schema === undefined ? (
+          <Alert>Test suite '{suite}' not found.</Alert>
+        ) : (
+          <SuiteTabs key={suite} schema={schema} />
+        )}
       </>
     )
   }

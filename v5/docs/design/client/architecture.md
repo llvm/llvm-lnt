@@ -64,7 +64,7 @@ within the UI causes a full page reload.
 
 ```
 /                                     Dashboard (landing page -- sparkline trend overview)
-/suites                               Test Suites (suite picker, no suite selected)
+/suites                               Test Suites (selects the first suite; see TS1)
 /suites/{ts}                          Test Suites (browsing tabs for the selected suite)
 /suites/{ts}/machines/{name}          Machine Detail
 /suites/{ts}/runs/{uuid}              Run Detail
@@ -92,7 +92,8 @@ a new tab -- that is a separate document, not an SPA route.
 
 Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when
 navigated from a suite-scoped page, pre-filling the current suite. The Test
-Suites link targets `/suites/{ts}` to preserve the suite context.
+Suites link targets `/suites/{ts}` to preserve the suite context, and `/suites`
+otherwise (see TS1).
 
 
 ## AR5: Design Consistency

@@ -5,15 +5,18 @@ Page specifications for the Test Suites page (suite picker + tabs).
 
 ## TS1: Test Suites -- `/suites` and `/suites/{ts}`
 
-The primary entry point for browsing test suite data. `/suites` shows the suite
-picker alone; `/suites/{ts}` shows the picker with `{ts}` selected, plus the
-tabbed content for that suite.
+The primary entry point for browsing test suite data. `/suites/{ts}` shows the
+suite picker with `{ts}` selected, plus the tabbed content for that suite.
+`/suites` shows the first suite of the picker: once the suites have loaded, the
+page goes to `/suites/{first}` with the same query parameters, which takes the
+place of `/suites` in the history rather than adding an entry (an exception to
+AR2 "State"), so that Back does not return to it. When there are no suites, the
+picker says so.
 
-**Suite picker**: A row of prominent card/button elements, one per test suite.
-Clicking a card selects it (highlighted) and shows the tab bar below, navigating
-to `/suites/{name}`. When no suite is selected (`/suites`), only the suite
-picker is visible. When `{ts}` names no suite, the page shows the suite picker and
-says that the suite was not found.
+**Suite picker**: A row of prominent card/button elements, one per test suite,
+ordered by name. Clicking a card selects it (highlighted) and shows the tab bar
+below, navigating to `/suites/{name}`. When `{ts}` names no suite, the page
+shows the suite picker and says that the suite was not found.
 
 **Tabs**: [Runs] [Machines] [Commits] [Regressions]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
