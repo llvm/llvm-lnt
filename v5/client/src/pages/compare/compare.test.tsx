@@ -353,6 +353,18 @@ describe('loading (CP6)', () => {
     expect(query().machine_b).toEqual(['m1'])
   })
 
+  it('drops a commit named without a machine, and a machine without a suite', async () => {
+    mockWorld()
+    renderPage(
+      `/compare?suite_a=libcxx&commit_a=c1&runs_a=${uuidOf('1')}&machine_b=m1&commit_b=c2`,
+    )
+
+    await waitFor(() => expect(query().commit_a).toBeUndefined())
+    expect(query().runs_a).toBeUndefined()
+    expect(query().machine_b).toBeUndefined()
+    expect(query().commit_b).toBeUndefined()
+  })
+
   it('drops a machine that does not exist, without reporting its runs or profiles', async () => {
     mockWorld({
       runsAnswer: (query) =>

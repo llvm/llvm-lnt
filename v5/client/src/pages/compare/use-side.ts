@@ -21,6 +21,7 @@ import { useControlledSelection, type RowSelection } from '../../components/rang
 import { useDropUnusable } from '../../url-state'
 import { NO_RUNS_SELECTED, runsParam, selectedRuns } from './run-selection'
 import {
+  CLEARED_WITH,
   NO_SHADOW,
   sideChanges,
   sideSettings,
@@ -107,13 +108,13 @@ export function useSide(
   useDropUnusable(
     suites,
     (list) => suite === '' || list.some((entry) => entry.name === suite),
-    () => drop({ suite: '', machine: '', commit: '', runs: [] }),
+    () => drop({ suite: '', ...CLEARED_WITH.suite }),
   )
   const machines = useMachineSuggestions(suite, schema !== undefined)
   useDropUnusable(
     machines.machines,
     (names) => machine === '' || names.includes(machine),
-    () => drop({ machine: '', commit: '', runs: [] }),
+    () => drop({ machine: '', ...CLEARED_WITH.machine }),
   )
 
   // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
@@ -139,12 +140,14 @@ export function useSide(
     },
   )
 
-  // The URL's runs that are not listed are dropped. Without a commit, there are none to keep (AR2
-  // "State").
+  // The URL's runs that are not listed are dropped, and so is what the side names without what it
+  // depends on, as clearing that does (AR2 "State", CP1).
   useEffect(() => {
     if (uuids !== undefined && selected !== undefined) drop({ runs: runsParam(uuids, selected) })
-    else if (!named) drop({ runs: [] })
-  }, [named, selected, uuids, drop])
+    else if (suite === '') drop(CLEARED_WITH.suite)
+    else if (machine === '') drop(CLEARED_WITH.machine)
+    else if (commit === '') drop(CLEARED_WITH.commit)
+  }, [suite, machine, commit, selected, uuids, drop])
 
   // The runs whose samples the side needs.
   const asked = named ? (uuids ?? settings.runs) : NO_RUNS

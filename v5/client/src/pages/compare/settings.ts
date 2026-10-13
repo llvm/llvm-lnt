@@ -76,6 +76,13 @@ export function sideSettings(settings: Settings, side: SideId): SideSettings {
   }
 }
 
+/** What clearing each of a side's controls clears with it (CP1): what depends on it. */
+export const CLEARED_WITH = {
+  suite: { machine: '', commit: '', runs: [] },
+  machine: { commit: '', runs: [] },
+  commit: { runs: [] },
+} as const satisfies Record<string, Partial<SideSettings>>
+
 /** The changes to the URL that give `side` the settings `changes`. */
 export function sideChanges(side: SideId, changes: Partial<SideSettings>): Partial<Settings> {
   const entries = Object.entries(changes).map(([key, value]) => [`${key}_${side}`, value])

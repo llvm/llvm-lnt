@@ -10,6 +10,7 @@ import { NO_SUGGESTIONS } from '../../components/suggestions'
 import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
 import { runPath } from '../../paths'
+import { CLEARED_WITH } from './settings'
 import { runsListFailed, type Side } from './use-side'
 import styles from './compare.module.css'
 
@@ -46,7 +47,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
           options={suites.map(({ name }) => ({ value: name, label: name }))}
           value={schema?.name ?? null}
           placeholder="-- Select suite --"
-          onChange={(name) => onChange({ suite: name, machine: '', commit: '', runs: [] })}
+          onChange={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
         />
         <Combobox
           label="Machine"
@@ -55,7 +56,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
             // Another machine keeps the commit if it has runs at it, as the commit picker checks.
             onChange(
               picked === null
-                ? { machine: '', commit: '', runs: [] }
+                ? { machine: '', ...CLEARED_WITH.machine }
                 : { machine: picked.key, runs: [] },
             )
           }
@@ -69,7 +70,8 @@ export function SidePanel({ side, title, suites, action }: Props) {
           }
           isDisabled={schema === undefined}
         />
-        {schema === undefined ? (
+        {/* Without a machine, a commit picker would look its commit up among no machine's. */}
+        {schema === undefined || machine === '' ? (
           <Combobox
             label="Commit"
             value={null}
@@ -84,9 +86,8 @@ export function SidePanel({ side, title, suites, action }: Props) {
             schema={schema}
             filters={filters}
             value={commit === '' ? null : commit}
-            onChange={(value) => onChange({ commit: value ?? '', runs: [] })}
-            placeholder={commitPlaceholder}
-            isDisabled={machine === ''}
+            onChange={(value) => onChange({ commit: value ?? '', ...CLEARED_WITH.commit })}
+            placeholder="Select a commit"
           />
         )}
         <RunList side={side} />
@@ -108,7 +109,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
  */
 function RunList({ side }: { side: Side }) {
   const { settings, runs, selection } = side
-  if (settings.commit === '') return <p className={styles.note}>Select a commit first.</p>
+  if (!side.named) return <p className={styles.note}>Select a commit first.</p>
   if (runsListFailed(side)) {
     return (
       <ErrorMessage

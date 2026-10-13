@@ -447,9 +447,10 @@ side's runs are selected, which is the default. They are left out too when none
 is, since the URL cannot say so: loading such a URL selects every run.
 
 A value the page cannot use is dropped (see AR2 "State"):
-- a suite or machine that does not exist, or a commit the side's commit picker
-  would not offer (see AR15), along with whatever CP1 clears when that control
-  is cleared;
+- a suite or machine that does not exist, a commit the side's commit picker
+  would not offer (see AR15), or a machine named without a suite or a commit
+  without a machine, along with whatever CP1 clears when that control is
+  cleared;
 - a run that is not in the side's run list; if this leaves no run, all of the
   side's runs are selected;
 - a metric the page does not offer;
