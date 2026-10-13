@@ -126,6 +126,7 @@ export function CompareTable({
       {
         id: 'show',
         header: <SelectAllBox rows={hidden} shown={tests} label="Show all tests shown" />,
+        className: styles.showColumn,
         cell: (row) =>
           row.test === null ? null : (
             <SelectBox rows={hidden} rowKey={row.test} label={`Show ${row.test}`} />
@@ -140,6 +141,7 @@ export function CompareTable({
             <span title={column.headerTitle}>{column.header}</span>
           ),
         looks: column.looks,
+        className: column.id === 'test' ? styles.testColumn : undefined,
         cell: (row) =>
           row.test === null ? (
             <GeomeanCell store={store} column={column} />
@@ -204,11 +206,15 @@ export function CompareTable({
           {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
         </div>
       </div>
-      {/* Leaving a row for another outlines the other's bar at once, with no gap between. */}
+      {/*
+        Leaving a row for another outlines the other's bar at once, with no gap between. Leaving
+        the rows for the header, or for the box's scrollbar, outlines none.
+      */}
       <div
+        className={styles.tableBox}
         onMouseLeave={() => emphasis.set(null)}
         onMouseOver={(event) => {
-          if ((event.target as Element).closest('thead') !== null) emphasis.set(null)
+          if ((event.target as Element).closest('tbody') === null) emphasis.set(null)
         }}
       >
         <DataTable

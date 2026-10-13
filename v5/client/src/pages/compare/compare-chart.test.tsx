@@ -141,8 +141,20 @@ describe('the chart (CP3)', () => {
     // b has no bar to outline.
     fireEvent.mouseEnter(screen.getByRole('cell', { name: 'b' }).closest('tr')!)
     expect(outline()).toBeNull()
-    fireEvent.mouseEnter(screen.getByRole('cell', { name: 'd' }).closest('tr')!)
-    fireEvent.mouseLeave(screen.getByRole('table', { name: 'Comparison' }).parentElement!)
+    const d = screen.getByRole('cell', { name: 'd' }).closest('tr')!
+    const box = screen.getByRole('table', { name: 'Comparison' }).parentElement!
+    fireEvent.mouseEnter(d)
+    fireEvent.mouseLeave(box)
+    expect(outline()).toBeNull()
+    // Nor once the pointer moves from a row to the header, or to the box's scrollbar, whose events
+    // target the box itself.
+    fireEvent.mouseEnter(d)
+    expect(outline()).not.toBeNull()
+    fireEvent.mouseOver(screen.getByRole('columnheader', { name: 'Test' }))
+    expect(outline()).toBeNull()
+    fireEvent.mouseEnter(d)
+    expect(outline()).not.toBeNull()
+    fireEvent.mouseOver(box)
     expect(outline()).toBeNull()
   })
 })

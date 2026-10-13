@@ -259,13 +259,61 @@
   user-select: none;
 }
 
+/* Opaque, as the sticky cells take their row's background (see `.tableBox tr`). */
 .testRow:has(.hovered) {
-  background: color-mix(in srgb, var(--lnt-accent) 10%, transparent);
+  background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
 }
 
 .testRow:has(> td > input[type='checkbox']:not(:checked)) {
   color: var(--lnt-muted);
   opacity: 0.6;
+}
+
+/*
+ * The table, in a box of its own that scrolls horizontally when its columns do not fit, with the
+ * checkboxes and the tests' names in view (CP2 "Width"). Positioned, so that it clips what is
+ * absolutely positioned in it too: the Profile column's visually hidden header would otherwise
+ * widen the page.
+ */
+.tableBox {
+  --show-width: 2.5rem;
+  --test-width: 16rem;
+  position: relative;
+  overflow-x: auto;
+  /* A header focused from the keyboard scrolls into view beside the sticky columns. */
+  scroll-padding-left: calc(var(--show-width) + var(--test-width));
+}
+
+/* Opaque, for the sticky cells to take their row's background, whatever its state. */
+.tableBox tr {
+  background: var(--lnt-bg);
+}
+
+.showColumn,
+.testColumn {
+  position: sticky;
+  z-index: 1;
+  background: inherit;
+}
+
+/*
+ * Of a fixed width, for the Test column to stick beside it: `width` alone gives way once the table
+ * overflows, leaving a gap the other columns show through.
+ */
+.showColumn {
+  left: 0;
+  width: var(--show-width);
+  min-width: var(--show-width);
+}
+
+/*
+ * Wide enough to read a test's name. A collapsed border would stay behind as the other columns
+ * scroll under it, so the line is drawn as a shadow.
+ */
+.testColumn {
+  left: var(--show-width);
+  min-width: var(--test-width);
+  box-shadow: inset -1px 0 var(--lnt-border);
 }
 
 .count {
