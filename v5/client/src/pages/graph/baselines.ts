@@ -8,7 +8,7 @@ import { skipToken, useQueries, type QueryClient } from '@tanstack/react-query'
 import { api, MAX_PAGE_SIZE, unwrap } from '../../api/client'
 import { failuresOf, type Failures } from '../../api/failures'
 import { fetchEveryPage } from '../../api/fetch-every-page'
-import { queryKeys } from '../../api/keys'
+import { forgetEverySuiteLater, queryKeys } from '../../api/keys'
 import { machinesQuery } from '../../api/machines'
 import { measurementOf, type Measurement } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
@@ -224,19 +224,8 @@ export function useParsedBaselines(values: readonly string[]): Baseline[] {
 
 /**
  * Forget the baselines' data that nothing shows, which the Graph page keeps for as long as it is
- * open (GR8), once it has left. Done after the current task, as `forgetGraphData` is.
+ * open (GR8), once it has left.
  */
 export function forgetBaselines(client: QueryClient): void {
-  setTimeout(() => {
-    client.removeQueries({
-      predicate: (query) => {
-        const [root, suite, what] = query.queryKey
-        return (
-          root === 'suite' &&
-          what === queryKeys.baselines(String(suite))[2] &&
-          query.getObserversCount() === 0
-        )
-      },
-    })
-  })
+  forgetEverySuiteLater(client, queryKeys.baselines)
 }

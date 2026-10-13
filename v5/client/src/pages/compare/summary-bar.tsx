@@ -1,6 +1,6 @@
 import clsx from 'clsx'
-import { plural } from '../../format'
-import { CATEGORIES, COMPARABLE, formatShare, LABELS, type Category } from './comparison'
+import { formatPercent, plural } from '../../format'
+import { CATEGORIES, COMPARABLE, LABELS, type Category } from './comparison'
 import styles from './compare.module.css'
 
 const isComparable = (category: Category) => (COMPARABLE as readonly string[]).includes(category)
@@ -24,7 +24,7 @@ export function SummaryBar({ counts }: { counts: Record<Category, number> }) {
             <span className={clsx(styles.dot, styles[category])} aria-hidden="true" />
             {LABELS[category]}{' '}
             <span title={share ? shareTitle : undefined}>
-              {share ? `${count} (${formatShare(count, comparable)})` : count}
+              {share ? `${count} (${formatPercent((count / comparable) * 100)})` : count}
             </span>
           </li>
         )

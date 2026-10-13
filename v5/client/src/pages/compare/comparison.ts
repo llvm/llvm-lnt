@@ -387,11 +387,3 @@ export function summaryCounts(rows: readonly Values[]): Record<Category, number>
   for (const row of rows) counts[categoryOf(row)]++
   return counts
 }
-
-/**
- * `count` as a percentage of `total`, which is not 0, to one decimal place, without a trailing `.0`
- * (CP4).
- */
-export function formatShare(count: number, total: number): string {
-  return `${((count / total) * 100).toFixed(1).replace(/\.0$/, '')}%`
-}

@@ -70,6 +70,31 @@ export function formatNumber(value: number): string {
   return NUMBER.format(value)
 }
 
+// One decimal place at most, so that a whole number drops its `.0`. Neither shows a sign for a
+// value that rounds to 0, which would otherwise read `-0%`.
+const PERCENT = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 1,
+  useGrouping: false,
+  signDisplay: 'negative',
+})
+const SIGNED_PERCENT = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 1,
+  useGrouping: false,
+  signDisplay: 'exceptZero',
+})
+
+/**
+ * `value`, a percentage, with one decimal place except that a whole number drops the trailing `.0`
+ * (CP4, PF6): `33.3%`, `25%`. `signed` shows the sign of a positive value too, as a change does:
+ * `+5%`, `-20%`, `0%`.
+ */
+export function formatPercent(
+  value: number,
+  { signed = false }: { signed?: boolean } = {},
+): string {
+  return `${(signed ? SIGNED_PERCENT : PERCENT).format(value)}%`
+}
+
 /**
  * The number `text` spells in decimal notation (`2`, `-0.5`, `.5`, `1e-3`), if it is one between
  * `min` and `max`, both included, or undefined otherwise. Strict, unlike `Number`, which reads an

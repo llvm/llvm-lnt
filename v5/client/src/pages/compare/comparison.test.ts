@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   categoryOf,
   compareRows,
-  formatShare,
   geomeanRow,
   joinSides,
   sideSamples,
@@ -329,13 +328,5 @@ describe('summaryCounts', () => {
   it('puts a zero baseline in its category only when both sides have a value', () => {
     expect(categoryOf(valued(0, 1))).toBe('zeroBaseline')
     expect(categoryOf(valued(0, null))).toBe('onlyA')
-  })
-})
-
-describe('formatShare', () => {
-  it('gives one decimal place, and none for a whole number', () => {
-    expect(formatShare(1, 3)).toBe('33.3%')
-    expect(formatShare(1, 4)).toBe('25%')
-    expect(formatShare(2, 2)).toBe('100%')
   })
 })

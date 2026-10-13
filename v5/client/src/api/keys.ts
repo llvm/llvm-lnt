@@ -22,6 +22,11 @@ export const queryKeys = {
   commits: (suite: string) => ['suite', suite, 'commits'] as const,
   /** Everything read about the suite's runs: lists, whatever their filters, and details. */
   runs: (suite: string) => ['suite', suite, 'runs'] as const,
+  /**
+   * Everything read about the suite's profiles (E7), by UUID: their metadata, their functions and
+   * their functions' disassembly.
+   */
+  profiles: (suite: string) => ['suite', suite, 'profiles'] as const,
   /** The names of the suite's tests, as listed for a machine and a metric. */
   tests: (suite: string) => ['suite', suite, 'tests'] as const,
   /** Everything read about the suite's regressions: lists, whatever their filters, and details. */
@@ -68,5 +73,29 @@ export function forgetUnobserved(queryClient: QueryClient, suite: string): void 
   queryClient.removeQueries({
     queryKey: queryKeys.suite(suite),
     predicate: (query) => query.getObserversCount() === 0,
+  })
+}
+
+/**
+ * Drop what every suite holds under the key `keyOf` gives for it, such as `queryKeys.profiles`,
+ * that nothing observes, once the current task is over: what a page kept for as long as it was
+ * open, once it has left. Only what nothing observes then goes, so that a page mounted again at
+ * once, as StrictMode does in development, keeps what it is still showing.
+ */
+export function forgetEverySuiteLater(
+  queryClient: QueryClient,
+  keyOf: (suite: string) => readonly unknown[],
+): void {
+  setTimeout(() => {
+    queryClient.removeQueries({
+      predicate: (query) => {
+        const [root, suite] = query.queryKey
+        if (root !== 'suite' || typeof suite !== 'string') return false
+        const prefix = keyOf(suite)
+        return (
+          prefix.every((part, i) => query.queryKey[i] === part) && query.getObserversCount() === 0
+        )
+      },
+    })
   })
 }

@@ -1,0 +1,106 @@
+/* What the table says in place of its rows, or above them. */
+.note {
+  color: var(--lnt-muted);
+}
+
+/* The box the rows scroll in, both ways: the rows are rendered only while in view. */
+.scroller {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+/*
+ * Separate borders, as collapsed ones do not stay with a header that sticks. The columns are sized
+ * by their cells' content, which is as wide as the widest instruction's (see `.content`), so that
+ * the table is as wide as its box, or wider and scrolled sideways.
+ */
+.table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+}
+
+/* A column only as wide as its content, leaving the rest of the box to the instruction's text. */
+.fit {
+  width: 1%;
+}
+
+/*
+ * As tall as a row, its bottom border included, so that the rows below it start where the
+ * virtualizer places them.
+ */
+.header {
+  composes: header from '../../components/data-table.module.css';
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--row-height);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: calc(var(--row-height) - 1px);
+  vertical-align: middle;
+  background: var(--lnt-bg);
+}
+
+.numeric {
+  composes: numeric from '../../components/data-table.module.css';
+}
+
+.row:hover {
+  background: var(--lnt-panel);
+}
+
+.cell {
+  padding: 0 0.75rem;
+}
+
+/*
+ * The highlighted row, outlined without hiding the heat of its value: a line along the top and the
+ * bottom of each cell, and along the outer side of the first and the last.
+ */
+.row[aria-current='true'] > .cell {
+  box-shadow:
+    inset var(--outer-edge, 0) 2px 0 var(--lnt-accent),
+    inset 0 -2px 0 var(--lnt-accent);
+}
+
+.row[aria-current='true'] > .cell:first-child {
+  --outer-edge: 2px;
+}
+
+.row[aria-current='true'] > .cell:last-child {
+  --outer-edge: -2px;
+}
+
+/*
+ * A cell's content, cut to the height of a row, should an instruction's text hold a line break, and
+ * as wide as its column's widest, in a fixed-width font, so that the column holds still while rows
+ * are rendered and dropped.
+ */
+.content {
+  composes: mono from '../../components/data-table.module.css';
+  height: var(--row-height);
+  overflow: hidden;
+  line-height: var(--row-height);
+  white-space: pre;
+}
+
+.value {
+  width: var(--value-width);
+  text-align: right;
+}
+
+.address {
+  width: var(--address-width);
+}
+
+.text {
+  width: var(--text-width);
+}
+
+.spacer {
+  padding: 0;
+}
