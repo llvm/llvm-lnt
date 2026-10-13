@@ -1,11 +1,18 @@
-import { useCallback, useLayoutEffect, useMemo, useState, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { CopyButton } from '../../components/copy-button'
 import { DataTable, type Column } from '../../components/data-table'
 import type { RowSelection } from '../../components/range-selection'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
 import type { TableSort } from '../../components/table-sort'
 import { useStoreValue, ValueStore } from '../../value-store'
-import { COLUMNS, type CompareColumn, type GeomeanRow, type Row } from './columns'
+import type { CompareColumn, GeomeanRow, Row } from './columns'
 import type { ComparisonRow, Values } from './comparison'
 import styles from './compare.module.css'
 
@@ -45,6 +52,10 @@ function isolate(rows: RowSelection, test: string, shown: readonly string[]) {
 interface Props {
   /** The rows the table shows, in the order they are sorted in. */
   rows: ComparisonRow[]
+  /** The columns after the checkbox column, the optional statistics included. */
+  columns: CompareColumn[]
+  /** The Columns menu, on the summary message's row. */
+  menu: ReactNode
   /** Their tests, in the same order. */
   tests: string[]
   /** The selection of the hidden tests. */
@@ -72,6 +83,8 @@ interface Props {
  */
 export function CompareTable({
   rows,
+  columns: shownColumns,
+  menu,
   tests,
   hidden,
   summary,
@@ -96,16 +109,22 @@ export function CompareTable({
             <SelectBox rows={hidden} rowKey={row.test} label={`Show ${row.test}`} />
           ),
       },
-      ...COLUMNS.map((column): Column<Row> => ({
+      ...shownColumns.map((column): Column<Row> => ({
         id: column.id,
-        header: column.header,
+        header:
+          column.headerTitle === undefined ? (
+            column.header
+          ) : (
+            <span title={column.headerTitle}>{column.header}</span>
+          ),
         looks: column.looks,
         cell: (row) =>
           row.test === null ? <GeomeanCell store={store} column={column} /> : column.cell(row),
-        sortKey: (row) => (row.test === null ? null : column.sortKey(row)),
+        // Only says that the column can be sorted by: the rows come sorted (see `sortComparison`).
+        sortKey: () => null,
       })),
     ],
-    [hidden, tests, store],
+    [hidden, tests, store, shownColumns],
   )
 
   const rowProps = useCallback(
@@ -140,7 +159,10 @@ export function CompareTable({
             <span title={notInUrl}> (too many hidden to reflect in the URL)</span>
           )}
         </p>
-        {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
+        <div className={styles.tableActions}>
+          {menu}
+          {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
+        </div>
       </div>
       <DataTable
         label="Comparison"

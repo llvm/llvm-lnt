@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
-import { currentUrl, main, query, renderPage, search } from '../../test/page'
+import { currentUrl, headersOf, main, query, renderPage, search, table } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { mockClipboard } from '../../test/clipboard'
@@ -643,6 +643,90 @@ describe('hidden tests (CP2)', () => {
 
     expect(await screen.findByText('(too many hidden to reflect in the URL)')).toBeInTheDocument()
     expect(query().hidden_test).toBeUndefined()
+  })
+})
+
+describe('optional columns (CP2)', () => {
+  it('adds the columns of a statistic from the Columns menu, which stays open', async () => {
+    mockWorld(NOISY)
+    renderPage(COMPARED)
+    await comparison()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Columns' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Mean' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Samples' }))
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    await waitFor(() => expect(query().columns).toEqual(['samples', 'mean']))
+    await user.keyboard('{Escape}')
+    expect(headersOf(await table('Comparison')).slice(1)).toEqual([
+      'Test',
+      'Value A',
+      'Value B',
+      'Delta',
+      // Sorted by it, descending.
+      'Delta %▼',
+      'Ratio',
+      'Samples A',
+      'Samples B',
+      'Mean A',
+      'Mean B',
+      'Status',
+    ])
+  })
+
+  it("shows each side's statistics, empty on the geomean and N/A without samples", async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&columns=samples&columns=mean&columns=pvalue`)
+
+    const rows = await comparison()
+    // The geomean's statistics are empty.
+    expect(rows[0].split(' | ').slice(6)).toEqual(['', '', '', '', '', 'Regressed'])
+    expect(rows.find((row) => row.startsWith('b |'))).toBe(
+      'b | 2 | N/A | N/A | N/A | N/A | 1 | 0 | 2 | N/A | N/A | N/A',
+    )
+    expect(rows.find((row) => row.startsWith('d |'))).toBe(
+      'd | 2 | 3 | 1 | +50.00% | 1.5000 | 2 | 1 | 2 | 3 | N/A | Regressed',
+    )
+  })
+
+  it('sorts by a statistic, back to the default sort once its column is hidden', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&columns=mean&sort=-mean_a`)
+    expect(await listedTests()).toEqual(['a', 'b', 'd', 'c'])
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Columns' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Mean' }))
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(query().sort).toBeUndefined())
+    expect(await listedTests()).toEqual(['d', 'a', 'b', 'c'])
+  })
+
+  it('drops a sort by a column that is not shown', async () => {
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&sort=mean_a`)
+    await comparison()
+
+    await waitFor(() => expect(query().sort).toBeUndefined())
+  })
+
+  it('copies the statistics shown as CSV', async () => {
+    const writeText = mockClipboard()
+    mockWorld(NOISY)
+    renderPage(`${COMPARED}&columns=samples&hidden_test=a&hidden_test=b&hidden_test=c`)
+    await comparison()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy as CSV' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled())
+    const [header, geomean, ...lines] = writeText.mock.calls[0][0].split('\r\n')
+    expect(header).toBe('Test,Value A,Value B,Delta,Delta %,Ratio,Samples A,Samples B,Status')
+    // Empty statistics on the geomean, whose values are d's, at full precision.
+    expect(geomean).toMatch(/^Geomean,2,[\d.]+,[\d.]+,[\d.]+,[\d.]+,,,Regressed$/)
+    expect(lines).toEqual(['d,2,3,1,50,1.5,2,1,Regressed'])
   })
 })
 

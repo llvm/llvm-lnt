@@ -178,8 +178,8 @@ all use these rows.
   written at full precision, and an N/A cell is left empty. The button briefly
   shows whether the copy succeeded. It is hidden when there is no compared row.
 - **Optional columns**: a "Columns" button on the summary message row opens a
-  menu of checkboxes adding statistics columns to the table, all off by
-  default:
+  menu of checkboxes, one per key below, adding statistics columns to the
+  table, all off by default:
 
   | Column   | Key            | Per side | Value                                        | N/A when                          |
   |----------|----------------|----------|----------------------------------------------|-----------------------------------|

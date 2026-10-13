@@ -2,8 +2,10 @@
 
 import { AGGREGATIONS } from '../../aggregation'
 import { sortParam } from '../../components/table-sort'
+import { OPTIONAL_KEYS, SORTABLE } from './columns'
 import {
   booleanParam,
+  enumListParam,
   enumParam,
   listParam,
   optionalNumberParam,
@@ -16,9 +18,6 @@ export type SideId = 'a' | 'b'
 
 /** At most how many hidden tests the URL holds (CP7). */
 export const HIDDEN_IN_URL = 10
-
-/** The columns of the comparison table, as `sort` names them (CP2). */
-const SORTABLE = ['test', 'value_a', 'value_b', 'delta', 'delta_pct', 'ratio', 'status']
 
 export const PARAMS = {
   suite_a: stringParam(),
@@ -43,6 +42,8 @@ export const PARAMS = {
   hidden_test: listParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
+  /** The optional columns shown (CP2), in the order of `OPTIONAL_KEYS`. */
+  columns: enumListParam(OPTIONAL_KEYS),
   // Delta % descending by default (CP2).
   sort: sortParam(SORTABLE, { column: 'delta_pct', direction: 'descending' }),
 }

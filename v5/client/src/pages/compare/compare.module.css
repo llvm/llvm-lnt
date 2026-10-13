@@ -106,6 +106,18 @@
   gap: var(--lnt-space-3);
 }
 
+/* The Columns menu and Copy as CSV, on the summary message's row. */
+.tableActions {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.menuCheck {
+  display: inline-block;
+  width: 1.2em;
+}
+
 /* A test's row, which a click hides or shows (CP2), and greys out while it is hidden. */
 .testRow {
   cursor: pointer;

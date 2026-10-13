@@ -23,7 +23,8 @@ import {
   type ComparisonRow,
   type NoiseKnob,
 } from './comparison'
-import { comparisonCsv, sortComparison } from './columns'
+import { comparisonCsv, sortComparison, tableColumns, type OptionalKey } from './columns'
+import { ColumnsMenu } from './columns-menu'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
 import { HIDDEN_IN_URL, PARAMS, sideChanges, type Settings } from './settings'
@@ -219,12 +220,31 @@ function ComparePage() {
   )
   const counts = useMemo(() => summaryCounts(matching), [matching])
 
+  // The table's columns, with the optional ones shown, the same for as long as those are: the
+  // URL's list is a new array whenever any setting changes.
+  const shownKeys = settings.columns.join(',')
+  const optional = useMemo(
+    () => (shownKeys === '' ? [] : (shownKeys.split(',') as OptionalKey[])),
+    [shownKeys],
+  )
+  // The table follows the columns shown once it has had the time to render them, as for the noise.
+  const deferredOptional = useDeferredValue(optional)
+  const columns = useMemo(() => tableColumns(deferredOptional), [deferredOptional])
+
   // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
+  // A sort by a column that is not shown is the default one, and is dropped from the URL (CP7).
   // The same sort object from one render to the next, for the table not to render again.
-  const { column, direction } = settings.sort
+  const usable = columns.some((entry) => entry.id === settings.sort.column)
+  const { column, direction } = usable ? settings.sort : PARAMS.sort.default
+  useEffect(() => {
+    if (!usable) update({ sort: PARAMS.sort.default })
+  }, [usable, update])
   const sort = useMemo(() => ({ column, direction }), [column, direction])
   const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
-  const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
+  const sorted = useMemo(
+    () => sortComparison(shown, columns, column, direction),
+    [shown, columns, column, direction],
+  )
   const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
 
   // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
@@ -240,8 +260,8 @@ function ComparePage() {
   )
   const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
   const csv = useMemo(
-    () => (compared.length === 0 ? null : () => comparisonCsv(geomean, compared)),
-    [compared, geomean],
+    () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
+    [columns, compared, geomean],
   )
 
   // The hidden tests, in the URL while there are few enough of them to share (CP7). A long list
@@ -353,6 +373,8 @@ function ComparePage() {
           <SummaryBar counts={counts} />
           <CompareTable
             rows={sorted}
+            columns={columns}
+            menu={<ColumnsMenu shown={optional} onChange={(keys) => update({ columns: keys })} />}
             tests={sortedTests}
             hidden={hidden}
             summary={
