@@ -96,23 +96,17 @@ describe('useUrlState', () => {
   })
 
   it('reads a setting afresh for other parameters of the same name', () => {
-    // Two parameters spelling a value alike in the URL, but reading it differently.
-    const lower = { x: listParam() }
-    const upper = {
-      x: {
-        default: [],
-        parse: (values: string[]) => values.map((value) => value.toUpperCase()),
-        serialize: (value: string[]) => value.map((item) => item.toLowerCase()),
-      },
-    }
+    // Both spell `a` alike in the URL, but read it differently.
+    const list = { x: listParam() }
+    const single = { x: stringParam() }
     const { result, rerender } = renderHook(({ params }) => useUrlState(params)[0], {
       ...providers({ url: '/graph?x=a' }),
-      initialProps: { params: lower as typeof lower | typeof upper },
+      initialProps: { params: list as typeof list | typeof single },
     })
     expect(result.current.x).toEqual(['a'])
 
-    rerender({ params: upper })
-    expect(result.current.x).toEqual(['A'])
+    rerender({ params: single })
+    expect(result.current.x).toBe('a')
   })
 
   it('leaves alone the parameters it does not declare', () => {

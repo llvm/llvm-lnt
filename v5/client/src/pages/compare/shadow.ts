@@ -38,8 +38,12 @@ const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
  * URL, which it does through the selection itself rather than this one, does not.
  */
 function notifying(selection: RowSelection, onChange: () => void): RowSelection {
+  // Each member listed, so that one added to RowSelection is a choice to make here.
   return {
-    ...selection,
+    subscribe: selection.subscribe,
+    selected: selection.selected,
+    limit: selection.limit,
+    inverted: selection.inverted,
     click: (key, shift) => {
       selection.click(key, shift)
       onChange()

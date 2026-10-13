@@ -12,10 +12,10 @@ export interface RunSelection {
   /** The runs selected, once the selection is known: once it has been filled for the list. */
   selected: ReadonlySet<string> | undefined
   /**
-   * What the selection is filled with, or about to be, once the runs are listed: the runs `fromUrl`
-   * names that are listed, or every run when it names none of them.
+   * Once the runs are listed, the runs selected, in the order they were submitted, or until the
+   * selection is known, those it is about to be filled with (see below).
    */
-  fill: readonly string[] | undefined
+  chosen: readonly string[] | undefined
 }
 
 /**
@@ -23,7 +23,8 @@ export interface RunSelection {
  * were submitted, or undefined while they are not listed. `list` identifies what they are the runs
  * of, and `fromUrl` are the runs the URL names.
  *
- * - The selection is filled once for each list (see `fill`). It is only known once it has been.
+ * - The selection is filled once for each list: with the runs `fromUrl` names that are listed, or
+ *   every run when it names none of them. It is only known once it has been.
  * - It is filled before the page is painted, so that the runs never show unselected meanwhile.
  * - Once filled, only the user changes it, through `rows`: a URL that names other runs later, as
  *   the page's own writes of the selection do, does not fill it again.
@@ -55,5 +56,9 @@ export function useRunSelection(
     }
   }, [fill, filled, filledFor, list, rows])
   const known = uuids !== undefined && filled === list
-  return { rows, selected: known ? selected : undefined, fill }
+  const chosen = useMemo(
+    () => (known ? uuids.filter((uuid) => selected.has(uuid)) : fill),
+    [known, uuids, selected, fill],
+  )
+  return { rows, selected: known ? selected : undefined, chosen }
 }

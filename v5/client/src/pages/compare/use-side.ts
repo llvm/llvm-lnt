@@ -112,7 +112,8 @@ export function useSide(
 
   // The selection among the runs, filled from the URL for each list of runs.
   const list = [suite, machine, commit].join('\0')
-  const { rows, selected, fill } = useRunSelection(uuids, list, settings.runs)
+  const runSelection = useRunSelection(uuids, list, settings.runs)
+  const { selected } = runSelection
 
   // The selection, in the URL, unless it is every run, the default. Without a commit, there is
   // none to keep (AR2 "State").
@@ -125,16 +126,8 @@ export function useSide(
   // The runs whose samples the side needs.
   const asked = named ? (uuids ?? settings.runs) : NO_RUNS
   const refs = useMemo(() => asked.map((uuid) => ({ suite, uuid })), [suite, asked])
-  // Once the runs are listed, those the selection holds, or is about to be filled with.
-  const chosen = useMemo(
-    () =>
-      uuids !== undefined && selected !== undefined
-        ? uuids.filter((uuid) => selected.has(uuid))
-        : named
-          ? (fill ?? asked)
-          : asked,
-    [uuids, selected, named, fill, asked],
-  )
+  // Those whose samples it wants: once the runs are listed, those selected, or about to be.
+  const chosen = named ? (runSelection.chosen ?? asked) : asked
   const wanted = useMemo(() => chosen.map((uuid) => runRefKey({ suite, uuid })), [suite, chosen])
 
   return {
@@ -145,7 +138,7 @@ export function useSide(
     machines,
     named,
     runs,
-    selection: rows,
+    selection: runSelection.rows,
     selected,
     refs,
     wanted,

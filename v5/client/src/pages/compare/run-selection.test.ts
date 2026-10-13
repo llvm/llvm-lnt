@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { useRunSelection, type RunSelection } from './run-selection'
+import { useRunSelection } from './run-selection'
 
 interface Props {
   uuids: readonly string[] | undefined
@@ -8,18 +8,20 @@ interface Props {
   fromUrl: readonly string[]
 }
 
+const sorted = (runs: ReadonlySet<string> | undefined) => runs && [...runs].sort()
+
 /** The run selection, from `initial`, and what each render read of the runs selected. */
 function renderSelection(initial: Props) {
   const reads: (string[] | undefined)[] = []
   const hook = renderHook(
     ({ uuids, list, fromUrl }: Props) => {
-      const selection: RunSelection = useRunSelection(uuids, list, fromUrl)
-      reads.push(selection.selected && [...selection.selected].sort())
+      const selection = useRunSelection(uuids, list, fromUrl)
+      reads.push(sorted(selection.selected))
       return selection
     },
     { initialProps: initial },
   )
-  const selected = () => hook.result.current.selected && [...hook.result.current.selected].sort()
+  const selected = () => sorted(hook.result.current.selected)
   return { ...hook, reads, selected }
 }
 
@@ -33,11 +35,11 @@ describe('useRunSelection', () => {
       fromUrl: [],
     })
     expect(selected()).toBeUndefined()
-    expect(result.current.fill).toBeUndefined()
+    expect(result.current.chosen).toBeUndefined()
 
     rerender({ uuids: RUNS, list: 'c1', fromUrl: [] })
     expect(selected()).toEqual(RUNS)
-    expect(result.current.fill).toEqual(RUNS)
+    expect(result.current.chosen).toEqual(RUNS)
   })
 
   it('says nothing of the runs selected until it has filled the selection', () => {
@@ -62,6 +64,7 @@ describe('useRunSelection', () => {
     })
     act(() => result.current.rows.click('1', false))
     expect(selected()).toEqual(['2', '3'])
+    expect(result.current.chosen).toEqual(['2', '3'])
 
     // As the page writes the selection to the URL, and back to every run.
     rerender({ uuids: RUNS, list: 'c1', fromUrl: ['2', '3'] })
