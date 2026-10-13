@@ -61,7 +61,6 @@ test.describe('the API Keys tab', () => {
     const created = page.getByRole('region', { name: 'Created key' })
     const token = (await created.locator('code').textContent()) ?? ''
     expect(token).toMatch(/^[0-9a-f]{64}$/)
-    expect(await keyOf(request, token)).toBe(name)
     const prefix = token.slice(0, 8)
     // Other tests create keys meanwhile, so the new key need not head the table.
     const row = rows(keys).filter({ hasText: prefix })
@@ -74,6 +73,8 @@ test.describe('the API Keys tab', () => {
       'Yes',
       'Revoke',
     ])
+    // Using the token records its last use, so this must come after checking the row says 'Never'.
+    expect(await keyOf(request, token)).toBe(name)
 
     await revoke(page, prefix)
 
