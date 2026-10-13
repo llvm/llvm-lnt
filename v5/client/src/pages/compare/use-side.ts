@@ -170,6 +170,8 @@ export function useSide(
 export interface Sides {
   a: Side
   b: Side
+  /** Whether the sides have been swapped an odd number of times. */
+  swapped: boolean
   /** Swap the sides (CP1). */
   swap(): void
   /** How far the samples of each of their runs are loaded, by `runRefKey`. */
@@ -188,6 +190,7 @@ export function useSides(
 ): Sides {
   const a = useSide('a', all, update, suites)
   const b = useSide('b', all, update, suites)
+  const [swapped, setSwapped] = useState(false)
 
   const refs = useMemo(() => uniqueRuns(a.refs, b.refs), [a.refs, b.refs])
   const wanted = useMemo(() => new Set([...a.wanted, ...b.wanted]), [a.wanted, b.wanted])
@@ -197,6 +200,7 @@ export function useSides(
     update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
     a.setNoRunsOf(b.noRunsOf)
     b.setNoRunsOf(a.noRunsOf)
+    setSwapped(!swapped)
   }
-  return { a, b, swap, states }
+  return { a, b, swapped, swap, states }
 }

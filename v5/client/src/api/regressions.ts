@@ -18,6 +18,7 @@ type RegressionListQuery = NonNullable<
 >
 type RegressionDetail = Schemas['RegressionDetail']
 type Indicator = Schemas['Indicator']
+type IndicatorObject = Schemas['IndicatorObject']
 
 /** E8's limit on a regression's title or bug (D5's column). */
 export const TEXT_LENGTH = 256
@@ -57,6 +58,16 @@ export function deleteRegression(suite: string, uuid: string) {
   return unwrap(
     authedApi.DELETE('/api/suites/{testsuite}/regressions/{uuid}', {
       params: { path: { testsuite: suite, uuid } },
+    }),
+  )
+}
+
+/** Add `indicators` to the regression `uuid` (E8): it answers with how many were new. */
+export function addIndicators(suite: string, uuid: string, indicators: IndicatorObject[]) {
+  return unwrap(
+    authedApi.POST('/api/suites/{testsuite}/regressions/{uuid}/indicators', {
+      params: { path: { testsuite: suite, uuid } },
+      body: { indicators },
     }),
   )
 }
@@ -114,6 +125,23 @@ export async function regressionChanged(
     regressionKey(suite, uuid),
     (stored) => stored && change(stored),
   )
+}
+
+/**
+ * Store the regression `created`, for its page to show at once, and mark stale what shows the
+ * suite's regressions elsewhere, to be fetched again when next shown.
+ */
+export async function regressionCreated(
+  queryClient: QueryClient,
+  suite: string,
+  created: RegressionDetail,
+): Promise<void> {
+  // The detail is among what this marks stale, so it is stored after, which leaves it fresh.
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.regressions(suite),
+    refetchType: 'none',
+  })
+  queryClient.setQueryData(regressionKey(suite, created.uuid), created)
 }
 
 /**

@@ -2,8 +2,7 @@ import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { authedApi, unwrap } from '../../api/client'
-import { queryKeys } from '../../api/keys'
-import { regressionKey, TEXT_LENGTH } from '../../api/regressions'
+import { regressionCreated, TEXT_LENGTH } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { CommitPicker, UNPICKED_COMMIT } from '../../components/commit-picker'
@@ -51,13 +50,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
         }),
       ),
     onSuccess: async (created) => {
-      // Refetched when it is shown again, rather than now, on the way to another page.
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.regressions(suite),
-        refetchType: 'none',
-      })
-      // What the page shown next would fetch, stored after, which leaves it fresh.
-      queryClient.setQueryData(regressionKey(suite, created.uuid), created)
+      await regressionCreated(queryClient, suite, created)
       navigate(regressionPath(suite, created.uuid))
     },
   })

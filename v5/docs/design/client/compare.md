@@ -23,7 +23,9 @@ suite-agnostic: each side selects its own suite. Layout:
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
 [ ] Hide noise  [Noise filtering v]
-[Filter tests...] [ ] Regex                                                [Add to regression]
+[Filter tests...] [ ] Regex
+
+> Add to regression
 
 <progress and errors>
 [Shadow: 0f69d2804b9b on linux-x86_64  x]
@@ -521,34 +523,47 @@ unusable runs are dropped from side A's URL values, the shadow is kept.
 
 ### CP9: Add to Regression
 
-A collapsible panel (button: "Add to regression" in the controls area) creates
-regression indicators from the comparison. It works on side B: each indicator
+A box of its own, below the controls shared by both sides, creates regression
+indicators from the comparison. Its header, "Add to regression", expands and
+collapses it, with an arrow saying which it does; the box starts collapsed. It
+works on side B: each indicator
 names side B's machine, the selected metric, and a test. One indicator is
 created for each compared row (see CP2) that has a value on side B. Rows
 without one are skipped: the test was not measured on side B, and side B's
 suite may not even have it. The regression belongs to side B's suite.
 
-The button requires `triage` scope (see AR17). It is disabled, with an
-explanation, when there would be no indicators, or more than one request can
-carry (I2's maximum page size; see E8). When expanded, the panel
-offers:
+The header requires `triage` scope (see AR17). While the box is collapsed, the
+header is disabled, with an explanation, when there would be no indicators, or
+more than one request can carry (I2's maximum page size; see E8). While it is
+expanded, the header collapses it, except while a request is under way.
+
+When expanded, the box first lists what the indicators are, a line each: how
+many tests compared they cover (Covers), side B's suite (Test Suite), the
+metric, side B's machine, and side B's commit, shown by its display value (see
+AR6), which a new regression is attributed to. Below, it says how many tests
+compared are left out for having no value on side B, if any are. It follows
+the compared rows as they change. Then it offers:
 - "Create new regression" -- a title input, which may be left empty, and a
   button that creates a regression in side B's suite, attributed to side B's
   commit, with those indicators.
-- "Add to existing" -- a regression picker over side B's suite. It searches the
+- "Add to existing" -- a regression picker over side B's suite, and a button
+  that adds the indicators to the regression picked. The picker searches the
   server (see AR9), starting from the first page of
   `GET regressions?sort=-created_at`, and matches the title or a prefix of the
-  UUID. Picking a regression adds the indicators to it. Each suggestion shows the regression's title, or
-  `(untitled)` and its shortened UUID when it has none.
+  UUID. Each suggestion shows the regression's title, or `(untitled)` and its
+  shortened UUID when it has none. While the picker holds text that was not
+  picked, the button does nothing, and the panel says so, as for a commit
+  picker (see AR15).
 
-The panel is a form (see AR2 "State"). Its buttons are disabled whenever the
-"Add to regression" button is. Changing side B's suite, or swapping the sides,
-clears the picked regression. If creating the regression or adding
-the indicators fails, the panel stays open and says why.
+The box is a form (see AR2 "State"). When there would be no indicators, or
+too many, its buttons are disabled, and it says why. Changing side B's suite,
+or swapping the sides, clears the picked regression. If creating the
+regression or adding the indicators fails, the box stays open and says why.
 
-Once the regression is created, or the indicators added, the panel collapses
-back to its button, and a message beside the button says what was done, until
-the panel is opened again:
+Collapsing the box clears its title and picked regression. Once the regression
+is created, or the indicators added, the box collapses, its header takes the
+focus, and a message beside the header says what was done, until the box is
+opened again:
 - "Regression created: " followed by a link to the new regression's detail
   page;
 - "Added N indicators to " followed by a link to the regression's detail page,

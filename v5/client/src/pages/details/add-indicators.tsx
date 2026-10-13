@@ -1,8 +1,13 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { authedApi, unwrap, type Schemas } from '../../api/client'
+import type { Schemas } from '../../api/client'
 import { useMachineNames } from '../../api/machines'
-import { INDICATOR_BATCH, useRegressionMutation, withIndicators } from '../../api/regressions'
+import {
+  addIndicators,
+  INDICATOR_BATCH,
+  useRegressionMutation,
+  withIndicators,
+} from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { useScopeGate } from '../../auth/scope'
@@ -58,13 +63,7 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   const add = useRegressionMutation(
     suite,
     uuid,
-    (indicators: IndicatorObject[]) =>
-      unwrap(
-        authedApi.POST('/api/suites/{testsuite}/regressions/{uuid}/indicators', {
-          params: { path: { testsuite: suite, uuid } },
-          body: { indicators },
-        }),
-      ),
+    (indicators: IndicatorObject[]) => addIndicators(suite, uuid, indicators),
     withIndicators,
   )
   const submit = () => {

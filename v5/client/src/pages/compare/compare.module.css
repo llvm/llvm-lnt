@@ -137,6 +137,89 @@
   width: 5rem;
 }
 
+/* Add to Regression (CP9): a box of its own, its header, what was done beside it, and what it
+   expands to. */
+.addToRegression {
+  flex-basis: 100%;
+}
+
+.disclosure {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.disclosure:disabled {
+  color: var(--lnt-muted);
+  cursor: default;
+}
+
+.regressionSummary {
+  flex-basis: 100%;
+}
+
+.regressionSummary > .note {
+  margin: var(--lnt-space-1) 0 0;
+}
+
+/* What the indicators are, a label and its value per line. */
+.regressionTargets {
+  margin: 0;
+}
+
+.regressionTarget {
+  display: flex;
+  gap: var(--lnt-space-2);
+}
+
+.regressionTarget dt {
+  font-weight: 600;
+}
+
+.regressionTarget dd {
+  margin: 0;
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+}
+
+.regressionPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-4);
+  margin-top: var(--lnt-space-3);
+}
+
+.regressionPanel > .note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.regressionHeading {
+  margin: 0 0 var(--lnt-space-2);
+  font-size: 1rem;
+}
+
+.regressionFields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-2);
+}
+
+.regressionField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+}
+
 /* How many of the table's tests are shown, and Copy as CSV, above it. */
 .countRow {
   display: flex;
