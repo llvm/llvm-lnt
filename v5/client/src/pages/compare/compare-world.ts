@@ -170,9 +170,9 @@ export const NOISY: World = {
   },
 }
 
-/** The rows of the comparison table, once it shows. */
+/** The rows of the comparison table, once it shows, without the cell of their checkbox. */
 export async function comparison() {
-  return rowsOf(await table('Comparison'))
+  return rowsOf(await table('Comparison')).map((row) => row.replace(/^ \| /, ''))
 }
 
 /** The controls of `side`, whose fields are named without it: "Suite", "Machine", "Commit". */
@@ -184,6 +184,9 @@ export function sideOf(side: 'A' | 'B') {
 export function runBox(hex: string, side: 'A' | 'B') {
   return within(sideOf(side)).getByRole('checkbox', { name: `Run ${uuidPrefix(uuidOf(hex))}` })
 }
+
+/** The checkbox showing `test`'s row (CP2 "Hidden tests"). */
+export const showBox = (test: string) => screen.getByRole('checkbox', { name: `Show ${test}` })
 
 /**
  * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is

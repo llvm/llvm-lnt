@@ -10,8 +10,8 @@ const COPIED = 'Copied.'
 const FAILED = 'Could not copy.'
 
 interface Props {
-  /** What to copy. */
-  text: string
+  /** What to copy, or what gives it, when it is only worth computing once the button is clicked. */
+  text: string | (() => string)
   /** The button's label. */
   children: ReactNode
   /** The id of the element describing the button to assistive technology. */
@@ -39,7 +39,7 @@ export function CopyButton({ text, children, describedBy, autoFocus }: Props) {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(typeof text === 'string' ? text : text())
       setOutcome({ message: COPIED })
     } catch {
       setOutcome({ message: FAILED })

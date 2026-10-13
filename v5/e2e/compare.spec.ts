@@ -34,9 +34,11 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   const comparison = table(page, 'Comparison')
   await expect(rows(comparison).first()).toContainText('Geomean')
   expect(await rows(comparison).count()).toBeGreaterThan(10)
-  // Every test has a value on both sides, so each has a status other than N/A.
-  const statuses = await column(comparison, 6)
-  expect(statuses.slice(1).every((status) => status !== 'N/A')).toBe(true)
+  // Every test has a value on both sides, so each has a status other than N/A. Status is the
+  // column after the checkboxes and the six others.
+  const statuses = await column(comparison, 7)
+  const comparable = ['Improved', 'Regressed', 'Noise', 'Unchanged']
+  expect(statuses.slice(1).every((status) => comparable.includes(status))).toBe(true)
   await expect(page.getByRole('list', { name: 'Summary' })).toContainText('Only in A 0')
 })
 

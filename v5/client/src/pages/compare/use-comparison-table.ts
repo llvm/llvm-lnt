@@ -1,23 +1,27 @@
 /**
  * The Compare page's table (CP2), from the comparison's rows: the rows the test filter and "Hide
- * noise" keep, sorted, the geomean summary row, and what the table says of them, with the settings the URL
- * keeps of them (CP7).
+ * noise" keep, sorted, the hidden tests, the geomean summary row, and what the table says of them,
+ * with the settings the URL keeps of them (CP7).
  */
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useRangeSelection } from '../../components/range-selection'
 import type { TableSort } from '../../components/table-sort'
 import { useTextFilter } from '../../components/use-text-filter'
-import { COLUMNS, sortComparison } from './columns'
+import { compareStrings } from '../../format'
+import { COLUMNS, comparisonCsv, sortComparison } from './columns'
 import type { TableView } from './compare-table'
 import { geomeanRow, summaryCounts, type ComparisonRow } from './comparison'
-import type { Settings } from './settings'
+import { HIDDEN_IN_URL, type Settings } from './settings'
 import type { Comparison } from './use-comparison'
+
+const NO_TESTS: string[] = []
 
 const testOf = (row: ComparisonRow) => row.test
 
 /** The table of `comparison`, with the page's `settings`, which `update` changes. */
 export function useComparisonTable(
-  { rows, biggerIsBetter }: Comparison,
+  { tests, rows, biggerIsBetter }: Comparison,
   settings: Settings,
   update: (changes: Partial<Settings>) => void,
 ) {
@@ -41,20 +45,54 @@ export function useComparisonTable(
   )
   const counts = useMemo(() => summaryCounts(matching), [matching])
 
+  // The table's rows, in the order they are sorted in, which a range selected with Shift follows.
   // The same sort object from one render to the next, for the table not to render again.
   const { column, direction } = settings.sort
   const sort = useMemo(() => ({ column, direction }), [column, direction])
   const onSort = useCallback((next: TableSort) => update({ sort: next }), [update])
   const sorted = useMemo(() => sortComparison(shown, column, direction), [shown, column, direction])
-  const geomean = useMemo(() => geomeanRow(shown, biggerIsBetter), [shown, biggerIsBetter])
+  const sortedTests = useMemo(() => sorted.map(testOf), [sorted])
+
+  // The hidden tests (CP2). Those the comparison no longer holds are forgotten once it is complete,
+  // and neither the filter nor "Hide noise" changes them.
+  const allTests = useMemo(() => tests?.map((entry) => entry.test), [tests])
+  const { selected: hiddenTests, rows: hidden } = useRangeSelection(allTests, sortedTests, {
+    inverted: true,
+    initial: settings.hidden_test,
+  })
+  const compared = useMemo(
+    () => sorted.filter((row) => !hiddenTests.has(row.test)),
+    [sorted, hiddenTests],
+  )
+  const geomean = useMemo(() => geomeanRow(compared, biggerIsBetter), [compared, biggerIsBetter])
+  const csv = useMemo(
+    () => (compared.length === 0 ? null : () => comparisonCsv(COLUMNS, geomean, compared)),
+    [compared, geomean],
+  )
+
+  // The hidden tests, in the URL while there are few enough of them to share (CP7). A long list
+  // from the URL stays there until the comparison is complete, which may leave few enough of them.
+  const complete = tests !== undefined
+  const shared = hiddenTests.size <= HIDDEN_IN_URL
+  const hiddenSorted = useMemo(
+    () => (shared ? [...hiddenTests].sort(compareStrings) : NO_TESTS),
+    [hiddenTests, shared],
+  )
+  useEffect(() => {
+    if (shared || complete) update({ hidden_test: hiddenSorted })
+  }, [hiddenSorted, shared, complete, update])
 
   const view: TableView = {
     rows: sorted,
     columns: COLUMNS,
+    tests: sortedTests,
+    hidden,
     summary: filter.active
-      ? `${shown.length} of ${shown.length} matching tests shown (${total} total)`
-      : `${shown.length} of ${total} tests shown`,
+      ? `${compared.length} of ${shown.length} matching tests shown (${total} total)`
+      : `${compared.length} of ${total} tests shown`,
+    notInUrl: shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`,
     geomean,
+    csv,
     empty:
       rows.length === 0
         ? 'No test has a value for this metric.'
