@@ -2,6 +2,7 @@
 
 import { AGGREGATIONS } from '../../aggregation'
 import { sortParam } from '../../components/table-sort'
+import type { NoiseKnob, NoiseSettings } from './comparison'
 import { OPTIONAL_KEYS, SORTABLE } from './columns'
 import {
   booleanParam,
@@ -91,6 +92,22 @@ export function sideChanges(side: SideId, changes: Partial<SideSettings>): Parti
     value,
   ])
   return Object.fromEntries(entries) as Partial<Settings>
+}
+
+/** The URL parameter of each noise knob (CP7). */
+export const NOISE_PARAMS = {
+  pct: 'noise_pct',
+  pval: 'noise_pval',
+  floor: 'noise_floor',
+} as const satisfies Record<NoiseKnob, keyof Settings>
+
+/** Each noise knob's threshold, as `settings` holds it, or null while it is disabled (CP7). */
+export function noiseSettings(settings: Settings): NoiseSettings {
+  return {
+    pct: settings[NOISE_PARAMS.pct],
+    pval: settings[NOISE_PARAMS.pval],
+    floor: settings[NOISE_PARAMS.floor],
+  }
 }
 
 /** The changes to the URL that dismiss the shadow (CP8). */

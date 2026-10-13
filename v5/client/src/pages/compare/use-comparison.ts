@@ -19,7 +19,8 @@ import {
   type ComparisonRow,
   type NoiseSettings,
 } from './comparison'
-import type { Settings } from './settings'
+import { chosenRuns } from './loading'
+import { noiseSettings, type Settings } from './settings'
 import type { Side, Sides } from './use-side'
 
 type Sample = Schemas['Sample']
@@ -34,13 +35,12 @@ function useRunSamplesOf(
   side: Side,
   states: ReadonlyMap<string, SampleState>,
 ): Sample[][] | undefined {
-  const { selected, wanted } = side
+  const chosen = chosenRuns(side)
   return useMemo(() => {
-    // Once the selection is known, the runs the side wants are those it has selected.
-    if (selected === undefined || selected.size === 0) return undefined
-    const samples = wanted.map((key) => states.get(key)?.samples)
+    if (chosen.length === 0) return undefined
+    const samples = chosen.map((key) => states.get(key)?.samples)
     return samples.every((entry) => entry !== undefined) ? samples : undefined
-  }, [selected, wanted, states])
+  }, [chosen, states])
 }
 
 /**
@@ -81,25 +81,16 @@ export interface Comparison {
   classifying: boolean
 }
 
-/** The comparison of `sides` for `metric`, with the page's `settings`. */
+/** The comparison of sides `a` and `b` for `metric`, with the page's `settings`. */
 export function useComparison(
-  { a, b, states }: Sides,
+  { a, b, states }: Pick<Sides, 'a' | 'b' | 'states'>,
   metric: Metric | undefined,
   settings: Settings,
 ): Comparison {
-  const { sample_agg: sampleAgg } = settings
-  const { samples: samplesA, values: valuesA } = useSideComparison(
-    a,
-    states,
-    metric?.name,
-    sampleAgg,
-  )
-  const { samples: samplesB, values: valuesB } = useSideComparison(
-    b,
-    states,
-    metric?.name,
-    sampleAgg,
-  )
+  const sideA = useSideComparison(a, states, metric?.name, settings.sample_agg)
+  const sideB = useSideComparison(b, states, metric?.name, settings.sample_agg)
+  const { samples: samplesA, values: valuesA } = sideA
+  const { samples: samplesB, values: valuesB } = sideB
   const tests = useMemo(
     () => (samplesA && samplesB ? joinSides(samplesA, samplesB) : undefined),
     [samplesA, samplesB],
@@ -108,7 +99,7 @@ export function useComparison(
   // The noise settings applied, which follow those set once the page has had the time to classify
   // every test again, so that a change to a knob never holds up the page while thousands of rows
   // are classified and rendered.
-  const { noise_pct: pct, noise_pval: pval, noise_floor: floor } = settings
+  const { pct, pval, floor } = noiseSettings(settings)
   const noiseSet = useMemo(() => ({ pct, pval, floor }), [pct, pval, floor])
   const noise = useDeferredValue(noiseSet)
   const rows = useMemo(

@@ -19,6 +19,7 @@ import {
   geomeanRow,
   summaryCounts,
   type ComparisonRow,
+  type NoiseKnob,
   type NoiseSettings,
 } from './comparison'
 import { AddToRegression } from './add-to-regression'
@@ -33,6 +34,8 @@ import { NoiseControls } from './noise-controls'
 import {
   HIDDEN_IN_URL,
   NO_SHADOW,
+  NOISE_PARAMS,
+  noiseSettings,
   PARAMS,
   sideChanges,
   type SideSettings,
@@ -213,13 +216,20 @@ function ComparePage() {
     if (shared || complete) update({ hidden_test: hiddenSorted })
   }, [hiddenSorted, shared, complete, update])
 
+  const onNoise = useCallback(
+    (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
+    [update],
+  )
   // Whether the table still shows the noise as it was classified before the latest change.
   const reclassifying =
     comparison.classifying || hideNoise !== settings.hide_noise || deferredOptional !== optional
 
   // Swapping the sides, or changing what side A is, dismisses the shadow (CP8). Changing side A's
   // run aggregation does not: the shadow follows it.
-  const swap = () => sides.swap(NO_SHADOW)
+  const swap = () => {
+    sides.swap()
+    update(NO_SHADOW)
+  }
   const { pinned } = shadow
   const updateA = useCallback(
     (changes: Partial<SideSettings>) =>
@@ -318,7 +328,12 @@ function ComparePage() {
             regex={settings.test_filter_regex}
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
           />
-          <NoiseControls settings={settings} update={update} />
+          <NoiseControls
+            noise={noiseSettings(settings)}
+            onNoise={onNoise}
+            hideNoise={settings.hide_noise}
+            onHideNoise={(hide) => update({ hide_noise: hide })}
+          />
         </div>
         <AddToRegression
           suite={b.settings.suite}

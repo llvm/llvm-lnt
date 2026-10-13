@@ -180,8 +180,8 @@ export interface Sides {
   shadow: Side
   /** Whether the sides have been swapped an odd number of times. */
   swapped: boolean
-  /** Swap the sides (CP1), with the changes `also` to the URL, made in the same go. */
-  swap(also?: Partial<Settings>): void
+  /** Swap the sides (CP1). */
+  swap(): void
   /** How far the samples of each of their runs are loaded, by `runRefKey`. */
   states: ReadonlyMap<string, SampleState>
 }
@@ -214,8 +214,8 @@ export function useSides(
   )
   const states = useRunSamples(refs, wanted)
 
-  const swap = (also: Partial<Settings> = {}) => {
-    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...also })
+  const swap = () => {
+    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
     setSwapped(!swapped)
   }
   return { a, b, shadow, swapped, swap, states }

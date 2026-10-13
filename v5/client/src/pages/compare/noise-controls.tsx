@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import { HelpLabel } from '../../components/help-label'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { parseNumber } from '../../format'
-import type { NoiseKnob } from './comparison'
-import type { Settings } from './settings'
+import type { NoiseKnob, NoiseSettings } from './comparison'
 import styles from './compare.module.css'
 
 interface Knob {
@@ -51,36 +50,28 @@ const KNOBS: Knob[] = [
   },
 ]
 
-/** The URL parameter of each noise knob (CP7). */
-const NOISE_PARAMS = {
-  pct: 'noise_pct',
-  pval: 'noise_pval',
-  floor: 'noise_floor',
-} as const satisfies Record<NoiseKnob, keyof Settings>
-
 interface Props {
-  settings: Settings
-  update(changes: Partial<Settings>): void
+  noise: NoiseSettings
+  /** Called with a knob's threshold once it changes, or null once it is disabled. Memoize it. */
+  onNoise(knob: NoiseKnob, value: number | null): void
+  hideNoise: boolean
+  onHideNoise(hide: boolean): void
 }
 
 /**
  * "Hide noise", and the noise knobs, in a section collapsed to begin with (CP1): each enabled with
- * its checkbox, and its value typed. The URL holds a knob's value while it is enabled (CP7).
+ * its checkbox, and its value typed.
  */
-export function NoiseControls({ settings, update }: Props) {
+export function NoiseControls({ noise, onNoise, hideNoise, onHideNoise }: Props) {
   const [open, setOpen] = useState(false)
   const sectionId = useId()
-  const onNoise = useCallback(
-    (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
-    [update],
-  )
   return (
     <div className={styles.noise}>
       <label className={styles.checkbox}>
         <input
           type="checkbox"
-          checked={settings.hide_noise}
-          onChange={(event) => update({ hide_noise: event.target.checked })}
+          checked={hideNoise}
+          onChange={(event) => onHideNoise(event.target.checked)}
         />
         Hide noise
       </label>
@@ -95,12 +86,7 @@ export function NoiseControls({ settings, update }: Props) {
       </button>
       <div id={sectionId} className={styles.knobs} hidden={!open}>
         {KNOBS.map((knob) => (
-          <KnobInput
-            key={knob.key}
-            knob={knob}
-            value={settings[NOISE_PARAMS[knob.key]]}
-            onChange={onNoise}
-          />
+          <KnobInput key={knob.key} knob={knob} value={noise[knob.key]} onChange={onNoise} />
         ))}
       </div>
     </div>
