@@ -12,6 +12,7 @@ import { Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings, plural } from '../../format'
+import { useSameElements } from '../../same-elements'
 import { isNumeric, labelOf, type Metric } from '../../schema'
 import { useDropUnusable, useUrlState, useVisitKey } from '../../url-state'
 import { ValueStore } from '../../value-store'
@@ -28,7 +29,7 @@ import {
 } from './comparison'
 import { AddToRegression } from './add-to-regression'
 import { chartBars, SHADOW_COLOR, type Bar } from './chart'
-import { comparisonCsv, sortComparison, tableColumns, type OptionalKey } from './columns'
+import { comparisonCsv, sortComparison, tableColumns } from './columns'
 import { ColumnsMenu } from './columns-menu'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
@@ -119,23 +120,6 @@ function useRunSamplesOf(
       .map((run) => states.get(runRefKey({ suite, uuid: run.uuid }))?.samples)
     return samples.every((entry) => entry !== undefined) ? samples : undefined
   }, [selected, runs.data, suite, states])
-}
-
-/**
- * `array`, or the one it was before if that holds the same elements, so that what is computed from
- * it is not computed again: a side's runs' samples, when only the other side's change, or the
- * shadow's points, when the noise is classified anew.
- */
-function useSameElements<A extends readonly unknown[] | undefined>(array: A): A {
-  const [kept, setKept] = useState(array)
-  const same =
-    kept === array ||
-    (kept !== undefined &&
-      array !== undefined &&
-      kept.length === array.length &&
-      kept.every((item, i) => item === array[i]))
-  if (!same) setKept(array)
-  return same ? kept : array
 }
 
 /**
@@ -272,11 +256,7 @@ function ComparePage() {
 
   // The table's columns, with the optional ones shown, the same for as long as those are: the
   // URL's list is a new array whenever any setting changes.
-  const shownKeys = settings.columns.join(',')
-  const optional = useMemo(
-    () => (shownKeys === '' ? [] : (shownKeys.split(',') as OptionalKey[])),
-    [shownKeys],
-  )
+  const optional = useSameElements(settings.columns)
   // The table follows the columns shown once it has had the time to render them, as for the noise.
   const deferredOptional = useDeferredValue(optional)
   const columns = useMemo(() => tableColumns(deferredOptional), [deferredOptional])
