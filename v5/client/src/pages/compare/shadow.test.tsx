@@ -6,7 +6,7 @@ import { uuidOf } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
-import { barsOf, chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
+import { barsOf, chart, COMPARED, comparison, mockWorld, pick, runBox, sideOf } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -70,7 +70,7 @@ describe('the shadow (CP8)', () => {
       commit_shadow_b: ['c2'],
     })
 
-    await pick('Machine B', 'm2')
+    await pick('Machine', 'm2', sideOf('B'))
     await waitFor(() => expect(line()?.tests).toEqual(['b', 'c', 'a']))
     expect(line()?.y).toEqual([-1, 1, 2])
     expect((chart().data[1] as PlotData).hovertemplate).toContain('(shadow)')
@@ -173,7 +173,7 @@ describe('the shadow (CP8)', () => {
     await waitFor(() => expect(line()?.y).toEqual([2]))
     expect(chip()).not.toBeNull()
 
-    await pick('Commit A', 'c2')
+    await pick('Commit', 'c2', sideOf('A'))
     await waitFor(() => expect(chip()).toBeNull())
     expect(query().machine_shadow_b).toBeUndefined()
   })
@@ -183,7 +183,7 @@ describe('the shadow (CP8)', () => {
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
 
-    await pick('Machine A', 'm2')
+    await pick('Machine', 'm2', sideOf('A'))
     await waitFor(() => expect(chip()).toBeNull())
     expect(query().commit_a).toEqual(['c1'])
   })

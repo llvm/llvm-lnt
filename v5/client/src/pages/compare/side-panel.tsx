@@ -32,7 +32,6 @@ export function SidePanel({ side, title, suites, action }: Props) {
   const { settings, schema, machines, update: onChange } = side
   const { suite, machine, commit } = settings
   const filters = useMemo(() => ({ machine }), [machine])
-  const letter = side.id.toUpperCase()
 
   const commitPlaceholder = machine === '' ? 'Select a machine first' : 'Select a commit'
   return (
@@ -43,14 +42,14 @@ export function SidePanel({ side, title, suites, action }: Props) {
           {action}
         </div>
         <Select
-          label={`Suite ${letter}`}
+          label="Suite"
           options={suites.map(({ name }) => ({ value: name, label: name }))}
           value={schema?.name ?? null}
           placeholder="-- Select suite --"
           onChange={(name) => onChange({ suite: name, machine: '', commit: '', runs: [] })}
         />
         <Combobox
-          label={`Machine ${letter}`}
+          label="Machine"
           value={machine === '' ? null : { key: machine, text: machine }}
           onChange={(picked) =>
             // Another machine keeps the commit if it has runs at it, as the commit picker checks.
@@ -72,7 +71,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
         />
         {schema === undefined ? (
           <Combobox
-            label={`Commit ${letter}`}
+            label="Commit"
             value={null}
             onChange={noop}
             suggestions={NO_SUGGESTIONS}
@@ -81,7 +80,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
           />
         ) : (
           <CommitPicker
-            label={`Commit ${letter}`}
+            label="Commit"
             schema={schema}
             filters={filters}
             value={commit === '' ? null : commit}
@@ -109,7 +108,6 @@ export function SidePanel({ side, title, suites, action }: Props) {
  */
 function RunList({ side }: { side: Side }) {
   const { settings, runs, selection } = side
-  const letter = side.id.toUpperCase()
   if (settings.commit === '') return <p className={styles.note}>Select a commit first.</p>
   if (runsListFailed(side)) {
     return (
@@ -131,7 +129,7 @@ function RunList({ side }: { side: Side }) {
             <SelectBox
               rows={selection}
               rowKey={run.uuid}
-              label={`Run ${uuidPrefix(run.uuid)} of side ${letter}`}
+              label={`Run ${uuidPrefix(run.uuid)}`}
             />
             <span className={styles.runTime}>{formatTimestamp(run.submitted_at)}</span>
             <Link

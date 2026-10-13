@@ -3,7 +3,7 @@
  * commits and runs, and the runs' samples and profiles, and the means to read what the page shows.
  */
 
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
@@ -199,9 +199,14 @@ export async function comparison() {
   return rowsOf(await table('Comparison')).map((row) => row.replace(/^ \| /, ''))
 }
 
+/** The controls of `side`, whose fields are named without it: "Suite", "Machine", "Commit". */
+export function sideOf(side: 'A' | 'B') {
+  return screen.getByRole('region', { name: new RegExp(`^Side ${side} `) })
+}
+
 /** The checkbox of the run `hex` of `side`. */
 export function runBox(hex: string, side: 'A' | 'B') {
-  return screen.getByRole('checkbox', { name: `Run ${uuidPrefix(uuidOf(hex))} of side ${side}` })
+  return within(sideOf(side)).getByRole('checkbox', { name: `Run ${uuidPrefix(uuidOf(hex))}` })
 }
 
 /** The checkbox showing `test`'s row (CP2 "Hidden tests"). */
@@ -211,9 +216,9 @@ export const showBox = (test: string) => screen.getByRole('checkbox', { name: `S
  * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
  * never emptied meanwhile: that would clear the combobox's value (AR14).
  */
-export async function pick(label: string, name: string) {
+export async function pick(label: string, name: string, container: HTMLElement = document.body) {
   const user = userEvent.setup()
-  const input = await screen.findByRole('combobox', { name: label })
+  const input = await within(container).findByRole('combobox', { name: label })
   await waitFor(() => expect(input).toBeEnabled())
   await user.tripleClick(input)
   await user.keyboard(name)

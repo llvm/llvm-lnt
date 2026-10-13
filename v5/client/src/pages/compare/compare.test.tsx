@@ -6,7 +6,7 @@ import { server } from '../../test/server'
 import { currentUrl, main, query, renderPage } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { uuidOf } from '../../test/fixtures'
-import { COMPARED, comparison, mockWorld, pick, ROWS, runBox } from './compare-world'
+import { COMPARED, comparison, mockWorld, pick, ROWS, runBox, sideOf } from './compare-world'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -18,11 +18,11 @@ describe('the Compare page (CP1)', () => {
 
     expect(await main().findByText('Select a suite for side A.')).toBeInTheDocument()
     expect(main().getByText('Select a suite to load metrics...')).toBeInTheDocument()
-    await pickOption('Suite A', 'libcxx')
+    await pickOption('Suite', 'libcxx', sideOf('A'))
     expect(await main().findByText('Select a machine for side A.')).toBeInTheDocument()
-    await pick('Machine A', 'm1')
+    await pick('Machine', 'm1', sideOf('A'))
     expect(await main().findByText('Select a commit for side A.')).toBeInTheDocument()
-    await pick('Commit A', 'c1')
+    await pick('Commit', 'c1', sideOf('A'))
     expect(await main().findByText('Select a suite for side B.')).toBeInTheDocument()
     expect(runBox('1', 'A')).toBeChecked()
     expect(runBox('2', 'A')).toBeChecked()
@@ -67,9 +67,9 @@ describe('the Compare page (CP1)', () => {
     await comparison()
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: 'Clear Commit A' }))
+    await user.click(within(sideOf('A')).getByRole('button', { name: 'Clear Commit' }))
     await waitFor(() => expect(query().commit_a).toBeUndefined())
-    await pick('Commit A', 'c1')
+    await pick('Commit', 'c1', sideOf('A'))
 
     await waitFor(() => expect(runBox('2', 'A')).toBeChecked())
     expect(runBox('1', 'A')).toBeChecked()
@@ -176,7 +176,7 @@ describe('the Compare page (CP1)', () => {
     renderPage(`/compare?suite_a=libcxx&machine_a=m1&commit_a=c2`)
     expect(await screen.findByRole('checkbox', { name: /^Run 33333333/ })).toBeChecked()
 
-    await pick('Machine A', 'm2')
+    await pick('Machine', 'm2', sideOf('A'))
 
     expect(await screen.findByRole('checkbox', { name: /^Run 44444444/ })).toBeChecked()
     expect(query().commit_a).toEqual(['c2'])
@@ -187,7 +187,7 @@ describe('the Compare page (CP1)', () => {
     renderPage('/compare?suite_a=libcxx&machine_a=m1&commit_a=c1')
     await screen.findByRole('checkbox', { name: /^Run 11111111/ })
 
-    await pick('Machine A', 'm2')
+    await pick('Machine', 'm2', sideOf('A'))
 
     await waitFor(() => expect(query().commit_a).toBeUndefined())
     expect(query().machine_a).toEqual(['m2'])
@@ -207,7 +207,7 @@ describe('the metric (CP1)', () => {
     ])
     await user.keyboard('{Escape}')
 
-    await pickOption('Suite B', 'libcxx')
+    await pickOption('Suite', 'libcxx', sideOf('B'))
     await user.click(screen.getByRole('button', { name: /Metric$/ }))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Execution Time',
@@ -219,7 +219,7 @@ describe('the metric (CP1)', () => {
     renderPage('/compare?suite_a=other&metric=compile_time')
     expect(await screen.findByRole('button', { name: /Metric$/ })).toHaveTextContent('Compile Time')
 
-    await pickOption('Suite B', 'libcxx')
+    await pickOption('Suite', 'libcxx', sideOf('B'))
 
     await waitFor(() => expect(query().metric).toBeUndefined())
     expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')

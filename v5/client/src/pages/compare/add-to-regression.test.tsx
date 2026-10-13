@@ -9,7 +9,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import { mockRegressions, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { server } from '../../test/server'
-import { COMPARED, comparison, mockWorld, pick } from './compare-world'
+import { COMPARED, comparison, mockWorld, pick, sideOf } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -297,7 +297,7 @@ describe('Add to Regression (CP9)', () => {
     await waitFor(() => expect(picker()).toHaveValue(''))
 
     await pick('Regression', 'Older')
-    await pickOption('Suite B', 'other')
+    await pickOption('Suite', 'other', sideOf('B'))
     await waitFor(() => expect(picker()).toHaveValue(''))
   })
 

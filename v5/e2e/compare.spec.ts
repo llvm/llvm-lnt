@@ -49,12 +49,14 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
     ['A', older],
     ['B', newer],
   ] as const) {
-    await pickOption(page, `Suite ${side}`, 'libcxx')
-    const machine = page.getByRole('combobox', { name: `Machine ${side}` })
+    // The side's fields are named without it.
+    const controls = page.getByRole('region', { name: new RegExp(`^Side ${side} `) })
+    await pickOption(controls, 'Suite', 'libcxx')
+    const machine = controls.getByRole('combobox', { name: 'Machine' })
     await machine.fill(LINUX)
     await page.getByRole('option', { name: LINUX, exact: true }).click()
     // The commit is searched by its commit string, and suggested by its display value.
-    await page.getByRole('combobox', { name: `Commit ${side}` }).fill(commit.value)
+    await controls.getByRole('combobox', { name: 'Commit' }).fill(commit.value)
     const display = String(commit.fields.svn_revision)
     await page.getByRole('option', { name: display, exact: true }).click()
   }
@@ -164,7 +166,9 @@ test('overlays a pinned side B on the chart once side B changes', async ({ page,
   // Side B on the experiment: its comparison is the bars, and the newest commit's the line.
   // Typed key by key, as a user does: `fill`, which sets the whole text at once, is sometimes lost
   // when the focus comes from the chip's button.
-  const commitB = page.getByRole('combobox', { name: 'Commit B' })
+  const commitB = page
+    .getByRole('region', { name: /^Side B / })
+    .getByRole('combobox', { name: 'Commit' })
   await commitB.click()
   await commitB.press('ControlOrMeta+a')
   await commitB.pressSequentially(EXPERIMENT)
