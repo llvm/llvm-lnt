@@ -2865,7 +2865,7 @@ export interface components {
             name: string;
             /**
              * Samples
-             * @description One object per measurement of the test in this run, so a test measured several times has several. Each object maps metric names to values, and holds only the metrics that this measurement has a value for: leave out the others rather than sending null. Values must have the JSON type of their metric, and metrics the schema doesn't define are rejected. An empty object records that the test ran without a value for any metric.
+             * @description One object per repetition of the test in this run, so a test run several times has several. Each object maps metric names to values, and holds only the metrics that this repetition has a value for: leave out the others rather than sending null. Values must have the JSON type of their metric, and metrics the schema doesn't define are rejected. An empty object records that the test ran without a value for any metric.
              * @example [
              *       {
              *         "cycles": 9874,
