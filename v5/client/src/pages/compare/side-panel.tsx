@@ -11,7 +11,7 @@ import { NO_SUGGESTIONS } from '../../components/suggestions'
 import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
 import { runPath } from '../../paths'
-import type { Side } from './use-side'
+import { runsListFailed, type Side } from './use-side'
 import styles from './compare.module.css'
 
 function noop() {}
@@ -114,12 +114,10 @@ export function SidePanel({ side, title, suites, action }: Props) {
 
 /** The runs of the side's machine at its commit, each selected with its checkbox (CP1). */
 function RunList({ side }: { side: Side }) {
-  const { settings, runs, selection, machines } = side
+  const { settings, runs, selection } = side
   const letter = side.id.toUpperCase()
   if (settings.commit === '') return <p className={styles.note}>Select a commit first.</p>
-  // A machine that does not exist has no runs to list: it is about to be dropped.
-  const machineKnown = machines.machines.data?.includes(settings.machine) ?? false
-  if (runs.isError && (machineKnown || machines.machines.isError)) {
+  if (runsListFailed(side)) {
     return (
       <ErrorMessage
         context="The runs could not be listed"

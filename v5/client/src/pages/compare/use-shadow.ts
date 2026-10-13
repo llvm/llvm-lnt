@@ -27,18 +27,18 @@ export interface Shadow {
  */
 export function useShadow(
   side: Side,
-  sideA: Side,
+  commitA: string,
   update: (changes: Partial<Settings>) => void,
 ): Shadow {
   const { suite, machine, commit, runs, runAgg } = side.settings
-  const pinned = suite !== '' && machine !== '' && commit !== ''
+  const pinned = side.named
   const named =
     suite !== '' ||
     machine !== '' ||
     commit !== '' ||
     runs.length > 0 ||
     runAgg !== PARAMS.run_agg_shadow_b.default
-  const orphan = named && (!pinned || sideA.settings.commit === '')
+  const orphan = named && (!pinned || commitA === '')
   useEffect(() => {
     if (orphan) update(NO_SHADOW)
   }, [orphan, update])

@@ -24,6 +24,7 @@ import { uuidPrefix } from '../../format'
 import { mockApi } from '../../test/mock-api'
 import { mockCommits, mockMachines, mockRuns, mockSuites, rowsOf, table } from '../../test/page'
 import { server } from '../../test/server'
+import { chartProps } from '../../test/chart-props'
 
 /** A suite declaring libcxx's metric alike, and one of its own. */
 const OTHER_SUITE: SuiteSchema = {
@@ -157,6 +158,9 @@ export function mockWorld({
 export const COMPARED =
   '/compare?suite_a=libcxx&machine_a=m1&commit_a=c1&suite_b=libcxx&machine_b=m1&commit_b=c2' +
   '&metric=execution_time'
+
+/** What the page last handed its chart (see test/chart.tsx). */
+export const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
 
 /** The rows of the comparison table, once it shows, without the cell of their checkbox. */
 export async function comparison() {

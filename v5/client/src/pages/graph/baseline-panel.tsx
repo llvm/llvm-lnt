@@ -6,7 +6,7 @@ import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { Select } from '../../components/select'
 import { NO_SUGGESTIONS, type Suggestion } from '../../components/suggestions'
 import { formatBaseline, type Baseline, type BaselineState } from './baselines'
-import { ChipList } from './chip-list'
+import { ChipList } from '../../components/chip-list'
 import styles from './graph.module.css'
 
 interface Props {

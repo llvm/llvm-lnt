@@ -50,6 +50,15 @@ export interface Side {
   wanted: string[]
 }
 
+/**
+ * Whether the side's runs could not be listed, and that is to be said: not for a machine that does
+ * not exist, which has no runs to list, and is about to be dropped (AR2).
+ */
+export function runsListFailed({ runs, machines, settings }: Side): boolean {
+  const known = machines.machines.data?.includes(settings.machine) ?? false
+  return runs.isError && (known || machines.machines.isError)
+}
+
 /** The runs as the URL holds them: left out when every run is selected. */
 function runsParam(uuids: readonly string[], selected: ReadonlySet<string>): string[] {
   return selected.size === uuids.length ? [] : uuids.filter((uuid) => selected.has(uuid))

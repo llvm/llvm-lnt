@@ -78,11 +78,15 @@ export function CompareChart({ rows, shadow, noisePct, revision, emphasis, hover
   const bars = useMemo(() => chartBars(rows), [rows])
   // The traces, and the bars the first draws: Plotly reports an event with the trace it drew, which
   // may be one drawn before the latest render, while it is drawing again.
-  const drawn = useMemo(() => {
-    const trace = barTrace(bars)
-    const data = shadow.length === 0 ? [trace] : [trace, shadowTrace(shadow)]
-    return { data, barsOf: new WeakMap<object, Bar[]>([[trace, bars]]) }
-  }, [bars, shadow])
+  const trace = useMemo(() => barTrace(bars), [bars])
+  const line = useMemo(() => (shadow.length === 0 ? null : shadowTrace(shadow)), [shadow])
+  const drawn = useMemo(
+    () => ({
+      data: line === null ? [trace] : [trace, line],
+      barsOf: new WeakMap<object, Bar[]>([[trace, bars]]),
+    }),
+    [trace, line, bars],
+  )
 
   const band = useMemo(() => (noisePct === null ? null : noiseBand(noisePct)), [noisePct])
   // The y-axis range zoomed to, forgotten once the comparison is replaced, as Plotly forgets it.

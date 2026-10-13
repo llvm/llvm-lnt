@@ -52,7 +52,7 @@ const STATUS_COLORS: Record<Status, string> = {
 }
 
 /** The colour of the shadow's line (CP8): apart from those of the statuses. */
-const SHADOW_COLOR = '#7c3aed'
+export const SHADOW_COLOR = '#7c3aed'
 
 /**
  * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, followed by

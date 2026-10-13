@@ -2,18 +2,15 @@ import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
-import { chartProps } from '../../test/chart-props'
 import { uuidOf } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
-import { COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
+import { chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
-/** What the page last handed its chart. */
-const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
 
 /** The shadow's line, if drawn: its points' log2 ratios, and their tests. */
 function line() {

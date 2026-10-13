@@ -11,14 +11,11 @@ import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { mockClipboard } from '../../test/clipboard'
 import { uuidOf } from '../../test/fixtures'
 import type { PlotGeometry } from '../../components/chart'
-import { chartProps } from '../../test/chart-props'
-import { COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
+import { chart, COMPARED, comparison, mockWorld, pick, runBox } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
-/** What the page last handed its chart. */
-const chart = () => chartProps(screen.getByRole('img', { name: /^Ratio of B to A/ }))
 
 /** The bars of the chart, as their log2 ratios. */
 const barsOf = () => (chart().data[0] as PlotData).y as number[]

@@ -120,28 +120,10 @@
   width: 5rem;
 }
 
-/* The shadow's chip, above the chart (CP8), as the Graph page's chips look, marked in its colour. */
-.shadowChip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lnt-space-1);
-  padding: 0.15rem 0.25rem 0.15rem 0.5rem;
-  border: 1px solid var(--lnt-border);
-  border-radius: 999px;
-  background: var(--lnt-bg);
-}
-
+/* The mark of the shadow's chip (CP8): a stroke of its line. */
 .shadowMark {
   width: 1rem;
   height: 2px;
-  background: #7c3aed;
-}
-
-.shadowChip button {
-  padding: 0 0.35rem;
-  border: none;
-  background: none;
-  line-height: 1;
 }
 
 /* Add to Regression (CP9): its button, what was done beside it, and the panel it opens. */
