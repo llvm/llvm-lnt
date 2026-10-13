@@ -8,6 +8,7 @@ import { Select } from '../../components/select'
 import { labelOf } from '../../schema'
 import { useUrlState, useVisitKey } from '../../url-state'
 import type { NoiseKnob } from './comparison'
+import { ColumnsMenu } from './columns-menu'
 import { failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
 import { CompareTable } from './compare-table'
@@ -130,7 +131,12 @@ function ComparePage() {
       ) : wait === null ? (
         <>
           <SummaryBar counts={table.counts} />
-          <CompareTable {...table.view} />
+          <CompareTable
+            {...table.view}
+            menu={
+              <ColumnsMenu shown={settings.columns} onChange={(keys) => update({ columns: keys })} />
+            }
+          />
         </>
       ) : null}
     </section>

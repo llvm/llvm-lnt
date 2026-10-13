@@ -3,9 +3,10 @@
 import { AGGREGATIONS } from '../../aggregation'
 import { sortParam } from '../../components/table-sort'
 import type { NoiseKnob, NoiseSettings } from './comparison'
-import { SORTABLE } from './columns'
+import { OPTIONAL_KEYS, SORTABLE } from './columns'
 import {
   booleanParam,
+  enumListParam,
   enumParam,
   listParam,
   optionalNumberParam,
@@ -42,6 +43,8 @@ export const PARAMS = {
   hidden_test: listParam(),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
+  /** The optional columns shown (CP2), in the order of `OPTIONAL_KEYS`. */
+  columns: enumListParam(OPTIONAL_KEYS),
   // Delta % descending by default (CP2).
   sort: sortParam(SORTABLE, { column: 'delta_pct', direction: 'descending' }),
 }

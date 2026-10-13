@@ -1,4 +1,11 @@
-import { useCallback, useLayoutEffect, useMemo, useState, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { CopyButton } from '../../components/copy-button'
 import { DataTable, type Column } from '../../components/data-table'
 import type { RowSelection } from '../../components/range-selection'
@@ -46,7 +53,7 @@ function isolate(rows: RowSelection, test: string, shown: readonly string[]) {
 export interface TableView {
   /** The rows the table shows, in the order they are sorted in. */
   rows: ComparisonRow[]
-  /** The columns after the checkbox column. */
+  /** The columns after the checkbox column, the optional statistics included. */
   columns: CompareColumn[]
   /** Their tests, in the same order. */
   tests: string[]
@@ -65,6 +72,11 @@ export interface TableView {
   csv: (() => string) | null
 }
 
+interface Props extends TableView {
+  /** The Columns menu, on the summary message's row. */
+  menu: ReactNode
+}
+
 /**
  * The comparison table (CP2): a row per test, with a checkbox hiding it, each side's value, how
  * they differ and the test's status, sorted by any column, with the geomean summary row first.
@@ -74,6 +86,7 @@ export interface TableView {
 export function CompareTable({
   rows,
   columns: shownColumns,
+  menu,
   tests,
   hidden,
   summary,
@@ -83,7 +96,7 @@ export function CompareTable({
   sort,
   onSort,
   csv,
-}: TableView) {
+}: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
 
@@ -99,7 +112,12 @@ export function CompareTable({
       },
       ...shownColumns.map((column): Column<Row> => ({
         id: column.id,
-        header: column.header,
+        header:
+          column.headerTitle === undefined ? (
+            column.header
+          ) : (
+            <span title={column.headerTitle}>{column.header}</span>
+          ),
         looks: column.looks,
         cell: (row) =>
           row.test === null ? <GeomeanCell store={store} column={column} /> : column.cell(row),
@@ -142,7 +160,10 @@ export function CompareTable({
             <span title={notInUrl}> (too many hidden to reflect in the URL)</span>
           )}
         </p>
-        {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
+        <div className={styles.tableActions}>
+          {menu}
+          {csv !== null && <CopyButton text={csv}>Copy as CSV</CopyButton>}
+        </div>
       </div>
       <DataTable
         label="Comparison"

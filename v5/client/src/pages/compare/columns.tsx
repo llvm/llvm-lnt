@@ -29,6 +29,8 @@ export interface CompareColumn {
   /** How `sort` names the column (CP7). */
   id: string
   header: string
+  /** What the header explains on hover, if anything. */
+  headerTitle?: string
   looks?: readonly CellLook[]
   cell(row: Row): ReactNode
   /** What a test's row is sorted by: null for N/A, which sorts last in both directions. */
@@ -120,8 +122,8 @@ function statusLabel(status: Status, noise: NoiseReason[] = []): ReactNode {
   )
 }
 
-/** The columns of the comparison table. */
-export const COLUMNS: CompareColumn[] = [
+/** The columns every comparison table shows. */
+const COLUMNS: CompareColumn[] = [
   {
     id: 'test',
     header: 'Test',
@@ -145,8 +147,119 @@ export const COLUMNS: CompareColumn[] = [
   },
 ]
 
+/** The optional statistics columns (CP2 "Optional columns"), as `columns` names them (CP7). */
+export const OPTIONAL_KEYS = [
+  'samples',
+  'mean',
+  'median',
+  'min',
+  'max',
+  'stddev',
+  'cv',
+  'pvalue',
+] as const
+
+export type OptionalKey = (typeof OPTIONAL_KEYS)[number]
+
+/** An optional statistic: what it is called, how it is shown, and its value, per side or not. */
+type Statistic = { label: string; format: (value: number) => string } & (
+  | { perSide: true; of: (side: SideStatistics) => number | null }
+  | { perSide: false; of: (row: ComparisonRow) => number | null }
+)
+
+const toFixed2 = (value: number) => value.toFixed(2)
+
+/** A p-value: below 0.0001, in exponent notation, rather than with dozens of zeros. */
+const formatPValue = (value: number) =>
+  value !== 0 && value < 1e-4 ? value.toExponential(2) : formatNumber(value)
+
+/** The optional statistics (CP2 "Optional columns"), each over a side's samples for a test. */
+const STATISTICS: Record<OptionalKey, Statistic> = {
+  samples: { label: 'Samples', format: String, perSide: true, of: (side) => side.count },
+  mean: { label: 'Mean', format: formatNumber, perSide: true, of: (side) => side.mean },
+  median: { label: 'Median', format: formatNumber, perSide: true, of: (side) => side.median },
+  min: { label: 'Min', format: formatNumber, perSide: true, of: (side) => side.min },
+  max: { label: 'Max', format: formatNumber, perSide: true, of: (side) => side.max },
+  stddev: { label: 'Std dev', format: formatNumber, perSide: true, of: (side) => side.stddev },
+  cv: { label: 'CV %', format: toFixed2, perSide: true, of: (side) => side.cv },
+  pvalue: { label: 'P-value', format: formatPValue, perSide: false, of: (row) => row.pValue },
+}
+
+/** How the Columns menu names the optional statistic `key`. */
+export function optionalLabel(key: OptionalKey): string {
+  return STATISTICS[key].label
+}
+
+/** What a statistic's header says on hover: what it is computed over (CP2 "Optional columns"). */
+const OVER_A_SIDE =
+  "Over all the samples of the side's selected runs, whatever the sample and run aggregation."
+const OVER_BOTH_SIDES =
+  "Welch's t-test over all the samples of both sides' selected runs, whatever the sample and run " +
+  'aggregation.'
+
+/** A statistic of each test, as a column, empty on the geomean row. */
+function statisticColumn(
+  id: string,
+  header: string,
+  headerTitle: string,
+  value: (row: ComparisonRow) => number | null,
+  format: (value: number) => string,
+): CompareColumn {
+  const valueOf = (row: Row) => (row.test === null ? null : value(row))
+  return {
+    id,
+    header,
+    headerTitle,
+    looks: ['numeric', 'nowrap'],
+    cell: (row) => {
+      if (row.test === null) return null
+      const statistic = value(row)
+      return statistic === null ? NA : format(statistic)
+    },
+    sortKey: value,
+    csv: valueOf,
+  }
+}
+
+/** The columns of the optional statistic `key`: one per side, A before B, or one for the test. */
+function optionalColumns(key: OptionalKey): CompareColumn[] {
+  const statistic = STATISTICS[key]
+  const { label, format } = statistic
+  if (!statistic.perSide) {
+    return [statisticColumn(key, label, OVER_BOTH_SIDES, statistic.of, format)]
+  }
+  return [
+    statisticColumn(
+      `${key}_a`,
+      `${label} A`,
+      OVER_A_SIDE,
+      (row) => statistic.of(row.statisticsA),
+      format,
+    ),
+    statisticColumn(
+      `${key}_b`,
+      `${label} B`,
+      OVER_A_SIDE,
+      (row) => statistic.of(row.statisticsB),
+      format,
+    ),
+  ]
+}
+
+/**
+ * The table's columns with the optional ones `shown`, in the order of `OPTIONAL_KEYS`, between Ratio
+ * and Status.
+ */
+export function tableColumns(shown: readonly OptionalKey[]): CompareColumn[] {
+  const optional = OPTIONAL_KEYS.filter((key) => shown.includes(key)).flatMap(optionalColumns)
+  return [...COLUMNS.slice(0, -1), ...optional, ...COLUMNS.slice(-1)]
+}
+
+/** Every column of the table, whichever optional ones are shown. */
+const ALL_COLUMNS = tableColumns(OPTIONAL_KEYS)
+
 /** Every column the table can sort by, as `sort` names them (CP7). */
-export const SORTABLE = COLUMNS.map((column) => column.id)
+export const SORTABLE = ALL_COLUMNS.map((column) => column.id)
 
 /** `rows`, sorted by the column `id` in `direction` (see `sortRows`). */
 export function sortComparison(
@@ -154,7 +267,7 @@ export function sortComparison(
   id: string,
   direction: SortDirection,
 ): ComparisonRow[] {
-  const column = COLUMNS.find((entry) => entry.id === id)
+  const column = ALL_COLUMNS.find((entry) => entry.id === id)
   return column === undefined ? rows : sortRows(rows, column.sortKey, direction)
 }
 
