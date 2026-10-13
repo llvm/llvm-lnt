@@ -158,10 +158,10 @@ only once the new comparison has fully loaded (see AR2 "State").
 all use these rows.
 
 - **Geomean summary row**: no checkbox; see Computation Reference.
-- **Sorting**: by any column but the checkboxes, by clicking its header. The
-  default is Delta % descending. N/A sorts last in both directions. Status
-  sorts improved, regressed, noise, unchanged, then N/A. Ties are broken by
-  test name, ascending.
+- **Sorting**: by any column but the checkboxes and Profile, by clicking its
+  header. The default is Delta % descending. N/A sorts last in both
+  directions. Status sorts improved, regressed, noise, unchanged, then N/A.
+  Ties are broken by test name, ascending.
 - **Status colors**: green for improved, red for regressed. Noise rows show a
   grey "noise" label, whose tooltip lists each knob that triggered, with the
   test's value and the knob's threshold.
@@ -206,7 +206,9 @@ all use these rows.
   is removed, the table goes back to its default sort.
 - **Profile column**: when either side has a profile for a test in its
   selected runs, a "Profile" link leads to the Profiles page, pre-populated as
-  PF1 describes.
+  PF1 describes. The column comes last, and cannot be sorted by. It is shown
+  while any test of the comparison has a profile, whatever the test filter,
+  "Hide noise" and the hidden tests.
 
 
 #### Computation Reference
@@ -390,7 +392,8 @@ page.
 - The Profile column needs to know which tests of each side have a profile. For
   each side, `GET runs?machine={name}&commit={value}&has_profiles=true` lists
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
-  profiles of each of them. This never delays the comparison.
+  profiles of each of them that is selected. This never delays the
+  comparison.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   A side whose URL names no runs can only ask for samples once its runs are

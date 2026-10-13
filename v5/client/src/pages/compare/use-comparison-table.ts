@@ -19,11 +19,15 @@ const NO_TESTS: string[] = []
 
 const testOf = (row: ComparisonRow) => row.test
 
-/** The table of `comparison`, with the page's `settings`, which `update` changes. */
+/**
+ * The table of `comparison`, with the page's `settings`, which `update` changes, and the Profiles
+ * page of each test that has a profile, `links`.
+ */
 export function useComparisonTable(
   { tests, rows, biggerIsBetter }: Comparison,
   settings: Settings,
   update: (changes: Partial<Settings>) => void,
+  links: ReadonlyMap<string, string>,
 ) {
   const filter = useTextFilter(
     rows,
@@ -78,6 +82,12 @@ export function useComparisonTable(
     () => shown.filter((row) => !hiddenTests.has(row.test)),
     [shown, hiddenTests],
   )
+  // Whether to show the Profile column: whether any test of the comparison has a profile, whatever
+  // the filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
+  const profiled = useMemo(
+    () => allTests?.some((test) => links.has(test)) ?? false,
+    [allTests, links],
+  )
   const csv = useMemo(
     () => (compared.length === 0 ? null : () => comparisonCsv(columns, geomean, compared)),
     [columns, compared, geomean],
@@ -106,6 +116,8 @@ export function useComparisonTable(
     notInUrl: shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`,
     geomean,
     csv,
+    links,
+    profiled,
     empty:
       rows.length === 0
         ? 'No test has a value for this metric.'

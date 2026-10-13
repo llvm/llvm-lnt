@@ -55,8 +55,8 @@ export function useRun(suite: string, uuid: string) {
 }
 
 /** The tests of the run `uuid` that have a profile, each with its profile's UUID (E7). */
-export function useRunProfiles(suite: string, uuid: string) {
-  return useQuery({
+export function runProfilesQuery(suite: string, uuid: string) {
+  return queryOptions({
     queryKey: [...runKey(suite, uuid), 'profiles'],
     queryFn: async ({ signal }) => {
       const { items } = await unwrap(
@@ -73,11 +73,16 @@ export function useRunProfiles(suite: string, uuid: string) {
 }
 
 /**
- * The runs of `machine` at `commit` (E4), every one of them, in the order they were submitted: the
- * runs a side of the Compare page selects among (CP1).
+ * The runs of `machine` at `commit` (E4), every one of them that `filters` keeps, in the order they
+ * were submitted: the runs a side of the Compare page selects among (CP1), or those with profiles.
  */
-export function commitRunsQuery(suite: string, machine: string, commit: string) {
-  const query = { machine, commit }
+export function commitRunsQuery(
+  suite: string,
+  machine: string,
+  commit: string,
+  filters: { has_profiles?: true } = {},
+) {
+  const query = { machine, commit, ...filters }
   return queryOptions({
     queryKey: [...queryKeys.runs(suite), 'of-commit', query],
     queryFn: ({ signal }) =>

@@ -1,6 +1,6 @@
 /**
  * The world the Compare page's tests run in: a mocked API holding a few suites, two machines, their
- * commits and runs, and the runs' samples, and the means to read what the page shows.
+ * commits and runs, and the runs' samples and profiles, and the means to read what the page shows.
  */
 
 import { screen, waitFor, within } from '@testing-library/react'
@@ -73,6 +73,10 @@ interface World {
   sampleAnswer?: (hex: string) => Response | undefined
   /** How `GET runs` answers a query, if not with the runs it names. */
   runsAnswer?: (query: URLSearchParams) => Response | undefined
+  /** The tests each run has a profile of, by the hex of its UUID: by default, none. */
+  profiles?: Record<string, string[]>
+  /** How `GET runs/{uuid}/profiles` answers a run, by its UUID's hex, if not with its profiles. */
+  profilesAnswer?: (hex: string) => Response | undefined
 }
 
 /** The hex a run's UUID is made of (see `uuidOf`). */
@@ -88,6 +92,8 @@ export function mockWorld({
   samples = SAMPLES,
   sampleAnswer,
   runsAnswer,
+  profiles = {},
+  profilesAnswer,
 }: World = {}) {
   const sampled: string[] = []
   mockSuites(suites)
@@ -107,13 +113,16 @@ export function mockWorld({
   })
   mockRuns((query) => {
     const key = `${query.get('machine')}/${query.get('commit')}`
+    const profiled = query.get('has_profiles') === 'true'
     return cursorPage(
-      (runs[key] ?? []).map((hex, i) =>
-        run(hex, {
-          machine: query.get('machine')!,
-          commit: query.get('commit')!,
-          submitted_at: `2026-08-2${i}T10:00:00Z`,
-        }),
+      (runs[key] ?? []).flatMap((hex, i) =>
+        profiled && profiles[hex] === undefined
+          ? []
+          : run(hex, {
+              machine: query.get('machine')!,
+              commit: query.get('commit')!,
+              submitted_at: `2026-08-2${i}T10:00:00Z`,
+            }),
       ),
     )
   })
@@ -122,6 +131,13 @@ export function mockWorld({
     mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
       const answer = runsAnswer?.(new URL(request.url).searchParams)
       if (answer !== undefined) return answer as never
+    }),
+    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', ({ params }) => {
+      const hex = hexOf(params.uuid)
+      const answer = profilesAnswer?.(hex)
+      if (answer !== undefined) return answer as never
+      const tests = profiles[hex] ?? []
+      return HttpResponse.json({ items: tests.map((test) => ({ test, uuid: uuidOf('f') })) })
     }),
   )
   server.use(

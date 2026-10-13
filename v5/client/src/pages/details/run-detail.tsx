@@ -1,8 +1,9 @@
 import { useDeferredValue, useEffect, useMemo } from 'react'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, errorMessage, unwrap, type Schemas } from '../../api/client'
-import { fetchSamplePage, runKey, useRun, useRunProfiles } from '../../api/runs'
+import { fetchSamplePage, runKey, runProfilesQuery, useRun } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
 import { ButtonLink } from '../../components/button-link'
@@ -71,7 +72,7 @@ function RunContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
   // Fetched alongside the run rather than once it has loaded, since they take the longest. The
   // page shows them once the run has loaded, so that one that does not exist shows only that.
   const samples = useSamples(suite, uuid)
-  const profiles = useRunProfiles(suite, uuid)
+  const profiles = useQuery(runProfilesQuery(suite, uuid))
   const [settings, update] = useUrlState(PARAMS)
 
   const named = schema.metrics.find((entry) => entry.name === settings.metric)
@@ -188,7 +189,7 @@ interface SamplesProps {
   uuid: string
   samples: CursorPages<Sample>
   /** The tests of the run that have a profile. */
-  profiles: ReturnType<typeof useRunProfiles>
+  profiles: UseQueryResult<Schemas['RunProfile'][]>
   /** The metric shown, or none when the suite has no metrics. */
   metric: Metric | undefined
   onMetric(name: string): void

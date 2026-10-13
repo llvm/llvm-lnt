@@ -20,6 +20,7 @@ import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useComparison } from './use-comparison'
 import { useComparisonTable } from './use-comparison-table'
+import { useProfileLinks } from './use-profile-links'
 import { useSides } from './use-side'
 import styles from './compare.module.css'
 
@@ -41,8 +42,9 @@ function ComparePage() {
   const sides = useSides(settings, update, suites)
   const { a, b } = sides
   const { offered, metric } = useMetric(a, b, settings, update, suites)
+  const profiles = useProfileLinks(a, b)
   const comparison = useComparison(sides, metric, settings)
-  const table = useComparisonTable(comparison, settings, update)
+  const table = useComparisonTable(comparison, settings, update, profiles.links)
 
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
@@ -128,6 +130,13 @@ function ComparePage() {
           context={`The samples of ${runCount(failed.length)} could not be loaded`}
           error={failed[0].error}
           onRetry={() => failed.forEach((state) => state.retry())}
+        />
+      )}
+      {profiles.failure.error !== null && (
+        <ErrorMessage
+          context="The profiles could not be listed"
+          error={profiles.failure.error}
+          onRetry={profiles.failure.retry}
         />
       )}
       {wait?.kind === 'loading' ? (
