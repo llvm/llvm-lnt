@@ -6,6 +6,7 @@ import {
   compareLayout,
   noiseBand,
   ratioTicks,
+  shadowTrace,
   type Bar,
 } from './chart'
 import { statisticsOf, type ComparisonRow, type Status } from './comparison'
@@ -100,6 +101,11 @@ describe('chartExtent', () => {
     expect(chartExtent(bars, null)).toEqual([0, 1])
     expect(chartExtent(bars, noiseBand(10))).toEqual([Math.log2(0.9), 1])
   })
+
+  it("spans the shadow's points too", () => {
+    const bars = chartBars([row('a', 1, 2)])
+    expect(chartExtent(bars, null, chartBars([row('a', 1, 4), row('b', 2, 1)]))).toEqual([-1, 2])
+  })
 })
 
 describe('barTrace', () => {
@@ -124,6 +130,14 @@ describe('barTrace', () => {
       '1',
       '-50.00%',
     ])
+  })
+})
+
+describe('shadowTrace', () => {
+  it('draws a line through the points, with the tooltip of a bar labelled as the shadow', () => {
+    const trace = shadowTrace(chartBars([row('a', 1, 2), row('b', 2, 1)]))
+    expect(trace).toMatchObject({ type: 'scatter', mode: 'lines+markers', x: [0, 1], y: [-1, 1] })
+    expect(trace.hovertemplate).toMatch(/^<b>%\{customdata\[0\]\}<\/b> \(shadow\)<br>Ratio/)
   })
 })
 

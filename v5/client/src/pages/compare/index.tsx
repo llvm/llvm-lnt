@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import { useSuites } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -17,6 +17,8 @@ import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
 import { NOISE_PARAMS, noiseSettings, PARAMS } from './settings'
+import { useShadow, useShadowLine } from './shadow'
+import { ShadowStatus } from './shadow-status'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useComparison } from './use-comparison'
@@ -26,7 +28,7 @@ import { useSides } from './use-side'
 import styles from './compare.module.css'
 
 /**
- * The Compare page (CP1-CP7), started afresh whenever the user navigates to it -- a link to another
+ * The Compare page (CP1-CP9), started afresh whenever the user navigates to it -- a link to another
  * comparison while on this one, say -- so that it shows what the new URL names.
  */
 export default function Compare() {
@@ -42,10 +44,14 @@ function ComparePage() {
 
   const sides = useSides(settings, update, suites)
   const { a, b } = sides
+  // The button pinning the shadow, which takes the focus once the shadow is dismissed (CP8).
+  const pinButton = useRef<HTMLButtonElement>(null)
+  const shadow = useShadow(sides, settings, update, suites)
   const { offered, metric } = useMetric(a, b, settings, update, suites)
   const profiles = useProfileLinks(a, b)
   const comparison = useComparison(sides, metric, settings)
   const table = useComparisonTable(comparison, settings, update, profiles.links)
+  const line = useShadowLine(shadow, metric, settings, comparison, table.plotted)
 
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
@@ -82,7 +88,19 @@ function ComparePage() {
         >
           ⇄
         </button>
-        <SidePanel side={b} title="Side B (New)" suites={suites.data ?? []} />
+        <SidePanel
+          side={b}
+          title="Side B (New)"
+          suites={suites.data ?? []}
+          action={
+            comparison.tests !== undefined &&
+            !shadow.pinned && (
+              <button type="button" ref={pinButton} onClick={shadow.pin}>
+                Pin as shadow
+              </button>
+            )
+          }
+        />
       </div>
       <ControlsPanel>
         <div className={styles.settings}>
@@ -145,6 +163,7 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
+      <ShadowStatus shadow={shadow} pinButton={pinButton} />
       {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"
@@ -160,6 +179,7 @@ function ComparePage() {
         <>
           <CompareChart
             rows={table.plotted}
+            shadow={line}
             noisePct={noise.pct}
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}

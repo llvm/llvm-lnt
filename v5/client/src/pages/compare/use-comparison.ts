@@ -70,6 +70,8 @@ export interface Comparison {
   tests: ComparedTest[] | undefined
   /** Their rows, or none until then. */
   rows: ComparisonRow[]
+  /** Side A's value of each test, which the shadow is compared with too (CP8). */
+  valuesA: ReadonlyMap<string, number> | undefined
   biggerIsBetter: boolean
 }
 
@@ -96,5 +98,5 @@ export function useComparison(
         : NO_ROWS,
     [tests, valuesA, valuesB, biggerIsBetter, pct, pval, floor],
   )
-  return { tests, rows, biggerIsBetter }
+  return { tests, rows, valuesA, biggerIsBetter }
 }
