@@ -150,6 +150,26 @@ export const ROWS = [
   'c | N/A | 5 | N/A | N/A | N/A | N/A',
 ]
 
+/** A comparison in which a changes by 0.5% and d by 50%, b and c being on one side only. */
+export const NOISY: World = {
+  samples: {
+    '1': [
+      ['a', 100],
+      ['b', 2],
+      ['d', 2],
+    ],
+    '2': [
+      ['a', 100],
+      ['d', 2],
+    ],
+    '3': [
+      ['a', 100.5],
+      ['c', 5],
+      ['d', 3],
+    ],
+  },
+}
+
 /** The rows of the comparison table, once it shows. */
 export async function comparison() {
   return rowsOf(await table('Comparison'))

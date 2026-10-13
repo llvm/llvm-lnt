@@ -12,6 +12,7 @@ import {
   CATEGORY_LABELS,
   STATUSES,
   type ComparisonRow,
+  type NoiseReason,
   type SideStatistics,
   type Status,
   type Values,
@@ -88,9 +89,31 @@ function numberColumn(
   }
 }
 
-/** A row's status, in its colour: green for improved, red for regressed, grey otherwise (CP2). */
-function statusLabel(status: Status): ReactNode {
-  return <span className={clsx(styles.status, styles[status])}>{CATEGORY_LABELS[status]}</span>
+/** Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2). */
+function describeNoise({ knob, value, threshold }: NoiseReason): string {
+  switch (knob) {
+    case 'pct':
+      return `Delta ${formatNumber(value)}% below ${threshold}% threshold`
+    case 'pval':
+      return `p-value ${formatNumber(value)} above ${threshold}`
+    case 'floor':
+      return `max(|A|, |B|) = ${formatNumber(value)} below floor of ${threshold}`
+  }
+}
+
+/**
+ * A row's status, in its colour: green for improved, red for regressed, grey otherwise, and for
+ * noise, the knobs that classified it so on hover (CP2).
+ */
+function statusLabel(status: Status, noise: NoiseReason[] = []): ReactNode {
+  return (
+    <span
+      className={clsx(styles.status, styles[status])}
+      title={noise.length > 0 ? noise.map(describeNoise).join('\n') : undefined}
+    >
+      {CATEGORY_LABELS[status]}
+    </span>
+  )
 }
 
 /** The columns of the comparison table. */
@@ -110,7 +133,7 @@ export const COLUMNS: CompareColumn[] = [
     id: 'status',
     header: 'Status',
     looks: ['nowrap'],
-    cell: (row) => statusLabel(row.status),
+    cell: (row) => statusLabel(row.status, row.test === null ? undefined : row.noise),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row) => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),
   },

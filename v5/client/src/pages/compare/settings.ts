@@ -2,11 +2,13 @@
 
 import { AGGREGATIONS } from '../../aggregation'
 import { sortParam } from '../../components/table-sort'
+import type { NoiseKnob, NoiseSettings } from './comparison'
 import { SORTABLE } from './columns'
 import {
   booleanParam,
   enumParam,
   listParam,
+  optionalNumberParam,
   stringParam,
   trimmedStringParam,
 } from '../../url-state'
@@ -28,6 +30,11 @@ export const PARAMS = {
   // How both sides' runs are combined, and the samples within each run (CP1).
   run_agg: enumParam(AGGREGATIONS, 'median'),
   sample_agg: enumParam(AGGREGATIONS, 'median'),
+  // Each noise knob's value, present exactly while the knob is enabled (CP1).
+  noise_pct: optionalNumberParam(0),
+  noise_pval: optionalNumberParam(0, 1),
+  noise_floor: optionalNumberParam(0),
+  hide_noise: booleanParam(false),
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
   // Delta % descending by default (CP2).
@@ -65,4 +72,20 @@ export const CLEARED_WITH = {
 export function sideChanges(side: SideId, changes: Partial<SideSettings>): Partial<Settings> {
   const entries = Object.entries(changes).map(([key, value]) => [`${key}_${side}`, value])
   return Object.fromEntries(entries) as Partial<Settings>
+}
+
+/** The URL parameter of each noise knob (CP7). */
+export const NOISE_PARAMS = {
+  pct: 'noise_pct',
+  pval: 'noise_pval',
+  floor: 'noise_floor',
+} as const satisfies Record<NoiseKnob, keyof Settings>
+
+/** Each noise knob's threshold, as `settings` holds it, or null while it is disabled (CP7). */
+export function noiseSettings(settings: Settings): NoiseSettings {
+  return {
+    pct: settings[NOISE_PARAMS.pct],
+    pval: settings[NOISE_PARAMS.pval],
+    floor: settings[NOISE_PARAMS.floor],
+  }
 }

@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import { useSuites } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -6,10 +7,12 @@ import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import { labelOf } from '../../schema'
 import { useUrlState, useVisitKey } from '../../url-state'
+import type { NoiseKnob } from './comparison'
 import { failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
 import { CompareTable } from './compare-table'
-import { PARAMS } from './settings'
+import { NoiseControls } from './noise-controls'
+import { NOISE_PARAMS, noiseSettings, PARAMS } from './settings'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
 import { useComparison } from './use-comparison'
@@ -34,6 +37,11 @@ function ComparePage() {
   const { offered, metric } = useMetric(a, b, settings, update, suites)
   const comparison = useComparison(sides, metric, settings)
   const table = useComparisonTable(comparison, settings, update)
+
+  const onNoise = useCallback(
+    (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
+    [update],
+  )
 
   const failed = failedRuns(a, b, sides.states)
   const wait = waiting(a, b, sides.states, {
@@ -99,6 +107,12 @@ function ComparePage() {
             placeholder="Filter tests..."
             regex={settings.test_filter_regex}
             onRegexChange={(regex) => update({ test_filter_regex: regex })}
+          />
+          <NoiseControls
+            noise={noiseSettings(settings)}
+            onNoise={onNoise}
+            hideNoise={settings.hide_noise}
+            onHideNoise={(hide) => update({ hide_noise: hide })}
           />
         </div>
       </ControlsPanel>
