@@ -102,21 +102,26 @@ export function comparePath(
   ])
 }
 
-/** One side of the Profiles page (PF9): the profile of `test` in `run`, as far as given. */
+/**
+ * One side of the Profiles page (PF9): the profile of `test` in `run`, a run of `machine` at
+ * `commit`, as far as given.
+ */
 interface ProfileSide {
   suite?: string
+  machine?: string
+  commit?: string
   run?: string
   test?: string
 }
 
 /** The Profiles page (PF9), with side A, and side B, set as far as given. */
 export function profilesPath(a: ProfileSide = {}, b: ProfileSide = {}): string {
-  return withQuery('/profiles', [
-    ['suite_a', a.suite],
-    ['run_a', a.run],
-    ['test_a', a.test],
-    ['suite_b', b.suite],
-    ['run_b', b.run],
-    ['test_b', b.test],
-  ])
+  const side = (suffix: string, { suite, machine, commit, run, test }: ProfileSide): Param[] => [
+    [`suite_${suffix}`, suite],
+    [`machine_${suffix}`, machine],
+    [`commit_${suffix}`, commit],
+    [`run_${suffix}`, run],
+    [`test_${suffix}`, test],
+  ]
+  return withQuery('/profiles', [...side('a', a), ...side('b', b)])
 }

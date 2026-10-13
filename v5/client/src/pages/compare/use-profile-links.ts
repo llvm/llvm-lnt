@@ -82,8 +82,13 @@ function combineProfiles(
   return { profiles: results.map((result) => result.data), failures: failuresOf(results) }
 }
 
-/** A side of the Profiles page: the profile of `test` in the run `ref`. */
-const profileOf = ({ suite, uuid }: RunRef, test: string) => ({ suite, run: uuid, test })
+/**
+ * A side of the Profiles page: the profile of `test` in the run `ref`, one of the runs of `machine`
+ * at `commit` (PF1).
+ */
+function profileOf(machine: string, commit: string, ref: RunRef | undefined, test: string) {
+  return ref && { suite: ref.suite, machine, commit, run: ref.uuid, test }
+}
 
 /**
  * The Profile column's links, from the profiles of both sides' selected runs (CP6). A side whose
@@ -99,6 +104,8 @@ export function useProfileLinks(a: Side, b: Side): ProfileLinks {
     queries: refs.map((ref) => runProfilesQuery(ref.suite, ref.uuid)),
     combine: combineProfiles,
   })
+  const { machine: machineA, commit: commitA } = a.settings
+  const { machine: machineB, commit: commitB } = b.settings
   const links = useMemo(() => {
     const listed = new Map(refs.map((ref, i) => [runRefKey(ref), profiles[i]]))
     const ofA = profiledBy(refsA, listed)
@@ -106,11 +113,14 @@ export function useProfileLinks(a: Side, b: Side): ProfileLinks {
     const result = new Map<string, string>()
     for (const test of new Set([...(ofA?.keys() ?? []), ...(ofB?.keys() ?? [])])) {
       // Side A of the Profiles page shows whichever side has a profile, when only one does.
-      const [first, second] = [ofA?.get(test), ofB?.get(test)].filter((ref) => ref !== undefined)
-      result.set(test, profilesPath(profileOf(first, test), second && profileOf(second, test)))
+      const [first, second] = [
+        profileOf(machineA, commitA, ofA?.get(test), test),
+        profileOf(machineB, commitB, ofB?.get(test), test),
+      ].filter((side) => side !== undefined)
+      result.set(test, profilesPath(first, second))
     }
     return result
-  }, [refs, profiles, refsA, refsB])
+  }, [refs, profiles, refsA, refsB, machineA, commitA, machineB, commitB])
 
   const failure = failuresOf([
     sideA.query,

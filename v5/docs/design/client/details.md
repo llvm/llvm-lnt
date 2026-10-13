@@ -174,8 +174,8 @@ count (see AR7). Once they are all loaded, the count reflects the filter (e.g.
 appear as separate rows. The table says `This run has no samples.` when there are none, and
 `No tests match the filter.` when the filter keeps none.
 
-Tests with profiles show a "Profile" link/icon in the samples table. The link navigates
-to `/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.
+Tests with profiles show a "Profile" link in the samples table. The link leads to the
+Profiles page, with side A set to this run and the row's test (see PF1).
 
 
 ## DT3: Commit Detail -- `/suites/{ts}/commits/{value}`
