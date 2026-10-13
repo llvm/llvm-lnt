@@ -18,6 +18,7 @@ const plotly = vi.hoisted(() => {
     ),
     purge: vi.fn(),
     Plots: { resize: vi.fn(async () => {}) },
+    Fx: { unhover: vi.fn() },
   }
 })
 vi.mock('plotly.js-basic-dist-min', () => ({ default: plotly }))
@@ -104,6 +105,20 @@ describe('Chart', () => {
 
     expect(onClick).toHaveBeenCalledWith(event)
     expect(onUnhover).toHaveBeenCalledWith(event)
+  })
+
+  it('drops the hover label of a point clicked only when the click opened something', async () => {
+    const onClick = vi.fn(() => false)
+    render(chart({ onClick }))
+    await waitFor(() => expect(plotly.listeners.has('plotly_click')).toBe(true))
+    const event = { points: [{ curveNumber: 0 }] } as PlotMouseEvent
+
+    plotly.listeners.get('plotly_click')!(event)
+    expect(plotly.Fx.unhover).not.toHaveBeenCalled()
+
+    onClick.mockReturnValue(true)
+    plotly.listeners.get('plotly_click')!(event)
+    expect(plotly.Fx.unhover).toHaveBeenCalledWith(screen.getByRole('img', { name: 'A trend' }))
   })
 
   it("reports where the plot draws once a draw moves it, from Plotly's layout", async () => {

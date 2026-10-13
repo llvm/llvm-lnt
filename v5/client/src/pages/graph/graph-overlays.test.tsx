@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import type { PlotGeometry } from '../../components/chart'
+import { formatTimestamp, shortUuid } from '../../format'
 import { cursorPage, metric, regression, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { currentUrl, gate, main, mockRegressions, query, renderPage, search } from '../../test/page'
@@ -76,9 +77,14 @@ function details() {
   return within(screen.getByRole('dialog'))
 }
 
-/** The circles of the runs of the point hovered, by their place on the chart. */
+/** The markers of the points' samples (GR10). */
+function circles() {
+  return [...screen.getByRole('main').querySelectorAll('circle')]
+}
+
+/** The markers of the points' samples, by their place on the chart. */
 function scatter() {
-  return [...screen.getByRole('main').querySelectorAll('circle')].map((circle) => ({
+  return circles().map((circle) => ({
     x: Number(circle.getAttribute('cx')),
     y: Number(circle.getAttribute('cy')),
   }))
@@ -170,14 +176,14 @@ describe('hover (GR7, GR10)', () => {
     expect(opacities()).toEqual([undefined, undefined, undefined])
   })
 
-  it('shows the values of the runs of a point hovered that combines several', async () => {
-    // At c10, run r1's median is 3, and r2's is 10. c20 has one run.
+  it('shows every sample of a point hovered that has several, even from a single run', async () => {
+    // c10 has one run with three samples; c20 has one run with a single sample.
     const samples: Record<string, Sample[]> = {
       'm1/a': [
         ['c10', 'r1', 1],
         ['c10', 'r1', 5],
-        ['c10', 'r2', 10],
-        ['c20', 'r3', 2],
+        ['c10', 'r1', 9],
+        ['c20', 'r2', 2],
       ],
     }
     mockWorld({ samples })
@@ -188,10 +194,11 @@ describe('hover (GR7, GR10)', () => {
     hover('a - m1', 0)
     // At c10's position, 0, over the plotting area, which starts at (50, 10).
     expect(scatter()).toEqual([
-      { x: 0, y: 360 },
-      { x: 0, y: 290 },
+      { x: 0, y: 380 },
+      { x: 0, y: 340 },
+      { x: 0, y: 300 },
     ])
-    const circle = screen.getByRole('main').querySelector('circle')!
+    const [circle] = circles()
     expect(circle).toHaveAttribute('fill-opacity', '0.3')
     expect(circle).toHaveAttribute('fill', (curve('a - m1') as PlotData).line.color as string)
 
@@ -201,6 +208,28 @@ describe('hover (GR7, GR10)', () => {
     unhover()
     expect(scatter()).toEqual([])
   })
+
+  it("shows the samples of all of a point's runs, not their per-run values", async () => {
+    // At c10, run r1's median is 3, and r2's is 10: the samples are 1, 5 and 10.
+    const samples: Record<string, Sample[]> = {
+      'm1/a': [
+        ['c10', 'r1', 1],
+        ['c10', 'r1', 5],
+        ['c10', 'r2', 10],
+      ],
+    }
+    mockWorld({ samples })
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+
+    hover('a - m1', 0)
+    expect(scatter()).toEqual([
+      { x: 0, y: 380 },
+      { x: 0, y: 340 },
+      { x: 0, y: 290 },
+    ])
+  })
 })
 
 describe('the point details (GR11)', () => {
@@ -209,6 +238,8 @@ describe('the point details (GR11)', () => {
       ['c10', 'r1', 1],
       // Submitted after r3, though listed first.
       ['c20', 'r2', 2, '2026-08-26T10:00:00Z'],
+      // Two samples, listed in ascending order whatever the order they arrive in.
+      ['c20', 'r3', 6, '2026-08-25T10:00:00Z'],
       ['c20', 'r3', 4, '2026-08-25T10:00:00Z'],
     ],
   }
@@ -236,7 +267,7 @@ describe('the point details (GR11)', () => {
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
       'Submitted',
       'Run',
-      'Value',
+      'Samples',
     ])
     const runs = within(table).getAllByRole('row').slice(1)
     expect(runs.map((run) => within(run).getByRole('link').getAttribute('href'))).toEqual([
@@ -244,7 +275,7 @@ describe('the point details (GR11)', () => {
       '/suites/libcxx/runs/r2',
     ])
     expect(runs.map((run) => within(run).getAllByRole('cell').at(-1)?.textContent)).toEqual([
-      '4',
+      '4\u00a0· 6',
       '2',
     ])
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })
@@ -430,6 +461,89 @@ describe('the point details (GR11)', () => {
     fireEvent.click(testTable().getByRole('checkbox', { name: 'a' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+})
+
+describe('the samples of the point whose details are open (GR10, GR11)', () => {
+  const SAMPLES: Record<string, Sample[]> = {
+    'm1/a': [
+      ['c10', 'r1', 1],
+      ['c10', 'r1', 5],
+      ['c20', 'r2', 2, '2026-08-26T10:00:00Z'],
+      ['c20', 'r3', 6, '2026-08-25T10:00:00Z'],
+      ['c20', 'r3', 4, '2026-08-25T10:00:00Z'],
+      ['c30', 'r4', 3],
+    ],
+  }
+
+  async function renderOpen(index: number) {
+    mockWorld({ samples: SAMPLES })
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+    click('a - m1', index)
+  }
+
+  it("stay while the details are open, with the hovered point's, and go as they do", async () => {
+    await renderOpen(1)
+    const user = userEvent.setup()
+    // At c20's position, 1, over the plotting area, which starts at (50, 10).
+    const c20 = [
+      { x: 100, y: 370 },
+      { x: 100, y: 330 },
+      { x: 100, y: 350 },
+    ]
+    expect(scatter()).toEqual(c20)
+
+    hover('a - m1', 0)
+    expect(scatter()).toEqual([{ x: 0, y: 380 }, { x: 0, y: 340 }, ...c20])
+    // Not twice for the open point hovered.
+    hover('a - m1', 1)
+    expect(scatter()).toEqual(c20)
+    unhover()
+    expect(scatter()).toEqual(c20)
+
+    await user.keyboard('{Escape}')
+    expect(scatter()).toEqual([])
+
+    click('a - m1', 1)
+    fireEvent.pointerDown(main().getByRole('heading', { name: 'Graph' }))
+    expect(scatter()).toEqual([])
+
+    click('a - m1', 1)
+    await pickOption('Sample aggregation', 'max')
+    expect(scatter()).toEqual([])
+
+    // A point with a single sample has none to show.
+    click('a - m1', 2)
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('a on m1 at r30')
+    expect(scatter()).toEqual([])
+  })
+
+  it("show a sample's tooltip on hover, and leave the details open when pressed", async () => {
+    await renderOpen(1)
+    const user = userEvent.setup()
+    const circle = circles()[1]
+
+    fireEvent.pointerEnter(circle)
+    const tip = screen.getByRole('tooltip')
+    // Its run, as the details list it, then its value.
+    expect([...tip.children].map((line) => line.textContent)).toEqual([
+      formatTimestamp('2026-08-25T10:00:00Z'),
+      shortUuid('r3'),
+      'Value: 6',
+    ])
+    // Beside the sample, at c20's position, 1, and its value, 6, away from the details.
+    expect(tip).toHaveStyle({ left: '150px', top: '340px' })
+    expect(tip.style.transform).toMatch(/^translate\(calc\(-100% - 8px\)/)
+    fireEvent.pointerLeave(circle)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    // The details keep the focus, for Escape to close them.
+    await user.click(circle)
+    expect(screen.getByRole('dialog')).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 

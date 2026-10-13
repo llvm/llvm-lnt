@@ -13,6 +13,11 @@ declare module 'plotly.js-basic-dist-min' {
       /** Rejected when `root` is not displayed, unlike what the types for Plotly 3 say. */
       resize(root: Plotly.Root): Promise<void>
     }
+    /** Which the types for Plotly 3 leave out. */
+    Fx: {
+      /** Hide the hover label of the plot in `root`, as if the pointer had left its point. */
+      unhover(root: Plotly.Root): void
+    }
   }
   export default plotly
 }

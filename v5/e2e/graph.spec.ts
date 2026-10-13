@@ -103,30 +103,70 @@ test("lists the tests of a Dashboard card's machines, and plots none", async ({ 
   await expect(tracesOf(page)).toHaveCount(0)
 })
 
-test("shows a point's runs on hover, and its details on a click (GR10, GR11)", async ({ page }) => {
+test("shows a point's samples on hover, and keeps them with its details (GR10, GR11)", async ({
+  page,
+  request,
+}) => {
   await page.goto(LINUX_TEST)
   await expect(tracesOf(page)).toHaveCount(1)
 
-  // A point that combines several runs, whose values the hover scatter shows (GR10), and that
-  // has a point before it to compare with (GR11).
-  const index = await plotOf(page).evaluate((element) => {
+  // A point of a single run, whose samples the hover scatter shows (GR10), and that has a point
+  // before it to compare with (GR11).
+  const { index, commit } = await plotOf(page).evaluate((element) => {
     const [trace] = (element as PlotDiv & { _fullData: { customdata: string[][] }[] })._fullData
-    return trace.customdata.findIndex(([, , runs], i) => i > 0 && runs !== '1 run')
+    const index = trace.customdata.findIndex(([, , runs], i) => i > 0 && runs === '1 run')
+    return { index, commit: String(trace.x[index]) }
   })
   expect(index).toBeGreaterThan(0)
+  const response = await request.post('/api/suites/libcxx/query', {
+    data: { metric: 'execution_time', machine: LINUX, test: [TEST], commit },
+  })
+  expect(response.status(), await response.text()).toBe(200)
+  const { items } = (await response.json()) as ListPage<{ run_uuid: string }>
+  const samples = items.length
+  expect(samples).toBeGreaterThan(1)
+
   const position = await pointOf(page, 0, index)
+  const plotLabel = page.locator('.hoverlayer')
+  const circles = page.locator('svg[class*="scatter"] circle')
   await plotOf(page).hover({ position })
-  await expect(page.locator('.hoverlayer')).toContainText('Click for details')
-  await expect(page.locator('svg[class*="scatter"] circle').first()).toBeVisible()
-  expect(await page.locator('svg[class*="scatter"] circle').count()).toBeGreaterThan(1)
+  await expect(plotLabel).toContainText('Click for details')
+  await expect(circles).toHaveCount(samples)
 
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog')
   await expect(details).toBeFocused()
+  // The details take the place of Plotly's label, which would linger over the samples.
+  await expect(plotLabel).not.toContainText('Click for details')
   expect(await details.getAttribute('aria-label')).toMatch(`${TEST} on ${LINUX} at `)
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare with previous commit' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
+
+  // The samples stay while the details are open, wherever the pointer is.
+  await plotOf(page).hover({ position: { x: 5, y: 5 } })
+  await expect(circles).toHaveCount(samples)
+
+  // Hovering one shows its tooltip in place of Plotly's. The sample at the point's value, which is
+  // their median, is within the plot whatever its range, and over the point itself: Plotly's label
+  // shows beside it.
+  await plotOf(page).hover({ position: { x: position.x + 6, y: position.y } })
+  await expect(plotLabel).toContainText('Click for details')
+  const top = (await plotOf(page).boundingBox())!.y + position.y
+  const nearest = await circles.evaluateAll((all, top) => {
+    const off = all.map((circle) => Math.abs(circle.getBoundingClientRect().y + 4 - top))
+    return off.indexOf(Math.min(...off))
+  }, top)
+  const median = circles.nth(nearest)
+  await median.hover()
+  const tip = page.getByRole('tooltip')
+  const run = items[0].run_uuid.slice(0, 8)
+  await expect(tip.locator('span')).toHaveText([/^\d{4}-\d\d-\d\d, /, `${run}…`, /^Value: \d/])
+  await expect(plotLabel).not.toContainText('Click for details')
+
+  // Pressing it leaves the details open, with the focus for Escape to close them, and their links.
+  await median.click()
+  await expect(details).toBeFocused()
 
   await details.getByRole('table', { name: 'Runs' }).getByRole('link').first().click()
   await expect(page).toHaveURL(/\/suites\/libcxx\/runs\//)
@@ -154,6 +194,7 @@ test("marks a regression at its commit, and shows its details from its marker (G
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog', { name: 'Regression: std::format slowdown' })
   await expect(details).toBeFocused()
+  await expect(page.locator('.hoverlayer')).not.toContainText('std::format slowdown')
   await details.getByRole('link', { name: `${uuid.slice(0, 8)}…` }).click()
   await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
 })

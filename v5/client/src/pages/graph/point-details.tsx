@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { Link } from 'react-router'
 import type { Aggregation } from '../../aggregation'
 import type { TraceState } from '../../api/series'
@@ -8,7 +9,7 @@ import { formatTimestamp, plural, shortUuid } from '../../format'
 import { commitPath, comparePath, machinePath, runPath } from '../../paths'
 import { formatMetricValue, type Metric } from '../../schema'
 import { ChartDialog, type Anchor } from './chart-dialog'
-import type { Point, RunValue } from './points'
+import type { Point, RunSamples } from './points'
 import styles from './graph.module.css'
 
 interface Props {
@@ -19,8 +20,8 @@ interface Props {
   point: Point
   /** The display value of the point's commit. */
   display: string
-  /** The point's runs, each with its value, in the order they were submitted. */
-  runs: RunValue[]
+  /** The point's runs, in the order they were submitted, each with its samples, ascending. */
+  runs: RunSamples[]
   /** The point before it on its trace, if there is one. */
   previous: Point | null
   /** How far the trace's data is loaded. */
@@ -29,12 +30,14 @@ interface Props {
   runAgg: Aggregation
   /** Where the point is. */
   at: Anchor
+  /** The markers of the point's samples (GR10), a press on which does not close the details. */
+  companion?: RefObject<Element | null>
   onClose(returnFocus?: boolean): void
 }
 
 /**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
- * value, the runs the value combines, and a comparison with the point before it.
+ * value, its runs with their samples, and a comparison with the point before it.
  */
 export function PointDetails({
   schema,
@@ -49,6 +52,7 @@ export function PointDetails({
   sampleAgg,
   runAgg,
   at,
+  companion,
   onClose,
 }: Props) {
   const suite = schema.name
@@ -74,6 +78,7 @@ export function PointDetails({
       label={`${test} on ${machine} at ${display}`}
       title={test}
       at={at}
+      companion={companion}
       onClose={onClose}
     >
       <dl className={styles.detailsInfo}>
@@ -107,10 +112,10 @@ export function PointDetails({
   )
 }
 
-const runKey = (run: RunValue) => run.run
+const runKey = (run: RunSamples) => run.run
 
-/** The columns of the table of a point's runs: when each was submitted, which, and its value. */
-function runColumns(suite: string, metric: Metric): Column<RunValue>[] {
+/** The columns of the table of a point's runs: when each was submitted, which, and its samples. */
+function runColumns(suite: string, metric: Metric): Column<RunSamples>[] {
   return [
     {
       id: 'submitted',
@@ -125,10 +130,11 @@ function runColumns(suite: string, metric: Metric): Column<RunValue>[] {
       looks: ['mono', 'nowrap'],
     },
     {
-      id: 'value',
-      header: 'Value',
-      cell: (run) => formatMetricValue(run.value, metric),
-      looks: ['numeric', 'nowrap'],
+      id: 'samples',
+      header: 'Samples',
+      // A long list wraps after a separator rather than before it.
+      cell: (run) => run.samples.map((value) => formatMetricValue(value, metric)).join('\u00a0· '),
+      looks: ['numeric'],
     },
   ]
 }
