@@ -95,6 +95,26 @@ describe('useUrlState', () => {
     expect(result.current.state.machine).toEqual(['a', 'b'])
   })
 
+  it('reads a setting afresh for other parameters of the same name', () => {
+    // Two parameters spelling a value alike in the URL, but reading it differently.
+    const lower = { x: listParam() }
+    const upper = {
+      x: {
+        default: [],
+        parse: (values: string[]) => values.map((value) => value.toUpperCase()),
+        serialize: (value: string[]) => value.map((item) => item.toLowerCase()),
+      },
+    }
+    const { result, rerender } = renderHook(({ params }) => useUrlState(params)[0], {
+      ...providers({ url: '/graph?x=a' }),
+      initialProps: { params: lower as typeof lower | typeof upper },
+    })
+    expect(result.current.x).toEqual(['a'])
+
+    rerender({ params: upper })
+    expect(result.current.x).toEqual(['A'])
+  })
+
   it('leaves alone the parameters it does not declare', () => {
     const result = renderSettings('/graph?tab=runs&metric=a')
 

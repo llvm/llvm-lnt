@@ -146,27 +146,27 @@ interface Reading {
 
 /**
  * The settings, and the values to rewrite: unusable ones to their default, others canonically. A
- * setting whose values in the URL are those of its reading in `readings` keeps the value it had,
- * the same array for a list, so that what a page computes from it is not computed again whenever
- * another setting changes. `readings` is updated with what is read.
+ * setting whose values in the URL are those of its reading in `readings`, by its parameter, keeps
+ * the value it had, the same array for a list, so that what a page computes from it is not
+ * computed again whenever another setting changes. `readings` is updated with what is read.
  */
 function read<P extends Params>(
   params: P,
   search: URLSearchParams,
-  readings: Map<string, Reading>,
+  readings: WeakMap<Param<unknown>, Reading>,
 ) {
   const values: Record<string, unknown> = {}
   const rewrites: Record<string, unknown> = {}
   for (const [key, param] of Object.entries(params)) {
     const raw = search.getAll(key)
-    const last = readings.get(key)
+    const last = readings.get(param)
     const value =
       last !== undefined && sameElements(last.raw, raw)
         ? last.value
         : raw.length === 0
           ? param.default
           : (param.parse(raw) ?? param.default)
-    readings.set(key, { raw, value })
+    readings.set(param, { raw, value })
     values[key] = value
     if (!sameElements(raw, canonical(param, value))) rewrites[key] = value
   }
@@ -201,7 +201,7 @@ export function useUrlState<P extends Params>(
   if (pendingRef === null) throw new Error('useUrlState must be used inside a UrlStateProvider')
 
   // What each setting was last read as, which only ever lets a setting keep the value it had.
-  const [readings] = useState(() => new Map<string, Reading>())
+  const [readings] = useState(() => new WeakMap<Param<unknown>, Reading>())
   const { values, rewrites } = useMemo(
     () => read(params, new URLSearchParams(location.search), readings),
     [params, location.search, readings],
