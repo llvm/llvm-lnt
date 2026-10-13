@@ -69,8 +69,8 @@ interface World {
   samples?: Record<string, [string, number][]>
   /** How `GET runs/{uuid}/samples` answers a run, by its UUID's hex, if not with its samples. */
   sampleAnswer?: (hex: string) => Response | undefined
-  /** How `GET runs` answers for a machine, if not with its runs: profiled or not. */
-  runsAnswer?: (machine: string) => Response | undefined
+  /** How `GET runs` answers a query, if not with the runs it names. */
+  runsAnswer?: (query: URLSearchParams) => Response | undefined
   /** The tests each run has a profile of, by the hex of its UUID: by default, none. */
   profiles?: Record<string, string[]>
   /** How `GET runs/{uuid}/profiles` answers a run, by its UUID's hex, if not with its profiles. */
@@ -127,7 +127,7 @@ export function mockWorld({
   // After `mockRuns`, whose answers it takes precedence over, falling back on them.
   server.use(
     mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
-      const answer = runsAnswer?.(new URL(request.url).searchParams.get('machine')!)
+      const answer = runsAnswer?.(new URL(request.url).searchParams)
       if (answer !== undefined) return answer as never
     }),
     mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', ({ params }) => {

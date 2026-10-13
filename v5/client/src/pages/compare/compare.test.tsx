@@ -917,13 +917,11 @@ describe('the Profile column (CP2)', () => {
   })
 
   it('says when the runs with profiles could not be listed, still comparing', async () => {
-    mockWorld({ profiles: PROFILES })
-    server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
-        if (new URL(request.url).searchParams.has('has_profiles'))
-          return errorResponse(500, 'internal_error', 'Boom') as never
-      }),
-    )
+    mockWorld({
+      profiles: PROFILES,
+      runsAnswer: (query) =>
+        query.has('has_profiles') ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
     renderPage(COMPARED)
 
     expect(
@@ -1114,8 +1112,8 @@ describe('loading (CP6)', () => {
 
   it('reports runs that could not be listed, and waits for none', async () => {
     mockWorld({
-      runsAnswer: (machine) =>
-        machine === 'm1' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+      runsAnswer: (query) =>
+        query.get('machine') === 'm1' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
     })
     renderPage(COMPARED)
 
@@ -1150,8 +1148,10 @@ describe('loading (CP6)', () => {
 
   it('drops a machine that does not exist, without reporting its runs or profiles', async () => {
     mockWorld({
-      runsAnswer: (machine) =>
-        machine === 'bogus' ? errorResponse(404, 'not_found', 'No such machine') : undefined,
+      runsAnswer: (query) =>
+        query.get('machine') === 'bogus'
+          ? errorResponse(404, 'not_found', 'No such machine')
+          : undefined,
     })
     renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')
 

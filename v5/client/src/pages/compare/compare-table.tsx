@@ -84,7 +84,7 @@ interface Props {
   /** What the table says when it has no row, and why. */
   empty: string
   /** The Profiles page of each test that has a profile, by test. */
-  profiles: ProfileMap
+  links: ProfileMap
   /** Whether any compared test has a profile, which the Profile column is shown for. */
   profiled: boolean
   /** The test whose bar is hovered on the chart, whose row the table highlights (CP5). */
@@ -122,14 +122,14 @@ export function CompareTable({
   csv,
   hovered,
   emphasis,
-  profiles,
+  links,
   profiled,
 }: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
   // Read by the Profile column's cells, so that the rows need not render again as profiles arrive.
-  const [links] = useState(() => new ValueStore(profiles))
-  useLayoutEffect(() => links.set(profiles), [profiles, links])
+  const [linkStore] = useState(() => new ValueStore(links))
+  useLayoutEffect(() => linkStore.set(links), [links, linkStore])
 
   const columns = useMemo(() => {
     const all: Column<Row>[] = [
@@ -167,11 +167,11 @@ export function CompareTable({
         id: 'profile',
         header: <VisuallyHidden>Profile</VisuallyHidden>,
         looks: ['nowrap'],
-        cell: (row) => (row.test === null ? null : <ProfileLink store={links} test={row.test} />),
+        cell: (row) => (row.test === null ? null : <ProfileLink store={linkStore} test={row.test} />),
       })
     }
     return all
-  }, [hidden, tests, store, shownColumns, hovered, profiled, links])
+  }, [hidden, tests, store, shownColumns, hovered, profiled, linkStore])
 
   const rowProps = useCallback(
     (row: Row) => {

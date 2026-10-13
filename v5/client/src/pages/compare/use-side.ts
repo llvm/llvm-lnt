@@ -30,6 +30,8 @@ export interface Side {
   schema: SuiteSchema | undefined
   /** The suite's machines, and the suggestions of the combobox picking one. */
   machines: ReturnType<typeof useMachineSuggestions>
+  /** Whether the side names a suite, a machine and a commit, which its runs are listed for. */
+  listed: boolean
   /** The runs of the machine at the commit, in the order they were submitted. */
   runs: UseQueryResult<Run[]>
   /** The selection among the runs. */
@@ -151,6 +153,7 @@ export function useSide(
     update: updateSide,
     schema,
     machines,
+    listed,
     runs,
     selection: rows,
     selected: known ? selected : undefined,

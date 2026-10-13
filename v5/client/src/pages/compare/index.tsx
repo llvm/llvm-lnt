@@ -371,7 +371,7 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
-      {profiles.failure !== null && (
+      {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"
           error={profiles.failure.error}
@@ -414,7 +414,7 @@ function ComparePage() {
             busy={reclassifying}
             hovered={hovered}
             emphasis={emphasis}
-            profiles={links}
+            links={links}
             profiled={profiled}
             empty={
               rows.length === 0
