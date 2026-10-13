@@ -4,6 +4,7 @@
  */
 
 import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape } from 'plotly.js'
+import { noDataAnnotations } from '../../components/plot-annotations'
 import { escapeHtml, plural, regressionTitle } from '../../format'
 import type { RegressionState } from '../../regression-states'
 import { formatMetricValue, type Metric } from '../../schema'
@@ -263,18 +264,6 @@ export function graphLayout({
     hovermode: 'closest',
     hoverdistance: 8,
     uirevision: revision,
-    annotations: empty
-      ? [
-          {
-            text: 'No data to plot',
-            showarrow: false,
-            xref: 'paper',
-            yref: 'paper',
-            x: 0.5,
-            y: 0.5,
-            font: { size: 16, color: '#6b7280' },
-          },
-        ]
-      : [],
+    annotations: noDataAnnotations(empty),
   }
 }

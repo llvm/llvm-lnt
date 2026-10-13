@@ -219,12 +219,7 @@ export function useBaselines(
 
 /** The baselines named by the URL's `values`, each parsed once. */
 export function useParsedBaselines(values: readonly string[]): Baseline[] {
-  // By their text, since the URL's values are a new array whenever any other setting changes.
-  const key = values.join('\n')
-  return useMemo(
-    () => (key === '' ? [] : key.split('\n').flatMap((value) => parseBaseline(value) ?? [])),
-    [key],
-  )
+  return useMemo(() => values.flatMap((value) => parseBaseline(value) ?? []), [values])
 }
 
 /**

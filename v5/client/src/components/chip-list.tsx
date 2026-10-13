@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react'
-import styles from './graph.module.css'
+import styles from './chip-list.module.css'
 
 export interface Chip {
   key: string
@@ -20,9 +20,10 @@ interface Props {
 }
 
 /**
- * Chips, one per line, each removed with its button: the machines plotted (GR1), the baselines
- * (GR9). Once a chip is removed, the focus goes to the button of the chip after it, or else before
- * it, or to `focusWhenEmpty` once none is left, rather than to the page.
+ * Chips, one per line, each removed with its button: the Graph page's machines plotted (GR1) and
+ * baselines (GR9), the Compare page's shadow (CP8). Once a chip is removed, the focus goes to the
+ * button of the chip after it, or else before it, or to `focusWhenEmpty` once none is left, rather
+ * than to the page.
  */
 export function ChipList({ label, chips, removeLabel, onRemove, focusWhenEmpty }: Props) {
   const buttons = useRef(new Map<string, HTMLButtonElement>())

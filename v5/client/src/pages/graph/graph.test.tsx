@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { colorOfName } from '../../chart-colors'
 import { cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockTests, renderPage, search } from '../../test/page'
+import { currentUrl, gate, main, mockTests, query, renderPage, search } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
@@ -21,7 +21,6 @@ import {
   listed,
   mockWorld,
   pointOf,
-  query,
   testPage,
   testTable,
   traces,

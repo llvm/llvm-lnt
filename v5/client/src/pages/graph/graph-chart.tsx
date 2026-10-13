@@ -8,6 +8,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
 import { Chart, type PlotGeometry } from '../../components/chart'
 import { compareStrings } from '../../format'
+import { sameElements } from '../../same-elements'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
 import { useStoreValue, type ValueStore } from '../../value-store'
 import type { BaselineState } from './baselines'
@@ -80,9 +81,6 @@ function useThrottled<T>(value: T, key: string, throttled: boolean, interval: nu
   }, [value, key, throttled, interval])
   return current ? shown.value : value
 }
-
-const sameList = (a: readonly unknown[], b: readonly unknown[]) =>
-  a.length === b.length && a.every((item, i) => Object.is(item, b[i]))
 
 /** A trace's points, and what besides its measurements they were computed from. */
 interface Computed {
@@ -326,7 +324,7 @@ export function GraphChart({
   }, [])
   // Any change to what the chart is drawn from, besides data arriving, closes the details (GR11).
   const [drawnFrom, setDrawnFrom] = useState(closeOn)
-  if (!sameList(drawnFrom, closeOn)) {
+  if (!sameElements(drawnFrom, closeOn)) {
     setDrawnFrom(closeOn)
     setOpen(null)
   }

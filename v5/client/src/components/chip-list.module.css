@@ -1,0 +1,27 @@
+/* Chips, one per line, each with its button removing it (see chip-list.tsx). */
+.chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lnt-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+  padding: 0.15rem 0.25rem 0.15rem 0.5rem;
+  border: 1px solid var(--lnt-border);
+  border-radius: 999px;
+  background: var(--lnt-bg);
+}
+
+.remove {
+  padding: 0 0.35rem;
+  border: none;
+  background: none;
+  line-height: 1;
+}

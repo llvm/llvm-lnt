@@ -35,13 +35,6 @@
   margin-top: var(--lnt-space-3);
 }
 
-/* A label that explains itself on hover. */
-.help {
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  cursor: help;
-}
-
 /* A line saying how much a table holds, above it. */
 .summary {
   margin: 0 0 var(--lnt-space-2);

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useLocation, useNavigationType } from 'react-router'
-import { AGGREGATIONS, type Aggregation } from '../../aggregation'
+import { AGGREGATION_OPTIONS, AGGREGATIONS, type Aggregation } from '../../aggregation'
 import { useMachineNames } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
@@ -25,6 +24,7 @@ import {
   trimmedStringParam,
   useDropUnusable,
   useUrlState,
+  useVisitKey,
 } from '../../url-state'
 import { ValueStore } from '../../value-store'
 import { BaselinePanel } from './baseline-panel'
@@ -76,23 +76,16 @@ const PARAMS = {
   baseline: baselineParam(),
 }
 
-const AGGREGATION_OPTIONS = AGGREGATIONS.map((value) => ({ value, label: value }))
-
 const NO_NAMES: string[] = []
 const NO_SUITES: SuiteSchema[] = []
 const nameOf = (name: string) => name
 
 /**
  * The Graph page (GR1-GR14), started afresh whenever the user navigates to it -- a link to another
- * graph while on this one, say -- so that its selection is the one the new URL names. Its own
- * changes to the URL replace the history entry (AR2 "State"), and leave it as it is.
+ * graph while on this one, say -- so that its selection is the one the new URL names.
  */
 export default function Graph() {
-  const location = useLocation()
-  const navigation = useNavigationType()
-  const [visit, setVisit] = useState(location.key)
-  if (navigation !== 'REPLACE' && location.key !== visit) setVisit(location.key)
-  return <GraphPage key={visit} />
+  return <GraphPage key={useVisitKey()} />
 }
 
 function GraphPage() {
@@ -375,7 +368,7 @@ function GraphPage() {
           settings.test_filter_regex,
           settings.sample_agg,
           settings.run_agg,
-          settings.baseline.join('\n'),
+          settings.baseline,
           mode,
         ]}
       />
