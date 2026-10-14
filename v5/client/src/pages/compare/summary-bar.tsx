@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { plural } from '../../format'
-import { CATEGORIES, CATEGORY_LABELS, COMPARABLE, formatShare, type Category } from './comparison'
+import { CATEGORIES, COMPARABLE, formatShare, LABELS, type Category } from './comparison'
 import styles from './compare.module.css'
 
 const isComparable = (category: Category) => (COMPARABLE as readonly string[]).includes(category)
@@ -12,7 +12,7 @@ const isComparable = (category: Category) => (COMPARABLE as readonly string[]).i
  */
 export function SummaryBar({ counts }: { counts: Record<Category, number> }) {
   const comparable = COMPARABLE.reduce((sum, category) => sum + counts[category], 0)
-  const denominator =
+  const shareTitle =
     `Out of the ${plural(comparable, 'test')} improved, regressed, noise or unchanged.`
   return (
     <ul className={styles.summary} aria-label="Summary">
@@ -22,8 +22,8 @@ export function SummaryBar({ counts }: { counts: Record<Category, number> }) {
         return (
           <li key={category} className={clsx(styles.category, count === 0 && styles.muted)}>
             <span className={clsx(styles.dot, styles[category])} aria-hidden="true" />
-            {CATEGORY_LABELS[category]}{' '}
-            <span title={share ? denominator : undefined}>
+            {LABELS[category]}{' '}
+            <span title={share ? shareTitle : undefined}>
               {share ? `${count} (${formatShare(count, comparable)})` : count}
             </span>
           </li>

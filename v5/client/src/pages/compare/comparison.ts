@@ -219,7 +219,7 @@ export function sideValues(
 /** The statuses of a test whose sides can be compared, which CP4 gives the share of. */
 export const COMPARABLE = ['improved', 'regressed', 'noise', 'unchanged'] as const
 
-/** The statuses of CP2, in the order the table sorts them and CP4 lists them. */
+/** The statuses of CP2, in the order the table sorts them and CP4 lists the comparable ones. */
 export const STATUSES = [...COMPARABLE, 'na'] as const
 
 export type Status = (typeof STATUSES)[number]
@@ -357,7 +357,7 @@ export const CATEGORIES = [...COMPARABLE, 'onlyA', 'onlyB', 'zeroBaseline'] as c
 export type Category = (typeof CATEGORIES)[number]
 
 /** How the table names each status, and the summary bar each category. */
-export const CATEGORY_LABELS: Record<Status | Category, string> = {
+export const LABELS: Record<Status | Category, string> = {
   improved: 'Improved',
   regressed: 'Regressed',
   noise: 'Noise',
@@ -369,8 +369,8 @@ export const CATEGORY_LABELS: Record<Status | Category, string> = {
 }
 
 /**
- * The summary bar's category of a row: the side it has a value on, if only one, or its status, an
- * N/A one being a zero baseline.
+ * The summary bar's category of a row: the side it has a value on, if only one, else its status,
+ * with N/A as Zero baseline.
  */
 export function categoryOf(row: Values): Category {
   if (row.a === null) return 'onlyB'

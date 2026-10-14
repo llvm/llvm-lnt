@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { summaryCounts, type Category } from './comparison'
+import { CATEGORIES, summaryCounts, type Category } from './comparison'
 import { SummaryBar } from './summary-bar'
 
 const counts = (shown: Partial<Record<Category, number>>) => ({ ...summaryCounts([]), ...shown })
@@ -30,6 +30,6 @@ describe('SummaryBar', () => {
   it('explains no denominator while there is no share', () => {
     render(<SummaryBar counts={counts({ onlyA: 1, onlyB: 1 })} />)
 
-    expect(categories().map(([, title]) => title)).toEqual(Array(7).fill(null))
+    expect(categories().map(([, title]) => title)).toEqual(CATEGORIES.map(() => null))
   })
 })

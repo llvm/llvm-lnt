@@ -318,6 +318,14 @@ describe('the summary bar (CP4)', () => {
       'Zero baseline 0',
     ])
   })
+
+  it('counts a zero baseline as such, though its status is N/A', async () => {
+    mockWorld({ samples: { '1': [['a', 0]], '2': [['a', 0]], '3': [['a', 5]] } })
+    renderPage(COMPARED)
+
+    expect((await comparison())[1]).toBe('a | 0 | 5 | 5 | N/A | N/A | N/A')
+    expect(screen.getByRole('list', { name: 'Summary' })).toHaveTextContent('Zero baseline 1')
+  })
 })
 
 describe('loading (CP6)', () => {

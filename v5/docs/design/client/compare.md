@@ -367,8 +367,7 @@ others.
 percentage, whose denominator is the sum of comparable categories only.
 Percentages use one decimal place, except whole numbers drop the trailing `.0`
 (e.g. `25%` not `25.0%`). When there are no comparable tests, they show just
-the count. A tooltip on each comparable count explains the denominator while it
-shows a percentage.
+the count. A tooltip on each percentage explains its denominator.
 
 **What is counted**: every test in the comparison that matches the test
 filter, including hidden tests and noise tests, even when "Hide noise" is
