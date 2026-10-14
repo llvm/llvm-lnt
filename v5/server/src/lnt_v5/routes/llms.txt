@@ -100,6 +100,7 @@ GET    /api/suites/{testsuite}/profiles/{uuid}/document       read    The whole 
 
 GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, search=, sort=, ...)
 POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
+POST   /api/suites/{testsuite}/regressions/resolve            read    Look up many regressions by UUID at once
 GET    /api/suites/{testsuite}/regressions/{uuid}             read    One regression, with its indicators
 PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit
 DELETE /api/suites/{testsuite}/regressions/{uuid}             triage  Delete a regression

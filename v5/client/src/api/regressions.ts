@@ -20,6 +20,30 @@ type RegressionDetail = Schemas['RegressionDetail']
 type Indicator = Schemas['Indicator']
 type IndicatorObject = Schemas['IndicatorObject']
 
+export type RegressionSummary = Schemas['RegressionSummary']
+
+/**
+ * The regressions named by `uuids`, keyed by UUID, from one `POST /regressions/resolve` (E8): what
+ * an indicator lookup that only names regression UUIDs needs to show their metadata. A UUID no
+ * regression has is absent from the map.
+ */
+export async function resolveRegressions(
+  suite: string,
+  uuids: string[],
+  signal?: AbortSignal,
+): Promise<Map<string, RegressionSummary>> {
+  const distinct = [...new Set(uuids)]
+  if (distinct.length === 0) return new Map()
+  const resolved = await unwrap(
+    api.POST('/api/suites/{testsuite}/regressions/resolve', {
+      params: { path: { testsuite: suite } },
+      body: { regressions: distinct },
+      signal,
+    }),
+  )
+  return new Map(Object.entries(resolved.results))
+}
+
 /** E8's limit on a regression's title or bug (D5's column). */
 export const TEXT_LENGTH = 256
 
@@ -207,11 +231,10 @@ const NO_FAILURES: Failures = { error: null, retry: () => {} }
 /**
  * The regressions in one of `states` with an indicator naming one of `machines`, `metric`, and one
  * of `tests`, attributed to a commit (GR15), unless `enabled` is false. Their indicators come from
- * the indicator lookup (E8), and their title, state and commit from the list of the suite's
- * regressions in those states with an indicator naming the metric, joined on their UUID. The two
- * are fetched apart, so that selecting a test asks for the indicators only, and the regressions
- * marked stay until they arrive. Both are under the suite's regressions, which a change to one
- * marks stale.
+ * the indicator lookup (E8), and their title, state and commit from resolving those regressions in
+ * bulk (`POST /regressions/resolve`), joined on their UUID. The two are fetched apart, so that
+ * selecting a test asks for the indicators only, and the regressions marked stay until they arrive.
+ * Both are under the suite's regressions, which a change to one marks stale.
  */
 export function useMarkedRegressions(
   suite: string,
@@ -245,24 +268,33 @@ export function useMarkedRegressions(
     enabled,
     placeholderData: keepPreviousData,
   })
-  const list = useQuery({
-    queryKey: [...queryKeys.regressions(suite), 'marked', 'list', { metric, states }],
-    queryFn: ({ signal }) =>
-      fetchEveryPage((cursor) =>
-        fetchRegressions(
-          suite,
-          { state: [...states], metric, has_commit: true, limit: MAX_PAGE_SIZE, cursor },
-          signal,
-        ),
-      ),
-    enabled,
-  })
 
   // By name, since a caller's lists may be new arrays of the same names.
   const askedMachines = machines.join('\0')
   const askedTests = tests.join('\0')
+
+  const askedUuids = useMemo(() => {
+    if (!enabled || indicators.data === undefined) return []
+    const onMachines = new Set(askedMachines.split('\0'))
+    const ofTests = new Set(askedTests.split('\0'))
+    const found = new Set<string>()
+    for (const { regression_uuid, machine, test } of indicators.data) {
+      if (onMachines.has(machine) && ofTests.has(test)) {
+        found.add(regression_uuid)
+      }
+    }
+    return [...found].sort()
+  }, [enabled, indicators.data, askedMachines, askedTests])
+
+  const resolved = useQuery({
+    queryKey: [...queryKeys.regressions(suite), 'marked', 'resolve', askedUuids],
+    queryFn: ({ signal }) => resolveRegressions(suite, askedUuids, signal),
+    enabled: enabled && indicators.data !== undefined,
+    placeholderData: keepPreviousData,
+  })
+
   const regressions = useMemo(() => {
-    if (!enabled || indicators.data === undefined || list.data === undefined) return NOTHING_MARKED
+    if (!enabled || indicators.data === undefined || resolved.data === undefined) return NOTHING_MARKED
     // The indicators kept from the previous lookup until the current one arrives may name machines
     // and tests that are no longer asked about.
     const onMachines = new Set(askedMachines.split('\0'))
@@ -274,14 +306,23 @@ export function useMarkedRegressions(
       if (known === undefined) tested.set(regression_uuid, (known = new Set()))
       known.add(test)
     }
-    return list.data.flatMap(({ uuid, title, state, commit, bug, created_at }) => {
-      const affected = tested.get(uuid)
-      return affected === undefined || commit === null
-        ? []
-        : [{ uuid, title, state, commit, bug, created_at, tests: affected }]
-    })
-  }, [enabled, indicators.data, list.data, askedMachines, askedTests])
+    const result: MarkedRegression[] = []
+    for (const [uuid, tests] of tested) {
+      const summary = resolved.data.get(uuid) ?? resolved.data.get(uuid.toLowerCase())
+      if (summary === undefined || summary.commit === null) continue
+      result.push({
+        uuid: summary.uuid,
+        title: summary.title,
+        state: summary.state,
+        commit: summary.commit,
+        bug: summary.bug,
+        created_at: summary.created_at,
+        tests,
+      })
+    }
+    return result
+  }, [enabled, indicators.data, resolved.data, askedMachines, askedTests])
 
   // A query disabled keeps the error it last had.
-  return { regressions, ...(enabled ? failuresOf([indicators, list]) : NO_FAILURES) }
+  return { regressions, ...(enabled ? failuresOf([indicators, resolved]) : NO_FAILURES) }
 }

@@ -41,6 +41,9 @@ from sqlalchemy import (
     Row,
     Select,
     Table,
+    Text,
+    any_,
+    bindparam,
     delete,
     func,
     insert,
@@ -49,6 +52,7 @@ from sqlalchemy import (
     true,
     update,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as upsert
 
 from lnt_v5 import examples
@@ -110,6 +114,7 @@ from lnt_v5.suites.tables import (
 )
 
 REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
+REGRESSIONS_RESOLVE_PATH = f"{REGRESSIONS_PATH}/resolve"
 INDICATORS_PATH = f"{REGRESSIONS_PATH}/{{uuid}}/indicators"
 INDICATOR_LOOKUP_PATH = f"{REGRESSIONS_PATH}/indicators/query"
 
@@ -192,6 +197,27 @@ _QUERY_EXAMPLES = {
             "test": [examples.TEST, examples.OTHER_TEST],
             "metric": examples.METRIC,
             "state": ["detected", "active"],
+        },
+    }
+}
+
+_REGRESSION_SUMMARY = {
+    "uuid": examples.REGRESSION_UUID,
+    "title": examples.REGRESSION_TITLE,
+    "bug": examples.BUG,
+    "state": "detected",
+    "commit": examples.COMMIT,
+    "created_at": "2026-08-14T02:41:12Z",
+}
+
+_RESOLVE_EXAMPLES = {
+    "regressions": {
+        "summary": "Resolve two regressions by UUID",
+        "value": {
+            "regressions": [
+                examples.REGRESSION_UUID,
+                "experiment-not-found",
+            ]
         },
     }
 }
@@ -319,6 +345,47 @@ class RegressionDetail(_Regression):
             "empty: a regression can be created without indicators, and its indicators are "
             "deleted along with their machine, or when their metric is removed from the schema."
         )
+    )
+
+
+class RegressionSummary(_Regression):
+    """A performance regression being investigated, without notes, indicators or counts."""
+
+
+class ResolveRegressionsRequest(BaseModel):
+    """The regressions to look up."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Bounded in length but not in what each entry may say: a value too long to be a UUID, or
+    # shaped like nothing that could be one, is still a value this suite does not hold, and the
+    # endpoint's contract is to report that under `not_found` rather than fail the whole lookup.
+    # The exception is a NUL (D5), which cannot even be compared against a stored value and so is
+    # refused like one anywhere else. The count is capped at I2's page ceiling, so that a response
+    # is never larger than a page of any other list.
+    regressions: list[Annotated[str, Storable]] = Field(
+        min_length=1,
+        max_length=MAX_LIMIT,
+        description=(
+            "The UUIDs of the regressions to look up, from 1 to 10000 of them. Duplicates are "
+            "ignored. Values that don't match any regression are listed in `not_found`."
+        ),
+    )
+
+
+# A lookup table keyed by regression UUID rather than one of I2's envelopes: I2's `items` rule
+# governs a response that is a sequence of results, and a client resolving a batch of indicators
+# looks each one up by the UUID it already holds.
+class ResolvedRegressions(BaseModel):
+    """The regressions that were found, and the UUIDs that weren't."""
+
+    results: dict[str, RegressionSummary] = Field(
+        description="The regressions that were found, keyed by UUID.",
+        examples=[{examples.REGRESSION_UUID: _REGRESSION_SUMMARY}],
+    )
+    not_found: list[str] = Field(
+        description="The UUIDs that don't match any regression.",
+        examples=[["experiment-not-found"]],
     )
 
 
@@ -652,6 +719,9 @@ class Regressions:
             machine_count=row._mapping[self.machine_count],
             test_count=row._mapping[self.test_count],
         )
+
+    def summary(self, row: Row[Any]) -> RegressionSummary:
+        return RegressionSummary.model_construct(**self._common(row))
 
     def detail(self, connection: Connection, uuid: str) -> RegressionDetail:
         """One regression with its indicators, as the detail, create and update responses go.
@@ -1086,6 +1156,52 @@ def create_regression(
 
     response.headers["Location"] = location_of(REGRESSIONS_PATH, testsuite, uuid)
     return detail
+
+
+# `read`-scoped despite being a POST: the body is a lookup key too long for a query string, not a
+# change (I5). Unpaginated, because the response is bounded by the request.
+@router.post(
+    "/resolve",
+    dependencies=[require_scope(Scope.READ)],
+    summary="Resolve regressions in bulk",
+    responses=suite_responses(),
+)
+def resolve_regressions(
+    testsuite: SuiteName,
+    body: Annotated[ResolveRegressionsRequest, Body(openapi_examples=_RESOLVE_EXAMPLES)],
+    engine: EngineDep,
+    registry: RegistryDep,
+) -> ResolvedRegressions:
+    """Look up many regressions by UUID in a single request, for example all the regressions
+    referred to by an indicator lookup. This is a POST only because the list can be too long for
+    a URL; it doesn't change anything."""
+    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+        regressions = Regressions(suite)
+        # Deduplicated case-insensitively, keeping the order the request gave, so that a client can
+        # read the response back in the order it asked -- `dict` preserves insertion order, and JSON
+        # objects render in it.
+        seen: set[str] = set()
+        requested: list[str] = []
+        for req in body.regressions:
+            lowered = req.lower()
+            if lowered not in seen:
+                seen.add(lowered)
+                requested.append(req)
+
+        # One array parameter rather than `IN`, which binds one parameter per value: the statement
+        # text is then the same whatever the request size, so the driver's prepared-statement
+        # cache holds one entry for this lookup rather than one per length. TEXT[] rather than the
+        # column's own VARCHAR(36)[], because casting to the latter would silently truncate a
+        # longer value and look up its prefix instead; the unique index still applies.
+        values = bindparam("values", [req.lower() for req in requested], type_=ARRAY(Text))
+        rows = connection.execute(
+            regressions.select().where(regressions.table.c.uuid == any_(values))
+        ).all()
+        found = {summary.uuid: summary for summary in (regressions.summary(row) for row in rows)}
+        return ResolvedRegressions(
+            results={req: found[req.lower()] for req in requested if req.lower() in found},
+            not_found=[req for req in requested if req.lower() not in found],
+        )
 
 
 @router.get(

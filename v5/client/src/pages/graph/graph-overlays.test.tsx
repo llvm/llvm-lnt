@@ -9,7 +9,15 @@ import type { PlotGeometry } from '../../components/chart'
 import { formatTimestamp, shortUuid } from '../../format'
 import { cursorPage, metric, regression, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockRegressions, query, renderPage, search } from '../../test/page'
+import {
+  currentUrl,
+  gate,
+  main,
+  mockResolveRegressions,
+  query,
+  renderPage,
+  search,
+} from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
@@ -560,8 +568,8 @@ const REGRESSIONS = [
 ]
 
 /**
- * Answer the indicator lookup with an indicator on m1 and test a for each of REGRESSIONS, and the
- * regression list with REGRESSIONS, recording the bodies of the lookups and the list's queries.
+ * Answer the indicator lookup with an indicator on m1 and test a for each of REGRESSIONS, and
+ * resolve them with REGRESSIONS, recording the bodies of the lookups and the resolve requests.
  */
 function mockRegressionWorld() {
   const lookups: Schemas['IndicatorQuery'][] = []
@@ -579,8 +587,8 @@ function mockRegressionWorld() {
       return HttpResponse.json(cursorPage(items))
     }),
   )
-  const lists = mockRegressions(() => cursorPage(REGRESSIONS))
-  return { lookups, lists }
+  const resolves = mockResolveRegressions(REGRESSIONS)
+  return { lookups, resolves }
 }
 
 /** The markers of the regressions on the chart. */
@@ -598,17 +606,17 @@ describe('the regression annotations (GR15)', () => {
 
   it('asks for nothing while off, the default', async () => {
     mockWorld()
-    const { lookups, lists } = mockRegressionWorld()
+    const { lookups, resolves } = mockRegressionWorld()
     renderPage(`${ONE_MACHINE}&test=a`)
     await waitFor(() => expect(dataTraces()).toHaveLength(1))
     expect(selectButton('Regressions')).toHaveTextContent('Off')
     expect(lookups).toEqual([])
-    expect(lists).toEqual([])
+    expect(resolves).toEqual([])
   })
 
   it("marks the plotted tests' regressions at their commit, by state, stacked", async () => {
     mockWorld()
-    const { lookups, lists } = mockRegressionWorld()
+    const { lookups, resolves } = mockRegressionWorld()
     renderPage(`${GRAPHED}&test=a&regressions=all`)
 
     await waitFor(() => expect(markers()).toHaveLength(2))
@@ -622,9 +630,7 @@ describe('the regression annotations (GR15)', () => {
         cursor: null,
       },
     ])
-    expect(lists.at(-1)?.getAll('state')).toHaveLength(5)
-    expect(lists.at(-1)?.get('metric')).toBe('execution_time')
-    expect(lists.at(-1)?.get('has_commit')).toBe('true')
+    expect(resolves.at(-1)).toEqual(REGRESSIONS.map((r) => r.uuid))
 
     const [active, fixed] = markers()
     expect(active.x).toEqual(['c20'])
@@ -718,7 +724,7 @@ describe('the regression annotations (GR15)', () => {
         return HttpResponse.json(cursorPage(items))
       }),
     )
-    mockRegressions(() => cursorPage(REGRESSIONS))
+    mockResolveRegressions(REGRESSIONS)
     renderPage(`${ONE_MACHINE}&test=a&test=b&regressions=all`)
     await waitFor(() => expect(markers()).toHaveLength(2))
 
@@ -743,10 +749,13 @@ describe('the regression annotations (GR15)', () => {
     mockRegressionWorld()
     let failing = true
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/regressions', () =>
+      mockApi('post', '/api/suites/{testsuite}/regressions/resolve', () =>
         failing
           ? errorResponse(500, 'internal_error', 'The regressions broke.')
-          : HttpResponse.json(cursorPage(REGRESSIONS)),
+          : HttpResponse.json({
+              results: Object.fromEntries(REGRESSIONS.map((r) => [r.uuid, r])),
+              not_found: [],
+            }),
       ),
     )
     renderPage(`${GRAPHED}&test=a&regressions=all`)

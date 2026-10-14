@@ -208,6 +208,27 @@ export function mockResolve(known: Commit[] = []) {
   return requests
 }
 
+/** Resolve the regressions among `known`; returns the regression UUIDs each request asked for. */
+export function mockResolveRegressions(known: Schemas['RegressionSummary'][] = []) {
+  const requests: string[][] = []
+  server.use(
+    mockApi('post', '/api/suites/{testsuite}/regressions/resolve', async ({ request }) => {
+      const { regressions } = await request.json()
+      requests.push(regressions)
+      const found = known.filter((r) =>
+        regressions.map((u: string) => u.toLowerCase()).includes(r.uuid.toLowerCase()),
+      )
+      return HttpResponse.json({
+        results: Object.fromEntries(found.map((r) => [r.uuid, r])),
+        not_found: regressions.filter(
+          (uuid: string) => !found.some((r) => r.uuid.toLowerCase() === uuid.toLowerCase()),
+        ),
+      })
+    }),
+  )
+  return requests
+}
+
 /** A promise, and the function that settles it. */
 export function gate() {
   let open = () => {}

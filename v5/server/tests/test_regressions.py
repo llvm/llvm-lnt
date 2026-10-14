@@ -27,13 +27,18 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, insert, select, update
+from sqlalchemy import Engine, event, func, insert, select, update
 
 from conftest import code_of, entry, recent, run_payload, uuids_in, walk_cursor, walk_pages
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
-from lnt_v5.routes.regressions import INDICATOR_LOOKUP_PATH, MAX_INDICATORS, REGRESSIONS_PATH
+from lnt_v5.routes.regressions import (
+    INDICATOR_LOOKUP_PATH,
+    MAX_INDICATORS,
+    REGRESSIONS_PATH,
+    REGRESSIONS_RESOLVE_PATH,
+)
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.states import RegressionState, RegressionStateName
@@ -41,6 +46,7 @@ from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
 REGRESSIONS = REGRESSIONS_PATH.format(testsuite="nts")
 LOOKUP = INDICATOR_LOOKUP_PATH.format(testsuite="nts")
+RESOLVE = REGRESSIONS_RESOLVE_PATH.format(testsuite="nts")
 RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 MACHINES = MACHINES_PATH.format(testsuite="nts")
@@ -1959,6 +1965,153 @@ class TestPagination:
         assert response.status_code == 200, response.text
 
 
+class TestBatchResolve:
+    @pytest.fixture
+    def resolve(self, api_client: TestClient) -> Callable[..., Any]:
+        def post(regressions: list[str]) -> Any:
+            return api_client.post(RESOLVE, json={"regressions": regressions})
+
+        return post
+
+    def test_returns_a_table_keyed_by_regression_uuid(
+        self, create: Callable[..., Any], resolve: Callable[..., Any]
+    ) -> None:
+        # I2: not one of the list envelopes -- a lookup table, which is what makes it useful.
+        r = create(title="Slowdown", bug="https://example.com/bug")
+
+        body = resolve([r["uuid"], "unknown"]).json()
+
+        assert body == {
+            "results": {
+                r["uuid"]: {
+                    "uuid": r["uuid"],
+                    "title": "Slowdown",
+                    "bug": "https://example.com/bug",
+                    "state": "detected",
+                    "commit": None,
+                    "created_at": r["created_at"],
+                }
+            },
+            "not_found": ["unknown"],
+        }
+
+    def test_carries_summary_fields_only(
+        self, create: Callable[..., Any], resolve: Callable[..., Any], data: None
+    ) -> None:
+        # Notes and indicators are left out (detail-only), as are machine and test counts
+        # (list-only).
+        r = create(notes="secret notes", indicators=[LINUX_ONE])
+
+        assert set(resolve([r["uuid"]]).json()["results"][r["uuid"]]) == {
+            "uuid",
+            "title",
+            "bug",
+            "state",
+            "commit",
+            "created_at",
+        }
+
+    def test_matches_case_insensitively_and_preserves_requested_casing_in_results(
+        self, create: Callable[..., Any], resolve: Callable[..., Any]
+    ) -> None:
+        r = create()
+        upper_uuid = r["uuid"].upper()
+
+        body = resolve([upper_uuid]).json()
+
+        assert upper_uuid in body["results"]
+        # The stored UUID inside the object is in lowercase canonical form.
+        assert body["results"][upper_uuid]["uuid"] == r["uuid"]
+        assert body["not_found"] == []
+
+    def test_deduplicates_the_request_case_insensitively(
+        self, create: Callable[..., Any], resolve: Callable[..., Any]
+    ) -> None:
+        r = create()
+        upper_uuid = r["uuid"].upper()
+
+        body = resolve([upper_uuid, r["uuid"], "nope", "NOPE"]).json()
+
+        assert list(body["results"]) == [upper_uuid]
+        assert body["not_found"] == ["nope"]
+
+    def test_resolves_nothing_rather_than_failing(
+        self, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        assert resolve(["nope"]).json() == {"results": {}, "not_found": ["nope"]}
+
+    def test_reports_a_value_no_regression_could_have_as_not_found(
+        self, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        body = resolve(["x" * 500]).json()
+
+        assert body == {"results": {}, "not_found": ["x" * 500]}
+
+    def test_refuses_a_value_holding_a_nul(
+        self, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        # D5: unlike a value merely too long to be a UUID, a NUL cannot even be compared against
+        # a stored one, so it is refused like it is anywhere else rather than reported as unknown.
+        response = resolve(["abc", "a\x00b"])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_accepts_as_many_values_as_a_page_may_hold(
+        self, create: Callable[..., Any], resolve: Callable[..., Any]
+    ) -> None:
+        r = create()
+
+        body = resolve([r["uuid"]] + [f"u{index}" for index in range(MAX_LIMIT - 1)]).json()
+
+        assert list(body["results"]) == [r["uuid"]]
+        assert len(body["not_found"]) == MAX_LIMIT - 1
+
+    def test_refuses_more_values_than_a_page_may_hold(
+        self, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        # I2's page ceiling, so that a response is never larger than a page of any other list.
+        response = resolve([f"u{index}" for index in range(MAX_LIMIT + 1)])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_sends_one_statement_whatever_the_request_size(
+        self, api_client: TestClient, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        engine: Engine = api_client.app.state.engine  # type: ignore[attr-defined]
+        seen: list[str] = []
+
+        def record(connection: object, cursor: object, statement: str, *rest: object) -> None:
+            if "nts.regression" in statement:
+                seen.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            resolve(["a"])
+            resolve(["a", "b", "c"])
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+
+        assert len(seen) == 2, seen
+        assert seen[0] == seen[1]
+
+    def test_needs_at_least_one_regression(
+        self, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        response = resolve([])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
+        response = api_client.post(
+            f"{SUITES_PATH}/nope/regressions/resolve", json={"regressions": ["abc"]}
+        )
+
+        assert response.status_code == 404
+
+
 class TestAuthorization:
     """I5: `read` for the GETs, `triage` for everything else."""
 
@@ -1978,6 +2131,12 @@ class TestAuthorization:
     ) -> None:
         # A POST, but a `read`-scoped one: it reads and changes nothing (E8, I5).
         assert api_client.post(LOOKUP, json={}).status_code == 200
+
+    def test_the_resolution_needs_no_credential(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        # A POST, but a `read`-scoped one: it reads and changes nothing (E8, I5).
+        assert api_client.post(RESOLVE, json={"regressions": ["abc"]}).status_code == 200
 
     @pytest.mark.parametrize(("method", "path", "body"), WRITES)
     def test_a_write_is_401_without_a_credential(

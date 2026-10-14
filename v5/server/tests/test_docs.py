@@ -22,6 +22,7 @@ from lnt_v5.routes.regressions import (
     INDICATOR_LOOKUP_PATH,
     INDICATORS_PATH,
     REGRESSIONS_PATH,
+    REGRESSIONS_RESOLVE_PATH,
 )
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
@@ -966,10 +967,11 @@ REGRESSIONS = REGRESSIONS_PATH
 REGRESSION = f"{REGRESSIONS_PATH}/{{uuid}}"
 INDICATORS = INDICATORS_PATH
 LOOKUP = INDICATOR_LOOKUP_PATH
+RESOLVE_REGRESSIONS = REGRESSIONS_RESOLVE_PATH
 
 
 class TestRegressionOperations:
-    """I8: the document describes what the API can actually do, including these eight."""
+    """I8: the document describes what the API can actually do, including these nine."""
 
     @pytest.mark.parametrize(
         ("path", "method"),
@@ -982,6 +984,7 @@ class TestRegressionOperations:
             (INDICATORS, "post"),
             (INDICATORS, "delete"),
             (LOOKUP, "post"),
+            (RESOLVE_REGRESSIONS, "post"),
         ],
     )
     def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
@@ -1003,6 +1006,7 @@ class TestRegressionOperations:
             (INDICATORS, "post"),
             (INDICATORS, "delete"),
             (LOOKUP, "post"),
+            (RESOLVE_REGRESSIONS, "post"),
         ],
     )
     @pytest.mark.parametrize("status", ["404", "409"])
@@ -1618,6 +1622,7 @@ EXAMPLE_SEQUENCE = [
     (INDICATORS_PATH, "post"),
     (INDICATORS_PATH, "delete"),
     (INDICATOR_LOOKUP_PATH, "post"),
+    (REGRESSIONS_RESOLVE_PATH, "post"),
     # Last among the suite's operations, since one of its examples removes a field.
     (f"{SUITES_PATH}/{{name}}/schema", "patch"),
     ("/api/admin/api-keys", "post"),

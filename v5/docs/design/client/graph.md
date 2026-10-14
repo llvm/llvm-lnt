@@ -318,7 +318,7 @@ not points.
 - `GET commits?machine={name}&commit={value}` (baselines loaded from the URL)
 - `GET machines` (machine combobox, and the baseline panel's machines)
 - `GET suites` (suite selector, and the selected suite's metrics)
-- `POST regressions/indicators/query` and `GET regressions` (regression
+- `POST regressions/indicators/query` and `POST regressions/resolve` (regression
   annotations; see GR15)
 
 
@@ -362,5 +362,5 @@ persisted in the URL as `regressions={off|active|all}`.
 The matching indicators come from the indicator lookup
 (`POST /regressions/indicators/query`; see E8), given the plotted machines, the
 metric, the selected tests and the mode's states. That lookup names each
-regression by UUID only; their title, state and commit come from the regression
-list (`GET /regressions`), joined on the UUID.
+regression by UUID only; their title, state and commit come from resolving those
+UUIDs in bulk (`POST /regressions/resolve`).

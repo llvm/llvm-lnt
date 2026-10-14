@@ -549,6 +549,40 @@ one request per combination -- for the Graph page's regression annotations
 - Sort: none. Results come in an arbitrary but deterministic order suitable for
   pagination (see I2 and O5).
 
+### Batch Resolve
+
+`POST /api/suites/{testsuite}/regressions/resolve` looks up many regressions by
+UUID at once. The body is `{"regressions": ["...", "..."]}`, with at least one
+regression UUID and no more than I2's maximum page size. Duplicates in the
+request are ignored: each regression appears at most once in the response.
+UUIDs are matched case-insensitively, and keys in `results` preserve the
+casing of the request.
+
+```json
+{
+  "results": {
+    "c4e1b7a2-9d3f-4a6e-8b5c-2f7e1d9a0b34": {
+      "uuid": "c4e1b7a2-9d3f-4a6e-8b5c-2f7e1d9a0b34",
+      "title": "std::find_if slowdown on x86-64",
+      "bug": "https://github.com/llvm/llvm-project/issues/160237",
+      "state": "detected",
+      "commit": "45c41247f82e5691425542de829d568cdc2fb580",
+      "created_at": "2026-08-14T02:41:12Z"
+    }
+  },
+  "not_found": ["experiment-not-found"]
+}
+```
+
+`results` maps each regression UUID that was found to its summary object
+(`{uuid, title, bug, state, commit, created_at}`), without the `notes` and
+`indicators` the detail response adds, and without the `machine_count` and
+`test_count` of the list response. Values that match no regression are listed
+in `not_found`. A value containing a NUL character is rejected with 400
+(see D5).
+
+Not paginated: the response is bounded by the size of the request.
+
 
 ## E9: Time Series
 
