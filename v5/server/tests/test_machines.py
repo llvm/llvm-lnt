@@ -73,9 +73,15 @@ def create(
 
 @pytest.fixture
 def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
-    """Attach a run to an existing machine, submitted at a given time."""
+    """Attach a run to an existing machine, measured at a given time, and submitted then too
+    unless told otherwise."""
 
-    def add(machine: str, submitted_at: datetime, commit: str = "abc") -> str:
+    def add(
+        machine: str,
+        measured_at: datetime,
+        commit: str = "abc",
+        submitted_at: datetime | None = None,
+    ) -> str:
         with db_engine.begin() as connection:
             machine_id = connection.execute(
                 select(suite.machine.c.id).where(suite.machine.c.name == machine)
@@ -93,7 +99,8 @@ def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
                     uuid=run,
                     machine_id=machine_id,
                     commit_id=commit_id,
-                    submitted_at=submitted_at,
+                    measured_at=measured_at,
+                    submitted_at=submitted_at or measured_at,
                 )
             )
         return run
@@ -267,8 +274,25 @@ class TestLastRunAt:
         add_run("older", at(3), commit="def")
         add_run("newer", at(2), commit="def")
 
-    def test_is_the_most_recent_submission(self, api_client: TestClient) -> None:
+    def test_is_the_most_recent_measurement(self, api_client: TestClient) -> None:
         assert api_client.get(f"{MACHINES}/older").json()["last_run_at"] == "2026-04-03T12:00:00Z"
+
+    def test_follows_when_runs_were_measured_rather_than_submitted(
+        self, api_client: TestClient, create: Callable[..., Any], add_run: Callable[..., str]
+    ) -> None:
+        # Old data submitted last, as when a machine's history is imported.
+        create("imported")
+        add_run("imported", at(1), submitted_at=at(9))
+
+        assert (
+            api_client.get(f"{MACHINES}/imported").json()["last_run_at"] == "2026-04-01T12:00:00Z"
+        )
+        assert names_in(api_client.get(f"{MACHINES}?sort=-last_run_at")) == [
+            "older",
+            "newer",
+            "imported",
+            "never",
+        ]
 
     def test_is_null_for_a_machine_with_no_runs(self, api_client: TestClient) -> None:
         assert api_client.get(f"{MACHINES}/never").json()["last_run_at"] is None

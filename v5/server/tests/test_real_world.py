@@ -348,6 +348,8 @@ class TestTimeSeries:
                     "commit": run["commit"]["value"],
                     "ordinal": run["commit"]["ordinal"],
                     "run_uuid": run["uuid"],
+                    # Submitted without a time zone, so read as UTC (D3).
+                    "measured_at": f"{run['measured_at']}Z",
                     "tag": None,
                 }
                 for run in dataset.submissions

@@ -34,7 +34,7 @@ export const TEXT_SUITE: SuiteSchema = {
 }
 
 /** A sample: its commit, its run (one per letter), and its value. */
-export type Sample = [commit: string, run: string, value: number, submitted?: string]
+export type Sample = [commit: string, run: string, value: number, measuredAt?: string]
 
 export interface World {
   machines?: string[]
@@ -70,17 +70,18 @@ export const commitAt = (ordinal: number) =>
 export const pointOf = (
   machineName: string,
   test: string,
-  [value, run, measured, submitted = '2026-08-25T14:22:41Z']: Sample,
+  [commit, run, value, measuredAt = '2026-08-25T14:22:41Z']: Sample,
 ) =>
   ({
     test,
     machine: machineName,
     metric: 'execution_time',
-    value: measured,
-    commit: value,
-    ordinal: Number(value.slice(1)),
+    value,
+    commit,
+    ordinal: Number(commit.slice(1)),
     run_uuid: run,
-    submitted_at: submitted,
+    submitted_at: '2026-08-25T14:22:41Z',
+    measured_at: measuredAt,
     tag: null,
   }) satisfies Schemas['DataPoint']
 

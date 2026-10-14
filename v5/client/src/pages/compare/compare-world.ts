@@ -121,7 +121,7 @@ export function mockWorld({
           : run(hex, {
               machine: query.get('machine')!,
               commit: query.get('commit')!,
-              submitted_at: `2026-08-2${i}T10:00:00Z`,
+              measured_at: `2026-08-2${i}T10:00:00Z`,
             }),
       ),
     )

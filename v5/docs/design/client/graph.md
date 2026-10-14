@@ -259,7 +259,7 @@ While a point's details are open (GR11), its scatter stays shown, wherever the
 pointer is, and is removed when they close. Hovering another point meanwhile
 shows that point's scatter as well, as above. Hovering a marker of the open
 point's scatter shows a tooltip with that sample's value and its run: the run's
-submission time and shortened UUID, as the details list them.
+measurement time and shortened UUID, as the details list them.
 
 
 ### GR11: Point Details
@@ -273,7 +273,7 @@ hidden until the pointer moves again. It shows:
 - the machine, linking to its Machine Detail page;
 - the commit, linking to its Commit Detail page;
 - the point's value and run count;
-- the point's runs, in the order they were submitted, each with its submission
+- the point's runs, in the order they were measured, each with its measurement
   time, its shortened UUID linking to its Run Detail page, and the values of its
   samples (GR1), in ascending order. The list scrolls when it is long;
 - "Compare with previous commit": a link to the Compare page set up to compare

@@ -1,6 +1,7 @@
 {
   "format_version": "5",
   "uuid": "a6c46315-35c0-4eb5-a471-d29456be87bf",
+  "measured_at": "2026-08-29T00:04:23",
   "machine": {
     "name": "macos-26.5-arm64-hardenedfast-20260821",
     "fields": {
@@ -18,10 +19,7 @@
       "svn_revision": "r554973"
     }
   },
-  "run_parameters": {
-    "end_time": "2026-08-29T00:04:23",
-    "start_time": "2026-08-29T00:04:23"
-  },
+  "run_parameters": {},
   "tests": [
     {
       "name": "std::print(\"Hello,_World!\")",

@@ -106,8 +106,8 @@ def _whole_number(value: Any) -> Any:
 def utc(value: datetime) -> datetime:
     """D5 stores UTC. A timestamp sent without an offset is read as UTC rather than rejected.
 
-    Shared with the `after=`/`before=` filters (I3), which compare against a `timestamptz` column
-    and so must not hand PostgreSQL a naive value for the session's time zone to interpret.
+    Shared with I3's time bounds, such as `submitted_after=`, which compare against a `timestamptz`
+    column and so must not hand PostgreSQL a naive value for the session's time zone to interpret.
 
     A timestamp at the very edge of the representable range can fall outside it once moved to UTC,
     and `astimezone` reports that as an `OverflowError`. Turned into a `ValueError` so that it is a
@@ -152,8 +152,8 @@ Named = Annotated[str, Storable]
 
 # D3's `datetime`, as a reusable annotation: an ISO 8601 string and nothing else, normalized to
 # UTC. Exported because a timestamp on the wire is one thing wherever it appears -- a declared
-# field value, and I3's `after=`/`before=` bounds, which would otherwise read `?after=1700000000`
-# as a Unix epoch exactly as D3 forbids.
+# field value, a run's `measured_at`, and I3's time bounds, which would otherwise read
+# `?submitted_after=1700000000` as a Unix epoch exactly as D3 forbids.
 DatetimeValue = Annotated[datetime, BeforeValidator(_iso_8601), AfterValidator(utc)]
 
 # Each adapter also refuses what its column cannot store, so that such a value is a 400 here rather

@@ -118,7 +118,8 @@ basic = make_mirror('basic', [
         sample('test/b'),
         sample('test/a', compile_time=2, exec_status=1),
     ], extra_field='value', dropped=None)]),
-    (M2, [run(11, M2, 'experiment', []), run(12, M2, 'r2147483648', [])]),
+    (M2, [run(11, M2, 'experiment', [], end_time=None),
+          run(12, M2, 'r2147483648', [])]),
 ], unfetched=[13])
 mirrored = read_mirror(basic, 'nts')
 plan = make_plan(mirrored, 'target')
@@ -186,7 +187,8 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:  "name": "target"
 #
 # Run 10: samples are grouped by test, in the order the tests first appear,
-# without their null metrics, and a sample without any value is kept.
+# without their null metrics, and a sample without any value is kept. The run
+# is measured at its end time, and its times are not run parameters.
 # CHECK:       "commit": {
 # CHECK-NEXT:   "ordinal": 100,
 # CHECK-NEXT:   "value": "r100"
@@ -200,10 +202,9 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:   "name": "machine-a",
 # CHECK-NEXT:   "tracked": false
 # CHECK-NEXT:  },
+# CHECK-NEXT:  "measured_at": "2026-01-01T01:00:00",
 # CHECK-NEXT:  "run_parameters": {
-# CHECK-NEXT:   "end_time": "2026-01-01T01:00:00",
-# CHECK-NEXT:   "extra_field": "value",
-# CHECK-NEXT:   "start_time": "2026-01-01T00:00:00"
+# CHECK-NEXT:   "extra_field": "value"
 # CHECK-NEXT:  },
 # CHECK-NEXT:  "tests": [
 # CHECK-NEXT:   {
@@ -230,10 +231,12 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:  "uuid": "1047ee06-d530-5b6a-bfb3-1506d5a76b15"
 #
 # Run 11: a commit that is not a revision has no ordinal, and neither has one
-# too large to be a v5 ordinal (run 12).
+# too large to be a v5 ordinal (run 12). Run 11 has no end time, so it does not
+# say when it was measured.
 # CHECK:       "commit": {
 # CHECK-NEXT:   "value": "experiment"
 # CHECK-NEXT:  },
+# CHECK-NOT:   "measured_at"
 # CHECK:       "commit": {
 # CHECK-NEXT:   "value": "r2147483648"
 # CHECK-NEXT:  },
@@ -343,10 +346,10 @@ for r in mirrored.runs:
 run_cli(by_sha, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_sha')
 # CHECK-LABEL: # COMMIT FIELD
-# CHECK-NEXT: 1 {"ordinal": 100, "value": "aaa"} ['end_time', 'llvm_project_revision', 'start_time']
-# CHECK-NEXT: 2 {"ordinal": 100, "value": "aaa"} ['end_time', 'llvm_project_revision', 'start_time']
-# CHECK-NEXT: 3 {"ordinal": 101, "value": "r101"} ['end_time', 'start_time']
-# CHECK-NEXT: 4 {"value": "bbb"} ['end_time', 'llvm_project_revision', 'start_time']
+# CHECK-NEXT: 1 {"ordinal": 100, "value": "aaa"} ['llvm_project_revision']
+# CHECK-NEXT: 2 {"ordinal": 100, "value": "aaa"} ['llvm_project_revision']
+# CHECK-NEXT: 3 {"ordinal": 101, "value": "r101"} []
+# CHECK-NEXT: 4 {"value": "bbb"} ['llvm_project_revision']
 # CHECK:      Commits: 3, of which 2 have an ordinal
 # CHECK:      exit: 0
 
@@ -384,6 +387,7 @@ runs = [
     run(7, M, '7', [sample('t', compile_time=1)]),
     run(8, M, '8', [sample('t', hash='a\0b')]),
     run(9, M, '9', [sample('t', compile_time=10**400)]),
+    run(10, M, '10', [], end_time='yesterday'),
 ]
 run_errors = make_mirror('run-errors', [(M, runs)])
 # Damage run 7's file.
@@ -400,7 +404,8 @@ run_cli(run_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-NEXT: run 7 of machine 1 (m): nts/runs/7.json.gz does not have the hash the manifest records
 # CHECK-NEXT: run 8 of machine 1 (m): test 't', metric 'hash': 'a\x00b' is not a valid text value
 # CHECK-NEXT: run 9 of machine 1 (m): test 't', metric 'compile_time': {{[0-9]+}} is not a valid real value
-# CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 9 failure(s).
+# CHECK-NEXT: run 10 of machine 1 (m): its end_time is not an ISO 8601 timestamp: 'yesterday'
+# CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 10 failure(s).
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 

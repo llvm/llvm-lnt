@@ -77,7 +77,41 @@ def _regression_commit_set_null(op: Operations, suite: SuiteSchema) -> None:
     )
 
 
-STEPS: Sequence[Step] = (_run_uuid_collation, _regression_commit_set_null)
+def _run_measured_at(op: Operations, suite: SuiteSchema) -> None:
+    """Version 3: `{suite}.run.measured_at`, and the indexes ordering runs by it (D5).
+
+    Existing runs were all measured when they were submitted, as far as anything recorded says, so
+    they get their `submitted_at`. The old index is dropped before the backfill and the new ones
+    created after it, so that the UPDATE maintains none of them.
+    """
+    op.drop_index("ix_run_machine_id_submitted_at", table_name="run", schema=suite.name)
+    op.add_column(
+        "run",
+        sa.Column("measured_at", sa.DateTime(timezone=True), nullable=True),
+        schema=suite.name,
+    )
+    run = sa.table(
+        "run",
+        sa.column("submitted_at", sa.DateTime(timezone=True)),
+        sa.column("measured_at", sa.DateTime(timezone=True)),
+        schema=suite.name,
+    )
+    op.execute(run.update().values(measured_at=run.c.submitted_at))
+    op.alter_column(
+        "run",
+        "measured_at",
+        existing_type=sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.text("now()"),
+        schema=suite.name,
+    )
+    op.create_index(
+        "ix_run_machine_id_measured_at", "run", ["machine_id", "measured_at"], schema=suite.name
+    )
+    op.create_index("ix_run_measured_at_id", "run", ["measured_at", "id"], schema=suite.name)
+
+
+STEPS: Sequence[Step] = (_run_uuid_collation, _regression_commit_set_null, _run_measured_at)
 
 
 def head() -> int:

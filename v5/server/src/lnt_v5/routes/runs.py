@@ -78,14 +78,14 @@ RUNS_PATH = f"{SUITES_PATH}/{{testsuite}}/runs"
 
 router = APIRouter(prefix=RUNS_PATH, tags=["Runs"])
 
-# endpoints.md names these two and no others. A literal rather than a free string, so I8's document
+# endpoints.md names these and no others. A literal rather than a free string, so I8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
-RunSort = Literal["submitted_at", "-submitted_at"]
+RunSort = Literal["submitted_at", "-submitted_at", "measured_at", "-measured_at"]
 
 # How many machines or commits a run search looks up the ids of (see `Runs.search`).
 _MAX_RESOLVED = 10_000
 
-# What `after=` and `before=` both tell a client about the timestamp they take.
+# What every time bound tells a client about the timestamp it takes.
 _TIMESTAMP = (
     "An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone "
     "as `%2B`, otherwise it is read as a space."
@@ -104,6 +104,7 @@ _SUBMIT_EXAMPLES = {
         "summary": "A run with repeated measurements",
         "value": {
             "format_version": "5",
+            "measured_at": examples.MEASURED_AT,
             "machine": {"name": examples.MACHINE, "fields": examples.MACHINE_VALUES},
             "commit": {
                 "value": examples.COMMIT,
@@ -158,6 +159,13 @@ class Run(BaseModel):
     submitted_at: datetime = Field(
         description="When the server received the run. Set by the server."
     )
+    measured_at: datetime = Field(
+        description=(
+            "When the run's data was measured, as given in its submission. The same as "
+            "`submitted_at` if the submission didn't say."
+        ),
+        examples=[examples.MEASURED_AT],
+    )
 
 
 # `run_parameters` is detail-only because it is unbounded and no list view renders it -- the same
@@ -202,6 +210,7 @@ class Runs:
             self._machine.c.name,
             self._commit.c.commit,
             self.table.c.submitted_at,
+            self.table.c.measured_at,
         ).select_from(
             self.table.join(self._machine, self._machine.c.id == self.table.c.machine_id).join(
                 self._commit, self._commit.c.id == self.table.c.commit_id
@@ -211,14 +220,15 @@ class Runs:
     def keyset(self, sort: RunSort | None) -> Keyset:
         """O5's ordering for a run list: the caller's sort, then the internal tiebreaker.
 
-        `submitted_at` is not unique -- nothing stops two runs being accepted in the same instant,
-        and the list pages -- so it cannot be the whole order on its own. With no `sort` the
-        tiebreaker is the whole order, which is the arbitrary but deterministic one O5 allows.
+        Neither timestamp is unique -- nothing stops two runs being accepted, or measured, in the
+        same instant, and the list pages -- so neither can be the whole order on its own. With no
+        `sort` the tiebreaker is the whole order, which is the arbitrary but deterministic one O5
+        allows.
         """
         if sort is None:
             return Keyset(tiebreaker=self.table.c.id)
-        _, descending = sort_order(sort)
-        return Keyset(SortKey(self.table.c.submitted_at, descending), tiebreaker=self.table.c.id)
+        name, descending = sort_order(sort)
+        return Keyset(SortKey(self.table.c[name], descending), tiebreaker=self.table.c.id)
 
     def search(self, connection: Connection, term: str) -> Resolved:
         """O4's `?search=` for a run list: its machine, its commit, or its UUID by prefix.
@@ -228,7 +238,7 @@ class Runs:
         list would walk the whole run table whenever fewer runs match than fill a page -- the usual
         case for a commit or a UUID. It is therefore executed with the ids of the matching machines
         and commits looked up first, which lets PostgreSQL answer every branch from an index (D5's
-        `(machine_id, submitted_at)` and `commit_id`, and the one on `uuid`).
+        `(machine_id, measured_at)` and `commit_id`, and the one on `uuid`).
 
         That relies on the statement being planned with those ids, which a generic plan would not
         be: psycopg prepares a statement only once it has run several times on one connection, and
@@ -291,6 +301,7 @@ class Runs:
             "machine": row._mapping[self._machine.c.name],
             "commit": row._mapping[self._commit.c.commit],
             "submitted_at": row._mapping[self.table.c.submitted_at],
+            "measured_at": row._mapping[self.table.c.measured_at],
         }
 
     def one(self, connection: Connection, uuid: str) -> RunDetail:
@@ -312,12 +323,16 @@ class Runs:
         machine_id: int,
         commit_id: int,
         parameters: dict[str, Any],
+        *,
+        measured_at: datetime | None = None,
     ) -> int:
         """Insert the run row, or answer I4's `duplicate` for a UUID already used (O1).
 
         `submitted_at` is deliberately not written: D5 gives the column a `now()` default, so the
         value comes from the database's clock rather than from this process, and concurrent workers
-        agree on the ordering it defines. It is read back through `select` afterwards.
+        agree on the ordering it defines. A `measured_at` the client omitted is left to the same
+        default, so it equals `submitted_at` exactly. Both are read back through `select`
+        afterwards.
         """
         taken = f"A run '{uuid}' already exists in test suite '{self.schema.name}'"
         with reporting_violation(RUN_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken):
@@ -329,6 +344,7 @@ class Runs:
                         machine_id=machine_id,
                         commit_id=commit_id,
                         run_parameters=parameters,
+                        **({} if measured_at is None else {"measured_at": measured_at}),
                     )
                     .returning(self.table.c.id)
                 ).scalar_one()
@@ -463,13 +479,21 @@ def list_runs(
             )
         ),
     ] = None,
-    after: Annotated[
+    submitted_after: Annotated[
         DatetimeValue | None,
         Query(description=f"Only return runs submitted after this time (exclusive). {_TIMESTAMP}"),
     ] = None,
-    before: Annotated[
+    submitted_before: Annotated[
         DatetimeValue | None,
         Query(description=f"Only return runs submitted before this time (exclusive). {_TIMESTAMP}"),
+    ] = None,
+    measured_after: Annotated[
+        DatetimeValue | None,
+        Query(description=f"Only return runs measured after this time (exclusive). {_TIMESTAMP}"),
+    ] = None,
+    measured_before: Annotated[
+        DatetimeValue | None,
+        Query(description=f"Only return runs measured before this time (exclusive). {_TIMESTAMP}"),
     ] = None,
     has_profiles: Annotated[
         bool | None,
@@ -484,9 +508,10 @@ def list_runs(
         RunSort | None,
         Query(
             description=(
-                "Sort by submission time, oldest first (`submitted_at`) or newest first "
-                "(`-submitted_at`). Without it, the order is unspecified but stable, which is the "
-                "fastest way to page through all runs."
+                "Sort by submission time (`submitted_at`) or by measurement time (`measured_at`), "
+                "oldest first, or newest first with a leading `-` (`-submitted_at`). Without it, "
+                "the order is unspecified but stable, which is the fastest way to page through all "
+                "runs."
             )
         ),
     ] = None,
@@ -496,10 +521,13 @@ def list_runs(
     `GET /api/suites/{testsuite}/runs/{uuid}/samples`."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         runs = Runs(suite)
-        conditions = exclusive_range(runs.table.c.submitted_at, after, before)
+        conditions = [
+            *exclusive_range(runs.table.c.submitted_at, submitted_after, submitted_before),
+            *exclusive_range(runs.table.c.measured_at, measured_after, measured_before),
+        ]
         if machine is not None:
             # By id rather than by the joined name, so the filter lands on the leading column of
-            # D5's `(machine_id, submitted_at)` index -- and so an unknown name is I3's 404.
+            # D5's `(machine_id, measured_at)` index -- and so an unknown name is I3's 404.
             conditions.append(runs.table.c.machine_id == machine_id(connection, suite, machine))
         if commit is not None:
             conditions.append(runs.commit_is(commit))
@@ -583,7 +611,12 @@ def submit_run(
         machine_id = Machines(suite).get_or_create(connection, validated.machine)
         commit_id = Commits(suite).get_or_create(connection, validated.commit)
         run_id = runs.create(
-            connection, validated.uuid, machine_id, commit_id, validated.run_parameters
+            connection,
+            validated.uuid,
+            machine_id,
+            commit_id,
+            validated.run_parameters,
+            measured_at=validated.measured_at,
         )
 
         # Every test name in one round trip rather than one each (O8), which is what keeps a

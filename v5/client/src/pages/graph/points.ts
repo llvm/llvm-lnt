@@ -20,8 +20,8 @@ export interface Point {
 export interface RunSamples {
   /** The run's UUID. */
   run: string
-  /** When the run was submitted. */
-  submitted: string
+  /** When the run was measured. */
+  measured: string
   samples: number[]
 }
 
@@ -29,17 +29,17 @@ export interface RunSamples {
 export interface RunValue {
   /** The run's UUID. */
   run: string
-  /** When the run was submitted. */
-  submitted: string
+  /** When the run was measured. */
+  measured: string
   value: number
 }
 
 /** The samples of each run among `measurements`. */
 export function runSamples(measurements: Iterable<Measurement>): RunSamples[] {
   const runs = new Map<string, RunSamples>()
-  for (const { run, submitted, value } of measurements) {
+  for (const { run, measured, value } of measurements) {
     const known = runs.get(run)
-    if (known === undefined) runs.set(run, { run, submitted, samples: [value] })
+    if (known === undefined) runs.set(run, { run, measured, samples: [value] })
     else known.samples.push(value)
   }
   return [...runs.values()]
@@ -50,9 +50,9 @@ export function runValues(
   measurements: Iterable<Measurement>,
   sampleAgg: Aggregation,
 ): RunValue[] {
-  return runSamples(measurements).map(({ run, submitted, samples }) => ({
+  return runSamples(measurements).map(({ run, measured, samples }) => ({
     run,
-    submitted,
+    measured,
     value: aggregate(samples, sampleAgg),
   }))
 }

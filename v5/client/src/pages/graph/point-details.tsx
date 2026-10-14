@@ -20,7 +20,7 @@ interface Props {
   point: Point
   /** The display value of the point's commit. */
   display: string
-  /** The point's runs, in the order they were submitted, each with its samples, ascending. */
+  /** The point's runs, in the order they were measured, each with its samples, ascending. */
   runs: RunSamples[]
   /** The point before it on its trace, if there is one. */
   previous: Point | null
@@ -114,13 +114,13 @@ export function PointDetails({
 
 const runKey = (run: RunSamples) => run.run
 
-/** The columns of the table of a point's runs: when each was submitted, which, and its samples. */
+/** The columns of the table of a point's runs: when each was measured, which, and its samples. */
 function runColumns(suite: string, metric: Metric): Column<RunSamples>[] {
   return [
     {
-      id: 'submitted',
-      header: 'Submitted',
-      cell: (run) => formatTimestamp(run.submitted),
+      id: 'measured',
+      header: 'Measured',
+      cell: (run) => formatTimestamp(run.measured),
       looks: ['nowrap'],
     },
     {

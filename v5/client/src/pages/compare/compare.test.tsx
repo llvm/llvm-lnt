@@ -38,6 +38,23 @@ describe('the Compare page (CP1)', () => {
     expect(screen.getByText('3 of 3 tests shown')).toBeInTheDocument()
   })
 
+  it('lists a side’s runs in the order they were measured, with when each was measured', async () => {
+    const sorts: (string | null)[] = []
+    mockWorld({
+      runsAnswer: (query) => {
+        sorts.push(query.get('sort'))
+        return undefined
+      },
+    })
+    renderPage(COMPARED)
+    await comparison()
+
+    expect(new Set(sorts)).toEqual(new Set(['measured_at']))
+    // The world's runs are measured a day apart, in the order it lists them (see `mockWorld`).
+    expect(within(sideOf('A')).getByText('2026-08-20, 10:00:00 AM')).toBeInTheDocument()
+    expect(within(sideOf('A')).getByText('2026-08-21, 10:00:00 AM')).toBeInTheDocument()
+  })
+
   it('selects every run of a side by default, and keeps a subset in the URL', async () => {
     mockWorld()
     renderPage(COMPARED)

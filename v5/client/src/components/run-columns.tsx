@@ -11,7 +11,8 @@ type Run = Schemas['Run']
 
 /**
  * The columns a table of runs picks from, so that every such table shows runs the same way: the
- * run, its machine and its commit, each linked to its own page, and when it was submitted.
+ * run, its machine and its commit, each linked to its own page, and when it was measured or
+ * submitted.
  * `commits` resolves the commits' display values (see `fetchRunPage`).
  */
 export function runColumns(schema: SuiteSchema, commits: Map<string, Commit>) {
@@ -31,6 +32,12 @@ export function runColumns(schema: SuiteSchema, commits: Map<string, Commit>) {
           {displayValueOf(run.commit, commits, schema)}
         </Link>
       ),
+    },
+    measured: {
+      id: 'measured',
+      header: 'Measured',
+      looks: ['nowrap'],
+      cell: (run) => formatTimestamp(run.measured_at),
     },
     submitted: {
       id: 'submitted',

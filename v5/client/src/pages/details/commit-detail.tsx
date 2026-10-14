@@ -78,7 +78,7 @@ export default function CommitDetailPage() {
 /** Every run at the commit `value` (E4), fetched page after page. */
 function useRuns(suite: string, value: string) {
   // I2's largest page: a commit can have runs on many machines.
-  const query = { commit: value, sort: '-submitted_at', limit: MAX_PAGE_SIZE } as const
+  const query = { commit: value, sort: '-measured_at', limit: MAX_PAGE_SIZE } as const
   return useCursorPages({
     // Apart from the lists of runs shown a page at a time, which hold their commits resolved.
     queryKey: [...queryKeys.runs(suite), 'at commit', query],
@@ -288,13 +288,13 @@ function machineCount(runs: Run[]): number {
 }
 
 /**
- * Every run at the commit, by machine and newest first on each, filtered by machine name locally,
- * each with a link comparing it with the commit before on its machine (DT3). They are shown as
- * they arrive, page after page.
+ * Every run at the commit, by machine and most recently measured first on each, filtered by machine
+ * name locally, each with a link comparing it with the commit before on its machine (DT3). They
+ * are shown as they arrive, page after page.
  */
 function CommitRuns({ schema, runs }: { schema: SuiteSchema; runs: CursorPages<Run> }) {
   const [settings, update] = useUrlState(PARAMS)
-  // Stable, so that each machine's runs stay newest first, as the API gave them.
+  // Stable, so that each machine's runs stay most recently measured first, as the API gave them.
   const rows = useMemo(
     () => runs.items.toSorted((a, b) => compareStrings(a.machine, b.machine)),
     [runs.items],
@@ -358,13 +358,13 @@ function CommitRuns({ schema, runs }: { schema: SuiteSchema; runs: CursorPages<R
 const NO_COMMITS = new Map<string, Commit>()
 
 function runsColumns(schema: SuiteSchema): Column<Run>[] {
-  const { machine, run, submitted } = runColumns(schema, NO_COMMITS)
+  const { machine, run, measured } = runColumns(schema, NO_COMMITS)
   // This page has no metric selector, so the link compares Run Detail's default metric (DT3).
   const metric = defaultMetric(schema)?.name
   return [
     machine,
     run,
-    submitted,
+    measured,
     {
       id: 'compare',
       header: <VisuallyHidden>Compare</VisuallyHidden>,

@@ -127,7 +127,10 @@ class Machine(MachineObject):
         examples=[examples.MACHINE_VALUES],
     )
     last_run_at: datetime | None = Field(
-        description="When the machine's most recent run was submitted. Null if it has no runs."
+        description=(
+            "When the machine's most recently measured run was measured (its `measured_at`). Null "
+            "if it has no runs."
+        )
     )
 
 
@@ -154,8 +157,8 @@ class Machines:
 
     `last_run_at` is derived on read and never stored (D5): a stored copy would have to be
     recomputed whenever a run was deleted, and synchronized on submission. The LATERAL probe below
-    is what D5 asks for -- the compound index on `{suite}.run(machine_id, submitted_at)` makes it a
-    single-row backward index scan per machine, where `max(submitted_at) ... GROUP BY machine_id`
+    is what D5 asks for -- the compound index on `{suite}.run(machine_id, measured_at)` makes it a
+    single-row backward index scan per machine, where `max(measured_at) ... GROUP BY machine_id`
     would read every run in the suite, which has far more runs than machines.
     """
 
@@ -165,13 +168,13 @@ class Machines:
         self.table: Table = suite.tables.machine
         run = suite.tables.run
         self._probe = (
-            select(run.c.submitted_at)
+            select(run.c.measured_at)
             .where(run.c.machine_id == self.table.c.id)
-            .order_by(run.c.submitted_at.desc())
+            .order_by(run.c.measured_at.desc())
             .limit(1)
             .lateral("last_run")
         )
-        self.last_run_at = self._probe.c.submitted_at
+        self.last_run_at = self._probe.c.measured_at
 
     def select(self) -> Select[Any]:
         return select(
@@ -332,8 +335,8 @@ def list_machines(
         MachineSort,
         Query(
             description=(
-                "Sort by name, or by the time of each machine's most recent run. Machines without "
-                "runs always come last, and ties are sorted by name."
+                "Sort by name, or by `last_run_at`: when each machine's most recently measured run "
+                "was measured. Machines without runs always come last, and ties are sorted by name."
             )
         ),
     ] = "name",

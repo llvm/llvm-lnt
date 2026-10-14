@@ -26,7 +26,7 @@ type Sample = Schemas['Sample']
 const NO_ROWS: ComparisonRow[] = []
 
 /**
- * The samples of each of the runs `side` has selected, in the order they were submitted, once they
+ * The samples of each of the runs `side` has selected, in the order they were measured, once they
  * have all arrived. With no run selected, there is nothing to compare, rather than nothing compared.
  */
 function useRunSamplesOf(

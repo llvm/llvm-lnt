@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from math import isfinite
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -38,6 +39,7 @@ from lnt_v5.suites.entities import (
     CLIENT_UUID_FORMAT,
     ClientUuid,
     CommitObject,
+    DatetimeValue,
     DeclaredValue,
     FieldValue,
     MachineObject,
@@ -144,6 +146,14 @@ class RunSubmission(BaseModel):
 
     format_version: Literal["5"] = Field(description='The submission format. Always `"5"`.')
     uuid: RunUuid | None = None
+    measured_at: DatetimeValue | None = Field(
+        default=None,
+        description=(
+            "When the run's data was measured, as an ISO 8601 timestamp, treated as UTC if it has "
+            "no time zone. Defaults to the time the server receives the run if left out or null."
+        ),
+        examples=[examples.MEASURED_AT],
+    )
     machine: MachineObject = Field(description="The machine the run was measured on.")
     commit: CommitObject = Field(description="The commit the run measured.")
     run_parameters: dict[str, Any] = Field(
@@ -201,10 +211,13 @@ class ValidatedSubmission:
 
     Every value here is already typed per D3 and named by the column that stores it, so the write
     layer composes statements and never reinterprets the payload. `uuid` is the client's when it
-    supplied one and a fresh v4 otherwise, so the write path has no "maybe" to handle.
+    supplied one and a fresh v4 otherwise, so the write path has no "maybe" to handle. `measured_at`
+    is the one exception: when the client omits it, it is the run's `submitted_at`, which only the
+    database knows (D5).
     """
 
     uuid: str
+    measured_at: datetime | None
     machine: SubmittedMachine
     commit: SubmittedCommit
     run_parameters: dict[str, Any]
@@ -264,6 +277,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     return ValidatedSubmission(
         # O1: the client's UUID when it sent one, and a v4 the server mints otherwise.
         uuid=body.uuid or str(uuid4()),
+        measured_at=body.measured_at,
         machine=machine,
         commit=commit,
         run_parameters=body.run_parameters,

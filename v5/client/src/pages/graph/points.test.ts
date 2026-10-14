@@ -8,12 +8,12 @@ const POSITIONS = new Map([
   ['c3', 2],
 ])
 
-const SUBMITTED = '2026-08-25T14:22:41Z'
+const MEASURED = '2026-08-25T14:22:41Z'
 
-const m = (commit: string, run: string, value: number, submitted = SUBMITTED): Measurement => ({
+const m = (commit: string, run: string, value: number, measured = MEASURED): Measurement => ({
   commit,
   run,
-  submitted,
+  measured,
   value,
 })
 
@@ -49,15 +49,15 @@ describe('pointsOf (GR1)', () => {
 })
 
 describe('runValues (GR1)', () => {
-  it("combines each run's samples, keeping when the run was submitted", () => {
+  it("combines each run's samples, keeping when the run was measured", () => {
     const later = '2026-08-26T00:00:00Z'
     const measurements = [m('c1', 'r1', 1), m('c1', 'r2', 10, later), m('c1', 'r1', 5)]
 
     const runs = runValues(measurements, 'max')
 
     expect(runs).toEqual([
-      { run: 'r1', submitted: SUBMITTED, value: 5 },
-      { run: 'r2', submitted: later, value: 10 },
+      { run: 'r1', measured: MEASURED, value: 5 },
+      { run: 'r2', measured: later, value: 10 },
     ])
     expect(combineRuns(runs, 'mean')).toBe(7.5)
   })

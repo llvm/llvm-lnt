@@ -74,7 +74,7 @@ export function runProfilesQuery(suite: string, uuid: string) {
 
 /**
  * The runs of `machine` at `commit` (E4), every one of them that `filters` keeps, in the order they
- * were submitted: the runs a side of the Compare page selects among (CP1), or those with profiles.
+ * were measured: the runs a side of the Compare page selects among (CP1), or those with profiles.
  */
 export function commitRunsQuery(
   suite: string,
@@ -87,7 +87,7 @@ export function commitRunsQuery(
     queryKey: [...queryKeys.runs(suite), 'of-commit', query],
     queryFn: ({ signal }) =>
       fetchEveryPage((cursor) =>
-        fetchRuns(suite, { ...query, sort: 'submitted_at', limit: MAX_PAGE_SIZE, cursor }, signal),
+        fetchRuns(suite, { ...query, sort: 'measured_at', limit: MAX_PAGE_SIZE, cursor }, signal),
       ),
   })
 }

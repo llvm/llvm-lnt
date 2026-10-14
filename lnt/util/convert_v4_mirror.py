@@ -12,6 +12,7 @@ its document and the plan.
 """
 
 import collections
+import datetime
 import gzip
 import hashlib
 import json
@@ -62,6 +63,10 @@ _INTEGER_MIN, _INTEGER_MAX = -2**63, 2**63 - 1
 # Keys of v4 objects that do not become v5 data: the v4 API's own bookkeeping.
 _MACHINE_KEYS_DROPPED = {'id', 'name'}
 _RUN_KEYS_DROPPED = {'id', 'order_id', 'order_by'}
+
+# The v4 run's times, which are not run parameters in v5: its end time becomes
+# the v5 run's `measured_at`.
+_RUN_TIMES = {'start_time', 'end_time'}
 _SAMPLE_KEYS_DROPPED = {'id', 'run_id', 'name'}
 
 
@@ -547,6 +552,19 @@ def _typed(value: Any, v5_type: str, what: str) -> Any:
                           % (what, value, v5_type))
 
 
+def _measured_at(v4_run: JSONObject) -> str | None:
+    """When the v4 run was measured, as its end time, if it has one."""
+    end_time = v4_run.get('end_time')
+    if end_time is None:
+        return None
+    try:
+        datetime.datetime.fromisoformat(end_time)
+    except (TypeError, ValueError):
+        raise ConversionError('its end_time is not an ISO 8601 timestamp: %r'
+                              % (end_time,))
+    return end_time
+
+
 def convert_run(plan: Plan, run: MirroredRun,
                 document: JSONObject) -> JSONObject:
     """The v5 submission that a v4 run becomes, given its document."""
@@ -573,9 +591,10 @@ def convert_run(plan: Plan, run: MirroredRun,
     if run_ordinal is not None:
         commit['ordinal'] = run_ordinal
 
+    measured_at = _measured_at(v4_run)
+    dropped = _RUN_KEYS_DROPPED | _RUN_TIMES | {source}
     run_parameters = {key: value for key, value in v4_run.items()
-                      if value is not None and
-                      key not in _RUN_KEYS_DROPPED and key != source}
+                      if value is not None and key not in dropped}
     _check_storable(run_parameters, 'a run parameter')
 
     tests: dict[str, list[JSONObject]] = {}
@@ -597,7 +616,7 @@ def convert_run(plan: Plan, run: MirroredRun,
                                  'test %r, metric %r' % (name, key))
         tests.setdefault(name, []).append(values)
 
-    return {
+    submission: JSONObject = {
         'format_version': '5',
         'uuid': run_uuid(plan.mirrored, run.id),
         'machine': plan.machines[run.machine_id],
@@ -606,6 +625,9 @@ def convert_run(plan: Plan, run: MirroredRun,
         'tests': [{'name': name, 'samples': samples}
                   for name, samples in tests.items()],
     }
+    if measured_at is not None:
+        submission['measured_at'] = measured_at
+    return submission
 
 
 # ----------------------------------------------------------------------------

@@ -45,7 +45,8 @@ lnt v5 convert-v4-mirror "${MIRROR}" --suite compile > /dev/null \
 # COMPILE: Converted 4 run(s) of {{[0-9]+}} machine(s); 0 failure(s).
 
 # The run submitted first, as it is converted: its machine keeps the fields
-# that the nts schema does not declare, and its revision is its ordinal.
+# that the nts schema does not declare, its revision is its ordinal, and it is
+# measured at its end time.
 python - "${MIRROR}" > "${TMP}/run.txt" <<'EOF'
 import json, sys
 from lnt.util.convert_v4_mirror import convert_run, make_plan, read_mirror, read_run
@@ -55,11 +56,13 @@ run = mirrored.runs[0]
 submission = convert_run(plan, run, read_run(mirrored, run))
 print(json.dumps(submission['machine'], sort_keys=True))
 print(json.dumps(submission['commit'], sort_keys=True))
-print(submission['run_parameters']['start_time'])
+print(submission['measured_at'])
+print(sorted({'start_time', 'end_time'} & set(submission['run_parameters'])))
 print(sum(len(test['samples']) for test in submission['tests']))
 EOF
 # RUN: filecheck %s --check-prefix=CONVERTED < %t.tmp/run.txt
 # CONVERTED: {"fields": {"hardware": "x86_64", "hostname": "localhost", "os": "Darwin 11.3.0", "uname": "Darwin localhost 11.3.0 {{.*}}"}, "name": "localhost__clang_DEV__x86_64", "tracked": false}
 # CONVERTED-NEXT: {"ordinal": 154331, "value": "154331"}
-# CONVERTED-NEXT: 2012-04-11T16:28:23
+# CONVERTED-NEXT: 2012-04-11T16:28:58
+# CONVERTED-NEXT: []
 # CONVERTED-NEXT: {{[1-9][0-9]*}}

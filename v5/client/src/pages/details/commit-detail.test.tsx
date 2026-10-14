@@ -128,11 +128,11 @@ async function expectInfo(row: number, expected: [string, string]) {
   await waitFor(async () => expect((await infoRows('Commit'))[row]).toEqual(expected))
 }
 
-/** Runs on two machines, macos twice, in the order the API gives them: newest first. */
+/** Runs on two machines, macos twice, in the order the API gives them: most recently measured first. */
 const RUNS = [
-  run('a', { machine: 'macos', submitted_at: '2026-08-25T14:22:41Z' }),
-  run('b', { machine: 'linux', submitted_at: '2026-08-25T13:00:00Z' }),
-  run('c', { machine: 'macos', submitted_at: '2026-08-24T09:00:00Z' }),
+  run('a', { machine: 'macos', measured_at: '2026-08-25T14:22:41Z' }),
+  run('b', { machine: 'linux', measured_at: '2026-08-25T13:00:00Z' }),
+  run('c', { machine: 'macos', measured_at: '2026-08-24T09:00:00Z' }),
 ]
 
 describe('the Commit Detail page', () => {
@@ -235,7 +235,7 @@ describe('the Commit Detail page', () => {
     await waitFor(() => expect(runQueries).toHaveLength(1))
     expect(Object.fromEntries(runQueries[0])).toEqual({
       commit: VALUE,
-      sort: '-submitted_at',
+      sort: '-measured_at',
       limit: '10000',
     })
     act(() => answer.open())
@@ -609,7 +609,7 @@ describe('the Commit Detail page', () => {
   })
 
   describe('its runs', () => {
-    it('are sorted by machine, newest first on each, each compared with the commit before', async () => {
+    it('are sorted by machine, most recently measured first on each, each compared with the commit before', async () => {
       const { lookups, resolved } = renderCommit({ runs: RUNS })
 
       const runs = await table('Runs')

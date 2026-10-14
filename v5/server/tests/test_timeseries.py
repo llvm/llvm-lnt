@@ -55,8 +55,10 @@ def submit(
     commit in the same breath, so every fixture below is built out of these.
     """
 
-    def post(machine: str, commit: str, *tests: dict[str, Any]) -> dict[str, Any]:
-        body = run_payload(machine={"name": machine}, commit={"value": commit}, tests=list(tests))
+    def post(machine: str, commit: str, *tests: dict[str, Any], **overrides: Any) -> dict[str, Any]:
+        body = run_payload(
+            machine={"name": machine}, commit={"value": commit}, tests=list(tests), **overrides
+        )
         response = api_client.post(RUNS, json=body, headers=submitter)
         assert response.status_code == 201, response.text
         return dict(response.json())
@@ -138,7 +140,7 @@ class TestQueryPoint:
         assert response.status_code == 200
         assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
 
-    def test_carries_exactly_the_nine_keys_endpoints_md_gives_it(
+    def test_carries_exactly_the_ten_keys_endpoints_md_gives_it(
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
@@ -157,6 +159,7 @@ class TestQueryPoint:
                 "ordinal": 42,
                 "run_uuid": run["uuid"],
                 "submitted_at": run["submitted_at"],
+                "measured_at": run["measured_at"],
                 "tag": "release-18.1",
             }
         ]
@@ -365,23 +368,43 @@ class TestQueryFilters:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize("kind", ["submitted", "measured"])
     def test_the_time_ranges_are_exclusive_at_both_ends(
-        self, api_client: TestClient, series: list[dict[str, Any]]
+        self, api_client: TestClient, series: list[dict[str, Any]], kind: str
     ) -> None:
+        # None of the series' runs says when it was measured, so both timestamps are the same.
         served = points(
             api_client,
             metric="execution_time",
-            after_time=series[0]["submitted_at"],
-            before_time=series[2]["submitted_at"],
+            **{
+                f"{kind}_after": series[0][f"{kind}_at"],
+                f"{kind}_before": series[2][f"{kind}_at"],
+            },
         )
 
         assert [point["commit"] for point in served] == ["c2"]
+
+    def test_each_time_range_bounds_its_own_timestamp(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        submit(
+            "linux", "abc", entry("t", {"execution_time": 1.0}), measured_at="2020-06-01T00:00:00Z"
+        )
+        bound = "2021-01-01T00:00:00Z"
+
+        def commits(**bounds: str) -> list[str]:
+            return [p["commit"] for p in points(api_client, metric="execution_time", **bounds)]
+
+        assert commits(measured_before=bound) == ["abc"]
+        assert commits(submitted_before=bound) == []
+        assert commits(submitted_after=bound) == ["abc"]
+        assert commits(measured_after=bound) == []
 
     def test_a_time_bound_is_read_as_iso_8601_and_never_as_an_epoch(
         self, api_client: TestClient, series: list[dict[str, Any]]
     ) -> None:
         # D3: reading a number as a Unix epoch would silently turn a mistyped value into 1970.
-        response = query(api_client, metric="execution_time", after_time=1700000000)
+        response = query(api_client, metric="execution_time", measured_after=1700000000)
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -407,6 +430,7 @@ class TestQueryFilters:
                 "ordinal": None,
                 "run_uuid": baseline["uuid"],
                 "submitted_at": baseline["submitted_at"],
+                "measured_at": baseline["measured_at"],
                 "tag": None,
             }
         ]
@@ -525,6 +549,20 @@ class TestQuerySort:
         assert [point["commit"] for point in oldest] == ["c1", "c2", "c3"]
         assert [point["commit"] for point in newest] == ["c3", "c2", "c1"]
 
+    def test_orders_by_measurement_time_in_both_directions(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        # Measured in the opposite order to the one they were submitted in.
+        value = {"execution_time": 1.0}
+        submit("linux", "late", entry("t", value), measured_at="2026-01-01T00:00:00Z")
+        submit("linux", "early", entry("t", value), measured_at="2020-01-01T00:00:00Z")
+
+        oldest = points(api_client, metric="execution_time", sort="measured_at")
+        newest = points(api_client, metric="execution_time", sort="-measured_at")
+
+        assert [point["commit"] for point in oldest] == ["early", "late"]
+        assert [point["commit"] for point in newest] == ["late", "early"]
+
     def test_a_sort_field_endpoints_md_does_not_name_is_400(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
@@ -561,7 +599,18 @@ class TestQueryPagination:
         assert len(points(api_client, metric="execution_time")) == DEFAULT_LIMIT == 25
 
     @pytest.mark.parametrize(
-        "sort", [None, "commit", "-commit", "test", "-test", "submitted_at", "-submitted_at"]
+        "sort",
+        [
+            None,
+            "commit",
+            "-commit",
+            "test",
+            "-test",
+            "submitted_at",
+            "-submitted_at",
+            "measured_at",
+            "-measured_at",
+        ],
     )
     def test_pages_cover_every_point_exactly_once_and_in_order(
         self,
@@ -618,7 +667,8 @@ class TestQueryPagination:
             {"machine": "linux"},
             {"test": ["t"]},
             {"after_commit": "c1"},
-            {"after_time": "2000-01-01T00:00:00Z"},
+            {"submitted_after": "2000-01-01T00:00:00Z"},
+            {"measured_after": "2000-01-01T00:00:00Z"},
         ],
     )
     def test_refuses_a_cursor_issued_under_other_filters(
@@ -692,7 +742,7 @@ class TestTrends:
                 "machine": "linux",
                 "commit": "abc",
                 "ordinal": 7,
-                "submitted_at": run["submitted_at"],
+                "measured_at": run["measured_at"],
                 "tag": "release-18.1",
                 "value": 4.0,
             }
@@ -743,14 +793,18 @@ class TestTrends:
     ) -> None:
         # Several runs per machine and commit are legal (E4), and a trend point
         # covers all of them rather than one.
-        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
-        latest = submit("linux", "abc", entry("t", {"execution_time": 9.0}))
+        # The run measured last is not the one submitted last.
+        latest = "2026-01-01T00:00:00Z"
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}), measured_at=latest)
+        submit(
+            "linux", "abc", entry("t", {"execution_time": 9.0}), measured_at="2020-01-01T00:00:00Z"
+        )
         place("abc", ordinal=1)
 
         item = trends(api_client, metric="execution_time", machine=["linux"])[0]
 
         assert item["value"] == pytest.approx(3.0)
-        assert item["submitted_at"] == latest["submitted_at"]
+        assert item["measured_at"] == latest
 
     def test_skips_the_zero_and_negative_values(
         self,

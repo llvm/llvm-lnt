@@ -10,7 +10,7 @@ export type SideProgress = Pick<Side, 'id' | 'settings' | 'schema' | 'selected' 
 }
 
 /**
- * The runs `side` has selected, by `runRefKey`, in the order they were submitted, once its runs
+ * The runs `side` has selected, by `runRefKey`, in the order they were measured, once its runs
  * are listed: then they are those it wants the samples of.
  */
 export function chosenRuns(side: Pick<Side, 'selected' | 'wanted'>): string[] {

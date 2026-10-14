@@ -1251,6 +1251,13 @@ export interface components {
              */
             submitted_at: string;
             /**
+             * Measured At
+             * Format: date-time
+             * @description When the run was measured.
+             * @example 2026-08-14T02:41:12Z
+             */
+            measured_at: string;
+            /**
              * Tag
              * @description The commit's tag. Null if it has none.
              * @example llvmorg-22.1.0
@@ -1555,7 +1562,7 @@ export interface components {
             tracked: boolean;
             /**
              * Last Run At
-             * @description When the machine's most recent run was submitted. Null if it has no runs.
+             * @description When the machine's most recently measured run was measured (its `measured_at`). Null if it has no runs.
              */
             last_run_at: string | null;
         };
@@ -2033,20 +2040,30 @@ export interface components {
              */
             before_commit?: string | null;
             /**
-             * After Time
+             * Submitted After
              * @description Only return values from runs submitted after this time (exclusive).
              */
-            after_time?: string | null;
+            submitted_after?: string | null;
             /**
-             * Before Time
+             * Submitted Before
              * @description Only return values from runs submitted before this time (exclusive).
              */
-            before_time?: string | null;
+            submitted_before?: string | null;
+            /**
+             * Measured After
+             * @description Only return values from runs measured after this time (exclusive).
+             */
+            measured_after?: string | null;
+            /**
+             * Measured Before
+             * @description Only return values from runs measured before this time (exclusive).
+             */
+            measured_before?: string | null;
             /**
              * Sort
-             * @description Sort by test name, by commit (that is, by ordinal) or by submission time. Sorting by commit leaves out commits without an ordinal. Without it, the order is unspecified but stable, which is the fastest way to page through all values.
+             * @description Sort by test name, by commit (that is, by ordinal), or by the run's submission or measurement time. Sorting by commit leaves out commits without an ordinal. Without it, the order is unspecified but stable, which is the fastest way to page through all values.
              */
-            sort?: ("test" | "-test" | "commit" | "-commit" | "submitted_at" | "-submitted_at") | null;
+            sort?: ("test" | "-test" | "commit" | "-commit" | "submitted_at" | "-submitted_at" | "measured_at" | "-measured_at") | null;
             /**
              * Limit
              * @description The maximum number of results to return.
@@ -2375,6 +2392,13 @@ export interface components {
              * @description When the server received the run. Set by the server.
              */
             submitted_at: string;
+            /**
+             * Measured At
+             * Format: date-time
+             * @description When the run's data was measured, as given in its submission. The same as `submitted_at` if the submission didn't say.
+             * @example 2026-08-14T02:41:12Z
+             */
+            measured_at: string;
         };
         /**
          * RunCursorPage
@@ -2418,11 +2442,17 @@ export interface components {
              */
             submitted_at: string;
             /**
+             * Measured At
+             * Format: date-time
+             * @description When the run's data was measured, as given in its submission. The same as `submitted_at` if the submission didn't say.
+             * @example 2026-08-14T02:41:12Z
+             */
+            measured_at: string;
+            /**
              * Run Parameters
              * @description The `run_parameters` the run was submitted with. Empty if there were none.
              * @example {
-             *       "end_time": "2026-08-14T02:41:12",
-             *       "start_time": "2026-08-14T01:57:57"
+             *       "build_config": "Release"
              *     }
              */
             run_parameters: {
@@ -2480,6 +2510,12 @@ export interface components {
              * @description The run's UUID. Use the standard hyphenated format (`8-4-4-4-12` hex digits); any UUID version works. It is case-insensitive and stored in lowercase. Leave it out, or set it to null, to let the server generate one. Choosing it yourself makes it safe to retry a submission: if a run with this UUID already exists, you get a 409 `duplicate`.
              */
             uuid?: string | null;
+            /**
+             * Measured At
+             * @description When the run's data was measured, as an ISO 8601 timestamp, treated as UTC if it has no time zone. Defaults to the time the server receives the run if left out or null.
+             * @example 2026-08-14T02:41:12Z
+             */
+            measured_at?: string | null;
             /** @description The machine the run was measured on. */
             machine: components["schemas"]["MachineObject"];
             /** @description The commit the run measured. */
@@ -2907,11 +2943,12 @@ export interface components {
              */
             ordinal: number;
             /**
-             * Submitted At
+             * Measured At
              * Format: date-time
-             * @description When the most recent of the runs behind this value was submitted.
+             * @description When the most recently measured of the runs behind this value was measured.
+             * @example 2026-08-14T02:41:12Z
              */
-            submitted_at: string;
+            measured_at: string;
             /**
              * Tag
              * @description The commit's tag. Null if it has none.
@@ -3474,7 +3511,7 @@ export interface operations {
                 search?: string | null;
                 /** @description Only return tracked machines (`true`) or untracked ones (`false`). Leave out to return both. */
                 tracked?: boolean | null;
-                /** @description Sort by name, or by the time of each machine's most recent run. Machines without runs always come last, and ties are sorted by name. */
+                /** @description Sort by name, or by `last_run_at`: when each machine's most recently measured run was measured. Machines without runs always come last, and ties are sorted by name. */
                 sort?: "name" | "-name" | "last_run_at" | "-last_run_at";
             };
             header?: never;
@@ -4236,13 +4273,17 @@ export interface operations {
                 /** @description Only return runs of this commit. If the commit doesn't exist, the result is empty. */
                 commit?: string | null;
                 /** @description Only return runs submitted after this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
-                after?: string | null;
+                submitted_after?: string | null;
                 /** @description Only return runs submitted before this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
-                before?: string | null;
+                submitted_before?: string | null;
+                /** @description Only return runs measured after this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
+                measured_after?: string | null;
+                /** @description Only return runs measured before this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
+                measured_before?: string | null;
                 /** @description Only return runs that have (`true`) or don't have (`false`) profiles. Leave out to return both. */
                 has_profiles?: boolean | null;
-                /** @description Sort by submission time, oldest first (`submitted_at`) or newest first (`-submitted_at`). Without it, the order is unspecified but stable, which is the fastest way to page through all runs. */
-                sort?: ("submitted_at" | "-submitted_at") | null;
+                /** @description Sort by submission time (`submitted_at`) or by measurement time (`measured_at`), oldest first, or newest first with a leading `-` (`-submitted_at`). Without it, the order is unspecified but stable, which is the fastest way to page through all runs. */
+                sort?: ("submitted_at" | "-submitted_at" | "measured_at" | "-measured_at") | null;
                 /** @description The maximum number of results to return. */
                 limit?: number;
             };

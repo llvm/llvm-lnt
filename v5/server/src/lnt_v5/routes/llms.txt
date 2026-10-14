@@ -195,7 +195,9 @@ The machine and the commit are created if they do not exist. Each test has one
 entry, whose `samples` hold one object per repetition, with the metrics that
 repetition has a value for: above, `bench/bar` ran three times, and
 `compile_time` was measured once. `uuid` is optional and generated when
-omitted. The submission is atomic, and answers 201 with the run.
+omitted. `measured_at`, when the run was measured, is optional too: it defaults
+to the time the server receives the run, which is recorded as `submitted_at`.
+The submission is atomic, and answers 201 with the run. A run cannot be changed afterwards.
 It never overwrites what is stored: a field, tag or ordinal that differs from
 the stored one is 409, and `PATCH` is the only way to change it. The machine's
 `tracked` flag is the exception: it is set only when the submission creates the
@@ -208,13 +210,15 @@ machine, and ignored rather than compared afterwards.
 ```
 
 Only `metric` is required. Other filters are `commit`, `after_commit`,
-`before_commit`, `after_time` and `before_time`, and `sort` takes `test`,
-`commit` (by ordinal) or `submitted_at`. Each point looks like:
+`before_commit`, and the run's `submitted_after`, `submitted_before`,
+`measured_after` and `measured_before`, and `sort` takes `test`, `commit` (by
+ordinal), `submitted_at` or `measured_at`. Each point looks like:
 
 ```json
 {"test": "bench/foo", "machine": "linux-x86_64", "metric": "execution_time",
  "value": 1.23, "commit": "abc123", "ordinal": 593922, "tag": null,
- "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4", "submitted_at": "2026-08-25T14:22:41Z"}
+ "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4",
+ "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
 ```
 
 **Get an overview across machines** with

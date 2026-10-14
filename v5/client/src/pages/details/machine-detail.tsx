@@ -209,10 +209,10 @@ function ActiveRegressions({ suite, name }: { suite: string; name: string }) {
   )
 }
 
-/** The runs of the machine, newest first, a page at a time (DT1). */
+/** The runs of the machine, most recently measured first, a page at a time (DT1). */
 function RunHistory({ schema, name }: { schema: SuiteSchema; name: string }) {
   const suite = schema.name
-  const query = { machine: name, sort: '-submitted_at', limit: PAGE_SIZE } as const
+  const query = { machine: name, sort: '-measured_at', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
     queryKey: [...queryKeys.runs(suite), query],
     fetchPage: (cursor, signal) => fetchRunPage(suite, { ...query, cursor }, signal),
@@ -242,6 +242,6 @@ function RunHistory({ schema, name }: { schema: SuiteSchema; name: string }) {
 }
 
 function columns(schema: SuiteSchema, commits: Map<string, Commit>) {
-  const { run, commit, submitted } = runColumns(schema, commits)
-  return [run, commit, submitted]
+  const { run, commit, measured } = runColumns(schema, commits)
+  return [run, commit, measured]
 }

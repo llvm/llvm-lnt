@@ -448,13 +448,13 @@ as `{suite}.commit`, and the tables below are named that way.
   declared as `machine_fields` are rejected (see O1).
 - `machine_fields` names must not collide with the built-in column names
   (`id`, `name`, `tracked`); the schema parser rejects them.
-- `last_run_at` is not a column. It is the `submitted_at` of the machine's most
-  recent run, or null if the machine has no runs, computed when read; the
+- `last_run_at` is not a column. It is the latest `measured_at` among the
+  machine's runs, or null if the machine has no runs, computed when read; the
   machine endpoints return it and can sort on it. It is deliberately not
   stored: a stored copy would have to be recomputed whenever a run is deleted,
   and would need extra synchronization on submission. Computing it is cheap
   because a suite has few machines (see above), and the compound index on
-  `{suite}.run(machine_id, submitted_at)` reduces it to one index probe per
+  `{suite}.run(machine_id, measured_at)` reduces it to one index probe per
   machine. An implementation must not compute it by aggregating over the whole
   run table.
 - Deleting a machine deletes its runs (and in turn their samples and
@@ -486,25 +486,30 @@ as `{suite}.commit`, and the tables below are named that way.
 | machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
 | submitted_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
+| measured_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
+- No route updates a run once it is stored: a run is only created or deleted.
 - `submitted_at` is recorded by the server when the run is accepted; a
   submission cannot supply it. It comes from the database's clock at the start
   of the storing transaction, so it is comparable across workers, but does not
   reflect the order in which runs became visible.
-- Compound index on `(machine_id, submitted_at)`. Its leading column serves
+- `measured_at` is when the run's data was measured, as its submission states
+  it (see O1), and `submitted_at` when the submission omits it. The server
+  accepts any value, including one later than `submitted_at`.
+- Compound index on `(machine_id, measured_at)`. Its leading column serves
   lookups of all the runs of a machine, and the pair keeps both
-  `GET /api/suites/{testsuite}/runs?machine={name}&sort=-submitted_at` and the
+  `GET /api/suites/{testsuite}/runs?machine={name}&sort=-measured_at` and the
   `last_run_at` computation described under `{suite}.machine` to a bounded
   index scan rather than a scan of this table.
-- Compound index on `(submitted_at, id)`: serves
-  `GET /api/suites/{testsuite}/runs?sort=-submitted_at` without `machine=`,
-  which the index above cannot. `id` is the cursor's tiebreaker (O5).
+- Compound indexes on `(submitted_at, id)` and `(measured_at, id)`: serve
+  `GET /api/suites/{testsuite}/runs?sort=-submitted_at` and `?sort=-measured_at`
+  without `machine=`. `id` is the cursor's tiebreaker (O5).
 - `uuid` uses the `C` collation so that its unique index also serves O4's
   match by prefix, which an index under a linguistic collation cannot.
   Equality is the same under either, and nothing sorts by `uuid`. With that
-  index, the one on `commit_id` and the one on `(machine_id, submitted_at)`,
+  index, the one on `commit_id` and the one on `(machine_id, measured_at)`,
   `GET /api/suites/{testsuite}/runs?search=` must not scan this table when
   fewer runs match than fill a page.
 - Deleting a run deletes its samples, profiles and run summaries.

@@ -512,16 +512,16 @@ describe('the Machine Detail page', () => {
   })
 
   describe('its run history', () => {
-    it('lists the runs newest first, with their commits by display value, a page at a time', async () => {
+    it('lists the runs most recently measured first, with their commits by display value, a page at a time', async () => {
       const { runQueries } = renderMachine({ runs: [run('a', { commit: 'abc123' })] })
 
       const runs = await table('Run history')
       expect(rowsOf(runs)).toEqual([
-        `${uuidOf('a').slice(0, 8)}… | r100 (v1) | 2026-08-25, 2:22:41 PM`,
+        `${uuidOf('a').slice(0, 8)}… | r100 (v1) | 2026-08-25, 2:02:17 PM`,
       ])
       expect(Object.fromEntries(runQueries[0])).toEqual({
         machine: NAME,
-        sort: '-submitted_at',
+        sort: '-measured_at',
         limit: '25',
       })
 
