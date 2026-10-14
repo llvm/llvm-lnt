@@ -158,6 +158,30 @@ print('runs fetched: %s' % fetched)
 # CHECK: check: 0
 # CHECK: runs fetched: ['runs/3']
 
+
+# Summaries and machines are compared through digests, which must not depend
+# on the order of their keys: a listing that only reorders them changes no run.
+
+
+def reordered(obj):
+    return dict(reversed(list(obj.items())))
+
+
+serve(schema=[SCHEMA], machines=[MACHINES],
+      **{'machines/1': [(OK, listing(*(reordered(summary(i))
+                                       for i in (1, 2, 3)),
+                                     machine=reordered(MACHINE)))]})
+refresh('keys in another order')
+check()
+print('runs fetched: %s' % sorted(p for p in requests_seen
+                                  if p.startswith('runs/')))
+# CHECK-LABEL: === keys in another order
+# CHECK: machine 1 (fake-machine): 0 run(s) to fetch, 0 changed, 0 removed, 3 unchanged
+# CHECK: exit: 0
+# CHECK: machine 1 fake-machine: runs 1 2 3
+# CHECK: check: 0
+# CHECK: runs fetched: []
+
 # A run that changes between the machine listing and the fetch of the run is not
 # mirrored, since it matches neither the old summary nor the new one.
 serve(schema=[SCHEMA], machines=[MACHINES],
