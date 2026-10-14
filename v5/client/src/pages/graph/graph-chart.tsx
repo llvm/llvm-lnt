@@ -7,7 +7,6 @@ import type { Measurement, Series } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
 import { Chart, type PlotGeometry } from '../../components/chart'
-import { compareStrings } from '../../format'
 import { sameElements } from '../../same-elements'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
 import { useStoreValue, type ValueStore } from '../../value-store'
@@ -162,7 +161,9 @@ function samplesAt(measurements: readonly Measurement[], commit: string) {
 function runsOf(samples: readonly Measurement[]) {
   const runs = runSamples(samples)
   for (const run of runs) run.samples.sort((a, b) => a - b)
-  return runs.sort((a, b) => compareStrings(a.measured, b.measured))
+  // By instant rather than as strings: a timestamp is written with a fraction of a second only when
+  // it has one, so the strings of two instants a fraction apart need not sort in their order.
+  return runs.sort((a, b) => Date.parse(a.measured) - Date.parse(b.measured))
 }
 
 /**

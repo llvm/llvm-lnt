@@ -37,6 +37,8 @@ test('shows the run, and its samples sorted and filtered by test name', async ({
   const info = page.getByRole('group', { name: 'Run', exact: true })
   await expect(info).toContainText(LINUX)
   await expect(info).toContainText('r552558')
+  await expect(info).toContainText('Measured')
+  await expect(info).toContainText('Submitted')
   await expect(info).toContainText('start_time')
   await expect(page.getByRole('button', { name: 'Execution Time Metric' })).toBeVisible()
   const samples = table(page, 'Samples')

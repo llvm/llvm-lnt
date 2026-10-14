@@ -1254,7 +1254,7 @@ export interface components {
              * Measured At
              * Format: date-time
              * @description When the run was measured.
-             * @example 2026-08-14T01:57:57Z
+             * @example 2026-08-14T02:41:12Z
              */
             measured_at: string;
             /**
@@ -2396,7 +2396,7 @@ export interface components {
              * Measured At
              * Format: date-time
              * @description When the run's data was measured, as given in its submission. The same as `submitted_at` if the submission didn't say.
-             * @example 2026-08-14T01:57:57Z
+             * @example 2026-08-14T02:41:12Z
              */
             measured_at: string;
         };
@@ -2445,15 +2445,14 @@ export interface components {
              * Measured At
              * Format: date-time
              * @description When the run's data was measured, as given in its submission. The same as `submitted_at` if the submission didn't say.
-             * @example 2026-08-14T01:57:57Z
+             * @example 2026-08-14T02:41:12Z
              */
             measured_at: string;
             /**
              * Run Parameters
              * @description The `run_parameters` the run was submitted with. Empty if there were none.
              * @example {
-             *       "end_time": "2026-08-14T02:41:12",
-             *       "start_time": "2026-08-14T01:57:57"
+             *       "build_config": "Release"
              *     }
              */
             run_parameters: {
@@ -2514,7 +2513,7 @@ export interface components {
             /**
              * Measured At
              * @description When the run's data was measured, as an ISO 8601 timestamp, treated as UTC if it has no time zone. Leave it out (or set it to null) when submitting right after measuring: it then defaults to the time the server receives the run. Set it when submitting data measured earlier.
-             * @example 2026-08-14T01:57:57Z
+             * @example 2026-08-14T02:41:12Z
              */
             measured_at?: string | null;
             /** @description The machine the run was measured on. */
@@ -2947,7 +2946,7 @@ export interface components {
              * Measured At
              * Format: date-time
              * @description When the most recently measured of the runs behind this value was measured.
-             * @example 2026-08-14T01:57:57Z
+             * @example 2026-08-14T02:41:12Z
              */
             measured_at: string;
             /**

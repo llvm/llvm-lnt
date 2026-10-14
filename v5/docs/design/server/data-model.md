@@ -486,7 +486,7 @@ as `{suite}.commit`, and the tables below are named that way.
 | machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
 | submitted_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
-| measured_at | TIMESTAMP WITH TIME ZONE | not null |
+| measured_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
@@ -503,9 +503,9 @@ as `{suite}.commit`, and the tables below are named that way.
   `GET /api/suites/{testsuite}/runs?machine={name}&sort=-measured_at` and the
   `last_run_at` computation described under `{suite}.machine` to a bounded
   index scan rather than a scan of this table.
-- Compound index on `(submitted_at, id)`: serves
-  `GET /api/suites/{testsuite}/runs?sort=-submitted_at` without `machine=`.
-  `id` is the cursor's tiebreaker (O5).
+- Compound indexes on `(submitted_at, id)` and `(measured_at, id)`: serve
+  `GET /api/suites/{testsuite}/runs?sort=-submitted_at` and `?sort=-measured_at`
+  without `machine=`. `id` is the cursor's tiebreaker (O5).
 - `uuid` uses the `C` collation so that its unique index also serves O4's
   match by prefix, which an index under a linguistic collation cannot.
   Equality is the same under either, and nothing sorts by `uuid`. With that

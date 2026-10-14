@@ -583,8 +583,9 @@ limit, cursor}`.
 - `commit` keeps only the samples of that commit. It cannot be combined with
   `after_commit` or `before_commit` (400 if both are supplied).
 - The time and commit bounds are exclusive (strictly after, strictly before).
-  The time bounds apply to the `submitted_at` or the `measured_at` of the run a
-  sample belongs to. When either commit bound is given, samples on commits with
+  `submitted_after` and `submitted_before` bound the `submitted_at` of the run a
+  sample belongs to, and `measured_after` and `measured_before` its
+  `measured_at`. When either commit bound is given, samples on commits with
   no ordinal are excluded, whatever the `sort`.
 - `sort` names one ordering, optionally prefixed with `-` for descending (see
   I3): `test`, `commit` (by ordinal), `submitted_at` or `measured_at` (the

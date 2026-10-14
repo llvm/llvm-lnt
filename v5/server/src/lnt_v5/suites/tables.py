@@ -238,12 +238,13 @@ def build(schema: SuiteSchema) -> SuiteTables:
     # `sort=-measured_at` and the derived `last_run_at` to a bounded index scan rather than a scan
     # of this table.
     Index(None, run.c.machine_id, run.c.measured_at)
-    # D5: the suite-wide run list's `?sort=-submitted_at`, with no machine to narrow it. `id` joins
-    # it because the keyset's tiebreaker is `(submitted_at, id)`, and only an index over both turns
-    # the cursor's row comparison into an index condition rather than a filter applied after the
-    # scan -- which is the difference between resuming at the cursor and re-reading every page
-    # already served.
+    # D5: the suite-wide run list's `?sort=-submitted_at` and `?sort=-measured_at`, with no machine
+    # to narrow them. `id` joins each because the keyset's tiebreaker is `id`, and only an index
+    # over both turns the cursor's row comparison into an index condition rather than a filter
+    # applied after the scan -- which is the difference between resuming at the cursor and
+    # re-reading every page already served.
     Index(None, run.c.submitted_at, run.c.id)
+    Index(None, run.c.measured_at, run.c.id)
 
     test = Table(
         "test",

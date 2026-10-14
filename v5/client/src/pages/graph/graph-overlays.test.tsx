@@ -241,11 +241,12 @@ describe('the point details (GR11)', () => {
   const SAMPLES: Record<string, Sample[]> = {
     'm1/a': [
       ['c10', 'r1', 1],
-      // Measured after r3, though listed first.
-      ['c20', 'r2', 2, '2026-08-26T10:00:00Z'],
+      // Measured half a second after r3, though listed first. As strings, its fraction of a
+      // second would sort it before r3's whole second.
+      ['c20', 'r2', 2, '2026-08-26T10:00:00.5Z'],
       // Two samples, listed in ascending order whatever the order they arrive in.
-      ['c20', 'r3', 6, '2026-08-25T10:00:00Z'],
-      ['c20', 'r3', 4, '2026-08-25T10:00:00Z'],
+      ['c20', 'r3', 6, '2026-08-26T10:00:00Z'],
+      ['c20', 'r3', 4, '2026-08-26T10:00:00Z'],
     ],
   }
 

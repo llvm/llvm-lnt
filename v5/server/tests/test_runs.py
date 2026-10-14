@@ -1261,16 +1261,19 @@ class TestList:
         assert uuids_in(listed(api_client, "sort=submitted_at")) == [early, late]
         assert uuids_in(listed(api_client, "sort=measured_at")) == [late, early]
 
+    # With and without a machine, which D5 indexes differently.
+    @pytest.mark.parametrize("narrowed", ["", "machine=linux&"])
     def test_serves_runs_sharing_an_instant_exactly_once(
-        self, api_client: TestClient, run_at: Callable[..., str]
+        self, api_client: TestClient, timed: Timed, narrowed: str
     ) -> None:
-        # O5: `submitted_at` is not unique, so the keyset needs its internal tiebreaker. Without
+        # O5: neither timestamp is unique, so the keyset needs its internal tiebreaker. Without
         # one, a page boundary falling between two runs of the same instant drops one and repeats
         # the other.
+        kind, at = timed
         moment = datetime(2026, 3, 4, 5, 6, tzinfo=UTC)
-        created = {run_at(moment) for _ in range(5)}
+        created = {at(moment) for _ in range(5)}
 
-        assert set(walk(api_client, "sort=-submitted_at&limit=2")) == created
+        assert set(walk(api_client, f"{narrowed}sort=-{kind}_at&limit=2")) == created
 
     def test_refuses_a_sort_field_it_does_not_offer(
         self, api_client: TestClient, suite: SuiteTables

@@ -126,8 +126,8 @@ These hold on every page, unless the page specifies otherwise.
 - Timestamps are shown in the browser's local time zone.
 - A run is placed in time by when it was measured, its `measured_at` (see D5),
   rather than when it was submitted: runs are listed in that order, the latest
-  run is the one measured last, and a time shown for a run is labelled
-  `Measured`. A page that uses `submitted_at` instead says so.
+  run is the one measured last, and where a time shown for a run is labelled,
+  the label is `Measured`. A page that uses `submitted_at` instead says so.
 - A measured `real` value is shown to at most 6 significant digits, but never
   with fewer digits than its integer part has (`1.26432`, `66655.7`,
   `4123456789`).

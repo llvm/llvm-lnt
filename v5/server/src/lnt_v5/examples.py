@@ -128,11 +128,8 @@ TEST = "std::find_if(vector<char>)_(bail_25%)/8"
 OTHER_TEST = "std::stable_sort(vector<int>)_(heap)/8192"
 
 RUN_UUID = "ae93bcbf-4499-4be0-bf2d-0d915fee692a"
-MEASURED_AT = "2026-08-14T01:57:57Z"
-RUN_PARAMETERS: dict[str, Any] = {
-    "start_time": "2026-08-14T01:57:57",
-    "end_time": "2026-08-14T02:41:12",
-}
+MEASURED_AT = "2026-08-14T02:41:12Z"
+RUN_PARAMETERS: dict[str, Any] = {"build_config": "Release"}
 PROFILE_UUID = "6f1c2a9e-3b7d-4e58-9a1f-0c8d2e4b7a63"
 REGRESSION_UUID = "c4e1b7a2-9d3f-4a6e-8b5c-2f7e1d9a0b34"
 INDICATOR_UUID = "0b7e3f6c-5d2a-4c1e-9f8b-7a6d5c4b3a21"

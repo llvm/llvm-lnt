@@ -599,16 +599,17 @@ class TestIndexes:
             "measured_at",
         ]
 
-    def test_run_is_indexed_by_submission_time_alone_as_well(
+    def test_run_is_indexed_by_each_timestamp_alone_as_well(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5: the suite-wide `GET /runs?sort=-submitted_at` names no machine. `id` is in this one
-        # because the cursor orders by `(submitted_at, id)`.
+        # D5: the suite-wide `GET /runs?sort=-submitted_at` and `?sort=-measured_at` name no
+        # machine. `id` is in each because the cursor orders by the timestamp, then `id`.
         make_suite("nts")
 
         indexes = indexes_of(inspect(db_engine), "nts", "run")
 
         assert indexes["ix_run_submitted_at_id"]["column_names"] == ["submitted_at", "id"]
+        assert indexes["ix_run_measured_at_id"]["column_names"] == ["measured_at", "id"]
 
     def test_regression_is_indexed_by_creation_time(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

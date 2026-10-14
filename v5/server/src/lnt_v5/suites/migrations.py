@@ -78,11 +78,11 @@ def _regression_commit_set_null(op: Operations, suite: SuiteSchema) -> None:
 
 
 def _run_measured_at(op: Operations, suite: SuiteSchema) -> None:
-    """Version 3: `{suite}.run.measured_at`, and the machine's runs indexed by it (D5).
+    """Version 3: `{suite}.run.measured_at`, and the indexes ordering runs by it (D5).
 
     Existing runs were all measured when they were submitted, as far as anything recorded says, so
-    they get their `submitted_at`. The old index is dropped before the backfill and the new one
-    created after it, so that the UPDATE maintains neither.
+    they get their `submitted_at`. The old index is dropped before the backfill and the new ones
+    created after it, so that the UPDATE maintains none of them.
     """
     op.drop_index("ix_run_machine_id_submitted_at", table_name="run", schema=suite.name)
     op.add_column(
@@ -108,6 +108,7 @@ def _run_measured_at(op: Operations, suite: SuiteSchema) -> None:
     op.create_index(
         "ix_run_machine_id_measured_at", "run", ["machine_id", "measured_at"], schema=suite.name
     )
+    op.create_index("ix_run_measured_at_id", "run", ["measured_at", "id"], schema=suite.name)
 
 
 STEPS: Sequence[Step] = (_run_uuid_collation, _regression_commit_set_null, _run_measured_at)

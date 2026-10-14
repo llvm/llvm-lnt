@@ -81,6 +81,8 @@ CREATE INDEX ix_run_commit_id ON reference.run (commit_id);
 
 CREATE INDEX ix_run_machine_id_measured_at ON reference.run (machine_id, measured_at);
 
+CREATE INDEX ix_run_measured_at_id ON reference.run (measured_at, id);
+
 CREATE INDEX ix_run_submitted_at_id ON reference.run (submitted_at, id);
 
 CREATE TABLE reference.test_coverage (
