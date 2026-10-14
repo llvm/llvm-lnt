@@ -343,7 +343,8 @@
 .unchanged,
 .na,
 .onlyA,
-.onlyB {
+.onlyB,
+.zeroBaseline {
   --status-color: var(--lnt-muted);
 }
 
@@ -370,11 +371,6 @@
 
 .muted {
   opacity: 0.5;
-}
-
-/* A category explaining itself on hover, as a help label does. */
-.explained {
-  composes: label from '../../components/help-label.module.css';
 }
 
 .dot {

@@ -322,12 +322,12 @@ describe('summaryCounts', () => {
       unchanged: 1,
       onlyA: 1,
       onlyB: 2,
-      na: 1,
+      zeroBaseline: 1,
     })
   })
 
-  it('puts a zero baseline in N/A only when both sides have a value', () => {
-    expect(categoryOf(valued(0, 1))).toBe('na')
+  it('puts a zero baseline in its category only when both sides have a value', () => {
+    expect(categoryOf(valued(0, 1))).toBe('zeroBaseline')
     expect(categoryOf(valued(0, null))).toBe('onlyA')
   })
 })

@@ -315,7 +315,7 @@ describe('the summary bar (CP4)', () => {
       'Unchanged 0 (0%)',
       'Only in A 1',
       'Only in B 1',
-      'N/A 0',
+      'Zero baseline 0',
     ])
   })
 })
