@@ -150,6 +150,11 @@ export function traces() {
   })
 }
 
+/** The names of the traces the chart was last given, in order. */
+export function drawn() {
+  return (chart().data as PlotData[]).map((trace) => trace.name)
+}
+
 export function layout(): Partial<Layout> {
   return chart().layout
 }

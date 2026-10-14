@@ -17,6 +17,7 @@ import {
   box,
   chart,
   commitAt,
+  drawn,
   layout,
   listed,
   mockWorld,
@@ -236,9 +237,6 @@ describe('the aggregation (GR1)', () => {
 /** How the selection's count goes on with GRAPHED's tests, filtered. */
 const MATCHING = 'matching tests selected (4 total)'
 
-/** The names of the traces drawn, in order. */
-const drawn = () => (chart().data as PlotData[]).map((trace) => trace.name)
-
 describe('the selection (GR6, GR7, GR14)', () => {
   it('toggles a test with a click on its row, once with its checkbox', async () => {
     mockWorld()
@@ -297,7 +295,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     expect(count).not.toHaveTextContent(/too many/)
   })
 
-  it('says how many selected tests the filter hides, then that the URL lacks them', async () => {
+  it('says the URL lacks the selection, and how many selected tests the filter hides', async () => {
     const names = Array.from({ length: 11 }, (_, i) => `t${String(i).padStart(2, '0')}`)
     mockWorld({ tests: { m1: names } })
     const tests = names.map((name) => `test=${name}`).join('&')
@@ -305,8 +303,8 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(listed()).toHaveLength(10))
 
     expect(main().getByText(/^10 of 10 matching tests selected/)).toHaveTextContent(
-      '10 of 10 matching tests selected (11 total), 1 more hidden by the filter ' +
-        '(too many to reflect in the URL)',
+      '10 of 10 matching tests selected (11 total) (too many to reflect in the URL), ' +
+        '1 more hidden by the filter',
     )
   })
 
@@ -344,7 +342,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
       const count = main().getByText(/^0 of 1 matching tests selected/)
       expect(count).toHaveTextContent(
-        /^0 of 1 matching tests selected \(101 total\), 100 more hidden by the filter/,
+        /^0 of 1 matching tests selected \(101 total\) .*, 100 more hidden by the filter/,
       )
       expect(box('t100')).toBeDisabled()
       expect(box('t100')).toHaveAccessibleDescription(WHY)
@@ -399,6 +397,25 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
     expect(query().test).toHaveLength(12)
     act(() => lists.open())
+    await waitFor(() => expect(query().test).toEqual(['a']))
+  })
+
+  it('counts among the tests the filter hides only those listed', async () => {
+    const lists = gate()
+    mockWorld()
+    // m2's tests, held: zzz, which no list holds so far, stays selected meanwhile.
+    mockTests(async (query) => {
+      const machine = query.get('machine') as 'm1' | 'm2'
+      if (machine === 'm2') await lists.promise
+      return testPage(TESTS[machine])
+    })
+    renderPage(`${GRAPHED}&test_filter=b&test=a&test=zzz`)
+
+    const counted = '0 of 1 matching tests selected (3 total), 1 more hidden by the filter'
+    expect(await main().findByText(counted)).toBeVisible()
+    expect(query().test).toEqual(['a', 'zzz'])
+    act(() => lists.open())
+    expect(await main().findByText(`0 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
     await waitFor(() => expect(query().test).toEqual(['a']))
   })
 

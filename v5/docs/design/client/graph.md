@@ -332,13 +332,12 @@ not points.
 
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page says that the URL does not reflect the
-selection. `test_filter_regex=true` turns on the test filter's
-regex mode (see AR9). On load, `test_filter` filters the test table as if it had
-been typed, and a `test` that the test list for the selected machines and metric
-does not hold is dropped. A `test` that does not match the filter stays
-selected (see GR1). Of a URL naming
-more than 100 tests, which the page never writes, only the first 100 are
-selected (see GR7), before any of them is dropped.
+selection. `test_filter_regex=true` turns on the test filter's regex mode (see
+AR9). On load, `test_filter` filters the test table as if it had been typed, and
+a `test` that the test list for the selected machines and metric does not hold
+is dropped. A `test` that does not match the filter stays selected (see GR1). Of
+a URL naming more than 100 tests, which the page never writes, only the first
+100 are selected (see GR7), before any of them is dropped.
 
 
 ### GR15: Regression Annotations
