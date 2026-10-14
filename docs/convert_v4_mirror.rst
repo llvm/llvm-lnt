@@ -1,33 +1,40 @@
-.. _import_v4_mirror:
+.. _convert_v4_mirror:
 
-Importing a v4 Mirror into v5
+Converting a v4 Mirror for v5
 =============================
 
-``lnt v5 import-v4-mirror`` imports a test suite from a mirror made by
-``lnt mirror-v4`` (see :ref:`mirror_v4`) into a test suite of an LNT v5
-instance, through the v5 REST API.
+``lnt v5 convert-v4-mirror`` converts a test suite of a mirror made by
+``lnt mirror-v4`` (see :ref:`mirror_v4`) into runs that ``lnt v5 submit`` can
+submit to a test suite of an LNT v5 instance (see :ref:`v5_submit`).
 
 
 Example
 -------
 
 To import the ``nts`` suite of a mirror into the ``nts`` suite of a v5
-instance::
+instance, convert it, and then submit the converted runs, creating the suite
+with the schema the conversion derived::
 
-    lnt v5 import-v4-mirror ./lnt-mirror --suite nts \
-        --target https://lnt.example.com --target-suite nts --token <token>
+    lnt v5 convert-v4-mirror ./lnt-mirror --suite nts \
+        --schema-out nts-schema.json > nts.jsonl
+    lnt v5 submit https://lnt.example.com --suite nts \
+        --create-suite nts-schema.json --token <token> nts.jsonl
 
-Adding ``--dry-run`` checks that the whole suite can be converted, without
-contacting the v5 instance. See ``lnt v5 import-v4-mirror --help`` for the
-other options.
+Once the mirror has been refreshed, converting it again and submitting the
+result submits the runs that the v5 instance does not have yet::
+
+    lnt v5 convert-v4-mirror ./lnt-mirror --suite nts | \
+        lnt v5 submit https://lnt.example.com --suite nts --token <token>
+
+See ``lnt v5 convert-v4-mirror --help`` for the other options.
 
 
-What is imported
-----------------
+What is converted
+-----------------
 
 Everything the mirror holds for the suite: its schema, its machines, and its
 runs with their samples. Since the mirror holds neither regressions nor
-profiles, neither are imported (see :ref:`mirror_v4`).
+profiles, neither are converted (see :ref:`mirror_v4`).
 
 Each v4 entity becomes one v5 entity, as described in the following sections.
 Anything that cannot be converted as described is an error: the command never
@@ -89,14 +96,19 @@ The resulting names must be unique and valid v5 names, otherwise it is an error.
 Commits
 ~~~~~~~
 
-A run's commit is the value of its order field, as a string, unchanged. It must
-be a valid v5 commit value.
+A run's commit is the value of its order field, as a string, unchanged. A v4
+suite whose order field holds a revision number may record a better identity
+for the commit in another run field, such as a git SHA: with
+``--commit-field FIELD``, a run's commit is the value of its ``FIELD`` instead,
+when the run has one. It is an error if no run has one. Either way, the commit
+must be a valid v5 commit value.
 
-The commit's ordinal is the number the value holds when it matches
+The commit's ordinal is the number the run's order field holds when it matches
 ``^r?[0-9]+$`` (e.g. ``602079`` or ``r602079``), provided it fits in a 32-bit
-signed integer, like every v5 ordinal. Any other commit has no ordinal. Two
-different values with the same ordinal (e.g. ``602079`` and ``r602079``) are an
-error, since v5 ordinals are unique within a suite.
+signed integer, like every v5 ordinal. Otherwise, the commit has no ordinal. It
+is an error if the runs of a commit do not agree on its ordinal, or if two
+different commits have the same ordinal (e.g. ``602079`` and ``r602079``), since
+v5 ordinals are unique within a suite.
 
 Commits get no tag and no fields.
 
@@ -112,7 +124,7 @@ Each v4 run becomes one v5 run submission:
 - ``machine``: the run's machine, as described above.
 - ``commit``: ``value`` and, if it has one, ``ordinal``, as described above.
 - ``run_parameters``: every key of the v4 run that is not null, except ``id``,
-  ``order_id``, ``order_by`` and the order field.
+  ``order_id``, ``order_by`` and the field its commit is taken from.
 - ``tests``: one entry per test name, in the order the names first appear among
   the v4 samples. Each v4 sample becomes one v5 sample, holding the metrics that
   are not null in it, even if that leaves none.
@@ -120,25 +132,15 @@ Each v4 run becomes one v5 run submission:
 Each sample value must have its metric's type in the target schema.
 
 
-Submission
-----------
+Output
+------
 
-1. If the target suite does not exist, the command creates it with the schema
-   above, which requires a token with ``manage`` scope. If it exists, its
-   schema must be the one above: it is an error otherwise, and nothing is
-   submitted.
-2. The command lists the runs the target suite already has, and skips those
-   whose UUID it would submit. This allows resuming an interrupted import.
-3. The other runs are submitted in increasing order of their v4 identifier.
-   A ``409 duplicate`` means the run was submitted already, and counts as a
-   success. Network errors, 5xx responses and ``409 retry`` are retried a few
-   times. Any other failure, and any run that cannot be converted, is reported
-   along with the v4 run and machine it concerns, and the command carries on
-   with the next run.
+The command writes each run's submission to its standard output, as one line of
+JSON (the JSON Lines format), in increasing order of the runs' v4 identifiers.
+With ``--schema-out FILE``, it also writes the target suite's schema to
+``FILE``. The schema's ``name`` is the one given with ``--target-suite``, or the
+mirrored suite's name by default.
 
-The command exits with a non-zero status if any run failed. Running it again
-submits only the runs that are still missing.
-
-With ``--dry-run``, the command derives the schema, converts every run, and
-reports what it would submit and every error, without contacting the v5
-instance.
+The command reports on its standard error which machines it renamed, and every
+run that cannot be converted, and carries on with the next run. It exits with a
+non-zero status if any run cannot be converted.

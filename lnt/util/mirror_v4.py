@@ -390,15 +390,15 @@ class Mirror:
             return None
 
 
-def _schema_path(suite: str) -> str:
+def schema_path(suite: str) -> str:
     return '%s/schema.json' % suite
 
 
-def _machine_path(suite: str, machine_id: str) -> str:
+def machine_path(suite: str, machine_id: str) -> str:
     return '%s/machines/%s.json' % (suite, machine_id)
 
 
-def _run_path(suite: str, run_id: str) -> str:
+def run_path(suite: str, run_id: str) -> str:
     return '%s/runs/%s.json.gz' % (suite, run_id)
 
 
@@ -498,7 +498,7 @@ def _plan_machine(client: Client, mirror: Mirror, suite: str,
     # still current. Otherwise (the refresh that wrote the listing was
     # interrupted before it could update the manifest), fall back to checking
     # the mirrored runs themselves.
-    previous = mirror.read(_machine_path(suite, machine_id))
+    previous = mirror.read(machine_path(suite, machine_id))
     previous_summaries: dict[str, JSONObject] | None = None
     if previous is not None and _sha256(previous) == mirrored['sha256']:
         plan.listing_changed = previous != plan.listing
@@ -515,7 +515,7 @@ def _plan_machine(client: Client, mirror: Mirror, suite: str,
         if run_id not in plan.summaries:
             plan.removed += 1
             continue
-        path = _run_path(suite, run_id)
+        path = run_path(suite, run_id)
         if previous_summaries is not None:
             current = previous_summaries.get(run_id) == \
                 plan.summaries[run_id] and \
@@ -575,7 +575,7 @@ def _fetch_all(client: Client, mirror: Mirror, suite: str,
             # it up.
             raise FetchError('run %s changed on the server during the refresh'
                              % run_id)
-        mirror.write(_run_path(suite, run_id), data, compress=True)
+        mirror.write(run_path(suite, run_id), data, compress=True)
         return _sha256(data)
 
     fetched = failures = 0
@@ -736,15 +736,15 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
     if mirror.is_new:
         mirror.flush()
     mirror.manifest['suites'][suite] = entry
-    if mirror.read(_schema_path(suite)) != schema:
-        mirror.write(_schema_path(suite), schema)
+    if mirror.read(schema_path(suite)) != schema:
+        mirror.write(schema_path(suite), schema)
     entry['schema'] = SchemaEntry(sha256=_sha256(schema))
     for machine_id in removed_machines:
         del mirrored[machine_id]
 
     for plan in ok:
         if plan.listing_changed:
-            mirror.write(_machine_path(suite, plan.id), plan.listing)
+            mirror.write(machine_path(suite, plan.id), plan.listing)
         mirrored[plan.id] = MachineEntry(
             name=plan.name, fetched_at=plan.fetched_at,
             sha256=_sha256(plan.listing), runs=dict(plan.kept))
@@ -768,7 +768,7 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
             sha = None
             if run_id not in plan.changed:
                 sha = plan.current_sha(run_id, mirror.read(
-                    _run_path(suite, run_id), compressed=True))
+                    run_path(suite, run_id), compressed=True))
             if sha is None:
                 pending.append((plan, run_id))
             else:
