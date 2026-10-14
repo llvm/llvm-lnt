@@ -7,12 +7,13 @@ do. The snapshot tests check that the real steps and `suites/tables.py` agree.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 import sqlalchemy as sa
 from alembic.operations import Operations
-from sqlalchemy import Engine, create_engine, insert, select, text
+from sqlalchemy import Connection, Engine, create_engine, insert, select, text
 from sqlalchemy.pool import NullPool
 
 from conftest import store_suite
@@ -72,6 +73,18 @@ def migration_lock_is_free(database_url: str) -> bool:
     finally:
         engine.dispose()
     return taken
+
+
+def replay_reference(connection: Connection, version: int) -> None:
+    """The reference suite as a suite at `version` is: its tables then, and its row in `schema`."""
+    replay(connection, version)
+    connection.execute(
+        insert(schema).values(
+            name="reference",
+            schema_json=normalized_json(reference_schema()),
+            migration_version=version,
+        )
+    )
 
 
 def fresh_structure(engine: Engine) -> dict[str, list[tuple[Any, ...]]]:
@@ -277,14 +290,7 @@ class TestSnapshots:
     ) -> None:
         # D6: once migrated, a suite has the same structure as a new suite from the same build.
         with db_engine.begin() as connection:
-            replay(connection, version)
-            connection.execute(
-                insert(schema).values(
-                    name="reference",
-                    schema_json=normalized_json(reference_schema()),
-                    migration_version=version,
-                )
-            )
+            replay_reference(connection, version)
         upgrade_to_head(db_engine)
         migrated = structure_of(db_engine, "reference")
 
@@ -329,3 +335,33 @@ class TestSnapshots:
         fresh = fresh_structure(db_engine)
         assert old != fresh
         assert migrated == fresh
+
+
+class TestSteps:
+    """What the real steps do to data, which the snapshots do not cover."""
+
+    def test_measured_at_is_backfilled_with_each_runs_submitted_at(self, db_engine: Engine) -> None:
+        # Version 3 (D5): existing runs say nothing about when they were measured, so they get
+        # their own `submitted_at`. Several distinct values, so a constant would not pass.
+        submitted = [datetime(2026, month, 1, 12, 0, tzinfo=UTC) for month in (1, 2, 3)]
+        with db_engine.begin() as connection:
+            replay_reference(connection, 2)
+            connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
+            connection.execute(text("INSERT INTO reference.commit (commit) VALUES ('c')"))
+            for index, moment in enumerate(submitted):
+                connection.execute(
+                    text(
+                        "INSERT INTO reference.run (uuid, machine_id, commit_id, submitted_at) "
+                        "SELECT :uuid, machine.id, commit.id, :moment "
+                        "FROM reference.machine, reference.commit"
+                    ),
+                    {"uuid": f"{index}0000000-0000-4000-8000-000000000000", "moment": moment},
+                )
+
+        upgrade_to_head(db_engine)
+
+        with db_engine.connect() as connection:
+            measured = connection.scalars(
+                text("SELECT measured_at FROM reference.run ORDER BY submitted_at")
+            ).all()
+        assert measured == submitted

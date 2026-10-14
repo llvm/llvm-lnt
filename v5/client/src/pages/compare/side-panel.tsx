@@ -133,7 +133,7 @@ function RunList({ side }: { side: Side }) {
         {runs.data.map((run) => (
           <div key={run.uuid} className={styles.run}>
             <SelectBox rows={selection} rowKey={run.uuid} label={`Run ${uuidPrefix(run.uuid)}`} />
-            <span className={styles.runTime}>{formatTimestamp(run.submitted_at)}</span>
+            <span className={styles.runTime}>{formatTimestamp(run.measured_at)}</span>
             <UuidLink
               uuid={run.uuid}
               to={runPath(settings.suite, run.uuid)}

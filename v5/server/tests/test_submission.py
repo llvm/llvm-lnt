@@ -13,6 +13,7 @@ with an `ApiError` carrying that code itself.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -148,6 +149,24 @@ class TestUuid:
         # Deliberately narrower than a UUID library, which would accept the first four of these.
         with pytest.raises(ValidationError):
             parsed(uuid=value)
+
+
+class TestMeasuredAt:
+    @pytest.mark.parametrize("overrides", [{}, {"measured_at": None}])
+    def test_is_left_to_the_server_when_omitted_or_null(self, overrides: dict[str, Any]) -> None:
+        # O1: it then defaults to `submitted_at`, which only the database knows.
+        assert validated(**overrides).measured_at is None
+
+    @pytest.mark.parametrize("value", ["2026-06-01T14:00:00+02:00", "2026-06-01T12:00:00"])
+    def test_is_read_as_utc(self, value: str) -> None:
+        # Converted to UTC, and read as UTC when it has no offset (D3).
+        assert validated(measured_at=value).measured_at == datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+
+    @pytest.mark.parametrize("value", ["yesterday", "1700000000", 1700000000, ""])
+    def test_rejects_anything_but_an_iso_8601_timestamp(self, value: Any) -> None:
+        # D3: a number is not a timestamp, even one that reads as a Unix epoch.
+        with pytest.raises(ValidationError):
+            parsed(measured_at=value)
 
 
 class TestPayloadShape:

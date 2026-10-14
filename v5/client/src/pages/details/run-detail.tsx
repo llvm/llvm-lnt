@@ -107,7 +107,7 @@ function RunContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
   )
 }
 
-/** The run, its machine, its commit, when it was submitted, and its parameters (DT2). */
+/** The run, its machine, its commit, when it was measured and submitted, and its parameters (DT2). */
 function RunInfo({ schema, run }: { schema: SuiteSchema; run: Run }) {
   const suite = schema.name
   const parameters = Object.entries(run.run_parameters).sort(([a], [b]) => compareStrings(a, b))
@@ -122,6 +122,7 @@ function RunInfo({ schema, run }: { schema: SuiteSchema; run: Run }) {
       <InfoRow label="Commit">
         <CommitLink schema={schema} value={run.commit} />
       </InfoRow>
+      <InfoRow label="Measured">{formatTimestamp(run.measured_at)}</InfoRow>
       <InfoRow label="Submitted">{formatTimestamp(run.submitted_at)}</InfoRow>
       {parameters.map(([key, value]) => (
         <InfoRow key={key} label={key}>

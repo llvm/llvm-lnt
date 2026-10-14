@@ -125,6 +125,7 @@ describe('the Run Detail page', () => {
         ['UUID', UUID],
         ['Machine', 'linux-x86_64'],
         ['Commit', 'r100 (v1)'],
+        ['Measured', '2026-08-25, 2:02:17 PM'],
         ['Submitted', '2026-08-25, 2:22:41 PM'],
         ['build', '{"opt":"O3"}'],
         ['jobs', '8'],

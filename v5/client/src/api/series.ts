@@ -35,16 +35,16 @@ export interface Measurement {
   commit: string
   /** The run's UUID. */
   run: string
-  /** When the run was submitted. */
-  submitted: string
+  /** When the run was measured. */
+  measured: string
   value: number
 }
 
 /** A point `POST /query` returned (E9), as the Graph page keeps it. */
 export function measurementOf(point: Schemas['DataPoint']): Measurement {
   // The Graph page plots numeric metrics only (GR1).
-  const { commit, run_uuid: run, submitted_at: submitted, value } = point
-  return { commit, run, submitted, value: value as number }
+  const { commit, run_uuid: run, measured_at: measured, value } = point
+  return { commit, run, measured, value: value as number }
 }
 
 /** How far a trace's measurements are loaded. */

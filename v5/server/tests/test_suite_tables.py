@@ -260,7 +260,18 @@ class TestBuiltInColumns:
             ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
             ("machine", ["id", "name", "tracked", "hardware", "core_count"]),
             ("metric", ["id", "name"]),
-            ("run", ["id", "uuid", "machine_id", "commit_id", "submitted_at", "run_parameters"]),
+            (
+                "run",
+                [
+                    "id",
+                    "uuid",
+                    "machine_id",
+                    "commit_id",
+                    "submitted_at",
+                    "measured_at",
+                    "run_parameters",
+                ],
+            ),
             ("test", ["id", "name"]),
             (
                 "sample",
@@ -321,9 +332,11 @@ class TestBuiltInColumns:
             ("commit", "tag", True),
             ("machine", "name", False),
             ("machine", "tracked", False),
-            # O1: every run has a commit, and the submission cannot supply the timestamp.
+            # O1: every run has a commit, and the submission cannot supply the timestamp. D5: a run
+            # always has a measurement time, which defaults to its submission time.
             ("run", "commit_id", False),
             ("run", "submitted_at", False),
+            ("run", "measured_at", False),
             # D5: a regression need not name a commit, but must have a state, and the server always
             # records when it was created.
             ("regression", "commit_id", True),
@@ -388,7 +401,8 @@ class TestBuiltInColumns:
             assert tuple(function) == ({"cycles": 1.5}, b"instructions")
 
     @pytest.mark.parametrize(
-        ("table", "column"), [("run", "submitted_at"), ("profile", "created_at")]
+        ("table", "column"),
+        [("run", "submitted_at"), ("run", "measured_at"), ("profile", "created_at")],
     )
     def test_every_timestamp_is_timezone_aware(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables], table: str, column: str
@@ -571,25 +585,25 @@ class TestIndexes:
         assert indexes["ix_sample_run_id_test_id"]["column_names"] == ["run_id", "test_id"]
         assert indexes["ix_sample_test_id_run_id"]["column_names"] == ["test_id", "run_id"]
 
-    def test_run_is_indexed_by_machine_and_submission_time(
+    def test_run_is_indexed_by_machine_and_measurement_time(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5: keeps both `?sort=-submitted_at` and the derived `last_run_at` to a bounded index
-        # scan rather than a scan of the run table.
+        # D5: keeps both `?machine=...&sort=-measured_at` and the derived `last_run_at` to a bounded
+        # index scan rather than a scan of the run table.
         make_suite("nts")
 
         indexes = indexes_of(inspect(db_engine), "nts", "run")
 
-        assert indexes["ix_run_machine_id_submitted_at"]["column_names"] == [
+        assert indexes["ix_run_machine_id_measured_at"]["column_names"] == [
             "machine_id",
-            "submitted_at",
+            "measured_at",
         ]
 
     def test_run_is_indexed_by_submission_time_alone_as_well(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5: the suite-wide `GET /runs?sort=-submitted_at` names no machine, so the index above
-        # cannot serve it. `id` is in this one because the cursor orders by `(submitted_at, id)`.
+        # D5: the suite-wide `GET /runs?sort=-submitted_at` names no machine. `id` is in this one
+        # because the cursor orders by `(submitted_at, id)`.
         make_suite("nts")
 
         indexes = indexes_of(inspect(db_engine), "nts", "run")

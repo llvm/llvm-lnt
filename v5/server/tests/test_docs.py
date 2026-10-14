@@ -695,7 +695,13 @@ class TestRunOperations:
         run = schemas["Run"]
 
         assert set(run["required"]) == set(run["properties"])
-        assert set(run["properties"]) == {"uuid", "machine", "commit", "submitted_at"}
+        assert set(run["properties"]) == {
+            "uuid",
+            "machine",
+            "commit",
+            "submitted_at",
+            "measured_at",
+        }
 
     def test_only_the_detail_carries_the_unbounded_blob(self, client: TestClient) -> None:
         # endpoints.md: `run_parameters` appears in the detail response only, because no list view
@@ -721,6 +727,7 @@ class TestRunOperations:
         assert set(schemas["RunSubmission"]["properties"]) == {
             "format_version",
             "uuid",
+            "measured_at",
             "machine",
             "commit",
             "run_parameters",
@@ -778,7 +785,20 @@ class TestReadOperations:
     @pytest.mark.parametrize(
         ("path", "expected"),
         [
-            (RUNS, {"search", "machine", "commit", "after", "before", "has_profiles", "sort"}),
+            (
+                RUNS,
+                {
+                    "search",
+                    "machine",
+                    "commit",
+                    "submitted_after",
+                    "submitted_before",
+                    "measured_after",
+                    "measured_before",
+                    "has_profiles",
+                    "sort",
+                },
+            ),
             (TESTS_PATH, {"search", "machine", "metric"}),
             (SAMPLES_PATH, {"test"}),
         ],
@@ -818,7 +838,12 @@ class TestReadOperations:
         operation = client.get("/api/openapi.json").json()["paths"][RUNS]["get"]
         sort = next(p for p in operation["parameters"] if p["name"] == "sort")
 
-        assert set(sort["schema"]["anyOf"][0]["enum"]) == {"submitted_at", "-submitted_at"}
+        assert set(sort["schema"]["anyOf"][0]["enum"]) == {
+            "submitted_at",
+            "-submitted_at",
+            "measured_at",
+            "-measured_at",
+        }
 
     @pytest.mark.parametrize("path", [TESTS_PATH, SAMPLES_PATH])
     def test_the_lists_with_no_order_of_their_own_offer_no_sort(
@@ -1264,8 +1289,10 @@ class TestTimeSeriesOperations:
             "commit",
             "after_commit",
             "before_commit",
-            "after_time",
-            "before_time",
+            "submitted_after",
+            "submitted_before",
+            "measured_after",
+            "measured_before",
             "sort",
             "limit",
             "cursor",
@@ -1291,7 +1318,16 @@ class TestTimeSeriesOperations:
         allowed = [option for option in sort["anyOf"] if "enum" in option]
 
         assert [set(option["enum"]) for option in allowed] == [
-            {"test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"}
+            {
+                "test",
+                "-test",
+                "commit",
+                "-commit",
+                "submitted_at",
+                "-submitted_at",
+                "measured_at",
+                "-measured_at",
+            }
         ]
 
     def trends_parameters(self, client: TestClient) -> dict[str, Any]:
@@ -1369,6 +1405,7 @@ class TestTimeSeriesOperations:
             "ordinal",
             "run_uuid",
             "submitted_at",
+            "measured_at",
             "tag",
         }
         assert set(point["required"]) == set(point["properties"])
@@ -1383,7 +1420,7 @@ class TestTimeSeriesOperations:
             "machine",
             "commit",
             "ordinal",
-            "submitted_at",
+            "measured_at",
             "tag",
             "value",
         }

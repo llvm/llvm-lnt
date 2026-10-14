@@ -30,7 +30,7 @@ export interface ProfileLinks {
 const UNREPORTED = { error: null, refetch: () => {} }
 
 /**
- * The selected runs of `side` that have profiles, in the order they were submitted, once known,
+ * The selected runs of `side` that have profiles, in the order they were measured, once known,
  * and the query listing those with profiles. That query is sent with the URL's values as they are
  * (CP6), but its failure is only reported once the side's runs are listed, which says that those
  * values exist.

@@ -177,7 +177,14 @@ class TestSubmit:
         # object, and every documented key is present.
         body = submitted(run_parameters={"build_config": "Release"})
 
-        assert set(body) == {"uuid", "machine", "commit", "submitted_at", "run_parameters"}
+        assert set(body) == {
+            "uuid",
+            "machine",
+            "commit",
+            "submitted_at",
+            "measured_at",
+            "run_parameters",
+        }
         assert body["machine"] == "linux"
         assert body["commit"] == "abc123"
         assert body["run_parameters"] == {"build_config": "Release"}
@@ -376,6 +383,41 @@ class TestSubmittedAt:
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
+
+
+class TestMeasuredAt:
+    @pytest.mark.parametrize("overrides", [{}, {"measured_at": None}])
+    def test_defaults_to_exactly_submitted_at(
+        self, submitted: Callable[..., Any], overrides: dict[str, Any]
+    ) -> None:
+        # D5: the same `now()` as `submitted_at`, which PostgreSQL fixes for the transaction.
+        body = submitted(**overrides)
+
+        assert body["measured_at"] == body["submitted_at"]
+
+    def test_keeps_the_submitted_value_in_utc(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        body = submitted(measured_at="2020-06-01T14:00:00+02:00")
+
+        assert body["measured_at"] == "2020-06-01T12:00:00Z"
+        assert recent(datetime.fromisoformat(body["submitted_at"]))
+        with db_engine.connect() as connection:
+            stored = connection.execute(select(suite.run.c.measured_at)).scalar_one()
+        assert stored == datetime(2020, 6, 1, 12, 0, tzinfo=UTC)
+
+    def test_accepts_a_time_after_the_submission(self, submitted: Callable[..., Any]) -> None:
+        # D5: the server does not second-guess a producer's clock.
+        assert (
+            submitted(measured_at="2999-01-01T00:00:00Z")["measured_at"] == "2999-01-01T00:00:00Z"
+        )
+
+    def test_is_in_the_run_list(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted(measured_at="2020-06-01T12:00:00Z")
+
+        assert listed(api_client).json()["items"][0]["measured_at"] == "2020-06-01T12:00:00Z"
 
 
 class TestImplicitCreation:
@@ -1120,7 +1162,8 @@ def run_at(
 
     Submitted through the API rather than inserted, so the machine and the commit are created the
     way O2 creates them; only the clock is forced, because a submission cannot supply it (O1) and
-    the `after=`/`before=` filters have nothing to bite on otherwise.
+    the `submitted_*` filters have nothing to bite on otherwise. A `measured_at` is part of the
+    submission, so it is passed like any other key.
     """
 
     def make(
@@ -1140,6 +1183,22 @@ def run_at(
         return str(body["uuid"])
 
     return make
+
+
+# Which of a run's two timestamps a test exercises, and how to make a run at a given value of it.
+Timed = tuple[str, Callable[..., str]]
+
+
+@pytest.fixture(params=["submitted", "measured"])
+def timed(request: pytest.FixtureRequest, run_at: Callable[..., str]) -> Timed:
+    """Runs placed in time by `submitted_at` or by `measured_at`, for a test that holds of both."""
+    if request.param == "submitted":
+        return "submitted", run_at
+
+    def measured(moment: datetime, **overrides: Any) -> str:
+        return run_at(measured_at=moment.isoformat(), **overrides)
+
+    return "measured", measured
 
 
 def listed(api_client: TestClient, query: str = "") -> Any:
@@ -1168,7 +1227,9 @@ class TestList:
 
         item = listed(api_client).json()["items"][0]
 
-        assert item == {key: body[key] for key in ("uuid", "machine", "commit", "submitted_at")}
+        assert item == {
+            key: body[key] for key in ("uuid", "machine", "commit", "submitted_at", "measured_at")
+        }
 
     def test_is_ordered_deterministically_by_default(
         self, api_client: TestClient, run_at: Callable[..., str]
@@ -1182,17 +1243,23 @@ class TestList:
         assert set(first) == created
         assert walk(api_client, "limit=2") == first
 
-    def test_sorts_newest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
-        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
-        new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+    def test_sorts_in_both_directions(self, api_client: TestClient, timed: Timed) -> None:
+        kind, at = timed
+        old = at(datetime(2020, 1, 1, tzinfo=UTC))
+        new = at(datetime(2026, 1, 1, tzinfo=UTC))
 
-        assert uuids_in(listed(api_client, "sort=-submitted_at")) == [new, old]
+        assert uuids_in(listed(api_client, f"sort={kind}_at")) == [old, new]
+        assert uuids_in(listed(api_client, f"sort=-{kind}_at")) == [new, old]
 
-    def test_sorts_oldest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
-        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
-        new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+    def test_sorts_by_the_timestamp_it_names(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # Measured in the opposite order to the one they were submitted in, as an import can be.
+        late = run_at(datetime(2026, 1, 1, tzinfo=UTC), measured_at="2020-01-01T00:00:00Z")
+        early = run_at(datetime(2020, 1, 1, tzinfo=UTC), measured_at="2026-01-01T00:00:00Z")
 
-        assert uuids_in(listed(api_client, "sort=submitted_at")) == [old, new]
+        assert uuids_in(listed(api_client, "sort=submitted_at")) == [early, late]
+        assert uuids_in(listed(api_client, "sort=measured_at")) == [late, early]
 
     def test_serves_runs_sharing_an_instant_exactly_once(
         self, api_client: TestClient, run_at: Callable[..., str]
@@ -1261,52 +1328,62 @@ class TestListFilters:
         assert response.status_code == 200
         assert response.json()["items"] == []
 
-    def test_after_and_before_are_exclusive(
+    def test_after_and_before_are_exclusive(self, api_client: TestClient, timed: Timed) -> None:
+        kind, at = timed
+        at(datetime(2026, 5, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, f"{kind}_after=2026-05-01T00:00:00Z")) == []
+        assert uuids_in(listed(api_client, f"{kind}_before=2026-05-01T00:00:00Z")) == []
+
+    def test_after_and_before_bound_a_range(self, api_client: TestClient, timed: Timed) -> None:
+        kind, at = timed
+        at(datetime(2026, 1, 1, tzinfo=UTC))
+        wanted = at(datetime(2026, 6, 1, tzinfo=UTC))
+        at(datetime(2026, 12, 1, tzinfo=UTC))
+
+        query = f"{kind}_after=2026-03-01T00:00:00Z&{kind}_before=2026-09-01T00:00:00Z"
+        assert uuids_in(listed(api_client, query)) == [wanted]
+
+    def test_each_pair_bounds_its_own_timestamp(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        run_at(datetime(2026, 5, 1, tzinfo=UTC))
+        imported = run_at(datetime(2026, 6, 1, tzinfo=UTC), measured_at="2020-06-01T00:00:00Z")
 
-        assert uuids_in(listed(api_client, "after=2026-05-01T00:00:00Z")) == []
-        assert uuids_in(listed(api_client, "before=2026-05-01T00:00:00Z")) == []
-
-    def test_after_and_before_bound_a_range(
-        self, api_client: TestClient, run_at: Callable[..., str]
-    ) -> None:
-        run_at(datetime(2026, 1, 1, tzinfo=UTC))
-        wanted = run_at(datetime(2026, 6, 1, tzinfo=UTC))
-        run_at(datetime(2026, 12, 1, tzinfo=UTC))
-
-        assert uuids_in(
-            listed(api_client, "after=2026-03-01T00:00:00Z&before=2026-09-01T00:00:00Z")
-        ) == [wanted]
+        assert uuids_in(listed(api_client, "measured_before=2021-01-01T00:00:00Z")) == [imported]
+        assert uuids_in(listed(api_client, "submitted_before=2021-01-01T00:00:00Z")) == []
+        assert uuids_in(listed(api_client, "submitted_after=2021-01-01T00:00:00Z")) == [imported]
+        assert uuids_in(listed(api_client, "measured_after=2021-01-01T00:00:00Z")) == []
 
     def test_a_timestamp_with_no_offset_is_read_as_utc(
-        self, api_client: TestClient, run_at: Callable[..., str]
+        self, api_client: TestClient, timed: Timed
     ) -> None:
         # D5 stores UTC; a bound sent without one must not be read in whatever zone the database
         # session happens to carry.
-        wanted = run_at(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
+        kind, at = timed
+        wanted = at(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
 
-        assert uuids_in(listed(api_client, "after=2026-06-01T11:59:59")) == [wanted]
-        assert uuids_in(listed(api_client, "after=2026-06-01T12:00:01")) == []
+        assert uuids_in(listed(api_client, f"{kind}_after=2026-06-01T11:59:59")) == [wanted]
+        assert uuids_in(listed(api_client, f"{kind}_after=2026-06-01T12:00:01")) == []
 
     def test_reads_an_offset_sent_percent_encoded(
-        self, api_client: TestClient, run_at: Callable[..., str]
+        self, api_client: TestClient, timed: Timed
     ) -> None:
         # 12:00 UTC is 14:00 at +02:00. A bare `+` in a query string decodes to a space, so a
         # client writes it as %2B -- which is what the parameter's description tells it to do.
-        wanted = run_at(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
+        kind, at = timed
+        wanted = at(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
 
-        assert uuids_in(listed(api_client, "after=2026-06-01T13:59:59%2B02:00")) == [wanted]
-        assert uuids_in(listed(api_client, "after=2026-06-01T14:00:01%2B02:00")) == []
+        assert uuids_in(listed(api_client, f"{kind}_after=2026-06-01T13:59:59%2B02:00")) == [wanted]
+        assert uuids_in(listed(api_client, f"{kind}_after=2026-06-01T14:00:01%2B02:00")) == []
 
     @pytest.mark.parametrize("bound", ["yesterday", "1700000000", "0"])
     def test_refuses_a_bound_that_is_not_an_iso_8601_timestamp(
         self, api_client: TestClient, suite: SuiteTables, bound: str
     ) -> None:
         # D3 gives a timestamp one wire form and is explicit that a string holding a number is not
-        # it: read as a Unix epoch, `after=0` would silently mean 1970 rather than being refused.
-        response = listed(api_client, f"after={bound}")
+        # it: read as a Unix epoch, `submitted_after=0` would silently mean 1970 rather than being
+        # refused.
+        response = listed(api_client, f"submitted_after={bound}")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -1317,7 +1394,7 @@ class TestListFilters:
     ) -> None:
         # Valid ISO 8601, but outside the representable range once converted to UTC, which once
         # escaped validation as a 500.
-        response = listed(api_client, f"after={bound}")
+        response = listed(api_client, f"submitted_after={bound}")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -1345,7 +1422,7 @@ class TestListFilters:
         run_at(datetime(2020, 6, 1, tzinfo=UTC), machine="linux", commit="abc123")
         run_at(datetime(2026, 6, 1, tzinfo=UTC), machine="linux", commit="def456")
 
-        query = "machine=linux&commit=abc123&after=2026-01-01T00:00:00Z"
+        query = "machine=linux&commit=abc123&submitted_after=2026-01-01T00:00:00Z"
         assert uuids_in(listed(api_client, query)) == [wanted]
 
 

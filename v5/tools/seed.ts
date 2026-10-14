@@ -85,7 +85,14 @@ function realRuns(suite: string): Submission[] {
   return readdirSync(directory)
     .sort()
     .map((file) => readJson(path.join(directory, file)) as Submission)
+    .map((run) => ({ ...run, measured_at: startTimeOf(run) }))
     .sort((a, b) => (a.commit.ordinal ?? 0) - (b.commit.ordinal ?? 0))
+}
+
+/** When `run` was measured, as the LNT runner that produced it recorded it, if it did. */
+function startTimeOf(run: Submission): string | undefined {
+  const start = run.run_parameters?.start_time
+  return typeof start === 'string' ? start : undefined
 }
 
 async function submitAll(api: Api, suite: string, runs: Submission[]): Promise<void> {

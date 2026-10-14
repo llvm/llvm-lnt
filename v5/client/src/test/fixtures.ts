@@ -88,6 +88,7 @@ export function run(hex: string, overrides: Partial<Schemas['Run']> = {}): Schem
     machine: 'linux-x86_64',
     commit: 'abc123',
     submitted_at: '2026-08-25T14:22:41Z',
+    measured_at: '2026-08-25T14:02:17Z',
     ...overrides,
   }
 }
@@ -151,7 +152,7 @@ export function trendPoint(
     machine,
     commit: `commit-${ordinal}`,
     ordinal,
-    submitted_at: '2026-08-25T14:22:41Z',
+    measured_at: '2026-08-25T14:22:41Z',
     tag: null,
     value,
     ...overrides,

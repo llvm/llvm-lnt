@@ -158,11 +158,11 @@ function samplesAt(measurements: readonly Measurement[], commit: string) {
   return measurements.filter((measurement) => measurement.commit === commit)
 }
 
-/** The runs of `samples`, in the order they were submitted, each with its own ascending (GR11). */
+/** The runs of `samples`, in the order they were measured, each with its own ascending (GR11). */
 function runsOf(samples: readonly Measurement[]) {
   const runs = runSamples(samples)
   for (const run of runs) run.samples.sort((a, b) => a - b)
-  return runs.sort((a, b) => compareStrings(a.submitted, b.submitted))
+  return runs.sort((a, b) => compareStrings(a.measured, b.measured))
 }
 
 /**

@@ -17,7 +17,7 @@ interface Props {
   onSearch(text: string): void
 }
 
-/** The runs submitted to the suite, newest first (TS2). */
+/** The runs submitted to the suite, most recently submitted first, unlike other run lists (TS2). */
 export function RunsTab({ schema, search, onSearch }: Props) {
   const suite = schema.name
   const input = useServerSearch(search, onSearch)

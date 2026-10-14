@@ -241,7 +241,7 @@ describe('the point details (GR11)', () => {
   const SAMPLES: Record<string, Sample[]> = {
     'm1/a': [
       ['c10', 'r1', 1],
-      // Submitted after r3, though listed first.
+      // Measured after r3, though listed first.
       ['c20', 'r2', 2, '2026-08-26T10:00:00Z'],
       // Two samples, listed in ascending order whatever the order they arrive in.
       ['c20', 'r3', 6, '2026-08-25T10:00:00Z'],
@@ -270,7 +270,7 @@ describe('the point details (GR11)', () => {
     expect(details().getByText('2 (2 runs)')).toBeInTheDocument()
     const table = details().getByRole('table', { name: 'Runs' })
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
-      'Submitted',
+      'Measured',
       'Run',
       'Samples',
     ])

@@ -229,18 +229,20 @@ def build(schema: SuiteSchema) -> SuiteTables:
         # The database's clock rather than the application's, so that concurrent workers agree on
         # ordering. A submission cannot supply this (O1).
         Column("submitted_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        # A submission that omits it gets its `submitted_at` (D5): PostgreSQL fixes `now()` for the
+        # whole transaction, so the two defaults are the same instant.
+        Column("measured_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Column("run_parameters", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )
     # D5: the leading column serves `GET /runs?machine=`, and the pair keeps both its
-    # `sort=-submitted_at` and the derived `last_run_at` to a bounded index scan rather than a scan
+    # `sort=-measured_at` and the derived `last_run_at` to a bounded index scan rather than a scan
     # of this table.
-    Index(None, run.c.machine_id, run.c.submitted_at)
-    # D5: the same ordering with no machine to narrow it -- the suite-wide run list's
-    # `?sort=-submitted_at`, which the one above cannot serve because its leading column is absent
-    # from that query. `id` joins it because the keyset's tiebreaker is `(submitted_at, id)`, and
-    # only an index over both turns the cursor's row comparison into an index condition rather than
-    # a filter applied after the scan -- which is the difference between resuming at the cursor and
-    # re-reading every page already served.
+    Index(None, run.c.machine_id, run.c.measured_at)
+    # D5: the suite-wide run list's `?sort=-submitted_at`, with no machine to narrow it. `id` joins
+    # it because the keyset's tiebreaker is `(submitted_at, id)`, and only an index over both turns
+    # the cursor's row comparison into an index condition rather than a filter applied after the
+    # scan -- which is the difference between resuming at the cursor and re-reading every page
+    # already served.
     Index(None, run.c.submitted_at, run.c.id)
 
     test = Table(

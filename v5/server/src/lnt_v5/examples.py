@@ -128,6 +128,7 @@ TEST = "std::find_if(vector<char>)_(bail_25%)/8"
 OTHER_TEST = "std::stable_sort(vector<int>)_(heap)/8192"
 
 RUN_UUID = "ae93bcbf-4499-4be0-bf2d-0d915fee692a"
+MEASURED_AT = "2026-08-14T01:57:57Z"
 RUN_PARAMETERS: dict[str, Any] = {
     "start_time": "2026-08-14T01:57:57",
     "end_time": "2026-08-14T02:41:12",

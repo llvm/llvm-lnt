@@ -294,8 +294,9 @@ function effectsAt(i: number, machine: string, test: string): number {
   ).reduce((factor, effect) => factor * effect.factor, 1)
 }
 
-function runParameters(i: number, run: number): Record<string, unknown> {
-  const start = new Date(Date.UTC(2026, 8, 1, 4) + (i * 12 + run) * 3600_000)
+/** When run `run` at commit `i` started and ended, `minutes` after the commit's runs started. */
+function runParameters(i: number, run: number, minutes = 0): Record<string, string> {
+  const start = new Date(Date.UTC(2026, 8, 1, 4) + (i * 12 + run) * 3600_000 + minutes * 60_000)
   const end = new Date(start.getTime() + 25 * 60_000)
   const iso = (date: Date) => date.toISOString().slice(0, 19)
   return { start_time: iso(start), end_time: iso(end) }
@@ -322,7 +323,7 @@ export function libcxxSynthetic(realRuns: Submission[]): {
     options: {
       measured?: string
       profile?: { isa: Isa; speedup: number }
-      parameters: Record<string, unknown>
+      parameters: Record<string, string>
       /** The machine as submitted, by name only unless given. */
       submitted?: Submission['machine']
     },
@@ -332,6 +333,7 @@ export function libcxxSynthetic(realRuns: Submission[]): {
     runs.push({
       format_version: '5',
       uuid: uuidFor(seed),
+      measured_at: options.parameters.start_time,
       machine: options.submitted ?? { name: machine },
       commit,
       run_parameters: options.parameters,
@@ -349,18 +351,19 @@ export function libcxxSynthetic(realRuns: Submission[]): {
         commit_info: `[libc++] Synthetic commit ${i + 1} of ${COMMITS}`,
       },
     }
-    // Before the real machines, so that those stay the ones measured last.
+    // Before the real machines, so that those stay the ones submitted and measured last.
     for (const fleet of FLEET.filter((machine) => machine.commits.includes(i))) {
       const factor = (test: string) => fleet.speed * effectsAt(i, fleet.name, test)
       addRun(fleet.name, commit, `libcxx/${fleet.name}/${i}`, factor, {
         measured: fleet.like,
-        parameters: runParameters(i, 0),
+        parameters: runParameters(i, 0, -60),
         submitted: { name: fleet.name, tracked: fleet.tracked, fields: fleet.fields },
       })
     }
     // Some commits are measured twice, so that runs need aggregating.
     const repetitions = i % 5 === 0 ? 2 : 1
-    for (const machine of [...TRACKED, ...(i >= COMMITS - 10 ? [UNTRACKED] : [])]) {
+    const machines = [...TRACKED, ...(i >= COMMITS - 10 ? [UNTRACKED] : [])]
+    for (const [index, machine] of machines.entries()) {
       // The untracked configuration builds with -O3: the macOS machine's values, a little faster.
       const measured = machine === UNTRACKED ? MACOS : machine
       const base = machine === UNTRACKED ? 0.94 : 1
@@ -371,7 +374,8 @@ export function libcxxSynthetic(realRuns: Submission[]): {
         addRun(machine, commit, `libcxx/${machine}/${i}/${run}`, factor, {
           measured,
           profile: profiled ? { isa, speedup: 1 } : undefined,
-          parameters: runParameters(i, run),
+          // A few minutes apart, so that no two machines were measured at the same instant.
+          parameters: runParameters(i, run, index * 5),
           submitted:
             machine === UNTRACKED
               ? { name: machine, tracked: false, fields: macosFields }

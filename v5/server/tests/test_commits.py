@@ -106,6 +106,7 @@ def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
                     machine_id=machine_id,
                     commit_id=commit_id,
                     submitted_at=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
+                    measured_at=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
                 )
                 .returning(suite.run.c.id)
             ).scalar_one()

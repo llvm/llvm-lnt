@@ -42,7 +42,7 @@ export interface Side {
   machines: ReturnType<typeof useMachineSuggestions>
   /** Whether the side names a suite, a machine and a commit: what its runs are asked for with. */
   named: boolean
-  /** The runs of the machine at the commit, in the order they were submitted. */
+  /** The runs of the machine at the commit, in the order they were measured. */
   runs: UseQueryResult<Run[]>
   /** The selection among the runs. */
   selection: RowSelection

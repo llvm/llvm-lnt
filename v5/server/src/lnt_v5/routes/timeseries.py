@@ -55,10 +55,19 @@ TRENDS_PATH = f"{SUITES_PATH}/{{testsuite}}/trends"
 
 router = APIRouter(prefix=f"{SUITES_PATH}/{{testsuite}}", tags=["Time Series"])
 
-# endpoints.md names these three fields and no others, and I3's `-` prefix spells each of them
+# endpoints.md names these fields and no others, and I3's `-` prefix spells each of them
 # backwards. A literal rather than a free string, so I8's document enumerates them and an unknown
 # one is a 400 before the endpoint runs -- the same treatment the run and commit lists get.
-QuerySort = Literal["test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"]
+QuerySort = Literal[
+    "test",
+    "-test",
+    "commit",
+    "-commit",
+    "submitted_at",
+    "-submitted_at",
+    "measured_at",
+    "-measured_at",
+]
 
 # `GET /trends` is unpaginated, so an omitted window must still be bounded. 500 is the Dashboard's
 # default range.
@@ -126,6 +135,9 @@ class DataPoint(BaseModel):
     )
     run_uuid: str = Field(description="The UUID of the run.", examples=[examples.RUN_UUID])
     submitted_at: datetime = Field(description="When the run was submitted.")
+    measured_at: datetime = Field(
+        description="When the run was measured.", examples=[examples.MEASURED_AT]
+    )
     tag: str | None = Field(description=_TAG, examples=[examples.TAG])
 
 
@@ -141,8 +153,9 @@ class TrendPoint(BaseModel):
         description="The commit's ordinal. Never null: trends only include commits that have one.",
         examples=[examples.ORDINAL],
     )
-    submitted_at: datetime = Field(
-        description="When the most recent of the runs behind this value was submitted."
+    measured_at: datetime = Field(
+        description="When the most recently measured of the runs behind this value was measured.",
+        examples=[examples.MEASURED_AT],
     )
     tag: str | None = Field(description=_TAG, examples=[examples.TAG])
     value: float = Field(
@@ -205,20 +218,29 @@ class QueryRequest(BaseModel):
             "it has no ordinal."
         ),
     )
-    after_time: DatetimeValue | None = Field(
+    submitted_after: DatetimeValue | None = Field(
         default=None,
         description="Only return values from runs submitted after this time (exclusive).",
     )
-    before_time: DatetimeValue | None = Field(
+    submitted_before: DatetimeValue | None = Field(
         default=None,
         description="Only return values from runs submitted before this time (exclusive).",
+    )
+    measured_after: DatetimeValue | None = Field(
+        default=None,
+        description="Only return values from runs measured after this time (exclusive).",
+    )
+    measured_before: DatetimeValue | None = Field(
+        default=None,
+        description="Only return values from runs measured before this time (exclusive).",
     )
     sort: QuerySort | None = Field(
         default=None,
         description=(
-            "Sort by test name, by commit (that is, by ordinal) or by submission time. Sorting by "
-            "commit leaves out commits without an ordinal. Without it, the order is unspecified "
-            "but stable, which is the fastest way to page through all values."
+            "Sort by test name, by commit (that is, by ordinal), or by the run's submission or "
+            "measurement time. Sorting by commit leaves out commits without an ordinal. Without "
+            "it, the order is unspecified but stable, which is the fastest way to page through "
+            "all values."
         ),
     )
     limit: BodyLimit = DEFAULT_LIMIT
@@ -248,14 +270,16 @@ class Points:
         self._test: Table = suite.tables.test
         self.metric = metric.name
         self.value: Column[Any] = self.table.c[metric.name]
-        # The two columns the range filters bound.
+        # The columns the range filters bound.
         self.ordinal: Column[Any] = self._commit.c.ordinal
         self.submitted_at: Column[Any] = self._run.c.submitted_at
+        self.measured_at: Column[Any] = self._run.c.measured_at
         # Sorting by `commit` means by ordinal: only a commit's position is an order (D1).
         self._sortable: dict[str, Column[Any]] = {
             "test": self._test.c.name,
             "commit": self.ordinal,
             "submitted_at": self.submitted_at,
+            "measured_at": self.measured_at,
         }
 
     def select(self) -> Select[Any]:
@@ -272,6 +296,7 @@ class Points:
                 self._commit.c.tag,
                 self._run.c.uuid,
                 self.submitted_at,
+                self.measured_at,
             )
             .select_from(
                 self.table.join(self._run, self._run.c.id == self.table.c.run_id)
@@ -296,7 +321,7 @@ class Points:
         return Keyset(SortKey(self._sortable[field], descending), tiebreaker=self.table.c.id)
 
     def measured_on(self, machine: int) -> ColumnElement[bool]:
-        """I3's `machine=`, by id so that it uses D5's `(machine_id, submitted_at)` index."""
+        """I3's `machine=`, by id so that it uses D5's `(machine_id, measured_at)` index."""
         return self._run.c.machine_id == machine
 
     def measured_for(self, tests: Collection[int]) -> ColumnElement[bool]:
@@ -326,6 +351,7 @@ class Points:
             ordinal=values[self.ordinal],
             run_uuid=values[self._run.c.uuid],
             submitted_at=values[self.submitted_at],
+            measured_at=values[self.measured_at],
             tag=values[self._commit.c.tag],
         )
 
@@ -347,7 +373,7 @@ class Trends:
         self._measured = [metrics.c.name == metric.name, summaries.c.sample_agg == aggregation]
         # Every run geomean is positive, so `ln` is always defined.
         self.geomean = func.exp(func.avg(func.ln(summaries.c.geomean)))
-        self.latest = func.max(self._run.c.submitted_at)
+        self.latest = func.max(self._run.c.measured_at)
 
     def window(self, machines: Collection[int], last_n: int) -> Select[Any]:
         """The ids of the `last_n` most recent commits, by ordinal, at which any of `machines` has a
@@ -407,7 +433,7 @@ class Trends:
             machine=values[self._machine.c.name],
             commit=values[self._commit.c.commit],
             ordinal=values[self.ordinal],
-            submitted_at=values[self.latest],
+            measured_at=values[self.latest],
             tag=values[self._commit.c.tag],
             value=values[self.geomean],
         )
@@ -461,7 +487,10 @@ def query_points(
             None if after is None else commit_ordinal(connection, suite, after),
             None if before is None else commit_ordinal(connection, suite, before),
         )
-        conditions += exclusive_range(points.submitted_at, body.after_time, body.before_time)
+        conditions += exclusive_range(
+            points.submitted_at, body.submitted_after, body.submitted_before
+        )
+        conditions += exclusive_range(points.measured_at, body.measured_after, body.measured_before)
 
         return cursor_page(
             connection,
