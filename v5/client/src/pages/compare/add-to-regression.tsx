@@ -119,10 +119,11 @@ export function AddToRegression({
   // answer.
   const indicators = (): IndicatorObject[] =>
     (tests ?? []).map((test) => ({ machine, test, metric }))
-  // Once done, the form the button was clicked in is gone: the focus goes back to the toggle,
-  // before the page is painted, so that it never falls to the page meanwhile.
+  // Once done, the form the button was clicked in is gone: the focus goes back to the toggle.
   const toggleRef = useRef<HTMLButtonElement>(null)
   const finished = useRef(false)
+  // In the commit, before the page is painted, so that the report never shows without the focus on
+  // the toggle.
   useLayoutEffect(() => {
     if (open || !finished.current) return
     finished.current = false

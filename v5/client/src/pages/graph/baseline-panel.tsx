@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SuiteSchema } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { Combobox } from '../../components/combobox'
@@ -33,7 +33,9 @@ export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled }
 
   // Once a baseline is added, the form it was picked in is gone: the focus goes back to "+".
   const added = useRef(false)
-  useEffect(() => {
+  // In the commit, before the page is painted, so that the form never goes without the focus on
+  // "+": a commit picked with Enter held until the suggestions arrive is added outside any event.
+  useLayoutEffect(() => {
     if (adding || !added.current) return
     added.current = false
     toggle.current?.focus()

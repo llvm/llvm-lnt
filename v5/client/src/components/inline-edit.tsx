@@ -76,9 +76,10 @@ export function InlineEdit({
   const reasonId = useId()
   const editButton = useRef<HTMLButtonElement>(null)
   const form = useRef<HTMLFormElement>(null)
-  // Whether the focus goes to the input, or back to Edit, once the editor has opened or closed:
-  // before the page is painted, so that the focus never falls to the page after a save.
+  // Whether the focus goes to the input, or back to Edit, once the editor has opened or closed.
   const refocus = useRef(false)
+  // In the commit, before the page is painted, so that the value never shows without the focus on
+  // Edit after a save.
   useLayoutEffect(() => {
     if (!refocus.current) return
     refocus.current = false
