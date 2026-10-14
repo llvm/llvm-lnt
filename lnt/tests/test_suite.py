@@ -1010,6 +1010,12 @@ class TestSuiteTest(BuiltinTest):
             'mem_bytes': float,
             'link_mem_bytes': float
         }
+        # The test-suite's timeit module additionally reports the time of
+        # each RUN line of a multi-RUN-line test as
+        # "exec_time.<test file>-<index>.<digest of the RUN line>". Each RUN
+        # line becomes a separate test.
+        PER_RUN_LINE_EXEC_TIME = re.compile(
+            r'^exec_time\..+\.test-(\d+)\.([0-9a-f]+)$')
 
         # We don't use the test info, currently.
         test_info = {}
@@ -1055,6 +1061,15 @@ class TestSuiteTest(BuiltinTest):
                 for k, v in sorted(test_data['metrics'].items()):
                     if k == 'profile':
                         profiles_to_import.append((name, v))
+                        continue
+
+                    m = PER_RUN_LINE_EXEC_TIME.match(k)
+                    if m and 'exec' not in ignore:
+                        server_name = '%s-run%s-%s.exec' % (name, m.group(1),
+                                                            m.group(2))
+                        test_samples.append(
+                            lnt.testing.TestSamples(server_name, [v],
+                                                    test_info, float))
                         continue
 
                     if k not in LIT_METRIC_TO_LNT or \
