@@ -6,17 +6,18 @@ import { uuidOf } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
 import { pickOption } from '../../test/select'
+import { SHADOW_COLORS } from './chart'
 import { barsOf, chart, COMPARED, comparison, mockWorld, pick, runBox, sideOf } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
-/** The shadow's line, if drawn: its points' log2 ratios, and their tests. */
-function line() {
-  const trace = chart().data[1] as PlotData | undefined
+/** The shadow's line at `index` (default 1): its points' log2 ratios, and their tests. */
+function line(index = 1) {
+  const trace = chart().data[index] as PlotData | undefined
   if (trace === undefined) return undefined
   const tests = (trace.customdata as unknown as string[][]).map((point) => point[0])
-  return { y: trace.y as number[], tests }
+  return { y: trace.y as number[], tests, color: (trace.line as { color?: string })?.color }
 }
 
 /**
@@ -45,7 +46,7 @@ const WORLD = {
 }
 
 /** The shadow of COMPARED's side B, as the URL holds it. */
-const SHADOW = '&suite_shadow_b=libcxx&machine_shadow_b=m1&commit_shadow_b=c2'
+const SHADOW = '&shadow=libcxx/m1/c2'
 
 /** COMPARED, with side B on m2, and SHADOW pinned. */
 const SHADOWED = `${COMPARED.replace('machine_b=m1', 'machine_b=m2')}${SHADOW}`
@@ -65,9 +66,7 @@ describe('the shadow (CP8)', () => {
     expect(screen.getByRole('button', { name: 'Dismiss the shadow' })).toHaveFocus()
     expect(pinButton()).toBeNull()
     expect(query()).toMatchObject({
-      suite_shadow_b: ['libcxx'],
-      machine_shadow_b: ['m1'],
-      commit_shadow_b: ['c2'],
+      shadow: ['libcxx/m1/c2'],
     })
 
     await pick('Machine', 'm2', sideOf('B'))
@@ -103,7 +102,7 @@ describe('the shadow (CP8)', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Dismiss the shadow' }))
     await waitFor(() => expect(chip()).toBeNull())
-    expect(query().suite_shadow_b).toBeUndefined()
+    expect(query().shadow).toBeUndefined()
     expect(line()).toBeUndefined()
     expect(pinButton()).toHaveFocus()
   })
@@ -126,7 +125,7 @@ describe('the shadow (CP8)', () => {
     const user = userEvent.setup()
     await user.click(runBox('3', 'B'))
     await user.click(pinButton()!)
-    expect(query()).toMatchObject({ runs_shadow_b: [uuidOf('6'), uuidOf('7')] })
+    expect(query()).toMatchObject({ shadow: [`libcxx/m1/c2/${uuidOf('6')},${uuidOf('7')}`] })
     await waitFor(() => expect(line()?.y).toEqual([3]))
 
     // Side B changes, but not the shadow: min(8, 16), against 1.
@@ -153,43 +152,45 @@ describe('the shadow (CP8)', () => {
     expect(Math.max(...(chart().layout.yaxis!.tickvals as number[]))).toBeGreaterThan(1.5)
   })
 
-  it('is dismissed by a swap', async () => {
+  it('is kept across a swap, recomputed against the new side A', async () => {
     mockWorld(WORLD)
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
-    await waitFor(() => expect(chip()).toBeNull())
-    expect(query().commit_shadow_b).toBeUndefined()
+    await waitFor(() => expect(chip()).toHaveTextContent('Shadow: c2 on m1'))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
   })
 
-  it('is dismissed by another commit on side A', async () => {
+  it('is kept across another commit on side A', async () => {
     mockWorld()
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
 
     await pick('Commit', 'c2', sideOf('A'))
-    await waitFor(() => expect(chip()).toBeNull())
-    expect(query().machine_shadow_b).toBeUndefined()
+    await waitFor(() => expect(chip()).toHaveTextContent('Shadow: c2 on m1'))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
   })
 
-  it("is dismissed by another machine on side A, keeping side A's commit", async () => {
+  it("is kept across another machine on side A, keeping side A's commit", async () => {
     mockWorld({ ...WORLD, runs: { ...WORLD.runs, 'm2/c1': ['5'] } })
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
 
     await pick('Machine', 'm2', sideOf('A'))
-    await waitFor(() => expect(chip()).toBeNull())
+    await waitFor(() => expect(chip()).toHaveTextContent('Shadow: c2 on m1'))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
     expect(query().commit_a).toEqual(['c1'])
   })
 
-  it("is dismissed when the user changes side A's runs", async () => {
+  it("is kept when the user changes side A's runs", async () => {
     mockWorld()
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
 
     await userEvent.setup().click(runBox('2', 'A'))
-    await waitFor(() => expect(chip()).toBeNull())
+    await waitFor(() => expect(chip()).toHaveTextContent('Shadow: c2 on m1'))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
   })
 
   it("is kept when runs that do not exist are dropped from side A's", async () => {
@@ -198,43 +199,40 @@ describe('the shadow (CP8)', () => {
 
     await waitFor(() => expect(query().runs_a).toEqual([uuidOf('1')]))
     await waitFor(() => expect(line()).toBeDefined())
-    expect(query().commit_shadow_b).toEqual(['c2'])
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
   })
 
   it('is dropped when its machine has no run at its commit', async () => {
     mockWorld(WORLD)
-    renderPage(`${COMPARED}&suite_shadow_b=libcxx&machine_shadow_b=m2&commit_shadow_b=c1`)
-    await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
-    expect(query().machine_shadow_b).toBeUndefined()
+    renderPage(`${COMPARED}&shadow=libcxx/m2/c1`)
+    await waitFor(() => expect(query().shadow).toBeUndefined())
     expect(screen.queryByText(/could not be/)).toBeNull()
   })
 
-  it('is dropped when side A has no commit', async () => {
+  it('draws nothing but is kept in URL and chips when side A has no commit', async () => {
     mockWorld(WORLD)
     renderPage(SHADOWED.replace('&commit_a=c1', ''))
-    await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
-    expect(query().commit_shadow_b).toBeUndefined()
+    await waitFor(() => expect(chip()).toHaveTextContent('Shadow: c2 on m1'))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
+    expect(screen.queryByRole('img', { name: /^Ratio of B to A/ })).toBeNull()
   })
 
   it('is dropped whole when its suite does not exist', async () => {
     mockWorld(WORLD)
-    const bogus = SHADOWED.replace('suite_shadow_b=libcxx', 'suite_shadow_b=bogus')
+    const bogus = SHADOWED.replace('shadow=libcxx/m1/c2', 'shadow=bogus/m1/c2')
     renderPage(bogus)
-    await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
-    expect(query().machine_shadow_b).toBeUndefined()
-    expect(query().commit_shadow_b).toBeUndefined()
+    await waitFor(() => expect(query().shadow).toBeUndefined())
   })
 
   it('is dropped when the URL names only part of it', async () => {
     mockWorld(WORLD)
-    renderPage(`${COMPARED}&suite_shadow_b=libcxx&runs_shadow_b=${uuidOf('3')}`)
-    await waitFor(() => expect(query().suite_shadow_b).toBeUndefined())
-    expect(query().runs_shadow_b).toBeUndefined()
+    renderPage(`${COMPARED}&shadow=libcxx/m1`)
+    await waitFor(() => expect(query().shadow).toBeUndefined())
   })
 
   it("draws nothing when its suite does not offer the metric as side A's does", async () => {
     mockWorld(WORLD)
-    renderPage(SHADOWED.replace('suite_shadow_b=libcxx', 'suite_shadow_b=millis'))
+    renderPage(SHADOWED.replace('shadow=libcxx/m1/c2', 'shadow=millis/m1/c2'))
     await comparison()
 
     await waitFor(() => expect(chip()).not.toBeNull())
@@ -300,5 +298,63 @@ describe('the shadow (CP8)', () => {
     // From the bar straight to the line, with no unhover between.
     act(() => chart().onHover?.(event(1, 0)))
     expect(name('c')).not.toHaveClass('hovered')
+  })
+
+  it('pins multiple shadows with distinct colors and prevents duplicate pinning', async () => {
+    mockWorld(WORLD)
+    renderPage(COMPARED)
+    await comparison()
+
+    const user = userEvent.setup()
+    // Pin side B (m1/c2) as first shadow
+    await user.click(pinButton()!)
+    expect(screen.getByText('Shadow: c2 on m1')).toBeInTheDocument()
+    expect(pinButton()).toBeNull()
+
+    // Change side B to m2 at c2: pin button should reappear once comparison is ready
+    await pick('Machine', 'm2', sideOf('B'))
+    await pick('Commit', 'c2', sideOf('B'))
+    await comparison()
+    expect(pinButton()).not.toBeNull()
+
+    // Pin side B (m2/c2) as second shadow
+    await user.click(pinButton()!)
+    expect(screen.getByText('Shadow: c2 on m2')).toBeInTheDocument()
+    expect(pinButton()).toBeNull()
+
+    // 2 chips with distinct markers
+    expect(query().shadow).toEqual(['libcxx/m1/c2', 'libcxx/m2/c2'])
+    const dismissButtons = screen.getAllByRole('button', { name: 'Dismiss the shadow' })
+    expect(dismissButtons).toHaveLength(2)
+
+    // Chart has comparison bar trace + 2 shadow line traces with distinct colors
+    await waitFor(() => expect(chart().data).toHaveLength(3))
+    expect(line(1)?.color).toBe(SHADOW_COLORS[0])
+    expect(line(2)?.color).toBe(SHADOW_COLORS[1])
+
+    // Dismiss first shadow: second shadow remains
+    await user.click(dismissButtons[0])
+    await waitFor(() => expect(screen.queryByText('Shadow: c2 on m1')).toBeNull())
+    expect(screen.getByText('Shadow: c2 on m2')).toBeInTheDocument()
+    expect(query().shadow).toEqual(['libcxx/m2/c2'])
+  })
+
+  it('disables pinning once MAX_SHADOWS (5) are pinned', async () => {
+    mockWorld({
+      runs: { 'm1/c1': ['1'], 'm1/c2': ['3'], 'm1/c3': ['4'], 'm1/c4': ['5'], 'm1/c5': ['6'] },
+      samples: {
+        '1': [['a', 1]],
+        '3': [['a', 1]],
+        '4': [['a', 1]],
+        '5': [['a', 1]],
+        '6': [['a', 1]],
+      },
+    })
+    const fiveShadows = [1, 2, 3, 4, 5].map((i) => `shadow=libcxx/m1/c${i}`).join('&')
+    renderPage(`${COMPARED}&${fiveShadows}`)
+    await comparison()
+
+    expect(screen.getAllByText(/^Shadow:/)).toHaveLength(5)
+    expect(pinButton()).toBeNull()
   })
 })

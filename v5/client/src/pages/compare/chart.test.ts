@@ -6,6 +6,7 @@ import {
   compareLayout,
   noiseBand,
   ratioTicks,
+  SHADOW_COLORS,
   shadowTrace,
   type Bar,
 } from './chart'
@@ -106,6 +107,13 @@ describe('chartExtent', () => {
     const bars = chartBars([row('a', 1, 2)])
     expect(chartExtent(bars, null, chartBars([row('a', 1, 4), row('b', 2, 1)]))).toEqual([-1, 2])
   })
+
+  it("spans multiple shadows' points too", () => {
+    const bars = chartBars([row('a', 1, 2)])
+    const s1 = chartBars([row('a', 1, 4)])
+    const s2 = chartBars([row('b', 4, 1)])
+    expect(chartExtent(bars, null, [s1, s2])).toEqual([-2, 2])
+  })
 })
 
 describe('barTrace', () => {
@@ -138,6 +146,12 @@ describe('shadowTrace', () => {
     const trace = shadowTrace(chartBars([row('a', 1, 2), row('b', 2, 1)]))
     expect(trace).toMatchObject({ type: 'scatter', mode: 'lines+markers', x: [0, 1], y: [-1, 1] })
     expect(trace.hovertemplate).toMatch(/^<b>%\{customdata\[0\]\}<\/b> \(shadow\)<br>Ratio/)
+  })
+
+  it('draws a line using a custom color from the shadows palette', () => {
+    const trace = shadowTrace(chartBars([row('a', 1, 2)]), SHADOW_COLORS[1])
+    expect(trace.line).toMatchObject({ color: SHADOW_COLORS[1] })
+    expect(trace.marker).toMatchObject({ color: SHADOW_COLORS[1] })
   })
 })
 

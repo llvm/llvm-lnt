@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { AGGREGATION_OPTIONS, type Aggregation } from '../../aggregation'
 import { useSuites } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
@@ -15,9 +15,10 @@ import { chosenRuns, failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
+import { MAX_SHADOWS } from './chart'
 import { NoiseControls } from './noise-controls'
 import { NOISE_PARAMS, noiseSettings, PARAMS } from './settings'
-import { useShadow, useShadowLine } from './shadow'
+import { useShadows, useShadowLines, type ShadowSpec } from './shadow'
 import { ShadowStatus } from './shadow-status'
 import { SidePanel } from './side-panel'
 import { SummaryBar } from './summary-bar'
@@ -44,14 +45,29 @@ function ComparePage() {
 
   const sides = useSides(settings, update, suites)
   const { a, b } = sides
-  // The button pinning the shadow, which takes the focus once the shadow is dismissed (CP8).
+  // The button pinning the shadow, which takes the focus once the last shadow is dismissed (CP8).
   const pinButton = useRef<HTMLButtonElement>(null)
-  const shadow = useShadow(sides, settings, update, suites)
+  const shadows = useShadows(sides, settings, update, suites)
   const { offered, metric } = useMetric(a, b, settings, update, suites)
   const profiles = useProfileLinks(a, b)
   const comparison = useComparison(sides, metric, settings)
   const table = useComparisonTable(comparison, settings, update, profiles.links)
-  const line = useShadowLine(shadow, metric, settings, comparison, table.plotted)
+  const lines = useShadowLines(shadows, a.schema, metric, settings, comparison, table.plotted)
+
+  const specB = useMemo(
+    (): ShadowSpec => ({
+      suite: b.settings.suite,
+      machine: b.settings.machine,
+      commit: b.settings.commit,
+      runs: [...b.settings.runs].sort(),
+    }),
+    [b.settings.suite, b.settings.machine, b.settings.commit, b.settings.runs],
+  )
+  const canPin =
+    comparison.tests !== undefined &&
+    b.named &&
+    shadows.specs.length < MAX_SHADOWS &&
+    !shadows.isPinned(specB)
 
   const onNoise = useCallback(
     (knob: NoiseKnob, value: number | null) => update({ [NOISE_PARAMS[knob]]: value }),
@@ -96,9 +112,8 @@ function ComparePage() {
           title="Side B (New)"
           suites={suites.data ?? []}
           action={
-            comparison.tests !== undefined &&
-            !shadow.pinned && (
-              <button type="button" ref={pinButton} onClick={shadow.pin}>
+            canPin && (
+              <button type="button" ref={pinButton} onClick={() => shadows.pin(specB)}>
                 Pin as shadow
               </button>
             )
@@ -165,7 +180,7 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
-      <ShadowStatus shadow={shadow} pinButton={pinButton} />
+      <ShadowStatus shadows={shadows} pinButton={pinButton} />
       {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"
@@ -181,7 +196,7 @@ function ComparePage() {
         <>
           <CompareChart
             rows={table.plotted}
-            shadow={line}
+            shadows={lines}
             noisePct={noise.pct}
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}

@@ -22,7 +22,6 @@ import { useDropUnusable } from '../../url-state'
 import { NO_RUNS_SELECTED, runsParam, selectedRuns } from './run-selection'
 import {
   CLEARED_WITH,
-  NO_SHADOW,
   sideChanges,
   sideSettings,
   type Settings,
@@ -76,27 +75,24 @@ export function runsListFailed({ runs, machines, settings }: Side): boolean {
 }
 
 const NO_RUNS: string[] = []
-const NO_CHANGES: Partial<Settings> = {}
 
 /**
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
- * lists the suites of the instance. The user's changes to the side also make the changes
- * `dismisses`: side A's dismiss the shadow (CP8).
+ * lists the suites of the instance.
  */
 export function useSide(
   id: SideId,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
-  dismisses: Partial<Settings> = NO_CHANGES,
 ): Side {
   const settings = sideSettings(all, id)
   const { suite, machine, commit } = settings
   const schema = suites.data?.find((entry) => entry.name === suite)
   // What the user changes, from the side's panel or its runs.
   const updateSide = useCallback(
-    (changes: Partial<SideSettings>) => update({ ...sideChanges(id, changes), ...dismisses }),
-    [id, update, dismisses],
+    (changes: Partial<SideSettings>) => update(sideChanges(id, changes)),
+    [id, update],
   )
   // What the page drops, as unusable (AR2 "State").
   const drop = useCallback(
@@ -198,7 +194,7 @@ export function useSides(
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
 ): Sides {
-  const a = useSide('a', all, update, suites, NO_SHADOW)
+  const a = useSide('a', all, update, suites)
   const b = useSide('b', all, update, suites)
   const [swapped, setSwapped] = useState(false)
 
@@ -206,9 +202,8 @@ export function useSides(
   const wanted = useMemo(() => new Set([...a.wanted, ...b.wanted]), [a.wanted, b.wanted])
   const states = useRunSamples(refs, wanted)
 
-  // Swapping the sides dismisses the shadow (CP8).
   const swap = () => {
-    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...NO_SHADOW })
+    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
     a.setNoRunsOf(b.noRunsOf)
     b.setNoRunsOf(a.noRunsOf)
     setSwapped(!swapped)

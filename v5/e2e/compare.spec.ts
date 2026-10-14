@@ -235,7 +235,9 @@ test('overlays a pinned side B on the chart once side B changes', async ({ page,
   await commitB.pressSequentially(EXPERIMENT)
   await page.getByRole('option', { name: EXPERIMENT, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${EXPERIMENT}(&|$)`))
-  await expect(page).toHaveURL(new RegExp(`[?&]commit_shadow_b=${newer.value}(&|$)`))
+  await expect(page).toHaveURL(
+    new RegExp(`[?&]shadow=libcxx(%2F|\\/)${LINUX}(%2F|\\/)${newer.value}(&|$)`),
+  )
   const traces = () =>
     plotOf(page).evaluate((element) =>
       (element as PlotDiv)._fullData.map((trace) => ({ name: trace.name, y: trace.y })),

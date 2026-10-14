@@ -10,17 +10,26 @@ import {
   compareLayout,
   noiseBand,
   ratioTicks,
+  SHADOW_COLOR,
   shadowTrace,
   type Bar,
 } from './chart'
 import type { ComparisonRow } from './comparison'
 import styles from './compare.module.css'
 
+/** A shadow comparison's line to draw on the chart. */
+export interface ShadowLine {
+  points: readonly Bar[]
+  color: string
+}
+
 interface Props {
   /** The compared rows (CP2), which the chart plots those of that it can, in any order. */
   rows: ComparisonRow[]
+  /** The shadows' lines, if any are pinned (CP8). */
+  shadows?: readonly ShadowLine[]
   /** The shadow's points, sorted by their ratios, which the chart draws as a line (CP8). */
-  shadow: readonly Bar[]
+  shadow?: readonly Bar[]
   /** The Delta % knob's threshold, while it is enabled, whose noise band the chart draws. */
   noisePct: number | null
   /** What the comparison is: a change resets the zoom (CP3 "Zoom"). */
@@ -70,22 +79,42 @@ function Outline({ geometry, bar, index }: { geometry: PlotGeometry; bar: Bar; i
 
 /**
  * The comparison's chart (CP3): a bar per compared test, by ratio, on a log2 axis labelled with the
- * percentage changes, the Delta % knob's noise band, and the shadow's line, if one is pinned (CP8).
+ * percentage changes, the Delta % knob's noise band, and the shadows' lines, if any are pinned (CP8).
  * Its ticks follow a zoom of the y-axis.
  * Hovering a bar highlights its test's row, and hovering a row outlines its bar (CP5).
  */
-export function CompareChart({ rows, shadow, noisePct, revision, emphasis, hovered }: Props) {
+export function CompareChart({
+  rows,
+  shadows,
+  shadow,
+  noisePct,
+  revision,
+  emphasis,
+  hovered,
+}: Props) {
+  const activeShadows = useMemo(() => {
+    if (shadows !== undefined) return shadows
+    if (shadow !== undefined) return [{ points: shadow, color: SHADOW_COLOR }]
+    return []
+  }, [shadows, shadow])
+
   const bars = useMemo(() => chartBars(rows), [rows])
   // The traces, and the bars the first draws: Plotly reports an event with the trace it drew, which
   // may be one drawn before the latest render, while it is drawing again.
   const trace = useMemo(() => barTrace(bars), [bars])
-  const line = useMemo(() => (shadow.length === 0 ? null : shadowTrace(shadow)), [shadow])
+  const lines = useMemo(
+    () =>
+      activeShadows
+        .filter((s) => s.points.length > 0)
+        .map((s) => shadowTrace(s.points, s.color)),
+    [activeShadows],
+  )
   const drawn = useMemo(
     () => ({
-      data: line === null ? [trace] : [trace, line],
+      data: [trace, ...lines],
       barsOf: new WeakMap<object, Bar[]>([[trace, bars]]),
     }),
-    [trace, line, bars],
+    [trace, lines, bars],
   )
 
   const band = useMemo(() => (noisePct === null ? null : noiseBand(noisePct)), [noisePct])
@@ -96,9 +125,10 @@ export function CompareChart({ rows, shadow, noisePct, revision, emphasis, hover
     setZoomedOn(revision)
     setZoom(null)
   }
-  const extent = useMemo(() => chartExtent(bars, band, shadow), [bars, band, shadow])
+  const shadowPoints = useMemo(() => activeShadows.map((s) => s.points), [activeShadows])
+  const extent = useMemo(() => chartExtent(bars, band, shadowPoints), [bars, band, shadowPoints])
   const [low, high] = (zoomedOn === revision ? zoom : null) ?? extent
-  const empty = bars.length === 0 && shadow.length === 0
+  const empty = bars.length === 0 && !activeShadows.some((s) => s.points.length > 0)
   const layout = useMemo(
     () => compareLayout({ ticks: ratioTicks(low, high), band, revision, empty }),
     [low, high, band, revision, empty],

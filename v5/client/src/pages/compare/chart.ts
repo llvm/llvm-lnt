@@ -51,8 +51,20 @@ const STATUS_COLORS: Record<Status, string> = {
   na: '#9ca3af',
 }
 
-/** The colour of the shadow's line (CP8): apart from those of the statuses. */
-export const SHADOW_COLOR = '#7c3aed'
+/** The colours of the shadows' lines (CP8): distinct from those of the statuses. */
+export const SHADOW_COLORS = [
+  '#7c3aed',
+  '#0284c7',
+  '#d97706',
+  '#db2777',
+  '#0d9488',
+] as const
+
+/** The colour of the first shadow's line (CP8). */
+export const SHADOW_COLOR = SHADOW_COLORS[0]
+
+/** At most how many shadows can be pinned at once (CP8). */
+export const MAX_SHADOWS = 5
 
 /**
  * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, followed by
@@ -86,15 +98,18 @@ export function barTrace(bars: readonly Bar[]): Partial<PlotData> {
   }
 }
 
-/** The shadow's comparison, as a thin line through its points, sorted by their own ratios (CP8). */
-export function shadowTrace(points: readonly Bar[]): Partial<PlotData> {
+/** A shadow comparison, as a thin line through its points, sorted by their own ratios (CP8). */
+export function shadowTrace(
+  points: readonly Bar[],
+  color: string = SHADOW_COLOR,
+): Partial<PlotData> {
   return {
     type: 'scatter',
     mode: 'lines+markers',
     name: 'shadow',
     ...plotted(points, ' (shadow)'),
-    line: { color: SHADOW_COLOR, width: 1.5 },
-    marker: { color: SHADOW_COLOR, size: 4 },
+    line: { color, width: 1.5 },
+    marker: { color, size: 4 },
   }
 }
 
@@ -168,17 +183,21 @@ export function ratioTicks(min: number, max: number): { tickvals: number[]; tick
 }
 
 /**
- * The range the chart spans when not zoomed: its bars, from 0, the shadow's points, if any, and the
+ * The range the chart spans when not zoomed: its bars, from 0, the shadows' points, if any, and the
  * noise band, if any, which the ticks are computed over.
  */
 export function chartExtent(
   bars: readonly Bar[],
   band: { upper: number; lower: number } | null,
-  shadow: readonly Bar[] = [],
+  shadows: readonly Bar[] | readonly (readonly Bar[])[] = [],
 ): [number, number] {
   let min = Math.min(0, band?.lower ?? 0)
   let max = Math.max(0, band?.upper ?? 0)
-  for (const list of [bars, shadow]) {
+  const shadowLists =
+    shadows.length > 0 && Array.isArray(shadows[0])
+      ? (shadows as readonly (readonly Bar[])[])
+      : [shadows as readonly Bar[]]
+  for (const list of [bars, ...shadowLists]) {
     for (const { y } of list) {
       if (y < min) min = y
       if (y > max) max = y

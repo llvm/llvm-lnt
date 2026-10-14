@@ -1,70 +1,68 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { ChipList } from '../../components/chip-list'
 import { ErrorMessage } from '../../components/feedback'
-import { SHADOW_COLOR } from './chart'
 import { runCount } from './loading'
-import type { Shadow } from './shadow'
-import { runsListFailed } from './use-side'
+import { formatShadow, type Shadows } from './shadow'
 import styles from './compare.module.css'
 
 interface Props {
-  shadow: Shadow
+  shadows: Shadows
   /** The button pinning the shadow, which takes the focus once it is dismissed. */
   pinButton: RefObject<HTMLButtonElement | null>
 }
 
 /**
- * What could not be loaded of the shadow (CP8), and its chip, which names it and dismisses it. Once
- * the shadow is pinned, the button pinning it is gone: the focus goes to the chip's button.
+ * What could not be loaded of the shadows (CP8), and their chips, which name them and dismiss them.
+ * Focus goes to the newest chip on pin, and to the pin button when the last chip is dismissed.
  */
-export function ShadowStatus({ shadow, pinButton }: Props) {
-  const { side, failed, pinned } = shadow
+export function ShadowStatus({ shadows, pinButton }: Props) {
+  const { items, failedSamples, runsListError } = shadows
   const chipArea = useRef<HTMLDivElement>(null)
-  // Whether the shadow was pinned as of the last render: a shadow the page starts with, from the
+  // Whether shadows were added as of the last render: a shadow the page starts with, from the
   // URL, takes no focus.
-  const wasPinned = useRef(pinned)
+  const previousCount = useRef(items.length)
   useEffect(() => {
-    if (pinned && !wasPinned.current) chipArea.current?.querySelector('button')?.focus()
-    wasPinned.current = pinned
-  }, [pinned])
+    if (items.length > previousCount.current) {
+      const buttons = chipArea.current?.querySelectorAll('button')
+      if (buttons && buttons.length > 0) {
+        buttons[buttons.length - 1].focus()
+      }
+    }
+    previousCount.current = items.length
+  }, [items.length])
+
   return (
     <>
-      {runsListFailed(side) && (
+      {runsListError && (
         <ErrorMessage
           context="The shadow's runs could not be listed"
-          error={side.runs.error}
-          onRetry={() => void side.runs.refetch()}
+          error={runsListError.error}
+          onRetry={runsListError.retry}
         />
       )}
-      {failed.length > 0 && (
+      {failedSamples.length > 0 && (
         <ErrorMessage
-          context={`The samples of ${runCount(failed.length)} of the shadow could not be loaded`}
-          error={failed[0].error}
-          onRetry={() => failed.forEach((state) => state.retry())}
+          context={`The samples of ${runCount(failedSamples.length)} of the shadow could not be loaded`}
+          error={failedSamples[0].error}
+          onRetry={() => failedSamples.forEach((state) => state.retry())}
         />
       )}
       <div ref={chipArea}>
         <ChipList
           label="Shadow"
-          chips={
-            pinned
-              ? [
-                  {
-                    key: 'shadow',
-                    mark: (
-                      <span
-                        className={styles.shadowMark}
-                        style={{ background: SHADOW_COLOR }}
-                        aria-hidden="true"
-                      />
-                    ),
-                    text: `Shadow: ${shadow.display} on ${side.settings.machine}`,
-                  },
-                ]
-              : []
-          }
+          chips={items.map((item) => ({
+            key: formatShadow(item.spec),
+            mark: (
+              <span
+                className={styles.shadowMark}
+                style={{ background: item.color }}
+                aria-hidden="true"
+              />
+            ),
+            text: `Shadow: ${item.display} on ${item.spec.machine}`,
+          }))}
           removeLabel={() => 'Dismiss the shadow'}
-          onRemove={shadow.dismiss}
+          onRemove={(key) => shadows.dismiss(key)}
           focusWhenEmpty={() => pinButton.current}
         />
       </div>

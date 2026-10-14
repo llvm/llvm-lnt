@@ -476,33 +476,37 @@ A value the page cannot use is dropped (see AR2 "State"):
 ### CP8: Shadow Trace (Comparison Overlay)
 
 A shadow trace overlays a pinned comparison on the chart, allowing the user to
-visually compare how a ratio profile changed between two versions of side B
-against a shared baseline (side A). For example: pin GCC vs LLVM20, then change
-side B to LLVM21 to see both comparisons overlaid.
+visually compare how a ratio profile changed between versions of side B against
+a shared baseline (side A). For example: pin GCC vs LLVM20, then change side B
+to LLVM21 to see both comparisons overlaid.
 
 **Workflow:**
 1. User sets up a comparison and sees the chart.
 2. Clicks "Pin as shadow", in the header of side B's panel. Side B's current
-   selection is captured as the shadow.
+   selection is captured as a shadow.
 3. A chip appears above the chart: "Shadow: {commit} on {machine}", where
    `{commit}` is the commit's display value (see AR6), or the commit string
-   until it is known, with a dismiss (×) button.
-4. User changes side B. The chart now shows the main comparison as bars and the
-   shadow comparison as a thin line.
-5. To remove the shadow, click × on the chip.
+   until it is known, with a colored marker matching its trace on the chart and
+   a dismiss (×) button.
+4. User changes side B (suite, machine, commit or runs). The chart now shows the
+   main comparison as bars and each shadow comparison as a thin line. Changing
+   side B allows pinning another shadow, up to about 5. Side B cannot be pinned
+   twice as it is.
+5. To remove a shadow, click × on its chip.
 
-The pin button is shown only while there is a comparison and no shadow is
-pinned.
+The pin button is shown only while there is a comparison, at most 5 shadows are
+pinned, and side B's current selection is not already pinned as a shadow.
 
 **Rendering:**
-- The shadow comparison is computed the same way as the main one, between side
+- Each shadow comparison is computed the same way as the main one, between side
   A and the shadow's runs. The line plots the compared rows (see CP2) that can
   be plotted in the shadow comparison, each at its ratio there. A test can
   have a point without a bar, or a bar without a point.
-- The line is sorted by its own ratios, so a test's point on the line is not
-  necessarily above its bar. The X-axis is wide enough for whichever of the two
-  has more tests. Its color is distinct from the status colors of the bars, and
-  there is no legend: the chip identifies the trace.
+- Each line is sorted by its own ratios, so a test's point on the line is not
+  necessarily above its bar. The X-axis is wide enough for whichever has the
+  most tests. Each shadow has its own colour, distinct from the status colors
+  of the bars and from the other shadows. There is no legend: the chips above
+  the chart identify the traces.
 - Hovering a shadow point shows the same information as a main bar, with a
   "(shadow)" label. Table-to-chart hover highlighting targets the main bars
   only.
@@ -513,23 +517,27 @@ pinned.
 **Scope:** chart only -- no table columns, no summary bar counts. Add to
 Regression (see CP9) operates on the main comparison only.
 
-**What it follows.** The shadow follows changes to the metric, the run and
-sample aggregations and the compared rows. It keeps side B's suite, machine,
-commit and runs as they were when pinned, whatever happens to side B
-afterwards. Its runs are kept as the URL holds them (see CP7): when every run
-of side B was selected, the shadow selects every run of its commit. Changing side A's suite, machine, commit or runs, or swapping
-the sides, dismisses the shadow.
+**What it follows.** The shadows follow changes to the metric, the run and
+sample aggregations and the compared rows. Each shadow keeps side B's suite,
+machine, commit and runs as they were when pinned, whatever happens to side B
+afterwards. Its runs are kept as the URL holds them: when every run of side B
+was selected, the shadow selects every run of its commit. The shadows are kept
+when side A changes, including on a swap. A shadow is a pinned specification
+(suite, machine, commit, runs), so its line is simply recomputed against the
+new side A. While side A has no commit, nothing is drawn, but the shadows are
+kept.
 
-**Data:** the shadow's samples are fetched like a side's (see CP6). The main
-comparison never waits for them. The line is drawn only once all of them have
-loaded. If some cannot be fetched, the line is not drawn, and the error is
-reported.
+**Data:** the shadows' runs lists, commit lookups and samples are fetched
+apart from the sides. The main comparison never waits for them. Each shadow's
+line is drawn only once all of its samples have loaded. If some cannot be
+fetched, that line is not drawn, and the error is reported.
 
-**URL encoding:** the shadow is encoded like a side, with the suffix `shadow_b`:
-`suite_shadow_b`, `machine_shadow_b`, `commit_shadow_b` and `runs_shadow_b`,
-following the same rules (see CP7). The shadow is dropped if its suite, machine
-or commit is missing or unusable, or if side A has no commit. When unusable
-runs are dropped from side A's URL values, the shadow is kept.
+**URL encoding:** the shadows are encoded in the URL query string as a
+repeated parameter: `shadow={suite}/{machine}/{commit}`, with an optional run
+subset: `shadow={suite}/{machine}/{commit}/{run1},{run2}`. A shadow is dropped
+if its suite, machine or commit is missing or unusable, or if its machine has
+no run at the commit. Dropping unusable values from side A does not drop the
+shadows.
 
 
 ### CP9: Add to Regression

@@ -13,12 +13,12 @@ import {
   stringParam,
   trimmedStringParam,
 } from '../../url-state'
+import { shadowParam } from './shadow'
 
 /**
- * The two sides of the comparison, A, the baseline, and B, the new one, and the shadow (CP8): a
- * side B pinned, which the URL holds like a side.
+ * The two sides of the comparison, A, the baseline, and B, the new one (CP1).
  */
-export type SideId = 'a' | 'b' | 'shadow_b'
+export type SideId = 'a' | 'b'
 
 /** At most how many hidden tests the URL holds (CP7). */
 export const HIDDEN_IN_URL = 10
@@ -33,10 +33,8 @@ export const PARAMS = {
   machine_b: stringParam(),
   commit_b: stringParam(),
   runs_b: listParam(),
-  suite_shadow_b: stringParam(),
-  machine_shadow_b: stringParam(),
-  commit_shadow_b: stringParam(),
-  runs_shadow_b: listParam(),
+  /** The shadow comparisons pinned (CP8). */
+  shadow: shadowParam(),
   metric: stringParam(),
   // How both sides' runs, and the shadow's, are combined, and the samples within each run (CP1).
   run_agg: enumParam(AGGREGATIONS, 'median'),
@@ -105,10 +103,3 @@ export function noiseSettings(settings: Settings): NoiseSettings {
   }
 }
 
-/** The changes to the URL that dismiss the shadow (CP8). */
-export const NO_SHADOW: Partial<Settings> = sideChanges('shadow_b', {
-  suite: '',
-  machine: '',
-  commit: '',
-  runs: [],
-})
