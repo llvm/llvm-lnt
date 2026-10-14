@@ -75,7 +75,7 @@ submission nests under `machine` (see O1):
 with 400.
 
 Responses use the same object, in list and detail responses alike, plus a
-read-only `last_run_at`: the `submitted_at` of the machine's most recent run, or
+read-only `last_run_at`: the latest `measured_at` among the machine's runs, or
 null if it has no runs. It is derived rather than stored (see D5).
 
 **Updating.** On `PATCH`, an omitted key is left unchanged, and supplying
@@ -220,7 +220,7 @@ Not paginated: the response is bounded by the size of the request.
 ## E4: Runs
 
 ```
-GET    /api/suites/{testsuite}/runs                         -- List (cursor-paginated, searchable, filterable by machine=, commit=, after=, before=, has_profiles=; sortable by sort=)
+GET    /api/suites/{testsuite}/runs                         -- List (cursor-paginated, searchable, filterable by machine=, commit=, submitted_after=, submitted_before=, measured_after=, measured_before=, has_profiles=; sortable by sort=)
 POST   /api/suites/{testsuite}/runs                         -- Submit run (accepts optional client UUID or generates one, returns it)
 GET    /api/suites/{testsuite}/runs/{uuid}                  -- Detail
 DELETE /api/suites/{testsuite}/runs/{uuid}                  -- Delete run
@@ -229,8 +229,10 @@ DELETE /api/suites/{testsuite}/runs/{uuid}                  -- Delete run
 **Auth scope:** `read` for GET, `submit` for POST, `manage` for DELETE.
 
 **Run object:** `uuid`, `machine` (the machine's name), `commit` (the commit's
-identity string), `submitted_at`, and `run_parameters`. `run_parameters` is the
-free-form blob the submission supplied, or `{}` if it supplied none. It
+identity string), `submitted_at`, `measured_at`, and `run_parameters`.
+`submitted_at` is when this instance accepted the run, and `measured_at` when
+its data was measured (see D5). `run_parameters` is the free-form blob the
+submission supplied, or `{}` if it supplied none. It
 appears in the detail response only, because it is unbounded and no list view
 displays it -- the same reason a regression's `notes` is detail-only.
 
@@ -240,6 +242,7 @@ displays it -- the same reason a regression's `notes` is detail-only.
   "machine": "linux-x86_64",
   "commit": "014621ede7c1",
   "submitted_at": "2026-08-25T14:22:41Z",
+  "measured_at": "2026-08-25T14:02:17Z",
   "run_parameters": {"build_config": "Release"}
 }
 ```
@@ -267,13 +270,17 @@ with the submission (see O2). A profile that O7 refuses is rejected with 400.
 
 - `search=`: matches the run's machine or commit, as the machine and commit
   lists' `search=` match them, or a prefix of the run's `uuid` (see O4).
-- `machine=`, `commit=`, `after=`, `before=` (see I3).
+- `machine=`, `commit=` (see I3).
+- `submitted_after=`, `submitted_before=`, `measured_after=`,
+  `measured_before=`: exclusive bounds on `submitted_at` and `measured_at` (see
+  I3).
 - `has_profiles=`: boolean. `true` returns only runs with at least one profile
   attached, and `false` only runs without profiles.
 
-**Sort:** `sort=submitted_at` returns oldest first, and `sort=-submitted_at`
-newest first. Without `sort`, results come in an arbitrary but deterministic
-order suitable for pagination (see I2).
+**Sort:** `sort=submitted_at` and `sort=measured_at` return oldest first, and
+`sort=-submitted_at` and `sort=-measured_at` newest first. Without `sort`,
+results come in an arbitrary but deterministic order suitable for pagination
+(see I2).
 
 
 ## E5: Tests
@@ -565,7 +572,8 @@ character, does not fit in a query string.
 **Auth scope:** `read`.
 
 **Body** (JSON): `{metric, machine, test, commit, after_commit, before_commit,
-after_time, before_time, sort, limit, cursor}`.
+submitted_after, submitted_before, measured_after, measured_before, sort,
+limit, cursor}`.
 
 - `metric` is required, and every other key is optional. Only samples with a
   value for that metric are returned, so every point has a non-null `value`.
@@ -575,11 +583,13 @@ after_time, before_time, sort, limit, cursor}`.
 - `commit` keeps only the samples of that commit. It cannot be combined with
   `after_commit` or `before_commit` (400 if both are supplied).
 - The time and commit bounds are exclusive (strictly after, strictly before).
-  When either commit bound is given, samples on commits with no ordinal are
-  excluded, whatever the `sort`.
+  The time bounds apply to the `submitted_at` or the `measured_at` of the run a
+  sample belongs to. When either commit bound is given, samples on commits with
+  no ordinal are excluded, whatever the `sort`.
 - `sort` names one ordering, optionally prefixed with `-` for descending (see
-  I3): `test`, `commit` (by ordinal), or `submitted_at`. Sorting by `commit`
-  excludes the samples on commits with no ordinal, since they have no position
+  I3): `test`, `commit` (by ordinal), `submitted_at` or `measured_at` (the
+  run's). Sorting by `commit` excludes the samples on commits with no ordinal,
+  since they have no position
   in that order. Without `sort`, results come in an arbitrary but stable order
   suitable for cursor pagination, and no data is excluded.
 - An unknown machine or test is 404 and an unknown metric is 400. An unknown
@@ -588,9 +598,9 @@ after_time, before_time, sort, limit, cursor}`.
 
 **Response:** I2's cursor envelope, whose `limit` and `cursor` are keys of the
 body. Each point contains `test`, `machine`, `metric`, `value`, `commit`,
-`ordinal`, `run_uuid`, `submitted_at`, and `tag` (the commit's tag, or null if
-unset). `metric` is repeated on every point even though the request names
-exactly one, so that each point is self-describing.
+`ordinal`, `run_uuid`, `submitted_at` and `measured_at` (the run's), and `tag`
+(the commit's tag, or null if unset). `metric` is repeated on every point even
+though the request names exactly one, so that each point is self-describing.
 
 ### Trends (Aggregated)
 
@@ -625,7 +635,7 @@ machine name, then by ordinal. Each item contains:
 - `machine`: the machine's name
 - `commit`: the commit's identity string
 - `ordinal`: always present, never null
-- `submitted_at`: the latest submission among the runs the value covers
+- `measured_at`: the latest `measured_at` among the runs the value covers
 - `tag`: the commit's tag, or null if unset
 - `value`: the geomean of the run geomeans (see O9) of the runs at that machine
   and commit, for `metric` under `sample_agg`. It is a real number even for an

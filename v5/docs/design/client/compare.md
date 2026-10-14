@@ -58,8 +58,8 @@ Each side has its own controls:
   machine has runs. Disabled until a machine is selected, showing "Select a
   machine first". Clearing the commit clears the runs.
 - **Runs**: a checkbox list of the selected machine's runs at the selected
-  commit, in the order they were submitted, in a box of its own that scrolls
-  when they are many. Each run shows its submission time and its shortened UUID
+  commit, in the order they were measured, in a box of its own that scrolls
+  when they are many. Each run shows its measurement time and its shortened UUID
   linking to its Run Detail page. Every run is selected when a commit is
   picked, unless the URL names some of them (see CP7). Rows are selected one at
   a time, a range at a time with Shift, or all at once from the header (see

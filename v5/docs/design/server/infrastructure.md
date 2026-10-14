@@ -113,11 +113,10 @@ describes them (see I8).
 Common filters include:
 - `machine=`, `test=`, `metric=`
 - `search=`: case-insensitive text search (see O4)
-- `after=`, `before=`: exclusive bounds on submission time. A bound on another
-  dimension is named after it (`after_commit` on
-  `GET /api/suites/{testsuite}/commits`), and so is the time bound of an
-  endpoint that bounds both (`after_time` on
-  `POST /api/suites/{testsuite}/query`).
+- `submitted_after=`, `submitted_before=`, `measured_after=`,
+  `measured_before=`: exclusive bounds on a run's `submitted_at` and
+  `measured_at` (see D5)
+- `after_commit=`, `before_commit=`: exclusive bounds on the commit order
 - `state=` (for regressions; takes several values)
 - `commit=`
 - `has_commit=` (for regressions), `has_profiles=` (for commits and runs)

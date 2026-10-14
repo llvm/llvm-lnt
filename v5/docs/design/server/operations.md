@@ -20,6 +20,7 @@ O2).
 {
   "format_version": "5",
   "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "measured_at": "2026-08-25T14:02:17Z",
   "machine": {
     "name": "my-machine",
     "tracked": true,
@@ -61,6 +62,10 @@ O2).
   accepted (v4, v5, v7, etc.): only the format is checked. If a run with the
   same UUID already exists in the test suite, the server returns 409
   `duplicate` (see I4). If omitted, the server generates a random UUID v4.
+- `measured_at`: optional `datetime` (see D3), when the run's data was
+  measured. It defaults to the run's `submitted_at`, which the server records
+  (see D5). A producer that submits right after measuring can omit it; one that
+  submits data measured earlier supplies it.
 - `machine`: required object identifying the machine this run was measured on.
   - `name`: required string, the machine's identity.
   - `fields`: optional. Every key must be declared in the schema's
@@ -114,7 +119,7 @@ O2).
   - An optional `profile` holds the test's profile: a JSON profile document,
     gzip-compressed and base64-encoded (see O7).
 
-**Null values.** An explicit `null` means "omitted" on `uuid`,
+**Null values.** An explicit `null` means "omitted" on `uuid`, `measured_at`,
 `commit.ordinal`, `commit.tag`, a test entry's `profile`, and each entry of
 `machine.fields` and `commit.fields`. Anywhere else, `null` is rejected with
 400. Unlike with `PATCH`, a `null` in `fields` never clears a stored value (see
@@ -186,8 +191,9 @@ inside `fields`:
 
 See D5 for their columns and O6 for ordinal assignment.
 
-Run metadata is deliberately not covered here: `run_parameters` is written once
-at submission and never updated, so there is nothing to reconcile.
+Run metadata is deliberately not covered here: run attributes are written once
+at submission time and never updated (see D5), so there is nothing to
+reconcile.
 
 
 ## O3: No Regression Auto-Detection

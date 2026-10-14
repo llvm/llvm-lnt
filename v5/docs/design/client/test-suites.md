@@ -27,15 +27,17 @@ path and params to restore state. On changes, updates the URL.
 
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
-| Runs | Run list with cursor pagination, most recent first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
+| Runs | Run list with cursor pagination, most recently submitted first | `GET runs?search=...&sort=-submitted_at&limit=25` | Machine, commit or UUID prefix (see O4) |
 | Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
 
 ## TS2: Runs tab
 
-This tab shows the runs submitted to that test suite, most recent first. It
-shows a table like this:
+This tab shows the runs submitted to that test suite, most recently submitted
+first. Unlike the rest of the UI (see AR6), it orders runs by `submitted_at`, so
+that the runs that just arrived are on the first page, even those measured long
+before. It shows a table like this:
 
 ```
 Run               Machine                   Commit            Submitted

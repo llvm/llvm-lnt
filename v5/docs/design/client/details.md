@@ -41,7 +41,7 @@ etc...
 
 ## Run History
 
-Run                   Commit                Submitted
+Run                   Commit                Measured
 ------------------------------------------------------------------
 573af861...           014621ede7c1          2026-08-25, 2:22:41 PM
 2cb00c2d...           e8cb3559eec0          2026-08-18, 3:57:56 AM
@@ -88,8 +88,8 @@ It is shown even when the table is empty, since the machine may have resolved re
 
 ### Run History table
 
-Shows the runs submitted to this machine, most recent first, 25 per page
-(`GET /runs?machine={name}&sort=-submitted_at&limit=25`). Entities (runs, commits) are clickable and
+Shows the runs of this machine, most recently measured first, 25 per page
+(`GET /runs?machine={name}&sort=-measured_at&limit=25`). Entities (runs, commits) are clickable and
 lead to the details page for that object.
 
 
@@ -106,6 +106,7 @@ libcxx › Runs
 | UUID              <uuid>                        |
 | Machine           linux-x86_64                  |
 | Commit            014621ede7c1                  |
+| Measured          2026-08-25, 2:02:17 PM        |
 | Submitted         2026-08-25, 2:22:41 PM        |
 | <run-parameters>                                |
 +-------------------------------------------------+
@@ -213,7 +214,7 @@ etc...
 
 [Filter machines...]
 
-Machine                                       Run             Submitted
+Machine                                       Run             Measured
 ------------------------------------------------------------------------------------------------------
 linux-x86_64                                  67713ef1...     2026-08-25, 2:22:36 PM    [Compare with previous]
 etc...
@@ -256,9 +257,9 @@ active regressions table: UUID, Title, State and Tests. Displays
 ### Runs section
 
 Displays every run at this commit in a table, sorted by machine name, and on each machine
-newest first. The runs are loaded progressively, as DT2's samples are, with a count of those
-loaded so far (see AR7). A text input for substring matching on machine names, kept in the
-URL as `?machine_filter={text}`, filters the runs table. Once every run has loaded, a
+most recently measured first. The runs are loaded progressively, as DT2's samples are, with
+a count of those loaded so far (see AR7). A text input for substring matching on machine
+names, kept in the URL as `?machine_filter={text}`, filters the runs table. Once every run has loaded, a
 summary counts them and their machines, and reflects the filter (e.g. "12 runs across 8
 machines", "5 of 12 runs across 2 of 8 machines"). The table says `No runs at this commit.`
 when there are none, and `No machines match the filter.` when the filter keeps none.

@@ -48,8 +48,8 @@ etc...
    when it is followed from a suite-scoped page (see AR4).
 2. **Compare page**: the "Profile" link of a test in the comparison table (see
    CP2). It fills in both sides when both have a profile of the test, and side
-   A with whichever side has one otherwise. On each side, it uses the latest of
-   the selected runs that has a profile of the test.
+   A with whichever side has one otherwise. On each side, it uses the latest
+   of the selected runs (see AR6) that has a profile of the test.
 3. **Run Detail page**: the "Profile" link of a test in the samples table (see
    DT2), which fills in side A with the run and the test.
 
@@ -76,11 +76,11 @@ or tests.
   "Select a machine first". When the machine has no profiles at all, the side
   says so. Clearing the commit clears the run and the test.
 - **Run**: a dropdown over the selected machine's runs at the selected commit
-  that have profiles, in the order they were submitted, each showing its
-  submission time and its shortened UUID. Disabled until a commit is selected,
+  that have profiles, in the order they were measured, each showing its
+  measurement time and its shortened UUID. Disabled until a commit is selected,
   showing "Select a commit first". Whenever the user's picks change the side's
-  commit or machine, the latest of these runs is selected. Beside the dropdown, the
-  selected run's shortened UUID links to its Run Detail page.
+  commit or machine, the latest of these runs (see AR6) is selected. Beside the
+  dropdown, the selected run's shortened UUID links to its Run Detail page.
 - **Test**: a combobox (see AR14) over the tests that have a profile in the
   selected run, sorted by name and filtered locally. Disabled until a run is
   selected, showing "Select a run first".
