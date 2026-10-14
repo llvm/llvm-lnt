@@ -22,7 +22,8 @@ See ``lnt v5 submit --help`` for the other options.
 Submission
 ----------
 
-Submitting runs requires a token with ``submit`` scope.
+Submitting runs requires a token with ``submit`` scope, given with ``--token``
+or in the ``LNT_V5_TOKEN`` environment variable.
 
 1. With ``--create-suite FILE``, the command first creates the suite from the
    schema in ``FILE``, which requires a token with ``manage`` scope. The

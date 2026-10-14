@@ -1,3 +1,5 @@
+from typing import Any
+
 import click
 
 
@@ -64,6 +66,54 @@ def action_convert_v4_mirror(mirror_dir: str, suite: str,
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         sys.exit(1)
     except OSError as e:
+        click.echo("error: %s" % e, err=True)
+        sys.exit(1)
+    if failures:
+        sys.exit(1)
+
+
+@group_v5.command("submit")
+@click.argument("url")
+@click.argument("input_file", metavar="[FILE]", default="-",
+                type=click.File("rb"))
+@click.option("--suite", required=True, metavar="NAME",
+              help="test suite to submit the runs to")
+@click.option("--token", envvar="LNT_V5_TOKEN", metavar="TOKEN",
+              help="API token, with submit scope (manage with "
+                   "--create-suite) [default: $LNT_V5_TOKEN]")
+@click.option("--create-suite", "schema_file", metavar="FILE",
+              type=click.Path(exists=True, dir_okay=False),
+              help="create the suite, which must not exist yet, from the "
+                   "schema in FILE")
+@click.option("--workers", default=4, show_default=True,
+              type=click.IntRange(min=1),
+              help="number of runs to submit concurrently")
+def action_submit(url: str, input_file: Any, suite: str, token: str | None,
+                  schema_file: str | None, workers: int) -> None:
+    """submit runs to a test suite of an LNT v5 instance
+
+    URL is the root of the v5 instance, e.g. https://lnt.example.com. The runs
+    are read from FILE, or from standard input, as one JSON run submission per
+    line. Runs the suite already has, by UUID, are skipped. See the
+    "Submitting Runs to v5" documentation for the details.
+
+    Exits with a non-zero status if any run could not be submitted.
+    """
+    import json
+    import sys
+    from lnt.util.v5_submit import SubmitError, submit
+
+    schema = None
+    if schema_file is not None:
+        try:
+            with open(schema_file) as f:
+                schema = json.load(f)
+        except (OSError, ValueError) as e:
+            raise click.BadParameter(str(e), param_hint="--create-suite")
+    try:
+        failures = submit(url, suite, input_file, token, schema, workers,
+                          echo=click.echo)
+    except SubmitError as e:
         click.echo("error: %s" % e, err=True)
         sys.exit(1)
     if failures:
