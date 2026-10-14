@@ -32,6 +32,28 @@ export function clickRow(
   return { selected: withRows(selected, range, select), anchor: key }
 }
 
+/**
+ * The rows selected once the row `key` is double-clicked, among the rows `shown`: of those, only
+ * `key` is checked, or every one of them when `key` is the only one checked already. A row is
+ * checked when it is selected, or in a list whose selection is of the rows hidden (`inverted`),
+ * when it is not. The rows not shown are left as they are (GR7, CP2).
+ */
+export function isolateRow(
+  selected: ReadonlySet<string>,
+  shown: readonly string[],
+  key: string,
+  inverted: boolean,
+): Set<string> {
+  const checked = (row: string) => selected.has(row) !== inverted
+  const alone = checked(key) && shown.every((row) => row === key || !checked(row))
+  const next = new Set(selected)
+  for (const row of shown) {
+    if ((alone || row === key) !== inverted) next.add(row)
+    else next.delete(row)
+  }
+  return next
+}
+
 /** The selection once every one of `keys` is selected, or deselected: the anchor stays. */
 export function setRows(state: Selection, keys: Iterable<string>, select: boolean): Selection {
   return { ...state, selected: withRows(state.selected, keys, select) }
@@ -115,8 +137,9 @@ export interface RowSelection {
   setRows(keys: Iterable<string>, select: boolean): void
   /**
    * Select exactly `keys`, whether shown or not (see `replaceRows`), unless they are more than the
-   * limit allows, as for GR7's double-click restoring every test. A caller restoring a selection,
-   * from a URL say, keeps the first ones that fit itself, as `initial` does.
+   * limit allows, as for GR7's double-click selecting every test shown (see `isolateRow`). A
+   * caller restoring a selection, from a URL say, keeps the first ones that fit itself, as
+   * `initial` does.
    */
   replace(keys: Iterable<string>): void
 }
@@ -183,8 +206,8 @@ type Options = ShownOptions | HiddenOptions
  * A selection among the rows of a list (AR10). `shown` are the rows in view, in order, which a
  * range selected with Shift spans. `offered` are the rows that can be selected, or undefined while
  * that is not known: once it is, a row that is no longer offered is deselected, so that it does not
- * come back with the row. A list whose filter is to deselect the rows it hides passes the rows it
- * shows as `offered`.
+ * come back with the row. A filter that only narrows the list changes `shown` alone, whereas a list
+ * whose filter is to deselect the rows it hides passes the rows it shows as `offered`.
  */
 export function useRangeSelection(
   offered: readonly string[] | undefined,

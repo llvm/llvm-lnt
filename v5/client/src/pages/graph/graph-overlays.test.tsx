@@ -162,13 +162,18 @@ describe('hover (GR7, GR10)', () => {
     fireEvent.mouseEnter(testTable().getByText('a').closest('tr')!)
     expect(opacities()).toEqual([undefined, 0.2, 0.2])
 
-    // The filter hides a, and deselects it: selected again, it is not emphasized any more.
+    // The filter hides a, which stays drawn, but not emphasized, nor highlighted when hovered.
     search('Filter tests', 'b')
     await waitFor(() => expect(listed()).toEqual(['b']))
+    expect(dataTraces()).toHaveLength(3)
+    expect(opacities()).toEqual([undefined, undefined, undefined])
+    hover('a - m1', 0)
+    expect(screen.getByRole('main').querySelector('.hovered')).toBeNull()
+    unhover()
+    // Shown again, it is still selected, and not emphasized.
     search('Filter tests', '')
     await waitFor(() => expect(listed()).toHaveLength(4))
-    fireEvent.click(testTable().getByRole('checkbox', { name: 'a' }))
-    await waitFor(() => expect(dataTraces()).toHaveLength(3))
+    expect(testTable().getByRole('checkbox', { name: 'a' })).toBeChecked()
     expect(opacities()).toEqual([undefined, undefined, undefined])
 
     fireEvent.mouseEnter(testTable().getByText('a').closest('tr')!)
@@ -382,7 +387,7 @@ describe('the point details (GR11)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('closes on a change to the regressions marked, filter, machines or baselines', async () => {
+  it('closes on a change to the regressions, machines or baselines, not the filter', async () => {
     mockWorld({ samples: SAMPLES })
     mockRegressionWorld()
     renderPage(`${GRAPHED}&test=a&baseline=libcxx/m1/c10`)
@@ -398,9 +403,13 @@ describe('the point details (GR11)', () => {
     await pickOption('Regressions', 'All')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
+    // The filter changes only the test table (GR1).
     reopen()
-    search('Filter tests', 'a')
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    search('Filter tests', 'b')
+    await waitFor(() => expect(listed()).toEqual(['b']))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    search('Filter tests', '')
+    await waitFor(() => expect(listed()).toHaveLength(4))
 
     reopen()
     await user.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r10' }))

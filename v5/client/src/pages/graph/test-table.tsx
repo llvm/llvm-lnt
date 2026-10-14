@@ -12,7 +12,11 @@ import { VisuallyHidden } from 'react-aria-components'
 import { colorOfName } from '../../chart-colors'
 import { DataTable, type Column } from '../../components/data-table'
 import { Loading } from '../../components/feedback'
-import type { RangeSelection, RowSelection } from '../../components/range-selection'
+import {
+  isolateRow,
+  type RangeSelection,
+  type RowSelection,
+} from '../../components/range-selection'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
 import { useStoreValue, ValueStore } from '../../value-store'
 import styles from './graph.module.css'
@@ -42,10 +46,11 @@ interface Props {
 /**
  * The tests to plot (GR6, GR7): every test listed that the filter keeps, by name, each selected or
  * not with its checkbox or a click on its row, a range at a time with Shift (AR10). A double-click
- * isolates a test, or selects every test shown again once it is the only one selected. A selected
- * test shows its colour on the chart, and whether its data is still loading. The table is the
- * chart's legend, with the machines' chips: hovering a row emphasizes the test's lines on the
- * chart, and hovering one of them highlights its row (GR7).
+ * isolates a test among those shown, or selects every test shown again once it is the only one
+ * shown that is selected. The filter changes none of the selection, and none of these touches a
+ * test it hides. A selected test shows its colour on the chart, and whether its data is still
+ * loading. The table is the chart's legend, with the machines' chips: hovering a row emphasizes the
+ * test's lines on the chart, and hovering one of them highlights its row, if it is shown (GR7).
  */
 export function TestTable({
   all,
@@ -70,6 +75,7 @@ export function TestTable({
     if (test !== null && !shown.includes(test)) emphasis.set(null)
   }, [shown, emphasis])
   useEffect(() => () => emphasis.set(null), [emphasis])
+  const listed = useMemo(() => new Set(all), [all])
 
   const columns = useMemo(
     (): Column<string>[] => [
@@ -106,7 +112,9 @@ export function TestTable({
         rows.click(test, event.shiftKey)
       },
       onDoubleClick: (event: MouseEvent) => {
-        if ((event.target as HTMLElement).closest('input') === null) isolate(rows, test, shown)
+        if ((event.target as HTMLElement).closest('input') === null) {
+          rows.replace(isolateRow(rows.selected(), shown, test, rows.inverted()))
+        }
       },
       // Shift selects a range of rows, and a double-click isolates one, rather than text.
       onMouseDown: (event: MouseEvent) => {
@@ -122,7 +130,10 @@ export function TestTable({
     return listing ? <Loading label="Loading tests..." /> : <p className={styles.note}>{empty}</p>
   }
 
+  // The selected tests shown, and those the filter hides, as DT4's lists count them: of those
+  // listed only, since until every machine's tests are, the URL's may not be yet.
   const count = shown.filter((test) => selected.has(test)).length
+  const hidden = [...selected].filter((test) => listed.has(test)).length - count
   return (
     <>
       {listing && <Loading label="Loading tests..." />}
@@ -130,6 +141,7 @@ export function TestTable({
         {filtered
           ? `${count} of ${shown.length} matching tests selected (${all.length} total)`
           : `${count} of ${all.length} tests selected`}
+        {hidden > 0 && `, ${hidden} more hidden by the filter`}
         {notInUrl !== undefined && <span title={notInUrl}> (too many to reflect in the URL)</span>}
         {loading.size > 0 && ', loading...'}
       </p>
@@ -154,16 +166,6 @@ export function TestTable({
 }
 
 const nameOf = (test: string) => test
-
-/**
- * Select `test` alone, or, when it is the only test selected, every test shown again, as long as
- * that is within the limit (GR7).
- */
-function isolate(rows: RowSelection, test: string, shown: string[]) {
-  const selected = rows.selected()
-  if (selected.size === 1 && selected.has(test)) rows.replace(shown)
-  else rows.replace([test])
-}
 
 /** The colour of a selected test's traces (GR6), as a swatch, which has no shape of a machine's. */
 function Swatch({ rows, test }: { rows: RowSelection; test: string }) {

@@ -171,13 +171,13 @@ A client-side text filter -- one that narrows data already loaded in the
 browser -- matches its text as a case-insensitive substring.
 
 The test filters of the Graph and Compare pages also have a regex mode, since
-they select the tests that a whole operation covers (plotting, a geomean, an
-export). A "Regex" checkbox beside the input switches it between substring and
-regex matching, both case-insensitive. While its text is not a valid regex, the
-input shows the red halo (see AR11), and the filter keeps applying the last
-valid filter, or none if there has not been one yet. Switching to regex mode
-on text that is not a valid regex therefore keeps matching that text as a
-substring.
+they pick out sets of tests: those to plot (with the header checkbox), or those
+a whole operation covers (a geomean, an export). A "Regex" checkbox beside the
+input switches it between substring and regex matching, both case-insensitive.
+While its text is not a valid regex, the input shows the red halo (see AR11),
+and the filter keeps applying the last valid filter, or none if there has not
+been one yet. Switching to regex mode on text that is not a valid regex
+therefore keeps matching that text as a substring.
 
 Typing in a client-side filter must never lag behind the keyboard, even over
 thousands of rows -- the test tables of the Graph and Compare pages, or a run's

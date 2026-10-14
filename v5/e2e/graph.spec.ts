@@ -52,8 +52,21 @@ test('plots a test chosen from scratch', async ({ page }) => {
   await machines.fill(LINUX)
   await page.getByRole('option', { name: LINUX, exact: true }).click()
   await pickOption(page, 'Metric', 'Execution Time')
+  // Found with the filter, which then only narrows the table: the test stays drawn under a filter
+  // that hides it, and comes back selected once the filter is cleared (GR1).
+  const filter = page.getByRole('searchbox', { name: 'Filter tests' })
+  await filter.fill(TEST)
   await testBox(page, TEST).check()
+  await expect(tracesOf(page)).toHaveCount(1)
+  await filter.fill('no test is named so')
+  await expect(page.getByText('No tests match the filter.')).toBeVisible()
+  await expect(
+    page.getByText(/^0 of 0 matching tests selected \(\d+ total\), 1 more hidden by the filter$/),
+  ).toBeVisible()
+  await expect(tracesOf(page)).toHaveCount(1)
+  await filter.fill('')
 
+  await expect(testBox(page, TEST)).toBeChecked()
   await expect(tracesOf(page)).toHaveCount(1)
   await expect(page).toHaveURL(
     `/graph?suite=libcxx&machine=${LINUX}&metric=execution_time&test=${encodeURIComponent(TEST)}`,

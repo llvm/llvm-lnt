@@ -10,7 +10,7 @@ import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { CopyButton } from '../../components/copy-button'
 import { DataTable, type Column } from '../../components/data-table'
-import type { RowSelection } from '../../components/range-selection'
+import { isolateRow, type RowSelection } from '../../components/range-selection'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
 import type { TableSort } from '../../components/table-sort'
 import { useStoreValue, ValueStore } from '../../value-store'
@@ -41,21 +41,6 @@ function GeomeanCell({ store, column }: { store: ValueStore<Values>; column: Com
 }
 
 const testOf = (row: Row) => row.test ?? ''
-
-/**
- * Show only `test` among the tests the table shows, or, when it is the only one shown already,
- * show them all (CP2 "Hidden tests"). The tests the table does not show are left as they are.
- */
-function isolate(rows: RowSelection, test: string, shown: readonly string[]) {
-  const hidden = rows.selected()
-  const alone = !hidden.has(test) && shown.every((other) => other === test || hidden.has(other))
-  const next = new Set(hidden)
-  for (const other of shown) {
-    if (alone || other === test) next.delete(other)
-    else next.add(other)
-  }
-  rows.replace(next)
-}
 
 /** What the table shows, computed from the comparison (see `useComparisonTable`). */
 export interface TableView {
@@ -175,7 +160,10 @@ export function CompareTable({
           hidden.click(test, event.shiftKey)
         },
         onDoubleClick: (event: MouseEvent) => {
-          if ((event.target as Element).closest('input, a') === null) isolate(hidden, test, tests)
+          // Shows only `test` among the rows, or all of them again (CP2 "Hidden tests").
+          if ((event.target as Element).closest('input, a') === null) {
+            hidden.replace(isolateRow(hidden.selected(), tests, test, hidden.inverted()))
+          }
         },
         // Shift selects a range of rows, and a double-click isolates one, rather than text.
         onMouseDown: (event: MouseEvent) => {

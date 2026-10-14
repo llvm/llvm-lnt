@@ -134,11 +134,12 @@ function GraphPage() {
     (text) => update({ test_filter: text }),
     { regex: settings.test_filter_regex },
   )
-  // The tests that can be selected, once they are all known: those the filter keeps, of every
-  // machine's tests for the metric. Until then -- while the suite, the machines or the metric are
-  // being checked, or a machine's tests listed -- the selection stays as it is (GR1, GR14).
+  // The tests that can be selected, once they are all known: every machine's tests for the metric,
+  // whatever the filter, which only narrows the table. Until then -- while the suite, the machines
+  // or the metric are being checked, or a machine's tests listed -- the selection stays as it is
+  // (GR1, GR14).
   const known = names !== undefined && metric !== undefined && tests.complete && !tests.error
-  const selection = useRangeSelection(known ? filter.rows : undefined, filter.rows, {
+  const selection = useRangeSelection(known ? tests.names : undefined, filter.rows, {
     limit: SELECTION_LIMIT,
     initial: settings.test,
   })
@@ -364,8 +365,6 @@ function GraphPage() {
           sorted,
           machines.join('\0'),
           metric?.name,
-          settings.test_filter,
-          settings.test_filter_regex,
           settings.sample_agg,
           settings.run_agg,
           settings.baseline,
