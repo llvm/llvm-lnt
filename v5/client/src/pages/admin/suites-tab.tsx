@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from 'react'
+import { useLayoutEffect, useRef, useState, type Ref } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap } from '../../api/client'
 import { removeSuite, useSuites, type SuiteSchema } from '../../api/suites'
@@ -39,7 +39,9 @@ export function SuitesTab({ selected, onSelect }: Props) {
   // What takes the focus once rendered: the dropdown, or the note saying that there are no suites
   // if the suite deleted was the last, or the button that opened the editor once it is closed.
   const refocus = useRef<'select' | 'new-suite' | 'edit' | null>(null)
-  useEffect(() => {
+  // In the commit, before the page is painted, so that a request's answer never shows without the
+  // focus where it goes.
+  useLayoutEffect(() => {
     if (refocus.current === null) return
     const target = { select: selectRef, 'new-suite': newSuiteRef, edit: editRef }[refocus.current]
     refocus.current = null

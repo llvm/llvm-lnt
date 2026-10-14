@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
@@ -107,7 +107,9 @@ export function RegressionIndicators({
   // moved on, to the filter say, where a key meant for it must not press a remove button.
   const refocused = useRef<unknown>(null)
   const { data: removed, variables: removal } = remove
-  useEffect(() => {
+  // In the commit, before the page is painted, so that the removal never shows without the focus
+  // where it goes.
+  useLayoutEffect(() => {
     if (!removed || !removal || refocused.current === removed) return
     const shownKeys = new Set(keys)
     if (removal.uuids.some((uuid) => shownKeys.has(uuid))) return

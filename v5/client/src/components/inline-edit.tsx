@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import type { ScopeGate } from '../auth/scope'
 import { MISSING } from '../format'
@@ -78,7 +78,9 @@ export function InlineEdit({
   const form = useRef<HTMLFormElement>(null)
   // Whether the focus goes to the input, or back to Edit, once the editor has opened or closed.
   const refocus = useRef(false)
-  useEffect(() => {
+  // In the commit, before the page is painted, so that the value never shows without the focus on
+  // Edit after a save.
+  useLayoutEffect(() => {
     if (!refocus.current) return
     refocus.current = false
     if (editing) form.current?.querySelector<HTMLElement>('input, textarea')?.focus()

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authedApi, unwrap, type Schemas } from '../../api/client'
@@ -122,7 +122,9 @@ export function AddToRegression({
   // Once done, the form the button was clicked in is gone: the focus goes back to the toggle.
   const toggleRef = useRef<HTMLButtonElement>(null)
   const finished = useRef(false)
-  useEffect(() => {
+  // In the commit, before the page is painted, so that the report never shows without the focus on
+  // the toggle.
+  useLayoutEffect(() => {
     if (open || !finished.current) return
     finished.current = false
     toggleRef.current?.focus()
