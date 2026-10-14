@@ -94,10 +94,16 @@ def action_submit(url: str, input_file: Any, suite: str, token: str | None,
 
     URL is the root of the v5 instance, e.g. https://lnt.example.com. The runs
     are read from FILE, or from standard input, as one JSON run submission per
-    line. Runs the suite already has, by UUID, are skipped. See the
-    "Submitting Runs to v5" documentation for the details.
+    line, and submitted in that order. Runs whose UUID already exists in the
+    suite are skipped, so submitting the same runs again only submits the
+    missing ones.
 
-    Exits with a non-zero status if any run could not be submitted.
+    Requests that fail because of the network, a server error or a concurrent
+    change to the suite's schema are retried a few times. Any other failure is
+    reported, and the command carries on with the next run.
+
+    Exits with a zero status if every run was submitted (or skipped without an
+    error), and with a non-zero status if any failed.
     """
     import json
     import sys
