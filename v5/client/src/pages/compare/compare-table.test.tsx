@@ -171,6 +171,19 @@ describe('hidden tests (CP2)', () => {
     await waitFor(() => expect(query().hidden_test).toBeUndefined())
   })
 
+  it('never changes a test the filter hides on a double-click', async () => {
+    mockWorld(NOISY)
+    // c is hidden and d is not, and the filter hides both.
+    renderPage(`${COMPARED}&test_filter=^[ab]$&test_filter_regex=true&hidden_test=c`)
+    await comparison()
+    const user = userEvent.setup()
+
+    await user.dblClick(screen.getByRole('cell', { name: 'a' }))
+    await waitFor(() => expect(query().hidden_test).toEqual(['b', 'c']))
+    await user.dblClick(screen.getByRole('cell', { name: 'a' }))
+    await waitFor(() => expect(query().hidden_test).toEqual(['c']))
+  })
+
   it('restores the hidden tests of the URL, forgetting those the comparison does not hold', async () => {
     mockWorld(NOISY)
     renderPage(`${COMPARED}&hidden_test=d&hidden_test=zzz`)

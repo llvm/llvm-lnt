@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   clickRow,
+  isolateRow,
   keepOnly,
   NO_SELECTION,
   replaceRows,
@@ -62,6 +63,28 @@ describe('clickRow (AR10)', () => {
     expect(selected(clicks('+d'))).toEqual(['d'])
     const anchored = clickRow(NO_SELECTION, ['x', ...ROWS], 'x', false)
     expect(selected(clickRow(anchored, ROWS, 'c', true))).toEqual(['c', 'x'])
+  })
+})
+
+describe('isolateRow (GR7, CP2)', () => {
+  // Neither x, which is selected, nor y, which is not, is shown: they never change.
+  const SHOWN = ['a', 'b', 'c']
+  const isolate = (selected: string[], key: string, inverted = false) =>
+    [...isolateRow(new Set(selected), SHOWN, key, inverted)].sort()
+
+  it('selects only the row among those shown, or all of them once it is the only one', () => {
+    expect(isolate(['a', 'b', 'x'], 'c')).toEqual(['c', 'x'])
+    expect(isolate(['a', 'b', 'x'], 'a')).toEqual(['a', 'x'])
+    expect(isolate(['c', 'x'], 'c')).toEqual(['a', 'b', 'c', 'x'])
+    expect(isolate([], 'b')).toEqual(['b'])
+  })
+
+  it('in a list whose selection is of the rows hidden, hides the others, or shows them all', () => {
+    expect(isolate(['x'], 'c', true)).toEqual(['a', 'b', 'x'])
+    expect(isolate(['a', 'b', 'c', 'x'], 'c', true)).toEqual(['a', 'b', 'x'])
+    // c is the only row shown that is not hidden.
+    expect(isolate(['a', 'b', 'x'], 'c', true)).toEqual(['x'])
+    expect(isolate(['b', 'x'], 'a', true)).toEqual(['b', 'c', 'x'])
   })
 })
 

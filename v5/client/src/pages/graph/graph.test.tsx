@@ -17,6 +17,7 @@ import {
   box,
   chart,
   commitAt,
+  drawn,
   layout,
   listed,
   mockWorld,
@@ -233,6 +234,9 @@ describe('the aggregation (GR1)', () => {
   })
 })
 
+/** How the selection's count goes on with GRAPHED's tests, filtered. */
+const MATCHING = 'matching tests selected (4 total)'
+
 describe('the selection (GR6, GR7, GR14)', () => {
   it('toggles a test with a click on its row, once with its checkbox', async () => {
     mockWorld()
@@ -291,6 +295,19 @@ describe('the selection (GR6, GR7, GR14)', () => {
     expect(count).not.toHaveTextContent(/too many/)
   })
 
+  it('says the URL lacks the selection, and how many selected tests the filter hides', async () => {
+    const names = Array.from({ length: 11 }, (_, i) => `t${String(i).padStart(2, '0')}`)
+    mockWorld({ tests: { m1: names } })
+    const tests = names.map((name) => `test=${name}`).join('&')
+    renderPage(`/graph?suite=libcxx&machine=m1&metric=execution_time&test_filter=t0&${tests}`)
+    await waitFor(() => expect(listed()).toHaveLength(10))
+
+    expect(main().getByText(/^10 of 10 matching tests selected/)).toHaveTextContent(
+      '10 of 10 matching tests selected (11 total) (too many to reflect in the URL), ' +
+        '1 more hidden by the filter',
+    )
+  })
+
   describe('selects at most 100 tests', () => {
     const NAMES = Array.from({ length: 101 }, (_, i) => `t${String(i).padStart(3, '0')}`)
     const ONE_MACHINE = '/graph?suite=libcxx&machine=m1&metric=execution_time'
@@ -317,6 +334,25 @@ describe('the selection (GR6, GR7, GR14)', () => {
       expect(box('t100')).toHaveAccessibleDescription(WHY)
     })
 
+    it('counting those the filter hides', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      const first = NAMES.slice(0, 100).map((name) => `test=${name}`)
+      renderPage(`${ONE_MACHINE}&test_filter=t100&${first.join('&')}`)
+      await waitFor(() => expect(listed()).toEqual(['t100']))
+
+      const count = main().getByText(/^0 of 1 matching tests selected/)
+      expect(count).toHaveTextContent(
+        /^0 of 1 matching tests selected \(101 total\) .*, 100 more hidden by the filter/,
+      )
+      expect(box('t100')).toBeDisabled()
+      expect(box('t100')).toHaveAccessibleDescription(WHY)
+      const all = testTable().getByRole('checkbox', { name: 'Select all tests shown' })
+      expect(all).toBeDisabled()
+      // Neither does isolating t100, which would select 101 tests.
+      await userEvent.setup().dblClick(testTable().getByText('t100'))
+      expect(box('t100')).not.toBeChecked()
+    })
+
     it('not even by double-clicking the only test selected', async () => {
       mockWorld({ tests: { m1: NAMES } })
       renderPage(`${ONE_MACHINE}&test=t005`)
@@ -338,12 +374,14 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(currentUrl()).toBe('/graph?suite=libcxx&metric=execution_time'))
   })
 
-  it('drops the tests of the URL that its filter hides (GR14)', async () => {
+  it('keeps the tests of the URL that its filter hides, and plots them (GR14)', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test_filter=b&test=a&test=b`)
 
-    await waitFor(() => expect(query()).toMatchObject({ test: ['b'] }))
+    await waitFor(() => expect(drawn()).toEqual(['a - m1', 'b - m1', 'b - m2']))
     expect(listed()).toEqual(['b'])
+    expect(query()).toMatchObject({ test: ['a', 'b'] })
+    expect(await main().findByText(`1 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
   })
 
   it('keeps a long selection of the URL there until what it names is known', async () => {
@@ -362,15 +400,35 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(query().test).toEqual(['a']))
   })
 
-  it('prunes the tests the filter hides, in substring or regex mode', async () => {
+  it('counts among the tests the filter hides only those listed', async () => {
+    const lists = gate()
+    mockWorld()
+    // m2's tests, held: zzz, which no list holds so far, stays selected meanwhile.
+    mockTests(async (query) => {
+      const machine = query.get('machine') as 'm1' | 'm2'
+      if (machine === 'm2') await lists.promise
+      return testPage(TESTS[machine])
+    })
+    renderPage(`${GRAPHED}&test_filter=b&test=a&test=zzz`)
+
+    const counted = '0 of 1 matching tests selected (3 total), 1 more hidden by the filter'
+    expect(await main().findByText(counted)).toBeVisible()
+    expect(query().test).toEqual(['a', 'zzz'])
+    act(() => lists.open())
+    expect(await main().findByText(`0 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
+    await waitFor(() => expect(query().test).toEqual(['a']))
+  })
+
+  it('keeps the tests the filter hides selected and drawn, in either mode', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test=a&test=b`)
-    await waitFor(() => expect(box('b')).toBeChecked())
+    await waitFor(() => expect(drawn()).toEqual(['a - m1', 'b - m1', 'b - m2']))
 
     search('Filter tests', 'b')
     await waitFor(() => expect(listed()).toEqual(['b']))
-    expect(main().getByText('1 of 1 matching tests selected (4 total)')).toBeInTheDocument()
-    await waitFor(() => expect(query()).toMatchObject({ test_filter: ['b'], test: ['b'] }))
+    expect(main().getByText(`1 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
+    await waitFor(() => expect(query()).toMatchObject({ test_filter: ['b'], test: ['a', 'b'] }))
+    expect(drawn()).toEqual(['a - m1', 'b - m1', 'b - m2'])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Regex' }))
     search('Filter tests', '^[bc]$')
@@ -379,9 +437,49 @@ describe('the selection (GR6, GR7, GR14)', () => {
       expect(query()).toMatchObject({
         test_filter: ['^[bc]$'],
         test_filter_regex: ['true'],
-        test: ['b'],
+        test: ['a', 'b'],
       }),
     )
+
+    // The rows the filter hid come back as they were.
+    search('Filter tests', '')
+    await waitFor(() => expect(listed()).toHaveLength(4))
+    expect(box('a')).toBeChecked()
+    expect(main().getByText('2 of 4 tests selected')).toBeInTheDocument()
+  })
+
+  it('selects or deselects only the rows shown from the header, as its state says', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test=a&test_filter=^[bc]$&test_filter_regex=true`)
+    await waitFor(() => expect(listed()).toEqual(['b', 'c']))
+    const all = testTable().getByRole('checkbox', { name: 'Select all tests shown' })
+
+    // a, which the filter hides, is selected, but none of the rows shown is.
+    expect(all).not.toBeChecked()
+    expect(all).not.toBePartiallyChecked()
+    fireEvent.click(all)
+    expect(all).toBeChecked()
+    await waitFor(() => expect(query().test).toEqual(['a', 'b', 'c']))
+
+    fireEvent.click(box('b'))
+    expect(all).toBePartiallyChecked()
+    fireEvent.click(all)
+    fireEvent.click(all)
+    await waitFor(() => expect(query().test).toEqual(['a']))
+    expect(all).not.toBeChecked()
+  })
+
+  it('isolates a test among the rows shown on a double-click, leaving those hidden', async () => {
+    mockWorld()
+    // a is selected and d is not, and the filter hides both.
+    renderPage(`${GRAPHED}&test=a&test=b&test_filter=^[bc]$&test_filter_regex=true`)
+    await waitFor(() => expect(box('b')).toBeChecked())
+
+    const user = userEvent.setup()
+    await user.dblClick(testTable().getByText('c'))
+    await waitFor(() => expect(query().test).toEqual(['a', 'c']))
+    await user.dblClick(testTable().getByText('c'))
+    await waitFor(() => expect(query().test).toEqual(['a', 'b', 'c']))
   })
 
   it('drops a test of the URL that no machine lists, once every list is in (GR14)', async () => {

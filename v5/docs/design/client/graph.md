@@ -62,9 +62,10 @@ the suite is a query parameter, not a path segment.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not
-  machine name), and has regex mode (see AR9). Changing the filter prunes
-  selected tests that no longer match -- their traces are removed from the
-  chart. A pruned test is not selected again when the filter changes back.
+  machine name), and has regex mode (see AR9). It only narrows the table: it
+  never changes the selection, so tests can be selected under one filter, then
+  others under another, and the chart plots every selected test whether the
+  filter shows its row or not.
 
 - **X-axis is always commit** (not date -- commits are not necessarily
   correlated to dates). Commits are placed in ordinal order, at the positions
@@ -151,36 +152,38 @@ part of the normal page flow (no scrollable container). A message line above the
 rows says how many of the table's rows are selected, e.g. "3 of 1200 tests
 selected", followed by ", loading..." while selected tests' data is loading.
 When the test filter is set, it counts the rows the filter keeps and also gives
-the unfiltered total: "3 of 42 matching tests selected (1200 total)". The
-selection is always among those rows, since the filter prunes it, and the
-message follows the filter as it changes. Each row has: a checkbox cell (checked
-= selected/plotted), a color cell (a swatch of the test's color, only when
-selected, empty otherwise; it has no shape, since shapes stand for machines),
-and the test name. The test filter narrows the table; tests that no longer match
-are pruned from the selection.
+the unfiltered total: "3 of 42 matching tests selected (1200 total)". When some
+selected tests do not match the filter, it also says how many, as DT4's lists
+do: "2 of 42 matching tests selected (1200 total), 5 more hidden by the
+filter". The message follows the filter as it changes. Each row has: a checkbox
+cell (checked = selected/plotted), a color cell (a swatch of the test's color,
+only when selected, empty otherwise; it has no shape, since shapes stand for
+machines), and the test name.
 
 
 ### GR7: Selection Interactions
 
 A header "check all" checkbox in the table header selects or deselects all
-visible tests (tri-state: unchecked, indeterminate when some selected, checked
-when all selected). Clicking a row toggles its selection (and triggers data
-fetch if selecting). Shift-clicking selects a range of rows (see AR10).
-Double-clicking isolates that test (deselects all others); double-clicking the
-sole selected test restores all (selects every visible test). Selected tests
-with data still loading show a loading indicator. The chart has no legend of its
-own; the table and the machine chips (GR1) serve as one. Bidirectional hover
-highlighting: hovering a table row highlights the corresponding chart trace(s);
-hovering a chart trace highlights the table row. A test's baseline lines (GR9)
-count as its traces for both. A selection of up to 10 tests
-is kept in the URL, along with the rest of the page's state (see GR14).
+visible tests (tri-state over the visible tests: unchecked, indeterminate when
+some are selected, checked when all are). Clicking a row toggles its selection
+(and triggers data fetch if selecting). Shift-clicking selects a range of rows
+(see AR10). Double-clicking a row isolates that test among the visible ones: it
+deselects the other visible tests. Double-clicking the only selected visible
+test selects every visible test again. None of these interactions ever changes
+a test that the filter hides. Selected tests with data still loading show a
+loading indicator. The chart has no legend of its own; the table and the
+machine chips (GR1) serve as one. Bidirectional hover highlighting: hovering a
+table row highlights the corresponding chart trace(s); hovering a chart trace
+highlights the test's row, if the filter shows it. A test's baseline lines
+(GR9) count as its traces for both. A selection of up to 10 tests is kept in
+the URL, along with the rest of the page's state (see GR14).
 
-At most 100 tests can be selected at once: well before that, the chart is
-unreadable, and the data of thousands of tests is more than the page can load.
-Once 100 tests are selected, the rows not selected cannot be selected, and the
-header checkbox cannot select every visible test when that would select more
-than 100. Each says why on hover. A shift-click range or a double-click that
-would select more than 100 tests does nothing.
+At most 100 tests can be selected at once, including those the filter hides:
+well before that, the chart is unreadable, and the data of thousands of tests is
+more than the page can load. Once 100 tests are selected, the rows not selected
+cannot be selected, and the header checkbox cannot select every visible test
+when that would select more than 100. Each says why on hover. A shift-click
+range or a double-click that would select more than 100 tests does nothing.
 
 
 ### GR8: Client-Side Caching
@@ -190,8 +193,9 @@ test names per machine and metric (all of them, filtered client-side), data per
 machine, metric and test, and scaffolds per machine; and the data of each
 baseline. In particular:
 
-- Changing the test filter or the aggregation redraws the traces from the data
-  already loaded, without fetching any again.
+- Changing the aggregation redraws the traces from the data already loaded,
+  without fetching any again. Changing the test filter changes only the test
+  table (GR1).
 - Adding a machine fetches only that machine's data, while the other machines'
   traces stay displayed.
 
@@ -288,7 +292,7 @@ chart is resized or the page scrolls -- and updates its contents as the data
 arrives. It closes on Escape, on its close button, on a click anywhere but on it
 or a marker of its point's scatter, and on any change to the chart other than
 data arriving, such as a zoom or pan, or a change to the selected tests,
-machines, metric, filter, aggregation, baselines or regression annotation mode,
+machines, metric, aggregation, baselines or regression annotation mode,
 and once its point is no longer drawn. Moving the focus out of it does not close
 it. A click on another point opens that point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or
@@ -328,12 +332,12 @@ not points.
 
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page says that the URL does not reflect the
-selection. `test_filter_regex=true` turns on the test filter's
-regex mode (see AR9). On load, `test_filter` filters the test table as if it had
-been typed, and a `test` that the test list for the selected machines and metric
-does not hold, or that does not match the filter, is dropped. Of a URL naming
-more than 100 tests, which the page never writes, only the first 100 are
-selected (see GR7), before any of them is dropped.
+selection. `test_filter_regex=true` turns on the test filter's regex mode (see
+AR9). On load, `test_filter` filters the test table as if it had been typed, and
+a `test` that the test list for the selected machines and metric does not hold
+is dropped. A `test` that does not match the filter stays selected (see GR1). Of
+a URL naming more than 100 tests, which the page never writes, only the first
+100 are selected (see GR7), before any of them is dropped.
 
 
 ### GR15: Regression Annotations
