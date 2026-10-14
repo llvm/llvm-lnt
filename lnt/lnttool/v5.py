@@ -6,7 +6,7 @@ def group_v5() -> None:
     """tools for interacting with LNT v5 instances"""
 
 
-@group_v5.command("import-v4-mirror")
+@group_v5.command("convert-v4-mirror")
 @click.argument("mirror_dir", type=click.Path(exists=True, file_okay=False))
 @click.option("--suite", required=True, metavar="SUITE",
               help="test suite of the mirror to convert")
@@ -23,15 +23,15 @@ def group_v5() -> None:
 @click.option("--commit-field", metavar="FIELD",
               help="take each run's commit from this v4 run field, when the "
                    "run has one, rather than from the order field")
-def action_import_v4_mirror(mirror_dir: str, suite: str,
-                            target_suite: str | None,
-                            schema_file: str | None, schema_out: str | None,
-                            commit_field: str | None) -> None:
+def action_convert_v4_mirror(mirror_dir: str, suite: str,
+                             target_suite: str | None,
+                             schema_file: str | None, schema_out: str | None,
+                             commit_field: str | None) -> None:
     """convert a test suite of a v4 mirror into v5 runs
 
     MIRROR_DIR is a mirror made by `lnt mirror-v4`. Each run is written to
     standard output as a line of JSON, ready for `lnt v5 submit`. See the
-    "Importing a v4 Mirror into v5" documentation for how the data is
+    "Converting a v4 Mirror for v5" documentation for how the data is
     converted.
 
     Exits with a non-zero status if any run cannot be converted.
@@ -39,7 +39,7 @@ def action_import_v4_mirror(mirror_dir: str, suite: str,
     import json
     import os
     import sys
-    from lnt.util.import_v4_mirror import PlanError, convert
+    from lnt.util.convert_v4_mirror import PlanError, convert
 
     override = None
     if schema_file is not None:

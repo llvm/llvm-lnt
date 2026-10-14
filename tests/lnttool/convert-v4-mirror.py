@@ -1,4 +1,4 @@
-# Test `lnt v5 import-v4-mirror`, and the conversion it performs, on mirrors
+# Test `lnt v5 convert-v4-mirror`, and the conversion it performs, on mirrors
 # built by hand.
 #
 # RUN: rm -rf %t.dir && mkdir -p %t.dir
@@ -14,9 +14,9 @@ import sys
 
 from click.testing import CliRunner
 
-from lnt.lnttool.v5 import action_import_v4_mirror
-from lnt.util.import_v4_mirror import (convert_run, make_plan, read_mirror,
-                                       read_run)
+from lnt.lnttool.v5 import action_convert_v4_mirror
+from lnt.util.convert_v4_mirror import (convert_run, make_plan, read_mirror,
+                                        read_run)
 
 TMP = sys.argv[1]
 URL = 'http://v4.example.com'
@@ -95,9 +95,9 @@ def make_mirror(name, machines, schema=SCHEMA, unfetched=(), database='default')
     return path
 
 
-def import_(*args):
+def run_cli(*args):
     """Run the command, and print its report and how many runs it wrote."""
-    result = CliRunner().invoke(action_import_v4_mirror, list(args))
+    result = CliRunner().invoke(action_convert_v4_mirror, list(args))
     print(result.stderr, end='')
     print('written: %d, exit: %d' % (len(result.stdout.splitlines()),
                                      result.exit_code))
@@ -125,7 +125,7 @@ plan = make_plan(mirrored, 'target')
 dump(plan.schema)
 for r in mirrored.runs:
     dump(convert_run(plan, r, read_run(mirrored, r)))
-result = import_(basic, '--suite', 'nts', '--target-suite', 'target',
+result = run_cli(basic, '--suite', 'nts', '--target-suite', 'target',
                  '--schema-out', os.path.join(TMP, 'basic-schema.json'))
 print('stdout is the submissions:', [json.loads(line) for line in
                                      result.stdout.splitlines()] ==
@@ -255,7 +255,7 @@ print('# MACHINE NAMES')
 D = [{'id': i, 'name': 'dup'} for i in (4, 9, 7)]
 S = {'id': 5, 'name': 'with/slash'}
 names = make_mirror('names', [(m, []) for m in D + [S]])
-import_(names, '--suite', 'nts')
+run_cli(names, '--suite', 'nts')
 # The target suite has the mirrored suite's name by default.
 # CHECK-LABEL: # MACHINE NAMES
 # CHECK-NEXT: Converting suite 'nts' of http://v4.example.com (database 'default') into suite 'nts'
@@ -270,7 +270,7 @@ clash = make_mirror('clash', [
     ({'id': 3, 'name': 'x'}, []), ({'id': 4, 'name': 'x-import-5'}, []),
     ({'id': 5, 'name': 'x'}, []), ({'id': 6, 'name': '..'}, []),
 ])
-import_(clash, '--suite', 'nts', '--target-suite', 'target')
+run_cli(clash, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: machine 6: its name '..' cannot appear in a URL path
 # CHECK-NEXT: error: machines 1, 2 would all be named 'a_b'
 # CHECK-NEXT: error: machines 4, 5 would all be named 'x-import-5'
@@ -289,10 +289,10 @@ bad_schema['run_fields'].append({'name': 'other', 'order': True})
 M = {'id': 1, 'name': 'm', 'tracked': 'yes', 'count': 3}
 plan_errors = make_mirror('plan-errors', [
     (M, [run(1, M, 'r5', []), run(2, M, '5', [])])], schema=bad_schema)
-import_(plan_errors, '--suite', 'nts', '--target-suite', 'target')
+run_cli(plan_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-LABEL: # PLAN ERRORS
 # CHECK:      error: the schema has 2 run fields marked "order", rather than exactly one
-# CHECK-NEXT: error: metric 'blob': type 'Blob' cannot be imported
+# CHECK-NEXT: error: metric 'blob': type 'Blob' cannot be converted
 # CHECK-NEXT: error: metrics entry 'Exec-Time': 'Exec-Time' is not a valid v5 name
 # CHECK-NEXT: error: metrics entry 'run_id': the name is reserved by v5
 # CHECK-NEXT: error: machine_fields entry 'tracked': the name is reserved by v5
@@ -303,21 +303,21 @@ import_(plan_errors, '--suite', 'nts', '--target-suite', 'target')
 M = {'id': 1, 'name': 'm'}
 ordinals = make_mirror('ordinals', [
     (M, [run(1, M, 'r5', []), run(2, M, '5', []), run(3, M, '6', [])])])
-import_(ordinals, '--suite', 'nts', '--target-suite', 'target')
+run_cli(ordinals, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      error: commits '5', 'r5' would all have ordinal 5
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # An invalid target suite name.
-import_(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts')
+run_cli(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts')
 # CHECK:      error: suite name: 'pg_nts' is reserved by v5
-import_(ordinals, '--suite', 'nts', '--target-suite', 'nts\n')
+run_cli(ordinals, '--suite', 'nts', '--target-suite', 'nts\n')
 # CHECK:      error: suite name: 'nts\n' is not a valid v5 name
 
 # A revision followed by anything else has no ordinal.
 M = {'id': 1, 'name': 'm'}
 newline = make_mirror('newline', [(M, [run(1, M, '5', []),
                                        run(2, M, '5\n', [])])])
-import_(newline, '--suite', 'nts', '--target-suite', 'target')
+run_cli(newline, '--suite', 'nts', '--target-suite', 'target')
 # CHECK:      Commits: 2, of which 1 have an ordinal
 # CHECK:      exit: 0
 
@@ -340,7 +340,7 @@ for r in mirrored.runs:
     submission = convert_run(plan, r, read_run(mirrored, r))
     print(r.id, json.dumps(submission['commit'], sort_keys=True),
           sorted(submission['run_parameters']))
-import_(by_sha, '--suite', 'nts', '--target-suite', 'target',
+run_cli(by_sha, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_sha')
 # CHECK-LABEL: # COMMIT FIELD
 # CHECK-NEXT: 1 {"ordinal": 100, "value": "aaa"} ['end_time', 'llvm_project_revision', 'start_time']
@@ -351,7 +351,7 @@ import_(by_sha, '--suite', 'nts', '--target-suite', 'target',
 # CHECK:      exit: 0
 
 # A field that no run has is most likely a typo.
-import_(by_sha, '--suite', 'nts', '--target-suite', 'target',
+run_cli(by_sha, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_hsa')
 # CHECK:      error: --commit-field: no run has a git_hsa
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
@@ -363,7 +363,7 @@ disagree = make_mirror('disagree', [(M, [
     run(3, M, '102', [], git_sha='ccc'),
     run(4, M, 'r102', [], git_sha='ddd'),
 ])])
-import_(disagree, '--suite', 'nts', '--target-suite', 'target',
+run_cli(disagree, '--suite', 'nts', '--target-suite', 'target',
         '--commit-field', 'git_sha')
 # CHECK:      error: the runs of commit 'aaa' do not agree on its ordinal
 # CHECK-NEXT: error: commits 'ccc', 'ddd' would all have ordinal 102
@@ -389,7 +389,7 @@ run_errors = make_mirror('run-errors', [(M, runs)])
 # Damage run 7's file.
 with open(os.path.join(run_errors, 'nts/runs/7.json.gz'), 'wb') as f:
     f.write(gzip.compress(b'{}'))
-import_(run_errors, '--suite', 'nts', '--target-suite', 'target')
+run_cli(run_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-LABEL: # RUN ERRORS
 # CHECK:      run 1 of machine 1 (m): its commit 'a/b' cannot appear in a URL path
 # CHECK-NEXT: run 2 of machine 1 (m): it has no valid llvm_project_revision: None
@@ -425,7 +425,7 @@ def fix_units(schema):
 
 
 # A schema that declares what the derived one does can differ in anything else.
-import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
+run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
         '--schema', override('good', fix_units))
 # CHECK-LABEL: # SCHEMA OVERRIDE
 # CHECK:      Schema: 4 metric(s) and 2 machine field(s), from --schema
@@ -438,7 +438,7 @@ def break_it(schema):
     schema['machine_fields'][1]['type'] = 'integer'
 
 
-import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
+run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
         '--schema', override('bad', break_it))
 # CHECK:      error: --schema: its name is 'other' rather than the target suite's, 'target'
 # CHECK-NEXT: error: --schema: metrics does not declare 'compile_time'
@@ -453,7 +453,7 @@ def malform(schema):
 
 
 # A malformed schema is reported rather than crashing the command.
-import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
+run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
         '--schema', override('malformed', malform))
 # CHECK:      error: --schema: its name is ['target'] rather than the target suite's, 'target'
 # CHECK-NEXT: error: --schema: metrics entry 'compile_time' has type [] rather than 'real'
@@ -467,7 +467,7 @@ import_(override_mirror, '--suite', 'nts', '--target-suite', 'target',
 M = {'id': 1, 'name': 'm', 'os': 'linux', 'cpu': 'x86'}
 extra_metric = make_mirror('extra-metric', [
     (M, [run(1, M, '1', [sample('t', extra=1.5)])])])
-import_(extra_metric, '--suite', 'nts', '--target-suite', 'target',
+run_cli(extra_metric, '--suite', 'nts', '--target-suite', 'target',
         '--schema', override('extra', fix_units))
 # CHECK:      Converted 1 run(s) of 1 machine(s); 0 failure(s).
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 0
@@ -475,23 +475,23 @@ import_(extra_metric, '--suite', 'nts', '--target-suite', 'target',
 
 # ---------------------------------------------------------------------------
 print('# MIRROR ERRORS')
-import_(basic, '--suite', 'compile', '--target-suite', 'target')
+run_cli(basic, '--suite', 'compile', '--target-suite', 'target')
 # CHECK-LABEL: # MIRROR ERRORS
-# CHECK:      error: {{.*}}basic cannot be imported: there is no suite 'compile' in the mirror
+# CHECK:      error: {{.*}}basic cannot be converted: there is no suite 'compile' in the mirror
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 with open(os.path.join(basic, 'nts/schema.json'), 'a') as f:
     f.write(' ')
-import_(basic, '--suite', 'nts', '--target-suite', 'target')
-# CHECK:      error: {{.*}}basic cannot be imported: nts/schema.json does not have the hash the manifest records
+run_cli(basic, '--suite', 'nts', '--target-suite', 'target')
+# CHECK:      error: {{.*}}basic cannot be converted: nts/schema.json does not have the hash the manifest records
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 with open(os.path.join(names, 'manifest.json')) as f:
     manifest = json.load(f)
 manifest['format_version'] = '2'
 write(os.path.join(names, 'manifest.json'), json.dumps(manifest).encode())
-import_(names, '--suite', 'nts', '--target-suite', 'target')
-# CHECK:      error: {{.*}}names cannot be imported: its format version is '2', but only version '1' can be imported
+run_cli(names, '--suite', 'nts', '--target-suite', 'target')
+# CHECK:      error: {{.*}}names cannot be converted: its format version is '2', but only version '1' can be converted
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # A malformed mirror is reported rather than crashing the command.
@@ -501,12 +501,12 @@ with open(os.path.join(malformed, 'manifest.json')) as f:
     manifest = json.load(f)
 del manifest['source']
 write(os.path.join(malformed, 'manifest.json'), json.dumps(manifest).encode())
-import_(malformed, '--suite', 'nts', '--target-suite', 'target')
-# CHECK:      error: {{.*}}malformed cannot be imported: it is malformed (KeyError('source'))
+run_cli(malformed, '--suite', 'nts', '--target-suite', 'target')
+# CHECK:      error: {{.*}}malformed cannot be converted: it is malformed (KeyError('source'))
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 manifest['suites']['nts']['machines'] = []
 write(os.path.join(malformed, 'manifest.json'), json.dumps(manifest).encode())
-import_(malformed, '--suite', 'nts', '--target-suite', 'target')
-# CHECK:      error: {{.*}}malformed cannot be imported: it is malformed (AttributeError({{.*}}))
+run_cli(malformed, '--suite', 'nts', '--target-suite', 'target')
+# CHECK:      error: {{.*}}malformed cannot be converted: it is malformed (AttributeError({{.*}}))
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1

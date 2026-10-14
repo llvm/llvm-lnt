@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test `lnt v5 import-v4-mirror` on a mirror of a real v4 instance.
+# Test `lnt v5 convert-v4-mirror` on a mirror of a real v4 instance.
 #
 # RUN: rm -rf %t.instance %t.tmp %t.pg.log && mkdir -p %t.tmp
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
@@ -28,7 +28,7 @@ lnt import -s nts --select-machine split "${INSTANCE}" "${TMP}/os-upgrade.json"
 lnt mirror-v4 "${URL}" "${MIRROR}" --suite nts
 lnt mirror-v4 "${URL}" "${MIRROR}" --suite compile
 
-lnt v5 import-v4-mirror "${MIRROR}" --suite nts > "${TMP}/nts.jsonl" \
+lnt v5 convert-v4-mirror "${MIRROR}" --suite nts > "${TMP}/nts.jsonl" \
     2> "${TMP}/nts.txt"
 test "$(wc -l < "${TMP}/nts.jsonl")" -eq 3
 # RUN: filecheck %s --check-prefix=NTS < %t.tmp/nts.txt
@@ -38,7 +38,7 @@ test "$(wc -l < "${TMP}/nts.jsonl")" -eq 3
 # NTS-NEXT: Commits: 3, of which 3 have an ordinal
 # NTS-NEXT: Converted 3 run(s) of 2 machine(s); 0 failure(s).
 
-lnt v5 import-v4-mirror "${MIRROR}" --suite compile > /dev/null \
+lnt v5 convert-v4-mirror "${MIRROR}" --suite compile > /dev/null \
     2> "${TMP}/compile.txt"
 # RUN: filecheck %s --check-prefix=COMPILE < %t.tmp/compile.txt
 # COMPILE: Converting suite 'compile' of http://localhost:9097 (database 'default') into suite 'compile'
@@ -48,7 +48,7 @@ lnt v5 import-v4-mirror "${MIRROR}" --suite compile > /dev/null \
 # that the nts schema does not declare, and its revision is its ordinal.
 python - "${MIRROR}" > "${TMP}/run.txt" <<'EOF'
 import json, sys
-from lnt.util.import_v4_mirror import convert_run, make_plan, read_mirror, read_run
+from lnt.util.convert_v4_mirror import convert_run, make_plan, read_mirror, read_run
 mirrored = read_mirror(sys.argv[1], 'nts')
 plan = make_plan(mirrored, 'nts')
 run = mirrored.runs[0]

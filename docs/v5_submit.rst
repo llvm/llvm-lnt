@@ -6,7 +6,7 @@ Submitting Runs to v5
 ``lnt v5 submit`` submits runs to a test suite of an LNT v5 instance, through
 its REST API. It reads them from a file, or from its standard input, as one v5
 run submission per line (the JSON Lines format), such as
-``lnt v5 import-v4-mirror`` writes (see :ref:`import_v4_mirror`).
+``lnt v5 convert-v4-mirror`` writes (see :ref:`convert_v4_mirror`).
 
 
 Example

@@ -1,9 +1,9 @@
-.. _import_v4_mirror:
+.. _convert_v4_mirror:
 
-Importing a v4 Mirror into v5
+Converting a v4 Mirror for v5
 =============================
 
-``lnt v5 import-v4-mirror`` converts a test suite of a mirror made by
+``lnt v5 convert-v4-mirror`` converts a test suite of a mirror made by
 ``lnt mirror-v4`` (see :ref:`mirror_v4`) into runs that ``lnt v5 submit`` can
 submit to a test suite of an LNT v5 instance (see :ref:`v5_submit`).
 
@@ -15,7 +15,7 @@ To import the ``nts`` suite of a mirror into the ``nts`` suite of a v5
 instance, convert it, and then submit the converted runs, creating the suite
 with the schema the conversion derived::
 
-    lnt v5 import-v4-mirror ./lnt-mirror --suite nts \
+    lnt v5 convert-v4-mirror ./lnt-mirror --suite nts \
         --schema-out nts-schema.json > nts.jsonl
     lnt v5 submit https://lnt.example.com --suite nts \
         --create-suite nts-schema.json --token <token> nts.jsonl
@@ -23,10 +23,10 @@ with the schema the conversion derived::
 Once the mirror has been refreshed, converting it again and submitting the
 result submits the runs that the v5 instance does not have yet::
 
-    lnt v5 import-v4-mirror ./lnt-mirror --suite nts | \
+    lnt v5 convert-v4-mirror ./lnt-mirror --suite nts | \
         lnt v5 submit https://lnt.example.com --suite nts --token <token>
 
-See ``lnt v5 import-v4-mirror --help`` for the other options.
+See ``lnt v5 convert-v4-mirror --help`` for the other options.
 
 
 What is converted

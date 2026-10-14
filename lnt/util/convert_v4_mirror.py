@@ -1,6 +1,6 @@
 """Import a test suite of a mirror made by ``lnt mirror-v4`` into LNT v5.
 
-This implements ``lnt v5 import-v4-mirror``. docs/import_v4_mirror.rst
+This implements ``lnt v5 convert-v4-mirror``. docs/convert_v4_mirror.rst
 specifies how a mirrored suite is converted; the comments below refer to it as
 "the spec". The mirror's format is specified by docs/mirror_v4.rst.
 
@@ -147,7 +147,7 @@ def read_mirror(mirror_dir: str, suite: str,
             manifest = _parse(f.read(), MANIFEST)
         if manifest.get('format_version') != FORMAT_VERSION:
             raise ValueError('its format version is %r, but only version %r '
-                             'can be imported'
+                             'can be converted'
                              % (manifest.get('format_version'),
                                 FORMAT_VERSION))
         if suite not in manifest['suites']:
@@ -192,9 +192,9 @@ def read_mirror(mirror_dir: str, suite: str,
     except OSError as e:
         raise PlanError(['%s is not a readable mirror: %s' % (mirror_dir, e)])
     except ValueError as e:
-        raise PlanError(['%s cannot be imported: %s' % (mirror_dir, e)])
+        raise PlanError(['%s cannot be converted: %s' % (mirror_dir, e)])
     except (AttributeError, KeyError, TypeError) as e:
-        raise PlanError(['%s cannot be imported: it is malformed (%r)'
+        raise PlanError(['%s cannot be converted: it is malformed (%r)'
                          % (mirror_dir, e)])
 
 
@@ -300,7 +300,7 @@ def _derive_schema(mirrored: MirroredSuite, target_suite: str,
         name, v4_type = metric.get('name'), metric.get('type')
         v5_type = METRIC_TYPES.get(v4_type) if isinstance(v4_type, str) else None
         if v5_type is None:
-            problems.append('metric %r: type %r cannot be imported'
+            problems.append('metric %r: type %r cannot be converted'
                             % (name, metric.get('type')))
             continue
         display_name = metric.get('display_name')
@@ -500,7 +500,7 @@ def run_uuid(mirrored: MirroredSuite, run_id: str) -> str:
     """The UUID of the v5 run that a v4 run becomes.
 
     It is derived from the v4 run's API URL, so that a run always gets the
-    same UUID, however many times it is imported.
+    same UUID, however many times it is converted.
     """
     url = '%s/api/db_%s/v4/%s/runs/%s' % (mirrored.url, mirrored.database,
                                           mirrored.suite, run_id)
