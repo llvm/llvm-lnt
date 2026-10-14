@@ -343,7 +343,8 @@
 .unchanged,
 .na,
 .onlyA,
-.onlyB {
+.onlyB,
+.zeroBaseline {
   --status-color: var(--lnt-muted);
 }
 

@@ -219,7 +219,7 @@ export function sideValues(
 /** The statuses of a test whose sides can be compared, which CP4 gives the share of. */
 export const COMPARABLE = ['improved', 'regressed', 'noise', 'unchanged'] as const
 
-/** The statuses of CP2, in the order the table sorts them and CP4 lists them. */
+/** The statuses of CP2, in the order the table sorts them and CP4 lists the comparable ones. */
 export const STATUSES = [...COMPARABLE, 'na'] as const
 
 export type Status = (typeof STATUSES)[number]
@@ -352,12 +352,12 @@ export function geomeanRow(rows: readonly Values[], biggerIsBetter: boolean): Va
 }
 
 /** The categories of the summary bar (CP4), in the order it shows them. */
-export const CATEGORIES = [...COMPARABLE, 'onlyA', 'onlyB', 'na'] as const
+export const CATEGORIES = [...COMPARABLE, 'onlyA', 'onlyB', 'zeroBaseline'] as const
 
 export type Category = (typeof CATEGORIES)[number]
 
-/** How the table and the summary bar name each category, and so each status. */
-export const CATEGORY_LABELS: Record<Category, string> = {
+/** How the table names each status, and the summary bar each category. */
+export const LABELS: Record<Status | Category, string> = {
   improved: 'Improved',
   regressed: 'Regressed',
   noise: 'Noise',
@@ -365,13 +365,17 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   onlyA: 'Only in A',
   onlyB: 'Only in B',
   na: 'N/A',
+  zeroBaseline: 'Zero baseline',
 }
 
-/** The summary bar's category of a row: its status, or the side it has a value on, if only one. */
+/**
+ * The summary bar's category of a row: the side it has a value on, if only one, else its status,
+ * with N/A as Zero baseline.
+ */
 export function categoryOf(row: Values): Category {
   if (row.a === null) return 'onlyB'
   if (row.b === null) return 'onlyA'
-  return row.status
+  return row.status === 'na' ? 'zeroBaseline' : row.status
 }
 
 /** How many of `rows` fall in each category of the summary bar (CP4). */

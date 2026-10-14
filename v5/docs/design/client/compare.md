@@ -31,7 +31,7 @@ Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [media
 [Shadow: 0f69d2804b9b on linux-x86_64  x]
 <chart>
 
-o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o N/A 1
+o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o Zero baseline 1
 
 301 of 303 tests shown                                                [Columns] [Copy as CSV]
 [-]  Test                 Value A    Value B    Delta     Delta %   Ratio     Status
@@ -349,15 +349,15 @@ A horizontal summary bar between the chart and the comparison table counts the
 tests in each category, with percentages for comparable categories. Every test
 counts in exactly one category:
 
-| Category   | Counts tests that                          |
-|------------|--------------------------------------------|
-| Improved   | have Status Improved (see CP2)             |
-| Regressed  | have Status Regressed                      |
-| Noise      | have Status Noise                          |
-| Unchanged  | have Status Unchanged                      |
-| Only in A  | have a value on side A only                |
-| Only in B  | have a value on side B only                |
-| N/A        | have a value on both sides, with a zero baseline |
+| Category      | Counts tests that                                |
+|---------------|--------------------------------------------------|
+| Improved      | have Status Improved (see CP2)                   |
+| Regressed     | have Status Regressed                            |
+| Noise         | have Status Noise                                |
+| Unchanged     | have Status Unchanged                            |
+| Only in A     | have a value on side A only                      |
+| Only in B     | have a value on side B only                      |
+| Zero baseline | have a value on both sides, with a zero baseline |
 
 Each category shows a colored dot, its label and its count. The dot is green
 for Improved and red for Regressed (the status colors of CP2), and grey for the
@@ -367,7 +367,7 @@ others.
 percentage, whose denominator is the sum of comparable categories only.
 Percentages use one decimal place, except whole numbers drop the trailing `.0`
 (e.g. `25%` not `25.0%`). When there are no comparable tests, they show just
-the count. A tooltip on each count explains the denominator.
+the count. A tooltip on each percentage explains its denominator.
 
 **What is counted**: every test in the comparison that matches the test
 filter, including hidden tests and noise tests, even when "Hide noise" is

@@ -9,7 +9,7 @@ import type { CellLook } from '../../components/data-table'
 import { sortRows, type SortDirection, type SortKey } from '../../components/table-sort'
 import { formatNumber, plural } from '../../format'
 import {
-  CATEGORY_LABELS,
+  LABELS,
   STATUSES,
   type ComparisonRow,
   type NoiseReason,
@@ -115,7 +115,7 @@ function statusLabel(status: Status, noise: NoiseReason[] = []): ReactNode {
       className={clsx(styles.status, styles[status])}
       title={noise.length > 0 ? noise.map(describeNoise).join('\n') : undefined}
     >
-      {CATEGORY_LABELS[status]}
+      {LABELS[status]}
     </span>
   )
 }
@@ -141,7 +141,7 @@ const COLUMNS: CompareColumn[] = [
     cell: (row) => statusLabel(row.status, row.test === null ? undefined : row.noise),
     // N/A after every other status, in both directions, as a row without a value is.
     sortKey: (row) => (row.status === 'na' ? null : STATUSES.indexOf(row.status)),
-    csv: (row) => (row.status === 'na' ? null : CATEGORY_LABELS[row.status]),
+    csv: (row) => (row.status === 'na' ? null : LABELS[row.status]),
   },
 ]
 
