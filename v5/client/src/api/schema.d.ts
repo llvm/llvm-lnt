@@ -2512,7 +2512,7 @@ export interface components {
             uuid?: string | null;
             /**
              * Measured At
-             * @description When the run's data was measured, as an ISO 8601 timestamp, treated as UTC if it has no time zone. Leave it out (or set it to null) when submitting right after measuring: it then defaults to the time the server receives the run. Set it when submitting data measured earlier.
+             * @description When the run's data was measured, as an ISO 8601 timestamp, treated as UTC if it has no time zone. Defaults to the time the server receives the run if left out or null.
              * @example 2026-08-14T02:41:12Z
              */
             measured_at?: string | null;

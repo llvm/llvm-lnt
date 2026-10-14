@@ -64,8 +64,7 @@ O2).
   `duplicate` (see I4). If omitted, the server generates a random UUID v4.
 - `measured_at`: optional `datetime` (see D3), when the run's data was
   measured. It defaults to the run's `submitted_at`, which the server records
-  (see D5). A producer that submits right after measuring can omit it; one that
-  submits data measured earlier supplies it.
+  (see D5).
 - `machine`: required object identifying the machine this run was measured on.
   - `name`: required string, the machine's identity.
   - `fields`: optional. Every key must be declared in the schema's

@@ -197,8 +197,7 @@ repetition has a value for: above, `bench/bar` ran three times, and
 `compile_time` was measured once. `uuid` is optional and generated when
 omitted. `measured_at`, when the run was measured, is optional too: it defaults
 to the time the server receives the run, which is recorded as `submitted_at`.
-Set it when submitting data measured earlier. The submission is atomic, and
-answers 201 with the run. A run cannot be changed afterwards.
+The submission is atomic, and answers 201 with the run. A run cannot be changed afterwards.
 It never overwrites what is stored: a field, tag or ordinal that differs from
 the stored one is 409, and `PATCH` is the only way to change it. The machine's
 `tracked` flag is the exception: it is set only when the submission creates the
