@@ -17,7 +17,7 @@ The `hardenedfast` machine is the same hardware and compiler as the other macOS 
 libc++ with `_LIBCPP_HARDENING_MODE=fast`; only its name says so. Every run at r554220
 (`97367d1046a2`) reported no tests at all, on every machine, so those 11 runs are empty.
 
-Each file's `run_parameters.start_time` identifies it among the runs of its v4 machine. They were
+Each file's `measured_at` (v4's `end_time`) identifies it among the runs of its v4 machine. They were
 fetched from the v4 REST API into a local mirror between 2026-08-14 and 2026-09-25, and converted
 from that mirror on 2026-10-05. At conversion, three of them were checked value for value against
 the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
@@ -38,8 +38,9 @@ the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
   holds `svn_revision`, synthesized from the ordinal (`r554973`): LLVM's revision number in the
   style of its Subversion days, which no SHA can contain, so that a search for it only matches the
   field.
+- `measured_at` is v4's `end_time`, which has no time zone and so is read as UTC.
 - `run_parameters`: every other v4 run field, verbatim, except v4's bookkeeping (`id`,
-  `order_id`, `order_by`).
+  `order_id`, `order_by`) and its `start_time` and `end_time`. That leaves none for these runs.
 - `tests`: these bots report one sample per test per run, repeating a commit with several runs
   instead, so every test has a single sample. Only `execution_time` is reported; v4 reports the
   other metrics as null, and they are omitted.

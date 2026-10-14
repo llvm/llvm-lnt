@@ -1,6 +1,7 @@
 {
   "format_version": "5",
   "uuid": "ff5e27d2-12a7-48d0-a49a-3ca18dce0708",
+  "measured_at": "2026-08-14T05:06:00",
   "machine": {
     "name": "linux-x86_64-20260812",
     "fields": {
@@ -15,10 +16,7 @@
       "svn_revision": "r552558"
     }
   },
-  "run_parameters": {
-    "end_time": "2026-08-14T05:06:00",
-    "start_time": "2026-08-14T05:06:00"
-  },
+  "run_parameters": {},
   "tests": [
     {
       "name": "std::print(\"Hello,_World!\")",

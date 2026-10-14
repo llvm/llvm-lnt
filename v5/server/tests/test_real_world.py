@@ -348,6 +348,8 @@ class TestTimeSeries:
                     "commit": run["commit"]["value"],
                     "ordinal": run["commit"]["ordinal"],
                     "run_uuid": run["uuid"],
+                    # Submitted without a time zone, so read as UTC (D3).
+                    "measured_at": f"{run['measured_at']}Z",
                     "tag": None,
                 }
                 for run in dataset.submissions
@@ -356,10 +358,8 @@ class TestTimeSeries:
                 if entry["name"] == test
                 for sample in samples(entry)
             ]
-            # The server's clock, which nothing submitted can predict: these submissions carry no
-            # `measured_at`, so it is their `submitted_at`.
-            clock = {"submitted_at", "measured_at"}
-            stripped = [{k: v for k, v in point.items() if k not in clock} for point in served]
+            # `submitted_at` is the server's clock, which nothing submitted can predict.
+            stripped = [{k: v for k, v in point.items() if k != "submitted_at"} for point in served]
             assert canonical(stripped) == canonical(expected)
 
     def test_trends_are_the_geomean_of_the_run_geomeans(

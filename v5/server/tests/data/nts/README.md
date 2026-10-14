@@ -13,8 +13,8 @@ Three machines, each at the same three LLVM commits:
 | `sifive-p550-rv64gc_zba_zbb-ReleaseLTO__clang_DEV__riscv64` (1) | r597917, r597974, r598181 |
 | `spacemit-k3-rva23u64-ReleaseLTO__clang_DEV__riscv64` (6) | r597917, r597974, r598181 |
 
-The runs were started between 2026-09-19 and 2026-09-22; each file's `run_parameters.start_time`
-identifies it among the runs of its v4 machine. They were fetched from the v4 REST API into a local
+The runs were started between 2026-09-19 and 2026-09-22; each file's `measured_at` (v4's
+`end_time`) identifies it among the runs of its v4 machine. They were fetched from the v4 REST API into a local
 mirror on 2026-09-25, without recording the v4 run ids, and converted from that mirror on
 2026-10-05.
 
@@ -33,8 +33,9 @@ mirror on 2026-09-25, without recording the v4 run ids, and converted from that 
   `ordinal` is the number in v4's order field, and `fields` holds `svn_revision`, synthesized from
   the ordinal (`r598181`): LLVM's revision number in the style of its Subversion days, which no SHA
   can contain, so that a search for it only matches the field.
+- `measured_at` is v4's `end_time`, which has no time zone and so is read as UTC.
 - `run_parameters`: every other v4 run field, verbatim, except v4's bookkeeping (`id`,
-  `order_id`, `order_by`).
+  `order_id`, `order_by`) and its `start_time` and `end_time`.
 - `tests`: v4 reports one sample per repetition, as a separate entry with the test's name, so the
   entries of each test are merged into one, with each repetition one of its `samples`. Metrics v4
   reports as null are omitted from the sample.

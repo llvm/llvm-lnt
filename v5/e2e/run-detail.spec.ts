@@ -39,7 +39,6 @@ test('shows the run, and its samples sorted and filtered by test name', async ({
   await expect(info).toContainText('r552558')
   await expect(info).toContainText('Measured')
   await expect(info).toContainText('Submitted')
-  await expect(info).toContainText('start_time')
   await expect(page.getByRole('button', { name: 'Execution Time Metric' })).toBeVisible()
   const samples = table(page, 'Samples')
   await expect(page.getByText('25 samples', { exact: true })).toBeVisible()

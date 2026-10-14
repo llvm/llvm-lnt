@@ -1,6 +1,7 @@
 {
   "format_version": "5",
   "uuid": "ef18510d-16c4-43fc-9eab-d3ba9300652c",
+  "measured_at": "2026-08-15T12:24:31",
   "machine": {
     "name": "macos-26.5-arm64-20260812",
     "fields": {
@@ -18,9 +19,6 @@
       "svn_revision": "r554220"
     }
   },
-  "run_parameters": {
-    "end_time": "2026-08-15T12:24:31",
-    "start_time": "2026-08-15T12:24:31"
-  },
+  "run_parameters": {},
   "tests": []
 }

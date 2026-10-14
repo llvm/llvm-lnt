@@ -123,8 +123,13 @@ Each v4 run becomes one v5 run submission:
   ensures that importing the same run again always names the same v5 run.
 - ``machine``: the run's machine, as described above.
 - ``commit``: ``value`` and, if it has one, ``ordinal``, as described above.
+- ``measured_at``: the v4 run's ``end_time``, when it has one. It must be an
+  ISO 8601 timestamp, and is read as UTC when it has no time zone, as v5 reads
+  every timestamp. A run without one gets the time it is submitted, like any v5
+  run that does not say when it was measured.
 - ``run_parameters``: every key of the v4 run that is not null, except ``id``,
-  ``order_id``, ``order_by`` and the field its commit is taken from.
+  ``order_id``, ``order_by``, ``start_time``, ``end_time`` and the field its
+  commit is taken from.
 - ``tests``: one entry per test name, in the order the names first appear among
   the v4 samples. Each v4 sample becomes one v5 sample, holding the metrics that
   are not null in it, even if that leaves none.

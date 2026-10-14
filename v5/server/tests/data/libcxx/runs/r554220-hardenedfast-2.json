@@ -1,6 +1,7 @@
 {
   "format_version": "5",
   "uuid": "acfff7cd-afa9-4d8f-a77f-50af0cd93442",
+  "measured_at": "2026-08-29T00:01:50",
   "machine": {
     "name": "macos-26.5-arm64-hardenedfast-20260821",
     "fields": {
@@ -18,9 +19,6 @@
       "svn_revision": "r554220"
     }
   },
-  "run_parameters": {
-    "end_time": "2026-08-29T00:01:50",
-    "start_time": "2026-08-29T00:01:50"
-  },
+  "run_parameters": {},
   "tests": []
 }
