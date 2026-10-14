@@ -149,19 +149,44 @@ def _parse(data: bytes, what: str) -> JSONObject:
     return document
 
 
-def _parse_listing(data: bytes,
-                   machine_id: str) -> tuple[JSONObject, dict[str, JSONObject]]:
-    """A machine's listing, as its machine object and its runs by identifier."""
+def _json_digest(value: Any) -> bytes:
+    """A digest of a JSON value, the same for equal values in any key order.
+
+    Values that compare equal but are written differently (1 and 1.0) get
+    different digests. That cannot make a run look changed, since the v4 API
+    writes a run's summary in its machine's listing and in its own document
+    with the same code. It is the raw SHA-256 rather than its hex form, since
+    a refresh keeps one per run.
+    """
+    return hashlib.sha256(json.dumps(value, sort_keys=True,
+                                     separators=(',', ':')).encode()).digest()
+
+
+@dataclass
+class _Listing:
+    """What a refresh needs of a machine's listing.
+
+    The machine object and the run summaries are kept as digests: a refresh
+    only ever compares them, and the listings of a large suite take gigabytes.
+    """
+
+    name: str                   # the machine's name
+    machine: bytes              # digest of the machine object
+    runs: dict[str, bytes]      # run id -> digest of the run's summary
+
+
+def _parse_listing(data: bytes, machine_id: str) -> _Listing:
     what = 'the listing of machine %s' % machine_id
     listing = _parse(data, what)
     try:
         machine = listing['machine']
         if not isinstance(machine.get('name'), str):
             raise ValueError('the machine has no name')
-        summaries = {str(int(run['id'])): run for run in listing['runs']}
+        runs = {str(int(run['id'])): _json_digest(run)
+                for run in listing['runs']}
     except (AttributeError, KeyError, TypeError, ValueError) as e:
         raise FetchError('%s is malformed: %r' % (what, e))
-    return machine, summaries
+    return _Listing(machine['name'], _json_digest(machine), runs)
 
 
 # ----------------------------------------------------------------------------
@@ -247,6 +272,7 @@ class Mirror:
         # Set by `open`.
         self.manifest: Manifest
         self.is_new = False
+        self.writable = False            # whether this refresh may write
         self._lock_fd: int | None = None
         # Whether worker threads may still write to the mirror (see _workers).
         self.workers_running = False
@@ -270,6 +296,7 @@ class Mirror:
         A directory that has no manifest must be empty: anything else is not a
         mirror, and refreshing it could delete files that are not ours.
         """
+        self.writable = create
         if create:
             os.makedirs(self.path, exist_ok=True)
         if os.path.isdir(self.path):
@@ -333,6 +360,11 @@ class Mirror:
         # A mirror that workers may still write to stays locked, until the OS
         # releases the lock when the process exits.
         if self._lock_fd is not None and not self.workers_running:
+            if self.writable:
+                # Anything left there was never committed, e.g. the listings
+                # staged by a refresh interrupted while planning.
+                shutil.rmtree(os.path.join(self.path, STAGING),
+                              ignore_errors=True)
             os.close(self._lock_fd)
             self._lock_fd = None
 
@@ -362,8 +394,13 @@ class Mirror:
 
     def write(self, relpath: str, data: bytes, compress: bool = False) -> None:
         """Atomically replace the file at `relpath` with `data`."""
-        path = os.path.join(self.path, relpath)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self.commit(self.stage(data, compress), relpath)
+
+    def stage(self, data: bytes, compress: bool = False) -> str:
+        """Write `data` to a new file in the staging area; returns its path.
+
+        The file is not part of the mirror until it is committed.
+        """
         staging = os.path.join(self.path, STAGING)
         os.makedirs(staging, exist_ok=True)
         if compress:
@@ -376,7 +413,13 @@ class Mirror:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        return tmp
+
+    def commit(self, staged: str, relpath: str) -> None:
+        """Atomically replace the file at `relpath` with the staged file."""
+        path = os.path.join(self.path, relpath)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        os.replace(staged, path)
         with self._moved_into_lock:
             self._moved_into.add(os.path.dirname(path))
 
@@ -427,10 +470,10 @@ class _MachinePlan:
 
     id: str
     fetched_at: str
-    listing: bytes                   # raw bytes of the machine's listing
-    machine: JSONObject              # the machine object, from the listing
-    summaries: dict[str, JSONObject]  # run id -> run summary, from the listing
-    listing_changed: bool = True     # whether it differs from the mirrored one
+    listing_sha256: str              # of the listing, as fetched
+    listing: _Listing
+    # The listing in the staging area, to be moved into place (Mirror.stage).
+    staged_listing: str | None = None
     # Mirrored runs kept as they are, by run id.
     kept: dict[str, RunEntry] = field(default_factory=dict)
     changed: set[str] = field(default_factory=set)  # runs no longer current
@@ -438,13 +481,12 @@ class _MachinePlan:
 
     @property
     def name(self) -> str:
-        name: str = self.machine['name']
-        return name
+        return self.listing.name
 
     @property
     def to_fetch(self) -> list[str]:
         """The runs the mirror does not hold a current copy of."""
-        return sorted((run_id for run_id in self.summaries
+        return sorted((run_id for run_id in self.listing.runs
                        if run_id not in self.kept), key=int)
 
     def describe(self) -> str:
@@ -454,13 +496,14 @@ class _MachinePlan:
         """Whether a run document is current, according to the listing.
 
         Current means that the document embeds the run's summary and machine
-        exactly as the listing reports them. Both can change independently: a
-        replaced run gets a new summary, while renaming a machine, updating its
-        fields, or moving runs to it from another machine changes the machine
-        embedded in runs whose summary is unchanged.
+        as the listing reports them, as JSON values. Both can change
+        independently: a replaced run gets a new summary, while renaming a
+        machine, updating its fields, or moving runs to it from another machine
+        changes the machine embedded in runs whose summary is unchanged.
         """
-        return document.get('run') == self.summaries[run_id] and \
-            document.get('machine') == self.machine
+        return _json_digest(document.get('run')) == \
+            self.listing.runs[run_id] and \
+            _json_digest(document.get('machine')) == self.listing.machine
 
     def current_sha(self, run_id: str, data: bytes | None) -> str | None:
         """The sha256 of a mirrored run document if it is current, or None.
@@ -475,50 +518,67 @@ class _MachinePlan:
 
 
 def _plan_machine(client: Client, mirror: Mirror, suite: str,
-                  machine_id: str, mirrored: MachineEntry | None
-                  ) -> _MachinePlan | _UnlistedMachine:
+                  machine_id: str, mirrored: MachineEntry | None,
+                  stage: bool) -> _MachinePlan | _UnlistedMachine:
     """Fetch a machine's listing and work out what to do with its runs.
 
-    `mirrored` is the machine's manifest entry, or None if it is new.
+    `mirrored` is the machine's manifest entry, or None if it is new. With
+    `stage`, a listing that differs from the mirrored one is staged, to be
+    moved into place when the mirror is modified.
     """
     fetched_at = _now()
     try:
-        listing = client.get('machines/%s' % machine_id)
-        machine, summaries = _parse_listing(listing, machine_id)
+        data = client.get('machines/%s' % machine_id)
+        listing = _parse_listing(data, machine_id)
     except FetchError as e:
         return _UnlistedMachine(machine_id,
                                 mirrored['name'] if mirrored else None, e)
-    plan = _MachinePlan(machine_id, fetched_at, listing, machine, summaries)
-    if not mirrored:
-        return plan
+    plan = _MachinePlan(machine_id, fetched_at, _sha256(data), listing)
+    changed = _check_mirrored_runs(plan, mirror, suite, mirrored) \
+        if mirrored else True
+    if stage and changed:
+        # Staged rather than kept: the listings of a large suite take
+        # gigabytes, and the plans live until the end of the refresh.
+        plan.staged_listing = mirror.stage(data)
+    return plan
 
+
+def _check_mirrored_runs(plan: _MachinePlan, mirror: Mirror, suite: str,
+                         mirrored: MachineEntry) -> bool:
+    """Work out which of the machine's mirrored runs are still current.
+
+    Returns whether the machine's listing differs from the mirrored one.
+    """
     # The fast path: every mirrored run is current according to the previous
     # listing, provided that listing is the version the manifest vouches for,
     # so a run whose summary and machine are the same in both listings is
     # still current. Otherwise (the refresh that wrote the listing was
     # interrupted before it could update the manifest), fall back to checking
     # the mirrored runs themselves.
-    previous = mirror.read(machine_path(suite, machine_id))
-    previous_summaries: dict[str, JSONObject] | None = None
+    listing = plan.listing
+    previous = mirror.read(machine_path(suite, plan.id))
+    previous_runs: dict[str, bytes] | None = None
+    changed = True
     if previous is not None and _sha256(previous) == mirrored['sha256']:
-        plan.listing_changed = previous != plan.listing
-        try:
-            previous_machine, previous_summaries = \
-                _parse_listing(previous, machine_id)
-        except FetchError:
-            pass
+        changed = mirrored['sha256'] != plan.listing_sha256
+        if not changed:
+            previous_runs = listing.runs
         else:
-            if previous_machine != plan.machine:
-                previous_summaries = {}
+            try:
+                previous_listing = _parse_listing(previous, plan.id)
+            except FetchError:
+                pass
+            else:
+                previous_runs = previous_listing.runs \
+                    if previous_listing.machine == listing.machine else {}
 
     for run_id, run_entry in mirrored['runs'].items():
-        if run_id not in plan.summaries:
+        if run_id not in listing.runs:
             plan.removed += 1
             continue
         path = run_path(suite, run_id)
-        if previous_summaries is not None:
-            current = previous_summaries.get(run_id) == \
-                plan.summaries[run_id] and \
+        if previous_runs is not None:
+            current = previous_runs.get(run_id) == listing.runs[run_id] and \
                 os.path.exists(os.path.join(mirror.path, path))
         else:
             current = plan.current_sha(
@@ -528,7 +588,7 @@ def _plan_machine(client: Client, mirror: Mirror, suite: str,
             plan.kept[run_id] = run_entry
         else:
             plan.changed.add(run_id)
-    return plan
+    return changed
 
 
 @contextlib.contextmanager
@@ -666,7 +726,8 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
             ' (dry run)' if dry_run else ''))
 
     # Everything that can make the refresh fail as a whole is checked before
-    # the mirror is touched.
+    # the mirror is touched. (Planning stages the listings to write, but the
+    # staging area is not part of the mirror.)
     try:
         schema = client.get('schema')
         _parse(schema, 'the schema')
@@ -709,7 +770,8 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
     with _workers(client, mirror, workers, echo) as pool:
         plans = list(pool.map(
             lambda machine_id: _plan_machine(client, mirror, suite, machine_id,
-                                             mirrored.get(machine_id)),
+                                             mirrored.get(machine_id),
+                                             stage=not dry_run),
             sorted(in_scope - set(removed_machines), key=int)))
     failures = 0
     ok: list[_MachinePlan] = []
@@ -743,11 +805,11 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
         del mirrored[machine_id]
 
     for plan in ok:
-        if plan.listing_changed:
-            mirror.write(machine_path(suite, plan.id), plan.listing)
+        if plan.staged_listing is not None:
+            mirror.commit(plan.staged_listing, machine_path(suite, plan.id))
         mirrored[plan.id] = MachineEntry(
             name=plan.name, fetched_at=plan.fetched_at,
-            sha256=_sha256(plan.listing), runs=dict(plan.kept))
+            sha256=plan.listing_sha256, runs=dict(plan.kept))
     # A run the server moved to another machine may still be listed under its
     # old one, if that machine is out of scope or its listing could not be
     # fetched. It stops being listed there before its file is replaced.
