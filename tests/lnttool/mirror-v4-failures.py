@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from click.testing import CliRunner
@@ -49,6 +50,11 @@ def run_body(run_id, machine=MACHINE, **kwargs):
 
 def listing(*runs, machine=MACHINE):
     return {'generated_by': 'fake', 'machine': machine, 'runs': list(runs)}
+
+
+def reordered(obj):
+    """`obj`, with its keys in the reverse order."""
+    return dict(reversed(list(obj.items())))
 
 
 # Path (relative to PREFIX) -> list of (status, JSON body). Each request takes
@@ -143,8 +149,11 @@ modes = {os.stat(os.path.join(root, name)).st_mode & 0o777
 print('modes: %s' % sorted('%o' % mode for mode in modes))
 # CHECK: modes: ['644']
 
-# Once the server recovers, the next refresh fetches only what is missing.
-responses['runs/3'] = [(OK, run_body(3))]
+# Once the server recovers, the next refresh fetches only what is missing. A
+# run document that gives the keys of its summary and machine in another order
+# than the listing does is current all the same.
+responses['runs/3'] = [(OK, dict(run_body(3), run=reordered(summary(3)),
+                                 machine=reordered(MACHINE)))]
 del requests_seen[:]
 refresh('the server recovered')
 check()
@@ -161,12 +170,6 @@ print('runs fetched: %s' % fetched)
 
 # Summaries and machines are compared through digests, which must not depend
 # on the order of their keys: a listing that only reorders them changes no run.
-
-
-def reordered(obj):
-    return dict(reversed(list(obj.items())))
-
-
 serve(schema=[SCHEMA], machines=[MACHINES],
       **{'machines/1': [(OK, listing(*(reordered(summary(i))
                                        for i in (1, 2, 3)),
@@ -363,5 +366,47 @@ check(INTERRUPTED)
 # CHECK: machine 1 fake-machine: runs (none)
 # CHECK-NOT: PROBLEM
 # CHECK: check: 0
+
+# A refresh interrupted while planning leaves nothing in the staging area,
+# although it had staged the listing of a machine.
+PLANNING = os.path.join(TMP, 'planning')
+STAGING = os.path.join(PLANNING, '.mirror-tmp')
+arrived, release = threading.Event(), threading.Event()
+serve(schema=[SCHEMA],
+      machines=[(OK, {'generated_by': 'fake',
+                      'machines': [MACHINE, OTHER_MACHINE]})],
+      **{'machines/1': [(OK, listing(summary(1)))],
+         'machines/2': [(OK, listing(summary(2), machine=OTHER_MACHINE))]})
+held['machines/2'] = (arrived, release)
+print('=== interrupted while planning')
+process = subprocess.Popen(
+    [sys.executable, '-c',
+     'import signal; signal.signal(signal.SIGINT, signal.default_int_handler); '
+     'import lnt.lnttool; lnt.lnttool.main()',
+     'mirror-v4', URL, PLANNING, '--suite', 'nts'],
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+watchdog = threading.Timer(60, process.kill)
+watchdog.start()
+assert arrived.wait(timeout=60)
+deadline = time.monotonic() + 60
+while not (os.path.isdir(STAGING) and os.listdir(STAGING)):
+    assert time.monotonic() < deadline
+    time.sleep(0.05)
+print('staged before stopping: %d file(s)' % len(os.listdir(STAGING)))
+process.send_signal(signal.SIGINT)
+output = ''
+while 'Stopping' not in output:
+    line = process.stdout.readline()
+    assert line, output
+    output += line
+release.set()
+output += process.communicate()[0]
+watchdog.cancel()
+print('exit: %d' % process.returncode)
+print('staging left: %s' % os.path.exists(STAGING))
+# CHECK-LABEL: === interrupted while planning
+# CHECK: staged before stopping: 1 file(s)
+# CHECK: exit: 1
+# CHECK: staging left: False
 
 server.shutdown()

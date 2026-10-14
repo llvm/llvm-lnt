@@ -152,8 +152,11 @@ def _parse(data: bytes, what: str) -> JSONObject:
 def _json_digest(value: Any) -> bytes:
     """A digest of a JSON value, the same for equal values in any key order.
 
-    It is the raw SHA-256 rather than its hex form, since a refresh keeps one
-    per run.
+    Values that compare equal but are written differently (1 and 1.0) get
+    different digests. That cannot make a run look changed, since the v4 API
+    writes a run's summary in its machine's listing and in its own document
+    with the same code. It is the raw SHA-256 rather than its hex form, since
+    a refresh keeps one per run.
     """
     return hashlib.sha256(json.dumps(value, sort_keys=True,
                                      separators=(',', ':')).encode()).digest()
@@ -269,6 +272,7 @@ class Mirror:
         # Set by `open`.
         self.manifest: Manifest
         self.is_new = False
+        self.writable = False            # whether this refresh may write
         self._lock_fd: int | None = None
         # Whether worker threads may still write to the mirror (see _workers).
         self.workers_running = False
@@ -292,6 +296,7 @@ class Mirror:
         A directory that has no manifest must be empty: anything else is not a
         mirror, and refreshing it could delete files that are not ours.
         """
+        self.writable = create
         if create:
             os.makedirs(self.path, exist_ok=True)
         if os.path.isdir(self.path):
@@ -355,6 +360,11 @@ class Mirror:
         # A mirror that workers may still write to stays locked, until the OS
         # releases the lock when the process exits.
         if self._lock_fd is not None and not self.workers_running:
+            if self.writable:
+                # Anything left there was never committed, e.g. the listings
+                # staged by a refresh interrupted while planning.
+                shutil.rmtree(os.path.join(self.path, STAGING),
+                              ignore_errors=True)
             os.close(self._lock_fd)
             self._lock_fd = None
 
@@ -462,7 +472,6 @@ class _MachinePlan:
     fetched_at: str
     listing_sha256: str              # of the listing, as fetched
     listing: _Listing
-    listing_changed: bool = True     # whether it differs from the mirrored one
     # The listing in the staging area, to be moved into place (Mirror.stage).
     staged_listing: str | None = None
     # Mirrored runs kept as they are, by run id.
@@ -487,10 +496,10 @@ class _MachinePlan:
         """Whether a run document is current, according to the listing.
 
         Current means that the document embeds the run's summary and machine
-        as the listing reports them, as JSON values. Both can change independently: a
-        replaced run gets a new summary, while renaming a machine, updating its
-        fields, or moving runs to it from another machine changes the machine
-        embedded in runs whose summary is unchanged.
+        as the listing reports them, as JSON values. Both can change
+        independently: a replaced run gets a new summary, while renaming a
+        machine, updating its fields, or moving runs to it from another machine
+        changes the machine embedded in runs whose summary is unchanged.
         """
         return _json_digest(document.get('run')) == \
             self.listing.runs[run_id] and \
@@ -525,9 +534,9 @@ def _plan_machine(client: Client, mirror: Mirror, suite: str,
         return _UnlistedMachine(machine_id,
                                 mirrored['name'] if mirrored else None, e)
     plan = _MachinePlan(machine_id, fetched_at, _sha256(data), listing)
-    if mirrored:
-        _check_mirrored_runs(plan, mirror, suite, mirrored)
-    if stage and plan.listing_changed:
+    changed = _check_mirrored_runs(plan, mirror, suite, mirrored) \
+        if mirrored else True
+    if stage and changed:
         # Staged rather than kept: the listings of a large suite take
         # gigabytes, and the plans live until the end of the refresh.
         plan.staged_listing = mirror.stage(data)
@@ -535,8 +544,11 @@ def _plan_machine(client: Client, mirror: Mirror, suite: str,
 
 
 def _check_mirrored_runs(plan: _MachinePlan, mirror: Mirror, suite: str,
-                         mirrored: MachineEntry) -> None:
-    """Work out which of the machine's mirrored runs are still current."""
+                         mirrored: MachineEntry) -> bool:
+    """Work out which of the machine's mirrored runs are still current.
+
+    Returns whether the machine's listing differs from the mirrored one.
+    """
     # The fast path: every mirrored run is current according to the previous
     # listing, provided that listing is the version the manifest vouches for,
     # so a run whose summary and machine are the same in both listings is
@@ -546,9 +558,10 @@ def _check_mirrored_runs(plan: _MachinePlan, mirror: Mirror, suite: str,
     listing = plan.listing
     previous = mirror.read(machine_path(suite, plan.id))
     previous_runs: dict[str, bytes] | None = None
+    changed = True
     if previous is not None and _sha256(previous) == mirrored['sha256']:
-        plan.listing_changed = mirrored['sha256'] != plan.listing_sha256
-        if not plan.listing_changed:
+        changed = mirrored['sha256'] != plan.listing_sha256
+        if not changed:
             previous_runs = listing.runs
         else:
             try:
@@ -575,6 +588,7 @@ def _check_mirrored_runs(plan: _MachinePlan, mirror: Mirror, suite: str,
             plan.kept[run_id] = run_entry
         else:
             plan.changed.add(run_id)
+    return changed
 
 
 @contextlib.contextmanager
@@ -712,7 +726,8 @@ def _refresh_suite(mirror: Mirror, url: str, suite: str, database: str,
             ' (dry run)' if dry_run else ''))
 
     # Everything that can make the refresh fail as a whole is checked before
-    # the mirror is touched.
+    # the mirror is touched. (Planning stages the listings to write, but the
+    # staging area is not part of the mirror.)
     try:
         schema = client.get('schema')
         _parse(schema, 'the schema')
