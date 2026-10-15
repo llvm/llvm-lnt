@@ -6,6 +6,7 @@
 
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { profilesPath } from '../client/src/paths.ts'
 import { EXPERIMENT, HARDENED, LINUX, MACOS, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { pickOption, pickSuggestion } from './select.ts'
@@ -186,4 +187,83 @@ test('says when a machine has no profiles', async ({ page }) => {
     'No profiles on this machine',
   )
   await expect(page.getByText('Select a test on either side to see its profile.')).toBeVisible()
+})
+
+test('compares the counters of two profiles, and the functions they show', async ({
+  page,
+  request,
+}) => {
+  // The newest commit's profile on LINUX, and the first run of the experiment, whose hottest
+  // function takes a share of 0.376 of each counter rather than 0.47 (see tools/synthetic.ts).
+  const commit = await newestProfiled(request, LINUX)
+  const linuxRun = await profiledRun(request, LINUX, commit.value)
+  const path = `/api/suites/libcxx/runs?machine=${LINUX}&commit=${EXPERIMENT}&has_profiles=true`
+  const [first] = (await json<Schemas['RunCursorPage']>(request, `${path}&sort=measured_at`)).items
+  const side = { suite: 'libcxx', machine: LINUX, test: PROFILED_TEST }
+  await page.goto(
+    profilesPath(
+      { ...side, commit: commit.value, run: linuxRun },
+      { ...side, commit: EXPERIMENT, run: first.uuid },
+    ),
+  )
+
+  // Every counter goes down by the hottest function's 0.094 of the 0.94 that the listed functions
+  // account for, and the hottest function by a fifth. The cells hold no separator between them.
+  const comparison = table(page, 'Counter comparison')
+  await expect(rows(comparison)).toHaveText([
+    /^branch-misses\d+\d+-10%$/,
+    /^cycles\d+\d+-10%$/,
+    /^instructions\d+\d+-10%$/,
+    /^Function branch-misses\d+\d+-20%$/,
+  ])
+  // Green, since fewer events are better.
+  await expect(rows(comparison).first().getByText('-10%')).toHaveCSS('color', 'rgb(21, 128, 61)')
+
+  await pickOption(page, 'Counter', 'cycles')
+  await expect(rows(comparison).last()).toHaveText(/^Function cycles\d+\d+-20%$/)
+})
+
+test('steps through the hottest instructions of a function', async ({ page, request }) => {
+  const commit = await newestProfiled(request, MACOS)
+  const run = await profiledRun(request, MACOS, commit.value)
+  await page.goto(
+    profilesPath({
+      suite: 'libcxx',
+      machine: MACOS,
+      commit: commit.value,
+      run,
+      test: PROFILED_TEST,
+    }),
+  )
+
+  const column = columnOf(page, 'A')
+  const hottest = column.getByRole('group', { name: 'Hottest' })
+  const previous = hottest.getByRole('button', { name: /Previous/ })
+  const next = hottest.getByRole('button', { name: /Next/ })
+  const highlighted = column.locator('tr[aria-current="true"]')
+  await expect(column.getByRole('table', { name: /^Instructions of / })).toBeVisible()
+  await expect(previous).toHaveAttribute('aria-disabled', 'true')
+
+  // Under branch-misses, only the branches of the hottest function's loop have a value: the one
+  // closing the loop, then the one skipping it (see tools/synthetic.ts).
+  await next.click()
+  await expect(highlighted).toHaveAttribute('aria-rowindex', '18')
+  await expect(highlighted).toContainText('b.ne')
+  await expect(highlighted).toBeInViewport()
+  await expect(hottest.getByRole('status')).toHaveText(/^Hottest instruction 1 of 2, at 0x/)
+  await next.click()
+  await expect(highlighted).toHaveAttribute('aria-rowindex', '4')
+  await expect(highlighted).toContainText('cbz')
+  await expect(next).toHaveAttribute('aria-disabled', 'true')
+  await expect(next).toBeFocused()
+  await previous.click()
+  await expect(highlighted).toHaveAttribute('aria-rowindex', '18')
+
+  // Another counter starts again, under which every instruction has a value.
+  await pickOption(page, 'Counter', 'cycles')
+  await expect(column.getByRole('columnheader', { name: 'cycles' })).toBeVisible()
+  await expect(highlighted).toHaveCount(0)
+  await next.click()
+  await expect(hottest.getByRole('status')).toHaveText(/^Hottest instruction 1 of 19, at 0x/)
+  await expect(highlighted).toHaveCount(1)
 })

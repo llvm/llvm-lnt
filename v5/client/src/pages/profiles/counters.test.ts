@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { formatPercent } from '../../format'
 import {
+  comparedValue,
   defaultCounter,
   difference,
+  differenceDirection,
   offeredCounters,
   shownCounter,
   type Counters,
@@ -73,9 +76,49 @@ describe('difference', () => {
     expect(difference(1, 0)).toBe(-100)
   })
 
-  it('gives none when a side has no value, or A is 0', () => {
+  it('gives N/A when a side has no value, or A is 0', () => {
+    expect(difference(null, 1)).toBeNull()
+    expect(difference(1, null)).toBeNull()
+    expect(difference(0, 1)).toBeNull()
+  })
+
+  it("gives nothing while either side's values are not known, even if the other is N/A", () => {
     expect(difference(undefined, 1)).toBeUndefined()
-    expect(difference(1, undefined)).toBeUndefined()
-    expect(difference(0, 1)).toBeUndefined()
+    expect(difference(null, undefined)).toBeUndefined()
+  })
+})
+
+describe('comparedValue', () => {
+  it("gives a profile's value, N/A for a counter it lacks, and nothing until it loads", () => {
+    expect(comparedValue({ cycles: 0 }, 'cycles')).toBe(0)
+    expect(comparedValue({ cycles: 1 }, 'misses')).toBeNull()
+    expect(comparedValue(undefined, 'cycles')).toBeUndefined()
+  })
+})
+
+describe('differenceDirection', () => {
+  const direction = (value: number) => differenceDirection(formatPercent(value, { signed: true }))
+
+  it('tells a decrease from an increase by the sign shown', () => {
+    expect(direction(-20)).toBe('decrease')
+    expect(direction(20)).toBe('increase')
+  })
+
+  it('gives neither for a Difference shown as 0%, however small its value', () => {
+    expect(formatPercent(-0.04, { signed: true })).toBe('0%')
+    expect(direction(-0.04)).toBeUndefined()
+    expect(direction(0.04)).toBeUndefined()
+    expect(direction(0)).toBeUndefined()
+  })
+
+  it('agrees with the rounding of the text shown, half away from zero', () => {
+    expect(formatPercent(-0.05, { signed: true })).toBe('-0.1%')
+    expect(direction(-0.05)).toBe('decrease')
+    expect(formatPercent(0.05, { signed: true })).toBe('+0.1%')
+    expect(direction(0.05)).toBe('increase')
+  })
+
+  it('gives neither for N/A', () => {
+    expect(differenceDirection('N/A')).toBeUndefined()
   })
 })

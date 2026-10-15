@@ -15,6 +15,11 @@ export interface Counter {
   /** The counter shown, if the profiles shown have any. */
   shown: string | undefined
   /**
+   * The counter shown, once some profile shown that has it has loaded: what the Counter dropdown
+   * selects, and the counter comparison compares the functions under.
+   */
+  listed: string | undefined
+  /**
    * Whether the counter is settled: no side's profile is still loading, so the counter cannot
    * change on its own. Until then, whatever depends on the counter waits, such as finding a side's
    * hottest function.
@@ -66,6 +71,7 @@ export function useCounter(
   return {
     offered,
     shown,
+    listed: shown !== undefined && offered.includes(shown) ? shown : undefined,
     settled,
     none: settled && loaded.length > 0 && offered.length === 0,
     pick: (picked) => {
@@ -73,4 +79,12 @@ export function useCounter(
       update({ counter: urlValue(picked, fallback) })
     },
   }
+}
+
+/**
+ * What the page says while `counter` has nothing to offer, unless the profiles shown have no
+ * counters: that they are loading, or, once every side has settled, that none could be loaded.
+ */
+export function noCountersText(counter: Counter): string {
+  return counter.settled ? 'No counters loaded' : 'Loading counters...'
 }

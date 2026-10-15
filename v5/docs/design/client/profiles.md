@@ -32,7 +32,7 @@ Function cycles   1671111111       1069511111       -36%    =====
 Counter [cycles v]   Values [Relative % v]
 
 Function [__stable_sort<...>     ] (47%)         Function [__stable_sort<...>     ] (37.6%)
-Hottest [<- Previous] [Next ->]                  Hottest [<- Previous] [Next ->]
+Hottest [<- Previous] [Next ->] 2 of 41          Hottest [<- Previous] [Next ->]
 
 cycles    Address     Instruction                cycles    Address     Instruction
           0x401000    push   rbp                           0x401000    push   rbp
@@ -112,25 +112,27 @@ Difference:
   counter.
 - Difference is `(B - A) / A * 100`, as a signed percentage. It is N/A when
   either side has no value, or when A is 0.
-- A negative Difference is green and a positive one red, since every counter
-  counts events (cycles, instructions, misses...), of which fewer is better.
-  The Difference cell also holds a bar of that color, whose length is
-  proportional to the Difference's absolute value, and full from 100% up.
+- A Difference shown as negative is green, and one shown as positive is red,
+  since every counter counts events (cycles, instructions, misses...), of
+  which fewer is better. One shown as 0% has no color and no bar. The
+  Difference cell also holds a bar of its color, whose length is proportional
+  to the Difference's absolute value, and full from 100% up.
 
 Below the counters, a last row compares the functions the two sides show (see
 PF4), labelled `Function` and the selected counter's name: A and B are each
 side's function's value for the selected counter (see E7), as AR6 shows a
 `real`, and Difference is computed and colored as above. A side's value is N/A
-when its function does not have the counter, and empty until its function is
-known. The functions need not have the same name: the row compares whatever the
-two sides show.
+when its function does not have the counter or its profile lists no functions,
+and empty until its function is known. The functions need not have the same
+name: the row compares whatever the two sides show.
 
 When only one side shows a profile, the table has the columns Counter and
 Value, holding that profile's top-level counters.
 
 The table's shape depends only on which sides show a profile. While a side's
 counters are loading, or if they cannot be fetched, its column is empty, and
-the other side's values are shown.
+the other side's values are shown. Difference is empty while either side's
+column is. The table says so when there are no counters to list.
 
 
 ### PF4: Counter and Function Selection
@@ -208,8 +210,10 @@ them, leaving out those whose value is 0. "Next" first moves to the hottest
 instruction, then to the next one in that order, and "Previous" moves back.
 The instruction moved to is highlighted and scrolled into view. This is how the
 hot spots of a long function are found, whose instructions may all be below
-the heat scale's 1% (see PF6). Each button is disabled at its end of the order,
-and both are when no instruction has a value. Changing the function or the
+the heat scale's 1% (see PF6). Beside the buttons, the page says which of the
+hottest instructions is highlighted, and how many there are. "Previous" is
+disabled before the hottest instruction and on it, and "Next" on the last one.
+Both are disabled when no instruction has a value. Changing the function or the
 counter starts again from before the hottest instruction. The position is not
 kept in the URL.
 

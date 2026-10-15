@@ -71,3 +71,56 @@
 .suggestion > :not(.functionName) {
   flex: none;
 }
+
+/* The counter comparison, as far from the controls below it as a controls panel is (PF3). */
+.comparison {
+  margin-bottom: var(--lnt-space-4);
+}
+
+/* The row comparing the functions shown, set apart from the counters above it (PF3). */
+.functionComparison > td {
+  border-top: 1px solid var(--lnt-border-strong);
+}
+
+/* A Difference, and its bar, in the color of its direction (PF3): fewer events are better. */
+.difference {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.decrease {
+  color: var(--lnt-success);
+}
+
+.increase {
+  color: var(--lnt-danger);
+}
+
+.differenceText {
+  min-width: 4.5em;
+}
+
+.differenceTrack {
+  width: 6rem;
+  height: 0.6rem;
+}
+
+.differenceBar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: currentcolor;
+}
+
+/* The buttons stepping through the hottest instructions, and where they have got to (PF5). */
+.hottest {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.hottestPosition {
+  color: var(--lnt-muted);
+  font-size: 0.9rem;
+}
