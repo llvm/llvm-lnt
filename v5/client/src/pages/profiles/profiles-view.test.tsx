@@ -584,7 +584,7 @@ describe('the Profiles page: the counter (PF4)', () => {
     await waitFor(() => expect(query().function_a).toEqual(['main']))
   })
 
-  it('writes a function picked before the counter settles, then leaves out the hottest', async () => {
+  it('writes a function picked before the counter settles, leaving out the hottest', async () => {
     const uuidB = profileUuid('3', 'beta')
     const slow = heldBack((uuid: string) => uuid === uuidB)
     mockWorld({ metadataAnswer: slow.answer })
