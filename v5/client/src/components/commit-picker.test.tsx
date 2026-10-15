@@ -32,6 +32,7 @@ interface HarnessProps {
 function renderPicker({
   initial = null as string | null,
   filters = undefined as CommitFilters | undefined,
+  reportsLookupFailure = true,
 } = {}) {
   const onChange = vi.fn()
   function Harness({ filters, given }: HarnessProps) {
@@ -48,6 +49,7 @@ function renderPicker({
           schema={SUITE}
           filters={filters}
           value={value}
+          reportsLookupFailure={reportsLookupFailure}
           onChange={(next) => {
             onChange(next)
             setValue(next)
@@ -272,6 +274,42 @@ describe('CommitPicker', () => {
     expect(value()).toBe(OLD.value)
     expect(input).toHaveValue(OLD.value)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('says that looking up a commit it is given failed, and looks it up again on Retry', async () => {
+    let fail = true
+    const queries = serveCommits()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        const query = new URL(request.url).searchParams
+        if (query.has('commit') && fail) return errorResponse(500, 'internal_error', 'Boom')
+      }),
+    )
+    const { input } = renderPicker({ initial: TAGGED.value, filters: { machine: 'linux' } })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The commit could not be looked up: Boom',
+    )
+    fail = false
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(input).toHaveValue('r100 (v1)'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(lookups(queries).length).toBeGreaterThan(0)
+  })
+
+  it('says nothing of a failed lookup when it is not to report one', async () => {
+    // E3 answers `machine=` with a 404 for a machine that does not exist, which a page drops.
+    serveCommits()
+    const { input } = renderPicker({
+      initial: TAGGED.value,
+      filters: { machine: 'gone' },
+      reportsLookupFailure: false,
+    })
+
+    await settle()
+    expect(input).toHaveValue(TAGGED.value)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it.each([

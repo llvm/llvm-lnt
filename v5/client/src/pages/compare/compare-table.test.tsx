@@ -599,7 +599,7 @@ describe('the Profile column (CP2)', () => {
 
     await waitFor(() => expect(profiled).toBe(true))
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
-    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/could not be (listed|looked up)/)).not.toBeInTheDocument()
     release()
     await waitFor(() => expect(query().machine_a).toBeUndefined())
   })

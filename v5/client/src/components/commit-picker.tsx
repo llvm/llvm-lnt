@@ -8,6 +8,7 @@ import type { Commit } from '../schema'
 import { useDropUnusable } from '../url-state'
 import { Combobox } from './combobox'
 import { commitLookupKey, commitLookupQuery, suggestionOf } from './commit-lookup'
+import { ErrorMessage } from './feedback'
 import { useServerSuggestions, type Suggestion } from './suggestions'
 
 interface CommonProps {
@@ -24,6 +25,12 @@ interface CommonProps {
   hideLabel?: boolean
   /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
   onPendingChange?: (pending: boolean) => void
+  /**
+   * Whether to say that looking up a commit given failed (AR7): not while what the filters name may
+   * not exist, as a machine named by the URL may not, since an error for a value about to be
+   * dropped is not reported (AR2 "State").
+   */
+  reportsLookupFailure?: boolean
 }
 
 /** A picker holding a commit. */
@@ -69,7 +76,8 @@ export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.
  * kept while its filters change -- is looked up with the picker's filters plus `commit=`, which
  * returns it, with its display value, only if the picker offers it. If the lookup
  * returns nothing, the commit is unusable, and the picker is cleared as if the input had been
- * emptied. A lookup that fails clears nothing (AR2 "State").
+ * emptied. A lookup that fails clears nothing (AR2 "State"), and the picker says that it failed,
+ * offering to try again (AR7).
  */
 export function CommitPicker({
   label,
@@ -83,6 +91,7 @@ export function CommitPicker({
   isReadOnly,
   hideLabel,
   onPendingChange,
+  reportsLookupFailure = true,
 }: Props) {
   const suite = schema.name
   const toSuggestion = useCallback((commit: Commit) => suggestionOf(commit, schema), [schema])
@@ -129,16 +138,25 @@ export function CommitPicker({
         },
       }
   return (
-    <Combobox
-      label={label}
-      {...handlers}
-      suggestions={suggestions}
-      placeholder={placeholder}
-      isDisabled={isDisabled}
-      isReadOnly={isReadOnly}
-      hideLabel={hideLabel}
-      onPendingChange={onPendingChange}
-    />
+    <>
+      <Combobox
+        label={label}
+        {...handlers}
+        suggestions={suggestions}
+        placeholder={placeholder}
+        isDisabled={isDisabled}
+        isReadOnly={isReadOnly}
+        hideLabel={hideLabel}
+        onPendingChange={onPendingChange}
+      />
+      {lookup.isError && reportsLookupFailure && (
+        <ErrorMessage
+          context="The commit could not be looked up"
+          error={lookup.error}
+          onRetry={() => void lookup.refetch()}
+        />
+      )}
+    </>
   )
 }
 

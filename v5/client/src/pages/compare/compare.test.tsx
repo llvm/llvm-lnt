@@ -375,6 +375,23 @@ describe('loading (CP6)', () => {
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument()
   })
 
+  it('reports a commit that could not be looked up, keeping it', async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (new URL(request.url).searchParams.get('commit') === 'c1')
+          return errorResponse(500, 'internal_error', 'Boom') as never
+      }),
+    )
+    renderPage(COMPARED)
+
+    expect(
+      await within(sideOf('A')).findByText(/The commit could not be looked up: Boom/),
+    ).toBeInTheDocument()
+    expect(query().commit_a).toEqual(['c1'])
+    expect(await comparison()).toEqual(ROWS)
+  })
+
   it('says how many runs have their samples while they load', async () => {
     let release = () => {}
     const waiting = new Promise<void>((resolve) => (release = resolve))

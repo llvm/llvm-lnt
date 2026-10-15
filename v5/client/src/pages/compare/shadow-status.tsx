@@ -1,10 +1,10 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { ChipList } from '../../components/chip-list'
 import { ErrorMessage } from '../../components/feedback'
+import { runsListFailed } from '../../components/side-selection'
 import { SHADOW_COLOR } from './chart'
 import { runCount } from './loading'
 import type { Shadow } from './shadow'
-import { runsListFailed } from './use-side'
 import styles from './compare.module.css'
 
 interface Props {
@@ -29,7 +29,7 @@ export function ShadowStatus({ shadow, pinButton }: Props) {
   }, [pinned])
   return (
     <>
-      {runsListFailed(side) && (
+      {runsListFailed(side.runs, side.machines, side.settings.machine) && (
         <ErrorMessage
           context="The shadow's runs could not be listed"
           error={side.runs.error}
