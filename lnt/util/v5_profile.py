@@ -63,7 +63,8 @@ def _demangled(names: list[str], cxxfilt: str) -> list[str]:
     command = shlex.split(cxxfilt) + ['-n']
     try:
         result = subprocess.run(command, input='\n'.join(names) + '\n',
-                                capture_output=True, encoding='utf-8')
+                                capture_output=True, encoding='utf-8',
+                                errors='replace')
     except OSError as e:
         raise ConvertError('cannot run %s: %s' % (cxxfilt, e))
     lines = result.stdout.split('\n')[:-1]
@@ -102,12 +103,14 @@ def convert_perf(path: str, objdump: str, binary_cache_root: str,
     #
     # A function listed under several names, such as an alias, or a symbol
     # both static and dynamic, comes out of cPerf once per name, with the same
-    # instructions. Only the first name, in alphabetical order, is kept, so
-    # that its counts are not listed twice.
+    # instructions. Only one name is kept, so that its counts are not listed
+    # twice: the first, in code-point order, of those short enough to be kept.
     kept: list[tuple[str, list[Any]]] = []
     by_start: dict[int, list[list[Any]]] = {}
-    for mangled, raw in sorted((raw.split()[-1], raw)
-                               for raw in data['functions']):
+    names = {raw: raw.split()[-1] for raw in data['functions'] if raw.strip()}
+    for raw in sorted(names, key=lambda raw: (not _fits(names[raw]),
+                                              names[raw])):
+        mangled = names[raw]
         lines = data['functions'][raw]['data']
         if lines:
             aliases = by_start.setdefault(lines[0][1], [])

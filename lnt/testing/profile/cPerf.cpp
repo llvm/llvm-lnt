@@ -1122,11 +1122,11 @@ static PyObject *cPerf_importPerf(PyObject *self, PyObject *args) {
 
 static PyMethodDef cPerfMethods[] = {{"importPerf", cPerf_importPerf,
                                       METH_VARARGS,
-                                      "importPerf(filename, objdump='objdump', "
-                                      "binary_cache_root='', demangle=True)\n"
+                                      "importPerf(filename[, objdump[, "
+                                      "binary_cache_root[, demangle]]])\n"
                                       "Import perf.data from a filename. "
-                                      "demangle controls whether function names "
-                                      "are demangled."},
+                                      "demangle (true by default) controls "
+                                      "whether function names are demangled."},
                                      {NULL, NULL, 0, NULL}};
 
 static PyModuleDef cPerfModuleDef = {PyModuleDef_HEAD_INIT,

@@ -70,6 +70,11 @@ def run(*args, perf_data=PERF_DATA, objdump=OBJDUMP, cxxfilt=CXXFILT):
         [perf_data, '--objdump', objdump, '--cxxfilt', cxxfilt] + list(args))
 
 
+def written():
+    """Whether the last `convert` wrote its output file."""
+    print('written: %s' % os.path.exists(OUT))
+
+
 def convert(*args, **kwargs):
     """Run the command; print what it reports, and return what it wrote."""
     if os.path.exists(OUT):
@@ -123,13 +128,35 @@ print(run('--encode').stdout_bytes == encoded)
 # CHECK-NEXT: True
 
 # ---------------------------------------------------------------------------
+print('# OPTIONS')
+# objdump and the binary cache root default to the variables v4 uses.
+open(OBJDUMP_LOG, 'w').close()
+result = CliRunner(env={'CMAKE_OBJDUMP': OBJDUMP,
+                        'LNT_BINARY_CACHE_ROOT': '/cache'}).invoke(
+    action_convert_perf,
+    [PERF_DATA, '--cxxfilt', CXXFILT, '--disassembly-format', 'gnu-objdump'])
+print('exit: %d, format: %s' % (
+    result.exit_code, json.loads(result.stdout_bytes)['disassembly_format']))
+with open(OBJDUMP_LOG) as f:
+    print(sorted({line.split()[-1] for line in f.read().splitlines()}))
+# CHECK-LABEL: # OPTIONS
+# CHECK-NEXT: exit: 0, format: gnu-objdump
+# CHECK-NEXT: ['/cache/root/fib']
+
+# ---------------------------------------------------------------------------
 print('# NOT PERF')
 convert(perf_data=write('empty', ''))
 convert(perf_data=write('text', 'PERFILE1 is not quite it'))
+written()
+convert('-o', os.path.join(TMP, 'no', 'such', 'dir'))
+# Nothing is written when the profile cannot be converted.
 # CHECK-LABEL: # NOT PERF
 # CHECK-NEXT: error: {{.*}}empty is not a perf.data file
 # CHECK-NEXT: exit: 1
 # CHECK-NEXT: error: {{.*}}text is not a perf.data file
+# CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: False
+# CHECK-NEXT: error: Could not open file {{.*}}dir{{.*}}
 # CHECK-NEXT: exit: 1
 
 # ---------------------------------------------------------------------------
@@ -180,12 +207,17 @@ stub({
     '_ZN1BC2Ev': lines(0x500),
     # A demangled name too long to be kept gives way to the mangled one.
     '_Z4longv': lines(0x600),
+    # Of aliases, the one kept is one whose name is short enough.
+    '_Z' + 'y' * 3000: lines(0x700),
+    'short_alias': lines(0x700),
     'plain_c_function': [],
+    # An empty name, which cPerf can give, names nothing.
+    '': lines(0x800),
 })
 names()
 # CHECK-LABEL: # NAMES
 # CHECK-NEXT: exit: 0
-# CHECK-NEXT: ['A::A()', 'B::B()', '_Z4longv', '_ZN1BC2Ev', 'bar(int)', 'foo(int)', 'plain_c_function']
+# CHECK-NEXT: ['A::A()', 'B::B()', '_Z4longv', '_ZN1BC2Ev', 'bar(int)', 'foo(int)', 'plain_c_function', 'short_alias']
 
 # ---------------------------------------------------------------------------
 print('# LEFT OUT')
@@ -199,10 +231,10 @@ stub({
 })
 names()
 # CHECK-LABEL: # LEFT OUT
-# CHECK-NEXT: warning: left out the function _Zxxx{{x*}}...: its name, even mangled, is longer than 2048 bytes
 # CHECK-NEXT: warning: left out the function huge: it has 100001 instructions, more than 100000
 # CHECK-NEXT: warning: left out the function kernel: its addresses are larger than 9223372036854775807
 # CHECK-NEXT: warning: left out the function same: its name, even mangled, is the same as another function's
+# CHECK-NEXT: warning: left out the function _Zxxx{{x*}}...: its name, even mangled, is longer than 2048 bytes
 # CHECK-NEXT: exit: 0
 # CHECK-NEXT: ['kept', 'same']
 
@@ -222,6 +254,7 @@ lnt.util.v5_profile.MAX_COMPRESSED_SIZE = 10
 convert()
 lnt.util.v5_profile.MAX_DOCUMENT_SIZE = 10
 convert()
+written()
 # CHECK-LABEL: # LIMITS
 # CHECK-NEXT: error: the profile has 3 functions, more than 2
 # CHECK-NEXT: exit: 1
@@ -229,3 +262,4 @@ convert()
 # CHECK-NEXT: exit: 1
 # CHECK-NEXT: error: the profile document is {{[0-9]+}} bytes, more than the 10 a v5 instance accepts
 # CHECK-NEXT: exit: 1
+# CHECK-NEXT: written: False

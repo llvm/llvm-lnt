@@ -208,6 +208,12 @@ class TestReadBackWhole:
 
         assert stored(bytes(self.served(profile))) == profile
 
+    def test_a_profile_of_no_counters_is_read_back_as_submitted(self) -> None:
+        bare = [{"address": 0, "counters": {}, "text": "nop"}]
+        value = document({"name": "f", "instructions": bare}, counters={})
+
+        assert json.loads(self.served(stored(value))) == value
+
     def test_leaves_out_the_counts_that_are_0(self) -> None:
         # Whether the document left a counter out or gave it as 0, it is read back left out.
         listed = [

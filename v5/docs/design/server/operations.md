@@ -321,7 +321,7 @@ An instruction's `counters` may leave out any of the top-level counters, and a
 counter left out counts as 0. A top-level counter is a total for the whole
 profile, so it was measured over all of it: an instruction with no count for it
 had none. Likewise, a producer may leave out a function, for example one it
-cannot name within the limits below; the top-level counters still include it.
+cannot name within the limits below.
 
 **Decoding and validation.** The `profile` string is decoded as standard,
 padded base64, ignoring ASCII whitespace (so line-wrapped output is accepted),

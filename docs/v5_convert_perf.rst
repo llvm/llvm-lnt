@@ -51,13 +51,15 @@ Function names
 
 Each function is named by its demangled name, which ``c++filt`` (``--cxxfilt``)
 gives. A function listed under several names, such as an alias, or a symbol
-that is both static and dynamic, is listed once, under the first of its names
-in alphabetical order.
+that is both static and dynamic, is listed once, under the first of its mangled
+names in code-point order, among those short enough to be kept (see below).
 
 A function is named by its mangled name instead when its demangled name is
 longer than 2048 bytes in UTF-8, or is already another function's: for
 example, a complete-object and a base-object constructor that are not aliases
-both demangle to ``A::A()``.
+both demangle to ``A::A()``. The first of them, in code-point order of their
+mangled names, is named ``A::A()``. Since a profile only lists its hot
+functions, which of them that is can differ between two profiles.
 
 The instructions' text is left as ``objdump`` prints it, so the functions it
 refers to keep their mangled names.

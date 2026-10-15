@@ -114,9 +114,16 @@ def action_convert_perf(perf_data: str, output: Any, encode: bool,
             perf_data, objdump, binary_cache_root, cxxfilt,
             disassembly_format,
             warn=lambda line: click.echo("warning: %s" % line, err=True))
-        output.write(serialize(document, encode) + b"\n")
+        # Computed before `output.write` is looked up, which opens the file.
+        result = serialize(document, encode) + b"\n"
+        output.write(result)
     except (ConvertError, OSError) as e:
         click.echo("error: %s" % e, err=True)
+        sys.exit(1)
+    except click.FileError as e:
+        # Opening FILE, which waits for the result so as not to leave an empty
+        # file behind when there is none.
+        click.echo("error: %s" % e.format_message(), err=True)
         sys.exit(1)
 
 

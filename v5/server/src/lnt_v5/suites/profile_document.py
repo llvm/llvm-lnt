@@ -151,7 +151,7 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
                         )
                 except ValueError as error:
                     raise ValueError(
-                        f"function '{function.name}', instruction {position}: {error}"
+                        f"function '{function.name[:50]}', instruction {position}: {error}"
                     ) from None
 
 
@@ -278,7 +278,7 @@ def _stored(function: FunctionDocument, top_level: Iterable[str]) -> StoredFunct
     has every counter of its profile.
     """
     rows = function.instructions
-    # Integers by now; see `FunctionDocument.__post_init__`.
+    # Integers by now; see `ProfileDocument.__post_init__`.
     addresses = [cast(int, instruction.address) for instruction in rows]
     columns = _Columns(
         address_deltas=[after - before for before, after in pairwise([0, *addresses])],
