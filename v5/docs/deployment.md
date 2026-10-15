@@ -76,7 +76,8 @@ After applying, configure the following once in the GitHub repository, under eac
 ## The CDN
 
 Each environment selects its CDN with the `cdn` variable. Either way, the origin only accepts traffic
-from the CDN's published IPv4 ranges, which are looked up on every apply.
+from the CDN's published IPv4 ranges, which are looked up on every apply. The CDN of an existing
+environment cannot be switched in place: tear the environment down first.
 
 With **Cloudflare**, Terraform manages the Cloudflare side too: it points the domain at the instance
 with a proxied DNS record, and has the origin certificate signed by Cloudflare's Origin CA.
@@ -102,7 +103,7 @@ Configure the backend as follows:
 - Health check: `GET /healthz`, with the domain as the host.
 
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
-is torn down and recreated. Until the backend points at the instance, the deploy workflow's final
+is torn down and recreated, or if its domain changes. Until the backend points at the instance, the deploy workflow's final
 `/healthz` check fails, since it goes through the domain.
 
 ## Building and pushing the app image
@@ -140,10 +141,10 @@ With Fastly, pass `-var="cdn=fastly"` instead, without the Cloudflare variables.
 ## Tearing down an environment
 
 The `v5-teardown.yml` GitHub workflow destroys everything Terraform manages in an environment,
-including its database, and then deletes the environment's Terraform workspace. In
-practice this is for cleaning up the `test` environment after a round of testing. The destroy plan
-is published to the run summary before being applied, so each run leaves a record of what it
-destroyed. Deploying to the environment again recreates it from scratch.
+including its database and, with Cloudflare, its DNS record, and then deletes the environment's
+Terraform workspace. In practice this is for cleaning up the `test` environment after a round of
+testing. The destroy plan is published to the run summary before being applied, so each run leaves a
+record of what it destroyed. Deploying to the environment again recreates it from scratch.
 
 The workflow deliberately doesn't offer the `production` environment. Its database has deletion
 protection, and deleting it takes a final snapshot (`lnt-v5-production-final`) and keeps the
@@ -156,9 +157,11 @@ aws rds modify-db-instance --db-instance-identifier lnt-v5-production --no-delet
                            --apply-immediately --region us-west-2
 terraform -chdir=v5/deployment/main workspace select production
 terraform -chdir=v5/deployment/main destroy -var="app_image_tag=unused-by-destroy" \
-                                            -var="cdn=fastly"                      \
+                                            -var="cdn=..."                         \
                                             -var="domain=lnt.example.com"
 ```
+
+With Cloudflare, also pass the Cloudflare variables, as when deploying.
 
 Since snapshot names are unique, the final snapshot of a previous teardown has to be deleted or
 renamed before production can be torn down again.

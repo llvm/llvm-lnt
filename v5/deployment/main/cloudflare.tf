@@ -1,5 +1,5 @@
 # The parts of the stack specific to Cloudflare, used when var.cdn is "cloudflare":
-# 1. Get the origin certificate signed by Cloudflare's Origin CA, which Cloudflare trusts.
+# 1. Have the origin certificate signed by Cloudflare's Origin CA, which Cloudflare trusts.
 # 2. Point the domain at the instance: an A record, proxied through Cloudflare so TLS terminates
 #    at their edge.
 # 3. Look up Cloudflare's published IP ranges, which are the only ones the origin accepts traffic
@@ -17,10 +17,20 @@ locals {
   record_name = var.cdn == "cloudflare" ? (var.domain == data.cloudflare_zone.this[0].name ? "@" : trimsuffix(var.domain, ".${data.cloudflare_zone.this[0].name}")) : null
 }
 
+resource "tls_cert_request" "origin" {
+  count = var.cdn == "cloudflare" ? 1 : 0
+
+  private_key_pem = tls_private_key.origin.private_key_pem
+
+  subject {
+    common_name = var.domain
+  }
+}
+
 resource "cloudflare_origin_ca_certificate" "origin" {
   count = var.cdn == "cloudflare" ? 1 : 0
 
-  csr                = tls_cert_request.origin.cert_request_pem
+  csr                = tls_cert_request.origin[0].cert_request_pem
   hostnames          = [var.domain]
   request_type       = "origin-rsa"
   requested_validity = 5475

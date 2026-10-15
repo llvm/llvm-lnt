@@ -7,8 +7,8 @@
 # 2. Look up Fastly's published IP ranges, which are the only ones the origin accepts traffic from
 #    (see network.tf).
 #
-# The CA is configured on the Fastly service by hand, so it must stay stable: anything that
-# replaces it requires updating the service.
+# The CA is configured on the Fastly service by hand, so anything that replaces it (tearing down the
+# environment, or changing its domain) requires updating the service.
 resource "tls_private_key" "origin_ca" {
   count = var.cdn == "fastly" ? 1 : 0
 
@@ -29,10 +29,23 @@ resource "tls_self_signed_cert" "origin_ca" {
   }
 }
 
+# Unlike Cloudflare's Origin CA, which is given the hostnames separately, a locally signed
+# certificate gets its SANs from the request.
+resource "tls_cert_request" "fastly_origin" {
+  count = var.cdn == "fastly" ? 1 : 0
+
+  private_key_pem = tls_private_key.origin.private_key_pem
+  dns_names       = [var.domain]
+
+  subject {
+    common_name = var.domain
+  }
+}
+
 resource "tls_locally_signed_cert" "origin" {
   count = var.cdn == "fastly" ? 1 : 0
 
-  cert_request_pem      = tls_cert_request.origin.cert_request_pem
+  cert_request_pem      = tls_cert_request.fastly_origin[0].cert_request_pem
   ca_private_key_pem    = tls_private_key.origin_ca[0].private_key_pem
   ca_cert_pem           = tls_self_signed_cert.origin_ca[0].cert_pem
   validity_period_hours = 5475 * 24
