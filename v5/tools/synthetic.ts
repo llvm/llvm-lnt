@@ -384,7 +384,9 @@ export function libcxxSynthetic(realRuns: Submission[]): {
     }
   }
 
-  // The experiment: the newest commit's Linux build, with a faster std::format.
+  // The experiment: the newest commit's Linux build, with a faster std::format. Both of its runs
+  // have profiles, which differ a little, as two measurements do: the second run's hottest function
+  // is a little faster again.
   const experiment: Submission['commit'] = {
     value: EXPERIMENT,
     fields: { commit_info: 'A/B experiment: a faster floating-point path for std::format' },
@@ -393,7 +395,7 @@ export function libcxxSynthetic(realRuns: Submission[]): {
     const factor = (test: string) =>
       effectsAt(COMMITS - 1, LINUX, test) * (FORMAT_TESTS.test(test) ? 0.8 : 1)
     addRun(LINUX, experiment, `libcxx/${LINUX}/${EXPERIMENT}/${run}`, factor, {
-      profile: run === 0 ? { isa: 'x86-64', speedup: 0.8 } : undefined,
+      profile: { isa: 'x86-64', speedup: run === 0 ? 0.8 : 0.76 },
       measuredAt: measuredAt(COMMITS, run),
       parameters: { experiment: 'faster-format' },
     })

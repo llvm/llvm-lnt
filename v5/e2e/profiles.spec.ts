@@ -1,12 +1,12 @@
 /**
- * The Profiles page (PF1-PF9), against the seeded libcxx history. In the seed, the first run of
- * the newest commit on LINUX (x86-64) and on MACOS (aarch64) has profiles, and so does the
- * experiment's first run on LINUX.
+ * The Profiles page (PF1-PF9), against the seeded libcxx history. In the seed, the run of the
+ * newest commit on LINUX (x86-64) and on MACOS (aarch64) has profiles, and so do both runs of the
+ * experiment on LINUX.
  */
 
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { HARDENED, LINUX, MACOS, PROFILED_TEST } from '../tools/synthetic.ts'
+import { EXPERIMENT, HARDENED, LINUX, MACOS, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { pickOption, pickSuggestion } from './select.ts'
 import { rows, table } from './tables.ts'
@@ -133,6 +133,36 @@ test("shows the hottest function's instructions, as the counter and the Values s
   await expect(row(20)).toContainText('100%')
   // An instruction of its loop does not, yet.
   await expect(row(10)).not.toContainText('100%')
+})
+
+test('keeps the test on another run of the same commit', async ({ page, request }) => {
+  // Both runs of the experiment have profiles: the page starts on the latest.
+  const path = `/api/suites/libcxx/runs?machine=${LINUX}&commit=${EXPERIMENT}&has_profiles=true`
+  const runs = (await json<Schemas['RunCursorPage']>(request, `${path}&sort=measured_at`)).items
+  expect(runs).toHaveLength(2)
+  const [first, latest] = runs.map((run) => run.uuid)
+  const query = new URLSearchParams({
+    suite_a: 'libcxx',
+    machine_a: LINUX,
+    commit_a: EXPERIMENT,
+    test_a: PROFILED_TEST,
+  })
+  await page.goto(`/profiles?${query}`)
+  await expect(page).toHaveURL(new RegExp(`[?&]run_a=${latest}(&|$)`))
+
+  const side = sideOf(page, 'A')
+  // Each run is listed by when it was measured, in the browser's time zone, and its short UUID.
+  await side.getByRole('button', { name: / Run$/ }).click()
+  await page.getByRole('option').filter({ hasText: first.slice(0, 8) }).click()
+  await expect(page).toHaveURL(new RegExp(`[?&]run_a=${first}(&|$)`))
+  await expect(side.getByRole('combobox', { name: 'Test' })).toHaveValue(PROFILED_TEST)
+  await expect(side.getByRole('link', { name: /^Run / })).toHaveAttribute(
+    'href',
+    `/suites/libcxx/runs/${first}`,
+  )
+  // The first run's profile of the test, with its own function shown.
+  const functionA = columnOf(page, 'A').getByRole('combobox', { name: 'Function' })
+  await expect(functionA).toHaveValue(/^std::__1::__stable_sort</)
 })
 
 test('says when a machine has no profiles', async ({ page }) => {
