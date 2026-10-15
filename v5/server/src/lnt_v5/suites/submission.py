@@ -351,12 +351,10 @@ def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str,
     rows = []
     for index, sample in enumerate(entry.samples):
         # Every row carries every declared metric, `None` where the sample has no value -- which is
-        # what a metric the sample omits means anyway (O1). That uniformity is what lets the write
-        # layer put the whole submission in one statement: SQLAlchemy Core compiles an executemany
-        # from the *first* mapping it is given and binds every later one to those same columns, so
-        # rows that disagree on which keys they carry silently write the wrong columns, or drop
-        # values entirely. Established here, where the rows are made, rather than repaired by
-        # whoever writes them.
+        # what a metric the sample omits means anyway (O1). That uniformity is what the write layer
+        # relies on: it writes the samples as one array per metric column, and records coverage,
+        # by reading every metric of every row. Established here, where the rows are made, rather
+        # than repaired by whoever writes them.
         row: dict[str, Any] = dict.fromkeys(declared)
         with _within(f"samples[{index}]"):
             for key, value in sample.items():

@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, insert
+from sqlalchemy import Connection, Insert
 
 from lnt_v5.suites.aggregation import SampleAggregation, geomean
+from lnt_v5.suites.bulk import unnest_insert
 from lnt_v5.suites.entities import identifiers
 from lnt_v5.suites.registry import Suite
 from lnt_v5.suites.schema import NUMERIC_TYPES, Metric
@@ -46,7 +47,7 @@ def summarize(metrics: Sequence[Metric], tests: Sequence[SubmittedTest]) -> list
 
 
 def add(connection: Connection, suite: Suite, run_id: int, summaries: Sequence[Summary]) -> None:
-    """Store a newly submitted run's summaries, as `summarize` computed them.
+    """Store a newly submitted run's summaries, as `summarize` computed them, in one statement.
 
     A metric removed since the payload was validated is D2's retryable 409, which the sample
     insert before this already reports.
@@ -60,9 +61,17 @@ def add(connection: Connection, suite: Suite, run_id: int, summaries: Sequence[S
         lambda _: schema_changed(suite.schema.name),
     )
     connection.execute(
-        insert(suite.tables.run_summary),
-        [
-            {"run_id": run_id, "metric_id": ids[name], "sample_agg": aggregation, "geomean": value}
-            for name, aggregation, value in summaries
-        ],
+        suite.derived(_insert),
+        {
+            "run_id": run_id,
+            "metric_id": [ids[name] for name, _, _ in summaries],
+            "sample_agg": [aggregation for _, aggregation, _ in summaries],
+            "geomean": [value for _, _, value in summaries],
+        },
+    )
+
+
+def _insert(suite: Suite) -> Insert:
+    return unnest_insert(
+        suite.tables.run_summary, ["metric_id", "sample_agg", "geomean"], constants=["run_id"]
     )

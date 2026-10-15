@@ -27,11 +27,12 @@ from psycopg.errors import (
 from psycopg.errors import (
     IntegrityError as IntegrityViolation,
 )
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from .config import Settings
 from .errors import ApiError, ErrorCode
+from .suites import bulk
 
 # Per-worker pool bounds. The live connection count is
 # `WEB_CONCURRENCY x (POOL_SIZE + MAX_OVERFLOW)`, which has to stay well inside the database's
@@ -64,7 +65,7 @@ def _connect_args(settings: Settings) -> dict[str, Any]:
 
 def make_engine(settings: Settings) -> Engine:
     """The engine, shared by API requests and by the `GET /healthz` probe."""
-    return create_engine(
+    engine = create_engine(
         settings.sqlalchemy_url,
         pool_size=POOL_SIZE,
         max_overflow=MAX_OVERFLOW,
@@ -80,6 +81,8 @@ def make_engine(settings: Settings) -> Engine:
         isolation_level="READ COMMITTED",
         connect_args=_connect_args(settings),
     )
+    event.listen(engine, "connect", lambda connection, _: bulk.adapt(connection))
+    return engine
 
 
 def get_engine(request: Request) -> Engine:

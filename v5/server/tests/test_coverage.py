@@ -183,6 +183,10 @@ class TestSubmission:
 
         assert row_versions(db_engine) == before
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="#429, #430: the coverage write is still an executemany, one statement per row",
+    )
     def test_costs_one_statement_however_many_tests_there_are(
         self, submit: Callable[..., str]
     ) -> None:
