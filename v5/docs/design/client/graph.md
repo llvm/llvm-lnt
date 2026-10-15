@@ -275,7 +275,8 @@ hidden until the pointer moves again. It shows:
 - the point's value and run count;
 - the point's runs, in the order they were measured, each with its measurement
   time, its shortened UUID linking to its Run Detail page, and the values of its
-  samples (GR1), in ascending order. The list scrolls when it is long;
+  samples (GR1), in ascending order and on one line. The list scrolls when it is
+  long or wide;
 - "Compare with previous commit": a link to the Compare page set up to compare
   this point with the previous point of the same trace. Side A is the previous
   point's commit, side B this point's commit, both in this suite and on this

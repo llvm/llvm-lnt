@@ -165,17 +165,24 @@
   font-family: var(--lnt-font-mono);
 }
 
-/* A list in the details: a point's runs, a regression's tests, which scroll once there are many. */
+/*
+ * A list in the details, a point's runs or a regression's tests, which scrolls when it is long or
+ * wider than the details. It reaches into the details' right padding, where its scroll bar goes:
+ * one that overlays the content, as macOS's do, would otherwise hide the end of a run's samples.
+ */
 .detailsRuns,
 .detailsTests {
   max-height: 12rem;
-  overflow-y: auto;
-  font-size: 0.9rem;
+  overflow: auto;
+  margin-right: calc(-1 * var(--lnt-space-3));
+  padding-right: var(--lnt-space-3);
 }
 
 .detailsTests {
-  margin: 0;
+  margin-top: 0;
+  margin-bottom: 0;
   padding-left: var(--lnt-space-3);
+  font-size: 0.9rem;
 }
 
 .detailsHeading {
