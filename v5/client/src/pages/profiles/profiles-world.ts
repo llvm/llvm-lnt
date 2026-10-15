@@ -5,7 +5,8 @@
  */
 
 import { HttpResponse } from 'msw'
-import { screen } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
+import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, run, uuidOf } from '../../test/fixtures'
@@ -91,9 +92,9 @@ interface World {
 
 /**
  * Mock the API for the Profiles page: the suites, and the world described in each of them. Returns
- * what the page asked for, in order: the queries of `GET commits`, the UUIDs of the profiles
- * whose metadata and functions it fetched, and the functions whose instructions it fetched, as
- * `uuid/name`.
+ * what the page asked for, in order: the queries of `GET commits` and `GET runs`, the UUIDs of the
+ * profiles whose metadata and functions it fetched, and the functions whose instructions it
+ * fetched, as `uuid/name`.
  */
 export function mockWorld({
   suites = [SUITE, OTHER_SUITE],
@@ -126,7 +127,7 @@ export function mockWorld({
         .map((value) => commit(value)),
     )
   })
-  mockRuns((query) => {
+  const runs = mockRuns((query) => {
     const listed = RUNS[`${query.get('machine')}/${query.get('commit')}`] ?? []
     return cursorPage(
       listed.map(([hex], i) =>
@@ -211,7 +212,7 @@ export function mockWorld({
       },
     ),
   )
-  return { commits, metadata, listed, disassembled }
+  return { commits, runs, metadata, listed, disassembled }
 }
 
 /**
@@ -243,4 +244,15 @@ export function sideOf(side: 'A' | 'B') {
 /** The column of the profile `side` shows (PF7), if it has one. */
 export function columnOf(side: 'A' | 'B') {
   return screen.queryByRole('region', { name: `Profile ${side}` })
+}
+
+/**
+ * Wait for `side` to show its profile: a function of it is selected, which neither a profile still
+ * loading nor one that failed to load can show.
+ */
+export async function profileShown(side: 'A' | 'B') {
+  await waitFor(() => {
+    const selector = within(columnOf(side)!).getByRole('combobox', { name: 'Function' })
+    expect(selector).not.toHaveValue('')
+  })
 }

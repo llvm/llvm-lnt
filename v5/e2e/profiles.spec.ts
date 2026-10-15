@@ -49,8 +49,9 @@ test("shows the profile of a test that Run Detail's Profile link names", async (
     'href',
     `/suites/libcxx/runs/${run}`,
   )
-  await expect(columnOf(page, 'A')).toBeAttached()
-  await expect(columnOf(page, 'A')).not.toContainText('Loading')
+  // A function of the profile is shown, which a profile loading or failed would not show.
+  const functionA = columnOf(page, 'A').getByRole('combobox', { name: 'Function' })
+  await expect(functionA).toHaveValue(/^std::__1::__stable_sort</)
   await expect(columnOf(page, 'B')).toHaveCount(0)
 })
 
@@ -89,8 +90,10 @@ test("starts side B on side A's test, and keeps it on another machine", async ({
   await expect(page).toHaveURL(new RegExp(`[?&]run_b=${macosRun}(&|$)`))
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${commit.value}(&|$)`))
   await expect(testB).toHaveValue(PROFILED_TEST)
-  await expect(columnOf(page, 'A')).toBeAttached()
-  await expect(columnOf(page, 'B')).not.toContainText('Loading')
+  for (const side of ['A', 'B'] as const) {
+    const selector = columnOf(page, side).getByRole('combobox', { name: 'Function' })
+    await expect(selector).toHaveValue(/^std::__1::__stable_sort</)
+  }
 })
 
 test("shows the hottest function's instructions, as the counter and the Values say", async ({
@@ -149,6 +152,11 @@ test('keeps the test on another run of the same commit', async ({ page, request 
   })
   await page.goto(`/profiles?${query}`)
   await expect(page).toHaveURL(new RegExp(`[?&]run_a=${latest}(&|$)`))
+  // The share of the hottest function, which differs a little between the two runs' profiles.
+  const functionA = columnOf(page, 'A').getByRole('combobox', { name: 'Function' })
+  await expect(functionA).toHaveValue(/^std::__1::__stable_sort</)
+  const share = columnOf(page, 'A').getByTitle(/^Share of the profile's /)
+  const latestShare = await share.textContent()
 
   const side = sideOf(page, 'A')
   // Each run is listed by when it was measured, in the browser's time zone, and its short UUID.
@@ -160,9 +168,10 @@ test('keeps the test on another run of the same commit', async ({ page, request 
     'href',
     `/suites/libcxx/runs/${first}`,
   )
-  // The first run's profile of the test, with its own function shown.
-  const functionA = columnOf(page, 'A').getByRole('combobox', { name: 'Function' })
+  // The first run's profile of the test, with its own share of the same function.
   await expect(functionA).toHaveValue(/^std::__1::__stable_sort</)
+  await expect(share).toHaveText(/%$/)
+  await expect(share).not.toHaveText(latestShare!)
 })
 
 test('says when a machine has no profiles', async ({ page }) => {

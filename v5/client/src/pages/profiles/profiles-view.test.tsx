@@ -1,10 +1,11 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { queryKeys } from '../../api/keys'
 import { profilesPath } from '../../paths'
 import { fakeLayout } from '../../test/layout'
 import { errorResponse } from '../../test/mock-api'
-import { query, renderPage, rowsOf, settle } from '../../test/page'
+import { currentUrl, query, renderPage, rowsOf, settle } from '../../test/page'
 import { pick, pickOption, selectButton } from '../../test/select'
 import {
   ALPHA,
@@ -314,6 +315,99 @@ describe('the Profiles page: function selection (PF4)', () => {
     expect(query().function_a).toBeUndefined()
   })
 
+  it("takes its own hottest when the other side's profile could not be loaded", async () => {
+    const uuidB = profileUuid('2', 'alpha')
+    mockWorld({
+      metadataAnswer: (uuid) =>
+        uuid === uuidB ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(BETA_AND_MAIN)
+    await showsFunction('A', 'hot')
+    expect(await column('B').findByText(/The profile could not be loaded/)).toBeVisible()
+
+    // Side B shows alpha, but cannot say which function: side A does not wait for it.
+    await pick('Test', 'alpha', sideOf('A'))
+
+    await showsFunction('A', 'hot')
+  })
+
+  it("keeps its hottest function, by name, on another profile of the same test", async () => {
+    // Run 2's alpha has warm as its hottest, and hot too.
+    mockWorld({
+      functions: {
+        [profileUuid('2', 'alpha')]: {
+          hot: { cycles: 30, instructions: 20 },
+          warm: { cycles: 60, instructions: 150 },
+        },
+      },
+    })
+    renderPage(ALPHA)
+    await showsFunction('A', 'hot')
+    expect(query().function_a).toBeUndefined()
+
+    await pickOption('Run', RUN_2, sideOf('A'))
+
+    await waitFor(() => expect(query().run_a).toEqual([sideAt('m1', 'c1', '2', 'alpha').run]))
+    await showsFunction('A', 'hot')
+    await waitFor(() => expect(query().function_a).toEqual(['hot']))
+  })
+
+  it('carries nothing over once the side is left without a profile', async () => {
+    mockWorld()
+    renderPage(`${ALPHA}&function_a=main`)
+    await showsFunction('A', 'main')
+
+    // Run 3, at c2, has no profile of alpha: side A is left without a test.
+    await pick('Commit', 'c2', sideOf('A'))
+    await waitFor(() => expect(query().test_a).toBeUndefined())
+    await pick('Commit', 'c1', sideOf('A'))
+    await waitFor(() => expect(query().run_a).toEqual([sideAt('m1', 'c1', '2', 'alpha').run]))
+    await pick('Test', 'alpha', sideOf('A'))
+
+    await showsFunction('A', 'hot')
+    expect(query().function_a).toBeUndefined()
+  })
+
+  it("takes the function the other side showed before its own profile began changing", async () => {
+    const slow = heldBack((q: URLSearchParams) => q.get('machine') === 'm2')
+    mockWorld({ runsAnswer: slow.answer })
+    // Side A shows beta in run 1, side B alpha's warm in run 2.
+    renderPage(
+      profilesPath(sideAt('m1', 'c1', '1', 'beta'), sideAt('m1', 'c1', '2', 'alpha')) +
+        '&function_b=warm',
+    )
+    await showsFunction('B', 'warm')
+    await showsFunction('A', 'hot')
+
+    // Side B moves to m2, whose runs are on their way, as side A picks alpha.
+    await pick('Machine', 'm2', sideOf('B'))
+    await pick('Test', 'alpha', sideOf('A'))
+
+    await showsFunction('A', 'warm')
+    slow.open()
+    await showsFunction('B', 'warm')
+  })
+
+  it('keeps showing the profile when its runs fail to load again', async () => {
+    let fail = false
+    mockWorld({
+      runsAnswer: () => (fail ? errorResponse(500, 'internal_error', 'Boom') : undefined),
+    })
+    const { queryClient } = renderPage(ALPHA)
+    await showsFunction('A', 'hot')
+    const url = currentUrl()
+
+    fail = true
+    await act(() =>
+      queryClient.refetchQueries({ queryKey: [...queryKeys.runs('libcxx'), 'of-commit'] }),
+    )
+
+    await settle()
+    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+    await showsFunction('A', 'hot')
+    expect(currentUrl()).toBe(url)
+  })
+
   it('carries the function picked, not the one shown before', async () => {
     mockWorld()
     renderPage(`${ALPHA}&function_a=warm`)
@@ -490,7 +584,7 @@ describe('the Profiles page: the counter (PF4)', () => {
     await waitFor(() => expect(query().function_a).toEqual(['main']))
   })
 
-  it('writes a function picked before the counter settles, then leaves it out if hottest', async () => {
+  it('writes a function picked before the counter settles, then leaves out the hottest', async () => {
     const uuidB = profileUuid('3', 'beta')
     const slow = heldBack((uuid: string) => uuid === uuidB)
     mockWorld({ metadataAnswer: slow.answer })
@@ -507,7 +601,7 @@ describe('the Profiles page: the counter (PF4)', () => {
     expect(column('A').getByRole('combobox', { name: 'Function' })).toHaveValue('hot')
   })
 
-  it("drops a function from the URL while the other side's profile could not be loaded", async () => {
+  it("drops a function from the URL while the other side's profile failed to load", async () => {
     const uuidB = profileUuid('3', 'beta')
     mockWorld({
       metadataAnswer: (uuid) =>
@@ -544,6 +638,42 @@ describe('the Profiles page: the counter (PF4)', () => {
     await showsFunction('A', 'main')
     expect(instructionRows('A')).toEqual(['0x1000 | main: add', '0x1004 | main: ret'])
   })
+
+  it('says nothing of the counters while the profile shown loads', async () => {
+    const slow = heldBack()
+    mockWorld({ metadataAnswer: slow.answer })
+    renderPage(ALPHA)
+
+    await waitFor(() => expect(selectButton('Counter')).toHaveTextContent('Loading counters...'))
+    expect(screen.queryByText('The profiles shown have no counters.')).not.toBeInTheDocument()
+    slow.open()
+    await showsFunction('A', 'hot')
+    expect(selectButton('Counter')).toHaveTextContent('cycles')
+  })
+
+  it('says that no counters were loaded when the only profile shown failed to load', async () => {
+    mockWorld({ metadataAnswer: () => errorResponse(500, 'internal_error', 'Boom') })
+    renderPage(ALPHA)
+
+    expect(await column('A').findByText(/The profile could not be loaded/)).toBeVisible()
+    expect(selectButton('Counter')).toHaveTextContent('No counters loaded')
+    expect(screen.queryByText('The profiles shown have no counters.')).not.toBeInTheDocument()
+  })
+
+  it("keeps a counter only the other side's profile has, which failed to load", async () => {
+    const uuidB = profileUuid('3', 'beta')
+    mockWorld({
+      counters: { [uuidB]: { branches: 7 } },
+      metadataAnswer: (uuid) =>
+        uuid === uuidB ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    })
+    renderPage(withB('c2', '3', 'beta', '&counter=branches'))
+
+    await showsFunction('A', 'hot')
+    expect(await column('B').findByText(/The profile could not be loaded/)).toBeVisible()
+    await settle()
+    expect(query().counter).toEqual(['branches'])
+  })
 })
 
 describe('the Profiles page: values and layout (PF6, PF7)', () => {
@@ -563,6 +693,28 @@ describe('the Profiles page: values and layout (PF6, PF7)', () => {
     )
     expect(query().values).toEqual(['cumulative'])
     expect(disassembled.length).toBe(requests)
+  })
+
+  it('starts another function at the top, but keeps the place of one fetched again', async () => {
+    fakeLayout()
+    mockWorld()
+    const { queryClient } = renderPage(ALPHA)
+    await showsFunction('A', 'hot')
+    // Warm's instructions fetched once, so that going back to it shows them at once.
+    await pickFunction('A', 'warm')
+    await showsFunction('A', 'warm')
+    await pickFunction('A', 'hot')
+    await showsFunction('A', 'hot')
+    const scroller = () => column('A').getByRole('region', { name: /^Instructions of / })
+
+    scroller().scrollTop = 500
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles('libcxx') }))
+    await showsFunction('A', 'hot')
+    expect(scroller().scrollTop).toBe(500)
+
+    await pickFunction('A', 'warm')
+    await showsFunction('A', 'warm')
+    expect(scroller().scrollTop).toBe(0)
   })
 
   it('shows both sides side by side, each with its function', async () => {
