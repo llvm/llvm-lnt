@@ -2,11 +2,15 @@ import { useEffect, type CSSProperties } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { forgetProfiles } from '../../api/profiles'
 import { useSuites } from '../../api/suites'
-import { ErrorMessage, Loading } from '../../components/feedback'
+import { ErrorMessage } from '../../components/feedback'
 import { useUrlState, useVisitKey } from '../../url-state'
 import { PARAMS } from './settings'
+import { ProfileColumn } from './profile-column'
 import { SidePanel } from './side-panel'
-import { useProfileSide, type ProfileSide } from './use-side'
+import { useCounter } from './use-counter'
+import { useFunctions } from './use-functions'
+import { useProfileSide } from './use-side'
+import { ViewControls } from './view-controls'
 import styles from './profiles.module.css'
 
 /**
@@ -25,6 +29,8 @@ function ProfilesPage() {
   const suites = useSuites()
   const a = useProfileSide('a', settings, update, suites)
   const b = useProfileSide('b', settings, update, suites)
+  const counter = useCounter([a, b], settings.counter, update)
+  const functions = useFunctions(a, b, counter, update)
 
   // A side keeps its column while its profile loads, and if it fails to load (PF7).
   const shown = [a, b].filter((side) => side.status.kind !== 'none')
@@ -45,29 +51,24 @@ function ProfilesPage() {
       {shown.length === 0 ? (
         <p className={styles.note}>Select a test on either side to see its profile.</p>
       ) : (
-        <div className={styles.columns} style={{ '--columns': shown.length } as CSSProperties}>
-          {shown.map((side) => (
-            <ProfileColumn key={side.id} side={side} />
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-/** What a side shows of its profile (PF4, PF5), in its column. */
-function ProfileColumn({ side }: { side: ProfileSide }) {
-  const { status, metadata } = side
-  return (
-    <section className={styles.column} aria-label={`Profile ${side.id.toUpperCase()}`}>
-      {status.kind === 'pending' && <Loading label="Loading the profile..." />}
-      {/* Earlier failures, such as the runs', show in the side's controls. */}
-      {status.kind === 'failed' && metadata.isError && (
-        <ErrorMessage
-          context="The profile could not be loaded"
-          error={metadata.error}
-          onRetry={() => void metadata.refetch()}
-        />
+        <>
+          <ViewControls
+            counter={counter}
+            values={settings.values}
+            onValues={(values) => update({ values })}
+          />
+          <div className={styles.columns} style={{ '--columns': shown.length } as CSSProperties}>
+            {shown.map((side) => (
+              <ProfileColumn
+                key={side.id}
+                side={side}
+                functions={functions[side.id]}
+                counter={counter.shown}
+                values={settings.values}
+              />
+            ))}
+          </div>
+        </>
       )}
     </section>
   )

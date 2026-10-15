@@ -10,7 +10,7 @@ import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, run, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { mockCommits, mockMachines, mockRuns, mockSuites } from '../../test/page'
+import { gate, mockCommits, mockMachines, mockRuns, mockSuites } from '../../test/page'
 import { profilesPath } from '../../paths'
 import { server } from '../../test/server'
 
@@ -37,6 +37,32 @@ const RUNS: Record<string, [hex: string, tests: string[]][]> = {
 
 const MACHINES = ['m1', 'm2', 'm3']
 
+type Counters = Record<string, number>
+
+/**
+ * The functions of each test's profiles, with their counters, by name: under cycles, hot is alpha's
+ * hottest, and under instructions, warm is.
+ */
+const FUNCTIONS: Record<string, Record<string, Counters>> = {
+  alpha: {
+    hot: { cycles: 60, instructions: 20 },
+    main: { cycles: 10, instructions: 30 },
+    warm: { cycles: 30, instructions: 150 },
+  },
+  beta: {
+    cool: { cycles: 40, instructions: 100 },
+    hot: { cycles: 50, instructions: 50 },
+    main: { cycles: 10, instructions: 50 },
+  },
+  gamma: {
+    cold: { cycles: 5, instructions: 5 },
+    main: { cycles: 95, instructions: 195 },
+  },
+}
+
+/** The top-level counters of every profile, unless the world says otherwise. */
+const COUNTERS: Counters = { cycles: 100, instructions: 200 }
+
 /** The UUID of the profile of `test` in the run `hex`. */
 export function profileUuid(hex: string, test: string): string {
   return uuidOf(`${hex}${TESTS[test]}`)
@@ -53,20 +79,37 @@ interface World {
   profilesAnswer?: Answer<string>
   /** How `GET profiles/{uuid}` answers a profile, by its UUID. */
   metadataAnswer?: Answer<string>
+  /** How `GET profiles/{uuid}/functions` answers a profile, by its UUID. */
+  functionsAnswer?: Answer<string>
+  /** How `GET profiles/{uuid}/disassembly` answers a function, by `uuid/name`. */
+  disassemblyAnswer?: Answer<string>
+  /** The top-level counters of profiles, by UUID, where not those of every profile. */
+  counters?: Record<string, Counters>
+  /** The functions of profiles, by UUID, where not those of their test's. */
+  functions?: Record<string, Record<string, Counters>>
 }
 
 /**
  * Mock the API for the Profiles page: the suites, and the world described in each of them. Returns
- * what was asked for: the queries of `GET commits`, and the UUIDs of the profiles whose metadata
- * was asked for, in order.
+ * what was asked for, in order: the queries of `GET commits`, the UUIDs of the profiles whose
+ * metadata and functions were asked for, and the functions whose instructions were, by
+ * `uuid/name`.
  */
 export function mockWorld({
   suites = [SUITE, OTHER_SUITE],
   runsAnswer,
   profilesAnswer,
   metadataAnswer,
+  functionsAnswer,
+  disassemblyAnswer,
+  counters = {},
+  functions = {},
 }: World = {}) {
   const metadata: string[] = []
+  const listed: string[] = []
+  const disassembled: string[] = []
+  const testOf = (uuid: string) => Object.keys(TESTS).find((name) => TESTS[name] === uuid[1])!
+  const functionsOf = (uuid: string) => functions[uuid] ?? FUNCTIONS[testOf(uuid)] ?? {}
   mockSuites(suites)
   mockMachines(() => ({ items: MACHINES.map((name) => machine(name)) }))
   // The commits at which a machine has runs with profiles, as a commit picker lists or looks them
@@ -123,19 +166,61 @@ export function mockWorld({
       metadata.push(params.uuid)
       const answer = await metadataAnswer?.(params.uuid)
       if (answer !== undefined) return answer as never
-      const [hex, letter] = params.uuid
-      const test = Object.keys(TESTS).find((name) => TESTS[name] === letter)!
       const body: Schemas['ProfileMetadata'] = {
         uuid: params.uuid,
-        test,
-        run_uuid: uuidOf(hex),
-        counters: { cycles: 100, instructions: 200 },
+        test: testOf(params.uuid),
+        run_uuid: uuidOf(params.uuid[0]),
+        counters: counters[params.uuid] ?? COUNTERS,
         disassembly_format: 'llvm-objdump',
       }
       return HttpResponse.json(body)
     }),
+    mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}/functions', async ({ params }) => {
+      listed.push(params.uuid)
+      const answer = await functionsAnswer?.(params.uuid)
+      if (answer !== undefined) return answer as never
+      const items = Object.entries(functionsOf(params.uuid)).map(([name, fn]) => ({
+        name,
+        counters: fn,
+        length: 2,
+      }))
+      return HttpResponse.json({ items })
+    }),
+    mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}/disassembly', async ({ params, request }) => {
+      const name = new URL(request.url).searchParams.get('function')!
+      disassembled.push(`${params.uuid}/${name}`)
+      const answer = await disassemblyAnswer?.(`${params.uuid}/${name}`)
+      if (answer !== undefined) return answer as never
+      const fn = functionsOf(params.uuid)[name]
+      if (fn === undefined) return errorResponse(404, 'not_found', 'No such function') as never
+      // Two instructions, the first with three quarters of each counter.
+      const part = (share: number) =>
+        Object.fromEntries(Object.entries(fn).map(([counter, value]) => [counter, value * share]))
+      return HttpResponse.json({
+        name,
+        counters: fn,
+        disassembly_format: 'llvm-objdump',
+        instructions: [
+          { address: 0x1000, counters: part(0.75), text: `${name}: add` },
+          { address: 0x1004, counters: part(0.25), text: `${name}: ret` },
+        ],
+      })
+    }),
   )
-  return { commits, metadata }
+  return { commits, metadata, listed, disassembled }
+}
+
+/**
+ * An answer for `mockWorld` that holds back the requests `when` picks, until `open` is called, then
+ * answers them as the world does.
+ */
+export function heldBack<Key>(when: (key: Key) => boolean = () => true) {
+  const { promise, open } = gate()
+  const answer = async (key: Key) => {
+    if (when(key)) await promise
+    return undefined
+  }
+  return { answer, open }
 }
 
 /** A side showing `test` in the run `hex` of `machine` at `commit`, in libcxx. */

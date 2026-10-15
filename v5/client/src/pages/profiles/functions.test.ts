@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carriedFunction, functionShare, hottestFirst } from './functions'
+import { functionChoice, functionShare, hottestFirst } from './functions'
 
 const fn = (name: string, counters: Record<string, number>) => ({ name, counters, length: 1 })
 
@@ -52,33 +52,51 @@ describe('hottestFirst', () => {
   })
 })
 
-describe('carriedFunction', () => {
-  const next = { test: 't1', functions: new Set(['main', 'helper']) }
+describe('functionChoice', () => {
+  const functions = [fn('main', { cycles: 1 }), fn('hot', { cycles: 9 }), fn('warm', { cycles: 5 })]
+  const base = { test: 't1', functions, hottest: 'hot', carry: null, url: '', other: null }
 
-  it('keeps its function across profiles of the same test that have it', () => {
-    expect(carriedFunction(next, { test: 't1', name: 'helper' }, undefined)).toBe('helper')
-    expect(
-      carriedFunction(next, { test: 't1', name: 'helper' }, { test: 't1', name: 'main' }),
-    ).toBe('helper')
+  it('has none for a profile that lists none', () => {
+    expect(functionChoice({ ...base, functions: [] })).toEqual({ name: null })
   })
 
-  it("takes the other side's function, of the same test, when it cannot keep its own", () => {
-    expect(carriedFunction(next, { test: 't1', name: 'gone' }, { test: 't1', name: 'main' })).toBe(
-      'main',
-    )
-    // A function of another test is not kept, even if the new profile has one of that name.
-    expect(
-      carriedFunction(next, { test: 't0', name: 'helper' }, { test: 't1', name: 'main' }),
-    ).toBe('main')
-    expect(carriedFunction(next, undefined, { test: 't1', name: 'main' })).toBe('main')
+  it('takes the function the URL names if the profile has it, and the hottest otherwise', () => {
+    expect(functionChoice({ ...base, url: 'warm' })).toEqual({ name: 'warm' })
+    expect(functionChoice({ ...base, url: 'gone' })).toEqual({ name: 'hot' })
+    expect(functionChoice(base)).toEqual({ name: 'hot' })
   })
 
-  it('leaves the side to its hottest function otherwise', () => {
-    expect(carriedFunction(next, { test: 't0', name: 'main' }, undefined)).toBeNull()
-    expect(carriedFunction(next, undefined, { test: 't0', name: 'main' })).toBeNull()
-    expect(carriedFunction(next, { test: 't1', name: 'gone' }, { test: 't1', name: 'gone' })).toBe(
-      null,
-    )
-    expect(carriedFunction(next, undefined, undefined)).toBeNull()
+  it('waits for the hottest to be known, when it needs it', () => {
+    expect(functionChoice({ ...base, hottest: undefined })).toBeUndefined()
+    expect(functionChoice({ ...base, hottest: undefined, url: 'warm' })).toEqual({ name: 'warm' })
+  })
+
+  it('keeps its own function, of the same test, without asking the other side', () => {
+    const carry = { test: 't1', name: 'main' }
+    expect(functionChoice({ ...base, carry, other: undefined })).toEqual({ name: 'main' })
+  })
+
+  it("then takes the other side's, waiting for it, and the hottest otherwise", () => {
+    const other = { test: 't1', name: 'warm' }
+    for (const carry of [
+      { test: 't0', name: 'main' },
+      { test: 't1', name: 'gone' },
+      { test: 't1', name: null },
+    ]) {
+      expect(functionChoice({ ...base, carry, other: undefined })).toBeUndefined()
+      expect(functionChoice({ ...base, carry, other })).toEqual({ name: 'warm' })
+      expect(functionChoice({ ...base, carry, other: null })).toEqual({ name: 'hot' })
+    }
+    // The other side's function must be of the same test too.
+    const carry = { test: 't0', name: 'main' }
+    expect(functionChoice({ ...base, carry, other: { test: 't0', name: 'warm' } })).toEqual({
+      name: 'hot',
+    })
+    expect(functionChoice({ ...base, carry, other: null, hottest: undefined })).toBeUndefined()
+  })
+
+  it('ignores the URL while carrying', () => {
+    const carry = { test: 't0', name: 'main' }
+    expect(functionChoice({ ...base, carry, url: 'warm' })).toEqual({ name: 'hot' })
   })
 })

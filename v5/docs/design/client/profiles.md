@@ -142,8 +142,13 @@ The Counter dropdown offers every top-level counter of the profiles shown,
 sorted by name. It starts on the first counter that every profile shown has, or
 on the first one offered when they have none in common, and goes back to it
 when the profiles shown change so that none of them has the counter selected.
-It selects the counter shown everywhere below: in the function selectors and in
-the disassembly views. When the profiles shown have no counters at all, the
+These rules, and PF9's dropping of a counter, are applied only while some side
+shows a profile, and once every side's profile is known: none is still on its
+way, or could not be fetched. Meanwhile, a counter that the profiles loaded so
+far lack gives way to their default for the time being, and the counter
+selected stays while no side shows a profile, so that clearing a side's test,
+then picking another, keeps it. The Counter selects the counter shown
+everywhere below: in the function selectors and in the disassembly views. When the profiles shown have no counters at all, the
 Counter dropdown says so, functions are sorted by name, and the disassembly
 views have no value column. The Counter and the Values are shown once a side
 shows a profile.
@@ -165,7 +170,8 @@ Each side that shows a profile then has a **function selector**: a combobox
   the same test, the side keeps its function if the new profile has a function
   of that name. Otherwise, when both sides show profiles of the same test, it
   takes the other side's function if the new profile has it, and else its
-  hottest function.
+  hottest function. When the other side's profile is changing too, its
+  function is the one it showed before.
 - Changing the counter re-sorts the suggestions, but does not change the
   functions selected.
 
@@ -295,7 +301,7 @@ All selection state is encoded as query parameters for shareability:
 - `values`: `absolute` or `cumulative`
 
 As AR2 "State" describes, a function is left out of the URL when it is its
-side's hottest, and the counter and the Values when they are their defaults. A
+side's hottest under the counter shown, and the counter and the Values when they are their defaults. A
 selected run is always kept, however, although the latest run is selected by
 default: which run is the latest can change as runs are submitted, and a link
 to a profile must keep showing that profile.

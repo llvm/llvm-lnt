@@ -4,19 +4,22 @@
  */
 
 import type { Schemas } from '../../api/client'
+import type { ShownFunction } from './functions'
 
 type Run = Schemas['Run']
 
 /**
- * What a side showed when the user's picks began changing its profile: its test and its function,
- * each `''` for none. While a side has a carry, it may take the other side's test (PF2), and it
- * carries its function over (PF4). Without a carry, the page only checks what the URL names
- * (PF9). The carry is used up once the side's new profile is resolved, or once the side is left
- * without a profile.
+ * What a side showed when the user's picks began changing its profile: its test, `''` for none, and
+ * its function. While a side has one, its new test may be the other side's (PF2), and its new
+ * function is carried over (PF4), whereas what the URL names is only checked (PF9). It is used up
+ * once the side's new function is known, or the side is left without a profile.
  */
-export interface Carry {
-  test: string
-  function: string
+export type Carry = ShownFunction
+
+/** The function a side shows, `name`, null for none, and the UUID of the profile it belongs to. */
+export interface HeldFunction {
+  profile: string
+  name: string | null
 }
 
 /**

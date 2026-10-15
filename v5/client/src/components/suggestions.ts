@@ -59,6 +59,21 @@ export const NO_SUGGESTIONS: Suggestions = {
 }
 
 /**
+ * The texts each suggestion is found by, lowered, as they are worked out, so that a list sorted
+ * again, which holds the same suggestions, does not lower them all again.
+ */
+const loweredTexts = new WeakMap<Suggestion, string[]>()
+
+function lowered(item: Suggestion): string[] {
+  let texts = loweredTexts.get(item)
+  if (texts === undefined) {
+    texts = [item.text, ...(item.aliases ?? [])].map((t) => t.toLowerCase())
+    loweredTexts.set(item, texts)
+  }
+  return texts
+}
+
+/**
  * Suggestions from `all`, filtered by case-insensitive substring (AR9). Undefined while `all` is
  * still being loaded, or if loading it failed with `error`. Memoize `all`, as the suggestions are
  * filtered again when it changes.
@@ -72,19 +87,12 @@ export function useLocalSuggestions(
   error: Error | null = null,
 ): Suggestions {
   const [text, setText] = useState('')
-  const lowered = useMemo(
-    () =>
-      (all ?? []).map((item) => ({
-        item,
-        texts: [item.text, ...(item.aliases ?? [])].map((t) => t.toLowerCase()),
-      })),
-    [all],
-  )
+  const searched = useMemo(() => (all ?? []).map((item) => ({ item, texts: lowered(item) })), [all])
   const filtered = useDeferredValue(text)
   const items = useMemo(() => {
     const term = filtered.toLowerCase()
-    return lowered.filter(({ texts }) => texts.some((t) => t.includes(term))).map(({ item }) => item)
-  }, [lowered, filtered])
+    return searched.filter(({ texts }) => texts.some((t) => t.includes(term))).map(({ item }) => item)
+  }, [searched, filtered])
   return {
     items,
     isLoading: (all === undefined && error === null) || filtered !== text,

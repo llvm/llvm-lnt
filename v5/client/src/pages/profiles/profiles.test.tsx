@@ -8,7 +8,15 @@ import { server } from '../../test/server'
 import { profilesPath } from '../../paths'
 import { currentUrl, gate, main, query, renderPage, settle } from '../../test/page'
 import { pick, pickOption, selectButton } from '../../test/select'
-import { ALPHA, columnOf, mockWorld, profileUuid, sideAt, sideOf } from './profiles-world'
+import {
+  ALPHA,
+  columnOf,
+  heldBack,
+  mockWorld,
+  profileUuid,
+  sideAt,
+  sideOf,
+} from './profiles-world'
 
 /** The combobox labelled `label` of `side`. */
 function field(label: string, side: 'A' | 'B') {
@@ -174,13 +182,8 @@ describe('the Profiles page: side selection (PF2)', () => {
   })
 
   it("carries over through quick successive picks, taking the other side's test", async () => {
-    const slow = gate()
-    mockWorld({
-      runsAnswer: async (q) => {
-        if (q.get('machine') === 'm2') await slow.promise
-        return undefined
-      },
-    })
+    const slow = heldBack((q: URLSearchParams) => q.get('machine') === 'm2')
+    mockWorld({ runsAnswer: slow.answer })
     // Side A shows alpha in run 1, side B beta in run 3.
     renderPage(withB('m1', 'c2', '3', 'beta'))
     await waitFor(() => expect(field('Commit', 'A')).toHaveValue('c1'))
@@ -342,13 +345,8 @@ describe('the Profiles page: URL state (PF9)', () => {
   })
 
   it('sends the requests a URL calls for at once, before checking its values (PF8)', async () => {
-    const runs = gate()
-    const { metadata } = mockWorld({
-      runsAnswer: async () => {
-        await runs.promise
-        return undefined
-      },
-    })
+    const runs = heldBack()
+    const { metadata } = mockWorld({ runsAnswer: runs.answer })
     renderPage(ALPHA)
 
     await waitFor(() => expect(metadata).toEqual([profileUuid('1', 'alpha')]))
@@ -359,13 +357,8 @@ describe('the Profiles page: URL state (PF9)', () => {
   })
 
   it('starts afresh when the page is visited again, forgetting a pick under way', async () => {
-    const slow = gate()
-    mockWorld({
-      runsAnswer: async (q) => {
-        if (q.get('commit') === 'c2') await slow.promise
-        return undefined
-      },
-    })
+    const slow = heldBack((q: URLSearchParams) => q.get('commit') === 'c2')
+    mockWorld({ runsAnswer: slow.answer })
     // Side A shows alpha in run 1, side B gamma in run 2.
     renderPage(withB('m1', 'c1', '2', 'gamma'))
     await waitFor(() => expect(field('Commit', 'A')).toHaveValue('c1'))
@@ -397,13 +390,8 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
   })
 
   it("keeps a side's column while its profile changes", async () => {
-    const slow = gate()
-    mockWorld({
-      runsAnswer: async (q) => {
-        if (q.get('machine') === 'm2') await slow.promise
-        return undefined
-      },
-    })
+    const slow = heldBack((q: URLSearchParams) => q.get('machine') === 'm2')
+    mockWorld({ runsAnswer: slow.answer })
     renderPage(ALPHA)
     await waitFor(() => expect(columnOf('A')).not.toHaveTextContent('Loading'))
 
@@ -518,6 +506,8 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
     ).toBeInTheDocument()
     fail = false
     await userEvent.setup().click(within(columnOf('A')!).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(columnOf('A')).toBeEmptyDOMElement())
+    expect(
+      await within(columnOf('A')!).findByRole('combobox', { name: 'Function' }),
+    ).toHaveValue('hot')
   })
 })

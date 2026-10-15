@@ -20,14 +20,20 @@ export async function pickOption(label: string, option: string, container?: HTML
 }
 
 /**
- * Pick `name` in the combobox labelled `label`. It types `name` over the input's text without
- * emptying the input first, since an empty input would clear the combobox's value (AR14).
+ * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
+ * never emptied meanwhile: that would clear the combobox's value (AR14). The suggestion is found by
+ * `option`, its accessible name: `name` unless it shows more, such as a badge.
  */
-export async function pick(label: string, name: string, container: HTMLElement = document.body) {
+export async function pick(
+  label: string,
+  name: string,
+  container: HTMLElement = document.body,
+  option: string | RegExp = name,
+) {
   const user = userEvent.setup()
   const input = await within(container).findByRole('combobox', { name: label })
   await waitFor(() => expect(input).toBeEnabled())
   await user.tripleClick(input)
   await user.keyboard(name)
-  await user.click(await screen.findByRole('option', { name }))
+  await user.click(await screen.findByRole('option', { name: option }))
 }

@@ -93,6 +93,42 @@ test("starts side B on side A's test, and keeps it on another machine", async ({
   await expect(columnOf(page, 'B')).not.toContainText('Loading')
 })
 
+test("shows the hottest function's instructions, as the counter and the Values say", async ({
+  page,
+  request,
+}) => {
+  const commit = await newestProfiled(request, MACOS)
+  const run = await profiledRun(request, MACOS, commit.value)
+  const query = new URLSearchParams({
+    suite_a: 'libcxx',
+    machine_a: MACOS,
+    commit_a: commit.value,
+    run_a: run,
+    test_a: PROFILED_TEST,
+  })
+  await page.goto(`/profiles?${query}`)
+
+  // The seed's hottest function of the test, with its share of the profile's branch misses: the
+  // counter offered first that both have.
+  const hottest = 'std::__1::__stable_sort<_ClassicAlgPolicy, __less<>&, int*>(int*, int*, long)'
+  const column = columnOf(page, 'A')
+  await expect(column.getByRole('combobox', { name: 'Function' })).toHaveValue(hottest)
+  await expect(column.getByTitle("Share of the profile's branch-misses")).toHaveText('45%')
+  const instructions = column.getByRole('table', { name: `Instructions of ${hottest}` })
+  // An aarch64 function's prologue, whose instructions have no share worth showing.
+  await expect(instructions.locator('tbody tr[aria-rowindex]').first()).toContainText('stp    x29, x30, [sp, #-16]!')
+  await expect(instructions.getByRole('columnheader', { name: 'branch-misses' })).toBeVisible()
+
+  await pickOption(page, 'Counter', 'cycles')
+  await expect(instructions.getByRole('columnheader', { name: 'cycles' })).toBeVisible()
+  await expect(page).toHaveURL(/[?&]counter=cycles(&|$)/)
+  await expect(column.getByRole('combobox', { name: 'Function' })).toHaveValue(hottest)
+
+  await pickOption(page, 'Values', 'Cumulative %')
+  await expect(page).toHaveURL(/[?&]values=cumulative(&|$)/)
+  await expect(instructions.locator('tbody tr[aria-rowindex]').last()).toContainText('100%')
+})
+
 test('says when a machine has no profiles', async ({ page }) => {
   await page.goto(`/profiles?suite_a=libcxx&machine_a=${HARDENED}`)
 

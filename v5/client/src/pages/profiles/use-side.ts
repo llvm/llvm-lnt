@@ -20,7 +20,14 @@ import {
   type SideId,
   type SideSettings,
 } from './settings'
-import { runChoice, sideStatus, testChoice, type Carry, type SideStatus } from './selection'
+import {
+  runChoice,
+  sideStatus,
+  testChoice,
+  type Carry,
+  type HeldFunction,
+  type SideStatus,
+} from './selection'
 
 type Run = Schemas['Run']
 
@@ -43,8 +50,17 @@ export interface ProfileSide {
   /** The metadata of the profile of the test in the run, once the test is known. */
   metadata: UseQueryResult<Schemas['ProfileMetadata']>
   status: SideStatus
+  /** The UUID of the profile of the test in the run the URL names, once its profiles are listed. */
+  uuid: string | undefined
   /** What the side showed when the user's picks began changing its profile (see `Carry`). */
   carry: Carry | null
+  /**
+   * The function the side shows, null for none, once known for the profile shown: held by its
+   * name, never as a stand-in for the hottest function (see `ShownFunction`).
+   */
+  heldFunction: string | null | undefined
+  /** The side's function is now known: hold it, and use the carry up. */
+  settleFunction(held: HeldFunction): void
   pickSuite(suite: string): void
   pickMachine(machine: string | null): void
   pickCommit(commit: string | null): void
@@ -71,6 +87,7 @@ export function useProfileSide(
   const { suite, machine, commit, run, test } = settings
   const otherTest = sideSettings(all, id === 'a' ? 'b' : 'a').test
   const [carry, setCarry] = useState<Carry | null>(null)
+  const [held, setHeld] = useState<HeldFunction | null>(null)
 
   // What the page drops, as unusable (AR2 "State").
   const drop = useCallback(
@@ -139,15 +156,23 @@ export function useProfileSide(
 
   const status = sideStatus({ test, run, runPick, runsFailed, profiles, testPick, uuid, metadata })
 
-  // The carry is used up once the side's new profile is resolved, or it is left without one.
-  if (carry !== null && (status.kind === 'shown' || runPick === '' || testPick === '')) {
-    setCarry(null)
-  }
+  // The carry is used up once the side is left without a profile. One that shows a profile uses it
+  // up once its function is known (see `useFunctions`).
+  if (carry !== null && (runPick === '' || testPick === '')) setCarry(null)
 
-  // A pick that changes the side's profile carries over what the side showed. It also removes the
-  // function from the URL, along with the test it belonged to.
+  const heldFunction =
+    status.kind === 'shown' && held?.profile === status.uuid ? held.name : undefined
+  const settleFunction = useCallback((next: HeldFunction) => {
+    setHeld(next)
+    setCarry(null)
+  }, [setHeld, setCarry])
+
+  // A pick that changes the side's profile carries over what the side showed: its function, or the
+  // URL's until it is known, which the new profile is checked for anyway. The function goes from
+  // the URL with the test it belonged to.
   const change = (changes: Partial<SideSettings>) => {
-    setCarry(carry ?? { test, function: settings.function })
+    const name = heldFunction !== undefined ? heldFunction : settings.function || null
+    setCarry(carry ?? { test, name })
     update(sideChanges(id, { ...changes, function: '' }))
   }
   // A pick that clears what the side showed carries nothing over.
@@ -168,7 +193,10 @@ export function useProfileSide(
     tests,
     metadata,
     status,
+    uuid,
     carry,
+    heldFunction,
+    settleFunction,
     pickSuite: (name) => clear({ suite: name, ...CLEARED_WITH.suite }),
     pickMachine: (name) =>
       // The new machine keeps the commit if it has profiles there, which the commit picker checks.
