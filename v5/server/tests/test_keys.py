@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterator
+import logging
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import pytest
-from sqlalchemy import Connection, func, select
+from sqlalchemy import Connection, Engine, create_engine, func, select
 
-from conftest import TOKEN_PATTERN
+from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from lnt_v5 import keys
 from lnt_v5.keys import CreatedKey, create_key
 from lnt_v5.scopes import Scope
@@ -120,6 +122,26 @@ class TestCreateKey:
         create_key(db, "bot", Scope.READ)
 
         assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 2
+
+
+class TestLastUseRecorder:
+    def test_drops_a_failed_write_and_retries_it_on_the_next_use(
+        self,
+        db_engine: Engine,
+        make_key: Callable[..., str],
+        read_key: Callable[[str], Any],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        prefix = make_key()[:8]
+        key_id = read_key(prefix).id
+        recorder = keys.LastUseRecorder()
+
+        with caplog.at_level(logging.WARNING, logger=keys.__name__):
+            recorder.record(create_engine(UNREACHABLE_URL), key_id)
+
+        assert f"Could not record last use of API key {key_id}" in caplog.text
+        recorder.record(db_engine, key_id)
+        assert read_key(prefix).last_used_at is not None
 
 
 class TestScopeHierarchy:

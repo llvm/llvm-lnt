@@ -22,10 +22,13 @@ import pytest
 from fastapi import FastAPI, Query
 from fastapi._compat import field_annotation_is_sequence
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, update
 
+from lnt_v5 import keys
 from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.querying import _takes_several
 from lnt_v5.scopes import Scope
+from lnt_v5.tables import api_key
 
 # A read-scoped endpoint and an admin-scoped one.
 READABLE = "/api"
@@ -326,6 +329,40 @@ class TestLastUsed:
         token = make_key(Scope.READ)
 
         assert api_client.get(ADMIN_ONLY, headers=bearer(token)).status_code == 403
+
+        assert read_key(token[:8]).last_used_at is not None
+
+    def test_is_recorded_at_most_once_per_interval_for_each_key(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        make_key: Callable[..., str],
+        read_key: Callable[[str], Any],
+        bearer: Callable[[str], dict[str, str]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """D5 lets these writes be coalesced, which spares every request sharing a key a write."""
+        # From 0, as `monotonic()` may be in a freshly booted container: a first use still writes.
+        now = 0.0
+        monkeypatch.setattr(keys, "monotonic", lambda: now)
+        token = make_key(Scope.ADMIN)
+        other = make_key(Scope.READ, name="other")
+        api_client.get(READABLE, headers=bearer(token))
+
+        # Cleared behind the server's back, so that only a new write can fill it in again.
+        with db_engine.begin() as connection:
+            connection.execute(
+                update(api_key).where(api_key.c.prefix == token[:8]).values(last_used_at=None)
+            )
+        now += keys.LAST_USED_INTERVAL - 1
+        api_client.get(READABLE, headers=bearer(token))
+        api_client.get(READABLE, headers=bearer(other))
+
+        assert read_key(token[:8]).last_used_at is None
+        assert read_key(other[:8]).last_used_at is not None
+
+        now += 1
+        api_client.get(READABLE, headers=bearer(token))
 
         assert read_key(token[:8]).last_used_at is not None
 

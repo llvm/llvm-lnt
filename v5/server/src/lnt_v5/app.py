@@ -15,6 +15,7 @@ from .caching import CachingFastAPI
 from .config import Settings, get_settings
 from .db import make_engine
 from .errors import register_error_handlers
+from .keys import LastUseRecorder
 from .openapi import OVERVIEW, SWAGGER_UI_PARAMETERS, TAGS, operation_id, refine_document
 from .routes.admin import router as admin_router
 from .routes.auth import router as auth_router
@@ -113,6 +114,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # than in the lifespan because it needs no database and nothing to dispose: it loads lazily, on
     # the first request that reads it.
     app.state.suites = SuiteRegistry()
+    # When this worker last recorded each key's use (D5), built here for the same reason.
+    app.state.last_use = LastUseRecorder()
 
     register_error_handlers(app)
     refine_document(app)

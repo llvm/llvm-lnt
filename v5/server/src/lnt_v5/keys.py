@@ -13,6 +13,7 @@ import re
 import secrets
 from dataclasses import dataclass, fields
 from datetime import datetime
+from time import monotonic
 from typing import Any
 
 from sqlalchemy import Connection, Engine, Row, func, insert, select, update
@@ -42,6 +43,9 @@ _MAX_ATTEMPTS = 8
 # against what Postgres reports by `test_tables.py`, so a change to the convention fails there
 # rather than silently turning the retry below into a re-raise.
 PREFIX_CONSTRAINT = "uq_api_key_prefix"
+
+# How long, in seconds, a worker waits before recording a key's use again (see `LastUseRecorder`).
+LAST_USED_INTERVAL = 60.0
 
 
 @dataclass(frozen=True)
@@ -161,26 +165,50 @@ def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
     return ResolvedKey(id=row.id, **_shown(row))
 
 
-def touch_last_used(engine: Engine, key_id: int) -> None:
-    """Record that a key was just used (D5), on a transaction of its own.
+class LastUseRecorder:
+    """When this worker last recorded each key's use, so it can skip recording it again (D5).
 
-    Takes an Engine rather than a Connection on purpose. D5 forbids this write from joining the
-    request's transaction: a key may be shared by many submitting bots, and an in-transaction
-    update would serialize every one of their requests behind a row lock held for the length of
-    each request. On its own short transaction the lock lasts microseconds.
-
-    D5 also says no request's outcome may depend on this write, so a failure is logged and
-    dropped. That is the reason it is not folded into `resolve_token` as a single
-    `UPDATE ... RETURNING`, tempting though one round trip is: a failed write would then fail
-    authentication.
+    One per app rather than one per module, like the suite registry: a key id is only unique within
+    one database, and the tests reuse ids across the databases they empty between tests.
     """
-    try:
-        with engine.begin() as connection:
-            connection.execute(
-                update(api_key).where(api_key.c.id == key_id).values(last_used_at=func.now())
-            )
-    except SQLAlchemyError:
-        logger.warning("Could not record last use of API key %d", key_id, exc_info=True)
+
+    def __init__(self) -> None:
+        # Key id -> `monotonic()` at the last write that succeeded.
+        self._recorded: dict[int, float] = {}
+
+    def record(self, engine: Engine, key_id: int) -> None:
+        """Record that a key was just used, unless this worker did so less than an interval ago.
+
+        Takes an Engine rather than a Connection on purpose. D5 forbids this write from joining the
+        request's transaction: a key may be shared by many submitting bots, and an in-transaction
+        update would serialize every one of their requests behind a row lock held for the length
+        of each request.
+
+        A transaction of its own is not enough, though: every request sharing the key would still
+        queue on that one row and pay for a commit before doing any work. D5 lets these writes be
+        coalesced, so a worker records each key at most once per `LAST_USED_INTERVAL`. Threads
+        racing past the check cost a redundant, harmless write, so there is no lock.
+
+        D5 also says no request's outcome may depend on this write, so a failure is logged and
+        dropped. It is not remembered, so the next request retries it. That is also the reason it
+        is not folded into `resolve_token` as a single `UPDATE ... RETURNING`, tempting though one
+        round trip is: a failed write would then fail authentication.
+        """
+        now = monotonic()
+        # Membership rather than a default of 0: `monotonic()` has an arbitrary origin, so in a
+        # freshly booted container 0 could itself be less than an interval ago.
+        last = self._recorded.get(key_id)
+        if last is not None and now - last < LAST_USED_INTERVAL:
+            return
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    update(api_key).where(api_key.c.id == key_id).values(last_used_at=func.now())
+                )
+        except SQLAlchemyError:
+            logger.warning("Could not record last use of API key %d", key_id, exc_info=True)
+            return
+        self._recorded[key_id] = now
 
 
 def list_keys(connection: Connection) -> list[ApiKeyInfo]:
