@@ -6,9 +6,9 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, LINUX, PROFILED_TEST } from '../tools/synthetic.ts'
-import { expect, json, test } from './fixtures.ts'
+import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
-import { pickOption } from './select.ts'
+import { pickOption, pickSuggestion } from './select.ts'
 import { plotOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -111,13 +111,9 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
   ] as const) {
     const controls = sideOf(page, side)
     await pickOption(controls, 'Suite', 'libcxx')
-    const machine = controls.getByRole('combobox', { name: 'Machine' })
-    await machine.fill(LINUX)
-    await page.getByRole('option', { name: LINUX, exact: true }).click()
+    await pickSuggestion(controls, 'Machine', LINUX)
     // The commit is searched by its commit string, and suggested by its display value.
-    await controls.getByRole('combobox', { name: 'Commit' }).fill(commit.value)
-    const display = String(commit.fields.svn_revision)
-    await page.getByRole('option', { name: display, exact: true }).click()
+    await pickSuggestion(controls, 'Commit', commit.value, String(commit.fields.svn_revision))
   }
   await pickOption(page, 'Metric', 'Execution Time')
 
@@ -127,12 +123,8 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
 
 test('links a test to its profile on both sides', async ({ page, request }) => {
   const [, newest] = await newestCommits(request)
-  // The run of LINUX at `commit` that has profiles: there is one at each of these commits.
-  const profiledRun = async (commit: string) => {
-    const path = `/api/suites/libcxx/runs?machine=${LINUX}&commit=${commit}&has_profiles=true`
-    return (await json<Schemas['RunCursorPage']>(request, path)).items[0].uuid
-  }
-  const [runA, runB] = [await profiledRun(newest.value), await profiledRun(EXPERIMENT)]
+  const runA = await profiledRun(request, LINUX, newest.value)
+  const runB = await profiledRun(request, LINUX, EXPERIMENT)
   const query = new URLSearchParams({
     suite_a: 'libcxx',
     machine_a: LINUX,

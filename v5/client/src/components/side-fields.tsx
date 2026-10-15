@@ -33,6 +33,8 @@ interface Props {
    * as long as the filters stay the same.
    */
   commitFilters?: Omit<CommitFilters, 'machine'>
+  /** What the commit picker says when the machine has no commit to offer (see `Combobox`). */
+  noCommitsMessage?: string
   /** A suite was picked. */
   onSuite(suite: string): void
   /**
@@ -55,6 +57,7 @@ export function SideFields({
   machine,
   commit,
   commitFilters = NO_FILTERS,
+  noCommitsMessage,
   onSuite,
   onMachine,
   onCommit,
@@ -101,6 +104,7 @@ export function SideFields({
           value={commit === '' ? null : commit}
           onChange={onCommit}
           placeholder="Select a commit"
+          emptyMessage={noCommitsMessage}
           reportsLookupFailure={machineFailuresReportable(machines, machine)}
         />
       )}

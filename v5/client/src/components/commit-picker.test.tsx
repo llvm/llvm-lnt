@@ -34,6 +34,7 @@ function renderPicker({
   initial = null as string | null,
   filters = undefined as CommitFilters | undefined,
   reportsLookupFailure = true,
+  emptyMessage = undefined as string | undefined,
 } = {}) {
   const onChange = vi.fn()
   function Harness({ filters, given }: HarnessProps) {
@@ -51,6 +52,7 @@ function renderPicker({
           filters={filters}
           value={value}
           reportsLookupFailure={reportsLookupFailure}
+          emptyMessage={emptyMessage}
           onChange={(next) => {
             onChange(next)
             setValue(next)
@@ -93,6 +95,7 @@ async function openList(user: ReturnType<typeof userEvent.setup>) {
 const ON_MACHINE: Record<string, Commit[]> = {
   linux: [TAGGED, PLAIN, OTHER, OLD],
   darwin: [TAGGED],
+  idle: [],
 }
 
 /**
@@ -158,6 +161,18 @@ describe('CommitPicker', () => {
 
     await waitFor(() => expect(options()).toEqual(['r100 (v1)', 'abc456', 'r200', 'r1']))
     expect(queries.map((query) => query.get('cursor'))).toEqual([null, 'p2'])
+  })
+
+  it('says when it has no commit at all to offer, if asked to', async () => {
+    serveCommits()
+    const user = userEvent.setup()
+    const { input } = renderPicker({ filters: { machine: 'idle' }, emptyMessage: 'Nothing here' })
+
+    await waitFor(() => expect(input).toHaveAttribute('placeholder', 'Nothing here'))
+    await openList(user)
+    expect(await screen.findByText('Nothing here.')).toBeInTheDocument()
+    await user.type(input, 'abc')
+    expect(await screen.findByText('No matches.')).toBeInTheDocument()
   })
 
   it('passes its filters on to the commit list', async () => {

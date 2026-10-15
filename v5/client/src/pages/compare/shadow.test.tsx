@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { uuidOf } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
-import { pickOption } from '../../test/select'
-import { barsOf, chart, COMPARED, comparison, mockWorld, pick, runBox, sideOf } from './compare-world'
+import { pick, pickOption } from '../../test/select'
+import { barsOf, chart, COMPARED, comparison, mockWorld, runBox, sideOf } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))

@@ -1,7 +1,8 @@
-/** Driving the `Select` component (components/select.tsx) in tests. */
+/** Helpers that drive the `Select` and `Combobox` components (see components/) in tests. */
 
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { expect } from 'vitest'
 
 /**
  * The button of the `Select` labelled `label`, inside `container`. It shows the select's value, and
@@ -16,4 +17,17 @@ export async function pickOption(label: string, option: string, container?: HTML
   const user = userEvent.setup()
   await user.click(selectButton(label, container))
   await user.click(await screen.findByRole('option', { name: option }))
+}
+
+/**
+ * Pick `name` in the combobox labelled `label`. It types `name` over the input's text without
+ * emptying the input first, since an empty input would clear the combobox's value (AR14).
+ */
+export async function pick(label: string, name: string, container: HTMLElement = document.body) {
+  const user = userEvent.setup()
+  const input = await within(container).findByRole('combobox', { name: label })
+  await waitFor(() => expect(input).toBeEnabled())
+  await user.tripleClick(input)
+  await user.keyboard(name)
+  await user.click(await screen.findByRole('option', { name }))
 }
