@@ -113,21 +113,29 @@ class TestWhatIsStored:
         assert main.counters == {"cycles": 4.0, "misses": 2.0}
         assert main.length == 2
 
-    def test_a_function_may_carry_fewer_counters_than_the_profile(self) -> None:
-        profile = stored(
-            document(
-                {"name": "f", "instructions": [instruction(cycles=1)]},
-                counters={"cycles": 10, "misses": 10},
-            )
+    def test_a_counter_an_instruction_leaves_out_is_read_back_as_0(self) -> None:
+        listed = [
+            instruction(0, cycles=1),
+            instruction(4, misses=2),
+            # Not `instruction`, which gives an instruction without counters one.
+            {"address": 8, "counters": {}, "text": "nop"},
+        ]
+        value = document(
+            {"name": "f", "instructions": listed}, counters={"cycles": 10, "misses": 10}
         )
 
-        assert function(profile, "f").counters == {"cycles": 1.0}
+        assert [instruction["counters"] for instruction in read_back(value, "f")] == [
+            {"cycles": 1.0, "misses": 0.0},
+            {"cycles": 0.0, "misses": 2.0},
+            {"cycles": 0.0, "misses": 0.0},
+        ]
+        assert function(stored(value), "f").counters == {"cycles": 1.0, "misses": 2.0}
 
-    def test_a_function_with_no_instructions_has_no_counters(self) -> None:
+    def test_a_function_with_no_instructions_has_every_counter_at_0(self) -> None:
         value = document({"name": "empty", "instructions": []})
         empty = function(stored(value), "empty")
 
-        assert (empty.counters, empty.length) == ({}, 0)
+        assert (empty.counters, empty.length) == ({"cycles": 0.0}, 0)
         assert read_back(value, "empty") == []
 
     def test_a_profile_may_list_no_functions(self) -> None:
@@ -145,12 +153,12 @@ class TestWhatIsStored:
 
         assert read_back(value, "f")[0]["counters"] == {"cycles": 123456789.1}
 
-    def test_instructions_may_carry_no_counters(self) -> None:
+    def test_a_profile_may_have_no_counters(self) -> None:
         listed = [
             {"address": 0, "counters": {}, "text": "nop"},
             {"address": 4, "counters": {}, "text": "ret"},
         ]
-        value = document({"name": "f", "instructions": listed})
+        value = document({"name": "f", "instructions": listed}, counters={})
 
         assert read_back(value, "f") == listed
         assert function(stored(value), "f").counters == {}
@@ -199,6 +207,27 @@ class TestReadBackWhole:
         profile = stored(document(counters={"cycles": 8.0}))
 
         assert stored(bytes(self.served(profile))) == profile
+
+    def test_leaves_out_the_counts_that_are_0(self) -> None:
+        # Whether the document left a counter out or gave it as 0, it is read back left out.
+        listed = [
+            instruction(cycles=1, misses=0),
+            instruction(4, misses=2),
+            instruction(8, cycles=0),
+        ]
+        value = document(
+            {"name": "f", "instructions": listed}, counters={"cycles": 10, "misses": 10}
+        )
+
+        served = json.loads(self.served(stored(value)))
+
+        assert [
+            instruction["counters"] for instruction in served["functions"][0]["instructions"]
+        ] == [
+            {"cycles": 1.0},
+            {"misses": 2.0},
+            {},
+        ]
 
 
 class TestEncoding:
@@ -384,17 +413,13 @@ class TestDocument:
 
         assert "two functions have the same name" in refused(document(twice, twice))
 
-    def test_refuses_instructions_carrying_different_counters(self) -> None:
-        mixed = document(
+    def test_refuses_an_instruction_counter_the_top_level_does_not_carry(self) -> None:
+        # On any instruction, not only the first.
+        stray = document(
             {"name": "f", "instructions": [instruction(cycles=1), instruction(misses=1)]}
         )
 
-        assert "every instruction of a function carries the same counters" in refused(mixed)
-
-    def test_refuses_an_instruction_counter_the_top_level_does_not_carry(self) -> None:
-        stray = document({"name": "f", "instructions": [instruction(misses=1)]})
-
-        assert "not top-level counters" in refused(stray)
+        assert "function 'f', instruction 1: the counters ['misses']" in refused(stray)
 
     def test_refuses_a_profile_of_too_many_functions(self) -> None:
         many = document(

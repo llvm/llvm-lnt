@@ -315,12 +315,12 @@ class TestFunctionList:
 
         assert functions["Zebra"] == {"cycles": 100.0, "branch-misses": 5.0}
 
-    def test_a_function_carries_only_the_counters_it_was_measured_with(
-        self, listed: dict[str, Any]
-    ) -> None:
+    def test_a_function_has_every_counter_of_the_profile(self, listed: dict[str, Any]) -> None:
+        # O7: a counter the instructions leave out counts as 0, as it does for one with none.
         functions = {item["name"]: item["counters"] for item in listed["items"]}
 
-        assert functions["tie_a"] == {"cycles": 10.0}
+        assert functions["tie_a"] == {"cycles": 10.0, "branch-misses": 0.0}
+        assert functions["cold"] == {"cycles": 0.0, "branch-misses": 0.0}
 
     def test_the_length_is_the_instruction_count(self, listed: dict[str, Any]) -> None:
         lengths = {item["name"]: item["length"] for item in listed["items"]}
@@ -365,6 +365,16 @@ class TestDisassembly:
 
     def test_an_address_is_an_integer(self, main: dict[str, Any]) -> None:
         assert all(isinstance(one["address"], int) for one in main["instructions"])
+
+    def test_serves_every_counter_of_the_profile_for_every_instruction(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        # `tie_a`'s instruction was submitted without `branch-misses`, which counts as 0 (O7).
+        response = api_client.get(disassembly(stored()), params={"function": "tie_a"})
+
+        assert response.json()["instructions"] == [
+            {"address": 0x4000, "counters": {"cycles": 10.0, "branch-misses": 0.0}, "text": "ret"}
+        ]
 
     def test_serves_instructions_exactly_as_submitted(
         self, api_client: TestClient, stored: Callable[..., str]

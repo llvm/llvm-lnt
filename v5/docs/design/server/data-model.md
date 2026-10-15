@@ -657,8 +657,9 @@ The database layer validates state values on create and update.
 - One row per function of a profile, so that a profile's functions can be
   listed without their instructions, and one function's instructions read
   without any other's.
-- `counters` holds the function's counters, each the sum over its instructions
-  (see O7), and `length` its number of instructions.
+- `counters` holds the function's counters, one for each top-level counter of
+  its profile, each the sum over its instructions (see O7), and `length` its
+  number of instructions.
 - `instructions` holds the function's instructions, in an encoding the
   implementation chooses; nothing outside the server reads it. It must be
   excluded from the default result set when querying this table, and may only

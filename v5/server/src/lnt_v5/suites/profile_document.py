@@ -8,8 +8,8 @@ store (D5), with each function's instructions compressed in a layout of its own 
 The document is parsed with msgspec rather than pydantic, which reads every other request body: a
 profile carries hundreds of thousands of instructions, and pydantic's models take about three times
 the memory and several times as long to build. What msgspec's declarative constraints cannot express
-is checked by hand, from a hook per function rather than per instruction, which would give back
-much of that.
+is checked by hand, by the profile's hook in one pass over every instruction, since a hook per
+instruction would give back much of that.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def _integer(value: int | float, what: str) -> int:
 class InstructionDocument(Struct, forbid_unknown_fields=True, gc=False):
     """One instruction: where it is, what was counted there, and its disassembled text.
 
-    Checked by its function's hook, not one of its own.
+    Checked by its profile's hook, not one of its own.
     """
 
     address: Integer
@@ -107,32 +107,12 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
     instructions: Annotated[list[InstructionDocument], Meta(max_length=MAX_INSTRUCTIONS)]
 
     def __post_init__(self) -> None:
-        """Every rule over the function's instructions, in one pass.
-
-        Also replaces each address with the integer it stands for, which is what is stored.
-        """
         _no_nul(self.name, "a function name")
         if len(self.name.encode()) > MAX_FUNCTION_NAME_BYTES:
             raise ValueError(
                 f"the function name '{self.name[:50]}...' is longer than "
                 f"{MAX_FUNCTION_NAME_BYTES} bytes in UTF-8"
             )
-        if not self.instructions:
-            return
-        expected = self.instructions[0].counters.keys()
-        for position, instruction in enumerate(self.instructions):
-            # The position is only spelled out for a refusal: this runs once per instruction.
-            try:
-                _no_nul(instruction.text, "its text")
-                instruction.address = _integer(instruction.address, "its address")
-            except ValueError as error:
-                raise ValueError(f"instruction {position}: {error}") from None
-            if instruction.counters.keys() != expected:
-                raise ValueError(
-                    f"instruction {position} carries the counters "
-                    f"{sorted(instruction.counters)} where the first one carries "
-                    f"{sorted(expected)}; every instruction of a function carries the same counters"
-                )
 
 
 class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
@@ -152,18 +132,27 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
             self.counters[counter] = _integer(value, f"the top-level counter '{counter}'")
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("two functions have the same name")
-        # The client shows a function's counters as shares of the top-level ones (PF4). The first
-        # instruction speaks for its function, whose hook has checked that every instruction
-        # carries the same counters.
+        top_level = self.counters.keys()
         for function in self.functions:
-            if function.instructions:
-                unknown = function.instructions[0].counters.keys() - self.counters.keys()
-                if unknown:
+            for position, instruction in enumerate(function.instructions):
+                # Here rather than in the function's hook, which cannot see the top-level counters.
+                # The function and position are only spelled out for a refusal: this runs once per
+                # instruction.
+                try:
+                    _no_nul(instruction.text, "its text")
+                    # The integer it stands for is what is stored.
+                    instruction.address = _integer(instruction.address, "its address")
+                    # The client shows a function's counters as shares of the top-level ones (PF4).
+                    if not instruction.counters.keys() <= top_level:
+                        unknown = sorted(instruction.counters.keys() - top_level)
+                        raise ValueError(
+                            f"the counters {unknown} are not top-level counters; every counter of "
+                            f"an instruction is one of the profile's top-level counters"
+                        )
+                except ValueError as error:
                     raise ValueError(
-                        f"function '{function.name}' carries the counters {sorted(unknown)}, which "
-                        f"are not top-level counters; every counter of an instruction is one of "
-                        f"the profile's top-level counters"
-                    )
+                        f"function '{function.name}', instruction {position}: {error}"
+                    ) from None
 
 
 _DECODER = msgspec.json.Decoder(ProfileDocument)
@@ -215,14 +204,17 @@ def stored_profile(encoded: str) -> StoredProfile:
         disassembly_format=document.disassembly_format,
         # `__post_init__` has replaced every top-level counter by the integer it stands for.
         counters=cast(dict[str, int], document.counters),
-        functions=[_stored(function) for function in document.functions],
+        functions=[_stored(function, document.counters) for function in document.functions],
     )
 
 
-def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
+def instructions(
+    data: bytes, *, nonzero: bool = False
+) -> Iterator[tuple[int, dict[str, float], str]]:
     """The address, counters and text of each instruction a stored function holds, in order.
 
-    The inverse of `_stored`, over bytes only this module wrote.
+    The inverse of `_stored`, over bytes only this module wrote. With `nonzero`, the counters that
+    are 0 are left out.
     """
     columns = _COLUMNS_DECODER.decode(zstd.decompress(data))
     names = list(columns.counters)
@@ -232,7 +224,14 @@ def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
     for address, row, text in zip(
         accumulate(columns.address_deltas), values, columns.text, strict=bool(names)
     ):
-        yield address, dict(zip(names, row, strict=True)), text
+        if nonzero:
+            yield (
+                address,
+                {name: value for name, value in zip(names, row, strict=True) if value},
+                text,
+            )
+        else:
+            yield address, dict(zip(names, row, strict=True)), text
 
 
 def document_json(
@@ -241,9 +240,12 @@ def document_json(
     """A stored profile as the JSON profile document it was submitted as, uncompressed (E7).
 
     `functions` are the name and stored instructions of each function, in the order the document is
-    to list them. The document is written into one buffer a function at a time, so that only one
-    function's instructions are ever held as Python objects -- a whole profile's would take several
-    times the memory of the document -- and no part of the document is copied to assemble it.
+    to list them. Each instruction lists only its counters that are not 0 (E7), which O7 makes
+    equivalent, so that the document is about the size of the one submitted rather than one padded
+    with every counter. The document is written into one buffer a function at a time, so that only
+    one function's instructions are ever held as Python objects -- a whole profile's would take
+    several times the memory of the document -- and no part of the document is copied to assemble
+    it.
     """
     document = bytearray(b'{"disassembly_format":')
     _ENCODER.encode_into(disassembly_format, document, -1)
@@ -257,7 +259,7 @@ def document_json(
         _ENCODER.encode_into(
             [
                 InstructionDocument(address=address, counters=values, text=text)
-                for address, values, text in instructions(stored)
+                for address, values, text in instructions(stored, nonzero=True)
             ],
             document,
             -1,
@@ -267,9 +269,13 @@ def document_json(
     return document
 
 
-def _stored(function: FunctionDocument) -> StoredFunction:
+def _stored(function: FunctionDocument, top_level: Iterable[str]) -> StoredFunction:
     """A function's row: its counters, the sums of its columns (O7), and its instructions in the
     layout `instructions` reads.
+
+    There is a column for each of `top_level`, the profile's counters, holding 0 wherever an
+    instruction left that counter out, so that every function, and every instruction read back,
+    has every counter of its profile.
     """
     rows = function.instructions
     # Integers by now; see `FunctionDocument.__post_init__`.
@@ -277,12 +283,13 @@ def _stored(function: FunctionDocument) -> StoredFunction:
     columns = _Columns(
         address_deltas=[after - before for before, after in pairwise([0, *addresses])],
         counters={
-            counter: [instruction.counters[counter] for instruction in rows]
-            for counter in (rows[0].counters if rows else ())
+            counter: [instruction.counters.get(counter, 0.0) for instruction in rows]
+            for counter in top_level
         },
         text=[instruction.text for instruction in rows],
     )
-    counters = {counter: sum(values) for counter, values in columns.counters.items()}
+    # Started from 0.0 so that a function without instructions has real counters, like the others.
+    counters = {counter: sum(values, 0.0) for counter, values in columns.counters.items()}
     for counter, total in counters.items():
         if not isfinite(total):
             raise _refused(

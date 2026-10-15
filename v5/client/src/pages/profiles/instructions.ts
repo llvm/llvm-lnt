@@ -23,8 +23,9 @@ export interface InstructionValues {
 
 /**
  * The values of `instructions`, a function's, for `counter`. None when the function does not have
- * the counter: its instructions all have the same counters (O7). A function without instructions
- * has values, none of them, rather than lacking the counter.
+ * the counter, which happens when its profile does not: each instruction has every counter of its
+ * profile (E7). A function without instructions has values, none of them, rather than lacking the
+ * counter.
  *
  * The function's value is summed here rather than taken from the API, so that the running sum ends
  * at exactly 100%, whatever order the server added the values in.

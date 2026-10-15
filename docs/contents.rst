@@ -24,6 +24,8 @@ Contents
 
    profiles
 
+   v5_convert_perf
+
    developer_guide
 
 Indices and tables

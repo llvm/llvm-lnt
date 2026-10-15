@@ -51,8 +51,8 @@ _TEST = "The name of the test the profile was measured for."
 _DISASSEMBLY_FORMAT = "The tool that produced the instruction text, for example `llvm-objdump`."
 _INSTRUCTIONS = "The function's instructions, in their original order."
 _FUNCTION_COUNTERS = (
-    "The function's counters, keyed by counter name. Each is the sum of that counter over the "
-    "function's instructions. A function may have fewer counters than the profile as a whole."
+    "The function's counters, keyed by counter name: one for each of the profile's counters. Each "
+    "is the sum of that counter over the function's instructions."
 )
 
 
@@ -109,14 +109,26 @@ class Instruction(BaseModel):
     )
     counters: dict[str, float] = Field(
         description=(
-            "The counts measured at this instruction, keyed by counter name. They can't be "
-            "negative. All instructions of a function must have the same counters, and each must "
-            "also be one of the profile's counters."
+            "The counts measured at this instruction, keyed by counter name: one for each of the "
+            "profile's counters, 0 where nothing was counted."
         ),
         examples=[examples.INSTRUCTION_COUNTERS],
     )
     text: str = Field(
         description="The disassembled instruction.", examples=[examples.INSTRUCTION_TEXT]
+    )
+
+
+class DocumentInstruction(Instruction):
+    """One instruction of a function in a profile document."""
+
+    counters: dict[str, float] = Field(
+        description=(
+            "The counts measured at this instruction, keyed by counter name. They can't be "
+            "negative, and each must be one of the profile's counters. A counter of the profile "
+            "that is left out counts as 0: the API leaves out every count that is 0."
+        ),
+        examples=[examples.INSTRUCTION_COUNTERS],
     )
 
 
@@ -141,7 +153,7 @@ class DocumentFunction(BaseModel):
         description="The function's name. Can't be empty, and must be unique.",
         examples=[examples.FUNCTION],
     )
-    instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
+    instructions: list[DocumentInstruction] = Field(description=_INSTRUCTIONS)
 
 
 # Describes the response for I8 only: the endpoint encodes the document itself.
