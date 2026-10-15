@@ -4,13 +4,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
+from conftest import UNREACHABLE_URL
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
-
-# Port 1 is reserved and never listening, so a connection attempt fails fast with ECONNREFUSED.
-# This exercises a real connect-time failure -- which is how production actually fails (pool
-# exhaustion, DNS, failover) -- rather than a stubbed execute() that raises.
-UNREACHABLE_URL = "postgresql+psycopg://lnt:lnt@127.0.0.1:1/lnt"
 
 
 def test_returns_ok_when_the_database_responds(settings: Settings) -> None:

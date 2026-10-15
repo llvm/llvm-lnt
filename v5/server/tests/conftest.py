@@ -46,6 +46,11 @@ LNT_ENV_VARS = [name.upper() for name in Settings.model_fields]
 # Anyone who needs a different server can change this line.
 TEST_DATABASE_URL = "postgresql+psycopg://lnt:lnt@127.0.0.1:5432/lnt"
 
+# Port 1 is reserved and never listening, so a connection attempt fails fast with ECONNREFUSED.
+# This exercises a real connect-time failure -- which is how production actually fails (pool
+# exhaustion, DNS, failover) -- rather than a stubbed execute() that raises.
+UNREACHABLE_URL = "postgresql+psycopg://lnt:lnt@127.0.0.1:1/lnt"
+
 # I5's token shape. Written out from the specification rather than derived from the constants the
 # generator uses, so that changing those has to be a deliberate change here too.
 TOKEN_PATTERN = re.compile(r"\A[0-9a-f]{64}\Z")

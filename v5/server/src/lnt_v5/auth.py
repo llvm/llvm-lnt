@@ -29,7 +29,7 @@ from starlette.routing import BaseRoute
 from . import keys
 from .db import EngineDep
 from .errors import ApiError, ErrorCode
-from .keys import ResolvedKey
+from .keys import LastUseRecorder, ResolvedKey
 from .querying import reject_unknown_query_parameters
 from .scopes import Scope
 
@@ -84,6 +84,12 @@ _bearer_token = BearerToken()
 TokenDep = Annotated[str | None, Depends(_bearer_token)]
 
 
+def _last_use(request: Request) -> LastUseRecorder:
+    """This worker's record of when it last recorded each key's use, built by `create_app`."""
+    recorder: LastUseRecorder = request.app.state.last_use
+    return recorder
+
+
 class RequireScope:
     """The scope an endpoint requires, as a dependency.
 
@@ -104,6 +110,7 @@ class RequireScope:
         self,
         _query: Annotated[None, Depends(reject_unknown_query_parameters)],
         engine: EngineDep,
+        last_use: Annotated[LastUseRecorder, Depends(_last_use)],
         token: TokenDep,
     ) -> ResolvedKey | None:
         if token is None:
@@ -140,7 +147,7 @@ class RequireScope:
 
         # D5 records use on successful *authentication*, so this happens before the scope check:
         # a key turned away by authorization was still presented and still resolved.
-        keys.touch_last_used(engine, key.id)
+        last_use.record(engine, key.id)
 
         if not key.scope.grants(self.scope):
             raise ApiError(
