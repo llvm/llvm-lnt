@@ -5,6 +5,7 @@
 
 import type { Schemas } from '../../api/client'
 import { sortRows } from '../../components/table-sort'
+import { formatPercent } from '../../format'
 import type { Counters } from './counters'
 
 export type ProfileFunction = Schemas['ProfileFunction']
@@ -32,6 +33,11 @@ export function functionShare(
   return (value / total) * 100
 }
 
+/** A function's share of the profile's `counter`, as assistive technology reads it. */
+export function shareText(share: number, counter: string): string {
+  return `${formatPercent(share)} of ${counter}`
+}
+
 /**
  * `functions`, hottest first (PF4): by their value for `counter`, descending, those without it
  * after those with it, ties by name. By name alone when there is no counter.
@@ -45,39 +51,66 @@ export function hottestFirst<F extends Counted>(
   return sortRows(byName, (fn) => fn.counters[counter] ?? null, 'descending')
 }
 
-/** The function a side shows: the test of its profile, and the function's name. */
+/**
+ * The function a side shows, or showed: the test of its profile, and the function's name. The name
+ * is null when there is no function.
+ */
 export interface ShownFunction {
   test: string
   /**
-   * The function's name, always resolved: when the side shows its hottest function, the name of
-   * that function, never a stand-in for "the hottest".
+   * The function's actual name. When the side shows its hottest function, this is that function's
+   * name, never a placeholder that means "the hottest". So a side that shows the hottest function
+   * under the current counter keeps that function when the counter changes, rather than switch to
+   * whichever function is hottest under the new counter.
    */
-  name: string
+  name: string | null
+}
+
+/** The function a side shows, `name` (null for none), and the UUID of its profile. */
+export interface HeldFunction {
+  profile: string
+  name: string | null
 }
 
 /**
- * The function a side keeps or takes when the user's picks change its profile to `next`, the
- * profile of the test `next.test`, whose functions are `next.functions` (PF4):
+ * The function a side shows, once its profile of the test `test` has listed `functions` (PF4).
+ * Returns `{ name }`, with a null name when the profile lists no functions, or undefined while the
+ * function cannot be known yet. In order of preference:
  *
- * - its own function, `previous`, if it was showing a profile of the same test and `next` has a
- *   function of that name;
- * - otherwise the other side's function, `other`, if the other side shows a profile of the same
- *   test and `next` has a function of that name;
- * - otherwise null, and the side shows its hottest function, which the caller resolves for the
- *   counter shown.
- *
- * `previous` and `other` must be the functions the sides show, by their resolved names (see
- * `ShownFunction`), so that a side whose function is the hottest one under the current counter
- * keeps that function, rather than whichever is hottest under some later counter. This is why the
- * other side's function must be known -- its functions listed -- before this is asked.
+ * - While the user's picks are changing the side's profile: the function the side showed before,
+ *   `carry`, if it belonged to the same test and `functions` has it. Otherwise, the other side's
+ *   function, `other`, on the same conditions. The other side is only asked if the side cannot
+ *   keep its own function. `other` is undefined while the other side cannot say yet, and null when
+ *   it has nothing to offer.
+ * - Otherwise, the function that the URL names, `url`, if the profile has it (PF9).
+ * - Otherwise, the hottest function, `hottest`. It is undefined until the counter it depends on is
+ *   settled.
  */
-export function carriedFunction(
-  next: { test: string; functions: ReadonlySet<string> },
-  previous: ShownFunction | undefined,
-  other: ShownFunction | undefined,
-): string | null {
-  for (const shown of [previous, other]) {
-    if (shown?.test === next.test && next.functions.has(shown.name)) return shown.name
+export function functionChoice({
+  test,
+  functions,
+  hottest,
+  carry,
+  url,
+  other,
+}: {
+  test: string
+  functions: readonly ProfileFunction[]
+  hottest: string | null | undefined
+  carry: ShownFunction | null
+  url: string
+  other: ShownFunction | null | undefined
+}): { name: string | null } | undefined {
+  if (functions.length === 0) return { name: null }
+  // At most a few lookups, once per profile, so the functions need no index.
+  const has = (name: string | null) => name !== null && functions.some((fn) => fn.name === name)
+  const keeps = (shown: ShownFunction | null) => shown?.test === test && has(shown.name)
+  if (carry !== null) {
+    if (keeps(carry)) return { name: carry.name }
+    if (other === undefined) return undefined
+    if (other !== null && keeps(other)) return { name: other.name }
+  } else if (has(url)) {
+    return { name: url }
   }
-  return null
+  return hottest === undefined ? undefined : { name: hottest }
 }

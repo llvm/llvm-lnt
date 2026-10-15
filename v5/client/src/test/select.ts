@@ -21,13 +21,20 @@ export async function pickOption(label: string, option: string, container?: HTML
 
 /**
  * Pick `name` in the combobox labelled `label`. It types `name` over the input's text without
- * emptying the input first, since an empty input would clear the combobox's value (AR14).
+ * emptying the input first, since an empty input would clear the combobox's value (AR14). It finds
+ * the suggestion by `option`, its accessible name. That is `name`, unless the suggestion shows
+ * more, such as a badge.
  */
-export async function pick(label: string, name: string, container: HTMLElement = document.body) {
+export async function pick(
+  label: string,
+  name: string,
+  container: HTMLElement = document.body,
+  option: string | RegExp = name,
+) {
   const user = userEvent.setup()
   const input = await within(container).findByRole('combobox', { name: label })
   await waitFor(() => expect(input).toBeEnabled())
   await user.tripleClick(input)
   await user.keyboard(name)
-  await user.click(await screen.findByRole('option', { name }))
+  await user.click(await screen.findByRole('option', { name: option }))
 }

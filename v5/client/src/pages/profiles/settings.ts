@@ -1,13 +1,18 @@
 /** The Profiles page's settings, as the URL keeps them (PF9). */
 
+import type { Option } from '../../components/select'
 import { enumParam, stringParam } from '../../url-state'
 import type { ValueMode } from './instructions'
 
 /** The two sides of the page. */
 export type SideId = 'a' | 'b'
 
-/** How a disassembly view can show an instruction's value (PF6). */
-const VALUE_MODES: readonly ValueMode[] = ['relative', 'absolute', 'cumulative']
+/** The ways a disassembly view can show an instruction's value (PF6), with their labels. */
+export const VALUE_OPTIONS: readonly Option<ValueMode>[] = [
+  { value: 'relative', label: 'Relative %' },
+  { value: 'absolute', label: 'Absolute' },
+  { value: 'cumulative', label: 'Cumulative %' },
+]
 
 export const PARAMS = {
   suite_a: stringParam(),
@@ -25,7 +30,10 @@ export const PARAMS = {
   function_b: stringParam(),
   /** The counter shown, unless it is the one the Counter dropdown starts on (PF4). */
   counter: stringParam(),
-  values: enumParam(VALUE_MODES, 'relative'),
+  values: enumParam(
+    VALUE_OPTIONS.map((option) => option.value),
+    'relative',
+  ),
 }
 
 export type Settings = { [K in keyof typeof PARAMS]: (typeof PARAMS)[K]['default'] }
@@ -65,3 +73,11 @@ export const CLEARED_WITH = {
   commit: { run: '', test: '', function: '' },
   test: { function: '' },
 } as const satisfies Record<string, Partial<SideSettings>>
+
+/**
+ * `value` as the URL holds it. It is left out when it is `fallback`, which the page shows without
+ * it, and when it is none (AR2 "State").
+ */
+export function urlValue(value: string | null | undefined, fallback: string | null | undefined) {
+  return value === fallback ? '' : (value ?? '')
+}

@@ -45,6 +45,8 @@ interface CommonProps {
   isReadOnly?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
+  /** Make the combobox fill the rest of its row, for text too long for the usual width. */
+  fill?: boolean
   /**
    * Called with whether the input holds text that is not the value's -- typed, but not picked --
    * whenever that changes: a form holding the combobox is not submitted meanwhile (AR15).
@@ -119,6 +121,7 @@ export function Combobox({
   isDisabled,
   isReadOnly,
   hideLabel,
+  fill = false,
   onPendingChange,
   renderSuggestion,
   virtualized = false,
@@ -181,7 +184,7 @@ export function Combobox({
 
   return (
     <ComboBox
-      className={shared.root}
+      className={clsx(shared.root, fill && shared.fill)}
       value={value?.key ?? null}
       onChange={onKeyChange}
       inputValue={text}

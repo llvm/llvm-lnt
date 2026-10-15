@@ -43,11 +43,13 @@ export async function json<T>(
 }
 
 /**
- * The UUID of the libcxx run of `machine` at `commit` that has profiles. The seed has one such run
- * at each commit where it adds profiles (see tools/synthetic.ts).
+ * The UUID of the latest libcxx run of `machine` at `commit` that has profiles: the one the
+ * Profiles page selects, and Compare's Profile links lead to (see tools/synthetic.ts for which runs
+ * have profiles).
  */
 export async function profiledRun(request: APIRequestContext, machine: string, commit: string) {
-  const path = `/api/suites/libcxx/runs?machine=${machine}&commit=${commit}&has_profiles=true`
+  const query = `machine=${machine}&commit=${commit}&has_profiles=true&sort=-measured_at&limit=1`
+  const path = `/api/suites/libcxx/runs?${query}`
   return (await json<components['schemas']['RunCursorPage']>(request, path)).items[0].uuid
 }
 

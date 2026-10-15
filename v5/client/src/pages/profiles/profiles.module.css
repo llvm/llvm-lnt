@@ -45,3 +45,29 @@
 .note {
   color: var(--lnt-muted);
 }
+
+/* A side's function selector, which fills its column, and the selected function's share. */
+.functionRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--lnt-space-2);
+}
+
+/* A function among the suggestions, and its share. */
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
+.functionName {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The share, which is never broken across lines. */
+.suggestion > :not(.functionName) {
+  flex: none;
+}

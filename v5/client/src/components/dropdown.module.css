@@ -7,6 +7,12 @@
   gap: var(--lnt-space-1);
 }
 
+/* A field that fills the rest of its row. */
+.fill {
+  flex: 1;
+  min-width: 0;
+}
+
 /* React Aria sizes the popover to fit the screen, and gives it the field's width to use. */
 .popover {
   min-width: var(--trigger-width);

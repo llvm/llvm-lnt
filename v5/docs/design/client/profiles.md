@@ -139,14 +139,24 @@ Two controls, shared by both sides, sit in a controls panel below the counter
 comparison: the **Counter** and the **Values** (see PF6).
 
 The Counter dropdown offers every top-level counter of the profiles shown,
-sorted by name. It starts on the first counter that every profile shown has, or
-on the first one offered when they have none in common, and goes back to it
-when the profiles shown change so that none of them has the counter selected.
-It selects the counter shown everywhere below: in the function selectors and in
-the disassembly views. When the profiles shown have no counters at all, the
-Counter dropdown says so, functions are sorted by name, and the disassembly
-views have no value column. The Counter and the Values are shown once a side
-shows a profile.
+sorted by name. It selects the counter shown everywhere below: in the function
+selectors and in the disassembly views. When the profiles shown have no
+counters at all, the Counter dropdown says so, functions are sorted by name,
+and the disassembly views have no value column. The Counter and the Values are
+shown once a side shows a profile.
+
+The Counter starts on the first counter that every profile shown has. If they
+have none in common, it starts on the first counter offered. When the profiles
+shown change and none of them has the selected counter, the Counter goes back
+to that starting counter.
+
+The page applies these rules, and PF9's dropping of a counter, only while some
+side shows a profile, and only once the profile of every side that shows one
+has loaded: none is still loading, and none has failed. Until then, if the
+profiles loaded so far lack the selected counter, the page shows their
+starting counter for the time being. While no side shows a profile, the
+selected counter stays as it is. So clearing a side's test and then picking
+another keeps the counter.
 
 Each side that shows a profile then has a **function selector**: a combobox
 (see AR14) over the functions of its profile, filtered locally (see AR9).
@@ -165,7 +175,8 @@ Each side that shows a profile then has a **function selector**: a combobox
   the same test, the side keeps its function if the new profile has a function
   of that name. Otherwise, when both sides show profiles of the same test, it
   takes the other side's function if the new profile has it, and else its
-  hottest function.
+  hottest function. If the other side's profile is changing at the same time,
+  the side uses the function that the other side showed before the change.
 - Changing the counter re-sorts the suggestions, but does not change the
   functions selected.
 
@@ -295,10 +306,10 @@ All selection state is encoded as query parameters for shareability:
 - `values`: `absolute` or `cumulative`
 
 As AR2 "State" describes, a function is left out of the URL when it is its
-side's hottest, and the counter and the Values when they are their defaults. A
-selected run is always kept, however, although the latest run is selected by
-default: which run is the latest can change as runs are submitted, and a link
-to a profile must keep showing that profile.
+side's hottest under the counter shown, and the counter and the Values when
+they are their defaults. A selected run is always kept, however, although the
+latest run is selected by default: which run is the latest can change as runs
+are submitted, and a link to a profile must keep showing that profile.
 
 A value the page cannot use is dropped (see AR2 "State"):
 - a suite or machine that does not exist, a commit the side's commit picker
