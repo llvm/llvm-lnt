@@ -35,6 +35,8 @@ export function useSuiteAndMachine({
     (list) => suite === '' || list.some((entry) => entry.name === suite),
     onUnusableSuite,
   )
+  // Only once the suite is known to exist, which CP6 and PF8 do not ask for: they send every request
+  // the URL calls for at once. The commit picker, which needs the suite's schema, waits too.
   const machines = useMachineSuggestions(suite, schema !== undefined)
   useDropUnusable(
     machines.machines,
@@ -46,7 +48,8 @@ export function useSuiteAndMachine({
 
 /**
  * Whether to say that a request about the side's machine failed: not while the machine may not
- * exist, as it is then about to be dropped (AR2 "State"), unless its existence cannot be checked.
+ * exist, since no error is reported for a value that turns out to be unusable (AR2 "State"), unless
+ * its existence cannot be checked.
  */
 export function reportsMachineFailures(machines: Machines, machine: string): boolean {
   return (machines.machines.data?.includes(machine) ?? false) || machines.machines.isError

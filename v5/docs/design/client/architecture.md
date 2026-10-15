@@ -51,7 +51,9 @@ within the UI causes a full page reload.
   does not offer) is dropped, and the page uses its default for that setting
   instead. A value is only found unusable from a complete response: for a
   list, once all of its pages have loaded. Nothing is dropped while a request
-  is still loading, or after it has failed. The same goes for a selection that
+  is still loading, or after it has failed. A request sent for a value that
+  turns out to be unusable is not reported if it fails, since the value is
+  dropped anyway. The same goes for a selection that
   depends on a list. For example, when the machines change on the Graph page, a
   selected test that the new test lists don't have is deselected only once
   every machine's test list has loaded. A setting holding several values
@@ -292,7 +294,8 @@ chosen -- restored from the URL, or kept while its filters change -- is looked
 up with the picker's filters plus `commit=` (see E3). The lookup returns
 the commit, with its display value, only if the picker would offer it.
 Otherwise the commit is unusable, and the picker is cleared as if the user had
-emptied it (see AR2 "State").
+emptied it (see AR2 "State"). If the lookup fails, the picker keeps the commit,
+and says that it could not be looked up, offering to try again (see AR7).
 
 If the user types in a commit picker but does not pick one of its suggestions,
 the form containing the picker cannot be submitted until they do, or clear the

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { SuiteSchema } from '../../api/suites'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
@@ -28,7 +28,6 @@ interface Props {
 export function SidePanel({ side, title, suites, action }: Props) {
   const { settings, schema, machines, update: onChange } = side
   const { suite, machine, commit } = settings
-  const filters = useMemo(() => ({ machine }), [machine])
 
   return (
     <ControlsPanel>
@@ -43,7 +42,6 @@ export function SidePanel({ side, title, suites, action }: Props) {
           machines={machines}
           machine={machine}
           commit={commit}
-          commitFilters={filters}
           onSuite={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
           onMachine={(picked) =>
             // Another machine keeps the commit if it has runs at it, as the commit picker checks.

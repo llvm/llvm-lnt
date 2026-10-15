@@ -354,6 +354,31 @@ describe('the Regression Detail page', () => {
       expect(sent.map(({ body }) => body)).toEqual([{ commit: 'def456' }])
     })
 
+    it('says when the commit could not be looked up, and looks it up again on Retry', async () => {
+      let fail = true
+      signIn('triage')
+      renderRegression()
+      // Over the world's commits, which `renderRegression` mocks.
+      server.use(
+        mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+          if (new URL(request.url).searchParams.has('commit') && fail)
+            return errorResponse(500, 'internal_error', 'Boom') as never
+        }),
+      )
+      await ready('Regression', () => editButton('Commit'))
+      fireEvent.click(editButton('Commit'))
+      const picker = screen.getByRole('combobox', { name: 'Commit' })
+      const user = userEvent.setup()
+
+      expect(await screen.findByText(/The commit could not be looked up: Boom/)).toBeInTheDocument()
+      expect(picker).toHaveValue(TAGGED.value)
+      fail = false
+      await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+      await waitFor(() => expect(picker).toHaveValue('r100 (v1)'))
+      expect(screen.queryByText(/could not be looked up/)).not.toBeInTheDocument()
+    })
+
     it('is saved with Enter once picked', async () => {
       const { sent, picker, user } = await editCommit()
       await waitFor(() => expect(picker).toHaveValue('r100 (v1)'))

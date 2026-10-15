@@ -10,6 +10,7 @@ import { Combobox } from './combobox'
 import { commitLookupKey, commitLookupQuery, suggestionOf } from './commit-lookup'
 import { ErrorMessage } from './feedback'
 import { useServerSuggestions, type Suggestion } from './suggestions'
+import styles from './commit-picker.module.css'
 
 interface CommonProps {
   label: string
@@ -27,8 +28,8 @@ interface CommonProps {
   onPendingChange?: (pending: boolean) => void
   /**
    * Whether to say that looking up a commit given failed (AR7): not while what the filters name may
-   * not exist, as a machine named by the URL may not, since an error for a value about to be
-   * dropped is not reported (AR2 "State").
+   * not exist, as a machine named by the URL may not, since no error is reported for a value that
+   * turns out to be unusable (AR2 "State").
    */
   reportsLookupFailure?: boolean
 }
@@ -77,7 +78,8 @@ export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.
  * returns it, with its display value, only if the picker offers it. If the lookup
  * returns nothing, the commit is unusable, and the picker is cleared as if the input had been
  * emptied. A lookup that fails clears nothing (AR2 "State"), and the picker says that it failed,
- * offering to try again (AR7).
+ * below the input, offering to try again (AR7). A lookup that has answered and fails when it is
+ * asked again later says nothing: the picker still shows what it answered.
  */
 export function CommitPicker({
   label,
@@ -138,7 +140,7 @@ export function CommitPicker({
         },
       }
   return (
-    <>
+    <div className={styles.root}>
       <Combobox
         label={label}
         {...handlers}
@@ -149,14 +151,14 @@ export function CommitPicker({
         hideLabel={hideLabel}
         onPendingChange={onPendingChange}
       />
-      {lookup.isError && reportsLookupFailure && (
+      {lookup.isLoadingError && reportsLookupFailure && (
         <ErrorMessage
           context="The commit could not be looked up"
           error={lookup.error}
           onRetry={() => void lookup.refetch()}
         />
       )}
-    </>
+    </div>
   )
 }
 

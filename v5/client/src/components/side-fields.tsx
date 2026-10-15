@@ -3,6 +3,7 @@
  * commit (CP1, PF2).
  */
 
+import { useMemo } from 'react'
 import type { CommitFilters } from '../api/commits'
 import type { SuiteSchema } from '../api/suites'
 import { Combobox } from './combobox'
@@ -14,15 +15,23 @@ import { NO_SUGGESTIONS } from './suggestions'
 
 function noop() {}
 
+const NO_FILTERS = {}
+
 interface Props {
   suites: SuiteSchema[]
   /** The side's suite, once known to exist (see `useSuiteAndMachine`). */
   schema: SuiteSchema | undefined
+  /** The suite's machines (see `useSuiteAndMachine`). */
   machines: Machines
+  /** The side's machine, or `''` for none. */
   machine: string
+  /** The side's commit, or `''` for none. */
   commit: string
-  /** Which of the suite's commits the commit picker offers: the machine's, at least. Memoize it. */
-  commitFilters: CommitFilters
+  /**
+   * Which of the machine's commits the commit picker offers, if not all of them. Pass the same
+   * object while they are alike.
+   */
+  commitFilters?: Omit<CommitFilters, 'machine'>
   /** A suite was picked. */
   onSuite(suite: string): void
   /**
@@ -44,11 +53,12 @@ export function SideFields({
   machines,
   machine,
   commit,
-  commitFilters,
+  commitFilters = NO_FILTERS,
   onSuite,
   onMachine,
   onCommit,
 }: Props) {
+  const filters = useMemo(() => ({ ...commitFilters, machine }), [commitFilters, machine])
   return (
     <>
       <Select
@@ -86,7 +96,7 @@ export function SideFields({
         <CommitPicker
           label="Commit"
           schema={schema}
-          filters={commitFilters}
+          filters={filters}
           value={commit === '' ? null : commit}
           onChange={onCommit}
           placeholder="Select a commit"
