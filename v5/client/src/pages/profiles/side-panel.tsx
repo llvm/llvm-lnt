@@ -23,8 +23,8 @@ interface Props {
 }
 
 /**
- * A side's controls (PF2): its suite, machine, commit, run and test, each choice clearing what
- * depends on it.
+ * A side's controls (PF2): its suite, machine, commit, run and test. Each choice clears the
+ * controls that depend on it.
  */
 export function SidePanel({ side, title, suites }: Props) {
   const { settings, schema, machines } = side
@@ -53,8 +53,8 @@ export function SidePanel({ side, title, suites }: Props) {
 }
 
 /**
- * The runs of the side's machine at its commit that have profiles, in the order they were
- * measured, with a link to the selected one's Run Detail page beside them (PF2).
+ * The runs with profiles of the side's machine at its commit, in the order they were measured.
+ * Beside them, a link goes to the selected run's Run Detail page (PF2).
  */
 function RunField({ side }: { side: ProfileSide }) {
   const { settings, runs, run } = side
@@ -101,7 +101,8 @@ function TestField({ side }: { side: ProfileSide }) {
     useMemo(() => tests?.map((test) => ({ key: test, text: test })), [tests]),
     null,
   )
-  // Only the side's run's: the URL's may be another machine's, or one that does not exist.
+  // Only once the run is known to be the side's: the URL's run may belong to another machine, or
+  // not exist.
   const failed = run !== undefined && tests === undefined && profiles.isError
 
   let placeholder = 'Select a test'

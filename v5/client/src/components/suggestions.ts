@@ -33,8 +33,8 @@ export interface Suggestions {
   loadMore: () => void
   error: Error | null
   /**
-   * Whether there is nothing to suggest at all, whatever the text: the suggestions for no text have
-   * arrived, and there are none.
+   * Whether there is nothing to suggest at all, whatever the user types: the suggestions for an
+   * empty input have arrived, and there are none.
    */
   isEmpty: boolean
   /**

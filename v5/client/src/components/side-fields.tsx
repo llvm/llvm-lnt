@@ -33,7 +33,7 @@ interface Props {
    * as long as the filters stay the same.
    */
   commitFilters?: Omit<CommitFilters, 'machine'>
-  /** What the commit picker says when the machine has no commit it offers (see `Combobox`). */
+  /** What the commit picker says when the machine has no commit to offer (see `Combobox`). */
   noCommitsMessage?: string
   /** A suite was picked. */
   onSuite(suite: string): void

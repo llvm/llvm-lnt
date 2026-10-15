@@ -10,9 +10,9 @@ import { useProfileSide, type ProfileSide } from './use-side'
 import styles from './profiles.module.css'
 
 /**
- * The Profiles page (PF1-PF9), started afresh whenever the user navigates to it -- a link to other
- * profiles while on it, say -- so that it shows what the new URL names. What it fetched of the
- * profiles is forgotten once it has been left (PF8), but not when it starts afresh.
+ * The Profiles page (PF1-PF9). It starts afresh whenever the user navigates to it, for example
+ * through a link to other profiles, so that it shows what the new URL names. It forgets the profile
+ * data it fetched once the user leaves the page (PF8), but not when it starts afresh.
  */
 export default function Profiles() {
   const queryClient = useQueryClient()
@@ -26,7 +26,7 @@ function ProfilesPage() {
   const a = useProfileSide('a', settings, update, suites)
   const b = useProfileSide('b', settings, update, suites)
 
-  // A side whose profile is still on its way, or could not be fetched, keeps its column (PF7).
+  // A side keeps its column while its profile loads, and if it fails to load (PF7).
   const shown = [a, b].filter((side) => side.status.kind !== 'none')
   return (
     <section>
@@ -61,7 +61,7 @@ function ProfileColumn({ side }: { side: ProfileSide }) {
   return (
     <section className={styles.column} aria-label={`Profile ${side.id.toUpperCase()}`}>
       {status.kind === 'pending' && <Loading label="Loading the profile..." />}
-      {/* Whatever came before the profile and failed says so in the side's controls. */}
+      {/* Earlier failures, such as the runs', show in the side's controls. */}
       {status.kind === 'failed' && metadata.isError && (
         <ErrorMessage
           context="The profile could not be loaded"

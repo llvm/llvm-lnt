@@ -43,8 +43,8 @@ export async function json<T>(
 }
 
 /**
- * The UUID of the run of `machine` at `commit` in libcxx that has profiles: the seed has one at
- * each commit it gives profiles at (see tools/synthetic.ts).
+ * The UUID of the libcxx run of `machine` at `commit` that has profiles. The seed has one such run
+ * at each commit where it adds profiles (see tools/synthetic.ts).
  */
 export async function profiledRun(request: APIRequestContext, machine: string, commit: string) {
   const path = `/api/suites/libcxx/runs?machine=${machine}&commit=${commit}&has_profiles=true`

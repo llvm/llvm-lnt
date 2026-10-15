@@ -208,7 +208,7 @@ export function mockResolve(known: Commit[] = []) {
   return requests
 }
 
-/** Let whatever a render sends go out, and its answers come back: for checking that nothing changes. */
+/** Wait for what a render sends to go out and be answered, to check that nothing changes. */
 export function settle() {
   return act(() => new Promise((resolve) => setTimeout(resolve, 50)))
 }

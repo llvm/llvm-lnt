@@ -1,6 +1,7 @@
 /**
- * The Profiles page (PF1-PF9), against the seeded libcxx history: the newest commit's first runs on
- * LINUX (x86-64) and MACOS (aarch64) carry profiles, and so does the experiment's on LINUX.
+ * The Profiles page (PF1-PF9), against the seeded libcxx history. In the seed, the first run of
+ * the newest commit on LINUX (x86-64) and on MACOS (aarch64) has profiles, and so does the
+ * experiment's first run on LINUX.
  */
 
 import type { APIRequestContext, Page } from '@playwright/test'

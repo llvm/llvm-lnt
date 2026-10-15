@@ -19,7 +19,7 @@ interface CommonProps {
   /** Which of the suite's commits the picker offers. Pass the same object while they are alike. */
   filters?: CommitFilters
   placeholder?: string
-  /** What the picker says when it has no commit at all to offer (see `Combobox`). */
+  /** What the picker says when it has no commit to offer at all (see `Combobox`). */
   emptyMessage?: string
   isDisabled?: boolean
   /** See `Combobox`. */

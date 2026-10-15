@@ -1,6 +1,6 @@
 /**
- * What a side of the Profiles page selects (PF2): the run, the test, and where it stands in
- * showing the profile of that test in that run.
+ * What a side of the Profiles page selects (PF2): the run and the test. Also, how far the side has
+ * got in showing the profile of that test in that run.
  */
 
 import type { Schemas } from '../../api/client'
@@ -9,9 +9,10 @@ type Run = Schemas['Run']
 
 /**
  * What a side showed when the user's picks began changing its profile: its test and its function,
- * each `''` for none. While a side has one, its new test may be the other side's (PF2), and its new
- * function is carried over (PF4), whereas what the URL names is only checked (PF9). It is used up
- * once the side's new profile is resolved, or the side is left without one.
+ * each `''` for none. While a side has a carry, it may take the other side's test (PF2), and it
+ * carries its function over (PF4). Without a carry, the page only checks what the URL names
+ * (PF9). The carry is used up once the side's new profile is resolved, or once the side is left
+ * without a profile.
  */
 export interface Carry {
   test: string
@@ -19,9 +20,9 @@ export interface Carry {
 }
 
 /**
- * The run a side selects among `runs`, its machine's runs at its commit that have profiles, in the
- * order they were measured: `run` if they hold it, and the latest of them otherwise (PF2, PF9), or
- * none when there are none.
+ * The run a side selects among `runs`: its machine's runs with profiles at its commit, in the order
+ * they were measured. It keeps `run` if the list holds it, and otherwise selects the latest run
+ * (PF2, PF9), or none if the list is empty.
  */
 export function runChoice(runs: readonly Run[], run: string): string {
   if (runs.some((entry) => entry.uuid === run)) return run
@@ -29,10 +30,11 @@ export function runChoice(runs: readonly Run[], run: string): string {
 }
 
 /**
- * The test a side shows once its run is known to have profiles of `tests` (PF2): `test` if the run
- * has a profile of it, or else, while the user's picks are changing the side's profile
- * (`carrying`), the other side's test `other` if the run has a profile of that one, or else none.
- * Without such picks, a test the run has no profile of is dropped (PF9).
+ * The test a side shows, once it knows that its run has profiles of `tests` (PF2). It keeps `test`
+ * if the run has a profile of it. Otherwise, while the user's picks are changing the side's profile
+ * (`carrying`), it takes the other side's test, `other`, if the run has a profile of that one.
+ * Otherwise it shows none. Without such picks, the page drops a test the run has no profile of
+ * (PF9).
  */
 export function testChoice(
   tests: { has(test: string): boolean },
@@ -48,18 +50,18 @@ export function testChoice(
 type ProfileMetadata = Schemas['ProfileMetadata']
 
 /**
- * Where a side stands in showing a profile:
+ * How far a side has got in showing a profile:
  *
- * - `none`: it has no test.
- * - `pending`: it has a test, but something its profile depends on is still on its way: the runs,
- *   the run selected, the run's profiles, the check of the test against them, or the profile's
- *   metadata. So does a test whose machine may not exist, which is about to be dropped.
- * - `failed`: one of those could not be fetched.
- * - `shown`: it shows the profile `uuid`, whose metadata is `profile`.
+ * - `none`: the side has no test.
+ * - `pending`: the side has a test, but something its profile needs is still loading: the runs, the
+ *   selected run, the run's profiles, the check of the test against them, or the profile's
+ *   metadata. A side whose machine may not exist is pending too, until the page drops the machine.
+ * - `failed`: one of those requests failed.
+ * - `shown`: the side shows the profile `uuid`, whose metadata is `profile`.
  *
- * A side has a column of the page (PF7) unless it is `none`, so that the columns hold still while a
- * side's profile changes, and nothing that depends on the profiles shown is decided before every
- * side is `none` or `shown`.
+ * Every side except a `none` one has a column on the page (PF7). This way, the columns hold still
+ * while a side's profile changes. Also, the page decides nothing that depends on the profiles shown
+ * until every side is `none` or `shown`.
  */
 export type SideStatus =
   | { kind: 'none' }
@@ -67,16 +69,16 @@ export type SideStatus =
   | { kind: 'failed' }
   | { kind: 'shown'; uuid: string; profile: ProfileMetadata }
 
-/** What `sideStatus` needs to know of a fetch: its data, once it has some, and its error. */
+/** What `sideStatus` needs to know about a request: its data, once it has some, and its error. */
 interface Fetched<Data> {
   data: Data | undefined
   error: Error | null
 }
 
 /**
- * Where a side stands (see `SideStatus`), from what it has fetched, and what it is to select once
- * the runs and the run's profiles are known (see `runChoice` and `testChoice`): until it selects
- * them, the URL is about to change.
+ * How far a side has got (see `SideStatus`). It depends on what the side has fetched, and on the
+ * run and test it is to select once the runs and the run's profiles are known (see `runChoice` and
+ * `testChoice`). Until the URL holds that run and test, the side is pending.
  */
 export function sideStatus({
   test,
@@ -92,7 +94,7 @@ export function sideStatus({
   run: string
   /** The run to select, once the runs are listed. */
   runPick: string | undefined
-  /** Whether listing the runs failed, and that is to be said (see `runsListFailed`). */
+  /** Whether listing the runs failed, and the page should report it (see `runsListFailed`). */
   runsFailed: boolean
   /** The profiles of the run `run`. */
   profiles: Fetched<unknown>

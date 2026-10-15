@@ -1,7 +1,4 @@
-/**
- * Driving the `Select` and `Combobox` components of the web UI (see client/src/components/select.tsx
- * and combobox.tsx).
- */
+/** Helpers that drive the `Select` and `Combobox` components (see client/src/components/). */
 
 import { expect, type Locator, type Page } from '@playwright/test'
 
@@ -26,8 +23,8 @@ export async function pickOption(scope: Page | Locator, label: string, option: s
 }
 
 /**
- * Pick the suggestion named `option` in the combobox labelled `label`, typing `text` to find it:
- * `option` itself unless given.
+ * Pick the suggestion named `option` in the combobox labelled `label`, after typing `text` to find
+ * it. By default, `option` is `text`.
  */
 export async function pickSuggestion(
   scope: Page | Locator,

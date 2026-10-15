@@ -1,6 +1,6 @@
 /**
- * A side of the Profiles page (PF2): its suite, machine, commit, run and test, as the URL names
- * them, checked against what the API holds, and the profile it shows.
+ * A side of the Profiles page (PF2): the suite, machine, commit, run and test that the URL names,
+ * checked against what the API holds, and the profile that the side shows.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -27,26 +27,23 @@ type Run = Schemas['Run']
 export interface ProfileSide {
   id: SideId
   settings: SideSettings
-  /** The side's suite, once the suites are known to hold it. */
+  /** The side's suite, once the suite list shows that it exists. */
   schema: SuiteSchema | undefined
   machines: Machines
   /** The runs of the machine at the commit that have profiles, in the order they were measured. */
   runs: UseQueryResult<Run[]>
-  /** Whether the runs could not be listed, and that is to be said. */
+  /** Whether listing the runs failed, and the page should report it. */
   runsFailed: boolean
-  /** The run selected, once the runs are listed and hold it. */
+  /** The selected run, once the runs are listed and include it. */
   run: Run | undefined
-  /** The profiles of the run the URL names, by test: the side's once `run` is known. */
+  /** The profiles of the run that the URL names, by test. They are the side's once `run` is set. */
   profiles: UseQueryResult<Schemas['RunProfile'][]>
-  /** The tests the side's run has a profile of, by name, once `run` is known. */
+  /** The tests that have a profile in the side's run, sorted by name, once `run` is set. */
   tests: string[] | undefined
   /** The metadata of the profile of the test in the run, once the test is known. */
   metadata: UseQueryResult<Schemas['ProfileMetadata']>
   status: SideStatus
-  /**
-   * What the side showed when the user's picks began changing its profile, until it shows one: the
-   * test and function the new profile's are carried over from (PF2, PF4).
-   */
+  /** What the side showed when the user's picks began changing its profile (see `Carry`). */
   carry: Carry | null
   pickSuite(suite: string): void
   pickMachine(machine: string | null): void
@@ -59,9 +56,10 @@ export interface ProfileSide {
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
  * lists the suites of the instance.
  *
- * Every request is sent with the URL's values as they are, without waiting for them to be checked
- * (PF8), but what depends on the run is only used once the runs are listed and hold it: the run is
- * the side's machine's at its commit, which the commit picker offers, at a suite that exists.
+ * The side sends every request with the URL's values as they are, without first checking them
+ * (PF8). It only uses what depends on the run once the run list includes the run. That shows that
+ * the run belongs to the side's machine at its commit, which the commit picker offers, in a suite
+ * that exists.
  */
 export function useProfileSide(
   id: SideId,
@@ -91,8 +89,9 @@ export function useProfileSide(
     ...commitRunsQuery(suite, machine, commit, { has_profiles: true }),
     enabled: suite !== '' && machine !== '' && commit !== '',
   })
-  // A list that failed to load again is still shown. One that failed for a machine that may not
-  // exist is not reported, unless that cannot be checked, the suites having failed too.
+  // If a run list loaded once and a refetch fails, the side keeps using it. A failure is not
+  // reported while the machine may not exist, unless the page cannot check that because the suites
+  // failed too.
   const runsFailed =
     runs.data === undefined &&
     runs.isError &&
@@ -115,7 +114,7 @@ export function useProfileSide(
     [selected, profileOf],
   )
 
-  // What the side names without what it depends on is dropped, as clearing that does (PF9).
+  // Drop what the side names without the control it depends on, as clearing that does (PF9).
   useEffect(() => {
     if (suite === '') drop(CLEARED_WITH.suite)
     else if (machine === '') drop(CLEARED_WITH.machine)
@@ -123,16 +122,16 @@ export function useProfileSide(
     else if (test === '') drop(CLEARED_WITH.test)
   }, [suite, machine, commit, test, drop])
 
-  // The latest run is selected in place of none, or of one that is not listed (PF2, PF9), and the
-  // side has no test without a run.
+  // Select the latest run when there is none, or when the run is not listed (PF2, PF9). With no
+  // run to select, the side has no test either.
   const runPick = runs.data && runChoice(runs.data, run)
   useEffect(() => {
     if (runPick === '') drop(CLEARED_WITH.commit)
     else if (runPick !== undefined && runPick !== run) drop({ run: runPick })
   }, [runPick, run, drop])
 
-  // The test is checked against the run's profiles once the run is known to be the side's: kept,
-  // carried over from the other side, or dropped (PF2, PF9).
+  // Once the run is known to be the side's, check the test against the run's profiles. Keep it,
+  // take the other side's, or drop it (PF2, PF9).
   const testPick = tested && testChoice(tested, test, otherTest, carry !== null)
   useEffect(() => {
     if (testPick !== undefined && testPick !== test) drop({ test: testPick, function: '' })
@@ -145,8 +144,8 @@ export function useProfileSide(
     setCarry(null)
   }
 
-  // A pick that changes the side's profile carries over what the side showed, and the function
-  // goes from the URL with the test it belonged to.
+  // A pick that changes the side's profile carries over what the side showed. It also removes the
+  // function from the URL, along with the test it belonged to.
   const change = (changes: Partial<SideSettings>) => {
     setCarry(carry ?? { test, function: settings.function })
     update(sideChanges(id, { ...changes, function: '' }))
@@ -172,7 +171,7 @@ export function useProfileSide(
     carry,
     pickSuite: (name) => clear({ suite: name, ...CLEARED_WITH.suite }),
     pickMachine: (name) =>
-      // Another machine keeps the commit if it has profiles at it, as the commit picker checks.
+      // The new machine keeps the commit if it has profiles there, which the commit picker checks.
       name === null
         ? clear({ machine: '', ...CLEARED_WITH.machine })
         : change({ machine: name, run: '' }),

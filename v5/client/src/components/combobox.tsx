@@ -36,8 +36,8 @@ interface CommonProps {
   suggestions: Suggestions
   placeholder?: string
   /**
-   * What the combobox says, in place of `placeholder` and in its list, when it has nothing to suggest
-   * at all (see `Suggestions.isEmpty`): a phrase, without a final period.
+   * What the combobox says when it has nothing at all to suggest (see `Suggestions.isEmpty`). It
+   * replaces `placeholder`, and shows in the list. Write it as a phrase, without a final period.
    */
   emptyMessage?: string
   isDisabled?: boolean

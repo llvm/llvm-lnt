@@ -92,10 +92,11 @@ selected once follows the user from commit to commit, and side B starts on the
 test side A shows.
 
 A side **shows a profile** once it has a test: the profile of that test in the
-selected run. It does so from then on, while the profile is still on its way
--- the runs being listed, the test being checked against the run's profiles,
-the profile being fetched -- and if any of it cannot be fetched, so that the
-page's layout holds still while a side's profile changes.
+selected run. The side counts as showing the profile while it is still loading:
+while its runs are listed, its test is checked against the run's profiles, and
+the profile is fetched. It also counts as showing the profile if any of these
+requests fail. This way, the page's layout holds still while a side's profile
+changes.
 
 
 ### PF3: Counter Comparison
@@ -305,11 +306,11 @@ A value the page cannot use is dropped (see AR2 "State"):
   without a machine, along with whatever PF2 clears when that control is
   cleared;
 - a run that is not in the side's run list, which selects the latest run
-  instead, or a run named without a commit. A commit named without a run
-  selects the latest run too;
+  instead, or a run named without a commit. A commit named without a run also
+  selects the latest run;
 - a test the side's run has no profile of, or a test named without a commit,
-  along with the side's function. A test named with a commit but without a run
-  is checked against the run selected, the latest one;
+  along with the side's function. When the URL names a commit and a test but no
+  run, the page selects the latest run and checks the test against it;
 - a function the side's profile does not have, or a function named without a
   test;
 - a counter that the profiles shown do not have, or an unknown Values setting.

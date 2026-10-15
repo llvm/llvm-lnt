@@ -40,7 +40,7 @@ export interface SideSettings {
   function: string
 }
 
-/** The settings of `side`, each the URL's parameter of the same name, suffixed with the side's. */
+/** The settings of `side`, each from the URL parameter of that name, suffixed with the side. */
 export function sideSettings(settings: Settings, side: SideId): SideSettings {
   return {
     suite: settings[`suite_${side}`],
@@ -58,7 +58,7 @@ export function sideChanges(side: SideId, changes: Partial<SideSettings>): Parti
   return Object.fromEntries(entries) as Partial<Settings>
 }
 
-/** What clearing each of a side's controls clears with it (PF2): what depends on it. */
+/** What clearing each of a side's controls also clears: the controls that depend on it (PF2). */
 export const CLEARED_WITH = {
   suite: { machine: '', commit: '', run: '', test: '', function: '' },
   machine: { commit: '', run: '', test: '', function: '' },

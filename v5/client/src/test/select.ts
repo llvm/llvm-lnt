@@ -1,4 +1,4 @@
-/** Driving the `Select` and `Combobox` components (components/select.tsx, combobox.tsx) in tests. */
+/** Helpers that drive the `Select` and `Combobox` components (see components/) in tests. */
 
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,8 +20,8 @@ export async function pickOption(label: string, option: string, container?: HTML
 }
 
 /**
- * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
- * never emptied meanwhile: that would clear the combobox's value (AR14).
+ * Pick `name` in the combobox labelled `label`. It types `name` over the input's text without
+ * emptying the input first, since an empty input would clear the combobox's value (AR14).
  */
 export async function pick(label: string, name: string, container: HTMLElement = document.body) {
   const user = userEvent.setup()
