@@ -142,9 +142,12 @@ function useSideFunction(
   // since only then does the hottest function stop changing on its own.
   const written =
     choice !== undefined && hottest !== undefined ? urlValue(choice.name, hottest) : undefined
+  // Written again for each new profile too: a pick that changes the profile removes the function
+  // from the URL, and a profile already loaded can show the same function at once, leaving
+  // `written` as it was.
   useEffect(() => {
     if (written !== undefined) update(sideChanges(id, { function: written }))
-  }, [id, written, update])
+  }, [id, profile, written, update])
 
   const pick = useCallback(
     (picked: string) => {

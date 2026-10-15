@@ -30,19 +30,22 @@ async function showsFunction(side: 'A' | 'B', name: string) {
   })
 }
 
-/** The suggestions of `side`'s function selector, each with its share, as the list shows them. */
-async function functionSuggestions(side: 'A' | 'B', count: number) {
+/**
+ * Check that `side`'s function selector suggests the functions named `names`, in order: each with
+ * its share, as assistive technology reads it.
+ */
+async function expectSuggestions(side: 'A' | 'B', names: string[]) {
   const user = userEvent.setup()
   await user.click(column(side).getByRole('button', { name: /Show suggestions/ }))
-  await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(count))
-  const options = screen.getAllByRole('option').map((option) => option.textContent)
+  await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(names.length))
+  const options = screen.getAllByRole('option')
+  names.forEach((name, i) => expect(screen.getByRole('option', { name })).toBe(options[i]))
   await user.keyboard('{Escape}')
-  return options
 }
 
 /** Pick the function `name` on `side`, whose suggestion is named by its share too. */
 function pickFunction(side: 'A' | 'B', name: string) {
-  return pick('Function', name, columnOf(side)!, new RegExp(`^${name}`))
+  return pick('Function', name, columnOf(side)!, new RegExp(`^${name}, `))
 }
 
 /** The rows of `side`'s instructions, as rendered. */
@@ -80,7 +83,8 @@ describe('the Profiles page: function selection (PF4)', () => {
     await showsFunction('A', 'hot')
     expect(instructionRows('A')).toEqual(['75% | 0x1000 | hot: add', '25% | 0x1004 | hot: ret'])
     // The selected function's share, beside its selector.
-    expect(column('A').getByTitle("Share of the profile's cycles")).toHaveTextContent('60%')
+    const badge = column('A').getByTitle("Share of the profile's cycles")
+    expect(within(badge).getByText('60% of cycles')).toBeInTheDocument()
     await settle()
     expect(query().function_a).toBeUndefined()
   })
@@ -90,7 +94,11 @@ describe('the Profiles page: function selection (PF4)', () => {
     renderPage(ALPHA)
     await showsFunction('A', 'hot')
 
-    expect(await functionSuggestions('A', 3)).toEqual(['hot60%', 'warm30%', 'main10%'])
+    await expectSuggestions('A', [
+      'hot, 60% of cycles',
+      'warm, 30% of cycles',
+      'main, 10% of cycles',
+    ])
   })
 
   it('shows the function the URL names, asking for its instructions at once (PF8)', async () => {
@@ -422,6 +430,22 @@ describe('the Profiles page: function selection (PF4)', () => {
     expect(query().function_a).toEqual(['main'])
   })
 
+  it('keeps its function in the URL on going back to a profile already loaded', async () => {
+    mockWorld()
+    renderPage(`${ALPHA}&function_a=warm`)
+    await showsFunction('A', 'warm')
+
+    await pickOption('Run', RUN_2, sideOf('A'))
+    await showsFunction('A', 'warm')
+    await waitFor(() => expect(query().function_a).toEqual(['warm']))
+    // Back to run 1, whose profile is loaded already.
+    await pickOption('Run', RUN_1, sideOf('A'))
+
+    await waitFor(() => expect(query().run_a).toEqual([sideAt('m1', 'c1', '1', 'alpha').run]))
+    await showsFunction('A', 'warm')
+    await waitFor(() => expect(query().function_a).toEqual(['warm']))
+  })
+
   it('shows the function it held for a profile it goes back to', async () => {
     const slow = heldBack((hex: string) => hex === '2')
     mockWorld({ profilesAnswer: slow.answer })
@@ -455,7 +479,11 @@ describe('the Profiles page: the counter (PF4)', () => {
     // Hot is no longer the hottest: the URL names it.
     await waitFor(() => expect(query().function_a).toEqual(['hot']))
     expect(column('A').getByRole('combobox', { name: 'Function' })).toHaveValue('hot')
-    expect(await functionSuggestions('A', 3)).toEqual(['warm75%', 'main15%', 'hot10%'])
+    await expectSuggestions('A', [
+      'warm, 75% of instructions',
+      'main, 15% of instructions',
+      'hot, 10% of instructions',
+    ])
     expect([listed.length, disassembled.length]).toEqual(requests)
   })
 

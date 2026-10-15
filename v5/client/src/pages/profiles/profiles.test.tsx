@@ -11,9 +11,9 @@ import { pick, pickOption, selectButton } from '../../test/select'
 import {
   ALPHA,
   columnOf,
-  profileShown,
   heldBack,
   mockWorld,
+  profileShown,
   profileUuid,
   sideAt,
   sideOf,

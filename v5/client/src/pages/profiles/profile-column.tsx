@@ -1,9 +1,10 @@
 import { memo, useCallback, useDeferredValue, useMemo } from 'react'
+import { VisuallyHidden } from 'react-aria-components'
 import { Combobox } from '../../components/combobox'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { useLocalSuggestions, type Suggestion } from '../../components/suggestions'
 import type { Counters } from './counters'
-import { functionShare, type ProfileFunction } from './functions'
+import { functionShare, shareText, type ProfileFunction } from './functions'
 import { InstructionTable } from './instruction-table'
 import { instructionValues, type ValueMode } from './instructions'
 import { ShareBadge } from './share-badge'
@@ -139,15 +140,23 @@ const FunctionSelector = memo(function FunctionSelector({
   const suggestions = useLocalSuggestions(all)
   // Memoized, because a new function renders every suggestion again.
   const renderSuggestion = useCallback(
-    (suggestion: Suggestion) => (
-      <span className={styles.suggestion}>
-        <span className={styles.functionName}>{suggestion.text}</span>
-        <ShareBadge
-          share={functionShare(byName.get(suggestion.key)!, view.counter, profile)}
-          counter={view.counter}
-        />
-      </span>
-    ),
+    (suggestion: Suggestion) => {
+      const share = functionShare(byName.get(suggestion.key)!, view.counter, profile)
+      return (
+        <>
+          <span className={styles.suggestion} aria-hidden="true">
+            <span className={styles.functionName}>{suggestion.text}</span>
+            <ShareBadge share={share} counter={view.counter} />
+          </span>
+          {/* What the option reads as, in one piece: "warm, 75% of cycles". */}
+          <VisuallyHidden elementType="span">
+            {share === undefined || view.counter === undefined
+              ? suggestion.text
+              : `${suggestion.text}, ${shareText(share, view.counter)}`}
+          </VisuallyHidden>
+        </>
+      )
+    },
     [byName, view.counter, profile],
   )
   const selectedFunction = selected === null ? undefined : byName.get(selected)

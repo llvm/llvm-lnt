@@ -5,6 +5,7 @@
 
 import type { Schemas } from '../../api/client'
 import { sortRows } from '../../components/table-sort'
+import { formatPercent } from '../../format'
 import type { Counters } from './counters'
 
 export type ProfileFunction = Schemas['ProfileFunction']
@@ -30,6 +31,11 @@ export function functionShare(
   const total = profile[counter]
   if (value === undefined || !total) return undefined
   return (value / total) * 100
+}
+
+/** A function's share of the profile's `counter`, as assistive technology reads it. */
+export function shareText(share: number, counter: string): string {
+  return `${formatPercent(share)} of ${counter}`
 }
 
 /**

@@ -116,12 +116,16 @@ test("shows the hottest function's instructions, as the counter and the Values s
   const hottest = 'std::__1::__stable_sort<_ClassicAlgPolicy, __less<>&, int*>(int*, int*, long)'
   const column = columnOf(page, 'A')
   await expect(column.getByRole('combobox', { name: 'Function' })).toHaveValue(hottest)
-  await expect(column.getByTitle("Share of the profile's branch-misses")).toHaveText('45%')
+  const badge = column.getByTitle("Share of the profile's branch-misses")
+  await expect(badge.locator('[aria-hidden="true"]')).toHaveText('45%')
+  // Assistive technology reads it with its counter.
+  await expect(badge.getByText('45% of branch-misses')).toBeAttached()
   const instructions = column.getByRole('table', { name: `Instructions of ${hottest}` })
-  // An aarch64 function's prologue, whose instructions have no share worth showing.
   // The instruction in row `index`, counting the header as row 1.
   const row = (index: number) => instructions.locator(`tr[aria-rowindex="${index}"]`)
+  // An aarch64 function's prologue, which has no branch misses: its value is left empty.
   await expect(row(2)).toContainText('stp    x29, x30, [sp, #-16]!')
+  await expect(row(2).getByRole('cell').first()).toHaveText('')
   await expect(instructions.getByRole('columnheader', { name: 'branch-misses' })).toBeVisible()
 
   await pickOption(page, 'Counter', 'cycles')
@@ -155,7 +159,7 @@ test('keeps the test on another run of the same commit', async ({ page, request 
   // The share of the hottest function, which differs a little between the two runs' profiles.
   const functionA = columnOf(page, 'A').getByRole('combobox', { name: 'Function' })
   await expect(functionA).toHaveValue(/^std::__1::__stable_sort</)
-  const share = columnOf(page, 'A').getByTitle(/^Share of the profile's /)
+  const share = columnOf(page, 'A').getByTitle(/^Share of the profile's /).locator('[aria-hidden]')
   const latestShare = await share.textContent()
 
   const side = sideOf(page, 'A')
