@@ -396,7 +396,11 @@ With PostgreSQL, this is achieved as follows:
   them in the same order.
 - `{suite}.test_coverage` is written last, in one statement, with its rows in
   `(machine_id, test_id)` order, so that submissions for the same machine lock
-  them in the same order.
+  them in the same order. A row that already holds everything the submission
+  would add is neither locked nor rewritten: a machine usually reports the same
+  tests and metrics on every run, and its submissions would otherwise queue
+  behind each other. Deciding that from rows read without a lock is safe
+  because flags are never cleared (D5).
 
 
 ## O9: Run Summaries

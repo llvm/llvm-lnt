@@ -14,7 +14,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.errors import LockNotAvailable
 from sqlalchemy import Engine, func, select, text
+from sqlalchemy.exc import DBAPIError
 
 from conftest import entry, run_payload
 from introspection import counting_statements
@@ -24,7 +26,7 @@ from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.tables import SuiteTables, build
-from test_concurrency import BLOCK_TIMEOUT
+from test_concurrency import BLOCK_TIMEOUT, until_blocked
 
 RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
@@ -106,14 +108,20 @@ def assert_derivable(engine: Engine, tables: SuiteTables) -> Flags:
     return flags
 
 
-def row_versions(engine: Engine) -> list[str]:
-    """Each coverage row's `xmin`, which changes exactly when the row is rewritten."""
+def row_versions(engine: Engine) -> dict[str, tuple[str, str]]:
+    """Each coverage row's `xmin` and `xmax`, by test name.
+
+    `xmin` changes exactly when the row is rewritten. A row lock leaves the locker in `xmax`, so a
+    row that keeps `xmax = 0` was not locked either -- but a rewritten row may have any `xmax`.
+    """
     with engine.connect() as connection:
-        return list(
-            connection.execute(
-                text("SELECT xmin::text FROM nts.test_coverage ORDER BY machine_id, test_id")
-            ).scalars()
-        )
+        rows = connection.execute(
+            text(
+                "SELECT t.name, c.xmin::text, c.xmax::text FROM nts.test_coverage c "
+                "JOIN nts.test t ON t.id = c.test_id"
+            )
+        ).all()
+    return {row[0]: (row[1], row[2]) for row in rows}
 
 
 class TestSubmission:
@@ -171,22 +179,83 @@ class TestSubmission:
             ("darwin", "a"): (False, True),
         }
 
-    def test_a_submission_that_adds_nothing_rewrites_nothing(
+    def test_a_submission_that_adds_nothing_rewrites_or_locks_nothing(
         self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
         # A machine normally reports the same tests and metrics on every run, so the common
-        # submission must leave its rows alone rather than churn a new version of each.
+        # submission must leave its rows alone rather than churn a new version of each, or lock them
+        # and make the machine's next submission wait (O8).
         submit(entry("a", {"execution_time": 1.0}), entry("b"))
         before = row_versions(db_engine)
+        assert {xmax for _, xmax in before.values()} == {"0"}
 
         submit(entry("a", {"execution_time": 2.0}), entry("b"), commit="def456")
 
         assert row_versions(db_engine) == before
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="#429, #430: the coverage write is still an executemany, one statement per row",
-    )
+    def test_writes_only_the_rows_that_gain_something(
+        self, db_engine: Engine, suite: SuiteTables, submit: Callable[..., str]
+    ) -> None:
+        submit(
+            entry("same", {"execution_time": 1.0}),
+            entry("gains", {"execution_time": 1.0}),
+            entry("keeps", {"execution_time": 1.0, "compile_time": 1.0}),
+        )
+        before = row_versions(db_engine)
+
+        submit(
+            entry("same", {"execution_time": 2.0}),
+            entry("gains", {"compile_time": 2.0}),
+            entry("keeps", {"execution_time": 2.0}),
+            entry("new"),
+            commit="def456",
+        )
+
+        assert assert_derivable(db_engine, suite) == {
+            ("linux", "same"): (True, False),
+            ("linux", "gains"): (True, True),
+            ("linux", "keeps"): (True, True),
+            ("linux", "new"): (False, False),
+        }
+        after = row_versions(db_engine)
+        assert after["same"] == before["same"]
+        assert after["keeps"] == before["keeps"]
+        assert after["gains"][0] != before["gains"][0]
+
+    def test_locks_the_rows_it_writes_in_test_order(
+        self,
+        db_engine: Engine,
+        suite: SuiteTables,
+        submit: Callable[..., str],
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        # O8: submissions for the same machine cannot deadlock on these rows. Every row gains a
+        # flag, so every row is locked, and the submission lists them in descending order. Held up
+        # at `b`, it must hold `a` already, and not yet `c`.
+        submit(*(entry(name, {"execution_time": 1.0}) for name in "abc"))
+        lock = text(
+            "SELECT 1 FROM nts.test_coverage c JOIN nts.test t ON t.id = c.test_id "
+            "WHERE t.name = :name FOR UPDATE OF c NOWAIT"
+        )
+        with db_engine.connect() as holder, db_engine.connect() as probe:
+            holder.execute(lock, {"name": "b"})
+            try:
+                running = background(
+                    submit, *(entry(name, {"compile_time": 1.0}) for name in "cba"), commit="d"
+                )
+                until_blocked(db_engine)
+                with pytest.raises(DBAPIError) as raised:
+                    probe.execute(lock, {"name": "a"})
+                assert isinstance(raised.value.orig, LockNotAvailable)
+                probe.rollback()
+                probe.execute(lock, {"name": "c"})
+                probe.rollback()
+            finally:
+                holder.rollback()
+            running.result(timeout=BLOCK_TIMEOUT)
+
+        assert assert_derivable(db_engine, suite) == {("linux", n): (True, True) for n in "abc"}
+
     def test_costs_one_statement_however_many_tests_there_are(
         self, submit: Callable[..., str]
     ) -> None:

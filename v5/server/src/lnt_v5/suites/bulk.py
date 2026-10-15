@@ -18,6 +18,7 @@ from sqlalchemy import (
     Dialect,
     Insert,
     LargeBinary,
+    Select,
     String,
     Table,
     bindparam,
@@ -32,14 +33,23 @@ from sqlalchemy.types import TypeDecorator, TypeEngine
 def unnest_insert(table: Table, rows: Sequence[str], *, constants: Sequence[str] = ()) -> Insert:
     """An INSERT of one row per element of the arrays bound to the `rows` columns, each also
     holding the value bound to every `constants` column. Every parameter is named after its column.
+    """
+    return insert(table).from_select(
+        [*constants, *rows], unnest_rows(table, rows, constants=constants)
+    )
+
+
+def unnest_rows(table: Table, rows: Sequence[str], *, constants: Sequence[str] = ()) -> Select[Any]:
+    """The rows `unnest_insert` inserts, as a SELECT whose columns are named after the table's, for
+    a statement that does more with them.
 
     Each array is cast to its column's type, since an array of nulls gives PostgreSQL nothing to
     infer one from. A `bytea[]` is sent in binary only on a connection `adapt` has set up.
     """
     arrays = [bindparam(name, type_=_array_of(table.c[name].type)) for name in rows]
     unnested = func.unnest(*arrays).table_valued(*rows).render_derived()
-    scalars = [bindparam(name, type_=table.c[name].type) for name in constants]
-    return insert(table).from_select([*constants, *rows], select(*scalars, *unnested.c))
+    scalars = [bindparam(name, type_=table.c[name].type).label(name) for name in constants]
+    return select(*scalars, *unnested.c)
 
 
 def _array_of(element: TypeEngine[Any]) -> TypeEngine[Any]:
