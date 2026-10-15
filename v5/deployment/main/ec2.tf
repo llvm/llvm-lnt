@@ -1,5 +1,5 @@
 # This file provisions the app server: a single EC2 instance running the Docker Compose stack,
-# reached only through Cloudflare and given a stable public Elastic IP.
+# reached only through the CDN and given a stable public Elastic IP.
 data "aws_region" "current" {}
 
 data "aws_ami" "al2023" {

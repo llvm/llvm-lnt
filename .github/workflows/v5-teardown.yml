@@ -76,6 +76,7 @@ jobs:
 
       - name: Plan the destroy
         env:
+          TF_VAR_cdn: ${{ vars.V5_CDN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.V5_CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ vars.V5_CLOUDFLARE_ZONE_ID }}
           TF_VAR_domain: ${{ vars.V5_DOMAIN }}
