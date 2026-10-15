@@ -21,13 +21,24 @@ export function ViewControls({ counter, values, onValues }: Props) {
         <Select
           label="Counter"
           options={counter.offered.map((name) => ({ value: name, label: name }))}
-          value={counter.shown ?? null}
-          placeholder="Loading counters..."
+          // Not one offered while the profiles that would offer it have not loaded.
+          value={
+            counter.shown !== undefined && counter.offered.includes(counter.shown)
+              ? counter.shown
+              : null
+          }
+          // None offered once every side has settled: the profiles shown could not be loaded.
+          placeholder={counter.settled ? 'No counters loaded' : 'Loading counters...'}
           onChange={counter.pick}
           isDisabled={counter.offered.length === 0}
         />
       )}
-      <Select<ValueMode> label="Values" options={VALUE_OPTIONS} value={values} onChange={onValues} />
+      <Select<ValueMode>
+        label="Values"
+        options={VALUE_OPTIONS}
+        value={values}
+        onChange={onValues}
+      />
     </ControlsPanel>
   )
 }

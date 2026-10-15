@@ -29,8 +29,8 @@ export interface Counter {
  *
  * The counter is held as a name, never as a stand-in for the default, so that it stays as the
  * profiles shown change, for as long as one of them has it. It is left out of the URL while it is
- * the default of the profiles shown. It is only checked against the profiles while a side shows one,
- * so that a side's test cleared, then another picked, keeps it. Until every profile shown has
+ * the default of the profiles shown. It is only checked against the profiles while a side shows
+ * one, so that a side's test cleared, then another picked, keeps it. Until every profile shown has
  * loaded, a counter that those loaded lack gives way to their default for the time being, but only
  * once they all have does it fall back to it for good, held and written to the URL (AR2 "State").
  */

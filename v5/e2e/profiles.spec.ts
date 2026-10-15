@@ -116,7 +116,9 @@ test("shows the hottest function's instructions, as the counter and the Values s
   await expect(column.getByTitle("Share of the profile's branch-misses")).toHaveText('45%')
   const instructions = column.getByRole('table', { name: `Instructions of ${hottest}` })
   // An aarch64 function's prologue, whose instructions have no share worth showing.
-  await expect(instructions.locator('tbody tr[aria-rowindex]').first()).toContainText('stp    x29, x30, [sp, #-16]!')
+  // The instruction in row `index`, counting the header as row 1.
+  const row = (index: number) => instructions.locator(`tr[aria-rowindex="${index}"]`)
+  await expect(row(2)).toContainText('stp    x29, x30, [sp, #-16]!')
   await expect(instructions.getByRole('columnheader', { name: 'branch-misses' })).toBeVisible()
 
   await pickOption(page, 'Counter', 'cycles')
@@ -126,7 +128,11 @@ test("shows the hottest function's instructions, as the counter and the Values s
 
   await pickOption(page, 'Values', 'Cumulative %')
   await expect(page).toHaveURL(/[?&]values=cumulative(&|$)/)
-  await expect(instructions.locator('tbody tr[aria-rowindex]').last()).toContainText('100%')
+  // The function's last instruction, its 19th (see tools/synthetic.ts), accounts for the rest.
+  await expect(row(20)).toContainText('ret')
+  await expect(row(20)).toContainText('100%')
+  // An instruction of its loop does not, yet.
+  await expect(row(10)).not.toContainText('100%')
 })
 
 test('says when a machine has no profiles', async ({ page }) => {

@@ -60,6 +60,12 @@ export interface ShownFunction {
   name: string | null
 }
 
+/** The function a side shows, `name`, null for none, and the UUID of the profile it belongs to. */
+export interface HeldFunction {
+  profile: string
+  name: string | null
+}
+
 /**
  * The function a side shows, once its profile, of the test `test`, lists `functions` (PF4), as
  * `{ name }`, a null name when the profile lists none, or undefined while it cannot be known yet:

@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useMemo } from 'react'
+import { memo, useCallback, useDeferredValue, useMemo } from 'react'
 import { Combobox } from '../../components/combobox'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { useLocalSuggestions, type Suggestion } from '../../components/suggestions'
@@ -75,6 +75,8 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
   return (
     <>
       <FunctionSelector
+        // Its suggestions are sorted in a render of their own, which must not mix two profiles'.
+        key={uuid}
         functions={list.data}
         ordered={ordered}
         selected={name ?? null}
@@ -84,7 +86,8 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
       />
       {name ? (
         <Disassembly
-          // Another profile or function starts at the top, but a refetch of the same keeps its place.
+          // Another profile or function starts at the top, and a refetch of the same keeps its
+          // place.
           key={`${uuid}/${name}`}
           name={name}
           disassembly={functions.disassembly}
@@ -96,35 +99,6 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
       )}
     </>
   )
-}
-
-/** What a suggestion of the function selector needs to show its function's share. */
-interface Shares {
-  byName: ReadonlyMap<string, ProfileFunction>
-  counter: string | undefined
-  profile: Counters
-}
-
-/**
- * Given to the suggestions rather than built into how they are rendered, so that the counter
- * changing renders again only the suggestions in view, rather than every one (see `Combobox`).
- */
-const SharesContext = createContext<Shares | null>(null)
-
-/** A function among the suggestions, and its share of the profile (PF4). */
-function FunctionSuggestion({ suggestion }: { suggestion: Suggestion }) {
-  const shares = useContext(SharesContext)!
-  const fn = shares.byName.get(suggestion.key)!
-  return (
-    <span className={styles.suggestion}>
-      <span className={styles.functionName}>{suggestion.text}</span>
-      <ShareBadge share={functionShare(fn, shares.counter, shares.profile)} counter={shares.counter} />
-    </span>
-  )
-}
-
-function renderSuggestion(suggestion: Suggestion) {
-  return <FunctionSuggestion suggestion={suggestion} />
 }
 
 interface SelectorProps {
@@ -153,32 +127,45 @@ const FunctionSelector = memo(function FunctionSelector({
   profile,
   onPick,
 }: SelectorProps) {
-  // The same suggestion for a function whatever the order, so that sorting the functions again
-  // reorders the suggestions rather than replaces them.
-  const suggestionOf = useMemo(
-    () => new Map(functions.map((fn) => [fn.name, { key: fn.name, text: fn.name }])),
-    [functions],
+  // Re-sorted for a new counter after the rest of the page has shown it, in a render that does not
+  // hold up the page.
+  const view = useDeferredValue(useMemo(() => ({ ordered, counter }), [ordered, counter]))
+  const all = useMemo(
+    () => view.ordered.map((fn) => ({ key: fn.name, text: fn.name })),
+    [view.ordered],
   )
-  const all = useMemo(() => ordered.map((fn) => suggestionOf.get(fn.name)!), [ordered, suggestionOf])
   const byName = useMemo(() => new Map(functions.map((fn) => [fn.name, fn])), [functions])
-  const shares = useMemo(() => ({ byName, counter, profile }), [byName, counter, profile])
   const suggestions = useLocalSuggestions(all)
-  const value = selected === null ? null : (suggestionOf.get(selected) ?? null)
+  // Memoized: every suggestion is rendered again for a new one.
+  const renderSuggestion = useCallback(
+    (suggestion: Suggestion) => (
+      <span className={styles.suggestion}>
+        <span className={styles.functionName}>{suggestion.text}</span>
+        <ShareBadge
+          share={functionShare(byName.get(suggestion.key)!, view.counter, profile)}
+          counter={view.counter}
+        />
+      </span>
+    ),
+    [byName, view.counter, profile],
+  )
   const selectedFunction = selected === null ? undefined : byName.get(selected)
   return (
     <div className={styles.functionRow}>
-      <SharesContext.Provider value={shares}>
-        <Combobox
-          label="Function"
-          fill
-          value={value}
-          // A function cannot be cleared: the side always shows one.
-          onChange={(picked) => picked && onPick(picked.key)}
-          suggestions={suggestions}
-          renderSuggestion={renderSuggestion}
-          virtualized
-        />
-      </SharesContext.Provider>
+      <Combobox
+        // The counter orders the suggestions: another one mounts the combobox afresh, as React Aria
+        // takes far longer to reorder thousands of suggestions than to list them anew, which would
+        // make changing the counter lag (PF5).
+        key={view.counter}
+        label="Function"
+        fill
+        value={selected === null ? null : { key: selected, text: selected }}
+        // A function cannot be cleared: the side always shows one.
+        onChange={(picked) => picked && onPick(picked.key)}
+        suggestions={suggestions}
+        renderSuggestion={renderSuggestion}
+        virtualized
+      />
       {selectedFunction && (
         <ShareBadge share={functionShare(selectedFunction, counter, profile)} counter={counter} />
       )}

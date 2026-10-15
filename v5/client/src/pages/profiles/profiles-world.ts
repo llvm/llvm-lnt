@@ -186,26 +186,30 @@ export function mockWorld({
       }))
       return HttpResponse.json({ items })
     }),
-    mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}/disassembly', async ({ params, request }) => {
-      const name = new URL(request.url).searchParams.get('function')!
-      disassembled.push(`${params.uuid}/${name}`)
-      const answer = await disassemblyAnswer?.(`${params.uuid}/${name}`)
-      if (answer !== undefined) return answer as never
-      const fn = functionsOf(params.uuid)[name]
-      if (fn === undefined) return errorResponse(404, 'not_found', 'No such function') as never
-      // Two instructions, the first with three quarters of each counter.
-      const part = (share: number) =>
-        Object.fromEntries(Object.entries(fn).map(([counter, value]) => [counter, value * share]))
-      return HttpResponse.json({
-        name,
-        counters: fn,
-        disassembly_format: 'llvm-objdump',
-        instructions: [
-          { address: 0x1000, counters: part(0.75), text: `${name}: add` },
-          { address: 0x1004, counters: part(0.25), text: `${name}: ret` },
-        ],
-      })
-    }),
+    mockApi(
+      'get',
+      '/api/suites/{testsuite}/profiles/{uuid}/disassembly',
+      async ({ params, request }) => {
+        const name = new URL(request.url).searchParams.get('function')!
+        disassembled.push(`${params.uuid}/${name}`)
+        const answer = await disassemblyAnswer?.(`${params.uuid}/${name}`)
+        if (answer !== undefined) return answer as never
+        const fn = functionsOf(params.uuid)[name]
+        if (fn === undefined) return errorResponse(404, 'not_found', 'No such function') as never
+        // Two instructions, the first with three quarters of each counter.
+        const part = (share: number) =>
+          Object.fromEntries(Object.entries(fn).map(([counter, value]) => [counter, value * share]))
+        return HttpResponse.json({
+          name,
+          counters: fn,
+          disassembly_format: 'llvm-objdump',
+          instructions: [
+            { address: 0x1000, counters: part(0.75), text: `${name}: add` },
+            { address: 0x1004, counters: part(0.25), text: `${name}: ret` },
+          ],
+        })
+      },
+    ),
   )
   return { commits, metadata, listed, disassembled }
 }

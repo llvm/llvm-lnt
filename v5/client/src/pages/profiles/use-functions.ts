@@ -60,9 +60,10 @@ function otherShown(
   list: FunctionList,
   test: string,
 ): ShownFunction | null | undefined {
-  // A side whose profile is changing does not wait for this one, so this one need not wait for it.
-  if (other.carry !== null) return other.carry
+  // Only a side that shows, or is about to show, a profile of the same test has one to offer.
   if (other.settings.test !== test || other.status.kind === 'none') return null
+  // One whose profile is changing does not wait for this one, so this one need not wait for it.
+  if (other.carry !== null) return other.carry
   if (other.heldFunction !== undefined) return { test, name: other.heldFunction }
   if (other.status.kind === 'failed' || list.functions.isError) return null
   return undefined
@@ -94,8 +95,8 @@ function choiceOf(
  *
  * A side's function is resolved once its profile is shown and its functions are listed, then held
  * by its name (see `ProfileSide.heldFunction`), so that changing the counter never changes it
- * (PF4). It is left out of the URL while it is the side's hottest under the counter shown, which the
- * URL is written again for whenever that changes.
+ * (PF4). It is left out of the URL while it is the side's hottest under the counter shown, which
+ * the URL is written again for whenever that changes.
  */
 export function useFunctions(
   a: ProfileSide,
@@ -137,7 +138,8 @@ function useSideFunction(
   })
 
   // Left out of the URL while it is the hottest, once that can only change with the counter.
-  const written = choice !== undefined && hottest !== undefined ? urlValue(choice.name, hottest) : undefined
+  const written =
+    choice !== undefined && hottest !== undefined ? urlValue(choice.name, hottest) : undefined
   useEffect(() => {
     if (written !== undefined) update(sideChanges(id, { function: written }))
   }, [id, written, update])

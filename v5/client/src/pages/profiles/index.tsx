@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from 'react'
+import { useEffect, useReducer, type CSSProperties } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { forgetProfiles } from '../../api/profiles'
 import { useSuites } from '../../api/suites'
@@ -6,6 +6,7 @@ import { ErrorMessage } from '../../components/feedback'
 import { useUrlState, useVisitKey } from '../../url-state'
 import { PARAMS } from './settings'
 import { ProfileColumn } from './profile-column'
+import { NO_PICKS, sidePicks } from './selection'
 import { SidePanel } from './side-panel'
 import { useCounter } from './use-counter'
 import { useFunctions } from './use-functions'
@@ -27,8 +28,11 @@ export default function Profiles() {
 function ProfilesPage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
-  const a = useProfileSide('a', settings, update, suites)
-  const b = useProfileSide('b', settings, update, suites)
+  // Changed while the page renders, which only the page's own state may be (see `useProfileSide`).
+  const picksA = useReducer(sidePicks, NO_PICKS)
+  const picksB = useReducer(sidePicks, NO_PICKS)
+  const a = useProfileSide('a', settings, update, suites, picksA)
+  const b = useProfileSide('b', settings, update, suites, picksB)
   const counter = useCounter([a, b], settings.counter, update)
   const functions = useFunctions(a, b, counter, update)
 

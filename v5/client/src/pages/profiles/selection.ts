@@ -4,7 +4,7 @@
  */
 
 import type { Schemas } from '../../api/client'
-import type { ShownFunction } from './functions'
+import type { HeldFunction, ShownFunction } from './functions'
 
 type Run = Schemas['Run']
 
@@ -16,10 +16,41 @@ type Run = Schemas['Run']
  */
 export type Carry = ShownFunction
 
-/** The function a side shows, `name`, null for none, and the UUID of the profile it belongs to. */
-export interface HeldFunction {
-  profile: string
-  name: string | null
+/**
+ * What a side holds of the user's picks, besides the URL, for as long as the page is open: what it
+ * carries over (see `Carry`), and the function it holds for its profile (see `HeldFunction`).
+ */
+export interface SidePicks {
+  carry: Carry | null
+  held: HeldFunction | null
+}
+
+export const NO_PICKS: SidePicks = { carry: null, held: null }
+
+/**
+ * How a side's picks change:
+ *
+ * - `change`: a pick changes the side's profile, which carries over what it showed, `shown`, unless
+ *   it already carries something over, from a pick whose profile it has not shown yet.
+ * - `clear`: the side is left without what it showed: a pick cleared it, or what it showed turned
+ *   out to be unusable. Nothing is carried over, and no function is held, so that coming back to
+ *   the same profile starts afresh.
+ * - `settle`: the side's function is known, and held, which uses up the carry.
+ */
+export type SidePicksAction =
+  | { type: 'change'; shown: Carry }
+  | { type: 'clear' }
+  | { type: 'settle'; held: HeldFunction }
+
+export function sidePicks(state: SidePicks, action: SidePicksAction): SidePicks {
+  switch (action.type) {
+    case 'change':
+      return state.carry === null ? { ...state, carry: action.shown } : state
+    case 'clear':
+      return NO_PICKS
+    case 'settle':
+      return { carry: null, held: action.held }
+  }
 }
 
 /**

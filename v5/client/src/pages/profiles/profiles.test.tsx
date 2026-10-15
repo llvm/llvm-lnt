@@ -141,7 +141,7 @@ describe('the Profiles page: side selection (PF2)', () => {
 
   it('keeps the test on another commit whose latest run has a profile of it', async () => {
     mockWorld()
-    renderPage(`/profiles?suite_a=libcxx&machine_a=m1&commit_a=c2&run_a=${uuidOf('3')}&test_a=gamma`)
+    renderPage(profilesPath(sideAt('m1', 'c2', '3', 'gamma')))
     await waitFor(() => expect(field('Commit', 'A')).toHaveValue('c2'))
 
     await pick('Commit', 'c1', sideOf('A'))
@@ -278,7 +278,7 @@ describe('the Profiles page: side selection (PF2)', () => {
 })
 
 describe('the Profiles page: URL state (PF9)', () => {
-  it('selects the latest run for a commit named without one, and checks the test there', async () => {
+  it('selects the latest run for a commit named without one, checking the test there', async () => {
     mockWorld()
     renderPage('/profiles?suite_a=libcxx&machine_a=m1&commit_a=c1&test_a=gamma')
 
@@ -290,7 +290,7 @@ describe('the Profiles page: URL state (PF9)', () => {
   it('selects the latest run in place of one not listed, dropping a test it lacks', async () => {
     mockWorld()
     renderPage(
-      `/profiles?suite_a=libcxx&machine_a=m1&commit_a=c1&run_a=${uuidOf('3')}&test_a=beta&function_a=main`,
+      `${profilesPath(sideAt('m1', 'c1', '3', 'beta'))}&function_a=main`,
     )
 
     await waitFor(() => expect(query().run_a).toEqual([uuidOf('2')]))
@@ -326,7 +326,9 @@ describe('the Profiles page: URL state (PF9)', () => {
   it('drops a suite or a machine that does not exist, without reporting its runs', async () => {
     mockWorld({
       runsAnswer: (q) =>
-        q.get('machine') === 'bogus' ? errorResponse(404, 'not_found', 'No such machine') : undefined,
+        q.get('machine') === 'bogus'
+          ? errorResponse(404, 'not_found', 'No such machine')
+          : undefined,
     })
     renderPage(
       '/profiles?suite_a=libcxx&machine_a=bogus&commit_a=c1&test_a=alpha&suite_b=nope&machine_b=m1',
@@ -426,7 +428,7 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
     await waitFor(() => expect(columnOf('A')).not.toHaveTextContent('Loading'))
   })
 
-  it("says when the run's profiles could not be listed, without affecting the other side", async () => {
+  it("says when the run's profiles could not be listed, not affecting the other side", async () => {
     mockWorld({
       profilesAnswer: (hex) =>
         hex === '1' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
@@ -434,7 +436,9 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
     renderPage(withB('m1', 'c2', '3', 'beta'))
 
     expect(
-      await within(await screen.findByRole('region', { name: 'Side A' })).findByText(/The run's profiles could not be listed: Boom/),
+      await within(await screen.findByRole('region', { name: 'Side A' })).findByText(
+        /The run's profiles could not be listed: Boom/,
+      ),
     ).toBeInTheDocument()
     await waitFor(() => expect(columnOf('B')).not.toHaveTextContent('Loading'))
     expect(within(sideOf('B')).queryByRole('alert')).not.toBeInTheDocument()
@@ -464,7 +468,9 @@ describe('the Profiles page: layout and data flow (PF7, PF8)', () => {
     renderPage(ALPHA)
 
     expect(
-      await within(await screen.findByRole('region', { name: 'Side A' })).findByText(/The run's profiles could not be listed: Boom/),
+      await within(await screen.findByRole('region', { name: 'Side A' })).findByText(
+        /The run's profiles could not be listed: Boom/,
+      ),
     ).toBeInTheDocument()
     expect(field('Test', 'A')).toBeDisabled()
     fail = false

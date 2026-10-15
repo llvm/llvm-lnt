@@ -3,7 +3,7 @@
  * checked against what the API holds, and the profile that the side shows.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, type Dispatch } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { profileQuery } from '../../api/profiles'
@@ -20,12 +20,15 @@ import {
   type SideId,
   type SideSettings,
 } from './settings'
+import type { HeldFunction } from './functions'
 import {
+  NO_PICKS,
   runChoice,
   sideStatus,
   testChoice,
   type Carry,
-  type HeldFunction,
+  type SidePicks,
+  type SidePicksAction,
   type SideStatus,
 } from './selection'
 
@@ -59,7 +62,10 @@ export interface ProfileSide {
    * name, never as a stand-in for the hottest function (see `ShownFunction`).
    */
   heldFunction: string | null | undefined
-  /** The side's function is now known: hold it, and use the carry up. */
+  /**
+   * The side's function is now known: hold it, and use the carry up. Called while rendering, by the
+   * component that holds the side's picks (see `useProfileSide`).
+   */
   settleFunction(held: HeldFunction): void
   pickSuite(suite: string): void
   pickMachine(machine: string | null): void
@@ -70,7 +76,10 @@ export interface ProfileSide {
 
 /**
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
- * lists the suites of the instance.
+ * lists the suites of the instance. `picks` holds what the side keeps of the user's picks besides
+ * the URL (see `SidePicks`). Both this and the side's function (see `useFunctions`) change it while
+ * rendering, which React allows of a component's own state only: whatever calls them must be the
+ * component that holds it.
  *
  * The side sends every request with the URL's values as they are, without first checking them
  * (PF8). It only uses what depends on the run once the run list includes the run. That shows that
@@ -82,24 +91,29 @@ export function useProfileSide(
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
+  [picks, dispatch]: [SidePicks, Dispatch<SidePicksAction>],
 ): ProfileSide {
   const settings = sideSettings(all, id)
   const { suite, machine, commit, run, test } = settings
   const otherTest = sideSettings(all, id === 'a' ? 'b' : 'a').test
-  const [carry, setCarry] = useState<Carry | null>(null)
-  const [held, setHeld] = useState<HeldFunction | null>(null)
+  const { carry, held } = picks
 
   // What the page drops, as unusable (AR2 "State").
   const drop = useCallback(
     (changes: Partial<SideSettings>) => update(sideChanges(id, changes)),
     [id, update],
   )
+  // A pick that clears what the side showed, or a drop of what it showed, keeps nothing of it.
+  const clear = (changes: Partial<SideSettings>) => {
+    dispatch({ type: 'clear' })
+    update(sideChanges(id, changes))
+  }
   const { schema, machines } = useSuiteAndMachine({
     suite,
     machine,
     suites,
-    onUnusableSuite: () => drop({ suite: '', ...CLEARED_WITH.suite }),
-    onUnusableMachine: () => drop({ machine: '', ...CLEARED_WITH.machine }),
+    onUnusableSuite: () => clear({ suite: '', ...CLEARED_WITH.suite }),
+    onUnusableMachine: () => clear({ machine: '', ...CLEARED_WITH.machine }),
   })
 
   const runs = useQuery({
@@ -156,29 +170,24 @@ export function useProfileSide(
 
   const status = sideStatus({ test, run, runPick, runsFailed, profiles, testPick, uuid, metadata })
 
-  // The carry is used up once the side is left without a profile. One that shows a profile uses it
-  // up once its function is known (see `useFunctions`).
-  if (carry !== null && (runPick === '' || testPick === '')) setCarry(null)
+  // A side left without a profile keeps nothing of it. One that shows a profile uses its carry up
+  // once its function is known (see `useFunctions`).
+  if (picks !== NO_PICKS && (runPick === '' || testPick === '')) dispatch({ type: 'clear' })
 
   const heldFunction =
     status.kind === 'shown' && held?.profile === status.uuid ? held.name : undefined
-  const settleFunction = useCallback((next: HeldFunction) => {
-    setHeld(next)
-    setCarry(null)
-  }, [setHeld, setCarry])
+  const settleFunction = useCallback(
+    (next: HeldFunction) => dispatch({ type: 'settle', held: next }),
+    [dispatch],
+  )
 
   // A pick that changes the side's profile carries over what the side showed: its function, or the
   // URL's until it is known, which the new profile is checked for anyway. The function goes from
   // the URL with the test it belonged to.
   const change = (changes: Partial<SideSettings>) => {
     const name = heldFunction !== undefined ? heldFunction : settings.function || null
-    setCarry(carry ?? { test, name })
+    dispatch({ type: 'change', shown: { test, name } })
     update(sideChanges(id, { ...changes, function: '' }))
-  }
-  // A pick that clears what the side showed carries nothing over.
-  const clear = (changes: Partial<SideSettings>) => {
-    setCarry(null)
-    update(sideChanges(id, changes))
   }
 
   return {
