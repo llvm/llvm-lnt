@@ -1,7 +1,7 @@
 """Convert a Linux perf profile into an LNT v5 profile document.
 
-This implements ``lnt v5 convert-perf``. docs/v5_convert_perf.rst specifies
-it.
+This implements ``lnt v5 convert-profile``, whose only input format so far is
+perf.data. docs/v5_convert_profile.rst specifies it.
 
 perf.data is read by cPerf, the same extension v4 uses (see
 lnt/testing/profile/cPerf.cpp), which returns absolute counts: exactly what a

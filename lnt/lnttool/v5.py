@@ -72,8 +72,8 @@ def action_convert_v4_mirror(mirror_dir: str, suite: str,
         sys.exit(1)
 
 
-@group_v5.command("convert-perf")
-@click.argument("perf_data", type=click.Path(exists=True, dir_okay=False))
+@group_v5.command("convert-profile")
+@click.argument("profile", type=click.Path(exists=True, dir_okay=False))
 @click.option("-o", "--output", metavar="FILE", default="-",
               type=click.File("wb", lazy=True),
               help="write the result to FILE rather than to standard output")
@@ -94,15 +94,16 @@ def action_convert_v4_mirror(mirror_dir: str, suite: str,
               metavar="NAME",
               help="what produced the instruction text, as the document "
                    "records it")
-def action_convert_perf(perf_data: str, output: Any, encode: bool,
-                        objdump: str, binary_cache_root: str, cxxfilt: str,
-                        disassembly_format: str) -> None:
-    """convert a Linux perf profile into a v5 profile document
+def action_convert_profile(profile: str, output: Any, encode: bool,
+                           objdump: str, binary_cache_root: str, cxxfilt: str,
+                           disassembly_format: str) -> None:
+    """convert a profile into a v5 profile document
 
-    PERF_DATA is a file recorded by `perf record`. Its profile document is
-    written as JSON, or with --encode as the string a test's `profile` holds
-    in a v5 run submission. See the "Converting perf Profiles for v5"
-    documentation for how the profile is converted.
+    PROFILE is the profile to convert: so far, a perf.data file recorded by
+    Linux `perf record`. Its profile document is written as JSON, or with
+    --encode as the string a test's `profile` holds in a v5 run submission.
+    See the "Converting Profiles for v5" documentation for how the profile is
+    converted.
 
     Exits with a non-zero status if the profile cannot be converted.
     """
@@ -111,7 +112,7 @@ def action_convert_perf(perf_data: str, output: Any, encode: bool,
 
     try:
         document = convert_perf(
-            perf_data, objdump, binary_cache_root, cxxfilt,
+            profile, objdump, binary_cache_root, cxxfilt,
             disassembly_format,
             warn=lambda line: click.echo("warning: %s" % line, err=True))
         # Computed before `output.write` is looked up, which opens the file.

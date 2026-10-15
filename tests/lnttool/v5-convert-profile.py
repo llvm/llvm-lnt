@@ -1,4 +1,4 @@
-# Test `lnt v5 convert-perf`: on a real perf.data file read with a fake
+# Test `lnt v5 convert-profile`: on a real perf.data file read with a fake
 # objdump, and, with cPerf's reading of it stubbed out, on the functions a v5
 # instance would refuse.
 #
@@ -15,7 +15,7 @@ import sys
 from click.testing import CliRunner
 
 import lnt.util.v5_profile
-from lnt.lnttool.v5 import action_convert_perf
+from lnt.lnttool.v5 import action_convert_profile
 
 INPUTS, TMP = sys.argv[1], sys.argv[2]
 
@@ -66,7 +66,7 @@ OUT = os.path.join(TMP, 'out')
 
 def run(*args, perf_data=PERF_DATA, objdump=OBJDUMP, cxxfilt=CXXFILT):
     return CliRunner().invoke(
-        action_convert_perf,
+        action_convert_profile,
         [perf_data, '--objdump', objdump, '--cxxfilt', cxxfilt] + list(args))
 
 
@@ -133,7 +133,7 @@ print('# OPTIONS')
 open(OBJDUMP_LOG, 'w').close()
 result = CliRunner(env={'CMAKE_OBJDUMP': OBJDUMP,
                         'LNT_BINARY_CACHE_ROOT': '/cache'}).invoke(
-    action_convert_perf,
+    action_convert_profile,
     [PERF_DATA, '--cxxfilt', CXXFILT, '--disassembly-format', 'gnu-objdump'])
 print('exit: %d, format: %s' % (
     result.exit_code, json.loads(result.stdout_bytes)['disassembly_format']))

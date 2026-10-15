@@ -1,11 +1,11 @@
-.. _v5_convert_perf:
+.. _v5_convert_profile:
 
-Converting perf Profiles for v5
-===============================
+Converting Profiles for v5
+==========================
 
-``lnt v5 convert-perf`` converts a profile recorded by Linux ``perf record``
-into a profile document, the form in which a run submitted to an LNT v5
-instance carries a test's profile.
+``lnt v5 convert-profile`` converts a profile into a profile document, the form
+in which a run submitted to an LNT v5 instance carries a test's profile. So
+far, the only format it reads is that of Linux ``perf record``.
 
 
 Example
@@ -13,17 +13,17 @@ Example
 
 To convert ``bench.perf_data``, the profile of the test ``bench``::
 
-    lnt v5 convert-perf bench.perf_data > bench.profile.json
+    lnt v5 convert-profile bench.perf_data > bench.profile.json
 
 To attach it to that test in ``run.json``, a v5 run submission, convert it with
 ``--encode``, which gives the string a test's ``profile`` holds::
 
-    lnt v5 convert-perf --encode bench.perf_data -o bench.profile
+    lnt v5 convert-profile --encode bench.perf_data -o bench.profile
     jq --rawfile profile bench.profile \
         '(.tests[] | select(.name == "bench")).profile = ($profile | rtrimstr("\n"))' \
         run.json > run-with-profile.json
 
-See ``lnt v5 convert-perf --help`` for the other options.
+See ``lnt v5 convert-profile --help`` for the other options.
 
 
 Reading the profile
