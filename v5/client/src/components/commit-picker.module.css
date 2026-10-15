@@ -1,5 +1,13 @@
-/* The picker, and below it, why the commit it was given could not be looked up. */
+/*
+ * The picker, and below it, why the commit it was given could not be looked up: as wide as the
+ * picker, whose width it takes no part in, and with no room left below it.
+ */
 .root {
   display: inline-flex;
   flex-direction: column;
+}
+
+.root > [role='alert'] {
+  contain: inline-size;
+  margin-bottom: 0;
 }

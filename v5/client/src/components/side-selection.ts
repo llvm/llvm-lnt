@@ -6,10 +6,7 @@
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { SuiteSchema } from '../api/suites'
 import { useDropUnusable } from '../url-state'
-import { useMachineSuggestions } from './machine-suggestions'
-
-/** The suite's machines, and the suggestions of the combobox picking one. */
-export type Machines = ReturnType<typeof useMachineSuggestions>
+import { useMachineSuggestions, type Machines } from './machine-suggestions'
 
 /**
  * The side's suite, once the suites `suites` lists are known to hold it, and its machines. Once a
@@ -35,8 +32,6 @@ export function useSuiteAndMachine({
     (list) => suite === '' || list.some((entry) => entry.name === suite),
     onUnusableSuite,
   )
-  // Only once the suite is known to exist, which CP6 and PF8 do not ask for: they send every request
-  // the URL calls for at once. The commit picker, which needs the suite's schema, waits too.
   const machines = useMachineSuggestions(suite, schema !== undefined)
   useDropUnusable(
     machines.machines,
@@ -51,11 +46,15 @@ export function useSuiteAndMachine({
  * exist, since no error is reported for a value that turns out to be unusable (AR2 "State"), unless
  * its existence cannot be checked.
  */
-export function reportsMachineFailures(machines: Machines, machine: string): boolean {
+export function machineFailuresReportable(machines: Machines, machine: string): boolean {
   return (machines.machines.data?.includes(machine) ?? false) || machines.machines.isError
 }
 
 /** Whether the side's runs, `runs`, could not be listed, and that is to be said. */
-export function runsListFailed(runs: UseQueryResult, machines: Machines, machine: string): boolean {
-  return runs.isError && reportsMachineFailures(machines, machine)
+export function runsListFailed(
+  runs: { isError: boolean },
+  machines: Machines,
+  machine: string,
+): boolean {
+  return runs.isError && machineFailuresReportable(machines, machine)
 }

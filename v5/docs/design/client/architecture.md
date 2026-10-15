@@ -51,12 +51,12 @@ within the UI causes a full page reload.
   does not offer) is dropped, and the page uses its default for that setting
   instead. A value is only found unusable from a complete response: for a
   list, once all of its pages have loaded. Nothing is dropped while a request
-  is still loading, or after it has failed. A request sent for a value that
-  turns out to be unusable is not reported if it fails, since the value is
-  dropped anyway. The same goes for a selection that
+  is still loading, or after it has failed. The same goes for a selection that
   depends on a list. For example, when the machines change on the Graph page, a
   selected test that the new test lists don't have is deselected only once
-  every machine's test list has loaded. A setting holding several values
+  every machine's test list has loaded. A request sent for a value that turns
+  out to be unusable is not reported if it fails, since the value is dropped
+  anyway. A setting holding several values
   repeats its parameter once per value, as the API does (see I3). The inputs of
   a form, such as what a panel is about to create or add, are not settings, and
   are not kept in the URL.

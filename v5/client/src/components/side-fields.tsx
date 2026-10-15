@@ -9,13 +9,14 @@ import type { SuiteSchema } from '../api/suites'
 import { Combobox } from './combobox'
 import { CommitPicker } from './commit-picker'
 import { ErrorMessage } from './feedback'
+import type { Machines } from './machine-suggestions'
 import { Select } from './select'
-import { reportsMachineFailures, type Machines } from './side-selection'
+import { machineFailuresReportable } from './side-selection'
 import { NO_SUGGESTIONS } from './suggestions'
 
 function noop() {}
 
-const NO_FILTERS = {}
+const NO_FILTERS: Omit<CommitFilters, 'machine'> = {}
 
 interface Props {
   suites: SuiteSchema[]
@@ -100,7 +101,7 @@ export function SideFields({
           value={commit === '' ? null : commit}
           onChange={onCommit}
           placeholder="Select a commit"
-          reportsLookupFailure={reportsMachineFailures(machines, machine)}
+          reportsLookupFailure={machineFailuresReportable(machines, machine)}
         />
       )}
     </>

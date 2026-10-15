@@ -17,7 +17,8 @@ import {
 } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
 import { useControlledSelection, type RowSelection } from '../../components/range-selection'
-import { useSuiteAndMachine, type Machines } from '../../components/side-selection'
+import type { Machines } from '../../components/machine-suggestions'
+import { useSuiteAndMachine } from '../../components/side-selection'
 import { NO_RUNS_SELECTED, runsParam, selectedRuns } from './run-selection'
 import {
   CLEARED_WITH,

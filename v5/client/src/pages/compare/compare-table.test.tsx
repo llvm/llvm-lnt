@@ -584,15 +584,10 @@ describe('the Profile column (CP2)', () => {
         return errorResponse(404, 'not_found', 'No such machine')
       },
     })
-    // Holding the machines back, so that the machine is not known not to exist meanwhile, and
-    // answering the commit's lookup as the API does for a machine that does not exist.
+    // Holding the machines back, so that the machine is not known not to exist meanwhile.
     server.use(
       mockApi('get', '/api/suites/{testsuite}/machines', async () => {
         await held
-      }),
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
-        if (new URL(request.url).searchParams.get('machine') === 'bogus')
-          return errorResponse(404, 'not_found', 'No such machine') as never
       }),
     )
     renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')

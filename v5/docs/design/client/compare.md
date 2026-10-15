@@ -408,10 +408,12 @@ page or the table.
   comparison.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
-  A side whose URL names no runs can only ask for samples once its runs are
-  listed.
-  If a value turns out to be unusable, whatever was fetched for it is
-  discarded, and an error for it is not reported.
+  Only what needs the suite's schema waits for the suites to be listed: the
+  suite's machines, and the lookup of the commit (see AR15), whose display
+  value the schema gives. A side whose URL names no runs can only ask for
+  samples once its runs are listed. If a value turns out to be unusable,
+  whatever was fetched for it is discarded, and its failures are not reported
+  (see AR2 "State").
 
 While the samples are loading, a progress indicator shows how many of the
 selected runs have loaded, in place of the comparison. The page never shows a

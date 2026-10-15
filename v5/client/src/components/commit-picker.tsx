@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PAGE_SIZE } from '../api/client'
 import { fetchCommitPage, type CommitFilters } from '../api/commits'
@@ -27,9 +27,9 @@ interface CommonProps {
   /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
   onPendingChange?: (pending: boolean) => void
   /**
-   * Whether to say that looking up a commit given failed (AR7): not while what the filters name may
-   * not exist, as a machine named by the URL may not, since no error is reported for a value that
-   * turns out to be unusable (AR2 "State").
+   * Whether to report a failed lookup of the commit given (AR7). Turn it off while the filters name
+   * something that may turn out not to exist, such as a machine from the URL: a failure for an
+   * unusable value is not reported (AR2 "State").
    */
   reportsLookupFailure?: boolean
 }
@@ -139,8 +139,19 @@ export function CommitPicker({
           onChange(suggestion?.key ?? null)
         },
       }
+  // A Retry that succeeds takes the error away, and its button with it: the focus goes back to the
+  // input rather than to the page, where keys meant for the picker's surroundings would be lost.
+  const root = useRef<HTMLDivElement>(null)
+  const retried = useRef(false)
+  const failed = lookup.isLoadingError && reportsLookupFailure
+  useLayoutEffect(() => {
+    if (failed || !retried.current) return
+    retried.current = false
+    root.current?.querySelector('input')?.focus()
+  }, [failed])
+
   return (
-    <div className={styles.root}>
+    <div ref={root} className={styles.root}>
       <Combobox
         label={label}
         {...handlers}
@@ -151,11 +162,14 @@ export function CommitPicker({
         hideLabel={hideLabel}
         onPendingChange={onPendingChange}
       />
-      {lookup.isLoadingError && reportsLookupFailure && (
+      {failed && (
         <ErrorMessage
           context="The commit could not be looked up"
           error={lookup.error}
-          onRetry={() => void lookup.refetch()}
+          onRetry={() => {
+            retried.current = true
+            void lookup.refetch()
+          }}
         />
       )}
     </div>

@@ -268,9 +268,11 @@ be large (see O7). This does not apply to the lists the side controls offer:
 suites, machines, commits, runs and a run's profiles.
 
 When the page is loaded from a URL, it sends the requests that the URL's values
-call for without first checking that the values are usable. If a value turns
-out to be unusable, whatever was fetched for it is discarded, and an error for
-it is not reported.
+call for without first checking that the values are usable. Only what needs the
+suite's schema waits for the suites to be listed: the suite's machines, and the
+lookup of the commit (see AR15), whose display value the schema gives. If a
+value turns out to be unusable, whatever was fetched for it is discarded, and
+its failures are not reported (see AR2 "State").
 
 When the page cannot fetch something it needs -- the suites, a suite's machines,
 a side's runs, a commit lookup, a run's profiles, a profile, its functions or a

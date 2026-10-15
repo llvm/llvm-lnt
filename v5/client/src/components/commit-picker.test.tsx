@@ -4,6 +4,7 @@ import { HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { CommitFilters } from '../api/commits'
+import { queryKeys } from '../api/keys'
 import { scrollToEnd } from '../test/intersection-observer'
 import { SUITE, commit, cursorPage } from '../test/fixtures'
 import type { Commit } from '../schema'
@@ -61,13 +62,14 @@ function renderPicker({
     )
   }
   let props: HarnessProps = { filters }
-  const { rerender } = renderWithProviders(<Harness {...props} />)
+  const { rerender, queryClient } = renderWithProviders(<Harness {...props} />)
   const update = (changes: HarnessProps) => {
     props = { ...props, ...changes }
     rerender(<Harness {...props} />)
   }
   return {
     input: screen.getByRole('combobox', { name: 'Commit' }),
+    queryClient,
     onChange,
     // A copy, as a page building its filters afresh would pass.
     setFilters: (next: CommitFilters) => update({ filters: { ...next } }),
@@ -296,6 +298,32 @@ describe('CommitPicker', () => {
     await waitFor(() => expect(input).toHaveValue('r100 (v1)'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(lookups(queries).length).toBeGreaterThan(0)
+    // Rather than to the page, with the Retry button gone.
+    expect(input).toHaveFocus()
+  })
+
+  it('says nothing when a lookup that answered fails when it is asked again', async () => {
+    serveCommits()
+    const { input, queryClient } = renderPicker({
+      initial: TAGGED.value,
+      filters: { machine: 'linux' },
+    })
+    await waitFor(() => expect(input).toHaveValue('r100 (v1)'))
+
+    const failed = gate()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (!new URL(request.url).searchParams.has('commit')) return
+        failed.open()
+        return errorResponse(500, 'internal_error', 'Boom') as never
+      }),
+    )
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.commits(SUITE.name) }))
+
+    await failed.promise
+    await settle()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(input).toHaveValue('r100 (v1)')
   })
 
   it('says nothing of a failed lookup when it is not to report one', async () => {
