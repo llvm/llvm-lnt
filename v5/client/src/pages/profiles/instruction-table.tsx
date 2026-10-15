@@ -95,6 +95,8 @@ export const InstructionTable = memo(function InstructionTable({
     useFlushSync: false,
   })
 
+  // Also on mounting with a row highlighted, as when the instructions are fetched again after a
+  // failure, which replaces the table with the error until then.
   useEffect(() => {
     if (highlighted === undefined) return
     virtualizer.scrollToIndex(highlighted, { align: 'center' })

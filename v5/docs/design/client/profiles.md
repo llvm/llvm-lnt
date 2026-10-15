@@ -210,12 +210,12 @@ them, leaving out those whose value is 0. "Next" first moves to the hottest
 instruction, then to the next one in that order, and "Previous" moves back.
 The instruction moved to is highlighted and scrolled into view. This is how the
 hot spots of a long function are found, whose instructions may all be below
-the heat scale's 1% (see PF6). Beside the buttons, the page says which of the
-hottest instructions is highlighted, and how many there are. "Previous" is
-disabled before the hottest instruction and on it, and "Next" on the last one.
-Both are disabled when no instruction has a value. Changing the function or the
-counter starts again from before the hottest instruction. The position is not
-kept in the URL.
+the heat scale's 1% (see PF6). Once one is highlighted, the page says beside
+the buttons which it is, and how many there are. "Previous" is disabled before
+the hottest instruction and on it, and "Next" on the last one. Both are
+disabled when no instruction has a value. Changing the function, its profile,
+or the counter starts again from before the hottest instruction. The position
+is not kept in the URL.
 
 A function can have up to 100,000 instructions (see O7). The view shows all of
 them, and scrolling through them, or changing the counter or the Values, must

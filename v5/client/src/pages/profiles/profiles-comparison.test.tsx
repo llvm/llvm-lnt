@@ -1,5 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
+import { queryKeys } from '../../api/keys'
 import { errorResponse } from '../../test/mock-api'
 import { profilesPath } from '../../paths'
 import { headersOf, renderPage, rowsOf } from '../../test/page'
@@ -91,18 +93,12 @@ describe('the Profiles page: counter comparison (PF3)', () => {
   it('compares the functions shown under the counter shown, whatever their names', async () => {
     mockWorld()
     renderPage(BOTH)
-    await waitFor(() =>
-      expect(functionRow()).toBe('Function cycles | 60 | 50 | -16.7%'),
-    )
+    await waitFor(() => expect(functionRow()).toBe('Function cycles | 60 | 50 | -16.7%'))
 
     await pickOption('Counter', 'instructions')
-    await waitFor(() =>
-      expect(functionRow()).toBe('Function instructions | 20 | 50 | +150%'),
-    )
+    await waitFor(() => expect(functionRow()).toBe('Function instructions | 20 | 50 | +150%'))
     await pick('Function', 'warm', columnOf('A')!, /^warm, /)
-    await waitFor(() =>
-      expect(functionRow()).toBe('Function instructions | 150 | 50 | -66.7%'),
-    )
+    await waitFor(() => expect(functionRow()).toBe('Function instructions | 150 | 50 | -66.7%'))
   })
 
   it('gives N/A for a function without the counter, or a profile that lists none', async () => {
@@ -111,9 +107,7 @@ describe('the Profiles page: counter comparison (PF3)', () => {
     })
     renderPage(`${BOTH}&counter=instructions`)
 
-    await waitFor(() =>
-      expect(functionRow()).toBe('Function instructions | N/A | N/A | N/A'),
-    )
+    await waitFor(() => expect(functionRow()).toBe('Function instructions | N/A | N/A | N/A'))
     expect(within(columnOf('B')!).getByText('This profile lists no functions.')).toBeVisible()
   })
 
@@ -125,9 +119,25 @@ describe('the Profiles page: counter comparison (PF3)', () => {
     await profileShown('A')
     expect(functionRow()).toBe('Function cycles | 60 |  | ')
     functions.open()
-    await waitFor(() =>
-      expect(functionRow()).toBe('Function cycles | 60 | 50 | -16.7%'),
-    )
+    await waitFor(() => expect(functionRow()).toBe('Function cycles | 60 | 50 | -16.7%'))
+  })
+
+  it("leaves the value empty while a side's function is not among those listed", async () => {
+    // Side A's functions, once fetched again, no longer list warm, which side A holds.
+    let dropWarm = false
+    mockWorld({
+      functionsAnswer: (uuid) =>
+        dropWarm && uuid === UUID_A
+          ? HttpResponse.json({ items: [{ name: 'hot', counters: { cycles: 60 }, length: 2 }] })
+          : undefined,
+    })
+    const { queryClient } = renderPage(BOTH)
+    await pick('Function', 'warm', columnOf('A')!, /^warm, /)
+    await waitFor(() => expect(functionRow()).toBe('Function cycles | 30 | 50 | +66.7%'))
+
+    dropWarm = true
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles('libcxx') }))
+    await waitFor(() => expect(functionRow()).toBe('Function cycles |  | 50 | '))
   })
 
   it("keeps the columns while a side's counters load, showing the other side's", async () => {
@@ -175,12 +185,24 @@ describe('the Profiles page: counter comparison (PF3)', () => {
     {
       side: 'A' as const,
       url: profilesPath(sideAt('m1', 'c1', '1', 'alpha')),
-      rows: ['cycles | 1000', 'faults | 3', 'instructions | 100000', 'l1-misses | 0', 'stalls | 10'],
+      rows: [
+        'cycles | 1000',
+        'faults | 3',
+        'instructions | 100000',
+        'l1-misses | 0',
+        'stalls | 10',
+      ],
     },
     {
       side: 'B' as const,
       url: profilesPath({}, sideAt('m1', 'c2', '3', 'beta')),
-      rows: ['cycles | 800', 'instructions | 99960', 'l1-misses | 4', 'misses | 5', 'stalls | 12.5'],
+      rows: [
+        'cycles | 800',
+        'instructions | 99960',
+        'l1-misses | 4',
+        'misses | 5',
+        'stalls | 12.5',
+      ],
     },
   ])('lists the counters of side $side, shown alone', async ({ side, url, rows }) => {
     mockWorld({ counters: COUNTERS })
