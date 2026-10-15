@@ -93,9 +93,9 @@ test side A shows.
 
 A side **shows a profile** once it has a test: the profile of that test in the
 selected run. It does so from then on, while the profile is still on its way
--- the run being selected, the test being checked against the run's profiles,
-the profile being fetched -- and if it cannot be fetched, so that the page's
-layout holds still while a side's profile changes.
+-- the runs being listed, the test being checked against the run's profiles,
+the profile being fetched -- and if any of it cannot be fetched, so that the
+page's layout holds still while a side's profile changes.
 
 
 ### PF3: Counter Comparison

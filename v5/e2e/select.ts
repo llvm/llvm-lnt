@@ -1,4 +1,7 @@
-/** Driving the `Select` component of the web UI (see client/src/components/select.tsx). */
+/**
+ * Driving the `Select` and `Combobox` components of the web UI (see client/src/components/select.tsx
+ * and combobox.tsx).
+ */
 
 import { expect, type Locator, type Page } from '@playwright/test'
 
@@ -20,4 +23,21 @@ export async function pickOption(scope: Page | Locator, label: string, option: s
     await expect(listed).toBeVisible({ timeout: 1000 })
   }).toPass()
   await listed.click()
+}
+
+/**
+ * Pick the suggestion named `option` in the combobox labelled `label`, typing `text` to find it:
+ * `option` itself unless given.
+ */
+export async function pickSuggestion(
+  scope: Page | Locator,
+  label: string,
+  text: string,
+  option = text,
+) {
+  const page = 'page' in scope ? scope.page() : scope
+  const input = scope.getByRole('combobox', { name: label })
+  await expect(input).toBeEnabled()
+  await input.fill(text)
+  await page.getByRole('option', { name: option, exact: true }).click()
 }

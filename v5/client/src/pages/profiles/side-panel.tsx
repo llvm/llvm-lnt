@@ -68,9 +68,8 @@ function RunField({ side }: { side: ProfileSide }) {
   )
   let placeholder = 'Select a run'
   if (settings.commit === '') placeholder = 'Select a commit first'
-  else if (side.runsFailed) placeholder = 'No runs'
-  else if (runs.data === undefined) placeholder = 'Loading runs...'
-  else if (runs.data.length === 0) placeholder = 'No runs with profiles'
+  else if (runs.data === undefined && !side.runsFailed) placeholder = 'Loading runs...'
+  else if (runs.data?.length === 0) placeholder = 'No runs with profiles'
   return (
     <>
       <div className={styles.run}>
@@ -107,8 +106,7 @@ function TestField({ side }: { side: ProfileSide }) {
 
   let placeholder = 'Select a test'
   if (run === undefined) placeholder = 'Select a run first'
-  else if (failed) placeholder = 'No tests'
-  else if (tests === undefined) placeholder = 'Loading tests...'
+  else if (tests === undefined && !failed) placeholder = 'Loading tests...'
   return (
     <>
       <Combobox

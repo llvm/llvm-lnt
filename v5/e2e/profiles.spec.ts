@@ -6,8 +6,8 @@
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { HARDENED, LINUX, MACOS, PROFILED_TEST } from '../tools/synthetic.ts'
-import { expect, json, test } from './fixtures.ts'
-import { pickOption } from './select.ts'
+import { expect, json, profiledRun, test } from './fixtures.ts'
+import { pickOption, pickSuggestion } from './select.ts'
 import { rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
@@ -28,19 +28,6 @@ async function newestProfiled(request: APIRequestContext, machine: string) {
   return (await json<Schemas['CommitCursorPage']>(request, path)).items[0]
 }
 
-/** The run of `machine` at `commit` that has profiles: there is one at each profiled commit. */
-async function profiledRun(request: APIRequestContext, machine: string, commit: string) {
-  const path = `/api/suites/libcxx/runs?machine=${machine}&commit=${commit}&has_profiles=true`
-  return (await json<Schemas['RunCursorPage']>(request, path)).items[0].uuid
-}
-
-/** Pick `option` in the combobox labelled `label` of `side`, typing `text` to find it. */
-async function pick(page: Page, side: 'A' | 'B', label: string, text: string, option = text) {
-  const input = sideOf(page, side).getByRole('combobox', { name: label })
-  await expect(input).toBeEnabled()
-  await input.fill(text)
-  await page.getByRole('option', { name: option, exact: true }).click()
-}
 
 test("shows the profile of a test that Run Detail's Profile link names", async ({
   page,
@@ -86,9 +73,9 @@ test("starts side B on side A's test, and keeps it on another machine", async ({
   )
 
   await pickOption(sideOf(page, 'B'), 'Suite', 'libcxx')
-  await pick(page, 'B', 'Machine', LINUX)
+  await pickSuggestion(sideOf(page, 'B'), 'Machine', LINUX)
   // The commit is searched by its commit string, and suggested by its display value.
-  await pick(page, 'B', 'Commit', commit.value, String(commit.fields.svn_revision))
+  await pickSuggestion(sideOf(page, 'B'), 'Commit', commit.value, String(commit.fields.svn_revision))
 
   // The latest run with profiles, and side A's test.
   await expect(page).toHaveURL(new RegExp(`[?&]run_b=${linuxRun}(&|$)`))
@@ -97,7 +84,7 @@ test("starts side B on side A's test, and keeps it on another machine", async ({
   await expect(columnOf(page, 'B')).toBeAttached()
 
   // MACOS has profiles at the same commit: side B keeps it, and its test, in MACOS's run.
-  await pick(page, 'B', 'Machine', MACOS)
+  await pickSuggestion(sideOf(page, 'B'), 'Machine', MACOS)
   await expect(page).toHaveURL(new RegExp(`[?&]run_b=${macosRun}(&|$)`))
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${commit.value}(&|$)`))
   await expect(testB).toHaveValue(PROFILED_TEST)

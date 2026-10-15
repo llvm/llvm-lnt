@@ -208,12 +208,12 @@ export function mockResolve(known: Commit[] = []) {
   return requests
 }
 
-/** A promise, and the function that settles it. */
 /** Let whatever a render sends go out, and its answers come back: for checking that nothing changes. */
 export function settle() {
   return act(() => new Promise((resolve) => setTimeout(resolve, 50)))
 }
 
+/** A promise, and the function that settles it. */
 export function gate() {
   let open = () => {}
   const promise = new Promise<void>((resolve) => (open = resolve))

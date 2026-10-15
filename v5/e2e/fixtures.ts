@@ -42,6 +42,15 @@ export async function json<T>(
   return (await response.json()) as T
 }
 
+/**
+ * The UUID of the run of `machine` at `commit` in libcxx that has profiles: the seed has one at
+ * each commit it gives profiles at (see tools/synthetic.ts).
+ */
+export async function profiledRun(request: APIRequestContext, machine: string, commit: string) {
+  const path = `/api/suites/libcxx/runs?machine=${machine}&commit=${commit}&has_profiles=true`
+  return (await json<components['schemas']['RunCursorPage']>(request, path)).items[0].uuid
+}
+
 interface Fixtures {
   tokenFor: (scope: Scope) => Promise<string>
   signIn: (page: Page, scope: Scope) => Promise<string>

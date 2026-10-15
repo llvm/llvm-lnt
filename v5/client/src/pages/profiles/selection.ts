@@ -10,7 +10,8 @@ type Run = Schemas['Run']
 /**
  * What a side showed when the user's picks began changing its profile: its test and its function,
  * each `''` for none. While a side has one, its new test may be the other side's (PF2), and its new
- * function is carried over (PF4), whereas what the URL names is only checked (PF9).
+ * function is carried over (PF4), whereas what the URL names is only checked (PF9). It is used up
+ * once the side's new profile is resolved, or the side is left without one.
  */
 export interface Carry {
   test: string

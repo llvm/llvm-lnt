@@ -91,7 +91,12 @@ export function useProfileSide(
     ...commitRunsQuery(suite, machine, commit, { has_profiles: true }),
     enabled: suite !== '' && machine !== '' && commit !== '',
   })
-  const runsFailed = runsListFailed(runs, machines, machine)
+  // A list that failed to load again is still shown. One that failed for a machine that may not
+  // exist is not reported, unless that cannot be checked, the suites having failed too.
+  const runsFailed =
+    runs.data === undefined &&
+    runs.isError &&
+    (runsListFailed(runs, machines, machine) || suites.isError)
   const selected = runs.data?.find((entry) => entry.uuid === run)
   const profiles = useQuery({
     ...runProfilesQuery(suite, run),
@@ -120,8 +125,7 @@ export function useProfileSide(
 
   // The latest run is selected in place of none, or of one that is not listed (PF2, PF9), and the
   // side has no test without a run.
-  const listed = runs.isSuccess ? runs.data : undefined
-  const runPick = listed && runChoice(listed, run)
+  const runPick = runs.data && runChoice(runs.data, run)
   useEffect(() => {
     if (runPick === '') drop(CLEARED_WITH.commit)
     else if (runPick !== undefined && runPick !== run) drop({ run: runPick })
@@ -136,7 +140,7 @@ export function useProfileSide(
 
   const status = sideStatus({ test, run, runPick, runsFailed, profiles, testPick, uuid, metadata })
 
-  // The carry is used up once the side shows a profile, or is left without one.
+  // The carry is used up once the side's new profile is resolved, or it is left without one.
   if (carry !== null && (status.kind === 'shown' || runPick === '' || testPick === '')) {
     setCarry(null)
   }
