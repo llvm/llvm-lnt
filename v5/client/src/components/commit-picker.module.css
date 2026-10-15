@@ -1,6 +1,6 @@
 /*
- * The picker, and below it, why the commit it was given could not be looked up: as wide as the
- * picker, whose width it takes no part in, and with no room left below it.
+ * The picker, with the lookup error below it. The error takes the picker's width but never widens
+ * it, and it adds no space below itself.
  */
 .root {
   display: inline-flex;

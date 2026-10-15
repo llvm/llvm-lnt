@@ -27,9 +27,9 @@ interface CommonProps {
   /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
   onPendingChange?: (pending: boolean) => void
   /**
-   * Whether to report a failed lookup of the commit given (AR7). Turn it off while the filters name
-   * something that may turn out not to exist, such as a machine from the URL: a failure for an
-   * unusable value is not reported (AR2 "State").
+   * Whether to report a failed lookup of the given commit (AR7). Turn it off while the filters may
+   * name something that does not exist, such as a machine from the URL. The page does not report
+   * failures for values that it is going to drop (AR2 "State").
    */
   reportsLookupFailure?: boolean
 }
@@ -77,9 +77,9 @@ export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.
  * kept while its filters change -- is looked up with the picker's filters plus `commit=`, which
  * returns it, with its display value, only if the picker offers it. If the lookup
  * returns nothing, the commit is unusable, and the picker is cleared as if the input had been
- * emptied. A lookup that fails clears nothing (AR2 "State"), and the picker says that it failed,
- * below the input, offering to try again (AR7). A lookup that has answered and fails when it is
- * asked again later says nothing: the picker still shows what it answered.
+ * emptied. If the lookup fails, the picker clears nothing (AR2 "State"). It shows the error below
+ * the input, with a way to try again (AR7). If the lookup already answered once and a later
+ * refetch fails, the picker shows no error and keeps showing the earlier answer.
  */
 export function CommitPicker({
   label,
@@ -139,8 +139,8 @@ export function CommitPicker({
           onChange(suggestion?.key ?? null)
         },
       }
-  // A Retry that succeeds takes the error away, and its button with it: the focus goes back to the
-  // input rather than to the page, where keys meant for the picker's surroundings would be lost.
+  // When a Retry succeeds, the error and its Retry button disappear. Move the focus back to the
+  // input, so that it does not fall to the page, where keys such as Enter and Escape would be lost.
   const root = useRef<HTMLDivElement>(null)
   const retried = useRef(false)
   const failed = lookup.isLoadingError && reportsLookupFailure

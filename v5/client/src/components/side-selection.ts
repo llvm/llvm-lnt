@@ -1,6 +1,7 @@
 /**
- * How a side of a suite-agnostic comparison page (CP1, PF2) checks the suite and the machine the URL
- * names, and lists the suite's machines, for its controls (see `SideFields`).
+ * Helpers for a side of a suite-agnostic comparison page (CP1, PF2). They check the suite and the
+ * machine that the URL names, and list the suite's machines for the side's controls (see
+ * `SideFields`).
  */
 
 import type { UseQueryResult } from '@tanstack/react-query'
@@ -9,9 +10,9 @@ import { useDropUnusable } from '../url-state'
 import { useMachineSuggestions, type Machines } from './machine-suggestions'
 
 /**
- * The side's suite, once the suites `suites` lists are known to hold it, and its machines. Once a
- * response shows that the suite, or the machine, does not exist, `onUnusableSuite` or
- * `onUnusableMachine` is called to drop it, along with what depends on it (AR2 "State").
+ * Returns the side's suite schema, once `suites` shows that the suite exists, and the suite's
+ * machines. When a response shows that the suite or the machine does not exist, this calls
+ * `onUnusableSuite` or `onUnusableMachine`, which drop it and what depends on it (AR2 "State").
  */
 export function useSuiteAndMachine({
   suite,
@@ -42,15 +43,15 @@ export function useSuiteAndMachine({
 }
 
 /**
- * Whether to say that a request about the side's machine failed: not while the machine may not
- * exist, since no error is reported for a value that turns out to be unusable (AR2 "State"), unless
- * its existence cannot be checked.
+ * Whether to report a failed request about the side's machine. While the machine may not exist,
+ * the page does not report the failure, because it is going to drop the machine (AR2 "State"). It
+ * does report it when the machine list itself failed, since it cannot check the machine then.
  */
 export function machineFailuresReportable(machines: Machines, machine: string): boolean {
   return (machines.machines.data?.includes(machine) ?? false) || machines.machines.isError
 }
 
-/** Whether the side's runs, `runs`, could not be listed, and that is to be said. */
+/** Whether listing the side's runs, `runs`, failed, and the page should report it. */
 export function runsListFailed(
   runs: { isError: boolean },
   machines: Machines,

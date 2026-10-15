@@ -1,6 +1,6 @@
 /**
- * The controls a side of a suite-agnostic comparison page starts with: its suite, machine and
- * commit (CP1, PF2).
+ * The first controls of a side of a suite-agnostic comparison page: its suite, machine and commit
+ * (CP1, PF2).
  */
 
 import { useMemo } from 'react'
@@ -29,24 +29,24 @@ interface Props {
   /** The side's commit, or `''` for none. */
   commit: string
   /**
-   * Which of the machine's commits the commit picker offers, if not all of them. Pass the same
-   * object while they are alike.
+   * Extra filters on the machine's commits that the commit picker offers. Pass the same object for
+   * as long as the filters stay the same.
    */
   commitFilters?: Omit<CommitFilters, 'machine'>
   /** A suite was picked. */
   onSuite(suite: string): void
   /**
-   * A machine was picked, or the machine was cleared (null). What a pick keeps of the commit is
-   * left to the commit picker, which checks that the new machine has it (AR15).
+   * Called with the machine picked, or with null when the machine is cleared. The commit picker
+   * then decides whether to keep the commit: it keeps it only if the new machine has it (AR15).
    */
   onMachine(machine: string | null): void
-  /** A commit was picked, or the commit was cleared (null), as `CommitPicker` reports them. */
+  /** Called with the commit picked, or with null when it is cleared (see `CommitPicker`). */
   onCommit(commit: string | null): void
 }
 
 /**
- * A side's suite dropdown, machine combobox and commit picker, each disabled until what it depends
- * on is selected, saying so.
+ * A side's suite dropdown, machine combobox and commit picker. Each one stays disabled, and says
+ * why, until the control it depends on has a value.
  */
 export function SideFields({
   suites,
@@ -108,7 +108,7 @@ export function SideFields({
   )
 }
 
-/** That the machines of `suite` could not be listed, if they could not, with a way to try again. */
+/** Says that the machines of `suite` could not be listed, with a way to try again, if so. */
 export function MachinesError({ suite, machines }: { suite: string; machines: Machines }) {
   if (!machines.machines.isError) return null
   return (

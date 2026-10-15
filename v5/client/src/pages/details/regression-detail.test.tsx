@@ -358,7 +358,7 @@ describe('the Regression Detail page', () => {
       let fail = true
       signIn('triage')
       renderRegression()
-      // Over the world's commits, which `renderRegression` mocks.
+      // Registered after `renderRegression`, so that it answers before the world's commits.
       server.use(
         mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
           if (new URL(request.url).searchParams.has('commit') && fail)

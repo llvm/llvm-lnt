@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useMachineNames } from '../api/machines'
 import { useLocalSuggestions } from './suggestions'
 
-/** The suite's machines, and the suggestions of a combobox picking one (see `useMachineSuggestions`). */
+/** The suite's machines, and the suggestions for a combobox that picks one of them. */
 export type Machines = ReturnType<typeof useMachineSuggestions>
 
 /**

@@ -584,7 +584,7 @@ describe('the Profile column (CP2)', () => {
         return errorResponse(404, 'not_found', 'No such machine')
       },
     })
-    // Holding the machines back, so that the machine is not known not to exist meanwhile.
+    // Hold the machines back, so that the page cannot know yet that the machine does not exist.
     server.use(
       mockApi('get', '/api/suites/{testsuite}/machines', async () => {
         await held

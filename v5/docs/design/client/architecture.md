@@ -54,12 +54,11 @@ within the UI causes a full page reload.
   is still loading, or after it has failed. The same goes for a selection that
   depends on a list. For example, when the machines change on the Graph page, a
   selected test that the new test lists don't have is deselected only once
-  every machine's test list has loaded. A request sent for a value that turns
-  out to be unusable is not reported if it fails, since the value is dropped
-  anyway. A setting holding several values
-  repeats its parameter once per value, as the API does (see I3). The inputs of
-  a form, such as what a panel is about to create or add, are not settings, and
-  are not kept in the URL.
+  every machine's test list has loaded. If a request fails for a value that
+  turns out to be unusable, the page does not report the failure: it drops the
+  value anyway. A setting holding several values repeats its parameter once per
+  value, as the API does (see I3). The inputs of a form, such as what a panel is
+  about to create or add, are not settings, and are not kept in the URL.
 
 
 ## AR3: Page Hierarchy
@@ -295,7 +294,7 @@ up with the picker's filters plus `commit=` (see E3). The lookup returns
 the commit, with its display value, only if the picker would offer it.
 Otherwise the commit is unusable, and the picker is cleared as if the user had
 emptied it (see AR2 "State"). If the lookup fails, the picker keeps the commit,
-and says that it could not be looked up, offering to try again (see AR7).
+says that the lookup failed, and offers to try again (see AR7).
 
 If the user types in a commit picker but does not pick one of its suggestions,
 the form containing the picker cannot be submitted until they do, or clear the

@@ -278,7 +278,7 @@ describe('CommitPicker', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('says that looking up a commit it is given failed, and looks it up again on Retry', async () => {
+  it('says when the lookup of a commit it is given fails, and looks it up again on Retry', async () => {
     let fail = true
     const queries = serveCommits()
     server.use(
@@ -298,7 +298,7 @@ describe('CommitPicker', () => {
     await waitFor(() => expect(input).toHaveValue('r100 (v1)'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(lookups(queries).length).toBeGreaterThan(0)
-    // Rather than to the page, with the Retry button gone.
+    // The Retry button is gone, so the focus moves to the input rather than to the page.
     expect(input).toHaveFocus()
   })
 
@@ -327,7 +327,7 @@ describe('CommitPicker', () => {
   })
 
   it('says nothing of a failed lookup when it is not to report one', async () => {
-    // E3 answers `machine=` with a 404 for a machine that does not exist, which a page drops.
+    // E3 answers `machine=` with a 404 when the machine does not exist. The page drops the machine.
     serveCommits()
     const { input } = renderPicker({
       initial: TAGGED.value,

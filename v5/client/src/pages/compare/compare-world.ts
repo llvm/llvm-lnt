@@ -126,8 +126,8 @@ export function mockWorld({
       ),
     )
   })
-  // After `mockCommits` and `mockRuns`, whose answers they take precedence over, falling back on
-  // them. E3 answers `machine=` with a 404 for a machine that does not exist.
+  // These come after `mockCommits` and `mockRuns`, so they answer first, and fall back on them.
+  // E3 answers `machine=` with a 404 when the machine does not exist.
   server.use(
     mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
       const name = new URL(request.url).searchParams.get('machine')
