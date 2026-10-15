@@ -46,3 +46,22 @@
   font-size: 0.9rem;
   color: var(--lnt-muted);
 }
+
+/*
+ * A virtualized list scrolls itself, within the popover's height, which React Aria sets to what fits
+ * on the screen. The popover's border goes around that height rather than into it, so that the
+ * popover does not scroll as well.
+ */
+.virtualPopover {
+  box-sizing: content-box;
+}
+
+.virtualList {
+  max-height: inherit;
+  overflow: auto;
+}
+
+/* A virtualized list is not sized by its suggestions: a long name breaks anywhere rather than overflow. */
+.virtualOption {
+  overflow-wrap: anywhere;
+}

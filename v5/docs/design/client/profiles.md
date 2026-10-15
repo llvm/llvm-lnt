@@ -259,10 +259,13 @@ profile, the page says that a test is to be selected on either side.
 - A function's instructions come from
   `GET profiles/{uuid}/disassembly?function={name}`.
 
-Whatever the page has fetched is kept while it is open, and two sides that show
-the same profile share it. Changing the counter or the Values therefore never
+What the page fetches of a profile -- its counters, its functions and their
+instructions -- is kept while the page is open, and two sides that show the
+same profile share it. Changing the counter or the Values therefore never
 fetches anything, and neither does going back to a function or a profile
-already shown.
+already shown. The page need not keep any of it once it is left: profiles can
+be large (see O7). This does not apply to the lists the side controls offer:
+suites, machines, commits, runs and a run's profiles.
 
 When the page is loaded from a URL, it sends the requests that the URL's values
 call for without first checking that the values are usable. If a value turns

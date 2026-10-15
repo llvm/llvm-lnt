@@ -6,6 +6,7 @@ import {
   useState,
   type KeyboardEvent,
   type ReactElement,
+  type ReactNode,
   type RefObject,
 } from 'react'
 import {
@@ -17,8 +18,11 @@ import {
   ListBox,
   ListBoxItem,
   ListBoxLoadMoreItem,
+  ListLayout,
+  Virtualizer,
   type Key,
 } from 'react-aria-components'
+import clsx from 'clsx'
 import { errorMessage } from '../api/client'
 import { FieldLabel } from './field-label'
 import { Popover } from './popover'
@@ -41,6 +45,18 @@ interface CommonProps {
    * whenever that changes: a form holding the combobox is not submitted meanwhile (AR15).
    */
   onPendingChange?: (pending: boolean) => void
+  /**
+   * What the list shows for a suggestion, if more than its text, such as a badge beside it. Its
+   * text is still what the input shows once it is picked, and what typing to it matches, whereas
+   * what this renders, badge included, is what assistive technology reads as its name. Memoize
+   * it, as every suggestion is rendered again when it changes.
+   */
+  renderSuggestion?: (suggestion: Suggestion) => ReactNode
+  /**
+   * Render only the suggestions in view, and those around them, for a list of thousands that would
+   * otherwise make typing lag (AR9).
+   */
+  virtualized?: boolean
 }
 
 /** A combobox holding a value: the suggestion last picked. */
@@ -98,6 +114,8 @@ export function Combobox({
   isReadOnly,
   hideLabel,
   onPendingChange,
+  renderSuggestion,
+  virtualized = false,
 }: Props) {
   const [text, setText] = useState(value?.text ?? '')
 
@@ -193,28 +211,15 @@ export function Combobox({
         </div>
       </Field>
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
-      <Popover className={shared.popover} maxHeight={320}>
-        <ListBox
-          className={shared.list}
-          renderEmptyState={() => <EmptyState suggestions={suggestions} />}
-        >
-          <Collection items={suggestions.items}>
-            {(item) => (
-              <ListBoxItem id={item.key} textValue={item.text} className={shared.option}>
-                {item.text}
-              </ListBoxItem>
-            )}
-          </Collection>
-          {suggestions.hasMore && (
-            <ListBoxLoadMoreItem
-              className={styles.status}
-              onLoadMore={suggestions.loadMore}
-              isLoading={suggestions.isLoadingMore}
-            >
-              Loading more...
-            </ListBoxLoadMoreItem>
-          )}
-        </ListBox>
+      <Popover
+        className={clsx(shared.popover, virtualized && styles.virtualPopover)}
+        maxHeight={320}
+      >
+        <List
+          suggestions={suggestions}
+          renderSuggestion={renderSuggestion}
+          virtualized={virtualized}
+        />
         {suggestions.error !== null && suggestions.items.length > 0 && (
           <div className={styles.status} role="alert">
             {errorMessage(suggestions.error)}
@@ -222,6 +227,59 @@ export function Combobox({
         )}
       </Popover>
     </ComboBox>
+  )
+}
+
+/**
+ * How a virtualized list lays its suggestions out, with their heights estimated, as a suggestion's
+ * text may wrap: it measures those it shows.
+ */
+const LIST_LAYOUT = { estimatedRowSize: 30, loaderSize: 30 }
+
+/** The list of suggestions, and the item loading more of them, if there are more. */
+function List({
+  suggestions,
+  renderSuggestion,
+  virtualized,
+}: {
+  suggestions: Suggestions
+  renderSuggestion: ((suggestion: Suggestion) => ReactNode) | undefined
+  virtualized: boolean
+}) {
+  const list = (
+    <ListBox
+      className={clsx(shared.list, virtualized && styles.virtualList)}
+      renderEmptyState={() => <EmptyState suggestions={suggestions} />}
+    >
+      {/* Rendered again for a new `renderSuggestion`, which React Aria would not do on its own. */}
+      <Collection items={suggestions.items} dependencies={[renderSuggestion]}>
+        {(item) => (
+          <ListBoxItem
+            id={item.key}
+            textValue={item.text}
+            className={clsx(shared.option, virtualized && styles.virtualOption)}
+          >
+            {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
+            {renderSuggestion ? () => renderSuggestion(item) : item.text}
+          </ListBoxItem>
+        )}
+      </Collection>
+      {suggestions.hasMore && (
+        <ListBoxLoadMoreItem
+          className={styles.status}
+          onLoadMore={suggestions.loadMore}
+          isLoading={suggestions.isLoadingMore}
+        >
+          Loading more...
+        </ListBoxLoadMoreItem>
+      )}
+    </ListBox>
+  )
+  if (!virtualized) return list
+  return (
+    <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
+      {list}
+    </Virtualizer>
   )
 }
 

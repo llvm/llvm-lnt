@@ -3,7 +3,7 @@
  * the user types (`useLocalSuggestions`), or a server-side search (`useServerSuggestions`).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { hashKey, useInfiniteQuery, type QueryKey } from '@tanstack/react-query'
 import { cursorPaging, useRestartOnRejectedCursor, type CursorPage } from '../api/use-cursor-pages'
 
@@ -56,6 +56,10 @@ export const NO_SUGGESTIONS: Suggestions = {
  * Suggestions from `all`, filtered by case-insensitive substring (AR9). Undefined while `all` is
  * still being loaded, or if loading it failed with `error`. Memoize `all`, as the suggestions are
  * filtered again when it changes.
+ *
+ * The suggestions follow the text in a deferred render, which typing interrupts, so that the input
+ * never waits for a long list of them (AR9). Until they have caught up, they are loading, as a
+ * server's are, so that the combobox holds an Enter until they are those for the text.
  */
 export function useLocalSuggestions(
   all: readonly Suggestion[] | undefined,
@@ -70,13 +74,14 @@ export function useLocalSuggestions(
       })),
     [all],
   )
+  const filtered = useDeferredValue(text)
   const items = useMemo(() => {
-    const term = text.toLowerCase()
+    const term = filtered.toLowerCase()
     return lowered.filter(({ texts }) => texts.some((t) => t.includes(term))).map(({ item }) => item)
-  }, [lowered, text])
+  }, [lowered, filtered])
   return {
     items,
-    isLoading: all === undefined && error === null,
+    isLoading: (all === undefined && error === null) || filtered !== text,
     hasMore: false,
     isLoadingMore: false,
     loadMore: noMore,

@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { screen, waitFor, within } from '@testing-library/react'
+import { useState, type ReactNode } from 'react'
+import { act, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { api, unwrap, type Schemas } from '../api/client'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { scrollToEnd } from '../test/intersection-observer'
+import { fakeLayout } from '../test/layout'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 import { Combobox } from './combobox'
@@ -404,6 +405,27 @@ function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion 
   )
 }
 
+describe('useLocalSuggestions', () => {
+  it('filters in a deferred render, loading until it has caught up with the text', () => {
+    const renders: { isLoading: boolean; items: string[] }[] = []
+    const { result } = renderHook(() => {
+      const suggestions = useLocalSuggestions(MACHINES)
+      renders.push({ isLoading: suggestions.isLoading, items: suggestions.items.map((i) => i.key) })
+      return suggestions
+    })
+    renders.length = 0
+
+    act(() => result.current.search('mac'))
+
+    // The text first, with the suggestions for the previous one, then the suggestions for it.
+    expect(renders[0]).toEqual({
+      isLoading: true,
+      items: ['linux-x86_64', 'linux-aarch64', 'macos-arm64'],
+    })
+    expect(renders.at(-1)).toEqual({ isLoading: false, items: ['macos-arm64'] })
+  })
+})
+
 describe('Combobox handing on what is picked', () => {
   /** A combobox adding the machines picked to a list, as the Graph page adds machine chips. */
   function MachineAdder() {
@@ -520,6 +542,84 @@ describe('Combobox options', () => {
     expect(input()).toHaveAttribute('readOnly')
     expect(listbox()).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Combobox with many suggestions, or more than text', () => {
+  const FUNCTIONS: Suggestion[] = Array.from({ length: 10_000 }, (_, i) => ({
+    key: `f${i}`,
+    text: `function_${i}`,
+  }))
+
+  function FunctionPicker(props: {
+    renderSuggestion?: (item: Suggestion) => ReactNode
+    virtualized?: boolean
+  }) {
+    const [picked, setPicked] = useState<Suggestion | null>(null)
+    const suggestions = useLocalSuggestions(props.virtualized ? FUNCTIONS : MACHINES)
+    return (
+      <>
+        <Combobox
+          label="Function"
+          value={picked}
+          onChange={setPicked}
+          suggestions={suggestions}
+          {...props}
+        />
+        <p data-testid="value">{picked?.key ?? 'none'}</p>
+      </>
+    )
+  }
+
+  it('shows what the page renders for each suggestion, and its text once picked', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderWithProviders(
+      <FunctionPicker
+        renderSuggestion={(item) => (
+          <>
+            {item.text} <b>{item.text.length}</b>
+          </>
+        )}
+      />,
+    )
+
+    await openList(user)
+    expect(options()).toEqual(['linux-x86_64 12', 'linux-aarch64 13', 'macos-arm64 11'])
+    rerender(<FunctionPicker renderSuggestion={(item) => `${item.text}!`} />)
+    expect(options()).toEqual(['linux-x86_64!', 'linux-aarch64!', 'macos-arm64!'])
+    await user.type(input(), 'mac')
+    await user.keyboard('{ArrowDown}{Enter}')
+
+    expect(value()).toBe('macos-arm64')
+    expect(input()).toHaveValue('macos-arm64')
+  })
+
+  it('renders only the suggestions in view when virtualized, and picks any of them', async () => {
+    fakeLayout({ height: 320 })
+    const user = userEvent.setup()
+    renderWithProviders(<FunctionPicker virtualized />)
+
+    await openList(user)
+    const shown = options()
+    expect(shown[0]).toBe('function_0')
+    expect(shown.length).toBeGreaterThan(0)
+    expect(shown.length).toBeLessThan(100)
+    // Every suggestion counts, rendered or not, for assistive technology.
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '10000')
+
+    await user.type(input(), 'function_999')
+    expect(options()[0]).toBe('function_999')
+    expect(options().every((option) => option?.startsWith('function_999'))).toBe(true)
+
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '11')
+
+    await user.type(input(), 'x')
+    expect(within(listbox()!).getByText('No matches.')).toBeVisible()
+
+    await user.clear(input())
+    await user.type(input(), 'function_')
+    await user.keyboard('{End}{Enter}')
+    expect(value()).toBe('f9999')
   })
 })
 

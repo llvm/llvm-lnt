@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatNumber,
+  formatPercent,
   formatTimestamp,
   parseNumber,
   plural,
@@ -68,6 +69,32 @@ describe('formatNumber', () => {
     [123456.7, '123457'],
   ])('shows %s as %s', (value, shown) => {
     expect(formatNumber(value)).toBe(shown)
+  })
+})
+
+describe('formatPercent', () => {
+  it('gives one decimal place, and none for a whole number', () => {
+    expect(formatPercent(100 / 3)).toBe('33.3%')
+    expect(formatPercent(25)).toBe('25%')
+    expect(formatPercent(100)).toBe('100%')
+    expect(formatPercent(9.96)).toBe('10%')
+    expect(formatPercent(-12.34)).toBe('-12.3%')
+  })
+
+  it('shows no sign for a value that rounds to 0', () => {
+    expect(formatPercent(-0.04)).toBe('0%')
+    expect(formatPercent(-0.04, { signed: true })).toBe('0%')
+    expect(formatPercent(0, { signed: true })).toBe('0%')
+  })
+
+  it('shows the sign of a positive value when signed', () => {
+    expect(formatPercent(5, { signed: true })).toBe('+5%')
+    expect(formatPercent(-20, { signed: true })).toBe('-20%')
+    expect(formatPercent(0.25, { signed: true })).toBe('+0.3%')
+  })
+
+  it('does not group digits', () => {
+    expect(formatPercent(12345.6)).toBe('12345.6%')
   })
 })
 

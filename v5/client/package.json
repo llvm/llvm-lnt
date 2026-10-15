@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",
+    "@tanstack/react-virtual": "^3.14.19",
     "clsx": "^2.1.1",
     "openapi-fetch": "^0.17.0",
     "plotly.js-basic-dist-min": "^4.1.2",
