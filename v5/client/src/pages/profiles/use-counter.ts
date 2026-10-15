@@ -1,6 +1,6 @@
 /**
- * The counter the Profiles page shows (PF4): the one the user picked, or the one the Counter
- * dropdown starts on, for as long as a profile shown has it.
+ * The counter the Profiles page shows (PF4): the counter the user picked, or the one the Counter
+ * dropdown starts on, for as long as some profile shown has it.
  */
 
 import { useEffect, useState } from 'react'
@@ -15,24 +15,27 @@ export interface Counter {
   /** The counter shown, if the profiles shown have any. */
   shown: string | undefined
   /**
-   * Whether the counter can be relied on: no side's profile is on its way, which could change it.
-   * Until then, what depends on the counter, such as which function is a side's hottest, waits.
+   * Whether the counter is settled: no side's profile is still loading, so the counter cannot
+   * change on its own. Until then, whatever depends on the counter waits, such as finding a side's
+   * hottest function.
    */
   settled: boolean
-  /** Whether the profiles shown have no counter at all, once each has loaded or failed. */
+  /** Whether the profiles shown have no counters at all, once each one has loaded or failed. */
   none: boolean
   pick(counter: string): void
 }
 
 /**
- * The counter shown, from the sides `sides`, and the URL's `counter`, which `update` changes.
+ * The counter shown, from the sides `sides` and the URL's `counter`, which `update` changes.
  *
- * The counter is held as a name, never as a stand-in for the default, so that it stays as the
- * profiles shown change, for as long as one of them has it. It is left out of the URL while it is
- * the default of the profiles shown. It is only checked against the profiles while a side shows
- * one, so that a side's test cleared, then another picked, keeps it. Until every profile shown has
- * loaded, a counter that those loaded lack gives way to their default for the time being, but only
- * once they all have does it fall back to it for good, held and written to the URL (AR2 "State").
+ * The page holds the counter by its name, never as a placeholder that means "the default". So the
+ * counter stays as the profiles shown change, for as long as one of them has it. The URL leaves it
+ * out while it is the starting counter of the profiles shown. The page only checks the counter
+ * against the profiles while some side shows a profile, so clearing a side's test and then picking
+ * another keeps it. Until every profile shown has loaded, a counter that the loaded profiles lack
+ * gives way to their starting counter for the time being. Once they have all loaded, the counter
+ * falls back to the starting counter for good: the page holds it and writes it to the URL (AR2
+ * "State").
  */
 export function useCounter(
   sides: readonly ProfileSide[],
@@ -50,7 +53,7 @@ export function useCounter(
 
   const offered = offeredCounters(loaded)
   const fallback = defaultCounter(loaded)
-  // Until a profile shown has loaded, there is nothing to check the counter against.
+  // Until some profile shown has loaded, there is nothing to check the counter against.
   const shown = loaded.length > 0 ? shownCounter(held, loaded) : held
   const checked = complete && anyShown
   if (checked && shown !== held) setHeld(shown)

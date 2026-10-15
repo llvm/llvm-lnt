@@ -9,15 +9,16 @@ import type { HeldFunction, ShownFunction } from './functions'
 type Run = Schemas['Run']
 
 /**
- * What a side showed when the user's picks began changing its profile: its test, `''` for none, and
- * its function. While a side has one, its new test may be the other side's (PF2), and its new
- * function is carried over (PF4), whereas what the URL names is only checked (PF9). It is used up
- * once the side's new function is known, or the side is left without a profile.
+ * What a side showed when the user's picks began changing its profile: its test (`''` for none) and
+ * its function. While a side has a carry, it may take the other side's test (PF2), and it carries
+ * its function over (PF4). Without a carry, the page only checks what the URL names (PF9). The
+ * carry is used up once the side's new function is known, or once the side is left without a
+ * profile.
  */
 export type Carry = ShownFunction
 
 /**
- * What a side holds of the user's picks, besides the URL, for as long as the page is open: what it
+ * What a side keeps of the user's picks, besides the URL, for as long as the page is open: what it
  * carries over (see `Carry`), and the function it holds for its profile (see `HeldFunction`).
  */
 export interface SidePicks {
@@ -30,12 +31,13 @@ export const NO_PICKS: SidePicks = { carry: null, held: null }
 /**
  * How a side's picks change:
  *
- * - `change`: a pick changes the side's profile, which carries over what it showed, `shown`, unless
- *   it already carries something over, from a pick whose profile it has not shown yet.
- * - `clear`: the side is left without what it showed: a pick cleared it, or what it showed turned
- *   out to be unusable. Nothing is carried over, and no function is held, so that coming back to
- *   the same profile starts afresh.
- * - `settle`: the side's function is known, and held, which uses up the carry.
+ * - `change`: a pick changes the side's profile. The side carries over what it showed, `shown`,
+ *   unless it already carries something over from an earlier pick whose profile it has not shown
+ *   yet.
+ * - `clear`: the side loses what it showed, because a pick cleared it or because it turned out to
+ *   be unusable. The side drops its carry and its held function, so that coming back to the same
+ *   profile starts afresh.
+ * - `settle`: the side's function is known. The side holds it, and drops its carry.
  */
 export type SidePicksAction =
   | { type: 'change'; shown: Carry }

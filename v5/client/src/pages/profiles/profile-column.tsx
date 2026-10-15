@@ -28,7 +28,7 @@ export function ProfileColumn({ side, functions, counter, values }: Props) {
   return (
     <section className={styles.column} aria-label={`Profile ${side.id.toUpperCase()}`}>
       {status.kind === 'pending' && <Loading label="Loading the profile..." />}
-      {/* Whatever came before the profile and failed says so in the side's controls. */}
+      {/* Earlier failures, such as the runs', show in the side's controls. */}
       {status.kind === 'failed' && metadata.isError && (
         <ErrorMessage
           context="The profile could not be loaded"
@@ -75,7 +75,8 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
   return (
     <>
       <FunctionSelector
-        // Its suggestions are sorted in a render of their own, which must not mix two profiles'.
+        // A new profile mounts a new selector, because its deferred re-sort must not mix the
+        // functions of two profiles.
         key={uuid}
         functions={list.data}
         ordered={ordered}
@@ -86,8 +87,8 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
       />
       {name ? (
         <Disassembly
-          // Another profile or function starts at the top, and a refetch of the same keeps its
-          // place.
+          // A new profile or function scrolls back to the top. A refetch of the same one keeps the
+          // scroll position.
           key={`${uuid}/${name}`}
           name={name}
           disassembly={functions.disassembly}
@@ -115,9 +116,9 @@ interface SelectorProps {
 
 /**
  * A combobox over the profile's functions, hottest first under the counter, each with its share of
- * the profile (PF4). It fills its column, as a function's name can be long, and lists only the
- * functions in view, as a profile can list thousands. Rendered again only when what it shows
- * changes, which the Values, say, do not.
+ * the profile (PF4). It fills its column, because function names can be long. It only renders the
+ * functions in view, because a profile can list thousands. It renders again only when what it
+ * shows changes, so a change to the Values does not touch it.
  */
 const FunctionSelector = memo(function FunctionSelector({
   functions,
@@ -127,8 +128,8 @@ const FunctionSelector = memo(function FunctionSelector({
   profile,
   onPick,
 }: SelectorProps) {
-  // Re-sorted for a new counter after the rest of the page has shown it, in a render that does not
-  // hold up the page.
+  // Re-sort for a new counter in a deferred render, after the rest of the page shows the counter,
+  // so that the re-sort does not hold up the page.
   const view = useDeferredValue(useMemo(() => ({ ordered, counter }), [ordered, counter]))
   const all = useMemo(
     () => view.ordered.map((fn) => ({ key: fn.name, text: fn.name })),
@@ -136,7 +137,7 @@ const FunctionSelector = memo(function FunctionSelector({
   )
   const byName = useMemo(() => new Map(functions.map((fn) => [fn.name, fn])), [functions])
   const suggestions = useLocalSuggestions(all)
-  // Memoized: every suggestion is rendered again for a new one.
+  // Memoized, because a new function renders every suggestion again.
   const renderSuggestion = useCallback(
     (suggestion: Suggestion) => (
       <span className={styles.suggestion}>
@@ -153,9 +154,9 @@ const FunctionSelector = memo(function FunctionSelector({
   return (
     <div className={styles.functionRow}>
       <Combobox
-        // The counter orders the suggestions: another one mounts the combobox afresh, as React Aria
-        // takes far longer to reorder thousands of suggestions than to list them anew, which would
-        // make changing the counter lag (PF5).
+        // The counter sets the order of the suggestions, so a new counter mounts a new combobox.
+        // React Aria takes far longer to reorder thousands of suggestions than to list them anew,
+        // and reordering would make a counter change lag (PF5).
         key={view.counter}
         label="Function"
         fill

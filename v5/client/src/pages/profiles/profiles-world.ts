@@ -40,8 +40,8 @@ const MACHINES = ['m1', 'm2', 'm3']
 type Counters = Record<string, number>
 
 /**
- * The functions of each test's profiles, with their counters, by name: under cycles, hot is alpha's
- * hottest, and under instructions, warm is.
+ * The functions of each test's profiles, by name, with their counters. In alpha, hot is the hottest
+ * under cycles, and warm is the hottest under instructions.
  */
 const FUNCTIONS: Record<string, Record<string, Counters>> = {
   alpha: {
@@ -91,8 +91,8 @@ interface World {
 
 /**
  * Mock the API for the Profiles page: the suites, and the world described in each of them. Returns
- * what was asked for, in order: the queries of `GET commits`, the UUIDs of the profiles whose
- * metadata and functions were asked for, and the functions whose instructions were, by
+ * what the page asked for, in order: the queries of `GET commits`, the UUIDs of the profiles
+ * whose metadata and functions it fetched, and the functions whose instructions it fetched, as
  * `uuid/name`.
  */
 export function mockWorld({
@@ -215,8 +215,8 @@ export function mockWorld({
 }
 
 /**
- * An answer for `mockWorld` that holds back the requests `when` picks, until `open` is called, then
- * answers them as the world does.
+ * An answer for `mockWorld` that holds back the requests that `when` selects until `open` is
+ * called. Then the world answers them as usual.
  */
 export function heldBack<Key>(when: (key: Key) => boolean = () => true) {
   const { promise, open } = gate()

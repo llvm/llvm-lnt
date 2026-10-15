@@ -53,18 +53,18 @@ export interface ProfileSide {
   /** The metadata of the profile of the test in the run, once the test is known. */
   metadata: UseQueryResult<Schemas['ProfileMetadata']>
   status: SideStatus
-  /** The UUID of the profile of the test in the run the URL names, once its profiles are listed. */
+  /** The UUID of the test's profile in the run that the URL names, once the profiles are listed. */
   uuid: string | undefined
   /** What the side showed when the user's picks began changing its profile (see `Carry`). */
   carry: Carry | null
   /**
-   * The function the side shows, null for none, once known for the profile shown: held by its
-   * name, never as a stand-in for the hottest function (see `ShownFunction`).
+   * The function the side shows (null for none), once known for the profile shown. The side holds
+   * it by its name, never as a placeholder for the hottest function (see `ShownFunction`).
    */
   heldFunction: string | null | undefined
   /**
-   * The side's function is now known: hold it, and use the carry up. Called while rendering, by the
-   * component that holds the side's picks (see `useProfileSide`).
+   * The side's function is now known: hold it, and drop the carry. Only the component that holds
+   * the side's picks may call this, while it renders (see `useProfileSide`).
    */
   settleFunction(held: HeldFunction): void
   pickSuite(suite: string): void
@@ -77,9 +77,8 @@ export interface ProfileSide {
 /**
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
  * lists the suites of the instance. `picks` holds what the side keeps of the user's picks besides
- * the URL (see `SidePicks`). Both this and the side's function (see `useFunctions`) change it while
- * rendering, which React allows of a component's own state only: whatever calls them must be the
- * component that holds it.
+ * the URL (see `SidePicks`). This hook and `useFunctions` both change it while rendering. React
+ * only allows that for a component's own state, so the component that calls them must hold `picks`.
  *
  * The side sends every request with the URL's values as they are, without first checking them
  * (PF8). It only uses what depends on the run once the run list includes the run. That shows that
@@ -103,7 +102,7 @@ export function useProfileSide(
     (changes: Partial<SideSettings>) => update(sideChanges(id, changes)),
     [id, update],
   )
-  // A pick that clears what the side showed, or a drop of what it showed, keeps nothing of it.
+  // When a pick clears what the side showed, or the page drops it, the side keeps nothing of it.
   const clear = (changes: Partial<SideSettings>) => {
     dispatch({ type: 'clear' })
     update(sideChanges(id, changes))
@@ -170,7 +169,7 @@ export function useProfileSide(
 
   const status = sideStatus({ test, run, runPick, runsFailed, profiles, testPick, uuid, metadata })
 
-  // A side left without a profile keeps nothing of it. One that shows a profile uses its carry up
+  // A side left without a profile keeps nothing of it. A side that shows a profile drops its carry
   // once its function is known (see `useFunctions`).
   if (picks !== NO_PICKS && (runPick === '' || testPick === '')) dispatch({ type: 'clear' })
 
@@ -181,9 +180,9 @@ export function useProfileSide(
     [dispatch],
   )
 
-  // A pick that changes the side's profile carries over what the side showed: its function, or the
-  // URL's until it is known, which the new profile is checked for anyway. The function goes from
-  // the URL with the test it belonged to.
+  // A pick that changes the side's profile carries over what the side showed. Until the side knows
+  // its function, it carries the URL's function, which the new profile is checked against anyway.
+  // The pick also removes the function from the URL, along with the test it belonged to.
   const change = (changes: Partial<SideSettings>) => {
     const name = heldFunction !== undefined ? heldFunction : settings.function || null
     dispatch({ type: 'change', shown: { test, name } })

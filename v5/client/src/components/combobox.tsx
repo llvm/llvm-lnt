@@ -45,7 +45,7 @@ interface CommonProps {
   isReadOnly?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
-  /** Grow to fill the rest of the row it is in, for text too long for the usual width. */
+  /** Make the combobox fill the rest of its row, for text too long for the usual width. */
   fill?: boolean
   /**
    * Called with whether the input holds text that is not the value's -- typed, but not picked --

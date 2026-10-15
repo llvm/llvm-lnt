@@ -12,13 +12,13 @@ import type { Counter } from './use-counter'
 import type { ProfileSide } from './use-side'
 
 export interface SideFunctions {
-  /** The functions of the profile the side names, once its run's profiles are listed. */
+  /** The functions of the profile that the side names, once the run's profiles are listed. */
   functions: UseQueryResult<ProfileFunction[]>
   /** Those functions, hottest first under the counter shown (PF4). */
   ordered: ProfileFunction[] | undefined
   /**
-   * The function the side shows, once its profile is shown and its function known: null when the
-   * profile lists none, and undefined until then.
+   * The function the side shows, once its profile is shown and its function is known. It is null
+   * when the profile lists no functions, and undefined until then.
    */
   name: string | null | undefined
   /** The instructions of that function. */
@@ -26,7 +26,7 @@ export interface SideFunctions {
   pick(name: string): void
 }
 
-/** A side's functions, hottest first, and the hottest, once the counter can be relied on. */
+/** A side's functions, hottest first, and the hottest one, once the counter is settled. */
 interface FunctionList {
   functions: UseQueryResult<ProfileFunction[]>
   ordered: ProfileFunction[] | undefined
@@ -34,8 +34,9 @@ interface FunctionList {
 }
 
 /**
- * The functions of the profile `side` names, asked for as soon as its UUID is known, before the
- * side's run is known to be its own (PF8), and sorted under the counter shown.
+ * The functions of the profile that `side` names, sorted under the counter shown. The page fetches
+ * them as soon as it knows the profile's UUID, before it knows that the run belongs to the side
+ * (PF8).
  */
 function useFunctionList(side: ProfileSide, counter: Counter): FunctionList {
   const functions = useQuery({
@@ -51,25 +52,25 @@ function useFunctionList(side: ProfileSide, counter: Counter): FunctionList {
 }
 
 /**
- * The function `other` offers a side showing a profile of `test` to carry over (see
- * `functionChoice`): the one it shows, or showed when the user's picks began changing its profile,
- * undefined while that is not known yet, and null when it has nothing to offer.
+ * The function that `other` offers to a side that shows a profile of `test` (see `functionChoice`):
+ * the function `other` shows, or showed when the user's picks began changing its profile. It is
+ * undefined while that is not known yet, and null when `other` has nothing to offer.
  */
 function otherShown(
   other: ProfileSide,
   list: FunctionList,
   test: string,
 ): ShownFunction | null | undefined {
-  // Only a side that shows, or is about to show, a profile of the same test has one to offer.
+  // Only a side that shows, or is about to show, a profile of the same test has a function for us.
   if (other.settings.test !== test || other.status.kind === 'none') return null
-  // One whose profile is changing does not wait for this one, so this one need not wait for it.
+  // A side whose profile is changing does not wait for this one, so this one need not wait for it.
   if (other.carry !== null) return other.carry
   if (other.heldFunction !== undefined) return { test, name: other.heldFunction }
   if (other.status.kind === 'failed' || list.functions.isError) return null
   return undefined
 }
 
-/** `side`'s function, as it holds it, or as `functionChoice` resolves it. */
+/** `side`'s function: the one it holds, or the one `functionChoice` resolves. */
 function choiceOf(
   side: ProfileSide,
   list: FunctionList,
@@ -90,13 +91,13 @@ function choiceOf(
 }
 
 /**
- * The function of each of the sides `a` and `b`, under the counter shown, `counter`, with the URL
- * that `update` changes.
+ * The function of each side, `a` and `b`, under the counter shown, `counter`. `update` changes the
+ * URL.
  *
- * A side's function is resolved once its profile is shown and its functions are listed, then held
- * by its name (see `ProfileSide.heldFunction`), so that changing the counter never changes it
- * (PF4). It is left out of the URL while it is the side's hottest under the counter shown, which
- * the URL is written again for whenever that changes.
+ * The page resolves a side's function once the side shows its profile and the profile's functions
+ * are listed. Then it holds the function by its name (see `ProfileSide.heldFunction`), so that a
+ * counter change never changes it (PF4). The URL leaves the function out while it is the side's
+ * hottest under the counter shown. The page writes the URL again whenever that changes.
  */
 export function useFunctions(
   a: ProfileSide,
@@ -122,22 +123,23 @@ function useSideFunction(
   const { hottest } = list
   const profile = status.kind === 'shown' ? status.uuid : undefined
 
-  // The function, once known, is held, and the carry it was carried over from is used up.
+  // Once the function is known, hold it, and drop the carry it came from.
   if (choice !== undefined && profile !== undefined) {
     if (side.heldFunction === undefined || carry !== null) {
       settleFunction({ profile, name: choice.name })
     }
   }
 
-  // The instructions of the function shown, or until it is known, of the one the URL names, which
-  // are asked for at once, as the URL calls for them (PF8).
+  // The instructions of the function shown. Until that function is known, fetch those of the
+  // function that the URL names, at once, as the URL calls for them (PF8).
   const name = choice !== undefined ? choice.name : (carry === null && settings.function) || null
   const disassembly = useQuery({
     ...disassemblyQuery(settings.suite, side.uuid ?? '', name ?? ''),
     enabled: side.uuid !== undefined && name !== null,
   })
 
-  // Left out of the URL while it is the hottest, once that can only change with the counter.
+  // Leave the function out of the URL while it is the hottest. Wait until the counter is settled,
+  // since only then does the hottest function stop changing on its own.
   const written =
     choice !== undefined && hottest !== undefined ? urlValue(choice.name, hottest) : undefined
   useEffect(() => {

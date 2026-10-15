@@ -7,7 +7,7 @@ import type { ValueMode } from './instructions'
 /** The two sides of the page. */
 export type SideId = 'a' | 'b'
 
-/** How a disassembly view can show an instruction's value (PF6), as the Values dropdown says. */
+/** The ways a disassembly view can show an instruction's value (PF6), with their labels. */
 export const VALUE_OPTIONS: readonly Option<ValueMode>[] = [
   { value: 'relative', label: 'Relative %' },
   { value: 'absolute', label: 'Absolute' },
@@ -75,8 +75,8 @@ export const CLEARED_WITH = {
 } as const satisfies Record<string, Partial<SideSettings>>
 
 /**
- * `value` as the URL holds it: left out when it is `fallback`, what the page shows without it, or
- * none (AR2 "State").
+ * `value` as the URL holds it. It is left out when it is `fallback`, which the page shows without
+ * it, and when it is none (AR2 "State").
  */
 export function urlValue(value: string | null | undefined, fallback: string | null | undefined) {
   return value === fallback ? '' : (value ?? '')

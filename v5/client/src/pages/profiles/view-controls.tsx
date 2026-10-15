@@ -21,13 +21,13 @@ export function ViewControls({ counter, values, onValues }: Props) {
         <Select
           label="Counter"
           options={counter.offered.map((name) => ({ value: name, label: name }))}
-          // Not one offered while the profiles that would offer it have not loaded.
+          // No value until the profiles that offer it have loaded.
           value={
             counter.shown !== undefined && counter.offered.includes(counter.shown)
               ? counter.shown
               : null
           }
-          // None offered once every side has settled: the profiles shown could not be loaded.
+          // If nothing is offered once every side has settled, the profiles failed to load.
           placeholder={counter.settled ? 'No counters loaded' : 'Loading counters...'}
           onChange={counter.pick}
           isDisabled={counter.offered.length === 0}

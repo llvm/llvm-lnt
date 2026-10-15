@@ -7,7 +7,7 @@
   gap: var(--lnt-space-1);
 }
 
-/* A field that grows to fill the rest of the row it is in. */
+/* A field that fills the rest of its row. */
 .fill {
   flex: 1;
   min-width: 0;

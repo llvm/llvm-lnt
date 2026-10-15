@@ -20,9 +20,10 @@ export async function pickOption(label: string, option: string, container?: HTML
 }
 
 /**
- * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
- * never emptied meanwhile: that would clear the combobox's value (AR14). The suggestion is found by
- * `option`, its accessible name: `name` unless it shows more, such as a badge.
+ * Pick `name` in the combobox labelled `label`. It types `name` over the input's text without
+ * emptying the input first, since an empty input would clear the combobox's value (AR14). It finds
+ * the suggestion by `option`, its accessible name. That is `name`, unless the suggestion shows
+ * more, such as a badge.
  */
 export async function pick(
   label: string,
