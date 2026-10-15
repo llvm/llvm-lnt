@@ -4,6 +4,7 @@ import { forgetProfiles } from '../../api/profiles'
 import { useSuites } from '../../api/suites'
 import { ErrorMessage } from '../../components/feedback'
 import { useUrlState, useVisitKey } from '../../url-state'
+import { CounterComparison } from './counter-comparison'
 import { PARAMS } from './settings'
 import { ProfileColumn } from './profile-column'
 import { NO_PICKS, sidePicks } from './selection'
@@ -57,6 +58,7 @@ function ProfilesPage() {
         <p className={styles.note}>Select a test on either side to see its profile.</p>
       ) : (
         <>
+          <CounterComparison sides={shown} functions={functions} counter={counter} />
           <ViewControls
             counter={counter}
             values={settings.values}

@@ -24,6 +24,7 @@ describe('instructionValues', () => {
     expect([...values.raw]).toEqual([1, 0, 3])
     expect([...values.shares]).toEqual([25, 0, 75])
     expect([...values.cumulative]).toEqual([25, 25, 100])
+    expect(values.total).toBe(4)
   })
 
   it('ends its running sum at exactly 100%', () => {
@@ -36,6 +37,7 @@ describe('instructionValues', () => {
     const values = instructionValues(instructions(0, 0), 'cycles')!
     expect([...values.shares]).toEqual([0, 0])
     expect([...values.cumulative]).toEqual([0, 0])
+    expect(values.total).toBe(0)
   })
 
   it('gives none when the function does not have the counter', () => {

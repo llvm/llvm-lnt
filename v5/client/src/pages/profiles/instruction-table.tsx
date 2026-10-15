@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
 import { heatColor } from './heat'
 import {
+  formatAddress,
   formatInstructionValue,
   textColumns,
   valueColumns,
@@ -22,11 +23,6 @@ const OVERSCAN = 20
 function rowHeight(): number {
   const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
   return Math.round(ROW_REM * rootFontSize)
-}
-
-/** An address, in hexadecimal with a `0x` prefix (PF5). */
-function formatAddress(address: number): string {
-  return `0x${address.toString(16)}`
 }
 
 /**
@@ -99,8 +95,14 @@ export const InstructionTable = memo(function InstructionTable({
     useFlushSync: false,
   })
 
+  // Also on mounting with a row highlighted, as when the instructions are fetched again after a
+  // failure, which replaces the table with the error until then.
   useEffect(() => {
-    if (highlighted !== undefined) virtualizer.scrollToIndex(highlighted, { align: 'center' })
+    if (highlighted === undefined) return
+    virtualizer.scrollToIndex(highlighted, { align: 'center' })
+    // The box is shorter than the window, so this brings the row into the window too, should the
+    // page be scrolled away from the box.
+    scroller.current?.scrollIntoView({ block: 'nearest' })
   }, [highlighted, virtualizer])
 
   if (instructions.length === 0) {

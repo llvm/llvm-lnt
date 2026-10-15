@@ -19,6 +19,8 @@ export interface InstructionValues {
   shares: Float64Array
   /** The sum of the shares up to the instruction, included: 100 at the last one, unless all are 0. */
   cumulative: Float64Array
+  /** The sum of the values: 0 only when every value is, since counts are never negative. */
+  total: number
 }
 
 /**
@@ -51,7 +53,12 @@ export function instructionValues(
       cumulative[i] = (running / total) * 100
     }
   }
-  return { raw, shares, cumulative }
+  return { raw, shares, cumulative, total }
+}
+
+/** An address, in hexadecimal with a `0x` prefix (PF5). */
+export function formatAddress(address: number): string {
+  return `0x${address.toString(16)}`
 }
 
 /**

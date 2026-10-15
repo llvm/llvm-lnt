@@ -5,6 +5,9 @@
 /** What a table shows in place of a value that is absent. */
 export const MISSING = '--'
 
+/** What a table shows in place of a value a side does not have, or a ratio to 0. */
+export const NA = 'N/A'
+
 /** A boolean, in words. */
 export function yesNo(value: boolean): string {
   return value ? 'Yes' : 'No'

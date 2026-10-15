@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import type { CellLook } from '../../components/data-table'
 import { sortRows, type SortDirection, type SortKey } from '../../components/table-sort'
-import { formatNumber, plural } from '../../format'
+import { formatNumber, NA, plural } from '../../format'
 import {
   LABELS,
   STATUSES,
@@ -36,8 +36,6 @@ export interface CompareColumn {
   /** What Copy as CSV writes of the row: a number at full precision, null for N/A. */
   csv(row: Row): CsvCell
 }
-
-const NA = 'N/A'
 
 /** A side's value, or a difference between them: to at most 6 significant digits (AR6). */
 function formatValue(value: number | null): string {

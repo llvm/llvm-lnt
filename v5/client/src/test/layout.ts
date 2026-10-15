@@ -1,8 +1,9 @@
 /**
  * jsdom lays nothing out: every element is 0 pixels tall, so a virtualized list, which renders the
- * rows that fit in its box, renders none, and no element has `scrollTo`. Until the test ends,
- * `fakeLayout` gives every element the size given, content too large for any test to scroll past
- * its end, and a `scrollTo` that scrolls at once, as the browser's does when it does not animate.
+ * rows that fit in its box, renders none, and no element has `scrollTo` or `scrollIntoView`. Until
+ * the test ends, `fakeLayout` gives every element the size given, content too large for any test to
+ * scroll past its end, a `scrollTo` that scrolls at once, as the browser's does when it does not
+ * animate, and a `scrollIntoView` that does nothing.
  */
 
 import { onTestFinished, vi } from 'vitest'
@@ -31,9 +32,11 @@ export function fakeLayout({
     this.dispatchEvent(new Event('scroll'))
   })
   Element.prototype.scrollTo = scrollTo as Element['scrollTo']
+  Element.prototype.scrollIntoView = () => {}
   onTestFinished(() => {
     spies.forEach((spy) => spy.mockRestore())
     delete (Element.prototype as Partial<Element>).scrollTo
+    delete (Element.prototype as Partial<Element>).scrollIntoView
   })
   return { scrollTo }
 }

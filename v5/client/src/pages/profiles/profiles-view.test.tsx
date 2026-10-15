@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import { profilesPath } from '../../paths'
@@ -773,5 +774,187 @@ describe('the Profiles page: values and layout (PF6, PF7)', () => {
     await user.click(screen.getByRole('button', { name: 'Browser back' }))
     await showsFunction('A', 'hot')
     expect(metadata).toHaveLength(2)
+  })
+})
+
+/**
+ * An answer for `mockWorld` that gives alpha's hot function the instructions whose counters are
+ * `counters`, at addresses 0x2000, 0x2004 and so on, with the text `insn {index}`.
+ */
+function hotInstructions(counters: Record<string, number>[]) {
+  return (key: string) => {
+    if (!key.endsWith('/hot')) return undefined
+    return HttpResponse.json({
+      name: 'hot',
+      counters: { cycles: 60, instructions: 20 },
+      disassembly_format: 'llvm-objdump',
+      instructions: counters.map((values, i) => ({
+        address: 0x2000 + 4 * i,
+        counters: values,
+        text: `insn ${i}`,
+      })),
+    })
+  }
+}
+
+/** Instructions whose cycles are `cycles`, and whose instructions are `instructions`. */
+function withCounters(cycles: number[], instructions: number[] = cycles) {
+  return cycles.map((value, i) => ({ cycles: value, instructions: instructions[i] }))
+}
+
+/**
+ * Show side A's hot function, laid out, with the instructions whose counters are `counters`, at the
+ * URL `url`. Returns what `renderPage` does.
+ */
+async function showHot(counters: Record<string, number>[], url = ALPHA) {
+  fakeLayout()
+  mockWorld({ disassemblyAnswer: hotInstructions(counters) })
+  const page = renderPage(url)
+  await showsFunction('A', 'hot')
+  return page
+}
+
+/** Pick the counter `name`, and wait for side A's instructions to show it. */
+async function showCounter(name: string) {
+  await pickOption('Counter', name)
+  await waitFor(() => expect(column('A').getByRole('columnheader', { name })).toBeVisible())
+}
+
+/** Side A's Previous and Next buttons, and where they have got to. */
+function hottest() {
+  const group = column('A').getByRole('group', { name: 'Hottest' })
+  return {
+    previous: within(group).getByRole('button', { name: /Previous/ }),
+    next: within(group).getByRole('button', { name: /Next/ }),
+    status: within(group).getByRole('status'),
+  }
+}
+
+/** The text of side A's highlighted instruction, if any. */
+function highlighted() {
+  return column('A').queryByRole('row', { current: true })?.textContent ?? null
+}
+
+/** Press side A's Next or Previous button. */
+async function step(button: 'next' | 'previous') {
+  await userEvent.setup().click(hottest()[button])
+}
+
+describe('the Profiles page: hottest instructions (PF5)', () => {
+  it('steps from the hottest instruction to the coldest, leaving out those of 0', async () => {
+    await showHot(withCounters([0, 5, 20, 5, 0, 10]))
+    expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
+    expect(hottest().next).not.toHaveAttribute('aria-disabled')
+    expect(highlighted()).toBeNull()
+    expect(hottest().status).toHaveTextContent(/^$/)
+
+    // By value, ties in the order of the instructions.
+    const order = ['insn 2', 'insn 5', 'insn 1', 'insn 3']
+    for (const [i, text] of order.entries()) {
+      await step('next')
+      await waitFor(() => expect(highlighted()).toContain(text))
+      if (i === 0) expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
+      else expect(hottest().previous).not.toHaveAttribute('aria-disabled')
+    }
+    expect(hottest().status).toHaveTextContent('Hottest instruction 4 of 4, at 0x200c')
+    expect(hottest().next).toHaveAttribute('aria-disabled', 'true')
+    // A button at its end keeps the focus, and does nothing.
+    expect(hottest().next).toHaveFocus()
+    await step('next')
+    expect(highlighted()).toContain('insn 3')
+
+    await step('previous')
+    await waitFor(() => expect(highlighted()).toContain('insn 1'))
+    expect(hottest().status).toHaveTextContent('Hottest instruction 3 of 4, at 0x2004')
+    expect(hottest().next).not.toHaveAttribute('aria-disabled')
+    await step('previous')
+    await step('previous')
+    await waitFor(() => expect(highlighted()).toContain('insn 2'))
+    expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
+    await step('previous')
+    expect(highlighted()).toContain('insn 2')
+  })
+
+  it('scrolls to the instruction it highlights', async () => {
+    const cycles = Array.from({ length: 300 }, (_, i) => (i === 250 ? 100 : 1))
+    await showHot(withCounters(cycles))
+    expect(column('A').queryByText('insn 250')).not.toBeInTheDocument()
+
+    await step('next')
+    await waitFor(() => expect(highlighted()).toContain('insn 250'))
+  })
+
+  it('keeps nothing of where it got to in the URL', async () => {
+    await showHot(withCounters([1, 2]))
+    await settle()
+    const url = currentUrl()
+
+    await step('next')
+    await waitFor(() => expect(highlighted()).toContain('insn 1'))
+    await settle()
+    expect(currentUrl()).toBe(url)
+  })
+
+  it('starts again from before the hottest on another counter', async () => {
+    await showHot(withCounters([1, 3, 2], [3, 1, 2]))
+    await step('next')
+    await step('next')
+    await waitFor(() => expect(highlighted()).toContain('insn 2'))
+
+    await showCounter('instructions')
+    expect(highlighted()).toBeNull()
+    expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
+    expect(hottest().status).toHaveTextContent(/^$/)
+    // Going back to the counter starts again too.
+    await showCounter('cycles')
+    expect(highlighted()).toBeNull()
+    await showCounter('instructions')
+    await step('next')
+    await waitFor(() => expect(highlighted()).toContain('insn 0'))
+  })
+
+  it('starts again from before the hottest on another function', async () => {
+    await showHot(withCounters([1, 3, 2]))
+    await step('next')
+    await waitFor(() => expect(highlighted()).toContain('insn 1'))
+
+    await pickFunction('A', 'warm')
+    await showsFunction('A', 'warm')
+    expect(highlighted()).toBeNull()
+    await pickFunction('A', 'hot')
+    await showsFunction('A', 'hot')
+    expect(highlighted()).toBeNull()
+    expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('keeps where it got to when the instructions are fetched again', async () => {
+    const { queryClient } = await showHot(withCounters([1, 3, 2]))
+    await step('next')
+    await step('next')
+    await waitFor(() => expect(highlighted()).toContain('insn 2'))
+
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles('libcxx') }))
+    await showsFunction('A', 'hot')
+    expect(highlighted()).toContain('insn 2')
+    expect(hottest().status).toHaveTextContent('Hottest instruction 2 of 3')
+  })
+
+  it('cannot step when no instruction has a value', async () => {
+    await showHot(withCounters([0, 0]))
+
+    expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
+    expect(hottest().next).toHaveAttribute('aria-disabled', 'true')
+    await step('next')
+    expect(highlighted()).toBeNull()
+  })
+
+  it('cannot step when the function does not have the counter', async () => {
+    await showHot([{ cycles: 1 }, { cycles: 2 }], `${ALPHA}&counter=instructions&function_a=hot`)
+    expect(
+      column('A').getByText('This function does not have the counter instructions.'),
+    ).toBeVisible()
+
+    expect(hottest().next).toHaveAttribute('aria-disabled', 'true')
+    expect(hottest().previous).toHaveAttribute('aria-disabled', 'true')
   })
 })

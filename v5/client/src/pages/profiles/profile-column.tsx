@@ -5,9 +5,11 @@ import { ErrorMessage, Loading } from '../../components/feedback'
 import { useLocalSuggestions, type Suggestion } from '../../components/suggestions'
 import type { Counters } from './counters'
 import { functionShare, shareText, type ProfileFunction } from './functions'
+import { HottestControls } from './hottest-controls'
 import { InstructionTable } from './instruction-table'
 import { instructionValues, type ValueMode } from './instructions'
 import { ShareBadge } from './share-badge'
+import { useHottest } from './use-hottest'
 import type { SideFunctions } from './use-functions'
 import type { ProfileSide } from './use-side'
 import styles from './profiles.module.css'
@@ -190,7 +192,10 @@ interface DisassemblyProps {
   values: ValueMode
 }
 
-/** The instructions of the function `name`, once they have loaded. */
+/**
+ * The instructions of the function `name`, once they have loaded, and the buttons that step through
+ * the hottest of them.
+ */
 function Disassembly({ name, disassembly, counter, values }: DisassemblyProps) {
   const instructions = disassembly.data?.instructions
   const shown = useMemo(
@@ -200,6 +205,7 @@ function Disassembly({ name, disassembly, counter, values }: DisassemblyProps) {
         : instructionValues(instructions, counter),
     [instructions, counter],
   )
+  const hottest = useHottest(shown, counter)
   if (disassembly.isError) {
     return (
       <ErrorMessage
@@ -211,12 +217,16 @@ function Disassembly({ name, disassembly, counter, values }: DisassemblyProps) {
   }
   if (instructions === undefined) return <Loading label="Loading the instructions..." />
   return (
-    <InstructionTable
-      label={`Instructions of ${name}`}
-      instructions={instructions}
-      counter={counter}
-      values={shown}
-      mode={values}
-    />
+    <>
+      <HottestControls hottest={hottest} instructions={instructions} />
+      <InstructionTable
+        label={`Instructions of ${name}`}
+        instructions={instructions}
+        counter={counter}
+        values={shown}
+        mode={values}
+        highlighted={hottest.highlighted?.instruction}
+      />
+    </>
   )
 }

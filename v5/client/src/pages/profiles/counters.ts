@@ -37,10 +37,34 @@ export function shownCounter(
 }
 
 /**
- * How `b` differs from `a`, as a percentage of `a` (PF3): `(b - a) / a * 100`. None when either is
- * missing, or when `a` is 0.
+ * A cell of the counter comparison (PF3): a value, `null` for N/A, or `undefined` for an empty
+ * cell, while its side's values are not known.
  */
-export function difference(a: number | undefined, b: number | undefined): number | undefined {
-  if (a === undefined || b === undefined || a === 0) return undefined
+export type ComparedValue = number | null | undefined
+
+/** The value of `counter` in `counters`, as the counter comparison shows it: empty until loaded. */
+export function comparedValue(counters: Counters | undefined, counter: string): ComparedValue {
+  if (counters === undefined) return undefined
+  return counters[counter] ?? null
+}
+
+/**
+ * How `b` differs from `a`, as a percentage of `a` (PF3): `(b - a) / a * 100`. Empty while either
+ * is, and N/A when either is N/A or `a` is 0.
+ */
+export function difference(a: ComparedValue, b: ComparedValue): ComparedValue {
+  if (a === undefined || b === undefined) return undefined
+  if (a === null || b === null || a === 0) return null
   return ((b - a) / a) * 100
+}
+
+/**
+ * Whether the Difference shown as `text` is a decrease or an increase (PF3), or neither when it is
+ * shown as 0%. Taken from the text, so that it always agrees with what is shown, however the value
+ * was rounded.
+ */
+export function differenceDirection(text: string): 'decrease' | 'increase' | undefined {
+  if (text.startsWith('-')) return 'decrease'
+  if (text.startsWith('+')) return 'increase'
+  return undefined
 }
