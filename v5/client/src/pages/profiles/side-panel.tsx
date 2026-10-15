@@ -1,0 +1,133 @@
+import { useMemo } from 'react'
+import type { SuiteSchema } from '../../api/suites'
+import { Combobox } from '../../components/combobox'
+import { ControlsPanel } from '../../components/controls-panel'
+import { ErrorMessage } from '../../components/feedback'
+import { Select } from '../../components/select'
+import { MachinesError, SideFields } from '../../components/side-fields'
+import { useLocalSuggestions } from '../../components/suggestions'
+import { UuidLink } from '../../components/uuid-link'
+import { formatTimestamp, uuidPrefix } from '../../format'
+import { runPath } from '../../paths'
+import type { ProfileSide } from './use-side'
+import styles from './profiles.module.css'
+
+/** The commits a side's commit picker offers: those at which the machine has profiles (PF2). */
+const HAS_PROFILES = { has_profiles: true } as const
+
+interface Props {
+  side: ProfileSide
+  /** The side's heading: "Side A" or "Side B". */
+  title: string
+  suites: SuiteSchema[]
+}
+
+/**
+ * A side's controls (PF2): its suite, machine, commit, run and test, each choice clearing what
+ * depends on it.
+ */
+export function SidePanel({ side, title, suites }: Props) {
+  const { settings, schema, machines } = side
+  return (
+    <ControlsPanel>
+      <section className={styles.side} aria-label={title}>
+        <h2 className={styles.sideTitle}>{title}</h2>
+        <SideFields
+          suites={suites}
+          schema={schema}
+          machines={machines}
+          machine={settings.machine}
+          commit={settings.commit}
+          commitFilters={HAS_PROFILES}
+          noCommitsMessage="No profiles on this machine"
+          onSuite={side.pickSuite}
+          onMachine={side.pickMachine}
+          onCommit={side.pickCommit}
+        />
+        <RunField side={side} />
+        <TestField side={side} />
+      </section>
+      <MachinesError suite={settings.suite} machines={machines} />
+    </ControlsPanel>
+  )
+}
+
+/**
+ * The runs of the side's machine at its commit that have profiles, in the order they were
+ * measured, with a link to the selected one's Run Detail page beside them (PF2).
+ */
+function RunField({ side }: { side: ProfileSide }) {
+  const { settings, runs, run } = side
+  const options = useMemo(
+    () =>
+      (runs.data ?? []).map((entry) => ({
+        value: entry.uuid,
+        label: `${formatTimestamp(entry.measured_at)} ${uuidPrefix(entry.uuid)}`,
+      })),
+    [runs.data],
+  )
+  let placeholder = 'Select a run'
+  if (settings.commit === '') placeholder = 'Select a commit first'
+  else if (side.runsFailed) placeholder = 'No runs'
+  else if (runs.data === undefined) placeholder = 'Loading runs...'
+  else if (runs.data.length === 0) placeholder = 'No runs with profiles'
+  return (
+    <>
+      <div className={styles.run}>
+        <Select
+          label="Run"
+          options={options}
+          value={run?.uuid ?? null}
+          placeholder={placeholder}
+          onChange={side.pickRun}
+          isDisabled={options.length === 0}
+        />
+        {run && <UuidLink uuid={run.uuid} to={runPath(settings.suite, run.uuid)} label="Run" />}
+      </div>
+      {side.runsFailed && (
+        <ErrorMessage
+          context="The runs could not be listed"
+          error={runs.error}
+          onRetry={() => void runs.refetch()}
+        />
+      )}
+    </>
+  )
+}
+
+/** The tests that have a profile in the side's run, sorted by name and filtered locally (PF2). */
+function TestField({ side }: { side: ProfileSide }) {
+  const { settings, run, profiles, tests } = side
+  const suggestions = useLocalSuggestions(
+    useMemo(() => tests?.map((test) => ({ key: test, text: test })), [tests]),
+    null,
+  )
+  // Only the side's run's: the URL's may be another machine's, or one that does not exist.
+  const failed = run !== undefined && tests === undefined && profiles.isError
+
+  let placeholder = 'Select a test'
+  if (run === undefined) placeholder = 'Select a run first'
+  else if (failed) placeholder = 'No tests'
+  else if (tests === undefined) placeholder = 'Loading tests...'
+  return (
+    <>
+      <Combobox
+        label="Test"
+        value={settings.test === '' ? null : { key: settings.test, text: settings.test }}
+        onChange={(picked) => side.pickTest(picked?.key ?? null)}
+        suggestions={suggestions}
+        placeholder={placeholder}
+        isDisabled={tests === undefined}
+        // A run can have a profile of each of thousands of tests (AR9).
+        virtualized
+      />
+      {failed && (
+        <ErrorMessage
+          context="The run's profiles could not be listed"
+          error={profiles.error}
+          onRetry={() => void profiles.refetch()}
+        />
+      )}
+    </>
+  )
+}

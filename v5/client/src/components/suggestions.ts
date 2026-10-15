@@ -33,6 +33,11 @@ export interface Suggestions {
   loadMore: () => void
   error: Error | null
   /**
+   * Whether there is nothing to suggest at all, whatever the text: the suggestions for no text have
+   * arrived, and there are none.
+   */
+  isEmpty: boolean
+  /**
    * Search for `text`, the empty string for every suggestion. The combobox calls it whenever the
    * text changes; `immediate` asks to search without waiting for the user to stop typing.
    */
@@ -49,6 +54,7 @@ export const NO_SUGGESTIONS: Suggestions = {
   isLoadingMore: false,
   loadMore: noMore,
   error: null,
+  isEmpty: false,
   search: noMore,
 }
 
@@ -86,6 +92,7 @@ export function useLocalSuggestions(
     isLoadingMore: false,
     loadMore: noMore,
     error,
+    isEmpty: all !== undefined && all.length === 0,
     search: setText,
   }
 }
@@ -176,5 +183,6 @@ export function useServerSuggestions<Item>({
     loadMore,
     error,
     search,
+    isEmpty: term === '' && data !== undefined && !isPlaceholderData && items.length === 0,
   }
 }

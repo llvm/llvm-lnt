@@ -1,0 +1,47 @@
+/* The Profiles page (PF1-PF9). */
+
+/* The two sides' controls, A on the left and B on the right (PF7). */
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: var(--lnt-space-3);
+}
+
+.side {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  min-width: 0;
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* The run dropdown, and the link to the run selected beside it. */
+.run {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--lnt-space-2);
+}
+
+/* The profiles shown, each side's in a column of its own, or one across the full width (PF7). */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  gap: var(--lnt-space-3);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  min-width: 0;
+}
+
+.note {
+  color: var(--lnt-muted);
+}

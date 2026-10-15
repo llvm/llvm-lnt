@@ -35,6 +35,11 @@ interface CommonProps {
   /** From `useLocalSuggestions` or `useServerSuggestions`. */
   suggestions: Suggestions
   placeholder?: string
+  /**
+   * What the combobox says, in place of `placeholder` and in its list, when it has nothing to suggest
+   * at all (see `Suggestions.isEmpty`): a phrase, without a final period.
+   */
+  emptyMessage?: string
   isDisabled?: boolean
   /** Shown as it is, but cannot be changed, and keeps the focus, unlike when disabled. */
   isReadOnly?: boolean
@@ -110,6 +115,7 @@ export function Combobox({
   onPick,
   suggestions,
   placeholder,
+  emptyMessage,
   isDisabled,
   isReadOnly,
   hideLabel,
@@ -192,7 +198,11 @@ export function Combobox({
       <FieldLabel label={label} hidden={hideLabel} />
       <Field query={query} suggestions={suggestions} pick={pick} closeListRef={closeListRef}>
         <div className={styles.inputBox}>
-          <Input ref={inputRef} placeholder={placeholder} className={styles.input} />
+          <Input
+            ref={inputRef}
+            placeholder={(suggestions.isEmpty && emptyMessage) || placeholder}
+            className={styles.input}
+          />
           {text !== '' && !isDisabled && !isReadOnly && (
             <button
               type="button"
@@ -219,6 +229,7 @@ export function Combobox({
           suggestions={suggestions}
           renderSuggestion={renderSuggestion}
           virtualized={virtualized}
+          emptyMessage={emptyMessage}
         />
         {suggestions.error !== null && suggestions.items.length > 0 && (
           <div className={styles.status} role="alert">
@@ -241,15 +252,17 @@ function List({
   suggestions,
   renderSuggestion,
   virtualized,
+  emptyMessage,
 }: {
   suggestions: Suggestions
   renderSuggestion: ((suggestion: Suggestion) => ReactNode) | undefined
   virtualized: boolean
+  emptyMessage: string | undefined
 }) {
   const list = (
     <ListBox
       className={clsx(shared.list, virtualized && styles.virtualList)}
-      renderEmptyState={() => <EmptyState suggestions={suggestions} />}
+      renderEmptyState={() => <EmptyState suggestions={suggestions} emptyMessage={emptyMessage} />}
     >
       {/* Rendered again for a new `renderSuggestion`, which React Aria would not do on its own. */}
       <Collection items={suggestions.items} dependencies={[renderSuggestion]}>
@@ -283,10 +296,17 @@ function List({
   )
 }
 
-function EmptyState({ suggestions }: { suggestions: Suggestions }) {
+function EmptyState({
+  suggestions,
+  emptyMessage,
+}: {
+  suggestions: Suggestions
+  emptyMessage: string | undefined
+}) {
   let message = 'No matches.'
   if (suggestions.error !== null) message = errorMessage(suggestions.error)
   else if (suggestions.isLoading) message = 'Loading...'
+  else if (suggestions.isEmpty && emptyMessage !== undefined) message = `${emptyMessage}.`
   return <div className={styles.status}>{message}</div>
 }
 

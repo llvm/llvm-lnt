@@ -3,11 +3,9 @@
  * commits and runs, and the runs' samples and profiles, and the means to read what the page shows.
  */
 
-import { screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { screen, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
-import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import {
@@ -218,16 +216,3 @@ export function runBox(hex: string, side: 'A' | 'B') {
 
 /** The checkbox showing `test`'s row (CP2 "Hidden tests"). */
 export const showBox = (test: string) => screen.getByRole('checkbox', { name: `Show ${test}` })
-
-/**
- * Pick `name` in the combobox labelled `label`, typing it over the text the input holds, which is
- * never emptied meanwhile: that would clear the combobox's value (AR14).
- */
-export async function pick(label: string, name: string, container: HTMLElement = document.body) {
-  const user = userEvent.setup()
-  const input = await within(container).findByRole('combobox', { name: label })
-  await waitFor(() => expect(input).toBeEnabled())
-  await user.tripleClick(input)
-  await user.keyboard(name)
-  await user.click(await screen.findByRole('option', { name }))
-}

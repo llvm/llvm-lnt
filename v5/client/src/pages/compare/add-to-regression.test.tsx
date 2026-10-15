@@ -7,9 +7,9 @@ import { signIn } from '../../test/auth'
 import { cursorPage, regression, regressionDetail, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { mockRegressions, renderPage } from '../../test/page'
-import { pickOption } from '../../test/select'
+import { pick, pickOption } from '../../test/select'
 import { server } from '../../test/server'
-import { COMPARED, comparison, mockWorld, pick, sideOf } from './compare-world'
+import { COMPARED, comparison, mockWorld, sideOf } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))

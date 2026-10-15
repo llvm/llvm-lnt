@@ -3,7 +3,7 @@
  * the URL it is at, and mocks of the suite-scoped endpoints most pages read.
  */
 
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { useLocation, useNavigate } from 'react-router'
 import { expect } from 'vitest'
@@ -209,6 +209,11 @@ export function mockResolve(known: Commit[] = []) {
 }
 
 /** A promise, and the function that settles it. */
+/** Let whatever a render sends go out, and its answers come back: for checking that nothing changes. */
+export function settle() {
+  return act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+}
+
 export function gate() {
   let open = () => {}
   const promise = new Promise<void>((resolve) => (open = resolve))
