@@ -4,6 +4,7 @@ import { HttpResponse } from 'msw'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { CommitFilters } from '../api/commits'
+import { queryKeys } from '../api/keys'
 import { scrollToEnd } from '../test/intersection-observer'
 import { SUITE, commit, cursorPage } from '../test/fixtures'
 import type { Commit } from '../schema'
@@ -32,6 +33,7 @@ interface HarnessProps {
 function renderPicker({
   initial = null as string | null,
   filters = undefined as CommitFilters | undefined,
+  reportsLookupFailure = true,
 } = {}) {
   const onChange = vi.fn()
   function Harness({ filters, given }: HarnessProps) {
@@ -48,6 +50,7 @@ function renderPicker({
           schema={SUITE}
           filters={filters}
           value={value}
+          reportsLookupFailure={reportsLookupFailure}
           onChange={(next) => {
             onChange(next)
             setValue(next)
@@ -59,13 +62,14 @@ function renderPicker({
     )
   }
   let props: HarnessProps = { filters }
-  const { rerender } = renderWithProviders(<Harness {...props} />)
+  const { rerender, queryClient } = renderWithProviders(<Harness {...props} />)
   const update = (changes: HarnessProps) => {
     props = { ...props, ...changes }
     rerender(<Harness {...props} />)
   }
   return {
     input: screen.getByRole('combobox', { name: 'Commit' }),
+    queryClient,
     onChange,
     // A copy, as a page building its filters afresh would pass.
     setFilters: (next: CommitFilters) => update({ filters: { ...next } }),
@@ -272,6 +276,68 @@ describe('CommitPicker', () => {
     expect(value()).toBe(OLD.value)
     expect(input).toHaveValue(OLD.value)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('says when the lookup of a commit it is given fails, and looks it up again on Retry', async () => {
+    let fail = true
+    const queries = serveCommits()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        const query = new URL(request.url).searchParams
+        if (query.has('commit') && fail) return errorResponse(500, 'internal_error', 'Boom')
+      }),
+    )
+    const { input } = renderPicker({ initial: TAGGED.value, filters: { machine: 'linux' } })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The commit could not be looked up: Boom',
+    )
+    fail = false
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(input).toHaveValue('r100 (v1)'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(lookups(queries).length).toBeGreaterThan(0)
+    // The Retry button is gone, so the focus moves to the input rather than to the page.
+    expect(input).toHaveFocus()
+  })
+
+  it('says nothing when a lookup that answered fails when it is asked again', async () => {
+    serveCommits()
+    const { input, queryClient } = renderPicker({
+      initial: TAGGED.value,
+      filters: { machine: 'linux' },
+    })
+    await waitFor(() => expect(input).toHaveValue('r100 (v1)'))
+
+    const failed = gate()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (!new URL(request.url).searchParams.has('commit')) return
+        failed.open()
+        return errorResponse(500, 'internal_error', 'Boom') as never
+      }),
+    )
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.commits(SUITE.name) }))
+
+    await failed.promise
+    await settle()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(input).toHaveValue('r100 (v1)')
+  })
+
+  it('says nothing of a failed lookup when it is not to report one', async () => {
+    // E3 answers `machine=` with a 404 when the machine does not exist. The page drops the machine.
+    serveCommits()
+    const { input } = renderPicker({
+      initial: TAGGED.value,
+      filters: { machine: 'gone' },
+      reportsLookupFailure: false,
+    })
+
+    await settle()
+    expect(input).toHaveValue(TAGGED.value)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it.each([

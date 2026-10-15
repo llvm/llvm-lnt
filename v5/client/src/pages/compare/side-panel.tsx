@@ -1,20 +1,16 @@
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { SuiteSchema } from '../../api/suites'
-import { Combobox } from '../../components/combobox'
-import { CommitPicker } from '../../components/commit-picker'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
-import { Select } from '../../components/select'
-import { NO_SUGGESTIONS } from '../../components/suggestions'
+import { MachinesError, SideFields } from '../../components/side-fields'
+import { runsListFailed } from '../../components/side-selection'
 import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
 import { runPath } from '../../paths'
 import { CLEARED_WITH } from './settings'
-import { runsListFailed, type Side } from './use-side'
+import type { Side } from './use-side'
 import styles from './compare.module.css'
-
-function noop() {}
 
 interface Props {
   side: Side
@@ -32,9 +28,7 @@ interface Props {
 export function SidePanel({ side, title, suites, action }: Props) {
   const { settings, schema, machines, update: onChange } = side
   const { suite, machine, commit } = settings
-  const filters = useMemo(() => ({ machine }), [machine])
 
-  const commitPlaceholder = machine === '' ? 'Select a machine first' : 'Select a commit'
   return (
     <ControlsPanel>
       <section className={styles.side} aria-label={title}>
@@ -42,63 +36,26 @@ export function SidePanel({ side, title, suites, action }: Props) {
           <h2 className={styles.sideTitle}>{title}</h2>
           {action}
         </div>
-        <Select
-          label="Suite"
-          options={suites.map(({ name }) => ({ value: name, label: name }))}
-          value={schema?.name ?? null}
-          placeholder="-- Select suite --"
-          onChange={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
-        />
-        <Combobox
-          label="Machine"
-          value={machine === '' ? null : { key: machine, text: machine }}
-          onChange={(picked) =>
+        <SideFields
+          suites={suites}
+          schema={schema}
+          machines={machines}
+          machine={machine}
+          commit={commit}
+          onSuite={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
+          onMachine={(picked) =>
             // Another machine keeps the commit if it has runs at it, as the commit picker checks.
             onChange(
               picked === null
                 ? { machine: '', ...CLEARED_WITH.machine }
-                : { machine: picked.key, runs: [] },
+                : { machine: picked, runs: [] },
             )
           }
-          suggestions={machines.suggestions}
-          placeholder={
-            schema === undefined
-              ? 'Select a suite first'
-              : machines.machines.isPending
-                ? 'Loading machines...'
-                : 'Select a machine'
-          }
-          isDisabled={schema === undefined}
+          onCommit={(value) => onChange({ commit: value ?? '', ...CLEARED_WITH.commit })}
         />
-        {/* Without a machine, a commit picker would look its commit up among no machine's. */}
-        {schema === undefined || machine === '' ? (
-          <Combobox
-            label="Commit"
-            value={null}
-            onChange={noop}
-            suggestions={NO_SUGGESTIONS}
-            placeholder={commitPlaceholder}
-            isDisabled
-          />
-        ) : (
-          <CommitPicker
-            label="Commit"
-            schema={schema}
-            filters={filters}
-            value={commit === '' ? null : commit}
-            onChange={(value) => onChange({ commit: value ?? '', ...CLEARED_WITH.commit })}
-            placeholder="Select a commit"
-          />
-        )}
         <RunList side={side} />
       </section>
-      {machines.machines.isError && (
-        <ErrorMessage
-          context={`The machines of ${suite} could not be listed`}
-          error={machines.machines.error}
-          onRetry={() => void machines.machines.refetch()}
-        />
-      )}
+      <MachinesError suite={suite} machines={machines} />
     </ControlsPanel>
   )
 }
@@ -111,7 +68,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
 function RunList({ side }: { side: Side }) {
   const { settings, runs, selection } = side
   if (!side.named) return <p className={styles.note}>Select a commit first.</p>
-  if (runsListFailed(side)) {
+  if (runsListFailed(runs, side.machines, settings.machine)) {
     return (
       <ErrorMessage
         context="The runs could not be listed"

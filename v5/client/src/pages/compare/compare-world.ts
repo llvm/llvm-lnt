@@ -22,7 +22,7 @@ import {
   uuidOf,
 } from '../../test/fixtures'
 import { uuidPrefix } from '../../format'
-import { mockApi } from '../../test/mock-api'
+import { errorResponse, mockApi } from '../../test/mock-api'
 import { mockCommits, mockMachines, mockRuns, mockSuites, rowsOf, table } from '../../test/page'
 import { server } from '../../test/server'
 import { chartProps } from '../../test/chart-props'
@@ -126,8 +126,15 @@ export function mockWorld({
       ),
     )
   })
-  // After `mockRuns`, whose answers it takes precedence over, falling back on them.
+  // These come after `mockCommits` and `mockRuns`, so they answer first, and fall back on them.
+  // E3 answers `machine=` with a 404 when the machine does not exist.
   server.use(
+    mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      const name = new URL(request.url).searchParams.get('machine')
+      if (name !== null && !MACHINES.includes(name)) {
+        return errorResponse(404, 'not_found', 'No such machine') as never
+      }
+    }),
     mockApi('get', '/api/suites/{testsuite}/runs', ({ request }) => {
       const answer = runsAnswer?.(new URL(request.url).searchParams)
       if (answer !== undefined) return answer as never

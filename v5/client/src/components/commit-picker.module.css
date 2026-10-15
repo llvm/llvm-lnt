@@ -1,0 +1,13 @@
+/*
+ * The picker, with the lookup error below it. The error takes the picker's width but never widens
+ * it, and it adds no space below itself.
+ */
+.root {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.root > [role='alert'] {
+  contain: inline-size;
+  margin-bottom: 0;
+}

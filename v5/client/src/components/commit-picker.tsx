@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PAGE_SIZE } from '../api/client'
 import { fetchCommitPage, type CommitFilters } from '../api/commits'
@@ -8,7 +8,9 @@ import type { Commit } from '../schema'
 import { useDropUnusable } from '../url-state'
 import { Combobox } from './combobox'
 import { commitLookupKey, commitLookupQuery, suggestionOf } from './commit-lookup'
+import { ErrorMessage } from './feedback'
 import { useServerSuggestions, type Suggestion } from './suggestions'
+import styles from './commit-picker.module.css'
 
 interface CommonProps {
   label: string
@@ -24,6 +26,12 @@ interface CommonProps {
   hideLabel?: boolean
   /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
   onPendingChange?: (pending: boolean) => void
+  /**
+   * Whether to report a failed lookup of the given commit (AR7). Turn it off while the filters may
+   * name something that does not exist, such as a machine from the URL. The page does not report
+   * failures for values that it is going to drop (AR2 "State").
+   */
+  reportsLookupFailure?: boolean
 }
 
 /** A picker holding a commit. */
@@ -69,7 +77,9 @@ export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.
  * kept while its filters change -- is looked up with the picker's filters plus `commit=`, which
  * returns it, with its display value, only if the picker offers it. If the lookup
  * returns nothing, the commit is unusable, and the picker is cleared as if the input had been
- * emptied. A lookup that fails clears nothing (AR2 "State").
+ * emptied. If the lookup fails, the picker clears nothing (AR2 "State"). It shows the error below
+ * the input, with a way to try again (AR7). If the lookup already answered once and a later
+ * refetch fails, the picker shows no error and keeps showing the earlier answer.
  */
 export function CommitPicker({
   label,
@@ -83,6 +93,7 @@ export function CommitPicker({
   isReadOnly,
   hideLabel,
   onPendingChange,
+  reportsLookupFailure = true,
 }: Props) {
   const suite = schema.name
   const toSuggestion = useCallback((commit: Commit) => suggestionOf(commit, schema), [schema])
@@ -128,17 +139,40 @@ export function CommitPicker({
           onChange(suggestion?.key ?? null)
         },
       }
+  // When a Retry succeeds, the error and its Retry button disappear. Move the focus back to the
+  // input, so that it does not fall to the page, where keys such as Enter and Escape would be lost.
+  const root = useRef<HTMLDivElement>(null)
+  const retried = useRef(false)
+  const failed = lookup.isLoadingError && reportsLookupFailure
+  useLayoutEffect(() => {
+    if (failed || !retried.current) return
+    retried.current = false
+    root.current?.querySelector('input')?.focus()
+  }, [failed])
+
   return (
-    <Combobox
-      label={label}
-      {...handlers}
-      suggestions={suggestions}
-      placeholder={placeholder}
-      isDisabled={isDisabled}
-      isReadOnly={isReadOnly}
-      hideLabel={hideLabel}
-      onPendingChange={onPendingChange}
-    />
+    <div ref={root} className={styles.root}>
+      <Combobox
+        label={label}
+        {...handlers}
+        suggestions={suggestions}
+        placeholder={placeholder}
+        isDisabled={isDisabled}
+        isReadOnly={isReadOnly}
+        hideLabel={hideLabel}
+        onPendingChange={onPendingChange}
+      />
+      {failed && (
+        <ErrorMessage
+          context="The commit could not be looked up"
+          error={lookup.error}
+          onRetry={() => {
+            retried.current = true
+            void lookup.refetch()
+          }}
+        />
+      )}
+    </div>
   )
 }
 

@@ -16,9 +16,9 @@ import {
   type SampleState,
 } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
-import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { useControlledSelection, type RowSelection } from '../../components/range-selection'
-import { useDropUnusable } from '../../url-state'
+import type { Machines } from '../../components/machine-suggestions'
+import { useSuiteAndMachine } from '../../components/side-selection'
 import { NO_RUNS_SELECTED, runsParam, selectedRuns } from './run-selection'
 import {
   CLEARED_WITH,
@@ -39,7 +39,7 @@ export interface Side {
   /** The side's suite, once the suites are known to hold it. */
   schema: SuiteSchema | undefined
   /** The suite's machines, and the suggestions of the combobox picking one. */
-  machines: ReturnType<typeof useMachineSuggestions>
+  machines: Machines
   /** Whether the side names a suite, a machine and a commit: what its runs are asked for with. */
   named: boolean
   /** The runs of the machine at the commit, in the order they were measured. */
@@ -66,15 +66,6 @@ export interface Side {
   wanted: string[]
 }
 
-/**
- * Whether the side's runs could not be listed, and that is to be said: not for a machine that does
- * not exist, which has no runs to list, and is about to be dropped (AR2).
- */
-export function runsListFailed({ runs, machines, settings }: Side): boolean {
-  const known = machines.machines.data?.includes(settings.machine) ?? false
-  return runs.isError && (known || machines.machines.isError)
-}
-
 const NO_RUNS: string[] = []
 const NO_CHANGES: Partial<Settings> = {}
 
@@ -92,7 +83,6 @@ export function useSide(
 ): Side {
   const settings = sideSettings(all, id)
   const { suite, machine, commit } = settings
-  const schema = suites.data?.find((entry) => entry.name === suite)
   // What the user changes, from the side's panel or its runs.
   const updateSide = useCallback(
     (changes: Partial<SideSettings>) => update({ ...sideChanges(id, changes), ...dismisses }),
@@ -104,18 +94,13 @@ export function useSide(
     [id, update],
   )
 
-  // A suite or a machine that does not exist is dropped, and what depends on it (AR2 "State").
-  useDropUnusable(
+  const { schema, machines } = useSuiteAndMachine({
+    suite,
+    machine,
     suites,
-    (list) => suite === '' || list.some((entry) => entry.name === suite),
-    () => drop({ suite: '', ...CLEARED_WITH.suite }),
-  )
-  const machines = useMachineSuggestions(suite, schema !== undefined)
-  useDropUnusable(
-    machines.machines,
-    (names) => machine === '' || names.includes(machine),
-    () => drop({ machine: '', ...CLEARED_WITH.machine }),
-  )
+    onUnusableSuite: () => drop({ suite: '', ...CLEARED_WITH.suite }),
+    onUnusableMachine: () => drop({ machine: '', ...CLEARED_WITH.machine }),
+  })
 
   // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
   const named = suite !== '' && machine !== '' && commit !== ''

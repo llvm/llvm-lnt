@@ -375,6 +375,44 @@ describe('loading (CP6)', () => {
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument()
   })
 
+  it('reports a commit that could not be looked up, keeping it', async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (new URL(request.url).searchParams.get('commit') === 'c1')
+          return errorResponse(500, 'internal_error', 'Boom') as never
+      }),
+    )
+    renderPage(COMPARED)
+
+    expect(
+      await within(sideOf('A')).findByText(/The commit could not be looked up: Boom/),
+    ).toBeInTheDocument()
+    expect(query().commit_a).toEqual(['c1'])
+    expect(await comparison()).toEqual(ROWS)
+  })
+
+  it('reports a failed lookup when the machines could not be listed either', async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/machines', () =>
+        errorResponse(500, 'internal_error', 'No machines'),
+      ),
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (new URL(request.url).searchParams.get('commit') === 'c1')
+          return errorResponse(500, 'internal_error', 'Boom') as never
+      }),
+    )
+    renderPage(COMPARED)
+
+    expect(
+      await screen.findAllByText(/The machines of libcxx could not be listed/),
+    ).not.toHaveLength(0)
+    expect(
+      await within(sideOf('A')).findByText(/The commit could not be looked up: Boom/),
+    ).toBeInTheDocument()
+  })
+
   it('says how many runs have their samples while they load', async () => {
     let release = () => {}
     const waiting = new Promise<void>((resolve) => (release = resolve))
@@ -439,7 +477,7 @@ describe('loading (CP6)', () => {
 
     await waitFor(() => expect(query().machine_a).toBeUndefined())
     expect(query().commit_a).toBeUndefined()
-    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/could not be (listed|looked up)/)).not.toBeInTheDocument()
     expect(currentUrl()).toBe('/compare?suite_a=libcxx')
   })
 })

@@ -584,22 +584,17 @@ describe('the Profile column (CP2)', () => {
         return errorResponse(404, 'not_found', 'No such machine')
       },
     })
-    // Holding the machines back, so that the machine is not known not to exist meanwhile, and
-    // answering the commit's lookup as the API does for a machine that does not exist.
+    // Hold the machines back, so that the page cannot know yet that the machine does not exist.
     server.use(
       mockApi('get', '/api/suites/{testsuite}/machines', async () => {
         await held
-      }),
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
-        if (new URL(request.url).searchParams.get('machine') === 'bogus')
-          return errorResponse(404, 'not_found', 'No such machine') as never
       }),
     )
     renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')
 
     await waitFor(() => expect(profiled).toBe(true))
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
-    expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/could not be (listed|looked up)/)).not.toBeInTheDocument()
     release()
     await waitFor(() => expect(query().machine_a).toBeUndefined())
   })
