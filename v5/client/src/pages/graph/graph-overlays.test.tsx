@@ -281,7 +281,7 @@ describe('the point details (GR11)', () => {
       '/suites/libcxx/runs/r2',
     ])
     expect(runs.map((run) => within(run).getAllByRole('cell').at(-1)?.textContent)).toEqual([
-      '4\u00a0· 6',
+      '4 · 6',
       '2',
     ])
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })

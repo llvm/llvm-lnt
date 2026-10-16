@@ -95,15 +95,17 @@ export function PointDetails({
           {formatMetricValue(point.value, metric)} ({plural(point.runs, 'run')})
         </dd>
       </dl>
-      <div className={styles.detailsRuns}>
+      <div>
         <h3 className={styles.detailsHeading}>Runs</h3>
-        <DataTable
-          label="Runs"
-          columns={runColumns(suite, metric)}
-          rows={runs}
-          rowKey={runKey}
-          empty="No runs."
-        />
+        <div className={styles.detailsRuns}>
+          <DataTable
+            label="Runs"
+            columns={runColumns(suite, metric)}
+            rows={runs}
+            rowKey={runKey}
+            empty="No runs."
+          />
+        </div>
       </div>
       <ButtonLink to={compare} title={why}>
         Compare with previous commit
@@ -132,9 +134,8 @@ function runColumns(suite: string, metric: Metric): Column<RunSamples>[] {
     {
       id: 'samples',
       header: 'Samples',
-      // A long list wraps after a separator rather than before it.
-      cell: (run) => run.samples.map((value) => formatMetricValue(value, metric)).join('\u00a0· '),
-      looks: ['numeric'],
+      cell: (run) => run.samples.map((value) => formatMetricValue(value, metric)).join(' · '),
+      looks: ['numeric', 'nowrap'],
     },
   ]
 }

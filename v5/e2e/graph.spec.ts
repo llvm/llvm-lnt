@@ -155,6 +155,14 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare with previous commit' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
+  // The run's samples are on one line: the list scrolls sideways rather than wrap them.
+  const samplesCell = details.getByRole('table', { name: 'Runs' }).getByRole('cell').last()
+  const lines = await samplesCell.evaluate((cell) => {
+    const range = document.createRange()
+    range.selectNodeContents(cell)
+    return range.getClientRects().length
+  })
+  expect(lines).toBe(1)
 
   // The samples stay while the details are open, wherever the pointer is.
   await plotOf(page).hover({ position: { x: 5, y: 5 } })
