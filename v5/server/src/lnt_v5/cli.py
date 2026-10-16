@@ -30,7 +30,9 @@ APP = "lnt_v5.app:create_app"
 
 # The port `server run` listens on by default, which the Dockerfile's EXPOSE and HEALTHCHECK expect.
 # Map the container elsewhere at its boundary (`docker run -p 8080:3000`) rather than changing it;
-# `--port` is for running several servers on one host, as the end-to-end tests do.
+# `--port` is for running several servers on one host, as the end-to-end tests and several
+# checkouts' dev servers do. Port 0 picks any free port, which uvicorn's "Uvicorn running on" line
+# reports.
 PORT = 3000
 
 # How long uvicorn lets in-flight requests finish before dropping them. Generous because a run
@@ -120,7 +122,7 @@ def _serve(settings: Settings, port: int) -> int:
     return 0
 
 
-def _serve_dev(settings: Settings) -> int:
+def _serve_dev(settings: Settings, port: int) -> int:
     """Serve with autoreload, for development (`server dev`).
 
     The watched directory is named explicitly since npm runs this from `v5/`, where the
@@ -136,7 +138,7 @@ def _serve_dev(settings: Settings) -> int:
         APP,
         factory=True,
         host="0.0.0.0",  # as above
-        port=PORT,
+        port=port,
         reload=True,
         reload_dirs=[str(Path(__file__).resolve().parent)],
     )
@@ -226,8 +228,8 @@ def _port(value: str) -> int:
         port = int(value)
     except ValueError:
         raise argparse.ArgumentTypeError(f"not a port number: {value!r}") from None
-    if not 1 <= port <= 65535:
-        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, not {port}")
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 0 and 65535, not {port}")
     return port
 
 
@@ -239,10 +241,14 @@ def _build_parser() -> argparse.ArgumentParser:
     commands = server.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     run = commands.add_parser("run", help="serve the API and web UI")
-    run.add_argument(
-        "--port", type=_port, default=PORT, help=f"port to listen on (default: {PORT})"
-    )
-    commands.add_parser("dev", help="serve with autoreload, for development")
+    dev = commands.add_parser("dev", help="serve with autoreload, for development")
+    for command in (run, dev):
+        command.add_argument(
+            "--port",
+            type=_port,
+            default=PORT,
+            help=f"port to listen on, or 0 for any free port (default: {PORT})",
+        )
     commands.add_parser("migrate", help="bring the database up to date")
     commands.add_parser(
         "sweep", help="delete the machines and commits that have been inactive for too long"
@@ -283,7 +289,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run":
         return _serve(settings, args.port)
     if args.command == "dev":
-        return _serve_dev(settings)
+        return _serve_dev(settings, args.port)
     if args.command == "migrate":
         return _migrate(settings)
     if args.command == "sweep":

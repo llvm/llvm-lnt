@@ -1,6 +1,7 @@
 /**
  * What every end-to-end test imports instead of `@playwright/test`:
  *
+ * - `baseURL`: the URL of the server global-setup.ts started, for `page` and `request`.
  * - `tokenFor(scope)`: a token for a new key of that scope, to act as a user who holds it.
  * - `signIn(page, scope)`: store such a token in `page`'s browser, as the Settings panel does, so
  *   that the pages it loads from then on use it. Returns the token.
@@ -60,6 +61,16 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
+  // Overridden rather than set in playwright.config.ts: the server's port is only known once
+  // global-setup.ts has started it, after the config is loaded.
+  // Playwright requires the fixtures argument to be destructured, even when none is used.
+  // eslint-disable-next-line no-empty-pattern
+  baseURL: async ({}, use) => {
+    const url = process.env.E2E_BASE_URL
+    if (!url) throw new Error('E2E_BASE_URL is not set: run the tests with playwright.config.ts')
+    await use(url)
+  },
+
   tokenFor: async ({ request }, use) => {
     await use(async (scope) => {
       const response = await request.post('/api/admin/api-keys', {

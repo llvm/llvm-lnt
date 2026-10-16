@@ -9,10 +9,11 @@
  *
  *     node tools/seed.ts [--url URL] [--token TOKEN]
  *
- * `--url` defaults to the dev server, http://localhost:3000. The token needs `manage` scope to
- * create the suites, `triage` for the regressions, and `admin` for the keys, which a token without
- * it skips; it defaults to `$LNT_SEED_TOKEN`. Without either, and only for the dev server, an admin
- * key is created for the dev database (the one in `.env`) with `lnt-v5 server create-key`.
+ * `--url` defaults to the dev server, http://localhost:3000 unless `DEV_SERVER_PORT` in `.env`
+ * moves it (see .env.example). The token needs `manage` scope to create the suites, `triage` for
+ * the regressions, and `admin` for the keys, which a token without it skips; it defaults to
+ * `$LNT_SEED_TOKEN`. Without either, and only for the dev server, an admin key is created for the
+ * dev database (the one in `.env`) with `lnt-v5 server create-key`.
  *
  * It never changes anything that exists: a suite that is already there is skipped whole, whatever
  * it holds, and a key is created only if no key has its name. To seed a suite again, delete it
@@ -26,10 +27,14 @@ import { parseArgs } from 'node:util'
 import createClient, { type Client } from 'openapi-fetch'
 import type { components, paths } from '../client/src/api/schema.d.ts'
 import { libcxxSynthetic, type Submission } from './synthetic.ts'
-import { uv, V5 } from './uv.ts'
+import { loadDotEnv, uv, V5 } from './uv.ts'
 
 const DATA = path.join(V5, 'server', 'tests', 'data')
-const DEV_SERVER = 'http://localhost:3000'
+
+/** The dev server's URL, once `.env` is loaded. */
+function devServer(): string {
+  return `http://localhost:${process.env.DEV_SERVER_PORT || 3000}`
+}
 
 type Api = Client<paths>
 
@@ -176,7 +181,7 @@ async function seedKeys(api: Api, log: (message: string) => void): Promise<void>
  */
 function tokenFor(url: string, given: string | undefined): string {
   if (given !== undefined) return given
-  if (url !== DEV_SERVER) {
+  if (url !== devServer()) {
     throw new Error(`Seeding ${url} needs a token: pass --token, or set LNT_SEED_TOKEN.`)
   }
   console.log('Creating an admin key named "seed" for the database in .env.')
@@ -185,8 +190,11 @@ function tokenFor(url: string, given: string | undefined): string {
 }
 
 if (import.meta.main) {
+  // Here rather than at the top, so that importing `seed`, as the end-to-end tests do, does not
+  // load .env.
+  loadDotEnv()
   const { values } = parseArgs({
-    options: { url: { type: 'string', default: DEV_SERVER }, token: { type: 'string' } },
+    options: { url: { type: 'string', default: devServer() }, token: { type: 'string' } },
   })
   const url = values.url.replace(/\/$/, '')
   try {

@@ -5,11 +5,12 @@
  *                              [--full-page] [--wait-for SELECTOR] [--token TOKEN]
  *
  * `<path>` is the page's path and query, e.g. `/suites/libcxx?tab=machines`. `--url` defaults to
- * the Vite dev server, http://localhost:5173, which `npm run dev` starts. The page is captured once
- * the network has been idle for a moment, and, with `--wait-for`, once SELECTOR is visible. Errors
- * the page reports are printed, so that a blank screenshot comes with its reason. `--token` stores
- * TOKEN in the browser before the page loads, as the Settings panel does, so that the page is
- * captured as a holder of that token sees it.
+ * the Vite dev server that `npm run dev` starts, http://localhost:5173 unless `DEV_CLIENT_PORT` in
+ * `.env` moves it (see .env.example). The page is captured once the network has been idle for a
+ * moment, and, with `--wait-for`, once SELECTOR is visible. Errors the page reports are printed, so
+ * that a blank screenshot comes with its reason. `--token` stores TOKEN in the browser before the
+ * page loads, as the Settings panel does, so that the page is captured as a holder of that token
+ * sees it.
  */
 
 import { tmpdir } from 'node:os'
@@ -17,12 +18,14 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { chromium } from '@playwright/test'
 import { TOKEN_STORAGE_KEY } from '../client/src/auth/storage-key.ts'
+import { loadDotEnv } from './uv.ts'
 
+loadDotEnv()
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     out: { type: 'string', default: path.join(tmpdir(), 'lnt-screenshot.png') },
-    url: { type: 'string', default: 'http://localhost:5173' },
+    url: { type: 'string', default: `http://localhost:${process.env.DEV_CLIENT_PORT || 5173}` },
     width: { type: 'string', default: '1280' },
     height: { type: 'string', default: '800' },
     'full-page': { type: 'boolean', default: false },
