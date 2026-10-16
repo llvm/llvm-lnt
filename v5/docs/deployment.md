@@ -1,8 +1,8 @@
 # v5 Deployment
 
 The production stack is a single EC2 host running Docker Compose (the app + Nginx), talking to a
-Postgres instance on RDS. DNS and TLS termination are handled by Cloudflare; the Nginx origin holds a
-Cloudflare Origin CA certificate so traffic between Cloudflare and the origin is encrypted too.
+Postgres instance on RDS. A CDN in front of it, Cloudflare or Fastly, terminates TLS; the Nginx origin
+holds a certificate the CDN trusts so traffic between the CDN and the origin is encrypted too.
 
 Everything is provisioned with Terraform, split into two modules under `v5/deployment/`:
 
@@ -10,8 +10,8 @@ Everything is provisioned with Terraform, split into two modules under `v5/deplo
   and IAM role the `v5 Deploy` GitHub Actions workflow uses to authenticate to AWS, and the instance
   roles the app servers run under. This is used once on a new AWS deployment. Its own state is kept
   in the same S3 bucket, next to `main`'s.
-- `main`: the actual stack configuring networking, RDS, the EC2 instance, and the Cloudflare DNS
-  record + Origin CA certificate.
+- `main`: the actual stack configuring networking, RDS, the EC2 instance, the origin certificate and,
+  with Cloudflare, the DNS record.
 
 The stack is deployed to two environments, `production` and `test`. Each environment is a complete,
 independent copy of the `main` stack with its own domain, database and instance.
@@ -61,14 +61,46 @@ iterating from a fork).
 
 After applying, configure the following once in the GitHub repository, under each environment:
 
-- Secret `V5_CLOUDFLARE_API_TOKEN`: an API token for the account the domain is configured under. It
-  needs `Zone:DNS:Edit` and `Zone:SSL and Certificates:Edit`, scoped to the domain's zone.
-- Variables `V5_DOMAIN` and `V5_CLOUDFLARE_ZONE_ID`: the domain name in use and the Cloudflare zone ID
-  of that domain. Not sensitive.
+- Variable `V5_DOMAIN`: the domain name in use. Not sensitive.
+- Variable `V5_CDN`: the CDN in front of the environment, `cloudflare` or `fastly` (see below).
+- With Cloudflare only, secret `V5_CLOUDFLARE_API_TOKEN`: an API token for the account the domain is
+  configured under. It needs `Zone:DNS:Edit` and `Zone:SSL and Certificates:Edit`, scoped to the
+  domain's zone.
+- With Cloudflare only, variable `V5_CLOUDFLARE_ZONE_ID`: the Cloudflare zone ID of the domain. Not
+  sensitive.
 - Variable `V5_AWS_DEPLOY_ROLE_ARN`: output by the bootstrap module as `github_actions_deploy_role_arn`.
   This is what lets the deploy pipeline act in the AWS account, via the OIDC trust chain established during
   bootstrap. Not sensitive. The role is shared by all environments.
 - Deployment branches: restrict the environment to `main` to control who can run deployments.
+
+## The CDN
+
+Each environment selects its CDN with the `cdn` variable, which can't be changed on an existing
+environment without tearing it down first.
+
+With **Cloudflare**, Terraform manages the DNS record and the origin certificate.
+
+With **Fastly**, the DNS record and the Fastly service are managed outside of Terraform. The origin
+certificate is signed by a private CA, and the service's backend has to be configured by hand with
+these outputs:
+
+```sh
+terraform -chdir=v5/deployment/main workspace select production
+terraform -chdir=v5/deployment/main output -raw instance_public_ip
+terraform -chdir=v5/deployment/main output -raw origin_ca_certificate
+```
+
+Configure the backend as follows:
+
+- Address: `instance_public_ip`, port 443.
+- TLS: enabled, verifying the certificate against `origin_ca_certificate`, with the domain as both the
+  certificate hostname and the SNI hostname.
+- First byte timeout: 60 seconds, the time Nginx waits for the app by default. Fastly's default of 15
+  seconds is too short for large submissions.
+
+Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
+is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
+deploy workflow's final `/healthz` check fails, since it goes through the domain.
 
 ## Building and pushing the app image
 
@@ -94,18 +126,21 @@ export AWS_PROFILE=your-aws-profile
 terraform -chdir=v5/deployment/main init
 terraform -chdir=v5/deployment/main workspace select -or-create test
 terraform -chdir=v5/deployment/main apply -var="app_image_tag=..."         \
+                                          -var="cdn=cloudflare"            \
                                           -var="cloudflare_api_token=..."  \
                                           -var="cloudflare_zone_id=..."    \
                                           -var="domain=lnt.example.com"
 ```
 
+With Fastly, pass `-var="cdn=fastly"` instead, without the Cloudflare variables.
+
 ## Tearing down an environment
 
 The `v5-teardown.yml` GitHub workflow destroys everything Terraform manages in an environment,
-including its database and DNS record, and then deletes the environment's Terraform workspace. In
-practice this is for cleaning up the `test` environment after a round of testing. The destroy plan
-is published to the run summary before being applied, so each run leaves a record of what it
-destroyed. Deploying to the environment again recreates it from scratch.
+including its database and, with Cloudflare, its DNS record, and then deletes the environment's
+Terraform workspace. In practice this is for cleaning up the `test` environment after a round of
+testing. The destroy plan is published to the run summary before being applied, so each run leaves a
+record of what it destroyed. Deploying to the environment again recreates it from scratch.
 
 The workflow deliberately doesn't offer the `production` environment. Its database has deletion
 protection, and deleting it takes a final snapshot (`lnt-v5-production-final`) and keeps the
@@ -118,10 +153,11 @@ aws rds modify-db-instance --db-instance-identifier lnt-v5-production --no-delet
                            --apply-immediately --region us-west-2
 terraform -chdir=v5/deployment/main workspace select production
 terraform -chdir=v5/deployment/main destroy -var="app_image_tag=unused-by-destroy" \
-                                            -var="cloudflare_api_token=..."        \
-                                            -var="cloudflare_zone_id=..."          \
+                                            -var="cdn=..."                         \
                                             -var="domain=lnt.example.com"
 ```
+
+With Cloudflare, also pass the Cloudflare variables, as when deploying.
 
 Since snapshot names are unique, the final snapshot of a previous teardown has to be deleted or
 renamed before production can be torn down again.

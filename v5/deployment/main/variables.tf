@@ -10,15 +10,39 @@ variable "resource_prefix" {
   default     = "lnt-v5"
 }
 
+variable "cdn" {
+  description = "The CDN in front of the stack: `cloudflare` or `fastly`. See v5/docs/deployment.md."
+  type        = string
+
+  validation {
+    condition     = contains(["cloudflare", "fastly"], var.cdn)
+    error_message = "cdn must be `cloudflare` or `fastly`."
+  }
+}
+
+# The Cloudflare variables are only used with Cloudflare. Leaving them empty is the same as leaving
+# them unset, since that is what the deploy workflow passes when the environment does not set them.
 variable "cloudflare_api_token" {
-  description = "Cloudflare API token (Zone:DNS:Edit + Zone:SSL and Certificates:Edit for the zone containing var.domain)"
+  description = "With Cloudflare, an API token with Zone:DNS:Edit + Zone:SSL and Certificates:Edit for the zone containing var.domain"
   type        = string
   sensitive   = true
+  default     = null
+
+  validation {
+    condition     = var.cdn != "cloudflare" || (var.cloudflare_api_token != null && var.cloudflare_api_token != "")
+    error_message = "cloudflare_api_token is required when cdn is `cloudflare`."
+  }
 }
 
 variable "cloudflare_zone_id" {
-  description = "Zone ID in Cloudflare for the zone containing var.domain"
+  description = "With Cloudflare, the zone ID of the zone containing var.domain"
   type        = string
+  default     = null
+
+  validation {
+    condition     = var.cdn != "cloudflare" || (var.cloudflare_zone_id != null && var.cloudflare_zone_id != "")
+    error_message = "cloudflare_zone_id is required when cdn is `cloudflare`."
+  }
 }
 
 variable "domain" {
