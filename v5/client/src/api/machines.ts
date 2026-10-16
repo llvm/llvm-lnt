@@ -30,6 +30,11 @@ export function machinesQuery(suite: string, query: MachineListQuery = {}) {
 
 const namesOf = (machines: Machine[]) => machines.map((machine) => machine.name)
 
+/** Whether `machines`, as the API listed them, include the machine `name`. */
+export function hasMachine(machines: readonly Machine[], name: string): boolean {
+  return machines.some((machine) => machine.name === name)
+}
+
 /** The tracked machines, most recently active first (E2), to choose some on the user's behalf. */
 const RECENTLY_ACTIVE: MachineListQuery = { tracked: true, sort: '-last_run_at' }
 
@@ -48,14 +53,9 @@ export function useRecentlyActiveMachines(suite: string, count: number, enabled 
 }
 
 /**
- * The names of the suite's machines, fetched once for a combobox to filter locally: a suite has few
- * machines (D5), unlike commits, which a commit picker searches on the server instead (AR15).
+ * The suite's machines, by name (E2), fetched once for a picker to filter locally (AR18): a suite
+ * has few machines (D5), unlike commits, which a commit picker searches on the server (AR15).
  */
-export function useMachineNames(suite: string, enabled = true) {
-  return useQuery({ ...machinesQuery(suite), select: namesOf, enabled })
-}
-
-/** The suite's machines, by name (E2), fetched once for the pickers to filter locally (AR18). */
 export function useMachineList(suite: string, enabled = true) {
   return useQuery({ ...machinesQuery(suite), enabled })
 }

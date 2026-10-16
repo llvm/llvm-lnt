@@ -1,7 +1,8 @@
 import { useId } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import type { ScopeGate } from '../auth/scope'
-import { days, formatInactiveDays, INACTIVITY_HELP, invalidInactiveDays } from '../inactivity'
+import { plural } from '../format'
+import { INACTIVITY_HELP, invalidInactiveDays } from '../inactivity'
 import { HelpLabel } from './help-label'
 import { InfoRow } from './info-box'
 import { InlineEdit } from './inline-edit'
@@ -34,10 +35,11 @@ export function InactivityRow({
     >
       <InlineEdit
         label="Delete after inactivity"
-        value={days(value)}
-        display={(text) =>
-          note === undefined ? formatInactiveDays(text) : `${formatInactiveDays(text)} (${note})`
-        }
+        value={value === null ? null : String(value)}
+        display={(text) => {
+          const days = plural(Number(text), 'day')
+          return note === undefined ? days : `${days} (${note})`
+        }}
         gate={gate}
         invalid={invalidInactiveDays}
         describedBy={helpId}

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useMachineList, useMachineNames } from '../api/machines'
+import { useMachineList } from '../api/machines'
 import type { Schemas } from '../api/client'
 import { useLocalSuggestions, type Suggestion } from './suggestions'
 
@@ -38,16 +38,14 @@ export function machineSuggestions(
 export type Machines = ReturnType<typeof useMachineSuggestions>
 
 /**
- * The names of the suite's machines, unless `enabled` is false, and the suggestions of a combobox
- * picking one of them, filtered locally as the user types, since a suite has few machines (D5).
- * Both come from the one list the API returns.
+ * The suite's machines, unless `enabled` is false, and the suggestions of a combobox picking one of
+ * them, filtered locally as the user types, since a suite has few machines (D5).
  */
 export function useMachineSuggestions(suite: string, enabled = true) {
-  const machines = useMachineNames(suite, enabled)
-  const list = useMachineList(suite, enabled)
+  const machines = useMachineList(suite, enabled)
   const suggestions = useLocalSuggestions(
-    useMemo(() => list.data && machineSuggestions(list.data), [list.data]),
-    list.error,
+    useMemo(() => machines.data && machineSuggestions(machines.data), [machines.data]),
+    machines.error,
   )
   return { machines, suggestions }
 }

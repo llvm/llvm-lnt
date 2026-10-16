@@ -110,6 +110,16 @@ export function parseNumber(text: string, min = -Infinity, max = Infinity): numb
   return Number.isFinite(value) && value >= min && value <= max ? value : undefined
 }
 
+/**
+ * Whether `text` is an integer from `min` to `max`, written as one: digits, after a minus sign for
+ * a negative one. Checked as digits first, because `Number` reads more than an integer (`1e3`,
+ * `0x10`), and makes a long enough one `Infinity`, which a request would send as null.
+ */
+export function isIntegerIn(text: string, min: number, max: number): boolean {
+  const value = Number(text)
+  return /^-?\d+$/.test(text) && value >= min && value <= max
+}
+
 /** `count noun`, with the noun in the plural unless the count is one: `1 run`, `3 runs`. */
 export function plural(count: number, noun: string): string {
   return `${count} ${count === 1 ? noun : `${noun}s`}`

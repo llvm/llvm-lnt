@@ -41,16 +41,15 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   const [metric, setMetric] = useState(defaultMetric(schema)?.name ?? '')
   const [report, setReport] = useState<string | null>(null)
 
-  const machineNames = useMachineList(suite)
+  const machineList = useMachineList(suite)
   // In the order every machine picker offers them, the untracked ones last (AR18).
-  const listed = useMemo(
-    () => machineNames.data && inPickerOrder(machineNames.data).map((machine) => machine.name),
-    [machineNames.data],
-  )
-  const untracked = useMemo(
-    () => new Set(machineNames.data?.filter((m) => !m.tracked).map((m) => m.name)),
-    [machineNames.data],
-  )
+  const { listed, untracked } = useMemo(() => {
+    const ordered = machineList.data && inPickerOrder(machineList.data)
+    return {
+      listed: ordered?.map((machine) => machine.name),
+      untracked: new Set(ordered?.filter((m) => !m.tracked).map((m) => m.name)),
+    }
+  }, [machineList.data])
   const allMachines = listed ?? NO_NAMES
   const machines = useCheckboxList(allMachines, listed)
   // In the order of the list, so that the same machines ask for their tests in the same order.
@@ -100,7 +99,7 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   let why: string | undefined
   if (triage.title !== undefined) why = triage.title
   else if (metric === '') why = 'This suite has no metrics.'
-  else if (!machineNames.isSuccess) why = 'The machines are not listed yet.'
+  else if (!machineList.isSuccess) why = 'The machines are not listed yet.'
   else if (!testsKnown) why = 'The tests are not listed yet.'
   else if (count === 0) why = 'Select one or more machines and tests first.'
   else if (count > INDICATOR_BATCH) {
@@ -108,12 +107,12 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   }
 
   let machineStatus: ReactNode
-  if (machineNames.isPending) machineStatus = <Loading label="Loading machines..." />
-  else if (machineNames.isError) {
+  if (machineList.isPending) machineStatus = <Loading label="Loading machines..." />
+  else if (machineList.isError) {
     machineStatus = (
-      <ErrorMessage error={machineNames.error} onRetry={() => void machineNames.refetch()} />
+      <ErrorMessage error={machineList.error} onRetry={() => void machineList.refetch()} />
     )
-  } else if (machineNames.data.length === 0) machineStatus = 'This suite has no machines.'
+  } else if (machineList.data.length === 0) machineStatus = 'This suite has no machines.'
 
   let testStatus: ReactNode
   if (metric === '') testStatus = 'This suite has no metrics.'
