@@ -24,33 +24,12 @@ test's ``profile`` (gzip-compressed, then base64-encoded), convert it with
 See ``lnt v5 convert-profile --help`` for the other options.
 
 
-Reading the profile
--------------------
-
-The profile is read the way v4 reads one (see :doc:`profiles`), by the same
-code:
-
-- Only binaries holding more than 1% of some counter's samples are read, and
-  only their functions holding more than 0.5% of some counter's samples are
-  listed. The profile's counters are still totals over every sample.
-- The profiled binaries must still be where they were profiled, or their copies
-  under ``--binary-cache-root``, which is prefixed to their paths. They are read
-  with ``objdump`` (``--objdump``), whose output is also the instructions' text.
-- Only the given file is read, whereas v4 also merges the files whose names
-  start with its name.
-
-Every counter is a raw count. An instruction that has no count for a counter,
-because no sample of it landed there, leaves the counter out, which a v5
-instance reads as 0.
-
-
 Function names
 --------------
 
 Each function is named by its demangled name, which ``c++filt`` (``--cxxfilt``)
 gives. A function listed under several names, such as an alias, or a symbol
-that is both static and dynamic, is listed once, under the first of its mangled
-names in code-point order, among those short enough to be kept (see below).
+that is both static and dynamic, is listed only once.
 
 A function is named by its mangled name instead when its demangled name is
 longer than 2048 bytes in UTF-8, or is already another function's: for
