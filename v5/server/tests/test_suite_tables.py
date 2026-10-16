@@ -24,7 +24,6 @@ from introspection import (
     stored_names,
 )
 from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.suites.tables import (
@@ -174,9 +173,7 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         )
     )
     connection.execute(
-        insert(tables.run_summary).values(
-            run_id=run, metric_id=metric, sample_agg=SampleAggregation.MEDIAN, geomean=1.0
-        )
+        insert(tables.run_summary).values(run_id=run, metric_id=metric, geomean_median=1.0)
     )
     return {
         "machine": machine,
@@ -309,7 +306,17 @@ class TestBuiltInColumns:
                 ["id", "uuid", "run_id", "test_id", "created_at", "disassembly_format", "counters"],
             ),
             ("profile_function", ["profile_id", "name", "counters", "length", "instructions"]),
-            ("run_summary", ["run_id", "metric_id", "sample_agg", "geomean"]),
+            (
+                "run_summary",
+                [
+                    "run_id",
+                    "metric_id",
+                    "geomean_median",
+                    "geomean_mean",
+                    "geomean_min",
+                    "geomean_max",
+                ],
+            ),
         ],
     )
     def test_each_table_carries_the_specified_columns(
@@ -782,46 +789,6 @@ class TestRegressionState:
             (3, "fixed"),
             (4, "false_positive"),
         ]
-
-
-class TestRunSummaryAggregation:
-    def test_accepts_every_aggregation(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
-    ) -> None:
-        tables = make_suite("nts")
-
-        with db_engine.begin() as connection:
-            rows = seed(connection, tables)
-            connection.execute(tables.run_summary.delete())
-            connection.execute(
-                insert(tables.run_summary),
-                [
-                    {
-                        "run_id": rows["run"],
-                        "metric_id": rows["metric"],
-                        "sample_agg": aggregation,
-                        "geomean": 1.0,
-                    }
-                    for aggregation in SampleAggregation
-                ],
-            )
-
-    def test_rejects_an_aggregation_outside_that_set(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
-    ) -> None:
-        tables = make_suite("nts")
-
-        with db_engine.begin() as connection:
-            rows = seed(connection, tables)
-            with pytest.raises(IntegrityError):
-                connection.execute(
-                    insert(tables.run_summary).values(
-                        run_id=rows["run"], metric_id=rows["metric"], sample_agg="p90", geomean=1.0
-                    )
-                )
-
-    def test_the_stored_names_are_the_specified_ones(self) -> None:
-        assert list(SampleAggregation) == ["median", "mean", "min", "max"]
 
 
 class TestCascades:

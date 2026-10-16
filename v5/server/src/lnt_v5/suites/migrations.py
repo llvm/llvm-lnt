@@ -111,7 +111,77 @@ def _run_measured_at(op: Operations, suite: SuiteSchema) -> None:
     op.create_index("ix_run_measured_at_id", "run", ["measured_at", "id"], schema=suite.name)
 
 
-STEPS: Sequence[Step] = (_run_uuid_collation, _regression_commit_set_null, _run_measured_at)
+def _run_summary_columns(op: Operations, suite: SuiteSchema) -> None:
+    """Version 4: one `{suite}.run_summary` row per run and metric, with a geomean column per sample
+    aggregation, rather than one row per aggregation (D5).
+
+    The rows are pivoted into a new table, which then replaces the old one, so that the space the
+    old one took is freed at once. In this order, for two reasons:
+
+    - The key columns are created nullable, and only made NOT NULL by the primary key, added after
+      the rename. PostgreSQL 18 names a NOT NULL constraint after its table, and renaming the table
+      does not rename the constraint, so declaring them NOT NULL up front would leave a name that a
+      new suite does not have.
+    - `pk_run_summary` also names the key's index, and index names are unique in a namespace, so
+      the key can only be added once the old table, and its index of that name, are gone. Building
+      it after the rows are in is also cheaper than maintaining it row by row.
+    """
+    aggregations = ("median", "mean", "min", "max")
+    new = op.create_table(
+        "run_summary_new",
+        sa.Column("run_id", sa.Integer()),
+        sa.Column("metric_id", sa.Integer()),
+        *(sa.Column(f"geomean_{aggregation}", sa.Double()) for aggregation in aggregations),
+        schema=suite.name,
+    )
+    old = sa.table(
+        "run_summary",
+        sa.column("run_id"),
+        sa.column("metric_id"),
+        sa.column("sample_agg"),
+        sa.column("geomean"),
+        schema=suite.name,
+    )
+    # The old key allowed one row per run, metric and aggregation, so each `min` picks out that one
+    # row's geomean, or null if there is none. Inserted in key order, so that a run's rows sit
+    # together, as submissions leave them.
+    pivot = (
+        sa.select(
+            old.c.run_id,
+            old.c.metric_id,
+            *(
+                sa.func.min(old.c.geomean).filter(old.c.sample_agg == aggregation)
+                for aggregation in aggregations
+            ),
+        )
+        .group_by(old.c.run_id, old.c.metric_id)
+        .order_by(old.c.run_id, old.c.metric_id)
+    )
+    op.execute(new.insert().from_select(list(new.c.keys()), pivot))
+    op.drop_table("run_summary", schema=suite.name)
+    op.rename_table("run_summary_new", "run_summary", schema=suite.name)
+    op.create_primary_key(
+        "pk_run_summary", "run_summary", ["run_id", "metric_id"], schema=suite.name
+    )
+    for column, referent in (("run_id", "run"), ("metric_id", "metric")):
+        op.create_foreign_key(
+            f"fk_run_summary_{column}_{referent}",
+            "run_summary",
+            referent,
+            [column],
+            ["id"],
+            ondelete="CASCADE",
+            source_schema=suite.name,
+            referent_schema=suite.name,
+        )
+
+
+STEPS: Sequence[Step] = (
+    _run_uuid_collation,
+    _regression_commit_set_null,
+    _run_measured_at,
+    _run_summary_columns,
+)
 
 
 def head() -> int:
