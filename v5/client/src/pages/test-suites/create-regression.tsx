@@ -1,8 +1,7 @@
 import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
-import { authedApi, unwrap } from '../../api/client'
-import { regressionCreated, TEXT_LENGTH } from '../../api/regressions'
+import { createRegression, regressionCreated, TEXT_LENGTH } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { CommitPicker, UNPICKED_COMMIT } from '../../components/commit-picker'
@@ -37,18 +36,13 @@ export function CreateRegression({ schema, onCancel }: Props) {
 
   const create = useMutation({
     mutationFn: () =>
-      unwrap(
-        authedApi.POST('/api/suites/{testsuite}/regressions', {
-          params: { path: { testsuite: suite } },
-          // An empty title or bug is none at all: the API refuses empty strings.
-          body: {
-            title: title.trim() || null,
-            bug: bug.trim() || null,
-            state,
-            commit,
-          },
-        }),
-      ),
+      // An empty title or bug is none at all: the API refuses empty strings.
+      createRegression(suite, {
+        title: title.trim() || null,
+        bug: bug.trim() || null,
+        state,
+        commit,
+      }),
     onSuccess: async (created) => {
       await regressionCreated(queryClient, suite, created)
       navigate(regressionPath(suite, created.uuid))

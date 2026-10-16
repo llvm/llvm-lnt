@@ -7,9 +7,19 @@ import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import type { PlotGeometry } from '../../components/chart'
 import { formatTimestamp, shortUuid } from '../../format'
-import { cursorPage, metric, regression, uuidOf } from '../../test/fixtures'
+import { signIn } from '../../test/auth'
+import { cursorPage, metric, regression, regressionDetail, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockRegressions, query, renderPage, search } from '../../test/page'
+import {
+  currentUrl,
+  gate,
+  main,
+  mockCreateRegression,
+  mockRegressions,
+  query,
+  renderPage,
+  search,
+} from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
@@ -570,16 +580,17 @@ const REGRESSIONS = [
 ]
 
 /**
- * Answer the indicator lookup with an indicator on m1 and test a for each of REGRESSIONS, and the
- * regression list with REGRESSIONS, recording the bodies of the lookups and the list's queries.
+ * Answer the indicator lookup with an indicator on m1 and test a for each of `regressions`, and the
+ * regression list with `regressions`, as they are when asked, recording the bodies of the lookups
+ * and the list's queries.
  */
-function mockRegressionWorld() {
+function mockRegressionWorld(regressions: Schemas['Regression'][] = REGRESSIONS) {
   const lookups: Schemas['IndicatorQuery'][] = []
   server.use(
     mockApi('post', '/api/suites/{testsuite}/regressions/indicators/query', async ({ request }) => {
       const body = await request.json()
       lookups.push(body)
-      const items = REGRESSIONS.map(({ uuid }, i) => ({
+      const items = regressions.map(({ uuid }, i) => ({
         uuid: uuidOf(`${i}0`),
         regression_uuid: uuid,
         machine: 'm1',
@@ -589,7 +600,7 @@ function mockRegressionWorld() {
       return HttpResponse.json(cursorPage(items))
     }),
   )
-  const lists = mockRegressions(() => cursorPage(REGRESSIONS))
+  const lists = mockRegressions(() => cursorPage(regressions))
   return { lookups, lists }
 }
 
@@ -767,6 +778,153 @@ describe('the regression annotations (GR15)', () => {
     failing = false
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(markers()).toHaveLength(2))
+  })
+})
+
+const createButton = () => details().getByRole('button', { name: 'Create regression' })
+const titleInput = () => details().getByRole('textbox', { name: 'Title' })
+const confirmButton = () => details().getByRole('button', { name: 'Create' })
+
+/** Open the point details of `trace` at `index`, then the form creating a regression from it. */
+async function openForm(trace: string, index: number) {
+  draw()
+  click(trace, index)
+  await waitFor(() => expect(createButton()).toBeEnabled())
+  await userEvent.setup().click(createButton())
+  expect(titleInput()).toHaveFocus()
+}
+
+describe('creating a regression from a point (GR11)', () => {
+  it("creates one of the point's commit, machine, test and metric, titled, on Enter", async () => {
+    signIn('triage')
+    mockWorld()
+    const requests = mockCreateRegression(regressionDetail('d', { title: 'b slowed down' }))
+    renderPage(`${GRAPHED}&test=b`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(2))
+    // The point of m2, the second machine, at c40.
+    await openForm('b - m2', 0)
+
+    // Whitespace at either end of the title is ignored.
+    await userEvent.setup().type(titleInput(), '  b slowed down {Enter}')
+
+    const status = await details().findByRole('status')
+    expect(requests).toEqual([
+      {
+        suite: 'libcxx',
+        body: {
+          title: 'b slowed down',
+          commit: 'c40',
+          indicators: [{ machine: 'm2', test: 'b', metric: 'execution_time' }],
+        },
+      },
+    ])
+    expect(status).toHaveTextContent(/^Regression created: b slowed down$/)
+    const link = within(status).getByRole('link')
+    expect(link).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf('d')}`)
+    // In place of the form, which had the focus, for the dialog to keep it.
+    expect(link).toHaveFocus()
+    expect(details().queryByRole('form')).not.toBeInTheDocument()
+    expect(details().queryByRole('button', { name: 'Create regression' })).not.toBeInTheDocument()
+    expect(currentUrl()).toContain('/graph')
+  })
+
+  it('creates an untitled one, linked by its short UUID, marked on the chart at once', async () => {
+    signIn('triage')
+    mockWorld()
+    const regressions = [...REGRESSIONS]
+    mockRegressionWorld(regressions)
+    const requests = mockCreateRegression(regressionDetail('4', { title: null, commit: 'c10' }))
+    renderPage(`${ONE_MACHINE}&test=a&regressions=all`)
+    await waitFor(() => expect(markers()).toHaveLength(2))
+    await openForm('a - m1', 0)
+
+    regressions.push(regression('4', { title: null, commit: 'c10' }))
+    const user = userEvent.setup()
+    // A title of only whitespace is none.
+    await user.type(titleInput(), '   ')
+    await user.click(confirmButton())
+
+    await waitFor(() => expect(markers()).toHaveLength(3))
+    expect(requests[0].body.title).toBeNull()
+    expect(markers().map((marker) => marker.x)).toContainEqual(['c10'])
+    // Marking it is no change that closes the details.
+    expect(details().getByRole('status')).toHaveTextContent(/^Regression created: 44444444…$/)
+  })
+
+  it('cancels the form, forgetting its title, and gives the focus back', async () => {
+    signIn('triage')
+    mockWorld()
+    const requests = mockCreateRegression(regressionDetail('d'))
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    await openForm('a - m1', 1)
+    const user = userEvent.setup()
+
+    await user.type(titleInput(), 'Slow')
+    await user.click(details().getByRole('button', { name: 'Cancel' }))
+
+    expect(details().queryByRole('form')).not.toBeInTheDocument()
+    expect(createButton()).toHaveFocus()
+    await user.click(createButton())
+    expect(titleInput()).toHaveValue('')
+    expect(requests).toEqual([])
+  })
+
+  it('needs triage scope', async () => {
+    signIn('submit')
+    mockWorld()
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+    click('a - m1', 1)
+
+    await waitFor(() =>
+      expect(createButton()).toHaveAttribute(
+        'title',
+        "Needs an API token with the 'triage' scope. The token in Settings has the 'submit' scope.",
+      ),
+    )
+    expect(createButton()).toBeDisabled()
+  })
+
+  it('says why it failed, keeping the title and the focus; Escape cancels, then closes', async () => {
+    signIn('triage')
+    mockWorld()
+    let tries = 0
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/regressions', () => {
+        tries++
+        return errorResponse(404, 'not_found', 'No such commit.')
+      }),
+    )
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    await openForm('a - m1', 1)
+    const user = userEvent.setup()
+
+    await user.type(titleInput(), 'Slow')
+    await user.click(confirmButton())
+
+    expect(await details().findByRole('alert')).toHaveTextContent('No such commit.')
+    expect(confirmButton()).toBeEnabled()
+    expect(confirmButton()).toHaveFocus()
+    expect(titleInput()).toHaveValue('Slow')
+
+    // From the title, Enter tries again.
+    await user.type(titleInput(), '{Enter}')
+    await waitFor(() => expect(tries).toBe(2))
+    expect(await details().findByRole('alert')).toBeInTheDocument()
+    expect(titleInput()).toHaveFocus()
+
+    // Escape cancels the form, rather than close the details, and forgets the failure.
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(details().queryByRole('form')).not.toBeInTheDocument()
+    expect(details().queryByRole('alert')).not.toBeInTheDocument()
+    expect(createButton()).toHaveFocus()
+    // Another closes the details.
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 

@@ -185,6 +185,40 @@
   font-size: 0.9rem;
 }
 
+/*
+ * The point's actions (GR11), on a row of their own, and the form creating a regression, which
+ * takes a row of its own below them.
+ */
+.detailsActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.detailsCreate {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+}
+
+.detailsFields,
+.detailsField {
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+.detailsField {
+  flex: 1;
+}
+
+.detailsField input {
+  flex: 1;
+  min-width: 8rem;
+}
+
 .detailsHeading {
   margin: 0 0 var(--lnt-space-1);
   font-size: 0.9rem;

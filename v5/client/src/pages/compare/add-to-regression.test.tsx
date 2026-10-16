@@ -6,7 +6,7 @@ import type { Schemas } from '../../api/client'
 import { signIn } from '../../test/auth'
 import { cursorPage, regression, regressionDetail, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { mockRegressions, renderPage } from '../../test/page'
+import { mockCreateRegression, mockRegressions, renderPage } from '../../test/page'
 import { pick, pickOption } from '../../test/select'
 import { server } from '../../test/server'
 import { COMPARED, comparison, mockWorld, sideOf } from './compare-world'
@@ -31,18 +31,6 @@ const indicator = (test: string): IndicatorObject => ({
 
 /** The regressions of side B's suite, the newest first. */
 const REGRESSIONS = [regression('e', { title: 'Older' }), regression('f', { title: null })]
-
-/** Answer `POST regressions` with `created`, recording each request's suite and body. */
-function mockCreate(created = regressionDetail('d', { title: 'Slow' })) {
-  const requests: { suite: string; body: unknown }[] = []
-  server.use(
-    mockApi('post', '/api/suites/{testsuite}/regressions', async ({ request, params }) => {
-      requests.push({ suite: params.testsuite, body: await request.json() })
-      return HttpResponse.json(created, { status: 201 })
-    }),
-  )
-  return requests
-}
 
 /** Answer `POST regressions/{uuid}/indicators` with `added`, recording each request. */
 function mockAdd(added: number) {
@@ -117,7 +105,7 @@ describe('Add to Regression (CP9)', () => {
 
   it("creates a regression of side B's commit, with the compared tests B has a value for", async () => {
     mockWorld()
-    const requests = mockCreate()
+    const requests = mockCreateRegression(regressionDetail('d', { title: 'Slow' }))
     // Test a is hidden, and b has no value on side B: only c makes an indicator.
     await openPanel(`${COMPARED}&hidden_test=a`)
     const user = userEvent.setup()
@@ -157,7 +145,7 @@ describe('Add to Regression (CP9)', () => {
         ],
       },
     })
-    const requests = mockCreate()
+    const requests = mockCreateRegression(regressionDetail('d', { title: 'Slow' }))
     mockRegressions(() => cursorPage(REGRESSIONS))
     // The filter leaves out d, "Hide noise" c, and a is hidden: once swapped, side B is other's m1
     // at c2, and only e makes an indicator.
@@ -196,7 +184,7 @@ describe('Add to Regression (CP9)', () => {
     const regressions = [...REGRESSIONS]
     mockRegressions(() => cursorPage(regressions))
     const created = regressionDetail('d', { title: 'Slow' })
-    mockCreate(created)
+    mockCreateRegression(created)
     const user = userEvent.setup()
     await user.click(within(createForm()).getByRole('button', { name: 'Create regression' }))
     await screen.findByText(/Regression created:/)
@@ -230,7 +218,7 @@ describe('Add to Regression (CP9)', () => {
 
   it('creates an untitled regression, linked by its short UUID', async () => {
     mockWorld()
-    const requests = mockCreate(regressionDetail('d', { title: null }))
+    const requests = mockCreateRegression(regressionDetail('d', { title: null }))
     await openPanel()
     await userEvent
       .setup()

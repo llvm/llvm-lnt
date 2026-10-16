@@ -1,9 +1,10 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { authedApi, unwrap, type Schemas } from '../../api/client'
+import type { Schemas } from '../../api/client'
 import {
   addIndicators,
+  createRegression,
   INDICATOR_BATCH,
   regressionChanged,
   regressionCreated,
@@ -81,12 +82,7 @@ export function AddToRegression({
 
   const create = useMutation({
     mutationFn: ({ suite: testsuite, ...body }: CreateVariables) =>
-      unwrap(
-        authedApi.POST('/api/suites/{testsuite}/regressions', {
-          params: { path: { testsuite } },
-          body,
-        }),
-      ),
+      createRegression(testsuite, body),
     onSuccess: (created, { suite: testsuite }) =>
       regressionCreated(queryClient, testsuite, created),
   })
