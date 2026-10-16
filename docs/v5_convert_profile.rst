@@ -32,44 +32,24 @@ gives. A function listed under several names, such as an alias, or a symbol
 that is both static and dynamic, is listed only once.
 
 A function is named by its mangled name instead when its demangled name is
-longer than 2048 bytes in UTF-8, or is already another function's: for
-example, a complete-object and a base-object constructor that are not aliases
-both demangle to ``A::A()``. The first of them, in code-point order of their
-mangled names, is named ``A::A()``. Since a profile only lists its hot
-functions, which of them that is can differ between two profiles.
+longer than 2048 bytes in UTF-8, or if its demangling collides with the name
+of another function. For example, a complete-object and a base-object constructor
+that are not aliases both demangle to ``A::A()``.
 
-The instructions' text is left as ``objdump`` prints it, so the functions it
-refers to keep their mangled names.
+The instructions' text is whatever ``objdump`` produces.
 
 
 What is left out
 ----------------
 
-A v5 instance refuses a profile, and with it the whole run carrying it, that
-does not stay within its limits. The command therefore leaves out the
-functions an instance would refuse, each with a warning:
+A v5 instance refuses a profile (and its run) that does not stay within its limits.
+The command therefore leaves out the functions that would be refused by the server
+on submission:
 
-- a function whose name, even mangled, is longer than 2048 bytes, or is another
-  function's;
+- a function whose name (even mangled) is longer than 2048 bytes;
 - a function with more than 100,000 instructions;
-- a function at an address larger than 2\ :sup:`63` - 1, such as the kernel's.
+- a function at an address larger than 2\ :sup:`63` - 1, e.g. the kernel's.
 
 The profile's counters still include them. A profile that remains too large
 for an instance -- more than 10,000 functions, or a document of more than
-32 MiB, or 4 MiB compressed -- is an error. These limits are the ones a v5
-instance had when this version of LNT was released, and the instance has the
-final say.
-
-
-Output
-------
-
-The command writes the profile document as one line of JSON, or with
-``--encode``, gzip-compressed and then base64-encoded, to its standard output,
-or with ``-o FILE``, to ``FILE``. Converting the same profile again gives the
-same output.
-
-The command reports on its standard error the functions it leaves out, and
-warns when the profile lists no function, which typically means that the
-profiled binaries could not be read. It exits with a non-zero status if the
-profile cannot be converted.
+32 MiB, or 4 MiB compressed -- is an error.
