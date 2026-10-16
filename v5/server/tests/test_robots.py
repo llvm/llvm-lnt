@@ -11,8 +11,8 @@ from fastapi.testclient import TestClient
 
 
 def test_disallows_every_crawler_everywhere(client: TestClient) -> None:
-    # Also covers route ordering: `.txt` is a static-asset extension, so this would 404 rather
-    # than reach the client if the route were registered after the SPA mount at "/".
+    # Also covers route ordering: `/robots.txt` reads as a static asset (AR2), so this would 404
+    # if the route were registered after the SPA mount at "/".
     response = client.get("/robots.txt")
 
     assert response.status_code == 200

@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
+    // Vite's default, spelled out because the server relies on it (AR2 "Serving" and "Caching").
+    assetsDir: 'assets',
     // Just above Plotly's chunk (about 1160 kB, 385 kB compressed), the only one above Vite's
     // default of 500 kB. Only the pages with a chart fetch it (see components/chart.tsx).
     chunkSizeWarningLimit: 1200,

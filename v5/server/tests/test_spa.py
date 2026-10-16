@@ -16,8 +16,9 @@ from lnt_v5.spa import (
     is_static_asset_path,
 )
 
-# Both predicates read a request path, never a URL: what reaches them is `scope["path"]`, which
-# carries no query string. Cases below are written in that shape.
+# Both predicates read a request path, never a URL, so cases carry no query string. `is_api_path`
+# gets `scope["path"]` as is. `is_static_asset_path` gets it normalized, with `.` and `..` segments
+# resolved (`/suites/../favicon.ico` arrives as `/favicon.ico`), and the rule relies on that.
 
 
 class TestIsApiPath:
@@ -38,23 +39,31 @@ class TestIsStaticAssetPath:
             "/assets/index-DcWSbQGc.js",
             "/assets/index-BfuC4xkh.css",
             "/assets/index-DcWSbQGc.js.map",
-            "/fonts/inter.woff2",
-            "/llms.txt",
+            "/assets/fonts/inter.woff2",
+            "/assets/no-extension",
             "/site.webmanifest",
-            "/favicon.ICO",
+            "/.well-known/security.txt",
+            # What a traversal looks like once normalized: never a page.
+            "/../x.css",
         ],
     )
     def test_treats_as_a_static_asset_request(self, path: str) -> None:
         assert is_static_asset_path(path) is True
 
-    # Plenty of real routes end in something dot-like, so a bare "contains a dot" check would
-    # break them. Machine names in particular routinely carry version numbers.
+    # Machine names and commit values may look like anything, file names included, but they never
+    # come first in a path: what decides is where a path is, not what it ends in.
     @pytest.mark.parametrize(
         "path",
         [
             "/",
             "/suites/nts",
             "/suites/nts/machines/macos-26.5-arm64",
+            "/suites/nts/machines/results.json",
+            "/suites/nts/machines/node.js",
+            "/suites/nts/machines/Results.JSON",
+            "/suites/nts/commits/v1.2.map",
+            # The build puts nothing outside /assets/ but its top-level files.
+            "/fonts/inter.woff2",
             "/suites/nts/machines/linux-x86_64",
             "/suites/nts/commits/014621ede7c1",
             "/suites/nts/runs/573af861-8303-4a5b-a643-b8321e0142c4",
@@ -76,10 +85,18 @@ class TestSpaServing:
         assert "<title>LNT</title>" in response.text
         assert response.headers["content-type"].startswith("text/html")
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/suites/nts/machines/macos-26.5-arm64",
+            "/suites/nts/machines/results.json",
+            "/suites/nts/commits/v1.2.map",
+        ],
+    )
     def test_still_serves_the_spa_for_a_route_whose_last_segment_contains_dots(
-        self, client: TestClient
+        self, client: TestClient, path: str
     ) -> None:
-        response = client.get("/suites/nts/machines/macos-26.5-arm64")
+        response = client.get(path)
 
         assert response.status_code == 200
         assert "<title>LNT</title>" in response.text
@@ -142,8 +159,6 @@ class TestSpaServing:
     def test_does_not_serve_files_outside_the_client_bundle(
         self, client_dist: Path, client: TestClient
     ) -> None:
-        # The sentinel needs a servable extension: a traversal to a path without one would be
-        # converted into an index.html response by the SPA fallback and pass for the wrong reason.
         secret = client_dist.parent / "secret.css"
         secret.write_text("SENTINEL")
 
