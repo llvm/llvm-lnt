@@ -133,10 +133,15 @@ class TestEntryNames:
         with pytest.raises(ValidationError, match="built-in column on 'machine'"):
             SuiteSchema.model_validate(schema(machine_fields=[{"name": name, "type": "text"}]))
 
-    @pytest.mark.parametrize("name", ["id", "run_id", "test_id"])
+    @pytest.mark.parametrize("name", ["run_id", "test_id", "repetition"])
     def test_a_metric_cannot_shadow_a_sample_column(self, name: str) -> None:
         with pytest.raises(ValidationError, match="built-in column on 'sample'"):
             SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
+
+    def test_a_metric_may_be_named_id(self) -> None:
+        # D5: `{suite}.sample` has no `id` column; its key is `(run_id, test_id, repetition)`.
+        parsed = SuiteSchema.model_validate(schema(metrics=[{"name": "id", "type": "real"}]))
+        assert [metric.name for metric in parsed.metrics] == ["id"]
 
     def test_a_metric_cannot_shadow_a_coverage_column(self) -> None:
         # D5: a metric is also a flag column on `test_coverage`, beside that table's built-ins.

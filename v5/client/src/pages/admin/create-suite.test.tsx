@@ -269,7 +269,7 @@ describe('the name checks', () => {
 
     typeInto(name, 'run_id')
     expect(name).toHaveAccessibleDescription(
-      "A metric cannot be named 'id', 'machine_id', 'run_id' or 'test_id'.",
+      "A metric cannot be named 'machine_id', 'repetition', 'run_id' or 'test_id'.",
     )
 
     typeInto(name, 'size')

@@ -77,25 +77,24 @@ class Samples:
 
     def select(self) -> Select[Any]:
         return select(
-            self.table.c.id,
             self.table.c.test_id,
+            self.table.c.repetition,
             self._test.c.name,
             *(column for _, column in self._metrics),
         ).select_from(self.table.join(self._test, self._test.c.id == self.table.c.test_id))
 
     def keyset(self) -> Keyset:
-        """O5's ordering: arbitrary but deterministic, and chosen so an index can produce it.
+        """O5's ordering: arbitrary but deterministic, and the order of D5's primary key, which
+        is `(run_id, test_id, repetition)`.
 
-        `test_id` before the `id` tiebreaker rather than `id` alone, and that is about cost rather
-        than about what a caller sees. Every query here fixes `run_id`, so D5's `(run_id, test_id)`
-        index already yields the rows in this order and PostgreSQL has only the repetitions of a
-        single test left to sort. Ordering by `id` alone would leave it sorting every sample in the
-        run, on every page -- a run holds tens of thousands of them, and paging would be quadratic.
+        `repetition` alone is not unique: it only tells apart the repetitions of one test in one
+        run. The order is total because every query here fixes `run_id`, and then the key's index
+        yields the rows in exactly this order, so a page is a bounded index scan.
 
         Deliberately not ordered by test *name*: that is what a reader wants to see, but no index
         offers it, and the client sorts the table it renders anyway.
         """
-        return Keyset(SortKey(self.table.c.test_id), tiebreaker=self.table.c.id)
+        return Keyset(SortKey(self.table.c.test_id), tiebreaker=self.table.c.repetition)
 
     def read(self, row: Row[Any]) -> Sample:
         # By column object rather than by name, the convention everywhere a declared name reaches a

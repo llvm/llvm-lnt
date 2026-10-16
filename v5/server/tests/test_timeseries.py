@@ -620,17 +620,26 @@ class TestQueryPagination:
         sort: str | None,
     ) -> None:
         # Three commits of three tests, each measured twice, so that page boundaries fall both
-        # between distinct sort values and between rows the sort leaves tied.
+        # between distinct sort values and between rows the sort leaves tied -- including, with an
+        # odd page size, between the two repetitions of one test in one run, which only the sample's
+        # key tells apart (D5). Their values differ, so serving one twice and the other never would
+        # not pass.
+        def measured(c: int, t: int) -> list[float]:
+            return [10.0 * c + t, 10.0 * c + t + 0.5]
+
         for c in range(3):
-            entries = [entry(f"t{t}", *[{"execution_time": 10.0 * c + t}] * 2) for t in range(3)]
+            entries = [
+                entry(f"t{t}", *({"execution_time": value} for value in measured(c, t)))
+                for t in range(3)
+            ]
             submit("linux", f"c{c}", *entries)
             place(f"c{c}", ordinal=c)
 
         served = walk(
-            api_client, metric="execution_time", limit=4, **({} if sort is None else {"sort": sort})
+            api_client, metric="execution_time", limit=3, **({} if sort is None else {"sort": sort})
         )
 
-        expected = [10.0 * c + t for c in range(3) for t in range(3)] * 2
+        expected = [value for c in range(3) for t in range(3) for value in measured(c, t)]
         assert sorted(point["value"] for point in served) == sorted(expected)
         if sort is not None:
             key = {"commit": "ordinal"}.get(sort.removeprefix("-"), sort.removeprefix("-"))

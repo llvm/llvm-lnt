@@ -60,7 +60,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     noun: 'metric',
     keys: ['display_name', 'unit', 'unit_abbrev', 'bigger_is_better'],
     type: 'real',
-    reserved: ['id', 'machine_id', 'run_id', 'test_id'],
+    reserved: ['machine_id', 'repetition', 'run_id', 'test_id'],
   },
   commit_fields: {
     heading: 'Commit Fields',

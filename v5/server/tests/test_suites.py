@@ -763,7 +763,7 @@ class TestEvolveAgainstStoredData:
             ).scalar_one()
             connection.execute(
                 insert(suite.sample).values(
-                    run_id=run, test_id=test, compile_time=1.5, execution_time=2.5
+                    run_id=run, test_id=test, repetition=0, compile_time=1.5, execution_time=2.5
                 )
             )
         return suite
@@ -813,7 +813,7 @@ class TestEvolveAgainstStoredData:
         api_client.delete(f"{SUITES}/nts?confirm=true", headers=manage)
 
         with db_engine.connect() as connection, pytest.raises(ProgrammingError):
-            connection.execute(select(populated.sample.c.id)).all()
+            connection.execute(select(populated.sample.c.run_id)).all()
 
 
 class TestNoOpEvolve:
@@ -954,9 +954,9 @@ class TestConcurrentWrites:
         assert {"aaa", "bbb"} <= declared
         # The assertion that actually catches it: no column exists that the schema does not declare.
         assert set(column_names(db_engine, "nts", "sample")) == declared | {
-            "id",
             "run_id",
             "test_id",
+            "repetition",
         }
 
     def test_a_change_racing_a_delete_does_not_deadlock(

@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, insert, select, text
 
 from conftest import PROFILE_COLUMNS, code_of, walk_pages
-from introspection import row_count
+from introspection import counted, row_count
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
@@ -118,7 +118,9 @@ def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
                     insert(suite.test).values(name="t").returning(suite.test.c.id)
                 ).scalar_one()
             connection.execute(
-                insert(suite.sample).values(run_id=run_id, test_id=test_id, execution_time=1.5)
+                insert(suite.sample).values(
+                    run_id=run_id, test_id=test_id, repetition=0, execution_time=1.5
+                )
             )
             if profile:
                 connection.execute(
@@ -1190,7 +1192,7 @@ class TestDelete:
         # The bystander's run and sample are untouched, so this is a cascade rather than a
         # table-wide delete.
         assert row_count(db_engine, select(suite.run.c.id)) == 1
-        assert row_count(db_engine, select(suite.sample.c.id)) == 1
+        assert counted(db_engine, suite, "sample") == 1
         # D5: nothing deletes a test, so the cascade stops at the sample.
         assert row_count(db_engine, select(suite.test.c.id)) == 1
 

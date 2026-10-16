@@ -310,17 +310,18 @@ def build(schema: SuiteSchema) -> SuiteTables:
     sample = Table(
         "sample",
         metadata,
-        Column("id", Integer, Identity(), primary_key=True),
-        Column("run_id", ForeignKey("run.id", ondelete="CASCADE"), nullable=False),
+        # D5: a sample is identified by its run, its test, and its position among that test's
+        # samples in the submission (O1). The key leads with the run, which is how E6, the cascade
+        # from a deleted run, and E9's unsorted cursor reach these rows.
+        Column("run_id", ForeignKey("run.id", ondelete="CASCADE"), primary_key=True),
         # No cascade from `test`: nothing deletes a test. The Tests endpoint is read-only and tests
         # are created implicitly by submission, so there is no path that would need one, and
         # refusing is the safe answer if one ever appears. Same for the two below.
-        Column("test_id", ForeignKey("test.id"), nullable=False),
+        Column("test_id", ForeignKey("test.id"), primary_key=True),
+        Column("repetition", Integer, primary_key=True),
         *_dynamic(schema.metrics),
     )
-    # D5 names both orders deliberately: (run_id, test_id) covers "all samples for a run", and
-    # (test_id, run_id) covers the time-series query, which scans one test across many runs.
-    Index(None, sample.c.run_id, sample.c.test_id)
+    # D5: E9's `test` filter, which reaches one test's samples across many runs.
     Index(None, sample.c.test_id, sample.c.run_id)
 
     # D5: which tests have had samples on which machine, and for which metrics, so that

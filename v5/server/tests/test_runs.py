@@ -829,6 +829,36 @@ class TestSamples:
             key=repr,
         )
 
+    def test_numbers_the_samples_of_each_test_in_the_order_they_were_submitted(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        # D5: `repetition` is a sample's position in its test entry's `samples`, counted per test.
+        # The values are out of order, so numbering by value would not pass.
+        submitted(
+            tests=[
+                entry(
+                    "suite/one",
+                    {"execution_time": 3.0},
+                    {"execution_time": 1.0},
+                    {"execution_time": 2.0},
+                ),
+                entry("suite/two", {"execution_time": 4.0}),
+            ]
+        )
+
+        with db_engine.connect() as connection:
+            stored = connection.execute(
+                select(suite.test.c.name, suite.sample.c.repetition, suite.sample.c.execution_time)
+                .join_from(suite.sample, suite.test, suite.test.c.id == suite.sample.c.test_id)
+                .order_by(suite.test.c.name, suite.sample.c.repetition)
+            ).all()
+        assert [tuple(row) for row in stored] == [
+            ("suite/one", 0, 3.0),
+            ("suite/one", 1, 1.0),
+            ("suite/one", 2, 2.0),
+            ("suite/two", 0, 4.0),
+        ]
+
     def test_an_entry_with_no_metrics_still_records_that_the_test_ran(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
