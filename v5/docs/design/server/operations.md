@@ -317,6 +317,12 @@ Every counter value is a **raw count**, never a percentage. A function's own
 counters are not submitted: the server computes each one as the sum of that
 counter over the function's instructions.
 
+An instruction's `counters` may leave out any of the top-level counters, and a
+counter left out counts as 0. A top-level counter is a total for the whole
+profile, so it was measured over all of it: an instruction with no count for it
+had none. Likewise, a producer may leave out a function, for example one it
+cannot name within the limits below.
+
 **Decoding and validation.** The `profile` string is decoded as standard,
 padded base64, ignoring ASCII whitespace (so line-wrapped output is accepted),
 and then as exactly one gzip member. Each of the following is rejected with
@@ -332,7 +338,6 @@ and then as exactly one gzip member. Each of the following is rejected with
   functions with the same name.
 - More than 10,000 functions, a function name longer than 2,048 bytes in UTF-8,
   or a function with more than 100,000 instructions.
-- Instructions of one function that do not all have the same counters.
 - An instruction counter that is not one of the profile's top-level counters.
 - A function whose sum for some counter is too large to be a finite `real`.
 
@@ -340,7 +345,9 @@ and then as exactly one gzip member. Each of the following is rejected with
 was submitted with, each typed as above (an address `8.0` is returned as `8`,
 an instruction counter `5` as a `real`), with each function's counters computed
 as above, and with each function's instructions in the order the document
-listed them. It is stored as D5's `{suite}.profile` and
+listed them. Every function and every instruction is returned with every
+top-level counter, 0 for those the document left out, except in the profile
+document itself (see E7). It is stored as D5's `{suite}.profile` and
 `{suite}.profile_function` rows. Since everything is validated at submission,
 the read endpoints can serve any stored profile. Profiles are read-only after
 creation, and deleting a run deletes its profiles.

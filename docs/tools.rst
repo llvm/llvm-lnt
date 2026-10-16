@@ -44,6 +44,11 @@ Client-Side Tools
     Submit runs, one JSON submission per line, to a test suite of an LNT v5
     instance. See :ref:`v5_submit`.
 
+  ``lnt v5 convert-profile <profile>``
+    Convert a profile, such as one recorded by Linux ``perf record``, into the
+    profile document a run submitted to an LNT v5 instance carries for a test.
+    See :ref:`v5_convert_profile`.
+
   ``lnt showtests``
     List available built-in tests. See the :ref:`tests` documentation for more
     details on this tool.

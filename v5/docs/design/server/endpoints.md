@@ -377,10 +377,11 @@ profile's top-level counters), and `disassembly_format` (string).
 
 **Functions** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`): I2's
 unpaginated envelope over `{name, counters, length}` objects. `counters` maps
-each counter name to a number: the function's counter, summed over its
-instructions. `length` is the function's number of instructions. Sorted by
-name, in ascending code-point order. How hot a function is depends on which
-counter the user picks, so the client sorts by that itself (see PF4).
+each of the profile's top-level counters to a number: the function's counter,
+summed over its instructions. `length` is the function's number of
+instructions. Sorted by name, in ascending code-point order. How hot a function
+is depends on which counter the user picks, so the client sorts by that itself
+(see PF4).
 
 **Disassembly** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 
@@ -390,8 +391,8 @@ counter the user picks, so the client sorts by that itself (see PF4).
 - Returns `name`, `counters` (the function's counters, as in the functions
   response), `disassembly_format`, and `instructions`: an array of
   `{address, counters, text}`, one per instruction, in the order the profile
-  document listed them. `address` is an integer, and `counters` maps counter
-  names to numbers.
+  document listed them. `address` is an integer, and `counters` maps each of
+  the profile's top-level counters to a number.
 
 **Document** (`GET /api/suites/{testsuite}/profiles/{uuid}/document`): the
 whole profile in one response, as the profile document defined in O7:
@@ -406,6 +407,9 @@ whole profile in one response, as the profile document defined in O7:
   submitted close to O7's size limits may exceed them when read back.
 - It contains only what a profile document contains, so the functions' derived
   counters and lengths are absent.
+- Each instruction's `counters` holds only its counts that are not 0, so that
+  the document stays about as large as the one submitted. A count submitted as
+  0 is therefore left out, which O7 makes equivalent.
 - `functions` are in the order of the functions response, not necessarily the
   order they were submitted in. Each function's `instructions` are in the order
   the disassembly response gives them.
