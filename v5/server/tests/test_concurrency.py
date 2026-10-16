@@ -1289,3 +1289,28 @@ class TestInactivityDeletion:
         with pytest.raises(ApiError) as raised:
             submitting.result(timeout=BLOCK_TIMEOUT)
         assert raised.value.code is ErrorCode.RETRY
+
+    def test_a_machine_deleted_while_a_submission_fills_it_in_is_a_retry(
+        self,
+        db_engine: Engine,
+        suite: Suite,
+        machines: Machines,
+        due: Any,
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        # O8: the submission read the machine before the deletion committed, found a field to fill
+        # in, and its locked re-read then finds the machine gone.
+        machine = suite.tables.machine
+
+        def delete_machine(connection: Connection) -> None:
+            connection.execute(select(machine.c.id).with_for_update())
+            connection.execute(delete(machine))
+
+        def fill(connection: Connection) -> None:
+            machines.get_or_create(connection, submitted_machine(hardware="x86_64"))
+
+        filling = raced(db_engine, background, delete_machine, fill)
+
+        with pytest.raises(ApiError) as raised:
+            filling.result(timeout=BLOCK_TIMEOUT)
+        assert raised.value.code is ErrorCode.RETRY

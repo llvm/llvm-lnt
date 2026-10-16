@@ -32,10 +32,10 @@ Runs therefore come in two tiers:
 Deleting a commit deletes its runs, and in turn their samples and profiles (see
 D5). The regressions attributed to it are kept, with no commit.
 
-A commit with no ordinal can also ask to be deleted automatically once it has
-seen no activity for a given number of days (see O10). This is how the commits
-of throwaway A/B experiments clean up after themselves. A commit with an
-ordinal is part of the suite's history, and is never deleted that way.
+A commit can also ask to be deleted automatically once it has seen no activity
+for a given number of days (see O10). This is how the commits of throwaway A/B
+experiments clean up after themselves. The request has no effect while the
+commit has an ordinal: an ordered commit is part of the suite's history.
 
 
 ## D2: Schema Storage and Lifecycle

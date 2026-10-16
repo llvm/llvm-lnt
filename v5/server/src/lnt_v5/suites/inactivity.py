@@ -127,7 +127,8 @@ def sweep(
 
     The lock is held by the session rather than a transaction, because the round spans many
     transactions on the same connection: one to find each suite's due entities, and one per entity
-    to delete it.
+    to delete it. If that connection is lost, the lock goes with it, and the round stops as well:
+    carrying on would reconnect without the lock, and let another process sweep at the same time.
     """
     with engine.connect() as connection:
         locked = connection.execute(
@@ -141,9 +142,11 @@ def sweep(
                 suites = list(registry.fresh(connection).values())
             swept = []
             for suite in suites:
-                if _stopping(stopping):
+                if _interrupted(connection, stopping):
                     break
                 swept.append(_sweep_suite(connection, suite, stopping))
+            if connection.invalidated:
+                logger.warning("Lost the database connection while sweeping; stopping the round")
             return swept
         finally:
             _unlock(connection)
@@ -154,16 +157,22 @@ def _unlock(connection: Connection) -> None:
 
     The lock belongs to the session, and the connection goes back to the pool afterwards: if the
     unlock failed and the connection were reused, every later round in every process would find the
-    lock taken and skip, for as long as the connection lived.
+    lock taken and skip, for as long as the connection lived. A connection that was lost took the
+    lock with it, and needs nothing.
+
+    A failure is logged rather than raised, so that it does not hide what the round did: the
+    entities it deleted stay deleted either way.
     """
+    if connection.invalidated:
+        return
     try:
         # Roll back any transaction a failure left open, since the unlock can't run inside it.
         connection.rollback()
         connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": SWEEP_LOCK_KEY})
         connection.commit()
     except SQLAlchemyError:
+        logger.warning("Could not release the sweep lock; discarding its connection", exc_info=True)
         connection.invalidate()
-        raise
 
 
 def _sweep_suite(
@@ -173,14 +182,14 @@ def _sweep_suite(
     failures = 0
     for kind in _kinds(suite):
         deleted[kind.noun] = ()
-        if _stopping(stopping):
+        if _interrupted(connection, stopping):
             continue
         due = _due_entities(connection, suite, kind)
         if due is None:
             failures += 1
             continue
         for identifier, identity in due:
-            if _stopping(stopping):
+            if _interrupted(connection, stopping):
                 break
             outcome = _delete_if_due(connection, suite, kind, identifier, identity)
             if outcome is None:
@@ -190,8 +199,9 @@ def _sweep_suite(
     return SweptSuite(suite=suite.schema.name, deleted=deleted, failures=failures)
 
 
-def _stopping(stopping: threading.Event | None) -> bool:
-    return stopping is not None and stopping.is_set()
+def _interrupted(connection: Connection, stopping: threading.Event | None) -> bool:
+    """Whether the round must stop: asked to by `stopping`, or having lost its lock (`sweep`)."""
+    return connection.invalidated or (stopping is not None and stopping.is_set())
 
 
 def _due_entities(

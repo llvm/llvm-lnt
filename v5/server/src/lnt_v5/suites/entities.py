@@ -334,13 +334,13 @@ DeleteAfterInactiveDays = Annotated[
         ge=INACTIVE_DAYS_MIN,
         le=INACTIVE_DAYS_MAX,
         description=(
-            f"Delete it, with its runs, once it has gone this many days (from {INACTIVE_DAYS_MIN} "
-            f"to {INACTIVE_DAYS_MAX}) without a run being submitted for it, for example to clean "
-            "up after an experiment. The server checks periodically, by default once an hour. A "
-            "commit is never "
-            "deleted this way while it has an ordinal. Null to keep it however long it is "
-            "inactive. A run submission only sets this when it creates the machine or the commit; "
-            "use PATCH to change it afterwards."
+            f"Delete it automatically once this many days (from {INACTIVE_DAYS_MIN} to "
+            f"{INACTIVE_DAYS_MAX}) have passed since it was created or since a run was last "
+            "submitted for it, whichever is later, for example to clean up after an experiment. "
+            "It is deleted along with everything its DELETE route deletes, shortly after it is "
+            "due. A commit is never deleted this way while it has an ordinal. Null to keep it "
+            "however long it is inactive. A run submission only sets this when it creates the "
+            "machine or the commit; use PATCH to change it afterwards."
         ),
         examples=[examples.DELETE_AFTER_INACTIVE_DAYS],
     ),
@@ -532,11 +532,21 @@ def _locked_values(
     By column object rather than by name, for the same reason `concurrency.get_or_create` reads
     that way: a declared field may legally be called anything, and `Row._mapping` keyed by column
     cannot confuse two of them.
+
+    The row may be gone by now: deleted by its DELETE route, or by O10's sweep, since the unlocked
+    read found it. O8 answers that with I4's `retry`, as it does when the run insert finds the row
+    gone, and resending the submission creates it again.
     """
     wanted = [table.c[name] for name in read]
     row = connection.execute(
         select(*wanted).where(table.c.id == identifier).with_for_update(key_share=True)
-    ).one()
+    ).one_or_none()
+    if row is None:
+        raise ApiError(
+            ErrorCode.RETRY,
+            f"The {table.name} this submission names was deleted from test suite "
+            f"'{table.schema}' while the submission was being stored. Retry.",
+        )
     return {column.name: row._mapping[column] for column in wanted}
 
 

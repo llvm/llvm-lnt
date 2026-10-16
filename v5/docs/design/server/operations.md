@@ -505,8 +505,9 @@ Until an entity is deleted it stays visible: no read filters on
   round.
 - A round visits every suite. Finding the due entities must scan neither the
   run table nor the commit table: it reads the suite's machines, which are few
-  (see D5), and the commits that have the setting, and checks each with an
-  index probe on its runs.
+  (see D5), and the commits that have the setting, and checks each through an
+  index on its runs. For a machine, whose history may be long, that check is a
+  single index probe; a commit has few runs, about one per machine.
 - Each entity is deleted in a transaction of its own, so that deleting one
   with a long history does not hold a single transaction over all of them.
 - Its eligibility is checked again inside that transaction, after the entity

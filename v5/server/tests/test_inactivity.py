@@ -315,6 +315,32 @@ class TestDeletion:
 
         assert exists(api_client, f"{MACHINES}/pr-1")
 
+    def test_deletes_an_entity_renamed_after_the_round_found_it(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        manage: dict[str, str],
+        submit: Callable[..., None],
+        idle: Callable[[int], None],
+    ) -> None:
+        # A rename is not activity, so the machine is still due, under its new name: the round
+        # addresses what it found by id rather than by name.
+        submit({"name": "pr-1", "delete_after_inactive_days": 30}, "abc")
+        idle(31)
+        with db_engine.connect() as connection:
+            nts = SuiteRegistry().fresh(connection)["nts"]
+            connection.commit()
+            machines = inactivity._kinds(nts)[0]
+            due = inactivity._due_entities(connection, nts, machines)
+            assert due is not None
+            [(identifier, identity)] = due
+
+            api_client.patch(f"{MACHINES}/pr-1", json={"name": "pr-1-renamed"}, headers=manage)
+
+            assert inactivity._delete_if_due(connection, nts, machines, identifier, identity)
+
+        assert not exists(api_client, f"{MACHINES}/pr-1-renamed")
+
 
 class TestRounds:
     def test_skips_the_round_while_another_process_sweeps(

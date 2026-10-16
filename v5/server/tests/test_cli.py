@@ -403,6 +403,22 @@ class TestSweep:
 
         assert capsys.readouterr().out == "No machine or commit was due for deletion.\n"
 
+    def test_fails_when_part_of_the_sweep_failed(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The suite's tables are gone, so neither of its lookups can run.
+        store_suite(
+            configured_database,
+            SuiteSchema.model_validate({"name": "nts"}),
+            suite_migrations.head(),
+        )
+        with configured_database.begin() as connection:
+            connection.execute(text('DROP SCHEMA "nts" CASCADE'))
+
+        assert cli.main(["server", "sweep"]) == 1
+
+        assert "2 step(s) of the sweep failed" in capsys.readouterr().err
+
     def test_refuses_a_database_that_is_not_up_to_date_rather_than_migrating_it(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
     ) -> None:
