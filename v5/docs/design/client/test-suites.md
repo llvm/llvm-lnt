@@ -71,8 +71,9 @@ The `Name` is a clickable link to the machine detail page. The `Info` column pre
 fields that have a value for that machine, separated by commas.
 
 Machines with `tracked: false` carry a small grey `untracked` badge next to the name. All machines
-are listed regardless of `tracked`; the badge is informational, marking configurations that are
-excluded from the Dashboard's trend overview. Hovering the badge explains that.
+are listed regardless of `tracked`, by name; the badge is informational, marking configurations
+that are excluded from the Dashboard's trend overview and listed last in machine pickers (see
+AR18). Hovering the badge explains that.
 
 Above the table, a `Search machines...` box searches the machines by name and searchable fields
 (see O4).
@@ -108,7 +109,7 @@ Suites page.
 - State: multi-select chips (detected, active, not_to_be_fixed, fixed,
   false_positive) -- toggleable, none selected by default; with none
   selected, every state is shown
-- Machine: a combobox over the suite's machines
+- Machine: a combobox over the suite's machines (see AR18)
 - Metric: dropdown over the suite's metrics, or any metric
 - "No commit set": checkbox. When checked, only regressions without a commit
   are shown (`has_commit=false`); when unchecked, regressions are shown whether

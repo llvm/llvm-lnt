@@ -1,8 +1,10 @@
 import {
+  useCallback,
   useContext,
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -15,10 +17,12 @@ import {
   Collection,
   ComboBox,
   ComboBoxStateContext,
+  Header,
   Input,
   ListBox,
   ListBoxItem,
   ListBoxLoadMoreItem,
+  ListBoxSection,
   ListLayout,
   Virtualizer,
   type Key,
@@ -276,6 +280,24 @@ export function Combobox({
  */
 const LIST_LAYOUT = { estimatedRowSize: 30, loaderSize: 30 }
 
+/**
+ * `items` as the list shows them: those in no section, then each section with its own, in the order
+ * of their first suggestion.
+ */
+function sectioned(items: readonly Suggestion[]) {
+  // Most lists have no sections, among them lists of thousands of suggestions (AR9), which are
+  // then shown as they are.
+  if (!items.some((item) => item.section !== undefined)) return { unsectioned: items, sections: [] }
+  const unsectioned: Suggestion[] = []
+  const sections = new Map<string, Suggestion[]>()
+  for (const item of items) {
+    if (item.section === undefined) unsectioned.push(item)
+    else if (sections.has(item.section)) sections.get(item.section)!.push(item)
+    else sections.set(item.section, [item])
+  }
+  return { unsectioned, sections: [...sections] }
+}
+
 /** The list of suggestions, and the item loading more of them, if there are more. */
 function List({
   suggestions,
@@ -288,24 +310,43 @@ function List({
   virtualized: boolean
   emptyMessage: string | undefined
 }) {
+  const { unsectioned, sections } = useMemo(() => sectioned(suggestions.items), [suggestions.items])
+  // Kept from one render to the next, so that React Aria does not go over every suggestion again on
+  // each keystroke, while the suggestions themselves are still those for earlier text (AR9).
+  const option = useCallback(
+    (item: Suggestion) => (
+      <ListBoxItem
+        id={item.key}
+        textValue={item.text}
+        className={clsx(shared.option, virtualized && styles.virtualOption)}
+      >
+        {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
+        {renderSuggestion ? () => renderSuggestion(item) : item.text}
+      </ListBoxItem>
+    ),
+    [renderSuggestion, virtualized],
+  )
   const list = (
     <ListBox
       className={clsx(shared.list, virtualized && styles.virtualList)}
       renderEmptyState={() => <EmptyState suggestions={suggestions} emptyMessage={emptyMessage} />}
     >
       {/* Rendered again for a new `renderSuggestion`, which React Aria would not do on its own. */}
-      <Collection items={suggestions.items} dependencies={[renderSuggestion]}>
-        {(item) => (
-          <ListBoxItem
-            id={item.key}
-            textValue={item.text}
-            className={clsx(shared.option, virtualized && styles.virtualOption)}
-          >
-            {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
-            {renderSuggestion ? () => renderSuggestion(item) : item.text}
-          </ListBoxItem>
-        )}
+      <Collection items={unsectioned} dependencies={[renderSuggestion]}>
+        {option}
       </Collection>
+      {/* Sections and suggestions share one space of ids. A section's starts with a `/` so that it
+          cannot be that of a suggestion named like it, such as a machine "Untracked": only machine
+          pickers have sections (AR18), and a machine's name holds no `/` (I1). A section is shown
+          only while it holds suggestions, since `sectioned` makes none for an empty one. */}
+      {sections.map(([section, items]) => (
+        <ListBoxSection key={`/section/${section}`} id={`/section/${section}`}>
+          <Header className={styles.sectionHeader}>{section}</Header>
+          <Collection items={items} dependencies={[renderSuggestion]}>
+            {option}
+          </Collection>
+        </ListBoxSection>
+      ))}
       {suggestions.hasMore && (
         <ListBoxLoadMoreItem
           className={styles.status}

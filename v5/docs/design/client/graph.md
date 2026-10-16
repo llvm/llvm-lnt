@@ -24,7 +24,8 @@ the suite is a query parameter, not a path segment.
 - **Machine chip input**: The machine selector is a chip-based multi-select
   input: the user adds a machine by picking it from a combobox (see AR14), and
   each added machine appears as a chip with an x button to remove it. The
-  combobox does not offer the machines already added. Multiple machines can be
+  combobox does not offer the machines already added, and lists the others as
+  every machine picker does (see AR18). Multiple machines can be
   added to overlay their data on the same chart. Removing the last machine
   clears the chart and the selected tests. The metric selector is shared across
   all machines -- the same metric is plotted for every machine. The suite's full
@@ -207,7 +208,7 @@ Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
 comparisons. The selector is a panel, opened by a "+" button beside the
 "Baselines" label, with cascading selectors: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
-suite's machines endpoint) -> Commit (populated from the selected machine's
+suite's machines endpoint, see AR18) -> Commit (populated from the selected machine's
 commits via `GET commits?machine={name}&sort=-first_seen`; see AR15). Picking
 a commit adds the baseline and closes the panel; "+" closes it too. Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,

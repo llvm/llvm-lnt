@@ -67,8 +67,9 @@ those on side A (see below and PF4).
 
 - **Suite**: a dropdown over the test suites defined on the instance. Changing
   the suite clears the side's machine, commit, run and test.
-- **Machine**: a combobox (see AR14) over the selected suite's machines. The
-  suite's full machine list is fetched once and filtered locally (see AR9).
+- **Machine**: a combobox (see AR14) over the selected suite's machines (see
+  AR18). The suite's full machine list is fetched once and filtered locally
+  (see AR9).
   Disabled until a suite is selected, showing "Select a suite first". When the
   user picks another machine, the side keeps its commit if the new machine has
   profiles at that commit (checked as AR15 describes). Otherwise, the commit is

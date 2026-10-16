@@ -51,6 +51,15 @@
   border-radius: 0 var(--lnt-radius) var(--lnt-radius) 0;
 }
 
+/* The heading of a group of suggestions (AR14), which is not one itself. */
+.sectionHeader {
+  padding: var(--lnt-space-1) var(--lnt-space-2) 0;
+  border-top: 1px solid var(--lnt-border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lnt-muted);
+}
+
 .status {
   padding: var(--lnt-space-1) var(--lnt-space-2);
   font-size: 0.9rem;

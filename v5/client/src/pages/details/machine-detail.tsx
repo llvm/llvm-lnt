@@ -15,6 +15,7 @@ import { DataTable } from '../../components/data-table'
 import { ErrorMessage, Loaded } from '../../components/feedback'
 import { HelpLabel } from '../../components/help-label'
 import { InfoBox, InfoRow } from '../../components/info-box'
+import { InactivityRow } from '../../components/inactivity-row'
 import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
 import { WithSchema } from '../../components/with-schema'
@@ -67,6 +68,7 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
     <>
       <InfoBox label="Machine">
         <TrackedRow suite={suite} machine={machine} />
+        <InactivityDays suite={suite} machine={machine} />
         {schema.machine_fields.map((field) => (
           <InfoRow key={field.name} label={labelOf(field)}>
             {formatFieldValue(machine.fields[field.name], field.type)}
@@ -80,20 +82,22 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
   )
 }
 
-/** The machine's `tracked` flag, which a holder of `manage` scope can flip (DT1). */
-function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
-  const labelId = useId()
-  const helpId = useId()
+/**
+ * Change the machine `name` with `PATCH /machines/{name}` (E2), and show what the API returned.
+ * Changes are sent one after the other, so that the answer to an earlier one, arriving late, does
+ * not replace a later one's.
+ */
+function useUpdateMachine(suite: string, name: string) {
   const queryClient = useQueryClient()
-  const manage = useScopeGate('manage')
-  const update = useMutation({
-    // A fetch of the machine under way could land after the answer, and show the flag as it was.
-    onMutate: () => queryClient.cancelQueries({ queryKey: machineKey(suite, machine.name) }),
-    mutationFn: (tracked: boolean) =>
+  return useMutation({
+    scope: { id: JSON.stringify(machineKey(suite, name)) },
+    // A fetch of the machine under way could land after the answer, and show it as it was.
+    onMutate: () => queryClient.cancelQueries({ queryKey: machineKey(suite, name) }),
+    mutationFn: (body: Schemas['MachineUpdate']) =>
       unwrap(
         authedApi.PATCH('/api/suites/{testsuite}/machines/{machine_name}', {
-          params: { path: { testsuite: suite, machine_name: machine.name } },
-          body: { tracked },
+          params: { path: { testsuite: suite, machine_name: name } },
+          body,
         }),
       ),
     onSuccess: async (updated) => {
@@ -103,9 +107,17 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
         queryKey: queryKeys.machines(suite),
         refetchType: 'none',
       })
-      queryClient.setQueryData(machineKey(suite, machine.name), updated)
+      queryClient.setQueryData(machineKey(suite, name), updated)
     },
   })
+}
+
+/** The machine's `tracked` flag, which a holder of `manage` scope can flip (DT1). */
+function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
+  const labelId = useId()
+  const helpId = useId()
+  const manage = useScopeGate('manage')
+  const update = useUpdateMachine(suite, machine.name)
   return (
     <InfoRow
       label={
@@ -124,12 +136,25 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
         aria-labelledby={labelId}
         aria-describedby={helpId}
         onChange={(event) => {
-          if (!update.isPending) update.mutate(event.target.checked)
+          if (!update.isPending) update.mutate({ tracked: event.target.checked })
         }}
       />
       <VisuallyHidden id={helpId}>{UNTRACKED_HELP}</VisuallyHidden>
       {update.isError && <ErrorMessage error={update.error} />}
     </InfoRow>
+  )
+}
+
+/** The days of inactivity after which the machine is deleted, which `manage` can edit (DT1). */
+function InactivityDays({ suite, machine }: { suite: string; machine: Machine }) {
+  const update = useUpdateMachine(suite, machine.name)
+  const manage = useScopeGate('manage')
+  return (
+    <InactivityRow
+      value={machine.delete_after_inactive_days}
+      gate={manage}
+      onSave={(days) => update.mutateAsync({ delete_after_inactive_days: days })}
+    />
   )
 }
 
