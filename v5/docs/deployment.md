@@ -111,9 +111,9 @@ and tagged with the commit's short SHA as well as `latest`.
 ## Deploying the web app
 
 Deploying is done manually by triggering the `v5-deploy.yml` GitHub workflow. Select the environment
-to deploy to and the image tag to use, and launch the workflow. It runs `terraform apply` in
-`v5/deployment/main` with that tag and the appropriate environment, and then waits for `/healthz` to
-report healthy.
+to deploy to and the image tag to use, and launch the workflow. It checks that the image exists, runs
+`terraform apply` in `v5/deployment/main` with that tag and the appropriate environment, and then
+waits for `/healthz` to report healthy.
 
 Changing the image tag rewrites the instance's `user_data`, and `user_data_replace_on_change` means
 the EC2 instance is recreated to pick it up. That replacement *is* the deployment mechanism; expect a
