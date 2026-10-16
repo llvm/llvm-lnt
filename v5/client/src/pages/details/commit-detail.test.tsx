@@ -12,6 +12,7 @@ import {
   currentUrl,
   editButton,
   gate,
+  inactivityCell,
   infoRows,
   main,
   mockCommits,
@@ -145,7 +146,7 @@ describe('the Commit Detail page', () => {
       ['Commit', VALUE],
       ['Ordinal', '100Edit'],
       ['Tag', 'v1Edit'],
-      ['Delete after inactivity', `--Edit${INACTIVITY_HELP}`],
+      ['Delete after inactivity', inactivityCell('--')],
       ['svn_revision display', 'r100'],
       ['commit_info', 'Fix the vectorizer'],
     ])
@@ -501,7 +502,7 @@ describe('the Commit Detail page', () => {
 
       expect(await row()).toEqual([
         'Delete after inactivity',
-        `30 days (No effect while the commit has an ordinal.)Edit${INACTIVITY_HELP}`,
+        inactivityCell('30 days (No effect while the commit has an ordinal.)'),
       ])
     })
 
@@ -517,15 +518,31 @@ describe('the Commit Detail page', () => {
           }),
       })
 
-      expect(await row()).toEqual(['Delete after inactivity', `1 dayEdit${INACTIVITY_HELP}`])
+      expect(await row()).toEqual(['Delete after inactivity', inactivityCell('1 day')])
     })
 
     it('explains itself, on hover and to assistive technology', async () => {
+      signIn('manage')
+      renderCommit()
+
+      await ready('Commit', () => editButton('Delete after inactivity'))
+      expect(screen.getByText('Delete after inactivity')).toHaveAttribute('title', INACTIVITY_HELP)
+      expect(editButton('Delete after inactivity')).toHaveAccessibleDescription(INACTIVITY_HELP)
+    })
+
+    it('says why it cannot be edited as well, to assistive technology', async () => {
+      signIn('triage')
       renderCommit()
 
       await screen.findByRole('group', { name: 'Commit' })
-      expect(screen.getByText('Delete after inactivity')).toHaveAttribute('title', INACTIVITY_HELP)
-      expect(editButton('Delete after inactivity')).toHaveAccessibleDescription(INACTIVITY_HELP)
+      await waitFor(() =>
+        expect(editButton('Delete after inactivity').title).toMatch(/'triage' scope/),
+      )
+      await waitFor(() =>
+        expect(editButton('Delete after inactivity')).toHaveAccessibleDescription(
+          `${INACTIVITY_HELP} ${editButton('Delete after inactivity').title}`,
+        ),
+      )
     })
 
     it('is changed with PATCH, and cleared when emptied', async () => {
@@ -537,10 +554,10 @@ describe('the Commit Detail page', () => {
       save('Delete after inactivity', ' 30 ')
       await expectInfo(3, [
         'Delete after inactivity',
-        `30 days (No effect while the commit has an ordinal.)Edit${INACTIVITY_HELP}`,
+        inactivityCell('30 days (No effect while the commit has an ordinal.)'),
       ])
       save('Delete after inactivity', '')
-      await expectInfo(3, ['Delete after inactivity', `--Edit${INACTIVITY_HELP}`])
+      await expectInfo(3, ['Delete after inactivity', inactivityCell('--')])
 
       expect(sent.map(({ body }) => body)).toEqual([
         { delete_after_inactive_days: 30 },

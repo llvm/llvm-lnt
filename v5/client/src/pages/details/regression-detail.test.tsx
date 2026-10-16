@@ -661,6 +661,12 @@ describe('the Add indicators panel', () => {
     await user.keyboard('{/Shift}')
     expect(checkbox('macos')).toBeChecked()
     expect(checkbox('a-retired, untracked')).toBeChecked()
+
+    // The filter covers the untracked machines too.
+    fireEvent.change(within(list('Machines')).getByRole('searchbox'), {
+      target: { value: 'retired' },
+    })
+    await waitFor(() => expect(namesIn('Machines')).toEqual(['a-retired, untracked']))
   })
 
   it('previews and adds an indicator for each machine and test, then says what was added', async () => {

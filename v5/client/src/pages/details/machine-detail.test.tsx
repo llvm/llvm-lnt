@@ -11,6 +11,7 @@ import {
   currentUrl,
   editButton,
   gate,
+  inactivityCell,
   infoRows,
   main,
   mockMachines,
@@ -118,7 +119,7 @@ describe('the Machine Detail page', () => {
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Machine: ${NAME}`)
     const rows = await infoRows('Machine')
     expect(rows[0][0]).toBe('Tracked')
-    expect(rows[1]).toEqual(['Delete after inactivity', `--Edit${INACTIVITY_HELP}`])
+    expect(rows[1]).toEqual(['Delete after inactivity', inactivityCell('--')])
     expect(rows.slice(2)).toEqual([
       ['Hardware', 'AMD EPYC'],
       ['os', '--'],
@@ -321,12 +322,14 @@ describe('the Machine Detail page', () => {
     })
 
     it('shows the days, explaining them on hover and to assistive technology', async () => {
+      signIn('manage')
       mockPage({
         machine: () => HttpResponse.json({ ...LINUX, delete_after_inactive_days: 30 }),
       })
       renderPage(PAGE)
 
-      expect(await row()).toEqual(['Delete after inactivity', `30 daysEdit${INACTIVITY_HELP}`])
+      expect(await row()).toEqual(['Delete after inactivity', inactivityCell('30 days')])
+      await waitFor(() => expect(editButton('Delete after inactivity')).toBeEnabled())
       expect(screen.getByText('Delete after inactivity')).toHaveAttribute('title', INACTIVITY_HELP)
       expect(editButton('Delete after inactivity')).toHaveAccessibleDescription(INACTIVITY_HELP)
     })
@@ -341,11 +344,11 @@ describe('the Machine Detail page', () => {
 
       save('Delete after inactivity', '1')
       await waitFor(async () =>
-        expect(await row()).toEqual(['Delete after inactivity', `1 dayEdit${INACTIVITY_HELP}`]),
+        expect(await row()).toEqual(['Delete after inactivity', inactivityCell('1 day')]),
       )
       save('Delete after inactivity', ' ')
       await waitFor(async () =>
-        expect(await row()).toEqual(['Delete after inactivity', `--Edit${INACTIVITY_HELP}`]),
+        expect(await row()).toEqual(['Delete after inactivity', inactivityCell('--')]),
       )
 
       expect(sent).toEqual([
