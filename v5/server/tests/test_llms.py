@@ -31,8 +31,8 @@ def _document(client: TestClient) -> str:
 
 class TestServing:
     def test_is_served_as_utf8_plain_text(self, client: TestClient) -> None:
-        # Also covers route ordering: `.txt` is a static-asset extension, so this would 404
-        # rather than reach the client if the route were registered after the SPA mount at "/".
+        # Also covers route ordering: `/llms.txt` reads as a static asset (AR2), so this would 404
+        # if the route were registered after the SPA mount at "/".
         response = client.get("/llms.txt")
 
         assert response.status_code == 200

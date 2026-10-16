@@ -98,9 +98,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         generate_unique_id_function=operation_id,
         lifespan=lifespan,
         # I8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
-        # SPA's namespace, where the catch-all serves index.html and `.json` already reads as a
-        # static asset. ReDoc is off because I8 specifies one viewer. The paths come from the
-        # index route, which publishes them (I1).
+        # namespace AR2 gives the client. ReDoc is off because I8 specifies one viewer. The paths
+        # come from the index route, which publishes them (I1).
         docs_url=DOCS_PATH,
         openapi_url=OPENAPI_PATH,
         redoc_url=None,

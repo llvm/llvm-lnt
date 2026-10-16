@@ -27,9 +27,11 @@ within the UI causes a full page reload.
   not `/api/...`, `/llms.txt`, `/robots.txt`, `/healthz`, or a static asset.
   This catch-all is what makes deep links and hard refreshes work -- pasting
   `/suites/nts/runs/{uuid}` or reloading on it must resolve to that route rather
-  than 404. Unmatched `/api/...` paths are a genuine 404 and must answer with
-  the API's JSON error envelope (see I4) rather than falling through to the
-  SPA.
+  than 404. A static asset is a path under `/assets/` (see Caching) or whose
+  first segment contains a `.`; one the build does not contain is a 404. Every
+  page in AR3 must start with a segment containing no `.`. Unmatched `/api/...`
+  paths are a genuine 404 and must answer with the API's JSON error envelope
+  (see I4) rather than falling through to the SPA.
 - **Caching**: The client build gives every file under `/assets/` a
   content-hashed name, so these files are served as immutable
   (`public, max-age=31536000, immutable`). Everything else served for the SPA,

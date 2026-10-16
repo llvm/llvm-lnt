@@ -12,7 +12,6 @@ as GET (I4).
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
 from urllib.parse import quote, quote_from_bytes
 
 from starlette._utils import get_route_path
@@ -25,15 +24,8 @@ from .auth import iter_routes
 from .caching import IMMUTABLE, REVALIDATE
 from .errors import ApiError, ErrorCode, error_response
 
-# Extensions that mark a request as asking for a file rather than for a page. Accepted
-# limitation: a client route whose last segment ends in one of these (a machine named `node.js`,
-# say) is misread as an asset and 404s rather than reaching the client.
-STATIC_ASSET_EXTENSIONS = frozenset(
-    {
-        "avif", "cjs", "css", "eot", "gif", "ico", "jpeg", "jpg", "js", "json", "map", "mjs",
-        "otf", "png", "svg", "ttf", "txt", "wasm", "webmanifest", "webp", "woff", "woff2", "xml",
-    }
-)  # fmt: skip
+# Where the client build puts every file it bundles, under content-hashed names (AR2).
+ASSETS = "assets"
 
 # Paths the server answers itself that are not under /api/. They share the API's slash handling:
 # a probe is as easy to misconfigure with a trailing slash as an endpoint is.
@@ -194,12 +186,15 @@ def _path_and_query(path: str, query: bytes) -> str:
 
 
 def is_static_asset_path(path: str) -> bool:
-    """True for paths that look like a request for a static file.
+    """True for paths that ask for a file of the client build rather than for a page (AR2).
 
-    Matching is against a known set of extensions rather than "the last segment contains a dot",
-    because real routes do: `/suites/nts/machines/macos-26.5-arm64` must still reach the client.
+    That is a path under /assets/, or one whose first segment contains a dot, such as
+    `/favicon.ico`. Every page starts with a fixed segment that has none, so a page is never
+    misread as a file however its identifiers are spelled: `/suites/nts/machines/node.js` reaches
+    the client. A path that climbs out of the bundle (`/../secret.css`, once normalized) counts as
+    a file too, and so gets a 404.
     """
-    return PurePosixPath(path).suffix[1:].lower() in STATIC_ASSET_EXTENSIONS
+    return path.startswith(f"/{ASSETS}/") or "." in path.split("/", 2)[1]
 
 
 def _not_found(method: str | None, path: str) -> StarletteHTTPException:
@@ -290,5 +285,6 @@ class SpaStaticFiles(StaticFiles):
         # the file's mtime and size, and a rebuilt index.html usually has the same size, so this
         # relies on the image build giving the files fresh mtimes. A reproducible build that pins
         # timestamps would break it.
-        response.headers["Cache-Control"] = IMMUTABLE if path.startswith("assets/") else REVALIDATE
+        hashed = path.startswith(f"{ASSETS}/")
+        response.headers["Cache-Control"] = IMMUTABLE if hashed else REVALIDATE
         return response
