@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Annotated
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from types import FunctionType
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, Request
 from pydantic import ValidationError
@@ -40,7 +41,9 @@ class Suite:
 
     Immutable by contract, not merely by dataclass: several request threads read the same instance
     concurrently, and SQLAlchemy's `Table` is safe for concurrent reads only. A path that needs
-    different tables calls `build` for a new set rather than appending to these.
+    different tables calls `build` for a new set rather than appending to these. The one exception
+    is `derived`'s cache of values computed from these fields, which never changes a value once
+    cached.
 
     `schema_json` is kept so that a reload can tell this suite is the one it already has.
     """
@@ -48,6 +51,24 @@ class Suite:
     schema: SuiteSchema
     tables: SuiteTables
     schema_json: str
+    _derived: dict[Callable[[Suite], Any], Any] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+
+    def derived[T](self, build: Callable[[Suite], T]) -> T:
+        """`build(self)`, computed on first use and kept for as long as this suite is, such as a
+        statement a request would otherwise construct every time.
+
+        A schema change replaces the suite, so nothing cached here can outlive the schema it was
+        built from. `build` is the key, so it must be a module-level function: a lambda, a closure
+        or a bound method would be a new key on every call, never hit, and grow without bound.
+        """
+        assert isinstance(build, FunctionType) and "<locals>" not in build.__qualname__, build
+        try:
+            return cast(T, self._derived[build])
+        except KeyError:
+            # Two threads may both build it; `setdefault` keeps whichever came first.
+            return cast(T, self._derived.setdefault(build, build(self)))
 
 
 class SuiteRegistry:

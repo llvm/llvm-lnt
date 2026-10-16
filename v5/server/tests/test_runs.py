@@ -13,7 +13,7 @@ once a database is involved.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
@@ -43,9 +43,9 @@ from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH, patch_schema
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.evolve import SchemaPatch
-from lnt_v5.suites.profile_document import instructions
+from lnt_v5.suites.profile_document import instructions, stored_profile
 from lnt_v5.suites.submission import validate_submission
-from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.suites.tables import INTEGER_MAX, INTEGER_MIN, SuiteTables
 
 RUNS = RUNS_PATH.format(testsuite="nts")
 MACHINES = MACHINES_PATH.format(testsuite="nts")
@@ -125,20 +125,44 @@ def submitted(submit: Callable[..., Any]) -> Callable[..., Any]:
     return post
 
 
-def samples(db_engine: Engine, suite: SuiteTables) -> list[dict[str, Any]]:
+def samples(
+    db_engine: Engine, suite: SuiteTables, metrics: Sequence[str] = METRICS
+) -> list[dict[str, Any]]:
     """Every sample row in the suite, named by its test, in an order a test can compare against."""
     with db_engine.connect() as connection:
         rows = (
             connection.execute(
                 select(
                     suite.test.c.name.label("test"),
-                    *(suite.sample.c[metric] for metric in METRICS),
+                    *(suite.sample.c[metric] for metric in metrics),
                 ).join_from(suite.sample, suite.test, suite.test.c.id == suite.sample.c.test_id)
             )
             .mappings()
             .all()
         )
     return sorted((dict(row) for row in rows), key=repr)
+
+
+def several_functions(seed: int) -> dict[str, Any]:
+    """A profile document of several functions of several instructions, which `seed` varies."""
+    return {
+        "disassembly_format": "raw",
+        "counters": {"cycles": 1000 + seed},
+        "functions": [
+            {
+                "name": f"function-{index}",
+                "instructions": [
+                    {
+                        "address": 4096 * index + 4 * offset,
+                        "counters": {"cycles": float(seed + index + offset)},
+                        "text": f"op{seed} {index}, {offset}",
+                    }
+                    for offset in range(index + 2)
+                ],
+            }
+            for index in range(4)
+        ],
+    }
 
 
 def profiles(db_engine: Engine, suite: SuiteTables) -> list[dict[str, Any]]:
@@ -762,13 +786,10 @@ class TestSamples:
     def test_entries_carrying_different_metrics_each_land_in_their_own_columns(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        """The executemany footgun, as a test.
+        """Each value lands in its own metric's column, whichever metrics its entry mentions.
 
-        SQLAlchemy Core compiles a multi-row INSERT from the *first* mapping it is given and binds
-        every later one to those columns, so a submission whose entries mention different metrics
-        would silently write the wrong ones -- here, `compile_time` into nothing and
-        `execution_time` into the column the first row happened to name. Deliberately ordered so
-        that the narrowest entry comes first.
+        Deliberately ordered so that the narrowest entry comes first: a write that took its columns
+        from the first row, as SQLAlchemy's executemany does, would drop the others' values.
         """
         submitted(
             tests=[
@@ -840,9 +861,9 @@ class TestSamples:
     ) -> None:
         """The sample set's counterpart to O8's fixed round trips, which the rows alone cannot show.
 
-        A statement per row stores exactly the same 1 000 samples as one executemany does, and
-        passes every other test here while making a submission's cost linear in round trips. So
-        this counts the statements: a submission two orders of magnitude larger must still be one
+        A statement per row stores exactly the same 1 000 samples as one statement does, and passes
+        every other test here while making a submission's cost linear in its samples. So this
+        counts the statements: a submission two orders of magnitude larger must still be one
         insert.
         """
         with counting_statements("INSERT INTO nts.sample") as one_row:
@@ -873,6 +894,111 @@ class TestSamples:
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
+
+
+class TestSampleValues:
+    """Samples of every D3 type, read back exactly as submitted, nulls included.
+
+    A metric's values reach PostgreSQL as one array, cast to the metric's column type, so this
+    covers what that could get wrong: values an array literal has to quote or escape, a column with
+    no value in any row (an array of nulls, whose type only the cast gives), and a suite with no
+    metrics at all. One metric is named after a reserved word, and the others after their types.
+    """
+
+    METRICS = ("real", "integer", "text", "datetime", "order")
+
+    @pytest.fixture
+    def suite(self, make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
+        metrics = [
+            {"name": name, "type": "real" if name == "order" else name} for name in self.METRICS
+        ]
+        return make_api_suite({"name": "types", "metrics": metrics})
+
+    @pytest.fixture
+    def submitted(
+        self, api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
+    ) -> Callable[..., None]:
+        def post(*tests: dict[str, Any]) -> None:
+            response = api_client.post(
+                RUNS_PATH.format(testsuite="types"),
+                json=run_payload(tests=list(tests)),
+                headers=submitter,
+            )
+            assert response.status_code == 201, response.text
+
+        return post
+
+    def row(self, test: str, **values: Any) -> dict[str, Any]:
+        return {"test": test, **dict.fromkeys(self.METRICS), **values}
+
+    def test_every_type_reads_back_as_submitted(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., None]
+    ) -> None:
+        # Every column has a value in some rows and none in others.
+        awkward = 'a "quoted", {braced} \\ back\\slashed, \u00e9'
+        submitted(
+            entry(
+                "a",
+                {
+                    "real": 0.1,
+                    "integer": INTEGER_MAX,
+                    "text": "NULL",
+                    "datetime": "2026-01-02T03:04:05.123456Z",
+                    "order": 5e-324,
+                },
+                {"real": -1.7976931348623157e308, "integer": INTEGER_MIN, "text": ""},
+                {"text": awkward, "datetime": "2026-01-02T03:04:05+02:00"},
+            ),
+            entry("b", {"integer": 0}, {}),
+        )
+
+        assert samples(db_engine, suite, self.METRICS) == sorted(
+            [
+                self.row(
+                    "a",
+                    real=0.1,
+                    integer=INTEGER_MAX,
+                    text="NULL",
+                    datetime=datetime(2026, 1, 2, 3, 4, 5, 123456, tzinfo=UTC),
+                    order=5e-324,
+                ),
+                self.row("a", real=-1.7976931348623157e308, integer=INTEGER_MIN, text=""),
+                self.row("a", text=awkward, datetime=datetime(2026, 1, 2, 1, 4, 5, tzinfo=UTC)),
+                self.row("b", integer=0),
+                self.row("b"),
+            ],
+            key=repr,
+        )
+
+    def test_a_metric_no_sample_has_is_stored_as_nulls(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., None]
+    ) -> None:
+        # Every column's array holds nothing but nulls, which psycopg sends with no type at all.
+        submitted(entry("a", {}, {}), entry("b", {}))
+
+        assert samples(db_engine, suite, self.METRICS) == [
+            self.row("a"),
+            self.row("a"),
+            self.row("b"),
+        ]
+
+    def test_a_suite_with_no_metrics_stores_a_row_per_sample(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        db_engine: Engine,
+        make_api_suite: Callable[[dict[str, Any]], SuiteTables],
+    ) -> None:
+        # A sample row then holds nothing but its run and its test.
+        bare = make_api_suite({"name": "bare", "metrics": []})
+        response = api_client.post(
+            RUNS_PATH.format(testsuite="bare"),
+            json=run_payload(tests=[entry("a", {}, {}), entry("b", {})]),
+            headers=submitter,
+        )
+        assert response.status_code == 201, response.text
+
+        assert samples(db_engine, bare, []) == [{"test": "a"}, {"test": "a"}, {"test": "b"}]
 
 
 class TestMetricsNamedLikeTheKeysOfATestEntry:
@@ -1022,6 +1148,53 @@ class TestProfiles:
 
         stored = {row["test"]: row["counters"] for row in profiles(db_engine, suite)}
         assert stored == {"suite/one": {"cycles": 1}, "suite/three": {"cycles": 3}}
+
+    def test_stores_every_function_of_every_profile_with_its_own(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        # Instructions are stored as compressed bytes, which hold NUL and high bytes, and reach
+        # PostgreSQL as one binary array for the whole run.
+        encoded = {f"suite/{test}": encoded_profile(several_functions(test)) for test in range(3)}
+        submitted(tests=[entry(test, profile=profile) for test, profile in encoded.items()])
+
+        expected = {
+            (test, function.name): (function.counters, function.length, function.instructions)
+            for test, profile in encoded.items()
+            for function in stored_profile(profile).functions
+        }
+        written = b"".join(instructions for _, _, instructions in expected.values())
+        assert b"\x00" in written
+        assert max(written) >= 0x80
+        function = suite.profile_function
+        with db_engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    suite.test.c.name,
+                    function.c.name,
+                    function.c.counters,
+                    function.c.length,
+                    function.c.instructions,
+                )
+                .join_from(function, suite.profile, suite.profile.c.id == function.c.profile_id)
+                .join(suite.test, suite.test.c.id == suite.profile.c.test_id)
+            ).all()
+        assert {(test, name): tuple(values) for test, name, *values in rows} == expected
+
+    def test_costs_one_insert_each_however_many_profiles_and_functions_there_are(
+        self, submitted: Callable[..., Any]
+    ) -> None:
+        with counting_statements("INSERT INTO nts.profile") as one:
+            submitted(tests=[entry("suite/one", profile=encoded_profile())])
+        with counting_statements("INSERT INTO nts.profile") as many:
+            submitted(
+                tests=[
+                    entry(f"suite/{test}", profile=encoded_profile(several_functions(test)))
+                    for test in range(20)
+                ]
+            )
+
+        # One for the profiles and one for their functions, whose table name starts the same way.
+        assert len(many) == len(one) == 2
 
     def test_refuses_a_profile_it_cannot_decode(self, submit: Callable[..., Any]) -> None:
         # One case rather than the matrix: what the endpoint owes is that a profile O7 refuses

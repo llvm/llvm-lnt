@@ -204,6 +204,10 @@ def counting_statements(mentioning: str) -> Iterator[list[str]]:
     application, whose engine a test driving it over HTTP never holds. `mentioning` is what keeps
     that from being noisy: it selects the statements the test is about, so pool bookkeeping and
     whatever the fixtures happen to do cannot change the count.
+
+    An executemany counts once per row, because psycopg sends one statement per row. The exception
+    is SQLAlchemy's insertmanyvalues (an executemany with RETURNING), which reports each batch it
+    sends as one statement with one dict of parameters.
     """
     seen: list[str] = []
 
@@ -216,7 +220,8 @@ def counting_statements(mentioning: str) -> Iterator[list[str]]:
         executemany: bool,
     ) -> None:
         if mentioning in statement:
-            seen.append(statement)
+            rows = len(parameters) if executemany and isinstance(parameters, list) else 1
+            seen.extend([statement] * rows)
 
     event.listen(Engine, "before_cursor_execute", record)
     try:

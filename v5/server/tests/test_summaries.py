@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select
 
 from conftest import entry, run_payload
+from introspection import counting_statements
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.aggregation import SampleAggregation, geomean
@@ -181,6 +182,15 @@ class TestSubmission:
         }
         assert stored["time", SampleAggregation.MEDIAN] == pytest.approx(4.0)
         assert stored["size", SampleAggregation.MAX] == pytest.approx(5.0)
+
+    def test_costs_one_insert_however_many_summaries_there_are(
+        self, api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
+    ) -> None:
+        # Two metrics under four aggregations: eight summaries, and one statement.
+        with counting_statements("INSERT INTO nts.run_summary") as inserts:
+            self.submit(api_client, submitter, entry("a", {"time": 1.0, "size": 2}))
+
+        assert len(inserts) == 1
 
     def test_accepts_values_whose_sum_would_overflow(
         self,

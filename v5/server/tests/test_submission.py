@@ -81,9 +81,9 @@ def row(**measured: Any) -> dict[str, Any]:
     """One sample row as validation produces it: every declared metric, null where none was sent.
 
     A test states the values it cares about and this fills in the rest, because every row carries
-    the whole declared set (O1) -- which is the uniformity the write layer's one executemany binds
-    to. Written out in full by the two tests that are *about* that, so the fact is stated somewhere
-    other than in this helper.
+    the whole declared set (O1) -- which is the uniformity the write layer relies on. Written out in
+    full by the two tests that are *about* that, so the fact is stated somewhere other than in this
+    helper.
     """
     return {metric.name: None for metric in NTS.metrics} | measured
 
@@ -480,9 +480,9 @@ class TestSampleRows:
         ]
 
     def test_every_row_carries_the_same_keys_whatever_the_sample_sent(self) -> None:
-        # The invariant the write layer binds its one executemany to: SQLAlchemy Core takes its
-        # column list from the first mapping, so rows that disagree on their keys would write the
-        # wrong columns. Established here rather than repaired by whoever writes them.
+        # The invariant the write layer relies on: it reads every metric of every row, to write one
+        # array per metric column and to record coverage. Established here rather than repaired by
+        # whoever writes them.
         samples: list[dict[str, Any]] = [
             {},
             {"execution_time": 1.5},

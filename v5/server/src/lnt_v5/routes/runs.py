@@ -5,8 +5,8 @@ commit, the tests, the run and its samples and profiles -- and O8 makes all of i
 either 201 or nothing at all. So this module is mostly about order and about statement count. The
 order is validate, then resolve the entities a run points at, then write the run and everything that
 points at the run. The statement count is what keeps a submission carrying tens of thousands of
-samples from costing tens of thousands of statements: the samples go in one executemany, the
-profiles in another, and the test names through `concurrency.resolve_names`.
+samples from costing tens of thousands of statements: the samples, the profiles and their functions
+each go in one `bulk.unnest_insert`, and the test names through `concurrency.resolve_names`.
 
 What this module deliberately does not own: reading the payload, which is `suites/submission.py`'s
 (pure, and finished before anything is written), and creating a machine or a commit, which belongs
@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import (
     ColumnElement,
     Connection,
+    Insert,
     Integer,
     Row,
     Select,
@@ -61,6 +62,7 @@ from lnt_v5.routes.machines import NO_MACHINE_FILTERED, Machines, machine_id, ma
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import coverage, summaries
+from lnt_v5.suites.bulk import unnest_insert
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.entities import DatetimeValue, UuidKey, identifier, location_of
 from lnt_v5.suites.registry import RegistryDep, Suite
@@ -198,9 +200,7 @@ class Runs:
         self.table: Table = suite.tables.run
         self._machine: Table = suite.tables.machine
         self._commit: Table = suite.tables.commit
-        self._sample: Table = suite.tables.sample
         self._profile: Table = suite.tables.profile
-        self._profile_function: Table = suite.tables.profile_function
 
     def select(self) -> Select[Any]:
         """The list query, deliberately without the unbounded `run_parameters`; `one` adds it."""
@@ -360,18 +360,23 @@ class Runs:
         """Every sample row the submission stands for, in one statement (O1).
 
         One statement rather than one per row because a submission legitimately carries tens of
-        thousands of samples. That is only safe because every mapping in `test.samples` already
-        carries the identical key set -- see `suites/submission.py`, which establishes it -- since
-        SQLAlchemy Core compiles an executemany from the first mapping and binds the rest to those
-        same columns. Nothing is added here beyond the two ids that are not the payload's to know.
+        thousands of samples. Their order is not stored: E6 orders a test's samples arbitrarily.
         """
-        rows = [
-            {"run_id": run_id, "test_id": ids[test.name], **sample}
-            for test in tests
-            for sample in test.samples
-        ]
-        if rows:
-            connection.execute(insert(self._sample), rows)
+        samples = [sample for test in tests for sample in test.samples]
+        if not samples:
+            return
+        connection.execute(
+            self.suite.derived(_sample_insert),
+            {
+                "run_id": run_id,
+                "test_id": [ids[test.name] for test in tests for _ in test.samples],
+                # Every sample carries every declared metric (see `suites/submission.py`).
+                **{
+                    metric.name: [sample[metric.name] for sample in samples]
+                    for metric in self.schema.metrics
+                },
+            },
+        )
 
     def add_profiles(
         self,
@@ -392,32 +397,54 @@ class Runs:
             return
         # Matched back by test rather than by position: a run holds one profile per test (D5).
         inserted = connection.execute(
-            insert(self._profile).returning(self._profile.c.test_id, self._profile.c.id),
-            [
-                {
-                    "uuid": str(uuid4()),
-                    "run_id": run_id,
-                    "test_id": test_id,
-                    "disassembly_format": profile.disassembly_format,
-                    "counters": profile.counters,
-                }
-                for test_id, profile in profiles.items()
-            ],
+            self.suite.derived(_profile_insert),
+            {
+                "run_id": run_id,
+                "uuid": [str(uuid4()) for _ in profiles],
+                "test_id": list(profiles),
+                "disassembly_format": [profile.disassembly_format for profile in profiles.values()],
+                "counters": [profile.counters for profile in profiles.values()],
+            },
         )
         profile_ids = dict(inserted.tuples().all())
         functions = [
-            {
-                "profile_id": profile_ids[test_id],
-                "name": function.name,
-                "counters": function.counters,
-                "length": function.length,
-                "instructions": function.instructions,
-            }
+            (profile_ids[test_id], function)
             for test_id, profile in profiles.items()
             for function in profile.functions
         ]
-        if functions:
-            connection.execute(insert(self._profile_function), functions)
+        if not functions:
+            return
+        connection.execute(
+            self.suite.derived(_function_insert),
+            {
+                "profile_id": [profile_id for profile_id, _ in functions],
+                "name": [function.name for _, function in functions],
+                "counters": [function.counters for _, function in functions],
+                "length": [function.length for _, function in functions],
+                "instructions": [function.instructions for _, function in functions],
+            },
+        )
+
+
+# The statements `Runs` writes a submission with, built once per suite (see `Suite.derived`).
+
+
+def _sample_insert(suite: Suite) -> Insert:
+    metrics = [metric.name for metric in suite.schema.metrics]
+    return unnest_insert(suite.tables.sample, ["test_id", *metrics], constants=["run_id"])
+
+
+def _profile_insert(suite: Suite) -> Insert:
+    profile = suite.tables.profile
+    return unnest_insert(
+        profile, ["uuid", "test_id", "disassembly_format", "counters"], constants=["run_id"]
+    ).returning(profile.c.test_id, profile.c.id)
+
+
+def _function_insert(suite: Suite) -> Insert:
+    return unnest_insert(
+        suite.tables.profile_function, ["profile_id", "name", "counters", "length", "instructions"]
+    )
 
 
 def _missing(testsuite: str, uuid: str) -> ApiError:
