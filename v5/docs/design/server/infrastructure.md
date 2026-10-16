@@ -244,13 +244,18 @@ client:
   was removed, its suite was deleted), in which case the resend gets that
   definitive answer instead.
 
-**Method mismatches** get a 405 only under `/api/`. Elsewhere -- a client route,
-`/healthz`, `/llms.txt`, `/robots.txt` -- a method mismatch is a 404 like any
-other miss. HEAD gets a 404 under `/api/` too: no API endpoint supports it, and
-a 405 would claim HEAD is not allowed on a path that serves GET. Whether it is a
-405 or a 404, the response does not depend on the credential the request
-carries: no endpoint is reached, and which methods a path accepts is public in
-the API document (I8).
+**HEAD** is answered wherever GET is, on every path: the REST API, the routes
+I5 exempts, and the web UI. Per RFC 9110 (section 9.3.2), it gets the status
+and header fields a GET would get, errors included, and no body
+(`Content-Length` may be omitted). It goes through the same checks as a GET
+(I3, I5). A path that does not serve GET does not serve HEAD either.
+
+**Method mismatches** get a 405 only under `/api/`, and its `Allow` header lists
+HEAD whenever it lists GET. Elsewhere -- a client route, `/healthz`,
+`/llms.txt`, `/robots.txt` -- a method mismatch is a 404 like any other miss.
+Whether it is a 405 or a 404, the response does not depend on the credential
+the request carries: no endpoint is reached, and which methods a path accepts is
+public in the API document (I8, with HEAD implied by GET).
 
 **Oversized request bodies** must be rejected with 413, but they do not have to
 use the error envelope: they may be rejected at the transport layer instead.
@@ -388,6 +393,8 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
   (see I5).
 - Deliberately outside `/api/` and not using the I4 error envelope: it is an
   infrastructure probe, not part of the REST API.
+- `HEAD /healthz` reports the same status (see I4), for monitors that probe
+  with HEAD.
 
 
 ## I8: API Documentation
@@ -401,6 +408,8 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
   commonly document their own validation failure (often 422), which has to be
   corrected to the 400 the error envelope specifies. No operation lists 405,
   since a 405 is returned for a method that has no operation.
+- The specification has no HEAD operations: I4 answers HEAD wherever GET is
+  answered, so listing it would only repeat every GET operation.
 - The specification is written for the API's users. It explains operations,
   parameters and schemas in terms of the API alone, without referring to this
   design documentation or to how the server is built. It opens with the

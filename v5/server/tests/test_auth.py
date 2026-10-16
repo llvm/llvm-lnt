@@ -53,6 +53,16 @@ class TestHeaderParsing:
         assert response.status_code == 401
         assert response.json()["error"]["code"] == "unauthorized"
 
+    def test_head_is_refused_like_get(self, api_client: TestClient) -> None:
+        # I4 answers HEAD as it would GET, which includes I5's checks: a HEAD must not be a way
+        # around them, nor answered as if it had passed them.
+        get = api_client.get(ADMIN_ONLY)
+        head = api_client.head(ADMIN_ONLY)
+
+        assert head.status_code == 401
+        assert head.headers == get.headers
+        assert head.headers["www-authenticate"] == "Bearer"
+
     @pytest.mark.parametrize("scheme", ["Bearer", "bearer", "BEARER", "BeArEr"])
     def test_the_scheme_is_matched_case_insensitively(
         self, api_client: TestClient, make_key: Callable[..., str], scheme: str

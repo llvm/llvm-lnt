@@ -25,8 +25,7 @@ request "$KEYS"
 expect_status 401
 expect_body '"code":"unauthorized"'
 
-# I5: a 401 says which scheme the caller should have used. Read off a GET rather than a HEAD --
-# no API endpoint serves HEAD, which I4 answers with 404.
+# I5: a 401 says which scheme the caller should have used.
 expect_header WWW-Authenticate 'Bearer'
 
 echo "  an unusable credential is refused rather than ignored, even on a read"

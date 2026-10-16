@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
@@ -39,3 +40,17 @@ def test_returns_500_when_the_database_is_unreachable(settings: Settings) -> Non
     # is an infrastructure probe, deliberately outside the REST API surface.
     assert response.json() == {"ok": False}
     assert "error" not in response.json()
+
+
+@pytest.mark.parametrize(("url", "status"), [("sqlite://", 200), (UNREACHABLE_URL, 500)])
+def test_head_reports_the_same_status(settings: Settings, url: str, status: int) -> None:
+    # Uptime monitors commonly probe with HEAD. Without I4's HEAD handling it fell through to the
+    # SPA, which answered 200 with the client shell whatever the database's state.
+    app = create_app(settings)
+    with TestClient(app) as client:
+        app.state.engine = create_engine(url, poolclass=NullPool)
+
+        response = client.head("/healthz")
+
+    assert response.status_code == status
+    assert response.headers["content-type"] == "application/json"
