@@ -24,8 +24,8 @@ within the UI causes a full page reload.
   Shift+Click, middle-click) bypass the SPA router and let the browser handle
   them natively (e.g. open in a new tab).
 - **Serving**: The server returns the SPA's `index.html` for any path that is
-  not `/api/...`, `/llms.txt`, `/healthz`, or a static asset. This catch-all is
-  what makes deep links and hard refreshes work -- pasting
+  not `/api/...`, `/llms.txt`, `/robots.txt`, `/healthz`, or a static asset.
+  This catch-all is what makes deep links and hard refreshes work -- pasting
   `/suites/nts/runs/{uuid}` or reloading on it must resolve to that route rather
   than 404. Unmatched `/api/...` paths are a genuine 404 and must answer with
   the API's JSON error envelope (see I4) rather than falling through to the

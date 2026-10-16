@@ -43,7 +43,8 @@ npm run dev
 ```
 
 This starts the Vite dev server at http://localhost:5173 and the FastAPI server at
-http://localhost:3000. Vite proxies `/api`, `/healthz`, and `/llms.txt` through to FastAPI.
+http://localhost:3000. Vite proxies `/api`, `/healthz`, `/llms.txt`, and `/robots.txt` through to
+FastAPI.
 
 The server reads its configuration from the environment; `npm run dev:server` passes `.env` to it
 via `uv run --env-file`. Nothing loads `.env` implicitly, so the test suite is unaffected by

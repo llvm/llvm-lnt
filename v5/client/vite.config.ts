@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       '/healthz': 'http://localhost:3000',
       '/llms.txt': 'http://localhost:3000',
+      '/robots.txt': 'http://localhost:3000',
       '/api': 'http://localhost:3000',
     },
   },

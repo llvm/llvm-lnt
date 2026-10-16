@@ -25,9 +25,9 @@ _DOCUMENT = (Path(__file__).with_name("llms.txt")).read_text(encoding="utf-8")
 router = APIRouter()
 
 
-# `async def`, alone among this app's endpoints: the others all do blocking database work and
-# belong in the threadpool, whereas this one returns a string that is already in memory, and
-# handing that to a worker thread costs more than producing the response does.
+# `async def`, unlike the endpoints that do blocking database work and belong in the threadpool:
+# this one returns a string that is already in memory, and handing that to a worker thread costs
+# more than producing the response does.
 @router.get("/llms.txt", include_in_schema=False, response_class=PlainTextResponse)
 async def llms_txt() -> str:
     """Orient an automated client: what LNT is, what it holds, and how to ask for it (I6)."""

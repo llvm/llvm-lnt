@@ -3,7 +3,8 @@
 This document covers the conventions shared across the v5 REST API: URL
 structure, pagination, filtering and sorting, response format, authentication,
 and caching. It also covers the routes that sit outside the REST API proper:
-the AI orientation document, the health check, and the API documentation.
+the AI orientation document, the health check, the API documentation, and the
+crawler policy.
 
 API documentation is generated using the OpenAPI 3.x format, and served
 alongside an interactive viewer (see I8).
@@ -20,7 +21,8 @@ suite may legally be named `admin` or even `suites`. D4 still rejects a few
 suite names at creation, for reasons unrelated to routing.
 
 **No trailing slashes.** No path ends with a `/`. A request that adds one gets a
-307 redirect to the canonical form, including for `/healthz` and `/llms.txt`.
+307 redirect to the canonical form, including for `/healthz`, `/llms.txt` and
+`/robots.txt`.
 307 is used rather than 301 or 308 so that the method and body are kept, and a
 write sent to the wrong spelling is not turned into a GET. The redirect target
 is the canonical path with the query string preserved, and no scheme or host,
@@ -134,7 +136,7 @@ not accept is rejected with 400 `invalid_request`, and the error names it.
 Ignoring it instead would let a typo (`?machnie=linux`) silently widen the
 results. A single-valued parameter given more than once (`?limit=1&limit=2`) is
 rejected the same way, rather than answered with one of its values. This
-applies to every endpoint of the REST API, but not to the four routes that I5
+applies to every endpoint of the REST API, but not to the routes that I5
 exempts from the scope system.
 
 **Names that refer to nothing.** When a filter or request body names something
@@ -168,7 +170,7 @@ envelopes from I2; any other response is the entity object itself, unless its
 endpoint specifies otherwise. Status codes are limited to 200, 201, 204, 400,
 401, 403, 404, 405, 409, and 500.
 
-The four routes exempt from the scope system (see I5) are not part of the REST
+The routes exempt from the scope system (see I5) are not part of the REST
 API and follow their own sections. They serve plain text and HTML as well as
 JSON.
 
@@ -243,11 +245,12 @@ client:
   definitive answer instead.
 
 **Method mismatches** get a 405 only under `/api/`. Elsewhere -- a client route,
-`/healthz`, `/llms.txt` -- a method mismatch is a 404 like any other miss. HEAD
-gets a 404 under `/api/` too: no API endpoint supports it, and a 405 would claim
-HEAD is not allowed on a path that serves GET. Whether it is a 405 or a 404,
-the response does not depend on the credential the request carries: no endpoint is reached, and
-which methods a path accepts is public in the API document (I8).
+`/healthz`, `/llms.txt`, `/robots.txt` -- a method mismatch is a 404 like any
+other miss. HEAD gets a 404 under `/api/` too: no API endpoint supports it, and
+a 405 would claim HEAD is not allowed on a path that serves GET. Whether it is a
+405 or a 404, the response does not depend on the credential the request
+carries: no endpoint is reached, and which methods a path accepts is public in
+the API document (I8).
 
 **Oversized request bodies** must be rejected with 413, but they do not have to
 use the error envelope: they may be rejected at the transport layer instead.
@@ -279,16 +282,17 @@ find out which scope a token grants through `GET /api/auth` (see E12).
 **Unauthenticated access.** Endpoints that require `read` can be used without a
 token. Endpoints that require a higher scope require a valid Bearer token.
 
-**Exempt routes.** Four routes are documentation and infrastructure probes
-rather than part of the REST API, and sit outside this section entirely:
-`GET /llms.txt` (I6), `GET /healthz` (I7), `GET /api/openapi.json` (I8), and
-the documentation viewer at `GET /api/docs` (I8). They do not use scopes or the
-I4 error envelope, and never authenticate: an `Authorization` header has no
-effect on them, not even a malformed or revoked one, which would be a 401
-anywhere else under `/api/`. Their caching headers still follow I9.
+**Exempt routes.** The routes that serve documentation, the health check and
+the crawler policy are not part of the REST API, and sit outside this section
+entirely: `GET /llms.txt` (I6), `GET /healthz` (I7), `GET /api/openapi.json`
+(I8), the documentation viewer at `GET /api/docs` (I8), and `GET /robots.txt`
+(I10). They do not use scopes or the I4 error envelope, and never
+authenticate: an `Authorization` header has no effect on them, not even a
+malformed or revoked one, which would be a 401 anywhere else under `/api/`.
+Their caching headers still follow I9.
 
 The exemption is an explicit list rather than a consequence of being outside
-`/api/`, since two of the four are under it. For `/healthz` this matters: its
+`/api/`, since two of them are under it. For `/healthz` this matters: its
 contract is 200 for healthy and 500 for "cannot reach the database", so a stale
 token turning it into a 401 would report a working server as unhealthy. For the
 two documentation routes, it keeps a caller with a bad token from being locked
@@ -430,3 +434,19 @@ Every response carries a `Cache-Control` header:
 The last two also carry `Vary: Authorization`. This way, no cache reuses a
 response without checking with the server first, and no shared cache stores a
 response that may depend on a credential.
+
+
+## I10: Crawlers
+
+`GET /robots.txt` serves a robots.txt (RFC 9309) that asks every crawler to
+stay away from the whole instance:
+
+```
+User-agent: *
+Disallow: /
+```
+
+It is served as `text/plain` with UTF-8 charset.
+
+Rationale: API responses are computed from the database on request, and I9 require
+those responses to not be cached, so crawler traffic hits the database directly.
