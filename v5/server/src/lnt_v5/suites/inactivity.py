@@ -123,7 +123,7 @@ def sweep(
     """Delete every due machine and commit of every suite, and say what was deleted (O10).
 
     Returns None without doing anything if another process is sweeping. Once `stopping` is set, the
-    round stops before the next entity, and reports what it had deleted so far.
+    round stops before its next statement, and reports what it had deleted so far.
 
     The lock is held by the session rather than a transaction, because the round spans many
     transactions on the same connection: one to find each suite's due entities, and one per entity
@@ -139,7 +139,12 @@ def sweep(
         try:
             with connection.begin():
                 suites = list(registry.fresh(connection).values())
-            return [_sweep_suite(connection, suite, stopping) for suite in suites]
+            swept = []
+            for suite in suites:
+                if _stopping(stopping):
+                    break
+                swept.append(_sweep_suite(connection, suite, stopping))
+            return swept
         finally:
             _unlock(connection)
 
@@ -168,12 +173,14 @@ def _sweep_suite(
     failures = 0
     for kind in _kinds(suite):
         deleted[kind.noun] = ()
+        if _stopping(stopping):
+            continue
         due = _due_entities(connection, suite, kind)
         if due is None:
             failures += 1
             continue
         for identifier, identity in due:
-            if stopping is not None and stopping.is_set():
+            if _stopping(stopping):
                 break
             outcome = _delete_if_due(connection, suite, kind, identifier, identity)
             if outcome is None:
@@ -181,6 +188,10 @@ def _sweep_suite(
             elif outcome:
                 deleted[kind.noun] += (identity,)
     return SweptSuite(suite=suite.schema.name, deleted=deleted, failures=failures)
+
+
+def _stopping(stopping: threading.Event | None) -> bool:
+    return stopping is not None and stopping.is_set()
 
 
 def _due_entities(

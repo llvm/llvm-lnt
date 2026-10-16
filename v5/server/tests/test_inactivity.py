@@ -350,7 +350,7 @@ class TestRounds:
         assert result["broken"].failures == 2
         assert (result["nts"].deleted["machine"], result["nts"].failures) == (("pr-1",), 0)
 
-    def test_stops_before_the_next_entity_once_asked_to(
+    def test_stops_before_its_next_statement_once_asked_to(
         self,
         api_client: TestClient,
         db_engine: Engine,
@@ -364,7 +364,7 @@ class TestRounds:
 
         result = sweep(db_engine, SuiteRegistry(), stopping)
 
-        assert result is not None and result[0].deleted["machine"] == ()
+        assert result == []
         assert exists(api_client, f"{MACHINES}/pr-1")
 
 

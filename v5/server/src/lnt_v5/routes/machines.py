@@ -247,11 +247,12 @@ class Machines:
         two share this reader for the table and the wording, and nothing else.
 
         `tracked` and `delete_after_inactive_days` are written at creation and never compared
-        afterwards -- O1 and O2 make both first-write-wins, so re-submitting either for an existing
-        machine is ignored rather than being a mismatch. For `delete_after_inactive_days` this is
-        also what keeps a `submit` key from scheduling an existing machine's deletion: not even a
-        stored null is filled in. The declared fields are reconciled instead: a stored NULL is
-        filled in, a stored value that agrees is left alone, and one that disagrees is refused.
+        afterwards -- O1 and O2 make the first first-write-wins and the second creation-only, so
+        re-submitting either for an existing machine is ignored rather than being a mismatch. For
+        `delete_after_inactive_days` this is also what keeps a `submit` key from scheduling an
+        existing machine's deletion: not even a stored null is filled in. The declared fields are
+        reconciled instead: a stored NULL is filled in, a stored value that agrees is left alone,
+        and one that disagrees is refused.
         """
         return create_or_reconcile(
             connection,

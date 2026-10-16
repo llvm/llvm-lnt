@@ -34,6 +34,7 @@ from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
 from lnt_v5.routes.runs import RUNS_PATH, Runs
+from lnt_v5.suites import inactivity
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.registry import Suite, SuiteRegistry
@@ -1223,4 +1224,68 @@ def test_a_run_whose_machine_or_commit_was_deleted_meanwhile_is_a_retry(
         with db_engine.begin() as connection, pytest.raises(ApiError) as raised:
             Runs(suite).create(connection, str(uuid4()), machine_id, commit_id, {})
 
+        assert raised.value.code is ErrorCode.RETRY
+
+
+class TestInactivityDeletion:
+    """O10's deletion of an inactive entity, raced against a submission naming it."""
+
+    @pytest.fixture
+    def due(self, db_engine: Engine, suite: Suite, machines: Machines, commits: Commits) -> Any:
+        """A machine that has been inactive for longer than it asked, and a commit to run on."""
+        with db_engine.begin() as connection:
+            machine_id = machines.get_or_create(connection, submitted_machine())
+            commit_id = commits.get_or_create(connection, submitted_commit())
+            connection.execute(
+                update(suite.tables.machine).values(
+                    delete_after_inactive_days=30,
+                    first_seen_at=text("now() - INTERVAL '31 days'"),
+                )
+            )
+        return machine_id, commit_id
+
+    def test_a_run_being_inserted_keeps_its_machine(
+        self, db_engine: Engine, suite: Suite, due: Any, background: Callable[..., Future[Any]]
+    ) -> None:
+        # The sweep's lock waits for the run's key-share lock on the machine, and its deletion
+        # then sees the run once committed.
+        machine_id, commit_id = due
+        machine = inactivity._kinds(suite)[0]
+
+        def sweep_it() -> bool | None:
+            with db_engine.connect() as connection:
+                return inactivity._delete_if_due(connection, suite, machine, machine_id, "linux")
+
+        submission = db_engine.connect()
+        try:
+            transaction = submission.begin()
+            Runs(suite).create(submission, str(uuid4()), machine_id, commit_id, {})
+            sweeping = background(sweep_it)
+            until_blocked(db_engine)
+            transaction.commit()
+        finally:
+            submission.close()
+
+        assert sweeping.result(timeout=BLOCK_TIMEOUT) is False
+        assert stored(db_engine, suite, "machine", "name", "linux") is not None
+
+    def test_a_run_inserted_after_its_machine_is_locked_for_deletion_is_a_retry(
+        self, db_engine: Engine, suite: Suite, due: Any, background: Callable[..., Future[Any]]
+    ) -> None:
+        # The other order: the run's foreign key check waits for the deletion, then fails, and
+        # O8 answers that with a 409 the submitter can resend.
+        machine_id, commit_id = due
+        machine = suite.tables.machine
+
+        def delete_machine(connection: Connection) -> None:
+            connection.execute(select(machine.c.id).with_for_update())
+            connection.execute(delete(machine))
+
+        def submit_run(connection: Connection) -> None:
+            Runs(suite).create(connection, str(uuid4()), machine_id, commit_id, {})
+
+        submitting = raced(db_engine, background, delete_machine, submit_run)
+
+        with pytest.raises(ApiError) as raised:
+            submitting.result(timeout=BLOCK_TIMEOUT)
         assert raised.value.code is ErrorCode.RETRY

@@ -336,7 +336,8 @@ DeleteAfterInactiveDays = Annotated[
         description=(
             f"Delete it, with its runs, once it has gone this many days (from {INACTIVE_DAYS_MIN} "
             f"to {INACTIVE_DAYS_MAX}) without a run being submitted for it, for example to clean "
-            "up after an experiment. The server checks about once an hour. A commit is never "
+            "up after an experiment. The server checks periodically, by default once an hour. A "
+            "commit is never "
             "deleted this way while it has an ordinal. Null to keep it however long it is "
             "inactive. A run submission only sets this when it creates the machine or the commit; "
             "use PATCH to change it afterwards."

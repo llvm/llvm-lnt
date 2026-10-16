@@ -381,8 +381,8 @@ class Commits:
         I4's `conflict` when it differs.
 
         `delete_after_inactive_days` is written at creation and never compared or filled in
-        afterwards, as for a machine (see `Machines.get_or_create`): O2 makes it first-write-wins,
-        so that a `submit` key cannot schedule an existing commit's deletion.
+        afterwards, as for a machine (see `Machines.get_or_create`): O2 makes it creation-only, so
+        that a `submit` key cannot schedule an existing commit's deletion.
 
         `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
         and that placement is load-bearing. The INSERT can trip it -- another commit already holds

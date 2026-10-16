@@ -185,7 +185,8 @@ def _sweep(settings: Settings) -> int:
             with engine.connect() as connection:
                 if not migrate.is_up_to_date(connection):
                     return _fail(
-                        "the database is not up to date; run `lnt-v5 server migrate` first"
+                        "the database is not at the structure this build expects; run "
+                        "`lnt-v5 server migrate`, which brings it up to date or says why it can't"
                     )
             swept = inactivity.sweep(engine, SuiteRegistry())
     except DBAPIError as error:

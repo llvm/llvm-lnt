@@ -185,7 +185,7 @@ Per-entity specifics:
 | Identity attribute | `name` | `value` |
 | Declared metadata | `fields`, per `machine_fields` | `fields`, per `commit_fields` |
 | Built-in mutable attributes | `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
-| Settable during run submission | `tracked`, `delete_after_inactive_days` (first-write-wins) | `ordinal`, `tag` (must match if already set); `delete_after_inactive_days` (first-write-wins) |
+| Settable during run submission | `tracked` (first-write-wins); `delete_after_inactive_days` (creation-only) | `ordinal`, `tag` (must match if already set); `delete_after_inactive_days` (creation-only) |
 | Settable at explicit creation | `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
 | Renameable via PATCH | yes | no |
 
@@ -492,11 +492,13 @@ inactive for longer makes it due at once.
 (see E2 and E3, and D5 for what that takes with it). Nothing protects an entity
 that a regression refers to.
 
-**The sweep.** The server finds and deletes due entities periodically, about
-once an hour, with a first round shortly after it starts, so that a deployment
-that restarts often still sweeps. An entity can therefore outlive its
-eligibility by up to about an hour. Until it is deleted it stays visible: no
-read filters on `delete_after_inactive_days`.
+**The sweep.** The server finds and deletes due entities periodically, by
+default about once an hour, with a first round shortly after it starts, so that
+a deployment that restarts often still sweeps. An entity can therefore outlive
+its eligibility by up to one period. A deployment may change the period, or
+turn the periodic sweep off and run the standalone operation below instead.
+Until an entity is deleted it stays visible: no read filters on
+`delete_after_inactive_days`.
 
 - At most one process sweeps at a time. In a deployment with several workers,
   each one tries, and those that find a sweep already under way skip that

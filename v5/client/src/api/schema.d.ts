@@ -966,7 +966,7 @@ export interface components {
             tag: string | null;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days: number | null;
@@ -1019,7 +1019,7 @@ export interface components {
             tag: string | null;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days: number | null;
@@ -1187,7 +1187,7 @@ export interface components {
             tag?: string | null;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days?: number | null;
@@ -1220,7 +1220,7 @@ export interface components {
             tag?: string | null;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days?: number | null;
@@ -1619,7 +1619,7 @@ export interface components {
             tracked: boolean;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days: number | null;
@@ -1771,7 +1771,7 @@ export interface components {
             tracked?: boolean;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days?: number | null;
@@ -1803,7 +1803,7 @@ export interface components {
             tracked?: boolean;
             /**
              * Delete After Inactive Days
-             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks periodically, by default once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
              * @example 30
              */
             delete_after_inactive_days?: number | null;
