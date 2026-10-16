@@ -97,7 +97,6 @@ Configure the backend as follows:
   certificate hostname and the SNI hostname.
 - First byte timeout: 60 seconds, the time Nginx waits for the app by default. Fastly's default of 15
   seconds is too short for large submissions.
-- Health check: `GET /healthz`, with the domain as the host.
 
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
