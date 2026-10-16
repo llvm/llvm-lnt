@@ -77,6 +77,7 @@ export function InlineEdit({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const reasonId = useId()
+  const gateId = useId()
   const editButton = useRef<HTMLButtonElement>(null)
   const form = useRef<HTMLFormElement>(null)
   // Whether the focus goes to the input, or back to Edit, once the editor has opened or closed.
@@ -141,12 +142,19 @@ export function InlineEdit({
           ref={editButton}
           className={styles.button}
           aria-label={`Edit ${label}`}
-          aria-describedby={describedBy}
+          // A description replaces the title assistive technology would otherwise read, so the
+          // reason the gate gives joins it.
+          aria-describedby={
+            [describedBy, gate.title && describedBy ? gateId : undefined]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
           {...gate}
           onClick={open}
         >
           Edit
         </button>
+        {gate.title && describedBy && <VisuallyHidden id={gateId}>{gate.title}</VisuallyHidden>}
       </span>
     )
   }

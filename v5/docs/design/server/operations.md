@@ -464,7 +464,9 @@ given number of days, by setting its `delete_after_inactive_days` (see D5). This
 is meant for throwaway experiments, such as the A/B runs of a pull request: they
 are submitted on an unordered commit (see D1), on a machine of their own when
 they measure a configuration no existing machine has, and then clean up after
-themselves.
+themselves. Such a machine should also be submitted with `tracked: false` (see
+O1), which keeps it out of automatic machine selection and lists it after the
+machines LNT monitors wherever a machine is picked (see D5 and AR18).
 
 **Activity.** An entity's last activity is the later of its `first_seen_at`
 and the `submitted_at` of its latest run. Submitting a run therefore keeps both

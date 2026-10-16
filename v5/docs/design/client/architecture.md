@@ -366,9 +366,10 @@ machines (GR1) and baselines (GR9), each side of the Compare (CP1) and Profiles
 (PF2) pages, the Regressions tab's machine filter (TS5) and the machines of a
 regression's "Add indicators" panel (DT4) -- lists the tracked machines first,
 then the untracked ones (see D5), each in the order the API lists them (by
-name; see E2). Untracked machines include one-off configurations, such as those
-of experiments (see O10), which may be many, so they are kept out of the way of
-the machines LNT monitors, while remaining pickable.
+name; see E2). Untracked machines include one-off configurations, such as the
+machines of experiments, which O10 asks to be submitted untracked and which may
+be many, so they are kept out of the way of the machines LNT monitors, while
+remaining pickable.
 
 A combobox lists the untracked machines in a group headed `Untracked` (see
 AR14). A list of machines with checkboxes marks each untracked machine with the

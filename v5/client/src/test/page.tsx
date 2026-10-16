@@ -10,6 +10,7 @@ import { expect } from 'vitest'
 import App from '../app'
 import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
+import { INACTIVITY_HELP } from '../inactivity'
 import type { Commit } from '../schema'
 import { BARE_SUITE, SUITE, cursorPage } from './fixtures'
 import { mockApi, type Operation, type PathWith, type RequestBody } from './mock-api'
@@ -293,6 +294,18 @@ export async function ready(name: string, control: () => HTMLElement) {
 }
 
 /** The rows of the info box named `name` (see InfoBox), once it shows, as label and value text. */
+/**
+ * The value cell of a Delete after inactivity row showing `value` (DT1, DT3): its text and Edit
+ * button, then what describes them to assistive technology: without the scope to edit it, the
+ * reason, and its help.
+ */
+export function inactivityCell(value: string) {
+  const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return expect.stringMatching(
+    new RegExp(`^${literal(`${value}Edit`)}.*${literal(INACTIVITY_HELP)}$`),
+  )
+}
+
 export async function infoRows(name: string) {
   const box = await screen.findByRole('group', { name })
   return [...box.querySelectorAll('dt')].map((label) => [
