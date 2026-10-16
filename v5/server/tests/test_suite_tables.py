@@ -407,6 +407,24 @@ class TestBuiltInColumns:
             ).one()
             assert tuple(function) == ({"cycles": 1.5}, b"instructions")
 
+    def test_instructions_are_not_compressed_again(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # They arrive compressed already (see `profile_document`), so PostgreSQL should not spend
+        # time trying again. A value far too large to keep inline, and as compressible as can be,
+        # is the one it would compress if it tried.
+        tables = make_suite("nts")
+
+        with db_engine.begin() as connection:
+            seed(connection, tables)
+            connection.execute(tables.profile_function.update().values(instructions=bytes(100_000)))
+            assert (
+                connection.execute(
+                    select(func.pg_column_compression(tables.profile_function.c.instructions))
+                ).scalar_one()
+                is None
+            )
+
     @pytest.mark.parametrize(
         ("table", "column"),
         [("run", "submitted_at"), ("run", "measured_at"), ("profile", "created_at")],

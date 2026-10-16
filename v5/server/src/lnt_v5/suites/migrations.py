@@ -176,11 +176,27 @@ def _run_summary_columns(op: Operations, suite: SuiteSchema) -> None:
         )
 
 
+def _profile_instructions_external(op: Operations, suite: SuiteSchema) -> None:
+    """Version 5: `{suite}.profile_function.instructions` with EXTERNAL storage, so that PostgreSQL
+    no longer tries to compress the already compressed instructions.
+
+    This only changes the catalog, and so only the rows stored from now on. The rows already stored
+    are left as they are, which is how EXTERNAL would have stored them anyway: PostgreSQL keeps a
+    compressed value only if compressing saved enough, which on zstd output it never does (pglz, the
+    default method, gives up on it), so they were stored uncompressed.
+    """
+    namespace = op.get_bind().dialect.identifier_preparer.quote_schema(suite.name)
+    op.execute(
+        f"ALTER TABLE {namespace}.profile_function ALTER COLUMN instructions SET STORAGE EXTERNAL"
+    )
+
+
 STEPS: Sequence[Step] = (
     _run_uuid_collation,
     _regression_commit_set_null,
     _run_measured_at,
     _run_summary_columns,
+    _profile_instructions_external,
 )
 
 

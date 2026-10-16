@@ -245,8 +245,9 @@ class TestUpgrade:
         self, db_engine: Engine, migrated_database_url: str
     ) -> None:
         # The lock is held across transactions. A failure in one of them must not leave it held on
-        # the pooled connection, where it would block every later migration until a restart.
-        store_suite(db_engine, suite_named("nts"), version=5)
+        # the pooled connection, where it would block every later migration until a restart. A
+        # suite a newer build migrated is what makes it fail.
+        store_suite(db_engine, suite_named("nts"), version=migrations.head() + 1)
 
         with pytest.raises(MigrationError):
             upgrade_to_head(db_engine)

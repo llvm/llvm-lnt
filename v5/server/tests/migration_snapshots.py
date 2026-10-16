@@ -19,10 +19,12 @@ which refuses to overwrite an existing snapshot.
 from __future__ import annotations
 
 import sys
+from itertools import groupby
 from pathlib import Path
+from typing import cast
 
 from sqlalchemy import Connection, create_mock_engine
-from sqlalchemy.schema import CreateIndex, CreateSchema, CreateTable, ExecutableDDLElement
+from sqlalchemy.schema import CreateIndex, CreateSchema, ExecutableDDLElement
 
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
@@ -55,23 +57,33 @@ def snapshot_versions() -> list[int]:
 def render(schema: SuiteSchema) -> str:
     """The DDL `suites/tables.py` creates a suite with, as text that `replay` can execute.
 
-    The statements `suite_tables.create` issues -- each table in dependency order, followed by its
-    indexes -- except that a table's indexes come in name order: SQLAlchemy holds them in a set, so
-    the order `create_all` issues them in changes from one run to the next. The metric rows
-    `suite_tables.create` also inserts are data, not structure, and are left out.
+    The statements `suite_tables.create` issues: for each table in dependency order, what
+    `create_all` issues for it -- the table, its indexes, and whatever DDL `suites/tables.py` has
+    the table run once created, such as setting a column's storage. A table's indexes come in name
+    order, though: SQLAlchemy holds them in a set, so the order `create_all` issues them in changes
+    from one run to the next. The metric rows `suite_tables.create` also inserts are data, not
+    structure, and are left out.
     """
-    dialect = create_mock_engine("postgresql+psycopg://", lambda *args, **kwargs: None).dialect
+    issued: list[ExecutableDDLElement] = []
+    engine = create_mock_engine(
+        "postgresql+psycopg://", lambda element, *args, **kwargs: issued.append(element)
+    )
 
     def compiled(element: ExecutableDDLElement) -> str:
-        text = str(element.compile(dialect=dialect)).strip()
+        text = str(element.compile(dialect=engine.dialect)).strip()
         # SQLAlchemy ends most lines of a CREATE TABLE with a space, which editors strip.
         return "\n".join(line.rstrip() for line in text.splitlines())
 
     statements = [compiled(CreateSchema(schema.name))]
-    for table in suite_tables.build(schema).metadata.sorted_tables:
-        statements.append(compiled(CreateTable(table)))
-        indexes = sorted(table.indexes, key=lambda index: str(index.name))
-        statements.extend(compiled(CreateIndex(index)) for index in indexes)
+    metadata = suite_tables.build(schema).metadata
+    for table in metadata.sorted_tables:
+        issued.clear()
+        metadata.create_all(engine, tables=[table])
+        for is_index, group in groupby(issued, key=lambda issue: isinstance(issue, CreateIndex)):
+            elements = list(group)
+            if is_index:
+                elements.sort(key=lambda index: str(cast(CreateIndex, index).element.name))
+            statements.extend(compiled(element) for element in elements)
     return _SEPARATOR.join(statements) + "\n"
 
 

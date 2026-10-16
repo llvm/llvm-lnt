@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import (
+    DDL,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -40,6 +41,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     delete,
+    event,
     false,
     func,
     insert,
@@ -386,6 +388,18 @@ def build(schema: SuiteSchema) -> SuiteTables:
         # falls on each query -- `select(profile_function)` would pull every function's
         # instructions it matched. The encoding is `profile_document`'s.
         Column("instructions", LargeBinary, nullable=False),
+    )
+    # The instructions are compressed with zstd already, so PostgreSQL's own compression of a value
+    # too large to keep inline, which the default storage would attempt, never saves anything and
+    # only costs CPU at submission. EXTERNAL still stores such values out of line, without trying.
+    # Run by `create_all`, after the table is created, on the same connection.
+    event.listen(
+        profile_function,
+        "after_create",
+        # SQLAlchemy leaves `DDL`'s constructor unannotated.
+        DDL(  # type: ignore[no-untyped-call]
+            "ALTER TABLE %(fullname)s ALTER COLUMN instructions SET STORAGE EXTERNAL"
+        ),
     )
 
     # O9: statistics summarizing a run's samples, one row per numeric metric, which is what
