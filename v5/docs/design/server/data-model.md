@@ -554,12 +554,13 @@ as `{suite}.commit`, and the tables below are named that way.
   and `metric=` filters of `GET /api/suites/{testsuite}/tests` are a lookup
   rather than a scan of `{suite}.sample`. Each metric's column records whether
   any of those samples had a value for that metric.
-- It only grows. Run submission adds rows and sets flags in the same
-  transaction as its samples (see O8). Deleting a run or a commit leaves the
-  table unchanged, so those filters can still return a test whose samples on
-  that machine are gone. Deleting a machine deletes its rows. Keeping the table
-  exact would require every deletion to coordinate with concurrent
-  submissions, which stale entries in a test picker do not justify.
+- It only grows: rows are added and flags only turn true. Run submission adds
+  rows and sets flags in the same transaction as its samples (see O8).
+  Deleting a run or a commit leaves the table unchanged, so those filters can
+  still return a test whose samples on that machine are gone. Deleting a
+  machine deletes its rows. Keeping the table exact would require every
+  deletion to coordinate with concurrent submissions, which stale entries in a
+  test picker do not justify.
 - Adding a metric adds its column as `false`; removing a metric drops its
   column here as well as from `{suite}.sample`.
 

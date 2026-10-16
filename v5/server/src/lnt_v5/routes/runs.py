@@ -6,7 +6,8 @@ either 201 or nothing at all. So this module is mostly about order and about sta
 order is validate, then resolve the entities a run points at, then write the run and everything that
 points at the run. The statement count is what keeps a submission carrying tens of thousands of
 samples from costing tens of thousands of statements: the samples, the profiles and their functions
-each go in one `bulk.unnest_insert`, and the test names through `concurrency.resolve_names`.
+each go in one `bulk.unnest_insert`, the test names through `concurrency.resolve_names`, and the
+coverage rows in the single statement `coverage.add` runs.
 
 What this module deliberately does not own: reading the payload, which is `suites/submission.py`'s
 (pure, and finished before anything is written), and creating a machine or a commit, which belongs
@@ -653,8 +654,8 @@ def submit_run(
         runs.add_samples(connection, run_id, validated.tests, tests)
         runs.add_profiles(connection, run_id, validated.tests, tests)
         summaries.add(connection, suite, run_id, run_summaries)
-        # Last, so the coverage rows -- which submissions for the same machine contend on -- are
-        # held for as short a time as the transaction allows.
+        # Last, so that the coverage rows this adds to -- which submissions for the same machine
+        # contend on -- are locked for as short a time as the transaction allows.
         coverage.add(connection, suite, machine_id, validated.tests, tests)
 
         # Read back rather than assembled from the submission: `submitted_at` is the database's,
