@@ -45,16 +45,17 @@ addressed by: `name` (suite, machine, test), `value` (commit), `uuid`, or
 **Names in paths.** A server decodes `%2F` to `/` before routing, and removes
 `.` and `..` segments. A machine name or commit value that contains a `/`, or
 is exactly `.` or `..`, could therefore never be reached by URL -- even the
-`Location` header returned when creating it would lead to a 404. Such a name is
-rejected with 400 wherever it is set: when the entity is created, including
-implicitly during run submission (see O1), and when a machine is renamed (see
-E2).
+`Location` header returned when creating it would lead to a 404. A name that
+contains a `%` is rejected as well, to avoid any ambiguity with software that
+decodes paths. Such names are rejected with 400 wherever they are set: when the
+entity is created, including implicitly during run submission (see O1), and
+when a machine is renamed (see E2).
 
-Test names and the function names inside a profile are exempt from this rule.
-Both legitimately contain `/` (e.g. a demangled `operator/` overload, for a
-function) and arrive implicitly with a run submission, so they never appear in
-a path. A request passes a test name in a `test=` query parameter or in the
-request body, and a function name in a `function=` query parameter.
+Test names and the function names inside a profile are exempt from these rules.
+Both legitimately contain `/` or `%` (e.g. a demangled `operator/` overload,
+for a function), and arrive implicitly with a run submission, so they never
+appear in a path. A request passes a test name in a `test=` query parameter or
+in the request body, and a function name in a `function=` query parameter.
 Percent-encoding would not help, since `%2F` is decoded before routing.
 
 

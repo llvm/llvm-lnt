@@ -314,10 +314,11 @@ class TestListSearch:
     def test_treats_a_wildcard_in_the_term_literally(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        create("a%b")
-        create("axb")
+        # I1 keeps `%` out of commit values, but not out of tags.
+        create("percent", tag="a%b")
+        create("other", tag="axb")
 
-        assert values_in(api_client.get(COMMITS, params={"search": "a%b"})) == ["a%b"]
+        assert values_in(api_client.get(COMMITS, params={"search": "a%b"})) == ["percent"]
 
 
 class TestListMachineFilter:
@@ -834,6 +835,13 @@ class TestCreate:
         # I1: accepting one would create a commit no URL can reach, and hand back a `Location`
         # header that answers 404.
         response = create(value)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_value_containing_a_percent_sign(self, create: Callable[..., Any]) -> None:
+        # I1: the server would route the value, encoded, but not every client would.
+        response = create("a%2Fb")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"

@@ -233,11 +233,12 @@ class TestListSearch:
     def test_treats_a_wildcard_in_the_term_literally(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # Unescaped, `%` and `_` are LIKE wildcards, so this term would match every machine.
-        create("a%b")
-        create("axb")
+        # Unescaped, `%` and `_` are LIKE wildcards, so this term would match both machines. I1
+        # keeps `%` out of names, but not out of fields.
+        create("percent", fields={"hardware": "a%b"})
+        create("other", fields={"hardware": "axb"})
 
-        assert names_in(api_client.get(MACHINES, params={"search": "a%b"})) == ["a%b"]
+        assert names_in(api_client.get(MACHINES, params={"search": "a%b"})) == ["percent"]
 
     def test_matches_nothing_rather_than_failing(self, api_client: TestClient) -> None:
         assert api_client.get(f"{MACHINES}?search=nope").json() == {"items": []}
@@ -555,6 +556,31 @@ class TestCreate:
             api_client.patch(f"{MACHINES}/linux", json={"name": "a/b"}, headers=manage).status_code
             == 400
         )
+
+    @pytest.mark.parametrize(
+        ("name", "reason"),
+        [
+            ("a%2Fb", "read as 'a/b' by software that decodes the path twice"),
+            ("100%", "any '%', not only one that starts an escape"),
+        ],
+    )
+    def test_refuses_a_name_containing_a_percent_sign(
+        self, create: Callable[..., Any], name: str, reason: str
+    ) -> None:
+        # I1: the server would route the name, encoded, but not every client would.
+        response = create(name)
+
+        assert response.status_code == 400, reason
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_rename_onto_a_name_containing_a_percent_sign(
+        self, api_client: TestClient, manage: dict[str, str], create: Callable[..., Any]
+    ) -> None:
+        create("linux")
+
+        response = api_client.patch(f"{MACHINES}/linux", json={"name": "a%2Fb"}, headers=manage)
+
+        assert response.status_code == 400
 
     def test_refuses_a_name_postgres_cannot_store(self, create: Callable[..., Any]) -> None:
         # D5: a NUL reaches the INSERT and fails there, which would be a 500.

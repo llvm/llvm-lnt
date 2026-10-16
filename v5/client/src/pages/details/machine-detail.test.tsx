@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
+import { machinePath } from '../../paths'
 import { signIn, TOKEN } from '../../test/auth'
 import { commit, cursorPage, machine, regression, run, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
@@ -32,7 +33,7 @@ const MACHINE_ROUTE = '/api/suites/{testsuite}/machines/{machine_name}'
 
 interface PageMocks {
   /** The answer to `GET /machines/{name}`: `LINUX` by default. */
-  machine?: () => Response
+  machine?: (request: Request) => Response
   regressions?: Respond
   runs?: Respond
 }
@@ -55,9 +56,9 @@ function mockPage({
     commit('abc123', { tag: 'v1', fields: { svn_revision: 'r100', commit_info: null } }),
   ])
   server.use(
-    mockApi('get', MACHINE_ROUTE, () => {
+    mockApi('get', MACHINE_ROUTE, ({ request }) => {
       machineCalls.count++
-      return machine()
+      return machine(request)
     }),
     mockApi('get', '/api/suites/{testsuite}/regressions', ({ request }) =>
       regressionList.answer(request),
@@ -119,6 +120,22 @@ describe('the Machine Detail page', () => {
       ['Cores', '64'],
     ])
     expect(trackedBox()).toBeChecked()
+  })
+
+  it('shows a machine whose name holds characters that a URL escapes', async () => {
+    const name = 'a b?c#d&e+ü'
+    const requested: string[] = []
+    mockPage({
+      machine: (request) => {
+        requested.push(new URL(request.url).pathname)
+        return HttpResponse.json(machine(name))
+      },
+    })
+    renderPage(machinePath('libcxx', name))
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Machine: ${name}`)
+    await screen.findByRole('group', { name: 'Machine' })
+    expect(requested).toEqual([`/api/suites/libcxx/machines/${encodeURIComponent(name)}`])
   })
 
   it('explains the tracked flag, on hover and to assistive technology', async () => {

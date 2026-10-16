@@ -254,15 +254,17 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # ---------------------------------------------------------------------------
 print('# MACHINE NAMES')
 # Among machines of the same name, the one with the lowest identifier keeps
-# it. A "/" becomes "_".
+# it. A "/" or a "%" becomes "_".
 D = [{'id': i, 'name': 'dup'} for i in (4, 9, 7)]
 S = {'id': 5, 'name': 'with/slash'}
-names = make_mirror('names', [(m, []) for m in D + [S]])
+P = {'id': 6, 'name': 'build%2Fmain'}
+names = make_mirror('names', [(m, []) for m in D + [S, P]])
 run_cli(names, '--suite', 'nts')
 # The target suite has the mirrored suite's name by default.
 # CHECK-LABEL: # MACHINE NAMES
 # CHECK-NEXT: Converting suite 'nts' of http://v4.example.com (database 'default') into suite 'nts'
 # CHECK:      machine 5 (with/slash) is renamed 'with_slash'
+# CHECK-NEXT: machine 6 (build%2Fmain) is renamed 'build_2Fmain'
 # CHECK-NEXT: machine 7 (dup) is renamed 'dup-import-7'
 # CHECK-NEXT: machine 9 (dup) is renamed 'dup-import-9'
 # CHECK:      exit: 0
@@ -272,10 +274,11 @@ clash = make_mirror('clash', [
     ({'id': 1, 'name': 'a/b'}, []), ({'id': 2, 'name': 'a_b'}, []),
     ({'id': 3, 'name': 'x'}, []), ({'id': 4, 'name': 'x-import-5'}, []),
     ({'id': 5, 'name': 'x'}, []), ({'id': 6, 'name': '..'}, []),
+    ({'id': 7, 'name': 'a%b'}, []),
 ])
 run_cli(clash, '--suite', 'nts', '--target-suite', 'target')
-# CHECK:      error: machine 6: its name '..' cannot appear in a URL path
-# CHECK-NEXT: error: machines 1, 2 would all be named 'a_b'
+# CHECK:      error: machine 6: its name '..' contains "/", "%" or NUL, or is "." or ".."
+# CHECK-NEXT: error: machines 1, 2, 7 would all be named 'a_b'
 # CHECK-NEXT: error: machines 4, 5 would all be named 'x-import-5'
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
@@ -388,6 +391,7 @@ runs = [
     run(8, M, '8', [sample('t', hash='a\0b')]),
     run(9, M, '9', [sample('t', compile_time=10**400)]),
     run(10, M, '10', [], end_time='yesterday'),
+    run(11, M, 'c%d', []),
 ]
 run_errors = make_mirror('run-errors', [(M, runs)])
 # Damage run 7's file.
@@ -395,7 +399,7 @@ with open(os.path.join(run_errors, 'nts/runs/7.json.gz'), 'wb') as f:
     f.write(gzip.compress(b'{}'))
 run_cli(run_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-LABEL: # RUN ERRORS
-# CHECK:      run 1 of machine 1 (m): its commit 'a/b' cannot appear in a URL path
+# CHECK:      run 1 of machine 1 (m): its commit 'a/b' contains "/", "%" or NUL, or is "." or ".."
 # CHECK-NEXT: run 2 of machine 1 (m): it has no valid llvm_project_revision: None
 # CHECK-NEXT: run 3 of machine 1 (m): test 't', metric 'compile_time': 'fast' is not a valid real value
 # CHECK-NEXT: run 4 of machine 1 (m): test 't', metric 'exec_status': 1.5 is not a valid integer value
@@ -405,7 +409,8 @@ run_cli(run_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-NEXT: run 8 of machine 1 (m): test 't', metric 'hash': 'a\x00b' is not a valid text value
 # CHECK-NEXT: run 9 of machine 1 (m): test 't', metric 'compile_time': {{[0-9]+}} is not a valid real value
 # CHECK-NEXT: run 10 of machine 1 (m): its end_time is not an ISO 8601 timestamp: 'yesterday'
-# CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 10 failure(s).
+# CHECK-NEXT: run 11 of machine 1 (m): its commit 'c%d' contains "/", "%" or NUL, or is "." or ".."
+# CHECK-NEXT: Converted 0 run(s) of 1 machine(s); 11 failure(s).
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 
