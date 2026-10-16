@@ -73,7 +73,6 @@ class TestArgumentParsing:
             (["server", "create-key", "--scope", "admin"], "no --name"),
             (["server", "create-key", "--name", "k", "--scope", "root"], "not a scope"),
             (["server", "run", "--port", "http"], "not a port number"),
-            (["server", "run", "--port", "0"], "port 0"),
             (["server", "run", "--port", "-1"], "negative port"),
             (["server", "run", "--port", "70000"], "port above 65535"),
         ],
@@ -96,7 +95,7 @@ class TestArgumentParsing:
 
         assert "admin" in capsys.readouterr().err
 
-    @pytest.mark.parametrize("port", ["0", "-1", "65536", "70000"])
+    @pytest.mark.parametrize("port", ["-1", "65536", "70000"])
     def test_says_which_ports_are_accepted(
         self, port: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -104,7 +103,7 @@ class TestArgumentParsing:
             cli.main(["server", "run", "--port", port])
 
         err = capsys.readouterr().err
-        assert "between 1 and 65535" in err
+        assert "between 0 and 65535" in err
         assert "Traceback" not in err
 
     def test_parses_before_reading_configuration(self) -> None:
@@ -158,7 +157,8 @@ class TestServerRun:
 
         assert uvicorn_run[0]["port"] == 3200
 
-    @pytest.mark.parametrize("port", [1, 65535])
+    # 0 asks for any free port, which is how the end-to-end tests avoid colliding with each other.
+    @pytest.mark.parametrize("port", [0, 1, 65535])
     def test_accepts_every_port_in_range(
         self, port: int, configured: None, uvicorn_run: list[dict[str, Any]]
     ) -> None:

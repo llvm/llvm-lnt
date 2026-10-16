@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test'
-import { BASE_URL } from './global-setup.ts'
 
 export default defineConfig({
   testDir: '.',
@@ -11,7 +10,6 @@ export default defineConfig({
   outputDir: 'test-results',
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: {
-    baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

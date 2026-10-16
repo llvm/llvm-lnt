@@ -30,7 +30,8 @@ APP = "lnt_v5.app:create_app"
 
 # The port `server run` listens on by default, which the Dockerfile's EXPOSE and HEALTHCHECK expect.
 # Map the container elsewhere at its boundary (`docker run -p 8080:3000`) rather than changing it;
-# `--port` is for running several servers on one host, as the end-to-end tests do.
+# `--port` is for running several servers on one host, as the end-to-end tests do. Port 0 picks any
+# free port, which uvicorn's "Uvicorn running on" line reports.
 PORT = 3000
 
 # How long uvicorn lets in-flight requests finish before dropping them. Generous because a run
@@ -226,8 +227,8 @@ def _port(value: str) -> int:
         port = int(value)
     except ValueError:
         raise argparse.ArgumentTypeError(f"not a port number: {value!r}") from None
-    if not 1 <= port <= 65535:
-        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, not {port}")
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 0 and 65535, not {port}")
     return port
 
 
@@ -240,7 +241,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     run = commands.add_parser("run", help="serve the API and web UI")
     run.add_argument(
-        "--port", type=_port, default=PORT, help=f"port to listen on (default: {PORT})"
+        "--port",
+        type=_port,
+        default=PORT,
+        help=f"port to listen on, or 0 for any free port (default: {PORT})",
     )
     commands.add_parser("dev", help="serve with autoreload, for development")
     commands.add_parser("migrate", help="bring the database up to date")
