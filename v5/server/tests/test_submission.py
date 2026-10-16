@@ -334,10 +334,12 @@ class TestTestEntries:
         with pytest.raises(ValidationError):
             parsed(tests=[entry(name)])
 
-    @pytest.mark.parametrize("name", ["a", "a" * NAME_LENGTH, "test.suite/benchmark", ".", ".."])
+    @pytest.mark.parametrize(
+        "name", ["a", "a" * NAME_LENGTH, "test.suite/benchmark", ".", "..", "a%2Fb", "Dense_(90%)"]
+    )
     def test_does_not_require_the_name_to_be_addressable(self, name: str) -> None:
-        # I1 exempts test names deliberately: they legitimately contain '/', and there is no
-        # endpoint that could refuse one, since tests are created implicitly.
+        # I1 exempts test names deliberately: they legitimately contain '/' and '%', and there is
+        # no endpoint that could refuse one, since tests are created implicitly.
         assert validated(tests=[entry(name)]).tests[0].name == name
 
     def test_rejects_two_entries_naming_one_test(self) -> None:

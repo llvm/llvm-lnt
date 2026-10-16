@@ -82,14 +82,15 @@ Each v4 machine becomes an untracked v5 machine. The intent is for the
 instance's administrator to manually select which machines are to be tracked
 on the dashboard. Each machine's non-null fields are carried over from v4.
 
-Its name is the v4 machine's name, with every ``/`` replaced by ``_``, since a
-v5 machine name cannot contain slashes. v5 machine names are unique, but LNT v4
-allows multiple machines to share the same name. For that reason, the import
-script remaps machines with duplicate names: among the v4 machines with the same
-name, the one with the lowest identifier (in the v4 DB) keeps the name, and each
-of the others gets a suffix ``-import-<id>``, where ``<id>`` is its v4 DB id.
-For example, v4 machines with IDs ``352`` and ``372``, both named ``x86_64-O3``,
-become ``x86_64-O3`` and ``x86_64-O3-import-372``.
+Its name is the v4 machine's name, with every ``/`` and ``%`` replaced by
+``_``, since a v5 machine name cannot contain either. v5 machine names are
+unique, but LNT v4 allows multiple machines to share the same name. For that
+reason, the import script remaps machines with duplicate names: among the v4
+machines with the same name, the one with the lowest identifier (in the v4 DB)
+keeps the name, and each of the others gets a suffix ``-import-<id>``, where
+``<id>`` is its v4 DB id. For example, v4 machines with IDs ``352`` and
+``372``, both named ``x86_64-O3``, become ``x86_64-O3`` and
+``x86_64-O3-import-372``.
 
 The resulting names must be unique and valid v5 names, otherwise it is an error.
 

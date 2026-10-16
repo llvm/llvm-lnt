@@ -41,7 +41,7 @@
 - **Test** -- a benchmark name, created implicitly by submission. Test names
   contain `/`, so no path ever carries one: a test is named in a `test=` query
   parameter or in a request body. Machine names and commit values do appear in
-  paths, so they may not contain `/` or be `.` or `..`.
+  paths, so they may not contain `/` or `%`, or be `.` or `..`.
 - **Sample** -- one measurement of one test in one run: `{test, metrics}`, where
   `metrics` holds only the metrics that have a value. A test measured several
   times in one run yields one sample per repetition.

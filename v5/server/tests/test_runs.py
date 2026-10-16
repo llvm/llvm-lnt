@@ -525,6 +525,23 @@ class TestImplicitCreation:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    def test_refuses_a_machine_name_containing_a_percent_sign(
+        self, submit: Callable[..., Any]
+    ) -> None:
+        # I1: the server would route the name, encoded, but not every client would.
+        response = submit(machine={"name": "a%2Fb"})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_commit_value_containing_a_percent_sign(
+        self, submit: Callable[..., Any]
+    ) -> None:
+        response = submit(commit={"value": "a%2Fb"})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
 
 class TestMetadataReconciliation:
     """O2 end to end: a submission never overwrites metadata, and only fills in what is missing."""

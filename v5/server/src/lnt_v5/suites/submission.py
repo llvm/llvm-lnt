@@ -87,7 +87,7 @@ TestName = Annotated[
     Field(
         description=(
             "The test's name, unique within its test suite. Unlike machine names and commit "
-            "values, it can contain '/'."
+            "values, it can contain '/' and '%'."
         ),
         examples=[examples.TEST],
     ),

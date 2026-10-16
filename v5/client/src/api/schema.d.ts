@@ -947,7 +947,7 @@ export interface components {
             };
             /**
              * Value
-             * @description The commit's identifier, unique within its test suite: a Git SHA, a version number or any other label. It is used in URLs, so it can't contain '/' or be '.' or '..'. It can't be changed later.
+             * @description The commit's identifier, unique within its test suite: a Git SHA, a version number or any other label. It is used in URLs, so it can't contain '/' or '%' or be '.' or '..'. It can't be changed later.
              * @example 45c41247f82e5691425542de829d568cdc2fb580
              */
             value: string;
@@ -994,7 +994,7 @@ export interface components {
             };
             /**
              * Value
-             * @description The commit's identifier, unique within its test suite: a Git SHA, a version number or any other label. It is used in URLs, so it can't contain '/' or be '.' or '..'. It can't be changed later.
+             * @description The commit's identifier, unique within its test suite: a Git SHA, a version number or any other label. It is used in URLs, so it can't contain '/' or '%' or be '.' or '..'. It can't be changed later.
              * @example 45c41247f82e5691425542de829d568cdc2fb580
              */
             value: string;
@@ -1153,7 +1153,7 @@ export interface components {
             };
             /**
              * Value
-             * @description The commit's identifier, unique within its test suite: a Git SHA, a version number or any other label. It is used in URLs, so it can't contain '/' or be '.' or '..'. It can't be changed later.
+             * @description The commit's identifier, unique within its test suite: a Git SHA, a version number or any other label. It is used in URLs, so it can't contain '/' or '%' or be '.' or '..'. It can't be changed later.
              * @example 45c41247f82e5691425542de829d568cdc2fb580
              */
             value: string;
@@ -1580,7 +1580,7 @@ export interface components {
             };
             /**
              * Name
-             * @description The machine's name, unique within its test suite. It is used in URLs, so it can't contain '/' or be '.' or '..'.
+             * @description The machine's name, unique within its test suite. It is used in URLs, so it can't contain '/' or '%' or be '.' or '..'.
              * @example linux-x86_64
              */
             name: string;
@@ -1725,7 +1725,7 @@ export interface components {
             };
             /**
              * Name
-             * @description The machine's name, unique within its test suite. It is used in URLs, so it can't contain '/' or be '.' or '..'.
+             * @description The machine's name, unique within its test suite. It is used in URLs, so it can't contain '/' or '%' or be '.' or '..'.
              * @example linux-x86_64
              */
             name: string;
@@ -1752,7 +1752,7 @@ export interface components {
             };
             /**
              * Name
-             * @description The machine's name, unique within its test suite. It is used in URLs, so it can't contain '/' or be '.' or '..'.
+             * @description The machine's name, unique within its test suite. It is used in URLs, so it can't contain '/' or '%' or be '.' or '..'.
              * @example linux-x86_64
              */
             name?: string;
@@ -2924,7 +2924,7 @@ export interface components {
         TestEntry: {
             /**
              * Name
-             * @description The test's name, unique within its test suite. Unlike machine names and commit values, it can contain '/'.
+             * @description The test's name, unique within its test suite. Unlike machine names and commit values, it can contain '/' and '%'.
              * @example std::find_if(vector<char>)_(bail_25%)/8
              */
             name: string;

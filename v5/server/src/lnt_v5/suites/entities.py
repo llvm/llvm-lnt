@@ -170,19 +170,21 @@ _ADAPTERS: dict[AttributeType, TypeAdapter[Any]] = {
 
 
 def addressable(value: str) -> str:
-    """I1: a natural key has to survive being one segment of the URL that addresses the entity.
+    """I1: a natural key is one segment of the URL that addresses the entity, so it has to come
+    through that URL intact.
 
-    A key containing `/`, or equal to `.` or `..`, does not. A server decodes `%2F` back to a
-    separator before routing and normalizes a relative segment away long before the request
-    arrives, so such a key would name an entity no URL can reach -- and the `Location` header
-    handed back at creation would 404. Rejected wherever the key is set -- at creation, and when a
-    machine is renamed -- rather than papered over where it is addressed.
+    A key containing `/`, or equal to `.` or `..`, does not reach its route intact. A server
+    decodes `%2F` back to a separator before routing and normalizes a relative segment away long
+    before the request arrives, so such a key would name an entity no URL can reach -- and the
+    `Location` header handed back at creation would 404.
+
+    A key containing `%` is rejected too, to avoid any ambiguity with software that decodes paths.
+
+    Rejected wherever the key is set -- at creation, and when a machine is renamed -- rather than
+    papered over where it is addressed.
     """
-    if "/" in value or value in {".", ".."}:
-        raise ValueError(
-            "must be usable as a URL path segment: it may not contain '/', and may not be "
-            "'.' or '..'"
-        )
+    if "/" in value or "%" in value or value in {".", ".."}:
+        raise ValueError("must not contain '/' or '%', or be '.' or '..', since it is used in URLs")
     return value
 
 
@@ -264,7 +266,7 @@ MachineName = Annotated[
     Field(
         description=(
             "The machine's name, unique within its test suite. It is used in URLs, so it can't "
-            "contain '/' or be '.' or '..'."
+            "contain '/' or '%' or be '.' or '..'."
         ),
         examples=[examples.MACHINE],
     ),
@@ -288,8 +290,8 @@ CommitValue = Annotated[
     Field(
         description=(
             "The commit's identifier, unique within its test suite: a Git SHA, a version number or "
-            "any other label. It is used in URLs, so it can't contain '/' or be '.' or '..'. It "
-            "can't be changed later."
+            "any other label. It is used in URLs, so it can't contain '/' or '%' or be '.' or "
+            "'..'. It can't be changed later."
         ),
         examples=[examples.COMMIT],
     ),

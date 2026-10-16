@@ -235,15 +235,15 @@ def _check_name(name: Any, what: str, problems: list[str]) -> None:
 def _identifier_problem(value: Any) -> str | None:
     """Why `value` cannot be a v5 machine name or commit value, if it can't.
 
-    Neither can contain a "/", or be "." or "..", since they appear in URL
-    paths.
+    Neither can contain a "/" or a "%", or be "." or ".." (see I1 in the v5
+    design documents), nor contain a NUL, which Postgres cannot store.
     """
     if not isinstance(value, str) or not value:
         return '%r is not a non-empty string' % (value,)
     if len(value) > _IDENTIFIER_MAX:
         return '%r is longer than %d characters' % (value, _IDENTIFIER_MAX)
-    if '/' in value or value in ('.', '..') or '\0' in value:
-        return '%r cannot appear in a URL path' % (value,)
+    if '/' in value or '%' in value or value in ('.', '..') or '\0' in value:
+        return '%r contains "/", "%%" or NUL, or is "." or ".."' % (value,)
     return None
 
 
@@ -374,9 +374,10 @@ def _name_machines(mirrored: MirroredSuite,
 
     machines: dict[str, JSONObject] = {}
     for v4_name, ids in by_name.items():
+        v5_name = v4_name.replace('/', '_').replace('%', '_')
         # The oldest machine of a name keeps it.
         for i, machine_id in enumerate(ids):
-            name = v4_name.replace('/', '_')
+            name = v5_name
             if i > 0:
                 name += DUPLICATE_SUFFIX % machine_id
             fields = {}
