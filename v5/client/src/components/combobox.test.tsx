@@ -546,7 +546,9 @@ describe('Combobox options', () => {
 })
 
 describe('Combobox with many suggestions, or more than text', () => {
-  const FUNCTIONS: Suggestion[] = Array.from({ length: 10_000 }, (_, i) => ({
+  // Enough to need virtualizing. React Aria builds every suggestion on each keystroke even when
+  // virtualized, which many more would make slow in jsdom.
+  const FUNCTIONS: Suggestion[] = Array.from({ length: 1_000 }, (_, i) => ({
     key: `f${i}`,
     text: `function_${i}`,
   }))
@@ -605,11 +607,11 @@ describe('Combobox with many suggestions, or more than text', () => {
     expect(shown.length).toBeGreaterThan(0)
     expect(shown.length).toBeLessThan(100)
     // Every suggestion counts, rendered or not, for assistive technology.
-    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '10000')
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '1000')
 
-    await user.type(input(), 'function_999')
-    expect(options()[0]).toBe('function_999')
-    expect(options().every((option) => option?.startsWith('function_999'))).toBe(true)
+    await user.type(input(), 'function_99')
+    expect(options()[0]).toBe('function_99')
+    expect(options().every((option) => option?.startsWith('function_99'))).toBe(true)
 
     expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-setsize', '11')
 
@@ -619,7 +621,7 @@ describe('Combobox with many suggestions, or more than text', () => {
     await user.clear(input())
     await user.type(input(), 'function_')
     await user.keyboard('{End}{Enter}')
-    expect(value()).toBe('f9999')
+    expect(value()).toBe('f999')
   })
 })
 
