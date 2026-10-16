@@ -1,11 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeAll } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { NO_CREDENTIALS, setCredentials } from './api/client'
 import { FakeIntersectionObserver, resetIntersections } from './test/intersection-observer'
 import { server } from './test/server'
 
 globalThis.IntersectionObserver = FakeIntersectionObserver
+
+// How long `waitFor` and the `find*` queries wait: a time budget for slow CI runners (see
+// vite.config.ts), not a cover for a race.
+configure({ asyncUtilTimeout: 3000 })
 
 // MSW's own 'error' strategy only logs an unhandled request and fails it as a network error, which
 // the code under test may well handle -- as an `ApiError(0, ...)` -- so that the test passes for the

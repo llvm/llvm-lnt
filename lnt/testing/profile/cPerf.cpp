@@ -372,9 +372,10 @@ struct Symbol {
 class SymTabOutput : public std::vector<Symbol> {
 public:
   std::string Objdump, BinaryCacheRoot;
+  bool Demangle;
 
-  SymTabOutput(std::string Objdump, std::string BinaryCacheRoot)
-    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {}
+  SymTabOutput(std::string Objdump, std::string BinaryCacheRoot, bool Demangle)
+    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot), Demangle(Demangle) {}
 
   void fetchExecSegment(Map *M, uint64_t *FileOffset, uint64_t *VAddr) {
     std::string Cmd = Objdump + " -p -C " +
@@ -430,7 +431,7 @@ public:
   }
 
   void fetchSymbols(Map *M) {
-    std::string Cmd = Objdump + " -t -T -C " +
+    std::string Cmd = Objdump + (Demangle ? " -t -T -C " : " -t -T ") +
                       BinaryCacheRoot + std::string(M->Filename) +
 #ifdef _WIN32
                       " 2> NUL";
@@ -640,7 +641,7 @@ public:
 class PerfReader {
 public:
   PerfReader(const std::string &Filename, std::string Objdump,
-             std::string BinaryCacheRoot);
+             std::string BinaryCacheRoot, bool Demangle);
   ~PerfReader();
 
   void readHeader();
@@ -685,11 +686,12 @@ private:
   std::vector<PyObject*> Lines;
   
   std::string Objdump, BinaryCacheRoot;
+  bool Demangle;
 };
 
 PerfReader::PerfReader(const std::string &Filename, std::string Objdump,
-                       std::string BinaryCacheRoot)
-    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {
+                       std::string BinaryCacheRoot, bool Demangle)
+    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot), Demangle(Demangle) {
   TopLevelCounters = PyDict_New();
   Functions = PyDict_New();
 #ifdef _WIN32
@@ -1013,7 +1015,7 @@ void PerfReader::emitMaps() {
       continue;
 
     Map &M = Maps[MapID];
-    SymTabOutput Syms(Objdump, BinaryCacheRoot);
+    SymTabOutput Syms(Objdump, BinaryCacheRoot, Demangle);
     Syms.reset(&M);
 
     uint64_t VAddrToPCOffset = M.VAddrToFileOffset + M.FileToPCOffset;
@@ -1093,11 +1095,13 @@ static PyObject *cPerf_importPerf(PyObject *self, PyObject *args) {
   const char *Fname;
   const char *Objdump = "objdump";
   const char *BinaryCacheRoot = "";
-  if (!PyArg_ParseTuple(args, "s|ss", &Fname, &Objdump, &BinaryCacheRoot))
+  int Demangle = 1;
+  if (!PyArg_ParseTuple(args, "s|ssp", &Fname, &Objdump, &BinaryCacheRoot,
+                        &Demangle))
     return NULL;
 
   try {
-    PerfReader P(Fname, Objdump, BinaryCacheRoot);
+    PerfReader P(Fname, Objdump, BinaryCacheRoot, Demangle);
     P.readHeader();
     P.readAttrs();
     P.readDataStream();
@@ -1118,7 +1122,11 @@ static PyObject *cPerf_importPerf(PyObject *self, PyObject *args) {
 
 static PyMethodDef cPerfMethods[] = {{"importPerf", cPerf_importPerf,
                                       METH_VARARGS,
-                                      "Import perf.data from a filename"},
+                                      "importPerf(filename[, objdump[, "
+                                      "binary_cache_root[, demangle]]])\n"
+                                      "Import perf.data from a filename. "
+                                      "demangle (true by default) controls "
+                                      "whether function names are demangled."},
                                      {NULL, NULL, 0, NULL}};
 
 static PyModuleDef cPerfModuleDef = {PyModuleDef_HEAD_INIT,
@@ -1156,7 +1164,7 @@ int main(int argc, char **argv) {
   std::string BinaryCacheRoot = getEnvVar("LNT_BINARY_CACHE_ROOT", "");
   std::string Objdump = getEnvVar("CMAKE_OBJDUMP", "objdump");
 
-  PerfReader P(argv[1], Objdump, BinaryCacheRoot);
+  PerfReader P(argv[1], Objdump, BinaryCacheRoot, /*Demangle=*/true);
   P.readHeader();
   P.readAttrs();
   P.readDataStream();

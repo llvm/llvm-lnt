@@ -72,6 +72,62 @@ def action_convert_v4_mirror(mirror_dir: str, suite: str,
         sys.exit(1)
 
 
+@group_v5.command("convert-profile")
+@click.argument("profile", type=click.Path(exists=True, dir_okay=False))
+@click.option("-o", "--output", metavar="FILE", default="-",
+              type=click.File("wb", lazy=True),
+              help="write the result to FILE rather than to standard output")
+@click.option("--encode", is_flag=True,
+              help="write the document gzip-compressed and base64-encoded, "
+                   "as a test's `profile` holds it in a run submission")
+@click.option("--objdump", envvar="CMAKE_OBJDUMP", default="objdump",
+              metavar="CMD",
+              help="objdump command to read the profiled binaries with "
+                   "[default: $CMAKE_OBJDUMP, or objdump]")
+@click.option("--binary-cache-root", envvar="LNT_BINARY_CACHE_ROOT",
+              default="", metavar="DIR",
+              help="prefix to the paths of the profiled binaries, for "
+                   "reading copies of them [default: $LNT_BINARY_CACHE_ROOT]")
+@click.option("--cxxfilt", default="c++filt", show_default=True,
+              metavar="CMD", help="c++filt command to demangle names with")
+@click.option("--disassembly-format", default="objdump", show_default=True,
+              metavar="NAME",
+              help="what produced the instruction text, as the document "
+                   "records it")
+def action_convert_profile(profile: str, output: Any, encode: bool,
+                           objdump: str, binary_cache_root: str, cxxfilt: str,
+                           disassembly_format: str) -> None:
+    """convert a profile into a v5 profile document
+
+    PROFILE is the profile to convert: so far, a perf.data file recorded by
+    Linux `perf record`. Its profile document is written as JSON, or with
+    --encode as the string a test's `profile` holds in a v5 run submission.
+    See the "Converting Profiles for v5" documentation for how the profile is
+    converted.
+
+    Exits with a non-zero status if the profile cannot be converted.
+    """
+    import sys
+    from lnt.util.v5_profile import ConvertError, convert_perf, serialize
+
+    try:
+        document = convert_perf(
+            profile, objdump, binary_cache_root, cxxfilt,
+            disassembly_format,
+            warn=lambda line: click.echo("warning: %s" % line, err=True))
+        # Computed before `output.write` is looked up, which opens the file.
+        result = serialize(document, encode) + b"\n"
+        output.write(result)
+    except (ConvertError, OSError) as e:
+        click.echo("error: %s" % e, err=True)
+        sys.exit(1)
+    except click.FileError as e:
+        # Opening FILE, which waits for the result so as not to leave an empty
+        # file behind when there is none.
+        click.echo("error: %s" % e.format_message(), err=True)
+        sys.exit(1)
+
+
 @group_v5.command("submit")
 @click.argument("url")
 @click.argument("input_file", metavar="[FILE]", default="-",

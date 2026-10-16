@@ -232,8 +232,8 @@ numeric.
 **Follow up on a data point** through its `run_uuid`: `GET /runs/{uuid}`,
 `GET /runs/{uuid}/samples?test=bench/foo`, and `GET /runs/{uuid}/profiles`. A
 profile is then read through its own UUID; every counter is a raw count.
-`GET /profiles/{uuid}/document` returns it whole: gzip-compressed and
-base64-encoded.
+`GET /profiles/{uuid}/document` returns it whole, as plain JSON: gzip-compressed
+and base64-encoded, it is a test entry's `profile` again.
 
 **Compare a run with the previous commit on its machine**:
 `GET /commits?machine=linux-x86_64&before_commit=abc123&sort=-ordinal&limit=1`
