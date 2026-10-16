@@ -599,6 +599,50 @@ class TestMetadataReconciliation:
 
         assert api_client.get(f"{MACHINES}/linux").json()["tracked"] is False
 
+    def test_creating_sets_the_days_after_which_to_delete_the_machine_and_the_commit(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        # O1 and O10.
+        submitted(
+            machine={"name": "pr-1234", "delete_after_inactive_days": 30},
+            commit={"value": "pr-1234", "delete_after_inactive_days": 7},
+        )
+
+        assert api_client.get(f"{MACHINES}/pr-1234").json()["delete_after_inactive_days"] == 30
+        assert api_client.get(f"{COMMITS}/pr-1234").json()["delete_after_inactive_days"] == 7
+
+    @pytest.mark.parametrize("stored", [None, 30])
+    @pytest.mark.parametrize("sent", [7, None])
+    def test_the_days_after_which_to_delete_are_ignored_for_an_existing_entity(
+        self,
+        api_client: TestClient,
+        submitted: Callable[..., Any],
+        stored: int | None,
+        sent: int | None,
+    ) -> None:
+        # O2: neither matched nor filled in, even over a stored null, so that a submission can
+        # neither schedule the deletion of an existing machine or commit nor cancel it.
+        submitted(
+            machine={"name": "linux", "delete_after_inactive_days": stored},
+            commit={"value": "abc123", "delete_after_inactive_days": stored},
+        )
+
+        submitted(
+            machine={"name": "linux", "delete_after_inactive_days": sent},
+            commit={"value": "abc123", "delete_after_inactive_days": sent},
+        )
+
+        assert api_client.get(f"{MACHINES}/linux").json()["delete_after_inactive_days"] == stored
+        assert api_client.get(f"{COMMITS}/abc123").json()["delete_after_inactive_days"] == stored
+
+    @pytest.mark.parametrize("entity", ["machine", "commit"])
+    def test_refuses_days_out_of_range(self, submit: Callable[..., Any], entity: str) -> None:
+        identity = {"machine": {"name": "linux"}, "commit": {"value": "abc123"}}[entity]
+
+        response = submit(**{entity: {**identity, "delete_after_inactive_days": 0}})
+
+        assert response.status_code == 400
+
     def test_two_submitters_sending_different_subsets_coexist(
         self, api_client: TestClient, submit: Callable[..., Any]
     ) -> None:

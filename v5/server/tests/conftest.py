@@ -81,6 +81,8 @@ def settings(client_dist: Path) -> Settings:
     return Settings(
         database_url="postgresql://lnt:lnt@127.0.0.1:5432/lnt",
         client_dist=str(client_dist),
+        # No background sweep (O10) racing the tests; test_inactivity.py starts its own.
+        inactivity_sweep_interval=0,
     )
 
 
@@ -264,6 +266,7 @@ def api_settings(db_engine: Engine, client_dist: Path) -> Settings:
     return Settings(
         database_url=db_engine.url.render_as_string(hide_password=False),
         client_dist=str(client_dist),
+        inactivity_sweep_interval=0,
     )
 
 

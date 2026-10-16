@@ -256,7 +256,8 @@ export interface paths {
         head?: never;
         /**
          * Update a machine
-         * @description Rename a machine, change whether it is tracked, or set or clear its fields.
+         * @description Rename a machine, change whether it is tracked or when it is deleted, or set or clear its
+         *     fields.
          *
          *     Only include what you want to change. If you change a field here, later run submissions that
          *     still send the old value are rejected with a 409 `conflict` until they are updated. If you
@@ -355,7 +356,7 @@ export interface paths {
         head?: never;
         /**
          * Update a commit
-         * @description Set or clear a commit's ordinal, tag and fields.
+         * @description Set or clear a commit's ordinal, tag, `delete_after_inactive_days` and fields.
          *
          *     This is the only way to change an ordinal or a tag once it is set. Only include what you want
          *     to change. If you change the ordinal, the tag or a field here, later run submissions that still
@@ -963,6 +964,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag: string | null;
+            /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days: number | null;
         };
         /**
          * CommitCursorPage
@@ -1010,6 +1017,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag: string | null;
+            /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days: number | null;
             /** @description The commit with the next lower ordinal, skipping commits without one. Null if there is none, or if this commit has no ordinal. */
             previous: components["schemas"]["Commit"] | null;
             /** @description The commit with the next higher ordinal, skipping commits without one. Null if there is none, or if this commit has no ordinal. */
@@ -1019,7 +1032,8 @@ export interface components {
          * CommitField
          * @description A piece of information a commit can have in its `fields`, such as its author.
          *
-         *     The name can't be `id`, `commit`, `ordinal` or `tag`.
+         *     The name can't be `id`, `commit`, `ordinal`, `tag`, `first_seen_at` or
+         *     `delete_after_inactive_days`.
          * @example {
          *       "display": true,
          *       "display_name": null,
@@ -1078,7 +1092,8 @@ export interface components {
          * CommitFieldInput
          * @description A piece of information a commit can have in its `fields`, such as its author.
          *
-         *     The name can't be `id`, `commit`, `ordinal` or `tag`.
+         *     The name can't be `id`, `commit`, `ordinal`, `tag`, `first_seen_at` or
+         *     `delete_after_inactive_days`.
          * @example {
          *       "display": true,
          *       "display_name": null,
@@ -1141,7 +1156,8 @@ export interface components {
         };
         /**
          * CommitObject
-         * @description A commit: its value, its ordinal and tag if it has them, and its fields.
+         * @description A commit: its value, its ordinal and tag if it has them, when it is deleted, and its
+         *     fields.
          */
         CommitObject: {
             /**
@@ -1169,12 +1185,18 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag?: string | null;
+            /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days?: number | null;
         };
         /**
          * CommitUpdate
          * @description Changes to a commit. Only include what you want to change; this also applies to the keys
-         *     of `fields`. Set the ordinal, the tag or a field to null to clear it. A commit's value can't be
-         *     changed.
+         *     of `fields`. Set the ordinal, the tag, `delete_after_inactive_days` or a field to null to clear
+         *     it. A commit's value can't be changed.
          */
         CommitUpdate: {
             /**
@@ -1196,6 +1218,12 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag?: string | null;
+            /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days?: number | null;
         };
         /**
          * DataPoint
@@ -1590,6 +1618,12 @@ export interface components {
              */
             tracked: boolean;
             /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days: number | null;
+            /**
              * Last Run At
              * @description When the machine's most recently measured run was measured (its `measured_at`). Null if it has no runs.
              */
@@ -1599,7 +1633,7 @@ export interface components {
          * MachineField
          * @description A piece of information a machine can have in its `fields`, such as its operating system.
          *
-         *     The name can't be `id`, `name` or `tracked`.
+         *     The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
          * @example {
          *       "display_name": null,
          *       "name": "hardware",
@@ -1651,7 +1685,7 @@ export interface components {
          * MachineFieldInput
          * @description A piece of information a machine can have in its `fields`, such as its operating system.
          *
-         *     The name can't be `id`, `name` or `tracked`.
+         *     The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
          * @example {
          *       "display_name": null,
          *       "name": "hardware",
@@ -1713,7 +1747,7 @@ export interface components {
         };
         /**
          * MachineObject
-         * @description A machine: its name, whether it is tracked, and its fields.
+         * @description A machine: its name, whether it is tracked, when it is deleted, and its fields.
          */
         MachineObject: {
             /**
@@ -1735,12 +1769,18 @@ export interface components {
              * @default true
              */
             tracked?: boolean;
+            /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days?: number | null;
         };
         /**
          * MachineUpdate
          * @description Changes to a machine. Only include what you want to change; this also applies to the keys
-         *     of `fields`. Set a field to null to clear it. Set `name` to rename the machine. `name` and
-         *     `tracked` can't be null.
+         *     of `fields`. Set a field or `delete_after_inactive_days` to null to clear it. Set `name` to
+         *     rename the machine. `name` and `tracked` can't be null.
          */
         MachineUpdate: {
             /**
@@ -1761,6 +1801,12 @@ export interface components {
              * @description Whether the machine is picked automatically, for example when a dashboard chooses which machines to show. Untracked machines are still listed and usable as usual.
              */
             tracked?: boolean;
+            /**
+             * Delete After Inactive Days
+             * @description Delete it, with its runs, once it has gone this many days (from 1 to 36500) without a run being submitted for it, for example to clean up after an experiment. The server checks about once an hour. A commit is never deleted this way while it has an ordinal. Null to keep it however long it is inactive. A run submission only sets this when it creates the machine or the commit; use PATCH to change it afterwards.
+             * @example 30
+             */
+            delete_after_inactive_days?: number | null;
         };
         /**
          * Metric
@@ -2370,6 +2416,7 @@ export interface components {
              * @description The commits that were found, keyed by value.
              * @example {
              *       "45c41247f82e5691425542de829d568cdc2fb580": {
+             *         "delete_after_inactive_days": null,
              *         "fields": {
              *           "commit_info": "[libc++] Vectorize std::find_if",
              *           "svn_revision": "r554973"
@@ -2524,8 +2571,9 @@ export interface components {
          *     If the machine or the commit doesn't exist yet, it is created. If it does exist, the submission
          *     must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
          *     but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
-         *     change stored values. Keys you leave out, or set to null, aren't checked. The exception is the
-         *     machine's `tracked`, which is only used when the machine is created.
+         *     change stored values. Keys you leave out, or set to null, aren't checked. The exceptions are
+         *     the machine's `tracked` and the `delete_after_inactive_days` of the machine and the commit,
+         *     which are only used when the machine or the commit is created, and ignored otherwise.
          */
         RunSubmission: {
             /**
@@ -4433,7 +4481,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `duplicate`: a run with this UUID already exists. `conflict`: the submission contradicts what is stored for its machine or commit, or another commit already has its ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            /** @description `duplicate`: a run with this UUID already exists. `conflict`: the submission contradicts what is stored for its machine or commit, or another commit already has its ordinal. `retry`: the suite's schema changed while the request was being handled. Send it again. The same `retry` is returned if the run's machine or commit was deleted while the run was being stored; sending it again creates them. */
             409: {
                 headers: {
                     [name: string]: unknown;

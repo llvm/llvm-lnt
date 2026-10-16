@@ -176,11 +176,55 @@ def _run_summary_columns(op: Operations, suite: SuiteSchema) -> None:
         )
 
 
+def _inactivity_columns(op: Operations, suite: SuiteSchema) -> None:
+    """Version 5: `first_seen_at` and `delete_after_inactive_days` on `{suite}.machine` and
+    `{suite}.commit`, and the indexes O10 finds due machines and commits through (D5).
+
+    Nothing recorded says when an existing machine or commit was first seen, so they get the time
+    of the migration: `now()` is stable within the transaction, so PostgreSQL stores it as the
+    column's default for the existing rows rather than rewriting the table. None of them has the
+    setting, so none is deleted on that account.
+    """
+    for table in ("machine", "commit"):
+        op.add_column(
+            table,
+            sa.Column(
+                "first_seen_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
+            schema=suite.name,
+        )
+        op.add_column(
+            table,
+            sa.Column("delete_after_inactive_days", sa.Integer(), nullable=True),
+            schema=suite.name,
+        )
+        op.create_check_constraint(
+            f"ck_{table}_delete_after_inactive_days",
+            table,
+            "delete_after_inactive_days BETWEEN 1 AND 36500",
+            schema=suite.name,
+        )
+    op.create_index(
+        "ix_commit_delete_after_inactive_days",
+        "commit",
+        ["delete_after_inactive_days"],
+        schema=suite.name,
+        postgresql_where=sa.text("delete_after_inactive_days IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_run_machine_id_submitted_at", "run", ["machine_id", "submitted_at"], schema=suite.name
+    )
+
+
 STEPS: Sequence[Step] = (
     _run_uuid_collation,
     _regression_commit_set_null,
     _run_measured_at,
     _run_summary_columns,
+    _inactivity_columns,
 )
 
 

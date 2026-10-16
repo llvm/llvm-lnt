@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Absolute path to the built client.
     client_dist: str | None = None
 
+    # Seconds between two rounds of O10's sweep of inactive machines and commits, in each worker.
+    # 0 turns the periodic sweep off, which is what the test suite does: a background thread
+    # deleting rows would race the tests' own setup. `lnt-v5 server sweep` still works.
+    inactivity_sweep_interval: int = Field(default=3600, ge=0)
+
     @field_validator("database_url")
     @classmethod
     def _require_database_url(cls, value: str) -> str:

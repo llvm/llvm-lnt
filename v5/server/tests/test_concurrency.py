@@ -102,13 +102,17 @@ def background() -> Iterator[Callable[..., Future[Any]]]:
 def submitted_machine(
     name: str = "linux", *, tracked: bool = True, **fields: Any
 ) -> SubmittedMachine:
-    return SubmittedMachine(name=name, tracked=tracked, fields=fields)
+    return SubmittedMachine(
+        name=name, tracked=tracked, delete_after_inactive_days=None, fields=fields
+    )
 
 
 def submitted_commit(
     value: str = "abc", *, ordinal: int | None = None, tag: str | None = None, **fields: Any
 ) -> SubmittedCommit:
-    return SubmittedCommit(value=value, ordinal=ordinal, tag=tag, fields=fields)
+    return SubmittedCommit(
+        value=value, ordinal=ordinal, tag=tag, delete_after_inactive_days=None, fields=fields
+    )
 
 
 def until_blocked(engine: Engine) -> None:
@@ -1201,3 +1205,22 @@ class TestContendingWithASchemaChange:
             suite_scope(SuiteRegistry(), connection, "nts"),
         ):
             connection.execute(text("SELEC 1"))
+
+
+def test_a_run_whose_machine_or_commit_was_deleted_meanwhile_is_a_retry(
+    db_engine: Engine, suite: Suite, machines: Machines, commits: Commits
+) -> None:
+    # O8: what a submission gets if a `DELETE` route, or O10's sweep, deletes its machine or its
+    # commit after the submission resolved it but before its run was stored. Resending it unchanged
+    # creates the entity again.
+    for doomed in (suite.tables.machine, suite.tables.commit):
+        with db_engine.begin() as connection:
+            machine_id = machines.get_or_create(connection, submitted_machine())
+            commit_id = commits.get_or_create(connection, submitted_commit())
+        with db_engine.begin() as connection:
+            connection.execute(delete(doomed))
+
+        with db_engine.begin() as connection, pytest.raises(ApiError) as raised:
+            Runs(suite).create(connection, str(uuid4()), machine_id, commit_id, {})
+
+        assert raised.value.code is ErrorCode.RETRY

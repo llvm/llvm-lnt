@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import Connection, Engine, Table, func, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from conftest import PROFILE_COLUMNS
+from conftest import PROFILE_COLUMNS, recent
 from introspection import (
     assert_names_survived,
     columns_of,
@@ -36,6 +36,8 @@ from lnt_v5.suites.tables import (
     REGRESSION_INDICATOR_METRIC_CONSTRAINT,
     REGRESSION_INDICATOR_REGRESSION_CONSTRAINT,
     REGRESSION_UUID_CONSTRAINT,
+    RUN_COMMIT_CONSTRAINT,
+    RUN_MACHINE_CONSTRAINT,
     RUN_UUID_CONSTRAINT,
     SuiteTables,
 )
@@ -254,8 +256,31 @@ class TestBuiltInColumns:
             # D5's column list for each table, in order, with FULL's dynamic columns
             # appended where the table takes them -- so this also pins that a schema's entries come
             # after the built-ins rather than interleaved with them.
-            ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
-            ("machine", ["id", "name", "tracked", "hardware", "core_count"]),
+            (
+                "commit",
+                [
+                    "id",
+                    "commit",
+                    "ordinal",
+                    "tag",
+                    "first_seen_at",
+                    "delete_after_inactive_days",
+                    "git_sha",
+                    "commit_timestamp",
+                ],
+            ),
+            (
+                "machine",
+                [
+                    "id",
+                    "name",
+                    "tracked",
+                    "first_seen_at",
+                    "delete_after_inactive_days",
+                    "hardware",
+                    "core_count",
+                ],
+            ),
             ("metric", ["id", "name"]),
             (
                 "run",
@@ -337,8 +362,14 @@ class TestBuiltInColumns:
             # D1: an ordinal is optional, and NULL means unordered.
             ("commit", "ordinal", True),
             ("commit", "tag", True),
+            # D5: the server always records when it first saw an entity, whereas deleting one after
+            # inactivity is something only some entities ask for (O10).
+            ("commit", "first_seen_at", False),
+            ("commit", "delete_after_inactive_days", True),
             ("machine", "name", False),
             ("machine", "tracked", False),
+            ("machine", "first_seen_at", False),
+            ("machine", "delete_after_inactive_days", True),
             # O1: every run has a commit, and the submission cannot supply the timestamp. D5: a run
             # always has a measurement time, which defaults to its submission time.
             ("run", "commit_id", False),
@@ -526,6 +557,8 @@ class TestNamingConvention:
             ("commit", COMMIT_VALUE_CONSTRAINT),
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
+            ("run", RUN_MACHINE_CONSTRAINT),
+            ("run", RUN_COMMIT_CONSTRAINT),
             ("regression", REGRESSION_UUID_CONSTRAINT),
             ("regression", REGRESSION_COMMIT_CONSTRAINT),
             ("regression_indicator", REGRESSION_INDICATOR_CONSTRAINT),
@@ -580,6 +613,19 @@ class TestIndexes:
         assert tag["column_names"] == ["tag"]
         assert tag.get("dialect_options", {}).get("postgresql_where") is not None
 
+    def test_the_inactivity_setting_of_commits_is_indexed_only_where_it_is_set(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: O10 finds the few commits that have the setting without scanning the table.
+        make_suite("nts")
+
+        index = indexes_of(inspect(db_engine), "nts", "commit")[
+            "ix_commit_delete_after_inactive_days"
+        ]
+
+        assert index["column_names"] == ["delete_after_inactive_days"]
+        assert index.get("dialect_options", {}).get("postgresql_where") is not None
+
     def test_sample_is_indexed_in_both_orders(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
@@ -604,6 +650,19 @@ class TestIndexes:
         assert indexes["ix_run_machine_id_measured_at"]["column_names"] == [
             "machine_id",
             "measured_at",
+        ]
+
+    def test_run_is_indexed_by_machine_and_submission_time(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: O10 probes whether a machine has had a run submitted since a given time.
+        make_suite("nts")
+
+        indexes = indexes_of(inspect(db_engine), "nts", "run")
+
+        assert indexes["ix_run_machine_id_submitted_at"]["column_names"] == [
+            "machine_id",
+            "submitted_at",
         ]
 
     def test_run_is_indexed_by_each_timestamp_alone_as_well(
@@ -789,6 +848,57 @@ class TestRegressionState:
             (3, "fixed"),
             (4, "false_positive"),
         ]
+
+
+class TestInactivityColumns:
+    @pytest.mark.parametrize("table", ["machine", "commit"])
+    @pytest.mark.parametrize("days", [1, 36500, None])
+    def test_accepts_the_specified_range(
+        self,
+        db_engine: Engine,
+        make_suite: Callable[..., SuiteTables],
+        table: str,
+        days: int | None,
+    ) -> None:
+        tables = make_suite("nts")
+        identity = "name" if table == "machine" else "commit"
+
+        with db_engine.begin() as connection:
+            connection.execute(
+                insert(getattr(tables, table)).values(
+                    {identity: "x", "delete_after_inactive_days": days}
+                )
+            )
+
+    @pytest.mark.parametrize("table", ["machine", "commit"])
+    @pytest.mark.parametrize("days", [0, -1, 36501])
+    def test_rejects_anything_outside_it(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables], table: str, days: int
+    ) -> None:
+        tables = make_suite("nts")
+        identity = "name" if table == "machine" else "commit"
+
+        with db_engine.begin() as connection, pytest.raises(IntegrityError):
+            connection.execute(
+                insert(getattr(tables, table)).values(
+                    {identity: "x", "delete_after_inactive_days": days}
+                )
+            )
+
+    @pytest.mark.parametrize("table", ["machine", "commit"])
+    def test_records_when_the_entity_was_first_seen(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables], table: str
+    ) -> None:
+        tables = make_suite("nts")
+        identity = "name" if table == "machine" else "commit"
+
+        with db_engine.begin() as connection:
+            connection.execute(insert(getattr(tables, table)).values({identity: "x"}))
+            first_seen_at = connection.execute(
+                select(getattr(tables, table).c.first_seen_at)
+            ).scalar_one()
+
+        assert recent(first_seen_at)
 
 
 class TestCascades:

@@ -32,6 +32,11 @@ Runs therefore come in two tiers:
 Deleting a commit deletes its runs, and in turn their samples and profiles (see
 D5). The regressions attributed to it are kept, with no commit.
 
+A commit with no ordinal can also ask to be deleted automatically once it has
+seen no activity for a given number of days (see O10). This is how the commits
+of throwaway A/B experiments clean up after themselves. A commit with an
+ordinal is part of the suite's history, and is never deleted that way.
+
 
 ## D2: Schema Storage and Lifecycle
 
@@ -407,6 +412,8 @@ as `{suite}.commit`, and the tables below are named that way.
 | commit | VARCHAR(256) | unique, not null |
 | ordinal | INTEGER | nullable, unique |
 | tag | VARCHAR(256) | nullable, indexed (partial: WHERE tag IS NOT NULL) |
+| first_seen_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
+| delete_after_inactive_days | INTEGER | nullable, between 1 and 36500, indexed (partial: WHERE delete_after_inactive_days IS NOT NULL) |
 | _(dynamic)_ | per commit_fields | nullable |
 
 - `commit` is the identity string, submitted as `commit.value` (see O1).
@@ -414,6 +421,15 @@ as `{suite}.commit`, and the tables below are named that way.
 - `tag` is an optional human-readable label (e.g. `release-18.1`), which can be
   set on every commit write path (see O2). Several commits may share a tag. The
   tag is always included in `?search=` substring matching (see O4).
+- `first_seen_at` is when the server created the commit, from the database's
+  clock. It is internal: no API response includes it. O10 counts it as
+  activity. It is not what E3's `first_seen` order sorts by: that order is
+  total, whereas several commits can share a `first_seen_at` (the commits that
+  existed before the column was added all have the time it was).
+- `delete_after_inactive_days` is the number of days without activity after
+  which the commit is deleted, or null if it is kept however long it is
+  inactive (see O10). Its index lets O10 find the commits that have it set
+  without scanning this table.
 - Dynamic columns are created from the schema's `commit_fields` (see D3 for the
   type-to-column mapping).
 - Commits can be deleted, whether or not `ordinal` is set. Deleting a commit
@@ -421,7 +437,8 @@ as `{suite}.commit`, and the tables below are named that way.
   regressions attributed to it are kept, with no commit (see
   `{suite}.regression`).
 - `commit_fields` names must not collide with the built-in column names (`id`,
-  `commit`, `ordinal`, `tag`); the schema parser rejects them.
+  `commit`, `ordinal`, `tag`, `first_seen_at`, `delete_after_inactive_days`);
+  the schema parser rejects them.
 
 #### `{suite}.machine`
 
@@ -430,6 +447,8 @@ as `{suite}.commit`, and the tables below are named that way.
 | id | INTEGER | PK |
 | name | VARCHAR(256) | unique, not null |
 | tracked | BOOLEAN | not null, default `true` |
+| first_seen_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
+| delete_after_inactive_days | INTEGER | nullable, between 1 and 36500 |
 | _(dynamic)_ | per machine_fields | nullable |
 
 - `name` is unique.
@@ -443,11 +462,16 @@ as `{suite}.commit`, and the tables below are named that way.
   wherever a machine is chosen deliberately. Typical uses are one-off
   comparison configurations (e.g. the same hardware built at `-O2` and `-O3`),
   and retired hardware whose history is worth keeping.
+- `first_seen_at` and `delete_after_inactive_days` mean what they mean on
+  `{suite}.commit`, except that a machine has no exception like a commit's
+  ordinal: a machine with `delete_after_inactive_days` set is deleted once it
+  has been inactive for that long (see O10).
 - Dynamic columns are created from the schema's `machine_fields` (see D3 for
   the type-to-column mapping). Keys submitted for a machine that are not
   declared as `machine_fields` are rejected (see O1).
 - `machine_fields` names must not collide with the built-in column names
-  (`id`, `name`, `tracked`); the schema parser rejects them.
+  (`id`, `name`, `tracked`, `first_seen_at`, `delete_after_inactive_days`); the
+  schema parser rejects them.
 - `last_run_at` is not a column. It is the latest `measured_at` among the
   machine's runs, or null if the machine has no runs, computed when read; the
   machine endpoints return it and can sort on it. It is deliberately not
@@ -503,6 +527,9 @@ as `{suite}.commit`, and the tables below are named that way.
   `GET /api/suites/{testsuite}/runs?machine={name}&sort=-measured_at` and the
   `last_run_at` computation described under `{suite}.machine` to a bounded
   index scan rather than a scan of this table.
+- Compound index on `(machine_id, submitted_at)`: O10's check of whether a
+  machine has had a run submitted since a given time, which must be a single
+  index probe even on a machine with a long history.
 - Compound indexes on `(submitted_at, id)` and `(measured_at, id)`: serve
   `GET /api/suites/{testsuite}/runs?sort=-submitted_at` and `?sort=-measured_at`
   without `machine=`. `id` is the cursor's tiebreaker (O5).
@@ -772,6 +799,11 @@ Stored schemas are data in a global table. If the schema format (D4) changes
 in a way that existing `schema_json` values no longer satisfy, rewriting them
 is a global migration, which bumps `schema_version` like any other change to a
 stored schema (see D2 and D5).
+
+A build that adds a built-in column to a table with dynamic columns reserves
+that column's name (see D4). A suite whose schema already declares an entry
+under that name cannot be migrated, so the build refuses to migrate any suite
+until that entry has been removed, which takes an earlier build.
 
 The server applies all of this at startup, before it begins serving, and
 refuses to serve if any of it fails: a server whose tables are not the ones its

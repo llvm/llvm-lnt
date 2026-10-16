@@ -2,7 +2,8 @@
 
 This document covers how data flows through the v5 database: run submission,
 machine and commit metadata, search, time-series queries, ordinal management,
-profiles, concurrent submission, and run summaries.
+profiles, concurrent submission, run summaries, and the deletion of machines and
+commits after inactivity.
 
 
 ## O1: Submission Format
@@ -76,6 +77,12 @@ O2).
     wins), and defaults to `true` when omitted. Submitting it for a machine
     that already exists has no effect. Use
     `PATCH /api/suites/{testsuite}/machines/{name}` to change it afterwards.
+  - `delete_after_inactive_days`: optional integer from 1 to 36500, a built-in
+    attribute: the number of days without activity after which the machine is
+    deleted (see O10). Like `tracked`, it only applies when the machine is
+    created, and is ignored for a machine that already exists, whatever the
+    machine's current setting. Use
+    `PATCH /api/suites/{testsuite}/machines/{name}` to change it afterwards.
 - `commit`: required object identifying the commit this run belongs to.
   - `value`: required string, the commit's identity.
   - `fields`: optional. Every key must be declared in the schema's
@@ -94,6 +101,10 @@ O2).
     has a different one, the submission is rejected with 409 (see O2). Use
     `PATCH /api/suites/{testsuite}/commits/{value}` to change or clear a tag
     once set.
+  - `delete_after_inactive_days`: optional, as for the machine (see O10). It
+    only applies when the commit is created, and is ignored for a commit that
+    already exists. Use `PATCH /api/suites/{testsuite}/commits/{value}` to
+    change it afterwards.
 - `run_parameters`: optional, stored as JSONB on the run. Runs have no declared
   field list, so this is a free-form blob rather than a `fields` dict. Its only
   validation is D3's rule on values that cannot be stored.
@@ -119,7 +130,8 @@ O2).
     gzip-compressed and base64-encoded (see O7).
 
 **Null values.** An explicit `null` means "omitted" on `uuid`, `measured_at`,
-`commit.ordinal`, `commit.tag`, a test entry's `profile`, and each entry of
+`machine.delete_after_inactive_days`, `commit.ordinal`, `commit.tag`,
+`commit.delete_after_inactive_days`, a test entry's `profile`, and each entry of
 `machine.fields` and `commit.fields`. Anywhere else, `null` is rejected with
 400. Unlike with `PATCH`, a `null` in `fields` never clears a stored value (see
 O2). This lets a client submit the `fields` dict a response returned, which has a
@@ -172,9 +184,9 @@ Per-entity specifics:
 |---|---|---|
 | Identity attribute | `name` | `value` |
 | Declared metadata | `fields`, per `machine_fields` | `fields`, per `commit_fields` |
-| Built-in mutable attributes | `tracked` | `ordinal`, `tag` |
-| Settable during run submission | `tracked` (first-write-wins) | `ordinal`, `tag` (must match if already set) |
-| Settable at explicit creation | `tracked` | `ordinal`, `tag` |
+| Built-in mutable attributes | `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
+| Settable during run submission | `tracked`, `delete_after_inactive_days` (first-write-wins) | `ordinal`, `tag` (must match if already set); `delete_after_inactive_days` (first-write-wins) |
+| Settable at explicit creation | `tracked`, `delete_after_inactive_days` | `ordinal`, `tag`, `delete_after_inactive_days` |
 | Renameable via PATCH | yes | no |
 
 Built-in mutable attributes sit beside the identity attribute rather than
@@ -183,6 +195,13 @@ inside `fields`:
 - `tracked` is not matched. It is a non-nullable policy flag that operators are
   expected to change, so re-submitting it for an existing machine is never a
   mismatch.
+- `delete_after_inactive_days` is not matched either, on either entity, and a
+  submission never fills it in, even when the stored value is null. It is a
+  policy rather than a fact about the entity, like `tracked`. And since it
+  decides whether the entity and its runs are deleted, it is settable only by
+  whoever creates the entity, and afterwards only through `PATCH`, which
+  requires the scope that deleting the entity does: run submission only
+  requires `submit`.
 - `ordinal` and `tag` are nullable and describe the commit, so they are matched
   like `fields`: set when unset, rejected when they contradict the stored
   value. As with `fields`, once `ordinal` or `tag` is changed through `PATCH`, a
@@ -371,6 +390,10 @@ implementation must guarantee that:
   race to create a machine, a commit, or a test uses the row the winner
   created, and does not fail. Any other integrity failure is reported as its
   own error (e.g. a taken `ordinal`, see O6).
+- **A machine or commit deleted meanwhile is a retryable 409.** If the machine
+  or the commit a submission resolved is deleted before the submission's run is
+  stored (by its `DELETE` route, or by O10), the submission is rejected with
+  I4's `retry`: resending it unchanged creates the entity again.
 - **O2 holds under concurrency.** Two submissions filling in the same unset
   value cannot both succeed with different values.
 - **Concurrent submissions cannot deadlock each other.**
@@ -432,3 +455,69 @@ rather than every sample (see `GET /api/suites/{testsuite}/trends`).
 
 Adding a metric needs no backfill: existing samples have no value for it, so
 existing runs have no summary of it either.
+
+
+## O10: Deletion After Inactivity
+
+A machine or a commit can ask to be deleted once it has seen no activity for a
+given number of days, by setting its `delete_after_inactive_days` (see D5). This
+is meant for throwaway experiments, such as the A/B runs of a pull request: they
+are submitted on an unordered commit (see D1), on a machine of their own when
+they measure a configuration no existing machine has, and then clean up after
+themselves.
+
+**Activity.** An entity's last activity is the later of its `first_seen_at`
+and the `submitted_at` of its latest run. Submitting a run therefore keeps both
+its machine and its commit alive. Nothing else counts: reading the entity,
+changing it with `PATCH`, or referring to it from a regression does not. It is
+`submitted_at` rather than `measured_at` because the latter is supplied by the
+client: data measured long ago and submitted today is activity today. The last
+activity is derived when needed rather than stored, so that a submission writes
+nothing more than it already does. Deleting runs can therefore move it back.
+Every time involved is the database's, so that workers whose clocks disagree
+still agree on which entities are due.
+
+**Eligibility.** An entity is due for deletion when all of these hold:
+
+- its `delete_after_inactive_days` is set;
+- for a commit, it has no ordinal: an ordered commit is part of the suite's
+  history, and is never deleted this way whatever its setting. The setting
+  takes effect again if the ordinal is cleared;
+- its last activity is more than `delete_after_inactive_days` days ago.
+
+Setting `delete_after_inactive_days` on an entity that has already been
+inactive for longer makes it due at once.
+
+**Deletion.** A due entity is deleted exactly as its `DELETE` route deletes it
+(see E2 and E3, and D5 for what that takes with it). Nothing protects an entity
+that a regression refers to.
+
+**The sweep.** The server finds and deletes due entities periodically, about
+once an hour, with a first round shortly after it starts, so that a deployment
+that restarts often still sweeps. An entity can therefore outlive its
+eligibility by up to about an hour. Until it is deleted it stays visible: no
+read filters on `delete_after_inactive_days`.
+
+- At most one process sweeps at a time. In a deployment with several workers,
+  each one tries, and those that find a sweep already under way skip that
+  round.
+- A round visits every suite. Finding the due entities must scan neither the
+  run table nor the commit table: it reads the suite's machines, which are few
+  (see D5), and the commits that have the setting, and checks each with an
+  index probe on its runs.
+- Each entity is deleted in a transaction of its own, so that deleting one
+  with a long history does not hold a single transaction over all of them.
+- Its eligibility is checked again inside that transaction, after the entity
+  is locked against concurrent writes, and after every run already being
+  inserted for it has been committed. Such a run keeps the entity alive. A
+  submission that has resolved the entity but not yet inserted its run when the
+  entity is deleted gets the retryable 409 of O8 instead, and resending it
+  creates the entity again.
+- A failure, such as a suite deleted or a schema changed concurrently, is
+  logged, and the round carries on with the other entities and suites. The
+  next round tries again. A sweep never stops the server from starting or
+  serving.
+
+The sweep is also available as a standalone administrative operation, which
+runs one round and reports what it deleted, or reports that a round is already
+under way.

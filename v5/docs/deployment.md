@@ -228,3 +228,10 @@ aws ssm start-session --target <instance-id> --region us-west-2
 
 From there, `cd /opt/app && docker compose ps` and `docker compose logs app` are the usual starting
 points. `/var/log/cloud-init-output.log` has the boot-time provisioning output.
+
+The server deletes the machines and commits that asked to be deleted after some days of inactivity
+(O10 in the design docs) about once an hour, and logs each one it deletes. To sweep right away:
+
+```sh
+sudo docker compose exec app lnt-v5 server sweep
+```

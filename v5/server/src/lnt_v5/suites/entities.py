@@ -51,6 +51,8 @@ from lnt_v5.strings import Storable
 from lnt_v5.suites import concurrency
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.tables import (
+    INACTIVE_DAYS_MAX,
+    INACTIVE_DAYS_MIN,
     INT32_MAX,
     INT32_MIN,
     INTEGER_MAX,
@@ -326,19 +328,40 @@ Ordinal = Annotated[
 ]
 
 
+DeleteAfterInactiveDays = Annotated[
+    IntegerValue,
+    Field(
+        ge=INACTIVE_DAYS_MIN,
+        le=INACTIVE_DAYS_MAX,
+        description=(
+            f"Delete it, with its runs, once it has gone this many days (from {INACTIVE_DAYS_MIN} "
+            f"to {INACTIVE_DAYS_MAX}) without a run being submitted for it, for example to clean "
+            "up after an experiment. The server checks about once an hour. A commit is never "
+            "deleted this way while it has an ordinal. Null to keep it however long it is "
+            "inactive. A run submission only sets this when it creates the machine or the commit; "
+            "use PATCH to change it afterwards."
+        ),
+        examples=[examples.DELETE_AFTER_INACTIVE_DAYS],
+    ),
+]
+
+
 class MachineObject(EntityObject):
-    """A machine: its name, whether it is tracked, and its fields."""
+    """A machine: its name, whether it is tracked, when it is deleted, and its fields."""
 
     name: MachineName
     tracked: Tracked = True
+    delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
 
 class CommitObject(EntityObject):
-    """A commit: its value, its ordinal and tag if it has them, and its fields."""
+    """A commit: its value, its ordinal and tag if it has them, when it is deleted, and its
+    fields."""
 
     value: CommitValue
     ordinal: Ordinal | None = None
     tag: Tag | None = None
+    delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
 
 def validate_value(entry: Entry, value: Any) -> Any:

@@ -138,8 +138,9 @@ class RunSubmission(BaseModel):
     If the machine or the commit doesn't exist yet, it is created. If it does exist, the submission
     must agree with what is stored: fields, ordinal and tag that have no value yet are filled in,
     but a value that differs from the stored one is rejected with a 409 `conflict`. Use `PATCH` to
-    change stored values. Keys you leave out, or set to null, aren't checked. The exception is the
-    machine's `tracked`, which is only used when the machine is created.
+    change stored values. Keys you leave out, or set to null, aren't checked. The exceptions are
+    the machine's `tracked` and the `delete_after_inactive_days` of the machine and the commit,
+    which are only used when the machine or the commit is created, and ignored otherwise.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -175,6 +176,7 @@ class SubmittedMachine:
 
     name: str
     tracked: bool
+    delete_after_inactive_days: int | None
     fields: Mapping[str, Any]
 
 
@@ -185,6 +187,7 @@ class SubmittedCommit:
     value: str
     ordinal: int | None
     tag: str | None
+    delete_after_inactive_days: int | None
     fields: Mapping[str, Any]
 
 
@@ -236,12 +239,14 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     machine = SubmittedMachine(
         name=body.machine.name,
         tracked=body.machine.tracked,
+        delete_after_inactive_days=body.machine.delete_after_inactive_days,
         fields=_submitted_fields(schema, MachineField, body.machine.fields),
     )
     commit = SubmittedCommit(
         value=body.commit.value,
         ordinal=body.commit.ordinal,
         tag=body.commit.tag,
+        delete_after_inactive_days=body.commit.delete_after_inactive_days,
         fields=_submitted_fields(schema, CommitField, body.commit.fields),
     )
 

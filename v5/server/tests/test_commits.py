@@ -722,6 +722,7 @@ class TestCreate:
             "value": "abc",
             "ordinal": None,
             "tag": None,
+            "delete_after_inactive_days": None,
             "fields": EVERY_FIELD,
             "previous": None,
             "next": None,
@@ -729,6 +730,23 @@ class TestCreate:
 
     def test_accepts_an_ordinal(self, create: Callable[..., Any]) -> None:
         assert create("abc", ordinal=42).json()["ordinal"] == 42
+
+    def test_accepts_a_number_of_days_after_which_to_delete_it(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # E3 and O10.
+        assert create("experiment", delete_after_inactive_days=30).status_code == 201
+
+        assert api_client.get(f"{COMMITS}/experiment").json()["delete_after_inactive_days"] == 30
+
+    @pytest.mark.parametrize("days", [0, 36501, 1.5, "30", True])
+    def test_refuses_a_number_of_days_out_of_range_or_of_another_type(
+        self, create: Callable[..., Any], days: Any
+    ) -> None:
+        response = create("experiment", delete_after_inactive_days=days)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_stores_declared_fields(self, create: Callable[..., Any]) -> None:
         response = create(
@@ -903,7 +921,7 @@ class TestNeighbours:
         # after one step.
         neighbour = self.detail(api_client, "middle")["previous"]
 
-        assert set(neighbour) == {"value", "ordinal", "tag", "fields"}
+        assert set(neighbour) == {"value", "ordinal", "tag", "delete_after_inactive_days", "fields"}
         assert neighbour["ordinal"] == 10
 
     def test_both_ends_of_the_range_have_one_neighbour(self, api_client: TestClient) -> None:
@@ -1009,18 +1027,37 @@ class TestUpdate:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    @pytest.mark.parametrize("key", ["ordinal", "tag"])
+    @pytest.mark.parametrize("key", ["ordinal", "tag", "delete_after_inactive_days"])
     def test_an_explicit_null_clears_a_stored_value(
         self, create: Callable[..., Any], patch: Callable[..., Any], key: str
     ) -> None:
-        create("abc", ordinal=1, tag="release-18.1")
+        create("abc", ordinal=1, tag="release-18.1", delete_after_inactive_days=30)
 
         assert patch("abc", {key: None}).json()[key] is None
+
+    def test_sets_and_changes_the_days_after_which_to_delete_it(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        create("abc")
+
+        for days in (30, 7):
+            assert (
+                patch("abc", {"delete_after_inactive_days": days}).json()[
+                    "delete_after_inactive_days"
+                ]
+                == days
+            )
 
     def test_leaves_every_key_the_request_omits_unchanged(
         self, create: Callable[..., Any], patch: Callable[..., Any]
     ) -> None:
-        create("abc", ordinal=1, tag="release-18.1", fields={"git_sha": "abc123", "author": "Jane"})
+        create(
+            "abc",
+            ordinal=1,
+            tag="release-18.1",
+            delete_after_inactive_days=30,
+            fields={"git_sha": "abc123", "author": "Jane"},
+        )
 
         body = patch("abc", {"fields": {"author": "Ashok"}}).json()
 
@@ -1028,6 +1065,7 @@ class TestUpdate:
             "value": "abc",
             "ordinal": 1,
             "tag": "release-18.1",
+            "delete_after_inactive_days": 30,
             "fields": {**EVERY_FIELD, "git_sha": "abc123", "author": "Ashok"},
             "previous": None,
             "next": None,
@@ -1194,6 +1232,7 @@ class TestResolve:
                     "value": "abc",
                     "ordinal": 42,
                     "tag": None,
+                    "delete_after_inactive_days": None,
                     "fields": {**EVERY_FIELD, "git_sha": "abc123"},
                 }
             },
@@ -1210,6 +1249,7 @@ class TestResolve:
             "value",
             "ordinal",
             "tag",
+            "delete_after_inactive_days",
             "fields",
         }
 

@@ -81,6 +81,12 @@ export function displayValueOf(
   schema: SuiteSchema,
   tag: string | null = null,
 ): string {
-  const commit = commits?.get(value) ?? { value, ordinal: null, tag, fields: {} }
+  const commit = commits?.get(value) ?? {
+    value,
+    ordinal: null,
+    tag,
+    delete_after_inactive_days: null,
+    fields: {},
+  }
   return commitDisplayValue(commit, schema)
 }

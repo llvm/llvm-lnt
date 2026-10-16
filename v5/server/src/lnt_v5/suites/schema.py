@@ -195,14 +195,17 @@ class Metric(Entry):
 class CommitField(_SearchableEntry):
     """A piece of information a commit can have in its `fields`, such as its author.
 
-    The name can't be `id`, `commit`, `ordinal` or `tag`.
+    The name can't be `id`, `commit`, `ordinal`, `tag`, `first_seen_at` or
+    `delete_after_inactive_days`.
     """
 
     model_config = ConfigDict(json_schema_extra={"examples": [examples.COMMIT_FIELDS[0]]})
 
     LIST: ClassVar[str] = "commit_fields"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
-        "commit": frozenset({"id", "commit", "ordinal", "tag"})
+        "commit": frozenset(
+            {"id", "commit", "ordinal", "tag", "first_seen_at", "delete_after_inactive_days"}
+        )
     }
 
     display: bool = Field(
@@ -228,14 +231,16 @@ class CommitField(_SearchableEntry):
 class MachineField(_SearchableEntry):
     """A piece of information a machine can have in its `fields`, such as its operating system.
 
-    The name can't be `id`, `name` or `tracked`.
+    The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
     """
 
     model_config = ConfigDict(json_schema_extra={"examples": [examples.MACHINE_FIELDS[0]]})
 
     LIST: ClassVar[str] = "machine_fields"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
-        "machine": frozenset({"id", "name", "tracked"})
+        "machine": frozenset(
+            {"id", "name", "tracked", "first_seen_at", "delete_after_inactive_days"}
+        )
     }
 
 

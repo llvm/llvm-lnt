@@ -366,12 +366,40 @@ class TestCreate:
         assert create("linux").json() == {
             "name": "linux",
             "tracked": True,
+            "delete_after_inactive_days": None,
             "fields": EVERY_FIELD,
             "last_run_at": None,
         }
 
     def test_accepts_an_untracked_machine(self, create: Callable[..., Any]) -> None:
         assert create("retired", tracked=False).json()["tracked"] is False
+
+    def test_accepts_a_number_of_days_after_which_to_delete_it(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        # E2 and O10.
+        assert create("experiment", delete_after_inactive_days=30).status_code == 201
+
+        detail = api_client.get(f"{MACHINES}/experiment").json()
+        assert detail["delete_after_inactive_days"] == 30
+
+    @pytest.mark.parametrize("days", [1, 36500, 30.0])
+    def test_accepts_any_whole_number_of_days_in_range(
+        self, create: Callable[..., Any], days: Any
+    ) -> None:
+        response = create("experiment", delete_after_inactive_days=days)
+
+        assert response.status_code == 201
+        assert response.json()["delete_after_inactive_days"] == int(days)
+
+    @pytest.mark.parametrize("days", [0, -1, 36501, 2**31, 1.5, "30", True])
+    def test_refuses_a_number_of_days_out_of_range_or_of_another_type(
+        self, create: Callable[..., Any], days: Any
+    ) -> None:
+        response = create("experiment", delete_after_inactive_days=days)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_stores_declared_fields_with_their_declared_types(
         self, db_engine: Engine, create: Callable[..., Any]
@@ -719,16 +747,38 @@ class TestUpdate:
     def test_leaves_every_key_the_request_omits_unchanged(
         self, create: Callable[..., Any], patch: Callable[..., Any]
     ) -> None:
-        create("linux", tracked=False, fields={"hardware": "x86_64", "os": "linux"})
+        create(
+            "linux",
+            tracked=False,
+            delete_after_inactive_days=30,
+            fields={"hardware": "x86_64", "os": "linux"},
+        )
 
         body = patch("linux", {"fields": {"os": "debian"}}).json()
 
         assert body == {
             "name": "linux",
             "tracked": False,
+            "delete_after_inactive_days": 30,
             "fields": {**EVERY_FIELD, "hardware": "x86_64", "os": "debian"},
             "last_run_at": None,
         }
+
+    def test_sets_changes_and_clears_the_days_after_which_to_delete_it(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        create("linux")
+
+        for days in (30, 7, None):
+            body = patch("linux", {"delete_after_inactive_days": days}).json()
+            assert body["delete_after_inactive_days"] == days
+
+    def test_refuses_a_number_of_days_out_of_range(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        create("linux")
+
+        assert patch("linux", {"delete_after_inactive_days": 0}).status_code == 400
 
     def test_clears_a_field_sent_as_null(
         self, create: Callable[..., Any], patch: Callable[..., Any]

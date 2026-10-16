@@ -323,7 +323,13 @@ const TWINS: Suggestion[] = [
 type Commit = Schemas['Commit']
 
 function commit(value: string, shortSha: string | null = null): Commit {
-  return { value, ordinal: null, tag: null, fields: { short_sha: shortSha } }
+  return {
+    value,
+    ordinal: null,
+    tag: null,
+    delete_after_inactive_days: null,
+    fields: { short_sha: shortSha },
+  }
 }
 
 const COMMITS = [
