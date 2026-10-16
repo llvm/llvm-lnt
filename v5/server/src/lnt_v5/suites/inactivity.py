@@ -1,7 +1,7 @@
 """Deleting the machines and commits that have been inactive for longer than they asked (O10).
 
-A machine or a commit with `delete_after_inactive_days` set is due once its last activity -- its
-latest run's `submitted_at`, or its `first_seen_at` if it has no run -- is more than that many days
+A machine or a commit with `delete_after_inactive_days` set is due once its last activity -- the
+later of its `first_seen_at` and its latest run's `submitted_at` -- is more than that many days
 old. A commit with an ordinal never is. `sweep` finds the due entities of every suite and deletes
 them, one transaction each, exactly as their `DELETE` routes do: the foreign keys D5 declares take
 the runs, samples, profiles and regression indicators with them.
