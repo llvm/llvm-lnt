@@ -77,6 +77,19 @@ describe('the Profiles page: function selection (PF4)', () => {
     expect(query().function_a).toBeUndefined()
   })
 
+  it("cannot clear side A's function", async () => {
+    const user = userEvent.setup()
+    mockWorld()
+    renderPage(ALPHA)
+    await showsFunction('A', 'hot')
+    expect(column('A').queryByRole('button', { name: 'Clear Function' })).not.toBeInTheDocument()
+
+    await user.clear(functionField('A'))
+    await user.tab()
+
+    await showsFunction('A', 'hot')
+  })
+
   it('offers the functions hottest first, each with its share', async () => {
     mockWorld()
     renderPage(ALPHA)

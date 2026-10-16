@@ -51,6 +51,11 @@ interface CommonProps {
   isDisabled?: boolean
   /** Shown as it is, but cannot be changed, and keeps the focus, unlike when disabled. */
   isReadOnly?: boolean
+  /**
+   * Whether the user can clear the value: true by default. A combobox whose value cannot be
+   * cleared has no clear button, and emptying its input does not clear its value.
+   */
+  isClearable?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
   /** Make the combobox fill the rest of its row, for text too long for the usual width. */
@@ -129,6 +134,7 @@ export function Combobox({
   emptyMessage,
   isDisabled,
   isReadOnly,
+  isClearable = true,
   hideLabel,
   fill = false,
   onPendingChange,
@@ -155,7 +161,7 @@ export function Combobox({
 
   const onInputChange = (next: string) => {
     setText(next)
-    if (next === '' && value !== null) onChange?.(null)
+    if (next === '' && value !== null && isClearable) onChange?.(null)
   }
 
   // The clear button empties the input, which clears the value, and leaves the focus in it.
@@ -219,7 +225,7 @@ export function Combobox({
             className={clsx(styles.input, inherited && styles.inherited)}
             aria-describedby={inherited && descriptionId}
           />
-          {text !== '' && !isDisabled && !isReadOnly && (
+          {text !== '' && isClearable && !isDisabled && !isReadOnly && (
             <button
               type="button"
               className={styles.clear}

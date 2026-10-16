@@ -507,14 +507,17 @@ describe('Combobox handing on what is picked', () => {
 })
 
 describe('Combobox options', () => {
-  function renderWith(props: { isReadOnly?: boolean; hideLabel?: boolean }) {
+  function renderWith(
+    props: { isReadOnly?: boolean; isClearable?: boolean; hideLabel?: boolean },
+    onChange: (picked: Suggestion | null) => void = () => {},
+  ) {
     function Picker() {
       const suggestions = useLocalSuggestions(MACHINES)
       return (
         <Combobox
           label="Machine"
           value={MACHINES[0]}
-          onChange={() => {}}
+          onChange={onChange}
           suggestions={suggestions}
           {...props}
         />
@@ -542,6 +545,20 @@ describe('Combobox options', () => {
     expect(input()).toHaveAttribute('readOnly')
     expect(listbox()).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+  })
+
+  it('can be unclearable: no clear button, and emptying the input keeps the value', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderWith({ isClearable: false }, onChange)
+
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+    await user.clear(input())
+    expect(screen.queryByRole('button', { name: 'Clear Machine' })).not.toBeInTheDocument()
+    await user.tab()
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(input()).toHaveValue('linux-x86_64')
   })
 })
 

@@ -185,8 +185,9 @@ const FunctionSelector = memo(function FunctionSelector({
         value={selected == null || isDefault ? null : { key: selected, text: selected }}
         placeholder={selected === null ? 'Select a function' : undefined}
         inherited={isDefault ? defaultFromA(selected) : undefined}
-        // Clearing the function picked on side B brings back its default. Side A always shows one.
+        // Clearing the function picked on side B brings back its default. Side A's cannot be cleared.
         onChange={(picked) => (picked ? onPick(picked.key) : onClear?.())}
+        isClearable={onClear !== undefined}
         suggestions={suggestions}
         renderSuggestion={renderSuggestion}
         virtualized

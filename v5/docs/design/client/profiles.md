@@ -187,7 +187,7 @@ Each side that shows a profile then has a **function selector**: a combobox
   When the user's picks change side A's profile to another profile of the same
   test, side A keeps its function if the new profile has a function of that
   name, and otherwise takes its hottest. The user cannot clear the function on
-  side A.
+  side A: its function selector has no button to clear it.
 - The function on side B defaults to the function on side A, but only when side
   B's profile has a function of that name. Otherwise, side B shows no function
   until the user picks one: its function selector says "Select a function", and
