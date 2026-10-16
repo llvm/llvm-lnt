@@ -164,14 +164,14 @@ class Metric(Entry):
     """Something the suite's tests measure, such as execution time. In a run submission, each
     sample of a test reports its value under the metric's name.
 
-    The name can't be `id`, `run_id`, `test_id` or `machine_id`.
+    The name can't be `run_id`, `test_id`, `repetition` or `machine_id`.
     """
 
     model_config = ConfigDict(json_schema_extra={"examples": [examples.METRICS[0]]})
 
     LIST: ClassVar[str] = "metrics"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
-        "sample": frozenset({"id", "run_id", "test_id"}),
+        "sample": frozenset({"run_id", "test_id", "repetition"}),
         "test_coverage": frozenset({"machine_id", "test_id"}),
     }
 

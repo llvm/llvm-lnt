@@ -376,7 +376,8 @@ class Runs:
         """Every sample row the submission stands for, in one statement (O1).
 
         One statement rather than one per row because a submission legitimately carries tens of
-        thousands of samples. Their order is not stored: E6 orders a test's samples arbitrarily.
+        thousands of samples. Each is numbered by its position among its test's samples, which is
+        what tells a test's repetitions apart in the key (D5).
         """
         samples = [sample for test in tests for sample in test.samples]
         if not samples:
@@ -386,6 +387,7 @@ class Runs:
             {
                 "run_id": run_id,
                 "test_id": [ids[test.name] for test in tests for _ in test.samples],
+                "repetition": [index for test in tests for index in range(len(test.samples))],
                 # Every sample carries every declared metric (see `suites/submission.py`).
                 **{
                     metric.name: [sample[metric.name] for sample in samples]
@@ -447,7 +449,9 @@ class Runs:
 
 def _sample_insert(suite: Suite) -> Insert:
     metrics = [metric.name for metric in suite.schema.metrics]
-    return unnest_insert(suite.tables.sample, ["test_id", *metrics], constants=["run_id"])
+    return unnest_insert(
+        suite.tables.sample, ["test_id", "repetition", *metrics], constants=["run_id"]
+    )
 
 
 def _profile_insert(suite: Suite) -> Insert:

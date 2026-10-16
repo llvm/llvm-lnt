@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
 from conftest import PROFILE_COLUMNS, code_of
-from introspection import row_count, sql_type_of
+from introspection import counted, row_count, sql_type_of
 from lnt_v5.querying import DEFAULT_LIMIT
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.suites import SUITES_PATH
@@ -862,7 +862,9 @@ class TestDelete:
                 insert(suite.test).values(name="t").returning(suite.test.c.id)
             ).scalar_one()
             connection.execute(
-                insert(suite.sample).values(run_id=run_id, test_id=test_id, execution_time=1.5)
+                insert(suite.sample).values(
+                    run_id=run_id, test_id=test_id, repetition=0, execution_time=1.5
+                )
             )
             connection.execute(
                 insert(suite.profile).values(
@@ -915,7 +917,7 @@ class TestDelete:
     ) -> None:
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert row_count(db_engine, select(populated.sample.c.id)) == 0
+        assert counted(db_engine, populated, "sample") == 0
         assert row_count(db_engine, select(populated.profile.c.id)) == 0
         # The bystander's run is untouched, so this is a cascade rather than a table-wide delete.
         assert row_count(db_engine, select(populated.run.c.id)) == 1

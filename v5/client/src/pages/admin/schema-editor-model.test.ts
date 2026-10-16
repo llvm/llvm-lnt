@@ -52,9 +52,9 @@ describe('nameProblems', () => {
 
   it('refuses the names each list reserves, and only in that list', () => {
     expect(problemOf('metrics', 'run_id')).toBe(
-      "A metric cannot be named 'id', 'machine_id', 'run_id' or 'test_id'.",
+      "A metric cannot be named 'machine_id', 'repetition', 'run_id' or 'test_id'.",
     )
-    for (const name of ['id', 'machine_id', 'test_id']) {
+    for (const name of ['machine_id', 'repetition', 'test_id']) {
       expect(problemOf('metrics', name)).toBeDefined()
     }
     for (const name of ['id', 'commit', 'ordinal', 'tag']) {
@@ -63,6 +63,7 @@ describe('nameProblems', () => {
     for (const name of ['id', 'name', 'tracked']) {
       expect(problemOf('machine_fields', name)).toBeDefined()
     }
+    expect(problemOf('metrics', 'id')).toBeUndefined()
     expect(problemOf('metrics', 'tag')).toBeUndefined()
     expect(problemOf('metrics', 'name')).toBeUndefined()
     expect(problemOf('metrics', 'profile')).toBeUndefined()

@@ -33,6 +33,7 @@ take correspondingly longer.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from typing import Any
 
 import sqlalchemy as sa
 from alembic.operations import Operations
@@ -219,12 +220,75 @@ def _inactivity_columns(op: Operations, suite: SuiteSchema) -> None:
     )
 
 
+def _sample_repetition(op: Operations, suite: SuiteSchema) -> None:
+    """Version 6: `{suite}.sample` keyed by `(run_id, test_id, repetition)` rather than by `id`
+    (D5).
+
+    `repetition` is a sample's position among its test's samples in the submission. Each run's
+    samples were inserted by a single `unnest` statement, in submission order, so ordering a run's
+    samples of a test by `id` recovers it.
+
+    The rows are copied into a new table that replaces the old one, as in version 4 and for its
+    reasons. Altering the table in place would also leave the dropped `id` taking its space in
+    every existing row.
+
+    A suite whose schema declares a metric named `repetition` cannot be migrated: like any entry
+    named after a built-in column, it is refused before any suite is migrated (D6).
+    """
+    # D3's mapping from a metric's type to its column, as it stands at this version.
+    types: dict[str, sa.types.TypeEngine[Any]] = {
+        "real": sa.Double(),
+        "integer": sa.BigInteger(),
+        "text": sa.Text(),
+        "datetime": sa.DateTime(timezone=True),
+    }
+    metrics = [metric.name for metric in suite.metrics]
+    new = op.create_table(
+        "sample_new",
+        sa.Column("run_id", sa.Integer()),
+        sa.Column("test_id", sa.Integer()),
+        sa.Column("repetition", sa.Integer()),
+        *(sa.Column(metric.name, types[metric.type.value]) for metric in suite.metrics),
+        schema=suite.name,
+    )
+    old = sa.table(
+        "sample",
+        *(sa.column(name) for name in ("id", "run_id", "test_id", *metrics)),
+        schema=suite.name,
+    )
+    repetition = (
+        sa.func.row_number().over(partition_by=(old.c.run_id, old.c.test_id), order_by=old.c.id) - 1
+    )
+    copy = sa.select(
+        old.c.run_id, old.c.test_id, repetition, *(old.c[name] for name in metrics)
+    ).order_by(old.c.run_id, old.c.test_id, old.c.id)
+    op.execute(new.insert().from_select(list(new.c.keys()), copy))
+    op.drop_table("sample", schema=suite.name)
+    op.rename_table("sample_new", "sample", schema=suite.name)
+    op.create_primary_key(
+        "pk_sample", "sample", ["run_id", "test_id", "repetition"], schema=suite.name
+    )
+    op.create_index("ix_sample_test_id_run_id", "sample", ["test_id", "run_id"], schema=suite.name)
+    for column, referent, ondelete in (("run_id", "run", "CASCADE"), ("test_id", "test", None)):
+        op.create_foreign_key(
+            f"fk_sample_{column}_{referent}",
+            "sample",
+            referent,
+            [column],
+            ["id"],
+            ondelete=ondelete,
+            source_schema=suite.name,
+            referent_schema=suite.name,
+        )
+
+
 STEPS: Sequence[Step] = (
     _run_uuid_collation,
     _regression_commit_set_null,
     _run_measured_at,
     _run_summary_columns,
     _inactivity_columns,
+    _sample_repetition,
 )
 
 

@@ -439,6 +439,53 @@ class TestSteps:
                 assert recent(first_seen_at), table
                 assert days is None, table
 
+    def test_samples_are_numbered_in_id_order_within_each_run_and_test(
+        self, db_engine: Engine
+    ) -> None:
+        # Version 6 (D5): a run's samples of a test are numbered from 0 in the order of their ids,
+        # which is the order they were submitted in, and keep every value. The ids are out of
+        # insertion order and shared out between two runs and two tests, so numbering in insertion
+        # order, or across groups, would not pass.
+        finished = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+        with db_engine.begin() as connection:
+            replay_reference(connection, 5)
+            seed_runs(connection, [{"id": 1}, {"id": 2}])
+            connection.execute(
+                text("INSERT INTO reference.test (id, name) VALUES (1, 'a'), (2, 'b')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO reference.sample (id, run_id, test_id, execution_time) VALUES "
+                    "(7, 1, 1, 3.0), (2, 1, 1, 1.0), (5, 1, 1, 2.0), (3, 1, 2, 4.0), (1, 2, 1, 5.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO reference.sample "
+                    "(id, run_id, test_id, code_size, hash, finished_at) "
+                    "VALUES (4, 2, 2, 42, 'abc', :finished)"
+                ),
+                {"finished": finished},
+            )
+
+        upgrade_to_head(db_engine)
+
+        with db_engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT run_id, test_id, repetition, execution_time, code_size, hash, "
+                    "finished_at FROM reference.sample ORDER BY run_id, test_id, repetition"
+                )
+            ).all()
+        assert [tuple(row) for row in rows] == [
+            (1, 1, 0, 1.0, None, None, None),
+            (1, 1, 1, 2.0, None, None, None),
+            (1, 1, 2, 3.0, None, None, None),
+            (1, 2, 0, 4.0, None, None, None),
+            (2, 1, 0, 5.0, None, None, None),
+            (2, 2, 0, None, 42, "abc", finished),
+        ]
+
     def test_a_suite_declaring_a_field_named_like_a_new_built_in_is_refused(
         self, db_engine: Engine
     ) -> None:
