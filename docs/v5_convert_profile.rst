@@ -15,13 +15,11 @@ To convert ``bench.perf_data``, the profile of the test ``bench``::
 
     lnt v5 convert-profile bench.perf_data > bench.profile.json
 
-To attach it to that test in ``run.json``, a v5 run submission, convert it with
-``--encode``, which gives the string a test's ``profile`` holds::
+To get the profile document in the format a v5 run submission uses for a
+test's ``profile`` (gzip-compressed, then base64-encoded), convert it with
+``--encode``::
 
     lnt v5 convert-profile --encode bench.perf_data -o bench.profile
-    jq --rawfile profile bench.profile \
-        '(.tests[] | select(.name == "bench")).profile = ($profile | rtrimstr("\n"))' \
-        run.json > run-with-profile.json
 
 See ``lnt v5 convert-profile --help`` for the other options.
 
