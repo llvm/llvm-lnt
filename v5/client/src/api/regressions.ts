@@ -19,6 +19,7 @@ type RegressionListQuery = NonNullable<
 type RegressionDetail = Schemas['RegressionDetail']
 type Indicator = Schemas['Indicator']
 type IndicatorObject = Schemas['IndicatorObject']
+type RegressionCreate = Schemas['RegressionCreate']
 
 /** E8's limit on a regression's title or bug (D5's column). */
 export const TEXT_LENGTH = 256
@@ -52,6 +53,16 @@ export async function fetchRegressionPage(
 
 /** A page of regressions, with the commits they name, to show their display values. */
 export type RegressionPage = Awaited<ReturnType<typeof fetchRegressionPage>>
+
+/** Create a regression in `suite` (E8): it answers with the regression created. */
+export function createRegression(suite: string, body: RegressionCreate) {
+  return unwrap(
+    authedApi.POST('/api/suites/{testsuite}/regressions', {
+      params: { path: { testsuite: suite } },
+      body,
+    }),
+  )
+}
 
 /** Delete the regression `uuid` (E8). */
 export function deleteRegression(suite: string, uuid: string) {
@@ -200,6 +211,16 @@ export interface MarkedRegressions extends Failures {
   regressions: MarkedRegression[]
 }
 
+/** The query key of what the Graph page fetches to mark the suite's regressions (GR15). */
+function markedKey(suite: string) {
+  return [...queryKeys.regressions(suite), 'marked'] as const
+}
+
+/** Fetch again what the Graph page marks the suite's regressions from, if it is shown (GR11). */
+export function refetchMarkedRegressions(queryClient: QueryClient, suite: string): Promise<void> {
+  return queryClient.refetchQueries({ queryKey: markedKey(suite), type: 'active' })
+}
+
 const NOTHING_MARKED: MarkedRegression[] = []
 
 const NO_FAILURES: Failures = { error: null, retry: () => {} }
@@ -219,12 +240,7 @@ export function useMarkedRegressions(
   enabled: boolean,
 ): MarkedRegressions {
   const indicators = useQuery({
-    queryKey: [
-      ...queryKeys.regressions(suite),
-      'marked',
-      'indicators',
-      { machines, tests, metric, states },
-    ],
+    queryKey: [...markedKey(suite), 'indicators', { machines, tests, metric, states }],
     queryFn: ({ signal }) =>
       fetchEveryPage((cursor) =>
         unwrap(
@@ -246,7 +262,7 @@ export function useMarkedRegressions(
     placeholderData: keepPreviousData,
   })
   const list = useQuery({
-    queryKey: [...queryKeys.regressions(suite), 'marked', 'list', { metric, states }],
+    queryKey: [...markedKey(suite), 'list', { metric, states }],
     queryFn: ({ signal }) =>
       fetchEveryPage((cursor) =>
         fetchRegressions(

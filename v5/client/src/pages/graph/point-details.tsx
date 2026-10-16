@@ -1,12 +1,22 @@
-import type { RefObject } from 'react'
+import { useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link } from 'react-router'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Aggregation } from '../../aggregation'
+import {
+  createRegression,
+  refetchMarkedRegressions,
+  regressionCreated,
+  TEXT_LENGTH,
+} from '../../api/regressions'
 import type { TraceState } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
+import { useScopeGate } from '../../auth/scope'
+import { ActionButton } from '../../components/action-button'
 import { ButtonLink } from '../../components/button-link'
 import { DataTable, type Column } from '../../components/data-table'
+import { ErrorMessage } from '../../components/feedback'
 import { formatTimestamp, plural, shortUuid } from '../../format'
-import { commitPath, comparePath, machinePath, runPath } from '../../paths'
+import { commitPath, comparePath, machinePath, regressionPath, runPath } from '../../paths'
 import { formatMetricValue, type Metric } from '../../schema'
 import { ChartDialog, type Anchor } from './chart-dialog'
 import type { Point, RunSamples } from './points'
@@ -37,7 +47,8 @@ interface Props {
 
 /**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
- * value, its runs with their samples, and a comparison with the point before it.
+ * value, its runs with their samples, a comparison with the point before it, and a way to create a
+ * regression from it.
  */
 export function PointDetails({
   schema,
@@ -107,12 +118,130 @@ export function PointDetails({
           />
         </div>
       </div>
-      <ButtonLink to={compare} title={why}>
-        Compare with previous commit
-      </ButtonLink>
+      <div className={styles.detailsActions}>
+        <ButtonLink to={compare} title={why}>
+          Compare with previous commit
+        </ButtonLink>
+        <CreateRegression
+          suite={suite}
+          machine={machine}
+          test={test}
+          metric={metric.name}
+          commit={point.commit}
+        />
+      </div>
     </ChartDialog>
   )
 }
+
+interface CreateRegressionProps {
+  /** The point's suite, machine, test, metric and commit, which the regression is of. */
+  suite: string
+  machine: string
+  test: string
+  metric: string
+  commit: string
+}
+
+/**
+ * "Create regression" (GR11): a button opening a form for the regression's title, which creates a
+ * regression of the point, and gives way to a link to it. The form cancels as an inline edit does
+ * (AR12): with its Cancel button or Escape, giving the focus back to the button.
+ */
+function CreateRegression({ suite, machine, test, metric, commit }: CreateRegressionProps) {
+  const triage = useScopeGate('triage')
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const create = useMutation({
+    mutationFn: (titled: string | null) =>
+      createRegression(suite, { title: titled, commit, indicators: [{ machine, test, metric }] }),
+    onSuccess: async (created) => {
+      await regressionCreated(queryClient, suite, created)
+      // So that the chart marks it at once (GR15).
+      void refetchMarkedRegressions(queryClient, suite)
+    },
+  })
+
+  // Once the form is cancelled, the button opening it, shown again, takes the focus back.
+  const cancelled = useRef(false)
+  const opener = (button: HTMLButtonElement | null) => {
+    if (button === null || !cancelled.current) return
+    cancelled.current = false
+    button.focus()
+  }
+  // Nothing in the form can be used while the regression is created, Escape included (AR12).
+  const cancel = () => {
+    if (create.isPending) return
+    cancelled.current = true
+    setOpen(false)
+    setTitle('')
+    create.reset()
+  }
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    // An empty title is none at all: the API refuses empty strings.
+    if (!triage.disabled && !create.isPending) create.mutate(title.trim() || null)
+  }
+
+  if (create.data !== undefined) {
+    const { uuid, title: created } = create.data
+    return (
+      <span role="status">
+        Regression created:{' '}
+        <Link ref={focusOnMount} to={regressionPath(suite, uuid)}>
+          {created ?? shortUuid(uuid)}
+        </Link>
+      </span>
+    )
+  }
+  if (!open) {
+    return (
+      <ActionButton ref={opener} reason={triage.title} onClick={() => setOpen(true)}>
+        Create regression
+      </ActionButton>
+    )
+  }
+  return (
+    <form
+      className={styles.detailsCreate}
+      aria-label="Create regression"
+      onSubmit={submit}
+      onKeyDown={(event) => {
+        // An Escape ending an input method's composition belongs to it.
+        if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
+        // It cancels the form rather than close the details.
+        event.stopPropagation()
+        cancel()
+      }}
+    >
+      <div className={styles.detailsFields}>
+        <label className={styles.detailsField}>
+          Title
+          <input
+            type="text"
+            value={title}
+            maxLength={TEXT_LENGTH}
+            placeholder="Untitled"
+            readOnly={create.isPending}
+            onChange={(event) => setTitle(event.target.value)}
+            autoFocus
+          />
+        </label>
+        <ActionButton type="submit" reason={triage.title} busy={create.isPending}>
+          {create.isPending ? 'Creating...' : 'Create'}
+        </ActionButton>
+        <ActionButton busy={create.isPending} onClick={cancel}>
+          Cancel
+        </ActionButton>
+      </div>
+      {create.isError && <ErrorMessage error={create.error} />}
+    </form>
+  )
+}
+
+/** Focus the link to the regression created, for the dialog to keep the focus the form had. */
+const focusOnMount = (link: HTMLAnchorElement | null) => link?.focus()
 
 const runKey = (run: RunSamples) => run.run
 

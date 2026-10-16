@@ -191,6 +191,18 @@ export function mockRegressions(
   return queries
 }
 
+/** Answer `POST regressions` with `created`; returns each request's suite and body. */
+export function mockCreateRegression(created: Schemas['RegressionDetail']) {
+  const requests: { suite: string; body: Schemas['RegressionCreate'] }[] = []
+  server.use(
+    mockApi('post', '/api/suites/{testsuite}/regressions', async ({ request, params }) => {
+      requests.push({ suite: params.testsuite, body: await request.json() })
+      return HttpResponse.json(created, { status: 201 })
+    }),
+  )
+  return requests
+}
+
 /** Resolve the commits among `known`; returns the commits each request asked for. */
 export function mockResolve(known: Commit[] = []) {
   const requests: string[][] = []

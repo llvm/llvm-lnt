@@ -287,11 +287,31 @@ hidden until the pointer moves again. It shows:
   Run Detail's "Compare with previous commit" (DT2), it always has data for the
   test. The link is disabled (see AR8) at the first point of a trace, and while
   the trace's data is still loading or could not all be loaded.
+- "Create regression": a button opening a form below it that creates a
+  regression in this suite, attributed to the point's commit, with a single
+  indicator naming the point's machine and test and the plotted metric. The
+  form asks only for the regression's title, which may be left empty: the
+  regression otherwise has E8's default state, and can be completed on its
+  Regression Detail page (DT4). The form opens with the focus in its empty
+  input, and is used as an inline edit is (AR12): whitespace at either end of
+  the title is ignored, so that a title of only whitespace is none; Enter or
+  its Create button creates the regression; nothing in the form can be used
+  while it is being created; and Escape or its Cancel button closes the form,
+  forgetting its title, gives the focus back to "Create regression", and
+  leaves the popover open. It is a form (see AR2 "State"). Creating the
+  regression needs `triage` scope (see AR17). Once it is created, the form
+  gives way to "Regression created: " followed by a link to its Regression
+  Detail page, whose text is its title, or its shortened UUID when it has
+  none, and which takes the focus. When regression annotations are shown, the
+  chart marks it at once (GR15), whether or not the popover is still open. If
+  creating it fails, the form says why and keeps the title typed, and the
+  focus stays where it was.
 
 While it is open, the popover follows its point -- as more data arrives, the
 chart is resized or the page scrolls -- and updates its contents as the data
-arrives. It closes on Escape, on its close button, on a click anywhere but on it
-or a marker of its point's scatter, and on any change to the chart other than
+arrives. It closes on Escape, unless pressed in its "Create regression" form,
+on its close button, on a click anywhere but on it or a marker of its point's
+scatter, and on any change to the chart other than
 data arriving, such as a zoom or pan, or a change to the selected tests,
 machines, metric, aggregation, baselines or regression annotation mode,
 and once its point is no longer drawn. Moving the focus out of it does not close
@@ -325,6 +345,7 @@ not points.
 - `GET suites` (suite selector, and the selected suite's metrics)
 - `POST regressions/indicators/query` and `GET regressions` (regression
   annotations; see GR15)
+- `POST regressions` (creating a regression from a point; see GR11)
 
 
 ### GR14: URL State

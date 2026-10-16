@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
+import { ownSuite } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf, type PlotDiv } from './plot.ts'
 import { pickOption } from './select.ts'
 import { table } from './tables.ts'
@@ -218,6 +219,54 @@ test("marks a regression at its commit, and shows its details from its marker (G
   await expect(page.locator('.hoverlayer')).not.toContainText('std::format slowdown')
   await details.getByRole('link', { name: `${uuid.slice(0, 8)}…` }).click()
   await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
+})
+
+test('creates a regression from a point, and marks it at once (GR11, GR15)', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  const run = (commit: string, ordinal: number, value: number) => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    tests: [{ name: 'bench', samples: [{ execution_time: value }] }],
+  })
+  await ownSuite(request, tokenFor, testInfo, [run('c1', 1, 1), run('c2', 2, 2)], async (suite) => {
+    await signIn(page, 'triage')
+    await page.goto(
+      `/graph?suite=${suite}&machine=m1&metric=execution_time&test=bench&regressions=all`,
+    )
+    await expect(tracesOf(page)).toHaveCount(1)
+
+    await plotOf(page).click({ position: await pointOf(page, 0, 1) })
+    const details = page.getByRole('dialog', { name: 'bench on m1 at c2' })
+    await details.getByRole('button', { name: 'Create regression' }).click()
+    const title = details.getByRole('textbox', { name: 'Title' })
+    await expect(title).toBeFocused()
+    await title.fill('bench slowed down')
+    await title.press('Enter')
+    const link = details.getByRole('status').getByRole('link', { name: 'bench slowed down' })
+    await expect(link).toBeFocused()
+    const uuid = (await link.getAttribute('href'))!.split('/').at(-1)!
+    const created = await json<components['schemas']['RegressionDetail']>(
+      request,
+      `/api/suites/${suite}/regressions/${uuid}`,
+    )
+    expect(created).toMatchObject({
+      title: 'bench slowed down',
+      state: 'detected',
+      commit: 'c2',
+      indicators: [{ machine: 'm1', test: 'bench', metric: 'execution_time' }],
+    })
+
+    // The chart marks it without a reload, which leaves the details open.
+    await expect.poll(() => draws(page, `regression ${uuid}`)).toBe(true)
+    await expect(details).toBeVisible()
+    await link.click()
+    await expect(page).toHaveURL(`/suites/${suite}/regressions/${uuid}`)
+  })
 })
 
 test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ page }) => {
