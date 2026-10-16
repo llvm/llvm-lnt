@@ -446,12 +446,7 @@ User-agent: *
 Disallow: /
 ```
 
-API responses are computed from the database on request, and I9 lets no cache
-answer in the server's place, so crawler traffic reaches the database in full.
+It is served as `text/plain` with UTF-8 charset.
 
-- `/llms.txt` is deliberately not allowed: it is written for agents a user
-  directs at the instance, not for crawlers, and it explains exactly how to
-  drive the API.
-- Static content outside the REST API: always public, and an `Authorization`
-  header has no effect on it (see I5).
-- Served as `text/plain` with UTF-8 charset.
+Rationale: API responses are computed from the database on request, and I9 require
+those responses to not be cached, so crawler traffic hits the database directly.
