@@ -161,9 +161,9 @@ class TestApplicationWiring:
         ("method", "path", "allowed"),
         [
             # Two routes serve this path; RFC 9110 has `Allow` name both, where Starlette's own 405
-            # would name only whichever matched first.
-            ("put", "/api/suites", "GET, POST"),
-            ("delete", "/api/suites/nts/runs", "GET, POST"),
+            # would name only whichever matched first. It names HEAD too, served wherever GET is.
+            ("put", "/api/suites", "GET, HEAD, POST"),
+            ("delete", "/api/suites/nts/runs", "GET, HEAD, POST"),
         ],
     )
     def test_a_method_mismatch_on_the_api_is_405_naming_every_allowed_method(
@@ -196,12 +196,26 @@ class TestApplicationWiring:
         assert response.status_code == 404
         assert "allow" not in response.headers
 
-    def test_head_on_an_api_path_stays_404(self, client: TestClient) -> None:
-        # No API endpoint serves HEAD; a 405 would refuse it on a path that serves GET.
-        response = client.head("/api/suites")
+    @pytest.mark.parametrize(
+        ("path", "status"), [("/api", 200), ("/api/nope", 404), ("/llms.txt", 200)]
+    )
+    def test_head_gets_the_status_and_headers_of_get(
+        self, api_client: TestClient, path: str, status: int
+    ) -> None:
+        # I4. FastAPI's routes never serve HEAD, so without `AnswerHeadLikeGet` it would fall
+        # through to the SPA mount, which 404s these paths. test_spa.py covers the SPA's files.
+        get = api_client.get(path)
+        head = api_client.head(path)
 
-        assert response.status_code == 404
-        assert "allow" not in response.headers
+        assert head.status_code == get.status_code == status
+        assert head.headers == get.headers
+
+    def test_head_on_a_path_without_get_is_a_method_mismatch(self, client: TestClient) -> None:
+        # HEAD is served wherever GET is, and nowhere else.
+        response = client.head("/api/suites/nts/query")
+
+        assert response.status_code == 405
+        assert response.headers["allow"] == "POST"
 
     def test_an_api_path_no_route_serves_stays_404(self, client: TestClient) -> None:
         response = client.put("/api/nothing-here")

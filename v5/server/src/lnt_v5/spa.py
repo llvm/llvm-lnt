@@ -4,9 +4,10 @@ Deep links and hard refreshes must resolve to a client route rather than 404, so
 not the API, not an infrastructure route, and not a request for a file falls through to
 index.html. See AR2 "Serving".
 
-Two things are settled before the route table is consulted at all, and both live here because both
-are statements about the raw path rather than about any endpoint: a URL carrying a NUL is refused
-(I4, D5), and a server path carrying a trailing slash is redirected (I1).
+Three things are settled before the route table is consulted at all, and all live here because all
+are statements about the raw request rather than about any endpoint: a URL carrying a NUL is
+refused (I4, D5), a server path carrying a trailing slash is redirected (I1), and HEAD is routed
+as GET (I4).
 """
 
 from __future__ import annotations
@@ -149,6 +150,30 @@ class RedirectTrailingSlash:
         await self.app(scope, receive, send)
 
 
+class AnswerHeadLikeGet:
+    """Answer HEAD wherever GET is answered (I4), as RFC 9110 requires of every server.
+
+    FastAPI's routes never serve HEAD, so without this a HEAD falls through to the SPA mount, and
+    `/healthz` gets the client shell and a 200 whatever the database's state. Routed as a GET, it
+    goes through everything a GET does (I3, I5, I9) without any endpoint declaring it, and stays
+    out of I8's document, where a HEAD route would add an operation beside every GET.
+
+    The HTTP server drops the body, rather than this: only the layer that frames the response can
+    do that correctly (RFC 9112 section 6.3), and Starlette's own HEAD routes -- the API document
+    and its viewer -- already rely on it. A HEAD costs what its GET does, which RFC 9110 allows.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] == "HEAD":
+            # A copy, never the caller's scope: uvicorn decides whether to send a body from the
+            # method in its own scope; told GET, it would write one after a HEAD's headers.
+            scope = {**scope, "method": "GET"}
+        await self.app(scope, receive, send)
+
+
 def _path_and_query(path: str, query: bytes) -> str:
     """`path` followed by `query`, encoded for a `Location` header.
 
@@ -194,17 +219,17 @@ def _api_miss(scope: Scope, method: str | None) -> Exception:
     is normalized, so `/api//suites` would match `/api/suites` and get a 405 allowing the very
     method it refused.
 
-    HEAD stays a 404: FastAPI routes never serve it, so a 405 would refuse HEAD on a path that
-    serves GET, which RFC 9110 requires every server to answer. Answering it like GET instead
-    (status and headers, no body) is the fix if a client or monitor ever needs it.
+    `Allow` names HEAD wherever it names GET, since `AnswerHeadLikeGet` serves it there. Starlette's
+    own routes already list it; FastAPI's do not.
     """
     path = get_route_path(scope)
     allowed: set[str] = set()
-    if method != "HEAD":
-        for route in iter_routes(scope["app"].routes):
-            regex = getattr(route, "path_regex", None)
-            if regex is not None and regex.match(path):
-                allowed.update(route.methods or ())
+    for route in iter_routes(scope["app"].routes):
+        regex = getattr(route, "path_regex", None)
+        if regex is not None and regex.match(path):
+            allowed.update(route.methods or ())
+    if "GET" in allowed:
+        allowed.add("HEAD")
     if not allowed:
         return _not_found(method, path)
     return ApiError(
@@ -228,12 +253,16 @@ class SpaStaticFiles(StaticFiles):
         # segments are gone, and `/` arrives as `.`). Rebuild the request path the predicates read.
         request_path = "/" + ("" if path == "." else path)
 
-        # StaticFiles would happily serve a file that shadowed an API route, and answers a
-        # non-GET/HEAD with 405 -- which I4 gives to the API alone. The rest is "nothing here".
+        # StaticFiles would happily serve a file that shadowed an API route, and answers anything
+        # but GET and HEAD with 405 -- which I4 gives to the API alone. The rest is "nothing here".
+        #
+        # HEAD never gets here: `AnswerHeadLikeGet` has made it a GET, so the base class reads the
+        # file in full where it would have sent only the headers. Accepted, as HEAD requests for
+        # them are rare.
         method = scope.get("method")
         if is_api_path(request_path):
             raise _api_miss(scope, method)
-        if method not in ("GET", "HEAD"):
+        if method != "GET":
             raise _not_found(method, request_path)
 
         try:

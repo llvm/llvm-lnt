@@ -34,7 +34,7 @@ from .routes.samples import router as samples_router
 from .routes.suites import router as suites_router
 from .routes.tests import router as tests_router
 from .routes.timeseries import router as timeseries_router
-from .spa import RedirectTrailingSlash, RejectNulInUrl, SpaStaticFiles
+from .spa import AnswerHeadLikeGet, RedirectTrailingSlash, RejectNulInUrl, SpaStaticFiles
 from .suites.registry import SuiteRegistry
 
 logger = logging.getLogger(__name__)
@@ -123,6 +123,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
     app.add_middleware(RedirectTrailingSlash)
     app.add_middleware(RejectNulInUrl)
+    # Last, so that it wraps the other middleware: they all see a HEAD as the GET it answers like.
+    app.add_middleware(AnswerHeadLikeGet)
 
     # Routes before the SPA mount: a mount at "/" matches everything, so anything registered
     # after it is unreachable.

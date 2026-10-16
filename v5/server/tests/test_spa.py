@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import Message, Receive, Scope, Send
 
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
-from lnt_v5.spa import canonical_server_path, is_api_path, is_static_asset_path
+from lnt_v5.spa import (
+    AnswerHeadLikeGet,
+    canonical_server_path,
+    is_api_path,
+    is_static_asset_path,
+)
 
 # Both predicates read a request path, never a URL: what reaches them is `scope["path"]`, which
 # carries no query string. Cases below are written in that shape.
@@ -85,10 +92,11 @@ class TestSpaServing:
 
     @pytest.mark.parametrize("url", ["/", "/suites/nts", "/real.css"])
     def test_head_is_answered_like_get(self, client: TestClient, url: str) -> None:
-        response = client.head(url)
+        get = client.get(url)
+        head = client.head(url)
 
-        assert response.status_code == 200
-        assert response.headers["cache-control"] == "no-cache, max-age=0"
+        assert head.status_code == 200
+        assert head.headers == get.headers
 
     def test_returns_the_json_error_envelope_for_an_unmatched_api_route(
         self, client: TestClient
@@ -359,6 +367,32 @@ class TestRejectNulInUrl:
     def test_leaves_an_ordinary_url_alone(self, client: TestClient) -> None:
         assert client.get("/llms.txt").status_code == 200
         assert client.get("/suites/nts?search=abc").status_code == 200
+
+
+class TestAnswerHeadLikeGet:
+    @pytest.mark.parametrize(("method", "routed_as"), [("HEAD", "GET"), ("POST", "POST")])
+    def test_routes_head_as_get_without_touching_the_callers_scope(
+        self, method: str, routed_as: str
+    ) -> None:
+        # Driven over raw ASGI rather than through TestClient, which drops a HEAD response's body
+        # itself. The server does not: uvicorn decides whether to send one from the method in its
+        # own scope, so a HEAD rewritten in place would get a body after its headers.
+        seen: list[str] = []
+
+        async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+            seen.append(scope["method"])
+
+        async def receive() -> Message:
+            raise AssertionError("not called")
+
+        async def send(message: Message) -> None:
+            raise AssertionError("not called")
+
+        scope: Scope = {"type": "http", "method": method, "path": "/healthz"}
+        asyncio.run(AnswerHeadLikeGet(inner)(scope, receive, send))
+
+        assert seen == [routed_as]
+        assert scope["method"] == method
 
 
 class TestSpaWithoutABuiltClient:
