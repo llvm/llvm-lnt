@@ -118,6 +118,11 @@ INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
 
+def geomean_column(aggregation: SampleAggregation) -> str:
+    """The `{suite}.run_summary` column holding a run's geomean under `aggregation` (D5)."""
+    return f"geomean_{aggregation}"
+
+
 def _flags(metrics: Sequence[Entry]) -> list[Column[Any]]:
     """One flag per metric on `{suite}.test_coverage`, whatever the metric's own type (D5).
 
@@ -383,23 +388,21 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("instructions", LargeBinary, nullable=False),
     )
 
-    # O9: statistics summarizing a run's samples, one row per numeric metric and sample
-    # aggregation, which is what `GET /trends` reads instead of the samples. One column per
-    # statistic, of which the geomean is the only one so far. Written once, at submission, and
-    # deleted with the run or the metric it is derived from. `run_id` leads the key because trends
-    # reaches these by run.
+    # O9: statistics summarizing a run's samples, one row per numeric metric, which is what
+    # `GET /trends` reads instead of the samples. One column per statistic and sample aggregation,
+    # of which the geomean is the only statistic so far; null where the run has no geomean under
+    # that aggregation. Written once, at submission, and deleted with the run or the metric it is
+    # derived from. `run_id` leads the key because trends reaches these by run.
     run_summary = Table(
         "run_summary",
         metadata,
         Column("run_id", ForeignKey("run.id", ondelete="CASCADE"), primary_key=True),
         Column("metric_id", ForeignKey("metric.id", ondelete="CASCADE"), primary_key=True),
-        Column("sample_agg", String(8), primary_key=True),
-        Column("geomean", Double, nullable=False),
-        CheckConstraint(
-            "sample_agg IN ({})".format(
-                ", ".join(f"'{aggregation}'" for aggregation in SampleAggregation)
-            ),
-            name="sample_agg",
+        # From the enum, so that adding an aggregation changes the structure a suite is created
+        # with, and the snapshot tests ask for the migration step that adds its column.
+        *(
+            Column(geomean_column(aggregation), Double, nullable=True)
+            for aggregation in SampleAggregation
         ),
     )
 

@@ -1,8 +1,8 @@
 """The two stages of a run's geomean (O9): a test's samples to one value, then the tests to their
 geometric mean.
 
-In a module of its own because both the per-suite DDL, which constrains the stored aggregation, and
-the code computing and serving the geomeans need it, and neither should import the other.
+In a module of its own because both the per-suite DDL, which has a column per aggregation, and the
+code computing and serving the geomeans need it, and neither should import the other.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterable, Sequence
 from enum import StrEnum, auto
 
 
-# The same names the API speaks and `{suite}.run_summary.sample_agg` stores.
+# The same names the API speaks, and that name the geomean columns of `{suite}.run_summary`.
 #
 # The class docstring is published: it is this enum's description in I8's document.
 class SampleAggregation(StrEnum):

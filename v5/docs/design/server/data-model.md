@@ -673,13 +673,18 @@ The database layer validates state values on create and update.
 |--------|------|-------------|
 | run_id | INTEGER FK -> Run | PK |
 | metric_id | INTEGER FK -> Metric | PK |
-| sample_agg | VARCHAR(8) | PK, one of `median`, `mean`, `min`, `max` |
-| geomean | DOUBLE PRECISION | not null |
+| geomean_median | DOUBLE PRECISION | nullable |
+| geomean_mean | DOUBLE PRECISION | nullable |
+| geomean_min | DOUBLE PRECISION | nullable |
+| geomean_max | DOUBLE PRECISION | nullable |
 
-- Statistics summarizing a run's samples for one numeric metric under one
-  sample aggregation, computed at submission (see O9), one column per
-  statistic. `GET /api/suites/{testsuite}/trends` reads this table, so that a
-  trend does not read every sample in its window.
+- Statistics summarizing a run's samples for one numeric metric, computed at
+  submission (see O9), one column per statistic and sample aggregation.
+  `GET /api/suites/{testsuite}/trends` reads this table, so that a trend does
+  not read every sample in its window.
+- A geomean column is null when the run has no geomean of the metric under
+  that aggregation. A run with no geomean of a metric under any aggregation has
+  no row for it.
 - Never updated: a run's samples do not change after submission.
 - Deleted along with its run, or with its metric (see D2).
 

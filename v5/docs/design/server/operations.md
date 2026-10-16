@@ -411,10 +411,11 @@ With PostgreSQL, this is achieved as follows:
 ## O9: Run Summaries
 
 Run submission also stores, in the same transaction, a summary of the run for
-every numeric metric (see D3) and every sample aggregation: `median`, `mean`,
-`min` and `max`. A summary holds statistics computed from the run's samples, so
-that later reads do not have to read every sample again. The only statistic so
-far is the run's geomean, computed in two steps:
+every numeric metric (see D3). A summary holds statistics computed from the
+run's samples, so that later reads do not have to read every sample again. The
+only statistic so far is the run's geomean, which the summary holds under every
+sample aggregation: `median`, `mean`, `min` and `max`. Each is computed in two
+steps:
 
 1. Each test's samples in the run that have a value for the metric are reduced
    to one value with the sample aggregation. The median of an even number of
@@ -423,8 +424,9 @@ far is the run's geomean, computed in two steps:
 2. The geomean, `exp(mean(ln(v)))`, is taken over those per-test values,
    skipping any that are zero or negative.
 
-If a metric and aggregation have no positive per-test value, there is no
-geomean, and no summary is stored for them. Summaries are stored in
+If a metric has no positive per-test value under an aggregation, it has no
+geomean under that aggregation, and its summary holds none for it. A metric
+with no geomean under any aggregation has no summary. Summaries are stored in
 `{suite}.run_summary` (see D5), which lets a trend read a few rows per commit
 rather than every sample (see `GET /api/suites/{testsuite}/trends`).
 

@@ -87,6 +87,22 @@ def replay_reference(connection: Connection, version: int) -> None:
     )
 
 
+def seed_runs(connection: Connection, runs: list[dict[str, Any]]) -> None:
+    """A machine and a commit in the reference suite, and a run of theirs per entry of `runs`, which
+    holds that run's other columns."""
+    connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
+    connection.execute(text("INSERT INTO reference.commit (commit) VALUES ('c')"))
+    for index, columns in enumerate(runs):
+        connection.execute(
+            text(
+                f"INSERT INTO reference.run (uuid, machine_id, commit_id, {', '.join(columns)}) "
+                f"SELECT :uuid, machine.id, commit.id, {', '.join(f':{name}' for name in columns)} "
+                "FROM reference.machine, reference.commit"
+            ),
+            {"uuid": f"{index}0000000-0000-4000-8000-000000000000", **columns},
+        )
+
+
 def fresh_structure(engine: Engine) -> dict[str, list[tuple[Any, ...]]]:
     """Replace the reference suite with a new one from this build, and return its structure.
 
@@ -346,17 +362,7 @@ class TestSteps:
         submitted = [datetime(2026, month, 1, 12, 0, tzinfo=UTC) for month in (1, 2, 3)]
         with db_engine.begin() as connection:
             replay_reference(connection, 2)
-            connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
-            connection.execute(text("INSERT INTO reference.commit (commit) VALUES ('c')"))
-            for index, moment in enumerate(submitted):
-                connection.execute(
-                    text(
-                        "INSERT INTO reference.run (uuid, machine_id, commit_id, submitted_at) "
-                        "SELECT :uuid, machine.id, commit.id, :moment "
-                        "FROM reference.machine, reference.commit"
-                    ),
-                    {"uuid": f"{index}0000000-0000-4000-8000-000000000000", "moment": moment},
-                )
+            seed_runs(connection, [{"submitted_at": moment} for moment in submitted])
 
         upgrade_to_head(db_engine)
 
@@ -365,3 +371,48 @@ class TestSteps:
                 text("SELECT measured_at FROM reference.run ORDER BY submitted_at")
             ).all()
         assert measured == submitted
+
+    def test_run_summaries_are_pivoted_into_one_row_per_run_and_metric(
+        self, db_engine: Engine
+    ) -> None:
+        # Version 4 (D5): every stored geomean lands in its aggregation's column, and an
+        # aggregation that had no row is null. Two runs and two metrics, so a pivot that mixed up
+        # its groups would not pass. Any positive aggregate implies a positive max, so every pair
+        # has a max; the median and max alone are positive for samples like [-10, 1, 2].
+        old = {
+            (1, "execution_time"): {"median": 2.0, "mean": 2.5, "min": 1.0, "max": 4.0},
+            (1, "code_size"): {"median": 1.0, "max": 2.0},
+            (2, "execution_time"): {"median": 3.0, "mean": 3.0, "min": 3.0, "max": 3.0},
+        }
+        with db_engine.begin() as connection:
+            replay_reference(connection, 3)
+            seed_runs(connection, [{"id": 1}, {"id": 2}])
+            connection.execute(
+                text("INSERT INTO reference.metric (name) VALUES ('execution_time'), ('code_size')")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO reference.run_summary (run_id, metric_id, sample_agg, geomean) "
+                    "SELECT :run, id, :aggregation, :geomean FROM reference.metric "
+                    "WHERE name = :metric"
+                ),
+                [
+                    {"run": run, "metric": metric, "aggregation": aggregation, "geomean": value}
+                    for (run, metric), geomeans in old.items()
+                    for aggregation, value in geomeans.items()
+                ],
+            )
+
+        upgrade_to_head(db_engine)
+
+        with db_engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT run_id, name, geomean_median, geomean_mean, geomean_min, geomean_max "
+                    "FROM reference.run_summary JOIN reference.metric ON metric.id = metric_id"
+                )
+            ).all()
+        assert {(run, metric): tuple(geomeans) for run, metric, *geomeans in rows} == {
+            (run, metric): tuple(geomeans.get(name) for name in ("median", "mean", "min", "max"))
+            for (run, metric), geomeans in old.items()
+        }

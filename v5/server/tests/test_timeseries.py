@@ -841,6 +841,46 @@ class TestTrends:
 
         assert [item["commit"] for item in served] == ["good"]
 
+    def test_a_machine_with_no_geomean_under_the_aggregation_is_absent_at_that_commit(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+    ) -> None:
+        # `linux` puts the commit in the window. `mac` has a summary of the metric there, but its
+        # minimum is -1, so it has no geomean under `min`.
+        submit("linux", "abc", entry("t", {"execution_time": 2.0}))
+        submit("mac", "abc", entry("t", {"execution_time": -1.0}, {"execution_time": 3.0}))
+        place("abc", ordinal=1)
+
+        served = trends(
+            api_client, metric="execution_time", machine=["linux", "mac"], sample_agg="min"
+        )
+
+        assert [item["machine"] for item in served] == ["linux"]
+
+    def test_measured_at_covers_only_the_runs_with_a_geomean_under_the_aggregation(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+    ) -> None:
+        # The run measured last has no geomean under `min`, so the value does not cover it.
+        covered = "2020-01-01T00:00:00Z"
+        submit("linux", "abc", entry("t", {"execution_time": 4.0}), measured_at=covered)
+        submit(
+            "linux",
+            "abc",
+            entry("t", {"execution_time": -1.0}, {"execution_time": 3.0}),
+            measured_at="2026-01-01T00:00:00Z",
+        )
+        place("abc", ordinal=1)
+
+        [item] = trends(api_client, metric="execution_time", machine=["linux"], sample_agg="min")
+
+        assert item["value"] == pytest.approx(4.0)
+        assert item["measured_at"] == covered
+
     def test_an_integer_metric_is_averaged_in_floating_point(
         self,
         api_client: TestClient,

@@ -19,7 +19,7 @@ from lnt_v5.suites.aggregation import SampleAggregation, geomean
 from lnt_v5.suites.schema import Metric
 from lnt_v5.suites.submission import SubmittedTest
 from lnt_v5.suites.summaries import summarize
-from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.suites.tables import SuiteTables, geomean_column
 
 TIME = Metric.model_validate({"name": "time", "type": "real"})
 COUNT = Metric.model_validate({"name": "count", "type": "integer"})
@@ -33,9 +33,12 @@ def validated_test(name: str, *samples: dict[str, Any]) -> SubmittedTest:
 
 
 def summarized(*tests: SubmittedTest, metrics: list[Metric] | None = None) -> dict[Any, float]:
+    """The geomeans `summarize` computes, keyed by metric and aggregation, leaving out the nulls."""
     return {
         (name, aggregation): value
-        for name, aggregation, value in summarize(metrics or [TIME, COUNT, LABEL], tests)
+        for name, geomeans in summarize(metrics or [TIME, COUNT, LABEL], tests)
+        for aggregation, value in geomeans.items()
+        if value is not None
     }
 
 
@@ -106,10 +109,22 @@ class TestSummarize:
         assert summaries["time", SampleAggregation.MIN] == pytest.approx(4.0)
 
     def test_nothing_positive_has_no_geomean(self) -> None:
-        summaries = summarized(validated_test("a", {"time": -1.0}, {"time": 3.0}))
+        summaries = summarize([TIME], [validated_test("a", {"time": -1.0}, {"time": 3.0})])
 
-        assert ("time", SampleAggregation.MIN) not in summaries
-        assert ("time", SampleAggregation.MAX) in summaries
+        assert summaries == [
+            (
+                "time",
+                {
+                    SampleAggregation.MEDIAN: pytest.approx(1.0),
+                    SampleAggregation.MEAN: pytest.approx(1.0),
+                    SampleAggregation.MIN: None,
+                    SampleAggregation.MAX: pytest.approx(3.0),
+                },
+            )
+        ]
+
+    def test_a_metric_with_no_geomean_under_any_aggregation_has_no_summary(self) -> None:
+        assert summarize([TIME], [validated_test("a", {"time": -1.0}, {"time": 0.0})]) == []
 
     def test_an_integer_metric_is_averaged_in_floating_point(self) -> None:
         summaries = summarized(
@@ -140,15 +155,19 @@ class TestSubmission:
             }
         )
 
-    def stored(self, db_engine: Engine, suite: SuiteTables) -> dict[Any, float]:
+    def stored(self, db_engine: Engine, suite: SuiteTables) -> dict[Any, float | None]:
+        """Every stored geomean, null or not, keyed by metric and aggregation."""
         summaries, metric = suite.run_summary, suite.metric
+        columns = [summaries.c[geomean_column(aggregation)] for aggregation in SampleAggregation]
         with db_engine.connect() as connection:
             rows = connection.execute(
-                select(metric.c.name, summaries.c.sample_agg, summaries.c.geomean).join(
-                    metric, metric.c.id == summaries.c.metric_id
-                )
+                select(metric.c.name, *columns).join(metric, metric.c.id == summaries.c.metric_id)
             ).all()
-        return {(name, aggregation): value for name, aggregation, value in rows}
+        return {
+            (name, aggregation): value
+            for name, *geomeans in rows
+            for aggregation, value in zip(SampleAggregation, geomeans, strict=True)
+        }
 
     def submit(
         self, api_client: TestClient, submitter: dict[str, str], *tests: dict[str, Any]
@@ -183,10 +202,32 @@ class TestSubmission:
         assert stored["time", SampleAggregation.MEDIAN] == pytest.approx(4.0)
         assert stored["size", SampleAggregation.MAX] == pytest.approx(5.0)
 
+    def test_stores_null_where_there_is_no_geomean(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        db_engine: Engine,
+        suite: SuiteTables,
+    ) -> None:
+        # The median of [-10, 1, 2] is 1, its mean is -7/3 and its min -10: only the median and the
+        # max are positive. `size` has nothing positive under any aggregation, so it has no row.
+        self.submit(
+            api_client,
+            submitter,
+            entry("a", {"time": -10.0, "size": 0}, {"time": 1.0}, {"time": 2.0}),
+        )
+
+        assert self.stored(db_engine, suite) == {
+            ("time", SampleAggregation.MEDIAN): pytest.approx(1.0),
+            ("time", SampleAggregation.MEAN): None,
+            ("time", SampleAggregation.MIN): None,
+            ("time", SampleAggregation.MAX): pytest.approx(2.0),
+        }
+
     def test_costs_one_insert_however_many_summaries_there_are(
         self, api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
     ) -> None:
-        # Two metrics under four aggregations: eight summaries, and one statement.
+        # Two metrics, so two summaries, and one statement.
         with counting_statements("INSERT INTO nts.run_summary") as inserts:
             self.submit(api_client, submitter, entry("a", {"time": 1.0, "size": 2}))
 

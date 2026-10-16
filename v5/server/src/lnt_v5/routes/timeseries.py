@@ -49,6 +49,7 @@ from lnt_v5.suites.entities import DatetimeValue, DeclaredValue, Named, declared
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import NUMERIC_TYPES, Metric
 from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
+from lnt_v5.suites.tables import geomean_column
 
 QUERY_PATH = f"{SUITES_PATH}/{{testsuite}}/query"
 TRENDS_PATH = f"{SUITES_PATH}/{{testsuite}}/trends"
@@ -367,12 +368,16 @@ class Trends:
         self._commit: Table = suite.tables.commit
         self._machine: Table = suite.tables.machine
         self.ordinal: Column[Any] = self._commit.c.ordinal
+        run_geomean = summaries.c[geomean_column(aggregation)]
         self._source = summaries.join(metrics, metrics.c.id == summaries.c.metric_id).join(
             self._run, self._run.c.id == summaries.c.run_id
         )
-        self._measured = [metrics.c.name == metric.name, summaries.c.sample_agg == aggregation]
+        # A run may have a summary of the metric but no geomean under this aggregation. Those runs
+        # are left out of the window, and of each group too: the geomean would skip their nulls by
+        # itself, but `latest` would not, and a group of nothing but nulls would be a null value.
+        self._measured = [metrics.c.name == metric.name, run_geomean.is_not(None)]
         # Every run geomean is positive, so `ln` is always defined.
-        self.geomean = func.exp(func.avg(func.ln(summaries.c.geomean)))
+        self.geomean = func.exp(func.avg(func.ln(run_geomean)))
         self.latest = func.max(self._run.c.measured_at)
 
     def window(self, machines: Collection[int], last_n: int) -> Select[Any]:
