@@ -19,6 +19,16 @@
   border-radius: var(--lnt-radius) 0 0 var(--lnt-radius);
 }
 
+/*
+ * A default value taken from elsewhere, shown as the placeholder: in italics, and muted, but in a
+ * color that keeps a contrast of 4.5:1 against the input, disabled or not.
+ */
+.inherited::placeholder {
+  color: var(--lnt-muted);
+  font-style: italic;
+  opacity: 1;
+}
+
 .clear {
   position: absolute;
   top: 50%;

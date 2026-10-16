@@ -29,12 +29,11 @@ export default function Profiles() {
 function ProfilesPage() {
   const [settings, update] = useUrlState(PARAMS)
   const suites = useSuites()
-  // The page changes these while it renders, which React only allows for its own state (see
-  // `useProfileSide`).
+  // The page changes side A's picks while it renders, which React only allows for its own state
+  // (see `useProfileSide`). Side B keeps none.
   const picksA = useReducer(sidePicks, NO_PICKS)
-  const picksB = useReducer(sidePicks, NO_PICKS)
   const a = useProfileSide('a', settings, update, suites, picksA)
-  const b = useProfileSide('b', settings, update, suites, picksB)
+  const b = useProfileSide('b', settings, update, suites)
   const counter = useCounter([a, b], settings.counter, update)
   const functions = useFunctions(a, b, counter, update)
 

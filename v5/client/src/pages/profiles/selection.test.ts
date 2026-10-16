@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { run, uuidOf } from '../../test/fixtures'
-import { runChoice, sideStatus, testChoice } from './selection'
+import { runChoice, sideStatus } from './selection'
 
 describe('runChoice', () => {
   const runs = [run('1'), run('2')]
@@ -16,26 +16,6 @@ describe('runChoice', () => {
 
   it('selects none among no runs', () => {
     expect(runChoice([], run('1').uuid)).toBe('')
-  })
-})
-
-describe('testChoice', () => {
-  const tests = new Set(['alpha', 'beta'])
-
-  it('keeps a test the run has a profile of', () => {
-    expect(testChoice(tests, 'alpha', 'beta', false)).toBe('alpha')
-    expect(testChoice(tests, 'alpha', 'beta', true)).toBe('alpha')
-  })
-
-  it("takes the other side's test only while the user's picks change the profile", () => {
-    expect(testChoice(tests, 'gamma', 'beta', true)).toBe('beta')
-    expect(testChoice(tests, '', 'beta', true)).toBe('beta')
-    expect(testChoice(tests, 'gamma', 'beta', false)).toBe('')
-    expect(testChoice(tests, '', 'beta', false)).toBe('')
-  })
-
-  it("has none when the run has a profile of neither the side's test nor the other's", () => {
-    expect(testChoice(tests, 'gamma', 'delta', true)).toBe('')
   })
 })
 

@@ -73,15 +73,27 @@ export interface HeldFunction {
 }
 
 /**
- * The function a side shows, once its profile of the test `test` has listed `functions` (PF4).
- * Returns `{ name }`, with a null name when the profile lists no functions, or undefined while the
- * function cannot be known yet. In order of preference:
+ * The function a side shows, once its profile has listed `functions`: `name` is null when the
+ * profile lists none, or when side B shows none. `isDefault` says that side B shows it, or none,
+ * because it takes side A's function by default rather than shows one the user picked.
+ */
+export interface FunctionPick {
+  name: string | null
+  isDefault?: true
+}
+
+/** Whether `functions` has a function named `name`. */
+function hasFunction(functions: readonly ProfileFunction[], name: string | null): boolean {
+  // A linear search, which takes far less than a render, even over thousands of functions.
+  return name !== null && functions.some((fn) => fn.name === name)
+}
+
+/**
+ * The function side A shows, once its profile of the test `test` has listed `functions` (PF4).
+ * Returns undefined while the function cannot be known yet. In order of preference:
  *
  * - While the user's picks are changing the side's profile: the function the side showed before,
- *   `carry`, if it belonged to the same test and `functions` has it. Otherwise, the other side's
- *   function, `other`, on the same conditions. The other side is only asked if the side cannot
- *   keep its own function. `other` is undefined while the other side cannot say yet, and null when
- *   it has nothing to offer.
+ *   `carry`, if it belonged to the same test and `functions` has it.
  * - Otherwise, the function that the URL names, `url`, if the profile has it (PF9).
  * - Otherwise, the hottest function, `hottest`. It is undefined until the counter it depends on is
  *   settled.
@@ -92,25 +104,35 @@ export function functionChoice({
   hottest,
   carry,
   url,
-  other,
 }: {
   test: string
   functions: readonly ProfileFunction[]
   hottest: string | null | undefined
   carry: ShownFunction | null
   url: string
-  other: ShownFunction | null | undefined
-}): { name: string | null } | undefined {
+}): FunctionPick | undefined {
   if (functions.length === 0) return { name: null }
-  // At most a few lookups, once per profile, so the functions need no index.
-  const has = (name: string | null) => name !== null && functions.some((fn) => fn.name === name)
-  const keeps = (shown: ShownFunction | null) => shown?.test === test && has(shown.name)
   if (carry !== null) {
-    if (keeps(carry)) return { name: carry.name }
-    if (other === undefined) return undefined
-    if (other !== null && keeps(other)) return { name: other.name }
-  } else if (has(url)) {
+    if (carry.test === test && hasFunction(functions, carry.name)) return { name: carry.name }
+  } else if (hasFunction(functions, url)) {
     return { name: url }
   }
   return hottest === undefined ? undefined : { name: hottest }
+}
+
+/**
+ * The function side B shows, once its profile has listed `functions` (PF4): the one the user
+ * picked, `picked`, which the URL names, if the profile has it. Otherwise, its default: side A's
+ * function, `fromA`, if the profile has one of that name, and none otherwise. `fromA` is null when
+ * side A shows no function, and undefined while it is not known yet.
+ */
+export function functionChoiceB(
+  functions: readonly ProfileFunction[],
+  picked: string,
+  fromA: string | null | undefined,
+): FunctionPick | undefined {
+  if (functions.length === 0) return { name: null }
+  if (picked !== '' && hasFunction(functions, picked)) return { name: picked }
+  if (fromA === undefined) return undefined
+  return { name: hasFunction(functions, fromA) ? fromA : null, isDefault: true }
 }

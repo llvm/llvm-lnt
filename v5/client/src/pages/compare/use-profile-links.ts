@@ -84,9 +84,9 @@ function combineProfiles(
 
 /**
  * A side of the Profiles page: the profile of `test` in the run `ref`, one of the runs of `machine`
- * at `commit` (PF1).
+ * at `commit` (PF1). Without `test`, side B shows its default test, side A's.
  */
-function profileOf(machine: string, commit: string, ref: RunRef | undefined, test: string) {
+function profileOf(machine: string, commit: string, ref: RunRef | undefined, test?: string) {
   return ref && { suite: ref.suite, machine, commit, run: ref.uuid, test }
 }
 
@@ -112,11 +112,11 @@ export function useProfileLinks(a: Side, b: Side): ProfileLinks {
     const ofB = profiledBy(refsB, listed)
     const result = new Map<string, string>()
     for (const test of new Set([...(ofA?.keys() ?? []), ...(ofB?.keys() ?? [])])) {
-      // Side A of the Profiles page shows whichever side has a profile, when only one does.
-      const [first, second] = [
-        profileOf(machineA, commitA, ofA?.get(test), test),
-        profileOf(machineB, commitB, ofB?.get(test), test),
-      ].filter((side) => side !== undefined)
+      // Side A of the Profiles page shows whichever side has a profile, when only one does. When
+      // both do, side B is left on its default test, side A's (PF1).
+      const sideA = profileOf(machineA, commitA, ofA?.get(test), test)
+      const sideB = profileOf(machineB, commitB, ofB?.get(test), sideA ? undefined : test)
+      const [first, second] = [sideA, sideB].filter((side) => side !== undefined)
       result.set(test, profilesPath(first, second))
     }
     return result

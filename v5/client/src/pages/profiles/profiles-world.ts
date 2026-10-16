@@ -13,6 +13,8 @@ import { BARE_SUITE, SUITE, commit, cursorPage, machine, run, uuidOf } from '../
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { gate, mockCommits, mockMachines, mockRuns, mockSuites } from '../../test/page'
 import { profilesPath } from '../../paths'
+import { defaultDescription } from './defaults'
+import { pick } from '../../test/select'
 import { server } from '../../test/server'
 
 /** A suite of its own, holding the same world as libcxx. */
@@ -228,8 +230,11 @@ export function heldBack<Key>(when: (key: Key) => boolean = () => true) {
   return { answer, open }
 }
 
-/** A side showing `test` in the run `hex` of `machine` at `commit`, in libcxx. */
-export function sideAt(machine: string, commit: string, hex: string, test: string) {
+/**
+ * A side showing `test` in the run `hex` of `machine` at `commit`, in libcxx. Without `test`, side
+ * B shows its default test, side A's.
+ */
+export function sideAt(machine: string, commit: string, hex: string, test?: string) {
   return { suite: 'libcxx', machine, commit, run: uuidOf(hex), test }
 }
 
@@ -241,18 +246,66 @@ export function sideOf(side: 'A' | 'B') {
   return screen.getByRole('region', { name: `Side ${side}` })
 }
 
+/** The combobox labelled `label` in the controls of `side`. */
+export function field(label: string, side: 'A' | 'B') {
+  return within(sideOf(side)).getByRole('combobox', { name: label })
+}
+
+/** The function selector in the column of `side`, which it must have. */
+export function functionField(side: 'A' | 'B') {
+  return within(columnOf(side)!).getByRole('combobox', { name: 'Function' })
+}
+
 /** The column of the profile `side` shows (PF7), if it has one. */
 export function columnOf(side: 'A' | 'B') {
   return screen.queryByRole('region', { name: `Profile ${side}` })
 }
 
 /**
- * Wait for `side` to show its profile: a function of it is selected, which neither a profile still
- * loading nor one that failed to load can show.
+ * Wait for `side` to show its profile: its function is known -- selected, side B's default, or
+ * none -- which neither a profile still loading nor one that failed to load can show.
  */
 export async function profileShown(side: 'A' | 'B') {
   await waitFor(() => {
-    const selector = within(columnOf(side)!).getByRole('combobox', { name: 'Function' })
-    expect(selector).not.toHaveValue('')
+    const selector = functionField(side)
+    const shown = (selector as HTMLInputElement).value || selector.getAttribute('placeholder')
+    expect(shown).toBeTruthy()
   })
+}
+
+/**
+ * Expect the combobox `field` to show `name` as side B's default, from side A, holding no value
+ * (PF2, PF4).
+ */
+export function expectDefault(field: HTMLElement, name: string) {
+  expect(field).toHaveValue('')
+  expect(field).toHaveAttribute('placeholder', name)
+  expect(field).toHaveAccessibleDescription(defaultDescription(name))
+}
+
+/** Expect `side` to show the instructions of the function `name`. */
+function expectInstructions(side: 'A' | 'B', name: string) {
+  const instructions = { name: `Instructions of ${name}` }
+  expect(within(columnOf(side)!).getByRole('table', instructions)).toBeInTheDocument()
+}
+
+/** Wait for `side` to show the function `name` as its value, its instructions loaded. */
+export async function showsFunction(side: 'A' | 'B', name: string) {
+  await waitFor(() => {
+    expect(functionField(side)).toHaveValue(name)
+    expectInstructions(side, name)
+  })
+}
+
+/** Wait for side B to show `name` as its default function, its instructions loaded. */
+export async function showsDefaultFunction(name: string) {
+  await waitFor(() => {
+    expectDefault(functionField('B'), name)
+    expectInstructions('B', name)
+  })
+}
+
+/** Pick the function `name` on `side`, whose suggestion is named by its share too. */
+export function pickFunction(side: 'A' | 'B', name: string) {
+  return pick('Function', name, columnOf(side)!, new RegExp(`^${name}, `))
 }

@@ -1,6 +1,7 @@
 import {
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -36,6 +37,13 @@ interface CommonProps {
   suggestions: Suggestions
   placeholder?: string
   /**
+   * A default value, taken from elsewhere, that the combobox shows while it holds no value. It is
+   * shown in place of the placeholder, in italics, and assistive technology reads `description`
+   * with the combobox, which names it and says where it comes from, as not every one reads a
+   * placeholder. Being no value of the combobox, it has no button to clear it.
+   */
+  inherited?: { text: string; description: string }
+  /**
    * What the combobox says when it has nothing at all to suggest (see `Suggestions.isEmpty`). It
    * replaces `placeholder`, and shows in the list. Write it as a phrase, without a final period.
    */
@@ -43,6 +51,11 @@ interface CommonProps {
   isDisabled?: boolean
   /** Shown as it is, but cannot be changed, and keeps the focus, unlike when disabled. */
   isReadOnly?: boolean
+  /**
+   * Whether the user can clear the value: true by default. A combobox whose value cannot be
+   * cleared has no clear button, and emptying its input does not clear its value.
+   */
+  isClearable?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
   /** Make the combobox fill the rest of its row, for text too long for the usual width. */
@@ -117,9 +130,11 @@ export function Combobox({
   onPick,
   suggestions,
   placeholder,
+  inherited,
   emptyMessage,
   isDisabled,
   isReadOnly,
+  isClearable = true,
   hideLabel,
   fill = false,
   onPendingChange,
@@ -127,6 +142,7 @@ export function Combobox({
   virtualized = false,
 }: Props) {
   const [text, setText] = useState(value?.text ?? '')
+  const descriptionId = useId()
 
   // A value set from outside -- or one whose text arrived later, like a commit's display value --
   // replaces the text the input showed for the previous one. Text the user is typing stays.
@@ -145,7 +161,7 @@ export function Combobox({
 
   const onInputChange = (next: string) => {
     setText(next)
-    if (next === '' && value !== null) onChange?.(null)
+    if (next === '' && value !== null && isClearable) onChange?.(null)
   }
 
   // The clear button empties the input, which clears the value, and leaves the focus in it.
@@ -203,10 +219,13 @@ export function Combobox({
         <div className={styles.inputBox}>
           <Input
             ref={inputRef}
-            placeholder={(suggestions.isEmpty && emptyMessage) || placeholder}
-            className={styles.input}
+            placeholder={
+              inherited?.text ?? ((suggestions.isEmpty && emptyMessage) || placeholder)
+            }
+            className={clsx(styles.input, inherited && styles.inherited)}
+            aria-describedby={inherited && descriptionId}
           />
-          {text !== '' && !isDisabled && !isReadOnly && (
+          {text !== '' && isClearable && !isDisabled && !isReadOnly && (
             <button
               type="button"
               className={styles.clear}
@@ -223,6 +242,13 @@ export function Combobox({
           )}
         </div>
       </Field>
+      {/* Hidden, yet a description still: unlike text that is only visually hidden, it is not
+          read again on its own, after the combobox. */}
+      {inherited && (
+        <span id={descriptionId} hidden>
+          {inherited.description}
+        </span>
+      )}
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
       <Popover
         className={clsx(shared.popover, virtualized && styles.virtualPopover)}

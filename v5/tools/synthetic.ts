@@ -528,13 +528,18 @@ const CODE: Record<Isa, Code> = {
 /** One of the tests that carry a profile (see FUNCTIONS). */
 export const PROFILED_TEST = 'std::stable_sort(vector<int>)_(heap)/8192'
 
+/** The other test that carries a profile, and its hottest function (see FUNCTIONS). */
+export const FORMAT_TEST = 'std::format(double)_(value:_-inf,_fmt:_{:0^17500_0})'
+export const FORMAT_HOTTEST =
+  'std::__1::__formatter::__format_floating_point<double, char>(double, context&)'
+
 /**
  * The tests that carry a profile on the newest commit and in the experiment, with their
  * functions, hottest first: each one's share of the counters, and the length of its loop.
  */
 const FUNCTIONS: Record<string, [name: string, share: number, body: number][]> = {
-  'std::format(double)_(value:_-inf,_fmt:_{:0^17500_0})': [
-    ['std::__1::__formatter::__format_floating_point<double, char>(double, context&)', 0.52, 14],
+  [FORMAT_TEST]: [
+    [FORMAT_HOTTEST, 0.52, 14],
     ['std::__1::__to_chars_floating_point<double>(char*, char*, double, chars_format)', 0.24, 10],
     ['std::__1::__formatter::__write_using_trailing_zeros<char>(char const*, char*)', 0.11, 6],
     // `/` in a function name: it is why function names travel in a query parameter (I1).

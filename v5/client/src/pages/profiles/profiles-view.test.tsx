@@ -7,28 +7,25 @@ import { profilesPath } from '../../paths'
 import { fakeLayout } from '../../test/layout'
 import { errorResponse } from '../../test/mock-api'
 import { currentUrl, query, renderPage, rowsOf, settle } from '../../test/page'
-import { pick, pickOption, selectButton } from '../../test/select'
+import { clearCombobox, pick, pickOption, selectButton } from '../../test/select'
 import {
   ALPHA,
   columnOf,
+  field,
+  showsDefaultFunction,
+  functionField,
   heldBack,
   mockWorld,
   profileUuid,
   sideAt,
+  pickFunction,
+  showsFunction,
   sideOf,
 } from './profiles-world'
 
 /** Queries within `side`'s column. */
 function column(side: 'A' | 'B') {
   return within(columnOf(side)!)
-}
-
-/** Wait for `side` to show the function `name`, its instructions loaded. */
-async function showsFunction(side: 'A' | 'B', name: string) {
-  await waitFor(() => {
-    expect(column(side).getByRole('combobox', { name: 'Function' })).toHaveValue(name)
-    expect(column(side).getByRole('table', { name: `Instructions of ${name}` })).toBeInTheDocument()
-  })
 }
 
 /**
@@ -44,11 +41,6 @@ async function expectSuggestions(side: 'A' | 'B', names: string[]) {
   await user.keyboard('{Escape}')
 }
 
-/** Pick the function `name` on `side`, whose suggestion is named by its share too. */
-function pickFunction(side: 'A' | 'B', name: string) {
-  return pick('Function', name, columnOf(side)!, new RegExp(`^${name}, `))
-}
-
 /** The rows of `side`'s instructions, as rendered. */
 function instructionRows(side: 'A' | 'B') {
   return rowsOf(column(side).getByRole('table'))
@@ -56,7 +48,7 @@ function instructionRows(side: 'A' | 'B') {
 
 /** Clear side A's test, then pick `test`. */
 async function clearThenPick(test: string) {
-  await userEvent.setup().click(within(sideOf('A')).getByRole('button', { name: 'Clear Test' }))
+  await clearCombobox('Test', sideOf('A'))
   await waitFor(() => expect(query().test_a).toBeUndefined())
   await pick('Test', test, sideOf('A'))
 }
@@ -64,11 +56,6 @@ async function clearThenPick(test: string) {
 /** The option of run 1 or run 2 of m1 at c1, in a side's run dropdown. */
 const RUN_1 = '2026-08-20, 10:00:00 AM 11111111'
 const RUN_2 = '2026-08-21, 10:00:00 AM 22222222'
-
-/** Side A showing beta in run 1, and side B alpha's main in run 2, both of m1 at c1. */
-const BETA_AND_MAIN =
-  profilesPath(sideAt('m1', 'c1', '1', 'beta'), sideAt('m1', 'c1', '2', 'alpha')) +
-  '&function_b=main'
 
 /** The URL of side A as ALPHA names it, and of side B showing `test` in the run `hex` of m1. */
 function withB(commit: string, hex: string, test: string, extra = '') {
@@ -88,6 +75,19 @@ describe('the Profiles page: function selection (PF4)', () => {
     expect(within(badge).getByText('60% of cycles')).toBeInTheDocument()
     await settle()
     expect(query().function_a).toBeUndefined()
+  })
+
+  it("cannot clear side A's function", async () => {
+    const user = userEvent.setup()
+    mockWorld()
+    renderPage(ALPHA)
+    await showsFunction('A', 'hot')
+    expect(column('A').queryByRole('button', { name: 'Clear Function' })).not.toBeInTheDocument()
+
+    await user.clear(functionField('A'))
+    await user.tab()
+
+    await showsFunction('A', 'hot')
   })
 
   it('offers the functions hottest first, each with its share', async () => {
@@ -165,7 +165,7 @@ describe('the Profiles page: function selection (PF4)', () => {
       await column('A').findByText(/The instructions of hot could not be loaded: Bang/),
     ).toBeVisible()
     // The function is still shown, and can be changed.
-    expect(column('A').getByRole('combobox', { name: 'Function' })).toHaveValue('hot')
+    expect(functionField('A')).toHaveValue('hot')
     fail = false
     await userEvent.setup().click(column('A').getByRole('button', { name: 'Retry' }))
     await showsFunction('A', 'hot')
@@ -214,22 +214,6 @@ describe('the Profiles page: function selection (PF4)', () => {
     expect(query().function_a).toBeUndefined()
   })
 
-  it("takes the other side's function on a test cleared, then picked again", async () => {
-    mockWorld()
-    renderPage(
-      profilesPath(sideAt('m1', 'c1', '1', 'alpha'), sideAt('m1', 'c1', '2', 'alpha')) +
-        '&function_b=main',
-    )
-    await showsFunction('B', 'main')
-    await pickFunction('A', 'warm')
-    await showsFunction('A', 'warm')
-
-    await clearThenPick('alpha')
-
-    await showsFunction('A', 'main')
-    expect(query().function_a).toEqual(['main'])
-  })
-
   it('carries over what it showed before quick successive picks', async () => {
     const slow = heldBack((q: URLSearchParams) => q.get('machine') === 'm2')
     mockWorld({ runsAnswer: slow.answer })
@@ -246,46 +230,19 @@ describe('the Profiles page: function selection (PF4)', () => {
     expect(query().function_a).toEqual(['warm'])
   })
 
-  it("takes the other side's function when it changes to the other side's test", async () => {
+  it("never takes side B's function, even on side B's test", async () => {
     mockWorld()
-    // Side A shows beta's cool in run 1, side B alpha's main in run 2.
-    renderPage(`${BETA_AND_MAIN}&function_a=cool`)
+    // Side A shows beta in run 1, side B alpha's main, picked on it, in run 2.
+    renderPage(
+      profilesPath(sideAt('m1', 'c1', '1', 'beta'), sideAt('m1', 'c1', '2', 'alpha')) +
+        '&function_b=main',
+    )
     await showsFunction('B', 'main')
 
     await pick('Test', 'alpha', sideOf('A'))
 
-    await showsFunction('A', 'main')
-    expect(query().function_a).toEqual(['main'])
-  })
-
-  it("waits for the other side's functions before taking its function", async () => {
-    const uuidB = profileUuid('2', 'alpha')
-    const slow = heldBack((uuid: string) => uuid === uuidB)
-    mockWorld({ functionsAnswer: slow.answer })
-    renderPage(BETA_AND_MAIN)
     await showsFunction('A', 'hot')
-
-    await pick('Test', 'alpha', sideOf('A'))
-    await settle()
-    expect(column('A').queryByRole('table')).not.toBeInTheDocument()
-    slow.open()
-
-    await showsFunction('B', 'main')
-    await showsFunction('A', 'main')
-  })
-
-  it("takes its own hottest when the other side's functions could not be listed", async () => {
-    const uuidB = profileUuid('2', 'alpha')
-    mockWorld({
-      functionsAnswer: (uuid) =>
-        uuid === uuidB ? errorResponse(500, 'internal_error', 'Boom') : undefined,
-    })
-    renderPage(BETA_AND_MAIN)
-    await showsFunction('A', 'hot')
-
-    await pick('Test', 'alpha', sideOf('A'))
-
-    await showsFunction('A', 'hot')
+    expect(query().function_a).toBeUndefined()
   })
 
   it('resolves both sides when both change their profile at once', async () => {
@@ -293,51 +250,16 @@ describe('the Profiles page: function selection (PF4)', () => {
     mockWorld({ functionsAnswer: slow.answer })
     // Side A shows beta in run 1, side B gamma in run 2: both then pick alpha.
     renderPage(profilesPath(sideAt('m1', 'c1', '1', 'beta'), sideAt('m1', 'c1', '2', 'gamma')))
-    const testB = within(sideOf('B')).getByRole('combobox', { name: 'Test' })
+    const testB = field('Test', 'B')
     await waitFor(() => expect(testB).toBeEnabled())
     await pick('Test', 'alpha', sideOf('A'))
     await pick('Test', 'alpha', sideOf('B'))
     slow.open()
 
-    // Each side's carried function belongs to another test, as does the other side's: each takes
-    // its hottest, rather than waiting for the other.
+    // Side A's carried function belongs to another test: side A takes its hottest, which side B
+    // shows by default.
     await showsFunction('A', 'hot')
-    await showsFunction('B', 'hot')
-  })
-
-  it("does not take the function of another side moving to another test", async () => {
-    const moved = [profileUuid('1', 'alpha'), profileUuid('2', 'gamma')]
-    const slow = heldBack((uuid: string) => moved.includes(uuid))
-    mockWorld({ functionsAnswer: slow.answer })
-    renderPage(BETA_AND_MAIN)
-    await showsFunction('B', 'main')
-    await showsFunction('A', 'hot')
-
-    // Side A goes from beta to alpha, as side B goes from alpha to gamma, both at once.
-    await pick('Test', 'alpha', sideOf('A'))
-    await pick('Test', 'gamma', sideOf('B'))
-    slow.open()
-
-    // Side B's main was alpha's, but side B is about to show gamma: side A takes its own hottest.
-    await showsFunction('A', 'hot')
-    await settle()
-    expect(query().function_a).toBeUndefined()
-  })
-
-  it("takes its own hottest when the other side's profile could not be loaded", async () => {
-    const uuidB = profileUuid('2', 'alpha')
-    mockWorld({
-      metadataAnswer: (uuid) =>
-        uuid === uuidB ? errorResponse(500, 'internal_error', 'Boom') : undefined,
-    })
-    renderPage(BETA_AND_MAIN)
-    await showsFunction('A', 'hot')
-    expect(await column('B').findByText(/The profile could not be loaded/)).toBeVisible()
-
-    // Side B shows alpha, but cannot say which function: side A does not wait for it.
-    await pick('Test', 'alpha', sideOf('A'))
-
-    await showsFunction('A', 'hot')
+    await showsDefaultFunction('hot')
   })
 
   it("keeps its hottest function, by name, on another profile of the same test", async () => {
@@ -375,26 +297,6 @@ describe('the Profiles page: function selection (PF4)', () => {
 
     await showsFunction('A', 'hot')
     expect(query().function_a).toBeUndefined()
-  })
-
-  it("takes the function the other side showed before its own profile began changing", async () => {
-    const slow = heldBack((q: URLSearchParams) => q.get('machine') === 'm2')
-    mockWorld({ runsAnswer: slow.answer })
-    // Side A shows beta in run 1, side B alpha's warm in run 2.
-    renderPage(
-      profilesPath(sideAt('m1', 'c1', '1', 'beta'), sideAt('m1', 'c1', '2', 'alpha')) +
-        '&function_b=warm',
-    )
-    await showsFunction('B', 'warm')
-    await showsFunction('A', 'hot')
-
-    // Side B moves to m2, whose runs are on their way, as side A picks alpha.
-    await pick('Machine', 'm2', sideOf('B'))
-    await pick('Test', 'alpha', sideOf('A'))
-
-    await showsFunction('A', 'warm')
-    slow.open()
-    await showsFunction('B', 'warm')
   })
 
   it('keeps showing the profile when its runs fail to load again', async () => {
@@ -479,7 +381,7 @@ describe('the Profiles page: the counter (PF4)', () => {
     await waitFor(() => expect(query().counter).toEqual(['instructions']))
     // Hot is no longer the hottest: the URL names it.
     await waitFor(() => expect(query().function_a).toEqual(['hot']))
-    expect(column('A').getByRole('combobox', { name: 'Function' })).toHaveValue('hot')
+    expect(functionField('A')).toHaveValue('hot')
     await expectSuggestions('A', [
       'warm, 75% of instructions',
       'main, 15% of instructions',
@@ -566,7 +468,7 @@ describe('the Profiles page: the counter (PF4)', () => {
     renderPage(`${ALPHA}&counter=instructions`)
     await showsFunction('A', 'warm')
 
-    await userEvent.setup().click(within(sideOf('A')).getByRole('button', { name: 'Clear Test' }))
+    await clearCombobox('Test', sideOf('A'))
     await settle()
     expect(query().counter).toEqual(['instructions'])
     await pick('Test', 'beta', sideOf('A'))
@@ -590,9 +492,11 @@ describe('the Profiles page: the counter (PF4)', () => {
     expect(column('A').queryByRole('table')).not.toBeInTheDocument()
     slow.open()
 
-    // Under instructions, alpha's hottest is warm, and beta's is cool.
+    // Under instructions, alpha's hottest is warm, which side B's beta does not have.
     await showsFunction('A', 'warm')
-    await showsFunction('B', 'cool')
+    await waitFor(() =>
+      expect(functionField('B')).toHaveAttribute('placeholder', 'Select a function'),
+    )
     expect(selectButton('Counter')).toHaveTextContent('instructions')
     await settle()
     expect(query().function_a).toBeUndefined()
@@ -625,9 +529,9 @@ describe('the Profiles page: the counter (PF4)', () => {
     await waitFor(() => expect(query().function_a).toEqual(['hot']))
     slow.open()
 
-    await showsFunction('B', 'hot')
+    await showsDefaultFunction('hot')
     await waitFor(() => expect(query().function_a).toBeUndefined())
-    expect(column('A').getByRole('combobox', { name: 'Function' })).toHaveValue('hot')
+    expect(functionField('A')).toHaveValue('hot')
   })
 
   it("drops a function from the URL while the other side's profile failed to load", async () => {
@@ -751,7 +655,7 @@ describe('the Profiles page: values and layout (PF6, PF7)', () => {
     renderPage(withB('c2', '3', 'beta'))
 
     await showsFunction('A', 'hot')
-    await showsFunction('B', 'hot')
+    await showsDefaultFunction('hot')
     expect(screen.getAllByRole('combobox', { name: 'Function' })).toHaveLength(2)
   })
 

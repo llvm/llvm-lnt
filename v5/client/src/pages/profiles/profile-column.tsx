@@ -8,6 +8,7 @@ import { functionShare, shareText, type ProfileFunction } from './functions'
 import { HottestControls } from './hottest-controls'
 import { InstructionTable } from './instruction-table'
 import { instructionValues, type ValueMode } from './instructions'
+import { defaultFromA } from './defaults'
 import { ShareBadge } from './share-badge'
 import { useHottest } from './use-hottest'
 import type { SideFunctions } from './use-functions'
@@ -83,12 +84,17 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
         key={uuid}
         functions={list.data}
         ordered={ordered}
-        selected={name ?? null}
+        selected={name}
+        isDefault={functions.isDefault}
         counter={counter}
         profile={profile}
         onPick={functions.pick}
+        onClear={functions.clear}
       />
-      {name ? (
+      {name === undefined && <Loading label="Loading the function..." />}
+      {/* None while side B's profile does not have its default function, or while side A shows
+          none (PF4). */}
+      {name && (
         <Disassembly
           // A new profile or function scrolls back to the top. A refetch of the same one keeps the
           // scroll position.
@@ -98,8 +104,6 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
           counter={counter}
           values={values}
         />
-      ) : (
-        <Loading label="Loading the function..." />
       )}
     </>
   )
@@ -109,12 +113,16 @@ interface SelectorProps {
   functions: readonly ProfileFunction[]
   /** The functions, hottest first under the counter. */
   ordered: readonly ProfileFunction[]
-  /** The function selected, once known. */
-  selected: string | null
+  /** The function selected, once known: none while side B's profile lacks its default one. */
+  selected: string | null | undefined
+  /** Whether side B shows that function, or none, because it is side B's default (PF4). */
+  isDefault: boolean
   counter: string | undefined
   /** The profile's top-level counters. */
   profile: Counters
   onPick(name: string): void
+  /** Clears the side's own function, if it can be cleared. */
+  onClear: (() => void) | undefined
 }
 
 /**
@@ -127,9 +135,11 @@ const FunctionSelector = memo(function FunctionSelector({
   functions,
   ordered,
   selected,
+  isDefault,
   counter,
   profile,
   onPick,
+  onClear,
 }: SelectorProps) {
   // Re-sort for a new counter in a deferred render, after the rest of the page shows the counter,
   // so that the re-sort does not hold up the page.
@@ -161,7 +171,7 @@ const FunctionSelector = memo(function FunctionSelector({
     },
     [byName, view.counter, profile],
   )
-  const selectedFunction = selected === null ? undefined : byName.get(selected)
+  const selectedFunction = selected == null ? undefined : byName.get(selected)
   return (
     <div className={styles.functionRow}>
       <Combobox
@@ -171,9 +181,13 @@ const FunctionSelector = memo(function FunctionSelector({
         key={view.counter}
         label="Function"
         fill
-        value={selected === null ? null : { key: selected, text: selected }}
-        // A function cannot be cleared: the side always shows one.
-        onChange={(picked) => picked && onPick(picked.key)}
+        // Side B's default function is shown as inherited, rather than as its value.
+        value={selected == null || isDefault ? null : { key: selected, text: selected }}
+        placeholder={selected === null ? 'Select a function' : undefined}
+        inherited={isDefault ? defaultFromA(selected) : undefined}
+        // Clearing the function picked on side B brings back its default. Side A's cannot be cleared.
+        onChange={(picked) => (picked ? onPick(picked.key) : onClear?.())}
+        isClearable={onClear !== undefined}
         suggestions={suggestions}
         renderSuggestion={renderSuggestion}
         virtualized

@@ -441,16 +441,18 @@ describe('the Profile column (CP2)', () => {
   /** The commit of each run of COMPARED, by hex: side A's runs are at c1, and side B's at c2. */
   const COMMITS: Record<string, string> = { '1': 'c1', '2': 'c1', '3': 'c2' }
 
-  /** The Profiles page's URL, with each side given as `[run hex, test]`. */
-  function profilesUrl(...sides: [string, string][]) {
-    const letters = ['a', 'b']
-    const params = sides.flatMap(([hex, test], i) => [
-      [`suite_${letters[i]}`, 'libcxx'],
-      [`machine_${letters[i]}`, 'm1'],
-      [`commit_${letters[i]}`, COMMITS[hex]],
-      [`run_${letters[i]}`, uuidOf(hex)],
-      [`test_${letters[i]}`, test],
-    ])
+  /**
+   * The Profiles page's URL for `test`, with side A in the run `a` and side B in the run `b`, by
+   * the hex of their UUIDs. Side B is left on its default test, side A's (PF1).
+   */
+  function profilesUrl(test: string, a: string, b?: string) {
+    const side = (letter: string, hex: string) => [
+      [`suite_${letter}`, 'libcxx'],
+      [`machine_${letter}`, 'm1'],
+      [`commit_${letter}`, COMMITS[hex]],
+      [`run_${letter}`, uuidOf(hex)],
+    ]
+    const params = [...side('a', a), ['test_a', test], ...(b === undefined ? [] : side('b', b))]
     return `/profiles?${new URLSearchParams(params)}`
   }
 
@@ -461,9 +463,9 @@ describe('the Profile column (CP2)', () => {
     // A test with a profile on side B only has it shown on side A of the Profiles page.
     await waitFor(async () =>
       expect(await profileLinks()).toEqual({
-        a: profilesUrl(['2', 'a'], ['3', 'a']),
-        b: profilesUrl(['1', 'b']),
-        c: profilesUrl(['3', 'c']),
+        a: profilesUrl('a', '2', '3'),
+        b: profilesUrl('b', '1'),
+        c: profilesUrl('c', '3'),
       }),
     )
     expect(screen.getByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()
@@ -476,7 +478,7 @@ describe('the Profile column (CP2)', () => {
 
     await userEvent.setup().click(runBox('2', 'A'))
     await waitFor(async () =>
-      expect((await profileLinks()).a).toBe(profilesUrl(['1', 'a'], ['3', 'a'])),
+      expect((await profileLinks()).a).toBe(profilesUrl('a', '1', '3')),
     )
   })
 
@@ -502,15 +504,15 @@ describe('the Profile column (CP2)', () => {
     ).toBeInTheDocument()
     await waitFor(async () =>
       expect(await profileLinks()).toEqual({
-        a: profilesUrl(['2', 'a']),
-        b: profilesUrl(['1', 'b']),
+        a: profilesUrl('a', '2'),
+        b: profilesUrl('b', '1'),
       }),
     )
 
     fail = false
     await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(async () =>
-      expect((await profileLinks()).c).toBe(profilesUrl(['3', 'c'])),
+      expect((await profileLinks()).c).toBe(profilesUrl('c', '3')),
     )
     expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
   })
@@ -527,8 +529,8 @@ describe('the Profile column (CP2)', () => {
     expect(await screen.findByText(/The profiles could not be listed/)).toBeInTheDocument()
     await waitFor(async () =>
       expect(await profileLinks()).toEqual({
-        a: profilesUrl(['3', 'a']),
-        c: profilesUrl(['3', 'c']),
+        a: profilesUrl('a', '3'),
+        c: profilesUrl('c', '3'),
       }),
     )
   })
@@ -561,7 +563,7 @@ describe('the Profile column (CP2)', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
     await waitFor(async () =>
-      expect((await profileLinks()).a).toBe(profilesUrl(['3', 'a'], ['2', 'a'])),
+      expect((await profileLinks()).a).toBe(profilesUrl('a', '3', '2')),
     )
   })
 

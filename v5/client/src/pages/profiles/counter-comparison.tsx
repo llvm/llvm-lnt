@@ -72,7 +72,8 @@ function Difference({ value }: { value: ComparedValue }) {
 
 /**
  * The value of `counter` for the function a side shows (PF3): empty until the function is known,
- * and N/A when its profile lists no functions or the function does not have the counter.
+ * and N/A when its profile lists no functions, the side shows no function, or the function does not
+ * have the counter.
  */
 function useFunctionValue(
   { name, functions }: SideFunctions,
