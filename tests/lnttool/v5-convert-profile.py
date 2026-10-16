@@ -201,8 +201,8 @@ stub({
     # Aliases are kept once, under the first name.
     '_ZN1AC1Ev': lines(0x300),
     '_ZN1AC2Ev': lines(0x300),
-    # Different functions of the same demangled name: the second keeps its
-    # mangled name.
+    # Different functions of the same demangled name both keep their mangled
+    # names.
     '_ZN1BC1Ev': lines(0x400),
     '_ZN1BC2Ev': lines(0x500),
     # A demangled name too long to be kept gives way to the mangled one.
@@ -210,14 +210,14 @@ stub({
     # Of aliases, the one kept is one whose name is short enough.
     '_Z' + 'y' * 3000: lines(0x700),
     'short_alias': lines(0x700),
-    'plain_c_function': [],
+    'c_function': [],
     # An empty name, which cPerf can give, names nothing.
     '': lines(0x800),
 })
 names()
 # CHECK-LABEL: # NAMES
 # CHECK-NEXT: exit: 0
-# CHECK-NEXT: ['A::A()', 'B::B()', '_Z4longv', '_ZN1BC2Ev', 'bar(int)', 'foo(int)', 'plain_c_function', 'short_alias']
+# CHECK-NEXT: ['A::A()', '_Z4longv', '_ZN1BC1Ev', '_ZN1BC2Ev', 'bar(int)', 'c_function', 'foo(int)', 'short_alias']
 
 # ---------------------------------------------------------------------------
 print('# LEFT OUT')

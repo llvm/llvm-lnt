@@ -34,7 +34,9 @@ that is both static and dynamic, is listed only once.
 A function is named by its mangled name instead when its demangled name is
 longer than 2048 bytes in UTF-8, or if its demangling collides with the name
 of another function. For example, a complete-object and a base-object constructor
-that are not aliases both demangle to ``A::A()``.
+that are not aliases both demangle to ``A::A()``. Since a profile only lists its
+hot functions, a demangled name can still stand for different functions in two
+profiles, if each lists only one of them.
 
 The instructions' text is whatever ``objdump`` produces.
 

@@ -14,6 +14,7 @@ import gzip
 import json
 import shlex
 import subprocess
+from collections import Counter
 from collections.abc import Callable
 from typing import Any
 
@@ -122,10 +123,15 @@ def convert_perf(path: str, objdump: str, binary_cache_root: str,
     taken: set[str] = set()
     functions = []
     demangled = _demangled([mangled for mangled, _ in kept], cxxfilt)
+    # A demangled name is not unique: a C1 and a C2 constructor are both
+    # `A::A()`, for example. Every function whose demangled name another
+    # function shares is named by its mangled name, rather than giving the
+    # demangled one to whichever comes first, which would depend on what else
+    # the profile lists.
+    shared = Counter(demangled)
     for (mangled, lines), readable in zip(kept, demangled):
-        # A demangled name is not unique: a C1 and a C2 constructor are both
-        # `A::A()`, for example. The mangled name stands in for it then.
-        name = next((name for name in (readable, mangled)
+        candidates = (readable, mangled) if shared[readable] == 1 else (mangled,)
+        name = next((name for name in candidates
                      if _fits(name) and name not in taken), None)
         if name is None:
             if _fits(mangled):
