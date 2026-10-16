@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,6 +33,7 @@ from sqlalchemy import (
     literal_column,
     select,
     text,
+    true,
 )
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -60,15 +61,15 @@ _ONE_DAY = literal_column("INTERVAL '1 day'", Interval)
 
 @dataclass(frozen=True)
 class SweptSuite:
-    """What one round deleted from one suite, by identity, and how many of its steps failed.
+    """What one round deleted from one suite, and how many of its steps failed.
 
-    A failure is logged where it happens; the count is for a caller that reports the round as a
-    whole, such as `lnt-v5 server sweep`.
+    `deleted` holds the identities of what was deleted, keyed by kind: `machine` and `commit`. A
+    failure is logged where it happens; the count is for a caller that reports the round as a whole,
+    such as `lnt-v5 server sweep`.
     """
 
     suite: str
-    machines: tuple[str, ...]
-    commits: tuple[str, ...]
+    deleted: Mapping[str, tuple[str, ...]]
     failures: int
 
 
@@ -82,6 +83,8 @@ class _Kind:
     identity: Column[Any]
     # The column of `{suite}.run` that refers to this table.
     runs: Column[Any]
+    # What else an entity of this kind must satisfy to be deleted at all.
+    eligible: ColumnElement[bool]
 
     def due(self) -> ColumnElement[bool]:
         """Whether a row is due for deletion now (O10).
@@ -95,22 +98,22 @@ class _Kind:
         days = self.table.c.delete_after_inactive_days
         cutoff = func.now() - days * _ONE_DAY
         run = self.runs.table
-        conditions = [
+        return and_(
+            self.eligible,
             days.is_not(None),
             self.table.c.first_seen_at < cutoff,
             ~exists().where(self.runs == self.table.c.id, run.c.submitted_at >= cutoff),
-        ]
-        if self.noun == "commit":
-            # An ordered commit is part of the suite's history, and is never deleted this way.
-            conditions.append(self.table.c.ordinal.is_(None))
-        return and_(*conditions)
+        )
 
 
 def _kinds(suite: Suite) -> tuple[_Kind, _Kind]:
-    tables = suite.tables
+    machine, commit, run = suite.tables.machine, suite.tables.commit, suite.tables.run
     return (
-        _Kind("machine", tables.machine, tables.machine.c.name, tables.run.c.machine_id),
-        _Kind("commit", tables.commit, tables.commit.c.commit, tables.run.c.commit_id),
+        _Kind("machine", machine, machine.c.name, run.c.machine_id, eligible=true()),
+        # An ordered commit is part of the suite's history, and is never deleted this way.
+        _Kind(
+            "commit", commit, commit.c.commit, run.c.commit_id, eligible=commit.c.ordinal.is_(None)
+        ),
     )
 
 
@@ -161,10 +164,10 @@ def _unlock(connection: Connection) -> None:
 def _sweep_suite(
     connection: Connection, suite: Suite, stopping: threading.Event | None
 ) -> SweptSuite:
-    deleted: dict[str, list[str]] = {}
+    deleted: dict[str, tuple[str, ...]] = {}
     failures = 0
     for kind in _kinds(suite):
-        deleted[kind.noun] = []
+        deleted[kind.noun] = ()
         due = _due_entities(connection, suite, kind)
         if due is None:
             failures += 1
@@ -176,13 +179,8 @@ def _sweep_suite(
             if outcome is None:
                 failures += 1
             elif outcome:
-                deleted[kind.noun].append(identity)
-    return SweptSuite(
-        suite=suite.schema.name,
-        machines=tuple(deleted["machine"]),
-        commits=tuple(deleted["commit"]),
-        failures=failures,
-    )
+                deleted[kind.noun] += (identity,)
+    return SweptSuite(suite=suite.schema.name, deleted=deleted, failures=failures)
 
 
 def _due_entities(
@@ -206,7 +204,7 @@ def _due_entities(
             exc_info=True,
         )
         return None
-    return [(row[0], row[1]) for row in rows]
+    return [(identifier, identity) for identifier, identity in rows]
 
 
 def _delete_if_due(
@@ -217,33 +215,24 @@ def _delete_if_due(
     Returns whether it was deleted, or None if that failed. The entity is addressed by id rather
     than by its identity, which a PATCH may have changed since: a machine can be renamed.
 
-    The row is locked before its eligibility is checked again, and the two are separate statements
-    on purpose. The lock conflicts with the key-share lock a run insert takes on its machine and
-    commit through the foreign keys, so it waits for every run being inserted for the entity to be
-    committed or rolled back. Under READ COMMITTED (see db.py), the next statement then sees those
-    runs. A check inside the locking statement would not: PostgreSQL re-evaluates a locked row's
-    own columns after the wait, but the subquery on the runs would still use the statement's
-    original snapshot.
+    The row is locked first, and then deleted only if it is still due, and the two are separate
+    statements on purpose. The lock conflicts with the key-share lock a run insert takes on its
+    machine and commit through the foreign keys, so it waits for every run being inserted for the
+    entity to be committed or rolled back. Under READ COMMITTED (see db.py), the next statement then
+    sees those runs. A check inside the locking statement would not: PostgreSQL re-evaluates a
+    locked row's own columns after the wait, but the subquery on the runs would still use the
+    statement's original snapshot.
 
     A failure is logged rather than raised, like a failure to find the due entities.
     """
     table = kind.table
     try:
         with connection.begin():
-            locked = connection.execute(
-                select(table.c.id).where(table.c.id == identifier).with_for_update()
-            ).first()
-            if locked is None:
-                # Deleted by someone else since the round found it.
+            connection.execute(select(table.c.id).where(table.c.id == identifier).with_for_update())
+            # Nothing to delete if someone else already has, or if the entity is no longer due.
+            removed = connection.execute(delete(table).where(table.c.id == identifier, kind.due()))
+            if removed.rowcount == 0:
                 return False
-            if (
-                connection.execute(
-                    select(table.c.id).where(table.c.id == identifier, kind.due())
-                ).first()
-                is None
-            ):
-                return False
-            connection.execute(delete(table).where(table.c.id == identifier))
     except SQLAlchemyError:
         logger.warning(
             "Could not delete inactive %s '%s' from test suite '%s'; will retry next round",

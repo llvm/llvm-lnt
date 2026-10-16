@@ -13,9 +13,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, Interval, func, literal_column, select, text, update
+from sqlalchemy import Engine, Interval, func, literal_column, text, update
 
 from conftest import entry, run_payload
+from introspection import counted
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
 from lnt_v5.routes.commits import COMMITS_PATH
@@ -88,11 +89,6 @@ def exists(api_client: TestClient, path: str) -> bool:
     return status == 200
 
 
-def run_count(db_engine: Engine, suite: SuiteTables) -> int:
-    with db_engine.connect() as connection:
-        return int(connection.execute(select(func.count()).select_from(suite.run)).scalar_one())
-
-
 class TestEligibility:
     def test_deletes_a_machine_inactive_for_longer_than_it_asked_with_its_runs(
         self,
@@ -105,10 +101,10 @@ class TestEligibility:
         submit({"name": "pr-1", "delete_after_inactive_days": 30}, "abc")
         idle(31)
 
-        assert swept(db_engine)[0].machines == ("pr-1",)
+        assert swept(db_engine)[0].deleted["machine"] == ("pr-1",)
 
         assert not exists(api_client, f"{MACHINES}/pr-1")
-        assert run_count(db_engine, suite) == 0
+        assert counted(db_engine, suite, "run") == 0
 
     def test_keeps_a_machine_without_the_setting_however_long_it_is_inactive(
         self,
@@ -226,12 +222,12 @@ class TestEligibility:
         submit("linux", "main")
         idle(31)
 
-        assert swept(db_engine)[0].commits == ("pr-1",)
+        assert swept(db_engine)[0].deleted["commit"] == ("pr-1",)
 
         assert not exists(api_client, f"{COMMITS}/pr-1")
         assert exists(api_client, f"{COMMITS}/main")
         assert exists(api_client, f"{MACHINES}/linux")
-        assert run_count(db_engine, suite) == 1
+        assert counted(db_engine, suite, "run") == 1
 
     def test_never_deletes_a_commit_with_an_ordinal(
         self,
@@ -352,7 +348,7 @@ class TestRounds:
         result = {suite.suite: suite for suite in swept(db_engine)}
 
         assert result["broken"].failures == 2
-        assert (result["nts"].machines, result["nts"].failures) == (("pr-1",), 0)
+        assert (result["nts"].deleted["machine"], result["nts"].failures) == (("pr-1",), 0)
 
     def test_stops_before_the_next_entity_once_asked_to(
         self,
@@ -368,7 +364,7 @@ class TestRounds:
 
         result = sweep(db_engine, SuiteRegistry(), stopping)
 
-        assert result is not None and result[0].machines == ()
+        assert result is not None and result[0].deleted["machine"] == ()
         assert exists(api_client, f"{MACHINES}/pr-1")
 
 

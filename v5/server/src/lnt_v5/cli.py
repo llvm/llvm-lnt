@@ -193,17 +193,14 @@ def _sweep(settings: Settings) -> int:
 
     if swept is None:
         return _fail("another process is sweeping the database; try again later")
-    deleted = False
-    for suite in swept:
-        for noun, names in (("machine", suite.machines), ("commit", suite.commits)):
-            if names:
-                deleted = True
-                print(
-                    f"Deleted {len(names)} inactive {noun}(s) from test suite '{suite.suite}': "
-                    f"{', '.join(names)}."
-                )
-    if not deleted:
-        print("No machine or commit was due for deletion.")
+    lines = [
+        f"Deleted {len(names)} inactive {noun}(s) from test suite '{suite.suite}': "
+        f"{', '.join(names)}."
+        for suite in swept
+        for noun, names in suite.deleted.items()
+        if names
+    ]
+    print("\n".join(lines) if lines else "No machine or commit was due for deletion.")
     failures = sum(suite.failures for suite in swept)
     if failures:
         return _fail(f"{failures} step(s) of the sweep failed; see the warnings above")

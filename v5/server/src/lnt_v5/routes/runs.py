@@ -340,14 +340,17 @@ class Runs:
         afterwards.
         """
         taken = f"A run '{uuid}' already exists in test suite '{self.schema.name}'"
-        deleted = (
-            f"The {{}} of this run was deleted from test suite '{self.schema.name}' while the run "
-            "was being stored. Retry."
-        )
+
+        def deleted(noun: str) -> str:
+            return (
+                f"The {noun} of this run was deleted from test suite '{self.schema.name}' while "
+                "the run was being stored. Retry."
+            )
+
         with (
             reporting_violation(RUN_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken),
-            reporting_violation(RUN_MACHINE_CONSTRAINT, ErrorCode.RETRY, deleted.format("machine")),
-            reporting_violation(RUN_COMMIT_CONSTRAINT, ErrorCode.RETRY, deleted.format("commit")),
+            reporting_violation(RUN_MACHINE_CONSTRAINT, ErrorCode.RETRY, deleted("machine")),
+            reporting_violation(RUN_COMMIT_CONSTRAINT, ErrorCode.RETRY, deleted("commit")),
         ):
             return int(
                 connection.execute(
