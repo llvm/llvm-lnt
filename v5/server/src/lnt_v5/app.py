@@ -28,6 +28,7 @@ from .routes.machines import router as machines_router
 from .routes.profiles import router as profiles_router
 from .routes.profiles import run_profiles_router
 from .routes.regressions import router as regressions_router
+from .routes.robots import router as robots_router
 from .routes.runs import router as runs_router
 from .routes.samples import router as samples_router
 from .routes.suites import router as suites_router
@@ -127,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # after it is unreachable.
     app.include_router(health_router)
     app.include_router(llms_router)
+    app.include_router(robots_router)
     app.include_router(index_router)
     app.include_router(admin_router)
     app.include_router(auth_router)

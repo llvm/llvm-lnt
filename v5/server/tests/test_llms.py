@@ -8,7 +8,7 @@ the suite would notice.
 
 Two of its properties are covered where they belong with their siblings rather than here: its
 trailing-slash handling with the other server paths in `test_spa.py`, and its absence from I8's
-document with the other exempt route in `test_docs.py`.
+document with the other exempt routes in `test_docs.py`.
 
 Nothing here needs a database: the document is static and the route table is built without one.
 """

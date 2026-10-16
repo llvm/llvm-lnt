@@ -175,7 +175,7 @@ class TestApplicationWiring:
         assert response.json()["error"]["code"] == "method_not_allowed"
         assert response.headers["allow"] == allowed
 
-    @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
+    @pytest.mark.parametrize("path", ["/healthz", "/llms.txt", "/robots.txt"])
     def test_a_method_mismatch_outside_the_api_stays_404(
         self, client: TestClient, path: str
     ) -> None:

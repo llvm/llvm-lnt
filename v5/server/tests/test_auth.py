@@ -34,8 +34,8 @@ from lnt_v5.tables import api_key
 READABLE = "/api"
 ADMIN_ONLY = "/api/admin/api-keys"
 
-# I5 exempts four routes from the scope system. Two of them live under `/api/`; the other two,
-# `/healthz` and `/llms.txt`, do not and are covered by `TestExemptRoutes` below.
+# Two of the routes I5 exempts from the scope system live under `/api/`. The others, `/healthz`,
+# `/llms.txt` and `/robots.txt`, do not and are covered by `TestExemptRoutes` below.
 EXEMPT_API_PATHS = {"/api/openapi.json", "/api/docs"}
 
 # Well-formed as a Bearer credential, but not a token this server ever issued.
@@ -189,7 +189,9 @@ class TestRevocation:
 
 
 class TestExemptRoutes:
-    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt"])
+    @pytest.mark.parametrize(
+        "path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt", "/robots.txt"]
+    )
     def test_an_authorization_header_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # I5: no authentication happens on their path at all -- not even for a header that would
         # be a 401 anywhere else under /api/.
@@ -201,7 +203,8 @@ class TestExemptRoutes:
             assert response.status_code == unauthenticated.status_code == 200, header
 
     @pytest.mark.parametrize(
-        "path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt", "/suites/nts"]
+        "path",
+        ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt", "/robots.txt", "/suites/nts"],
     )
     def test_a_query_parameter_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # I3's refusal is for the REST API surface, which these are outside of: a proxy busting a

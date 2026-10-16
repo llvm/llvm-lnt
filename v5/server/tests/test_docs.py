@@ -94,10 +94,10 @@ class TestOpenApiDocument:
                 expected = {"retry"} | beyond_retry.get((path, method), set())
                 assert named == expected, f"{method.upper()} {path}"
 
-    @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
+    @pytest.mark.parametrize("path", ["/healthz", "/llms.txt", "/robots.txt"])
     def test_excludes_the_routes_outside_the_rest_api(self, client: TestClient, path: str) -> None:
-        # I5 places both of these outside the REST API surface, so neither is part of what I8
-        # describes. The other two exempt routes are the document and its viewer.
+        # I5 places these outside the REST API surface, so none is part of what I8 describes. The
+        # remaining exempt routes are the document and its viewer.
         assert path not in client.get("/api/openapi.json").json()["paths"]
 
     def test_documents_no_validation_failure_the_api_cannot_produce(

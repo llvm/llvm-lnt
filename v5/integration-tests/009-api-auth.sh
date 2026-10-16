@@ -84,7 +84,7 @@ expect_status 200
 expect_body '"prefix":"'"${bot:0:8}"'","name":"integration-bot","scope":"read".*"is_active":false'
 
 echo "  the routes outside the REST API never authenticate"
-for path in /api/openapi.json /api/docs /llms.txt; do
+for path in /api/openapi.json /api/docs /llms.txt /robots.txt; do
     request -H 'Authorization: Basic zzz' "${BASE_URL}${path}"
     expect_status 200
 done
