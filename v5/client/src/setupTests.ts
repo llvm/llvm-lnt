@@ -7,9 +7,10 @@ import { server } from './test/server'
 
 globalThis.IntersectionObserver = FakeIntersectionObserver
 
-// How long `waitFor` and the `find*` queries wait: a time budget for slow CI runners (see
-// vite.config.ts), not a cover for a race.
-configure({ asyncUtilTimeout: 3000 })
+// How long `waitFor` and the `find*` queries wait: a time budget for loaded machines (slow CI
+// runners, or several suites running at once), where a page's first render can take seconds. Not
+// a cover for a race, nor a check of how fast the app is (see vite.config.ts).
+configure({ asyncUtilTimeout: 10_000 })
 
 // MSW's own 'error' strategy only logs an unhandled request and fails it as a network error, which
 // the code under test may well handle -- as an `ApiError(0, ...)` -- so that the test passes for the
