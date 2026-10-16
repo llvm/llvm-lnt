@@ -74,12 +74,12 @@ export interface HeldFunction {
 
 /**
  * The function a side shows, once its profile has listed `functions`: `name` is null when the
- * profile lists none, or when side B shows none. `followed` says that side B shows it, or none,
- * because it follows side A's function rather than shows its own.
+ * profile lists none, or when side B shows none. `isDefault` says that side B shows it, or none,
+ * because it takes side A's function by default rather than shows one the user picked.
  */
 export interface FunctionPick {
   name: string | null
-  followed?: true
+  isDefault?: true
 }
 
 /** Whether `functions` has a function named `name`. */
@@ -121,18 +121,18 @@ export function functionChoice({
 }
 
 /**
- * The function side B shows, once its profile has listed `functions` (PF4): its own, `own`, which
- * the URL names, if the profile has it. Otherwise, side A's function, `followed`, if the profile
- * has one of that name, and none otherwise. `followed` is null when side A shows no function, and
- * undefined while it is not known yet.
+ * The function side B shows, once its profile has listed `functions` (PF4): the one the user
+ * picked, `picked`, which the URL names, if the profile has it. Otherwise, its default: side A's
+ * function, `fromA`, if the profile has one of that name, and none otherwise. `fromA` is null when
+ * side A shows no function, and undefined while it is not known yet.
  */
-export function followerChoice(
+export function functionChoiceB(
   functions: readonly ProfileFunction[],
-  own: string,
-  followed: string | null | undefined,
+  picked: string,
+  fromA: string | null | undefined,
 ): FunctionPick | undefined {
   if (functions.length === 0) return { name: null }
-  if (own !== '' && hasFunction(functions, own)) return { name: own }
-  if (followed === undefined) return undefined
-  return { name: hasFunction(functions, followed) ? followed : null, followed: true }
+  if (picked !== '' && hasFunction(functions, picked)) return { name: picked }
+  if (fromA === undefined) return undefined
+  return { name: hasFunction(functions, fromA) ? fromA : null, isDefault: true }
 }

@@ -6,7 +6,7 @@
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { followingA } from '../client/src/pages/profiles/following.ts'
+import { defaultDescription } from '../client/src/pages/profiles/defaults.ts'
 import { profilesPath } from '../client/src/paths.ts'
 import {
   EXPERIMENT,
@@ -65,11 +65,11 @@ test("shows the profile of a test that Run Detail's Profile link names", async (
   await expect(columnOf(page, 'B')).toHaveCount(0)
 })
 
-/** Expect the combobox `field` to show `name` as what it follows from side A, holding no value. */
-async function expectFollowing(field: Locator, name: string) {
+/** Expect the combobox `field` to show `name` as side B's default, holding no value. */
+async function expectDefault(field: Locator, name: string) {
   await expect(field).toHaveValue('')
   await expect(field).toHaveAttribute('placeholder', name)
-  await expect(field).toHaveAccessibleDescription(followingA(name))
+  await expect(field).toHaveAccessibleDescription(defaultDescription(name))
 }
 
 /**
@@ -87,7 +87,7 @@ async function pickFunction(page: Page, side: 'A' | 'B', name: string) {
   await suggestion.click()
 }
 
-test("follows side A's test on side B, also on another machine", async ({ page, request }) => {
+test("defaults side B's test to side A's, also on another machine", async ({ page, request }) => {
   const commit = await newestProfiled(request, LINUX)
   const linuxRun = await profiledRun(request, LINUX, commit.value)
   const macosRun = await profiledRun(request, MACOS, commit.value)
@@ -108,28 +108,28 @@ test("follows side A's test on side B, also on another machine", async ({ page, 
   // The commit is searched by its commit string, and suggested by its display value.
   await pickSuggestion(sideOf(page, 'B'), 'Commit', commit.value, String(commit.fields.svn_revision))
 
-  // The latest run with profiles, following side A's test, which the URL leaves out.
+  // The latest run with profiles, on side A's test by default, which the URL leaves out.
   await expect(page).toHaveURL(new RegExp(`[?&]run_b=${linuxRun}(&|$)`))
   const testB = sideOf(page, 'B').getByRole('combobox', { name: 'Test' })
-  await expectFollowing(testB, PROFILED_TEST)
+  await expectDefault(testB, PROFILED_TEST)
   await expect(columnOf(page, 'B')).toBeAttached()
   await expect(page).not.toHaveURL(/[?&]test_b=/)
 
-  // MACOS has profiles at the same commit: side B keeps it, and follows the test in MACOS's run.
+  // MACOS has profiles at the same commit: side B keeps it, and shows the default test there.
   await pickSuggestion(sideOf(page, 'B'), 'Machine', MACOS)
   await expect(page).toHaveURL(new RegExp(`[?&]run_b=${macosRun}(&|$)`))
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${commit.value}(&|$)`))
-  await expectFollowing(testB, PROFILED_TEST)
+  await expectDefault(testB, PROFILED_TEST)
   await expect(columnOf(page, 'A').getByRole('combobox', { name: 'Function' })).toHaveValue(
     /^std::__1::__stable_sort</,
   )
-  await expectFollowing(
+  await expectDefault(
     columnOf(page, 'B').getByRole('combobox', { name: 'Function' }),
     'std::__1::__stable_sort<_ClassicAlgPolicy, __less<>&, int*>(int*, int*, long)',
   )
 })
 
-test("follows side A's test and function on side B, until side B picks its own", async ({
+test("defaults side B's test and function to side A's, until the user picks on side B", async ({
   page,
   request,
 }) => {
@@ -146,24 +146,24 @@ test("follows side A's test and function on side B, until side B picks its own",
   const functionB = columnOf(page, 'B').getByRole('combobox', { name: 'Function' })
   await expect(testB).toHaveAttribute('placeholder', 'Select a test')
 
-  // Side A's test, then its function, which side B follows.
+  // Side A's test, then its function, which side B shows by default.
   await pickSuggestion(sideOf(page, 'A'), 'Test', FORMAT_TEST)
-  await expectFollowing(testB, FORMAT_TEST)
-  await expectFollowing(functionB, FORMAT_HOTTEST)
+  await expectDefault(testB, FORMAT_TEST)
+  await expectDefault(functionB, FORMAT_HOTTEST)
   await pickFunction(page, 'A', 'memcpy')
-  await expectFollowing(functionB, 'memcpy')
+  await expectDefault(functionB, 'memcpy')
   const instructionsB = columnOf(page, 'B').getByRole('table', { name: 'Instructions of memcpy' })
   await expect(instructionsB).toBeVisible()
   await expect(page).not.toHaveURL(/[?&](test_b|function_b)=/)
 
-  // A function picked on side B is its own: it stays as side A's changes, until it is cleared.
+  // A function picked on side B stays as side A's changes, until it is cleared.
   await pickFunction(page, 'B', 'main')
   await expect(functionB).toHaveValue('main')
   await expect(page).toHaveURL(/[?&]function_b=main(&|$)/)
   await pickFunction(page, 'A', FORMAT_HOTTEST)
   await expect(functionB).toHaveValue('main')
   await columnOf(page, 'B').getByRole('button', { name: 'Clear Function' }).click()
-  await expectFollowing(functionB, FORMAT_HOTTEST)
+  await expectDefault(functionB, FORMAT_HOTTEST)
   await expect(page).not.toHaveURL(/[?&]function_b=/)
 
   // So is a test picked on side B, even side A's.
@@ -176,7 +176,7 @@ test("follows side A's test and function on side B, until side B picks its own",
   await expect(functionB).toHaveValue('')
   await expect(functionB).toHaveAttribute('placeholder', 'Select a function')
   await sideOf(page, 'B').getByRole('button', { name: 'Clear Test' }).click()
-  await expectFollowing(testB, PROFILED_TEST)
+  await expectDefault(testB, PROFILED_TEST)
   await expect(page).not.toHaveURL(/[?&]test_b=/)
 })
 

@@ -8,7 +8,7 @@ import { functionShare, shareText, type ProfileFunction } from './functions'
 import { HottestControls } from './hottest-controls'
 import { InstructionTable } from './instruction-table'
 import { instructionValues, type ValueMode } from './instructions'
-import { followedFromA } from './following'
+import { defaultFromA } from './defaults'
 import { ShareBadge } from './share-badge'
 import { useHottest } from './use-hottest'
 import type { SideFunctions } from './use-functions'
@@ -85,14 +85,14 @@ function Functions({ uuid, profile, functions, counter, values }: FunctionsProps
         functions={list.data}
         ordered={ordered}
         selected={name}
-        followed={functions.followed}
+        isDefault={functions.isDefault}
         counter={counter}
         profile={profile}
         onPick={functions.pick}
         onClear={functions.clear}
       />
       {name === undefined && <Loading label="Loading the function..." />}
-      {/* None while side B follows a function its profile does not have, or while side A shows
+      {/* None while side B's profile does not have its default function, or while side A shows
           none (PF4). */}
       {name && (
         <Disassembly
@@ -113,10 +113,10 @@ interface SelectorProps {
   functions: readonly ProfileFunction[]
   /** The functions, hottest first under the counter. */
   ordered: readonly ProfileFunction[]
-  /** The function selected, once known: none while side B follows one its profile lacks. */
+  /** The function selected, once known: none while side B's profile lacks its default one. */
   selected: string | null | undefined
-  /** Whether side B shows that function, or none, because it follows side A's. */
-  followed: boolean
+  /** Whether side B shows that function, or none, because it is side B's default (PF4). */
+  isDefault: boolean
   counter: string | undefined
   /** The profile's top-level counters. */
   profile: Counters
@@ -135,7 +135,7 @@ const FunctionSelector = memo(function FunctionSelector({
   functions,
   ordered,
   selected,
-  followed,
+  isDefault,
   counter,
   profile,
   onPick,
@@ -181,11 +181,11 @@ const FunctionSelector = memo(function FunctionSelector({
         key={view.counter}
         label="Function"
         fill
-        // A function side B follows is shown as inherited, rather than as its value.
-        value={selected == null || followed ? null : { key: selected, text: selected }}
+        // Side B's default function is shown as inherited, rather than as its value.
+        value={selected == null || isDefault ? null : { key: selected, text: selected }}
         placeholder={selected === null ? 'Select a function' : undefined}
-        inherited={followed ? followedFromA(selected) : undefined}
-        // Clearing side B's own function makes it follow side A's again. Side A always shows one.
+        inherited={isDefault ? defaultFromA(selected) : undefined}
+        // Clearing the function picked on side B brings back its default. Side A always shows one.
         onChange={(picked) => (picked ? onPick(picked.key) : onClear?.())}
         suggestions={suggestions}
         renderSuggestion={renderSuggestion}

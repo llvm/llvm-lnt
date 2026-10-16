@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followerChoice, functionChoice, functionShare, hottestFirst } from './functions'
+import { functionChoiceB, functionChoice, functionShare, hottestFirst } from './functions'
 
 const fn = (name: string, counters: Record<string, number>) => ({ name, counters, length: 1 })
 
@@ -92,29 +92,29 @@ describe('functionChoice', () => {
   })
 })
 
-describe('followerChoice', () => {
+describe('functionChoiceB', () => {
   const functions = [fn('main', { cycles: 1 }), fn('hot', { cycles: 9 })]
 
   it('takes its own function if the profile has it, before side A\'s', () => {
-    expect(followerChoice(functions, 'main', 'hot')).toEqual({ name: 'main' })
-    expect(followerChoice(functions, 'main', undefined)).toEqual({ name: 'main' })
+    expect(functionChoiceB(functions, 'main', 'hot')).toEqual({ name: 'main' })
+    expect(functionChoiceB(functions, 'main', undefined)).toEqual({ name: 'main' })
   })
 
   it("otherwise takes side A's function when the profile has one of that name", () => {
-    expect(followerChoice(functions, '', 'hot')).toEqual({ name: 'hot', followed: true })
-    expect(followerChoice(functions, 'gone', 'hot')).toEqual({ name: 'hot', followed: true })
+    expect(functionChoiceB(functions, '', 'hot')).toEqual({ name: 'hot', isDefault: true })
+    expect(functionChoiceB(functions, 'gone', 'hot')).toEqual({ name: 'hot', isDefault: true })
   })
 
   it('shows none, rather than its hottest, when it does not, or side A shows none', () => {
-    expect(followerChoice(functions, '', 'gone')).toEqual({ name: null, followed: true })
-    expect(followerChoice(functions, '', null)).toEqual({ name: null, followed: true })
+    expect(functionChoiceB(functions, '', 'gone')).toEqual({ name: null, isDefault: true })
+    expect(functionChoiceB(functions, '', null)).toEqual({ name: null, isDefault: true })
   })
 
   it("waits for side A's function to be known", () => {
-    expect(followerChoice(functions, '', undefined)).toBeUndefined()
+    expect(functionChoiceB(functions, '', undefined)).toBeUndefined()
   })
 
   it('has none for a profile that lists none', () => {
-    expect(followerChoice([], 'main', 'main')).toEqual({ name: null })
+    expect(functionChoiceB([], 'main', 'main')).toEqual({ name: null })
   })
 })

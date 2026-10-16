@@ -37,10 +37,10 @@ interface CommonProps {
   suggestions: Suggestions
   placeholder?: string
   /**
-   * A value the combobox follows from elsewhere while it holds none of its own. It is shown in
-   * place of the placeholder, in italics, and assistive technology reads `description` with the
-   * combobox, which names it and says where it comes from, as not every one reads a placeholder.
-   * Being no value of the combobox, it has no button to clear it.
+   * A default value, taken from elsewhere, that the combobox shows while it holds no value. It is
+   * shown in place of the placeholder, in italics, and assistive technology reads `description`
+   * with the combobox, which names it and says where it comes from, as not every one reads a
+   * placeholder. Being no value of the combobox, it has no button to clear it.
    */
   inherited?: { text: string; description: string }
   /**

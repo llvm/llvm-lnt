@@ -121,7 +121,7 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
   await expect(page).toHaveURL(new RegExp(`commit_a=${older.value}.*commit_b=${newer.value}`))
 })
 
-test("links a test to its profile on both sides, side B following side A's test", async ({
+test("links a test to its profile on both sides, side B on its default test", async ({
   page,
   request,
 }) => {

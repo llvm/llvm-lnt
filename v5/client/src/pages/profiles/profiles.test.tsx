@@ -11,7 +11,7 @@ import { clearCombobox, pick, pickOption, selectButton } from '../../test/select
 import {
   ALPHA,
   columnOf,
-  expectFollowing,
+  expectDefault,
   field,
   heldBack,
   mockWorld,
@@ -160,7 +160,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     expect(query().test_a).toEqual(['gamma'])
   })
 
-  it("drops side B's test when the new run has no profile of it, following side A's", async () => {
+  it("drops side B's test when the new run lacks it, going back to side A's", async () => {
     mockWorld()
     // Side A shows alpha in run 1, side B gamma in run 2, both of m1 at c1.
     renderPage(withB('m1', 'c1', '2', 'gamma'))
@@ -171,11 +171,11 @@ describe('the Profiles page: side selection (PF2)', () => {
 
     await waitFor(() => expect(query().run_b).toEqual([uuidOf('4')]))
     await waitFor(() => expect(query().test_b).toBeUndefined())
-    await waitFor(() => expectFollowing(field('Test', 'B'), 'alpha'))
+    await waitFor(() => expectDefault(field('Test', 'B'), 'alpha'))
     await profileShown('B')
   })
 
-  it("keeps the test across runs, or follows side A's on side B", async () => {
+  it("keeps the test across runs, or goes back to side A's on side B", async () => {
     const { metadata } = mockWorld()
     // Side A shows alpha in run 1, side B gamma in run 2, both of m1 at c1.
     renderPage(withB('m1', 'c1', '2', 'gamma'))
@@ -188,10 +188,10 @@ describe('the Profiles page: side selection (PF2)', () => {
     expect(query().run_a).toEqual([uuidOf('2')])
     expect(query().test_a).toEqual(['alpha'])
 
-    // Run 1 has no profile of gamma, but one of side A's alpha, which side B follows.
+    // Run 1 has no profile of gamma, but one of side A's alpha, side B's default.
     await pickOption('Run', '2026-08-20, 10:00:00 AM 11111111', sideOf('B'))
     await waitFor(() => expect(query().test_b).toBeUndefined())
-    await waitFor(() => expectFollowing(field('Test', 'B'), 'alpha'))
+    await waitFor(() => expectDefault(field('Test', 'B'), 'alpha'))
   })
 
   it("never takes side B's test when its new run has no profile of its own", async () => {
@@ -212,7 +212,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     expect(query().test_b).toEqual(['beta'])
   })
 
-  it("follows side A's test on side B, once side B has a commit", async () => {
+  it("defaults side B's test to side A's, once side B has a commit", async () => {
     mockWorld()
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
@@ -225,7 +225,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     await waitFor(() => expect(query().run_b).toEqual([uuidOf('4')]))
     await waitFor(() => expect(columnOf('B')).toBeInTheDocument())
     await profileShown('B')
-    expectFollowing(field('Test', 'B'), 'alpha')
+    expectDefault(field('Test', 'B'), 'alpha')
     // Side B's test is not its own: there is nothing to clear.
     expect(within(sideOf('B')).queryByRole('button', { name: 'Clear Test' })).toBeNull()
     expect(query().test_b).toBeUndefined()

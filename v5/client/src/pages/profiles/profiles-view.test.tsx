@@ -12,7 +12,7 @@ import {
   ALPHA,
   columnOf,
   field,
-  followsFunction,
+  showsDefaultFunction,
   functionField,
   heldBack,
   mockWorld,
@@ -219,7 +219,7 @@ describe('the Profiles page: function selection (PF4)', () => {
 
   it("never takes side B's function, even on side B's test", async () => {
     mockWorld()
-    // Side A shows beta in run 1, side B alpha's main, its own, in run 2.
+    // Side A shows beta in run 1, side B alpha's main, picked on it, in run 2.
     renderPage(
       profilesPath(sideAt('m1', 'c1', '1', 'beta'), sideAt('m1', 'c1', '2', 'alpha')) +
         '&function_b=main',
@@ -244,9 +244,9 @@ describe('the Profiles page: function selection (PF4)', () => {
     slow.open()
 
     // Side A's carried function belongs to another test: side A takes its hottest, which side B
-    // follows.
+    // shows by default.
     await showsFunction('A', 'hot')
-    await followsFunction('hot')
+    await showsDefaultFunction('hot')
   })
 
   it("keeps its hottest function, by name, on another profile of the same test", async () => {
@@ -516,7 +516,7 @@ describe('the Profiles page: the counter (PF4)', () => {
     await waitFor(() => expect(query().function_a).toEqual(['hot']))
     slow.open()
 
-    await followsFunction('hot')
+    await showsDefaultFunction('hot')
     await waitFor(() => expect(query().function_a).toBeUndefined())
     expect(functionField('A')).toHaveValue('hot')
   })
@@ -642,7 +642,7 @@ describe('the Profiles page: values and layout (PF6, PF7)', () => {
     renderPage(withB('c2', '3', 'beta'))
 
     await showsFunction('A', 'hot')
-    await followsFunction('hot')
+    await showsDefaultFunction('hot')
     expect(screen.getAllByRole('combobox', { name: 'Function' })).toHaveLength(2)
   })
 

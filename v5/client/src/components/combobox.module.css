@@ -20,8 +20,8 @@
 }
 
 /*
- * A value followed from elsewhere, shown as the placeholder: in italics, and muted, but in a color
- * that keeps a contrast of 4.5:1 against the input, disabled or not.
+ * A default value taken from elsewhere, shown as the placeholder: in italics, and muted, but in a
+ * color that keeps a contrast of 4.5:1 against the input, disabled or not.
  */
 .inherited::placeholder {
   color: var(--lnt-muted);

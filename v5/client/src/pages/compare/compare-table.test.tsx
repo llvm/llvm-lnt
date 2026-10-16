@@ -443,7 +443,7 @@ describe('the Profile column (CP2)', () => {
 
   /**
    * The Profiles page's URL for `test`, with side A in the run `a` and side B in the run `b`, by
-   * the hex of their UUIDs. Side B is left to follow side A's test (PF1).
+   * the hex of their UUIDs. Side B is left on its default test, side A's (PF1).
    */
   function profilesUrl(test: string, a: string, b?: string) {
     const side = (letter: string, hex: string) => [

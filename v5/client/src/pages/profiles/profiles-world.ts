@@ -13,7 +13,7 @@ import { BARE_SUITE, SUITE, commit, cursorPage, machine, run, uuidOf } from '../
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { gate, mockCommits, mockMachines, mockRuns, mockSuites } from '../../test/page'
 import { profilesPath } from '../../paths'
-import { followingA } from './following'
+import { defaultDescription } from './defaults'
 import { pick } from '../../test/select'
 import { server } from '../../test/server'
 
@@ -232,7 +232,7 @@ export function heldBack<Key>(when: (key: Key) => boolean = () => true) {
 
 /**
  * A side showing `test` in the run `hex` of `machine` at `commit`, in libcxx. Without `test`, side
- * B follows side A's.
+ * B shows its default test, side A's.
  */
 export function sideAt(machine: string, commit: string, hex: string, test?: string) {
   return { suite: 'libcxx', machine, commit, run: uuidOf(hex), test }
@@ -262,7 +262,7 @@ export function columnOf(side: 'A' | 'B') {
 }
 
 /**
- * Wait for `side` to show its profile: its function is known -- selected, followed from side A, or
+ * Wait for `side` to show its profile: its function is known -- selected, side B's default, or
  * none -- which neither a profile still loading nor one that failed to load can show.
  */
 export async function profileShown(side: 'A' | 'B') {
@@ -274,13 +274,13 @@ export async function profileShown(side: 'A' | 'B') {
 }
 
 /**
- * Expect the combobox `field` to show `name` as the value it follows from side A, holding none of
- * its own (PF2, PF4).
+ * Expect the combobox `field` to show `name` as side B's default, from side A, holding no value
+ * (PF2, PF4).
  */
-export function expectFollowing(field: HTMLElement, name: string) {
+export function expectDefault(field: HTMLElement, name: string) {
   expect(field).toHaveValue('')
   expect(field).toHaveAttribute('placeholder', name)
-  expect(field).toHaveAccessibleDescription(followingA(name))
+  expect(field).toHaveAccessibleDescription(defaultDescription(name))
 }
 
 /** Expect `side` to show the instructions of the function `name`. */
@@ -297,10 +297,10 @@ export async function showsFunction(side: 'A' | 'B', name: string) {
   })
 }
 
-/** Wait for side B to show the function `name` it follows from side A, its instructions loaded. */
-export async function followsFunction(name: string) {
+/** Wait for side B to show `name` as its default function, its instructions loaded. */
+export async function showsDefaultFunction(name: string) {
   await waitFor(() => {
-    expectFollowing(functionField('B'), name)
+    expectDefault(functionField('B'), name)
     expectInstructions('B', name)
   })
 }
