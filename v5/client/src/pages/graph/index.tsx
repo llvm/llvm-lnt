@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AGGREGATION_OPTIONS, AGGREGATIONS, type Aggregation } from '../../aggregation'
-import { useMachineList, useMachineNames } from '../../api/machines'
+import { hasMachine, useMachineList } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
@@ -104,16 +104,16 @@ function GraphPage() {
 
   // The machines chosen that exist, once that is known: nothing is fetched for the others, which
   // are dropped.
-  const machineNames = useMachineNames(suite, schema !== undefined)
   const machineList = useMachineList(suite, schema !== undefined)
-  const names = machineNames.data
+  const listed = machineList.data
   const machines = useMemo(
-    () => (names ? settings.machine.filter((name) => names.includes(name)) : NO_NAMES),
-    [names, settings.machine],
+    () =>
+      listed ? settings.machine.filter((name) => hasMachine(listed, name)) : NO_NAMES,
+    [listed, settings.machine],
   )
   useDropUnusable(
-    machineNames,
-    (list) => settings.machine.every((name) => list.includes(name)),
+    machineList,
+    (list) => settings.machine.every((name) => hasMachine(list, name)),
     () => update({ machine: machines }),
   )
 
@@ -139,7 +139,7 @@ function GraphPage() {
   // whatever the filter, which only narrows the table. Until then -- while the suite, the machines
   // or the metric are being checked, or a machine's tests listed -- the selection stays as it is
   // (GR1, GR14).
-  const known = names !== undefined && metric !== undefined && tests.complete && !tests.error
+  const known = listed !== undefined && metric !== undefined && tests.complete && !tests.error
   const selection = useRangeSelection(known ? tests.names : undefined, filter.rows, {
     limit: SELECTION_LIMIT,
     initial: settings.test,
@@ -202,7 +202,8 @@ function GraphPage() {
   // Whether the suite or the machines the URL names are still being checked, which nothing the
   // page shows can be said to be empty or missing until.
   const checking =
-    suites.isPending || (schema !== undefined && settings.machine.length > 0 && names === undefined)
+    suites.isPending ||
+    (schema !== undefined && settings.machine.length > 0 && listed === undefined)
   const listing =
     metric !== undefined && machines.length > 0 && !tests.complete && tests.error === null
   const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
@@ -238,10 +239,10 @@ function GraphPage() {
           />
           <MachineChips
             // Once the machines are known, only those that exist, as the chart marks them.
-            machines={names ? machines : settings.machine}
-            all={machineList.data}
-            pending={!disabled && machineNames.isPending}
-            error={machineNames.error}
+            machines={listed ? machines : settings.machine}
+            all={listed}
+            pending={!disabled && machineList.isPending}
+            error={machineList.error}
             isDisabled={disabled}
             onChange={(chosen) => update({ machine: chosen })}
           />
@@ -303,11 +304,11 @@ function GraphPage() {
           />
         </div>
       </ControlsPanel>
-      {machineNames.isError && (
+      {machineList.isError && (
         <ErrorMessage
           context="The machines could not be listed"
-          error={machineNames.error}
-          onRetry={() => void machineNames.refetch()}
+          error={machineList.error}
+          onRetry={() => void machineList.refetch()}
         />
       )}
       {tests.error !== null && (

@@ -25,13 +25,12 @@ import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
 import { InactivityRow } from '../../components/inactivity-row'
-import { ORDERED_COMMIT_NOTE } from '../../inactivity'
 import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
 import { SearchInput } from '../../components/search-input'
 import { useTextFilter } from '../../components/use-text-filter'
 import { WithSchema } from '../../components/with-schema'
-import { compareStrings, plural } from '../../format'
+import { compareStrings, isIntegerIn, plural } from '../../format'
 import { commitPath } from '../../paths'
 import {
   commitDisplayValue,
@@ -145,10 +144,7 @@ const ORDINAL_MAX = 2 ** 31 - 1
 
 /** Why `text` is not an ordinal, which is an integer its column can hold (DT3), if it is not. */
 function invalidOrdinal(text: string): string | undefined {
-  // Checked as digits first: `Number` reads more than an integer (`1e3`, `0x10`), and makes a
-  // long enough one `Infinity`, which a request would send as null, clearing the ordinal.
-  const ordinal = Number(text)
-  return /^-?\d+$/.test(text) && ordinal >= ORDINAL_MIN && ordinal <= ORDINAL_MAX
+  return isIntegerIn(text, ORDINAL_MIN, ORDINAL_MAX)
     ? undefined
     : `An ordinal is an integer from ${ORDINAL_MIN} to ${ORDINAL_MAX}.`
 }
@@ -186,7 +182,7 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
       <InactivityRow
         value={commit.delete_after_inactive_days}
         gate={manage}
-        note={commit.ordinal === null ? undefined : ORDERED_COMMIT_NOTE}
+        note={commit.ordinal === null ? undefined : 'No effect while the commit has an ordinal.'}
         onSave={(days) => update({ delete_after_inactive_days: days })}
       />
       {schema.commit_fields.map((field) => (

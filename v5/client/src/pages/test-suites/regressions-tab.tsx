@@ -13,6 +13,7 @@ import { Combobox } from '../../components/combobox'
 import { ConfirmDelete } from '../../components/confirm-delete'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
+import { hasMachine } from '../../api/machines'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { CursorPager } from '../../components/pagination'
 import { StateBadge, StateChips } from '../../components/regression-state'
@@ -57,7 +58,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   const { machines, suggestions: machineSuggestions } = useMachineSuggestions(suite)
   useDropUnusable(
     machines,
-    (names) => filters.machine === '' || names.includes(filters.machine),
+    (list) => filters.machine === '' || hasMachine(list, filters.machine),
     () => update({ machine: '' }),
   )
   // The API answers an unknown machine with a 404, so the regressions are not asked for until the
@@ -65,7 +66,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   const machineReady =
     filters.machine === '' ||
     machines.isError ||
-    (machines.data?.includes(filters.machine) ?? false)
+    (machines.data !== undefined && hasMachine(machines.data, filters.machine))
   const knownMetric =
     filters.metric === '' || schema.metrics.some((entry) => entry.name === filters.metric)
   useEffect(() => {

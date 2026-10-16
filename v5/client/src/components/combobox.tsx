@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -284,6 +285,9 @@ const LIST_LAYOUT = { estimatedRowSize: 30, loaderSize: 30 }
  * of their first suggestion.
  */
 function sectioned(items: readonly Suggestion[]) {
+  // Most lists have no sections, among them lists of thousands of suggestions (AR9), which are
+  // then shown as they are.
+  if (!items.some((item) => item.section !== undefined)) return { unsectioned: items, sections: [] }
   const unsectioned: Suggestion[] = []
   const sections = new Map<string, Suggestion[]>()
   for (const item of items) {
@@ -307,15 +311,20 @@ function List({
   emptyMessage: string | undefined
 }) {
   const { unsectioned, sections } = useMemo(() => sectioned(suggestions.items), [suggestions.items])
-  const option = (item: Suggestion) => (
-    <ListBoxItem
-      id={item.key}
-      textValue={item.text}
-      className={clsx(shared.option, virtualized && styles.virtualOption)}
-    >
-      {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
-      {renderSuggestion ? () => renderSuggestion(item) : item.text}
-    </ListBoxItem>
+  // Kept from one render to the next, so that React Aria does not go over every suggestion again on
+  // each keystroke, while the suggestions themselves are still those for earlier text (AR9).
+  const option = useCallback(
+    (item: Suggestion) => (
+      <ListBoxItem
+        id={item.key}
+        textValue={item.text}
+        className={clsx(shared.option, virtualized && styles.virtualOption)}
+      >
+        {/* Rendered once shown, rather than for every suggestion, as React Aria lists them all. */}
+        {renderSuggestion ? () => renderSuggestion(item) : item.text}
+      </ListBoxItem>
+    ),
+    [renderSuggestion, virtualized],
   )
   const list = (
     <ListBox
@@ -326,9 +335,10 @@ function List({
       <Collection items={unsectioned} dependencies={[renderSuggestion]}>
         {option}
       </Collection>
-      {/* Keyed with a `/`, which no suggestion's key of a machine or a commit can hold, so that a
-          section cannot take the id of a suggestion named like it, such as a machine "Untracked".
-          Shown only while it holds suggestions, since `sectioned` makes none for an empty one. */}
+      {/* Sections and suggestions share one space of ids. A section's starts with a `/` so that it
+          cannot be that of a suggestion named like it, such as a machine "Untracked": only machine
+          pickers have sections (AR18), and a machine's name holds no `/` (I1). A section is shown
+          only while it holds suggestions, since `sectioned` makes none for an empty one. */}
       {sections.map(([section, items]) => (
         <ListBoxSection key={`/section/${section}`} id={`/section/${section}`}>
           <Header className={styles.sectionHeader}>{section}</Header>
