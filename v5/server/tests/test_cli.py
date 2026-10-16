@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 import uvicorn
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, inspect, select
+from sqlalchemy import Engine, func, inspect, select, text
 from sqlalchemy.exc import OperationalError
 
 from conftest import TOKEN_PATTERN, store_suite
@@ -21,6 +21,7 @@ from lnt_v5 import cli, migrate
 from lnt_v5.config import get_settings
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import migrations as suite_migrations
+from lnt_v5.suites.inactivity import SWEEP_LOCK_KEY
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.tables import api_key, metadata
 
@@ -368,6 +369,84 @@ class TestCreateKey:
         assert "Traceback" not in captured.err
         with configured_database.connect() as connection:
             assert connection.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
+
+
+class TestSweep:
+    def test_deletes_what_is_due_and_says_what_it_deleted(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        store_suite(
+            configured_database,
+            SuiteSchema.model_validate({"name": "nts"}),
+            suite_migrations.head(),
+        )
+        with configured_database.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO nts.machine (name, delete_after_inactive_days, first_seen_at) "
+                    "VALUES ('pr-1', 30, now() - INTERVAL '31 days'), ('linux', NULL, now())"
+                )
+            )
+
+        assert cli.main(["server", "sweep"]) == 0
+
+        assert capsys.readouterr().out == (
+            "Deleted 1 inactive machine(s) from test suite 'nts': pr-1.\n"
+        )
+        with configured_database.connect() as connection:
+            assert connection.scalars(text("SELECT name FROM nts.machine")).all() == ["linux"]
+
+    def test_says_so_when_nothing_was_due(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert cli.main(["server", "sweep"]) == 0
+
+        assert capsys.readouterr().out == "No machine or commit was due for deletion.\n"
+
+    def test_fails_when_part_of_the_sweep_failed(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The suite's tables are gone, so neither of its lookups can run.
+        store_suite(
+            configured_database,
+            SuiteSchema.model_validate({"name": "nts"}),
+            suite_migrations.head(),
+        )
+        with configured_database.begin() as connection:
+            connection.execute(text('DROP SCHEMA "nts" CASCADE'))
+
+        assert cli.main(["server", "sweep"]) == 1
+
+        assert "2 step(s) of the sweep failed" in capsys.readouterr().err
+
+    def test_refuses_a_database_that_is_not_up_to_date_rather_than_migrating_it(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The suite's tables may lack the columns the sweep reads.
+        store_suite(configured_database, SuiteSchema.model_validate({"name": "nts"}), version=0)
+
+        assert cli.main(["server", "sweep"]) == 1
+
+        assert "lnt-v5 server migrate" in capsys.readouterr().err
+
+    def test_refuses_an_uninitialized_database(
+        self, configured_empty_database: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert cli.main(["server", "sweep"]) == 1
+
+        assert "lnt-v5 server migrate" in capsys.readouterr().err
+
+    def test_says_so_when_another_process_is_sweeping(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with configured_database.connect() as other:
+            other.execute(text("SELECT pg_advisory_lock(:key)"), {"key": SWEEP_LOCK_KEY})
+            try:
+                assert cli.main(["server", "sweep"]) == 1
+            finally:
+                other.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": SWEEP_LOCK_KEY})
+
+        assert "another process is sweeping" in capsys.readouterr().err
 
 
 class TestOpenapi:

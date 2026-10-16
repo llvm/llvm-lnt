@@ -59,6 +59,7 @@ export function machine(
   return {
     name,
     tracked: true,
+    delete_after_inactive_days: null,
     fields: { hardware: null, os: null, core_count: null },
     last_run_at: null,
     ...overrides,
@@ -70,6 +71,7 @@ export function commit(value: string, overrides: Partial<Commit> = {}): Commit {
     value,
     ordinal: null,
     tag: null,
+    delete_after_inactive_days: null,
     fields: { svn_revision: null, commit_info: null },
     ...overrides,
   }

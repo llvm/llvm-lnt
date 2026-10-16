@@ -264,6 +264,7 @@ class TestReadBack:
             {
                 "name": name,
                 "tracked": True,
+                "delete_after_inactive_days": None,
                 "fields": dataset.declared("machine_fields", fields[name]),
             }
             for name in dataset.machine_names
@@ -277,6 +278,7 @@ class TestReadBack:
                 "value": c["value"],
                 "ordinal": c["ordinal"],
                 "tag": None,
+                "delete_after_inactive_days": None,
                 "fields": dataset.declared("commit_fields", c["fields"]),
             }
             for c in dataset.ordered_commits

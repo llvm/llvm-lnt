@@ -71,6 +71,11 @@ MACHINE_NAME_CONSTRAINT = "uq_machine_name"
 COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
+# A run's references to its machine and its commit. A violation means the machine or the commit was
+# deleted after the submission resolved it -- by its DELETE route, or by O10's sweep -- which O8
+# answers with I4's `retry`: resending the submission creates it again.
+RUN_MACHINE_CONSTRAINT = "fk_run_machine_id_machine"
+RUN_COMMIT_CONSTRAINT = "fk_run_commit_id_commit"
 REGRESSION_UUID_CONSTRAINT = "uq_regression_uuid"
 # Not a unique constraint but a foreign key. Storing a reference to a commit deleted after the
 # request resolved it violates it, which is a 404: the commit is no longer there.
@@ -117,6 +122,13 @@ INTEGER_MAX = 2**63 - 1
 INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
+# The range of `delete_after_inactive_days` on `{suite}.machine` and `{suite}.commit` (D5). Bounded
+# well inside the INTEGER column, because O10 subtracts that many days from the current time, and a
+# number of days near INT32_MAX takes the result millions of years outside what a timestamp holds.
+# A hundred years is already "never" for every practical purpose.
+INACTIVE_DAYS_MIN = 1
+INACTIVE_DAYS_MAX = 36500
+
 
 def geomean_column(aggregation: SampleAggregation) -> str:
     """The `{suite}.run_summary` column holding a run's geomean under `aggregation` (D5)."""
@@ -141,6 +153,27 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
     with no value for it (D2), and a submission need not carry every declared field (O2).
     """
     return [Column(entry.name, _COLUMN_TYPES[entry.type], nullable=True) for entry in entries]
+
+
+def _inactivity_columns() -> list[Column[Any]]:
+    """The two built-in columns O10 reads, which `{suite}.machine` and `{suite}.commit` share (D5).
+
+    `first_seen_at` is the database's clock rather than the application's, like `run.submitted_at`,
+    which it is compared with: an entity's last activity is its latest run's `submitted_at`, or
+    this when it has no run.
+    """
+    return [
+        Column("first_seen_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Column("delete_after_inactive_days", Integer, nullable=True),
+    ]
+
+
+def _inactive_days_range() -> CheckConstraint:
+    """D5's range for `delete_after_inactive_days`, which the API enforces too (see entities.py)."""
+    return CheckConstraint(
+        f"delete_after_inactive_days BETWEEN {INACTIVE_DAYS_MIN} AND {INACTIVE_DAYS_MAX}",
+        name="delete_after_inactive_days",
+    )
 
 
 @dataclass(frozen=True)
@@ -193,11 +226,21 @@ def build(schema: SuiteSchema) -> SuiteTables:
         # reassigned, so a write that would give two commits the same one is simply rejected (409).
         Column("ordinal", Integer, nullable=True, unique=True),
         Column("tag", String(NAME_LENGTH), nullable=True),
+        *_inactivity_columns(),
         *_dynamic(schema.commit_fields),
+        _inactive_days_range(),
     )
     # Partial, because the column is null on almost every row: only a handful of commits (releases,
     # say) carry a tag, and an index over the nulls would be most of the table for no lookups.
     Index(None, commit.c.tag, postgresql_where=commit.c.tag.is_not(None))
+    # Partial for the same reason: O10's sweep enumerates the commits that have the setting, which
+    # are the few experiments among a table that can hold hundreds of thousands of commits, and it
+    # must not scan the table to find them. Machines need no such index, since a suite has few.
+    Index(
+        None,
+        commit.c.delete_after_inactive_days,
+        postgresql_where=commit.c.delete_after_inactive_days.is_not(None),
+    )
 
     machine = Table(
         "machine",
@@ -206,7 +249,9 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("name", String(NAME_LENGTH), nullable=False, unique=True),
         # D5: governs automatic machine selection only. Untracked machines stay fully addressable.
         Column("tracked", Boolean, nullable=False, server_default=true()),
+        *_inactivity_columns(),
         *_dynamic(schema.machine_fields),
+        _inactive_days_range(),
     )
 
     # D5: the metrics the schema declares, as rows, so that what refers to a metric can do so by
@@ -243,6 +288,10 @@ def build(schema: SuiteSchema) -> SuiteTables:
     # `sort=-measured_at` and the derived `last_run_at` to a bounded index scan rather than a scan
     # of this table.
     Index(None, run.c.machine_id, run.c.measured_at)
+    # D5: O10's check of whether a machine has had a run submitted since a given time, which has to
+    # be one probe however long the machine's history. The index above cannot answer it without
+    # reading every run of the machine.
+    Index(None, run.c.machine_id, run.c.submitted_at)
     # D5: the suite-wide run list's `?sort=-submitted_at` and `?sort=-measured_at`, with no machine
     # to narrow them. `id` joins each because the keyset's tiebreaker is `id`, and only an index
     # over both turns the cursor's row comparison into an index condition rather than a filter

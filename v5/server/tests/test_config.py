@@ -78,3 +78,18 @@ class TestWebConcurrency:
         # than as the configuration error it is.
         with pytest.raises(ValidationError):
             Settings(database_url="postgres://x/y", web_concurrency=workers)
+
+
+class TestInactivitySweepInterval:
+    def test_defaults_to_an_hour(self) -> None:
+        # O10: about once an hour.
+        assert Settings(database_url="postgres://x/y").inactivity_sweep_interval == 3600
+
+    def test_reads_the_environment_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DATABASE_URL", "postgres://x/y")
+        monkeypatch.setenv("INACTIVITY_SWEEP_INTERVAL", "0")
+        assert get_settings().inactivity_sweep_interval == 0
+
+    def test_rejects_a_negative_interval(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(database_url="postgres://x/y", inactivity_sweep_interval=-1)

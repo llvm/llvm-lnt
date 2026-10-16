@@ -68,7 +68,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     noun: 'commit field',
     keys: ['display_name', 'searchable', 'display'],
     type: 'text',
-    reserved: ['commit', 'id', 'ordinal', 'tag'],
+    reserved: ['commit', 'delete_after_inactive_days', 'first_seen_at', 'id', 'ordinal', 'tag'],
   },
   machine_fields: {
     heading: 'Machine Fields',
@@ -76,6 +76,6 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     noun: 'machine field',
     keys: ['display_name', 'searchable'],
     type: 'text',
-    reserved: ['id', 'name', 'tracked'],
+    reserved: ['delete_after_inactive_days', 'first_seen_at', 'id', 'name', 'tracked'],
   },
 }

@@ -35,6 +35,7 @@ from .routes.suites import router as suites_router
 from .routes.tests import router as tests_router
 from .routes.timeseries import router as timeseries_router
 from .spa import AnswerHeadLikeGet, RedirectTrailingSlash, RejectNulInUrl, SpaStaticFiles
+from .suites.inactivity import InactivitySweeper
 from .suites.registry import SuiteRegistry
 
 logger = logging.getLogger(__name__)
@@ -83,9 +84,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "Client bundle not found at %s; only API routes will be served", client_dist
             )
         app.state.engine = make_engine(settings)
+        # O10. Started here rather than at build time because it needs the engine, and stopped
+        # before the engine is disposed.
+        sweeper = None
+        if settings.inactivity_sweep_interval > 0:
+            sweeper = InactivitySweeper(
+                app.state.engine, app.state.suites, settings.inactivity_sweep_interval
+            )
+            sweeper.start()
         try:
             yield
         finally:
+            if sweeper is not None:
+                sweeper.stop()
             app.state.engine.dispose()
 
     # I9: every response, errors included, gets caching headers.

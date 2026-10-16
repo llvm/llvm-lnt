@@ -123,6 +123,8 @@ COMMIT_VALUES: dict[str, Any] = {
 NEXT_COMMIT = "b2c7e9f0d14a8b36c5e2f7a90d3e41b6c8a5f217"
 NEXT_ORDINAL = 555402
 TAG = "llvmorg-22.1.0"
+# How long an experiment's machine and commit are kept once nothing is submitted for them (O10).
+DELETE_AFTER_INACTIVE_DAYS = 30
 
 TEST = "std::find_if(vector<char>)_(bail_25%)/8"
 OTHER_TEST = "std::stable_sort(vector<int>)_(heap)/8192"

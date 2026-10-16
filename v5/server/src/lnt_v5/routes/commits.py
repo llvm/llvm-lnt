@@ -62,6 +62,7 @@ from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
     CommitObject,
     Contradiction,
+    DeleteAfterInactiveDays,
     EntityObject,
     FieldValue,
     Ordinal,
@@ -118,8 +119,11 @@ _CREATE_EXAMPLES = {
         },
     },
     "unordered": {
-        "summary": "A commit for an A/B experiment, without an ordinal",
-        "value": {"value": "experiment-find-if-simd"},
+        "summary": "A commit for an A/B experiment, deleted once unused for 30 days",
+        "value": {
+            "value": "experiment-find-if-simd",
+            "delete_after_inactive_days": examples.DELETE_AFTER_INACTIVE_DAYS,
+        },
     },
 }
 
@@ -129,6 +133,10 @@ _UPDATE_EXAMPLES = {
         "value": {"ordinal": examples.NEXT_ORDINAL + 1},
     },
     "untag": {"summary": "Clear a commit's tag", "value": {"tag": None}},
+    "keep": {
+        "summary": "Keep a commit however long it is unused",
+        "value": {"delete_after_inactive_days": None},
+    },
 }
 
 _RESOLVE_EXAMPLES = {
@@ -143,6 +151,7 @@ _COMMIT = {
     "value": examples.COMMIT,
     "ordinal": examples.ORDINAL,
     "tag": None,
+    "delete_after_inactive_days": None,
     "fields": examples.COMMIT_VALUES,
 }
 
@@ -150,7 +159,8 @@ _COMMIT = {
 # gives them, so they are written for API users.
 
 
-# `ordinal`, `tag` and `fields` are redeclared without their defaults. I4 requires every documented
+# `ordinal`, `tag`, `delete_after_inactive_days` and `fields` are redeclared without their
+# defaults. I4 requires every documented
 # key to be present in a response, and inheriting the request model's optionality would instead
 # tell a generated client they may be absent.
 class Commit(CommitObject):
@@ -158,6 +168,7 @@ class Commit(CommitObject):
 
     ordinal: Ordinal | None
     tag: Tag | None
+    delete_after_inactive_days: DeleteAfterInactiveDays | None
     fields: dict[str, FieldValue] = Field(
         description=(
             "The commit's values for the fields defined in the suite's schema, keyed by field "
@@ -191,13 +202,14 @@ class CommitDetail(Commit):
 # 400.
 class CommitUpdate(EntityObject):
     """Changes to a commit. Only include what you want to change; this also applies to the keys
-    of `fields`. Set the ordinal, the tag or a field to null to clear it. A commit's value can't be
-    changed."""
+    of `fields`. Set the ordinal, the tag, `delete_after_inactive_days` or a field to null to clear
+    it. A commit's value can't be changed."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
     ordinal: Ordinal | None = None
     tag: Tag | None = None
+    delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
 
 class ResolveRequest(BaseModel):
@@ -262,6 +274,7 @@ class Commits:
             self.table.c.commit,
             self.table.c.ordinal,
             self.table.c.tag,
+            self.table.c.delete_after_inactive_days,
             *(self.table.c[field.name] for field in self.schema.commit_fields),
         )
 
@@ -311,6 +324,7 @@ class Commits:
             "value": row._mapping[self.table.c.commit],
             "ordinal": row._mapping[self.table.c.ordinal],
             "tag": row._mapping[self.table.c.tag],
+            "delete_after_inactive_days": row._mapping[self.table.c.delete_after_inactive_days],
             "fields": rendered_fields(self.schema.commit_fields, self.table, row),
         }
 
@@ -366,6 +380,10 @@ class Commits:
         the commit has none, left alone when it already equals the submitted one, and refused with
         I4's `conflict` when it differs.
 
+        `delete_after_inactive_days` is written at creation and never compared or filled in
+        afterwards, as for a machine (see `Machines.get_or_create`): O2 makes it creation-only, so
+        that a `submit` key cannot schedule an existing commit's deletion.
+
         `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
         and that placement is load-bearing. The INSERT can trip it -- another commit already holds
         the ordinal -- in which case the get-or-create re-raises rather than treating it as a lost
@@ -388,7 +406,11 @@ class Commits:
                 connection,
                 self.table.c.commit,
                 submitted.value,
-                values={**built_in, **submitted.fields},
+                values={
+                    **built_in,
+                    "delete_after_inactive_days": submitted.delete_after_inactive_days,
+                    **submitted.fields,
+                },
                 matched=matched,
                 contradiction=self._contradicted(submitted.value),
             )
@@ -645,7 +667,11 @@ def create_commit(
         ):
             connection.execute(
                 insert(commits.table).values(
-                    commit=body.value, ordinal=body.ordinal, tag=body.tag, **values
+                    commit=body.value,
+                    ordinal=body.ordinal,
+                    tag=body.tag,
+                    delete_after_inactive_days=body.delete_after_inactive_days,
+                    **values,
                 )
             )
         created = commits.detail(connection, body.value)
@@ -720,7 +746,7 @@ def update_commit(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> CommitDetail:
-    """Set or clear a commit's ordinal, tag and fields.
+    """Set or clear a commit's ordinal, tag, `delete_after_inactive_days` and fields.
 
     This is the only way to change an ordinal or a tag once it is set. Only include what you want
     to change. If you change the ordinal, the tag or a field here, later run submissions that still
@@ -729,7 +755,11 @@ def update_commit(
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         changes = body.model_dump(exclude_unset=True)
-        values: dict[str, Any] = {key: changes[key] for key in ("ordinal", "tag") if key in changes}
+        values: dict[str, Any] = {
+            key: changes[key]
+            for key in ("ordinal", "tag", "delete_after_inactive_days")
+            if key in changes
+        }
         if "fields" in changes:
             values |= validate_fields(suite.schema, CommitField, changes["fields"])
 

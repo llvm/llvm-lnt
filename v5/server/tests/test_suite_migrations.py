@@ -6,6 +6,7 @@ do. The snapshot tests check that the real steps and `suites/tables.py` agree.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -16,7 +17,7 @@ from alembic.operations import Operations
 from sqlalchemy import Connection, Engine, create_engine, insert, select, text
 from sqlalchemy.pool import NullPool
 
-from conftest import store_suite
+from conftest import recent, store_suite
 from introspection import column_names, structure_of
 from lnt_v5.migrate import MIGRATION_LOCK_KEY, MigrationError, upgrade_to_head
 from lnt_v5.suites import migrations
@@ -245,8 +246,9 @@ class TestUpgrade:
         self, db_engine: Engine, migrated_database_url: str
     ) -> None:
         # The lock is held across transactions. A failure in one of them must not leave it held on
-        # the pooled connection, where it would block every later migration until a restart.
-        store_suite(db_engine, suite_named("nts"), version=5)
+        # the pooled connection, where it would block every later migration until a restart. The
+        # failure is a suite a newer build has migrated.
+        store_suite(db_engine, suite_named("nts"), version=migrations.head() + 1)
 
         with pytest.raises(MigrationError):
             upgrade_to_head(db_engine)
@@ -416,3 +418,45 @@ class TestSteps:
             (run, metric): tuple(geomeans.get(name) for name in ("median", "mean", "min", "max"))
             for (run, metric), geomeans in old.items()
         }
+
+    def test_existing_machines_and_commits_are_first_seen_when_migrated(
+        self, db_engine: Engine
+    ) -> None:
+        # Version 5 (D5): nothing says when an existing machine or commit was first seen, so they
+        # get the time of the migration, and none has the setting O10 deletes on.
+        with db_engine.begin() as connection:
+            replay_reference(connection, 4)
+            connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
+            connection.execute(text("INSERT INTO reference.commit (commit) VALUES ('c')"))
+
+        upgrade_to_head(db_engine)
+
+        with db_engine.connect() as connection:
+            for table in ("machine", "commit"):
+                first_seen_at, days = connection.execute(
+                    text(f"SELECT first_seen_at, delete_after_inactive_days FROM reference.{table}")
+                ).one()
+                assert recent(first_seen_at), table
+                assert days is None, table
+
+    def test_a_suite_declaring_a_field_named_like_a_new_built_in_is_refused(
+        self, db_engine: Engine
+    ) -> None:
+        # D6: version 5 reserves `first_seen_at` and `delete_after_inactive_days` on machines and
+        # commits, so a suite that already declares one cannot be migrated, and no suite is.
+        store_suite(db_engine, suite_named("a"), version=4)
+        clashing = reference_schema().model_dump(mode="json") | {"name": "clash"}
+        clashing["machine_fields"] = [{"name": "first_seen_at", "type": "text"}]
+        with db_engine.begin() as connection:
+            connection.execute(
+                insert(schema).values(
+                    name="clash", schema_json=json.dumps(clashing), migration_version=4
+                )
+            )
+
+        with pytest.raises(
+            MigrationError, match=r"(?s)'clash'.*'first_seen_at' is already a built-in column"
+        ):
+            upgrade_to_head(db_engine)
+
+        assert version_of(db_engine, "a") == 4

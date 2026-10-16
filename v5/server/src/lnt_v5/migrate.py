@@ -83,6 +83,21 @@ def head_revision() -> str | None:
     return ScriptDirectory.from_config(alembic_config()).get_current_head()
 
 
+def is_up_to_date(connection: Connection) -> bool:
+    """Whether the global tables and every suite's tables are at the structure this build expects.
+
+    For the administrative commands that act on a database without migrating it, which would
+    otherwise fail on whatever a missing migration leaves out. A database that was never migrated
+    is not up to date.
+    """
+    if current_revision(connection) != head_revision():
+        return False
+    behind = connection.execute(
+        select(schema.c.name).where(schema.c.migration_version != migrations.head()).limit(1)
+    ).first()
+    return behind is None
+
+
 def upgrade_to_head(engine: Engine) -> MigrationResult:
     """Apply every outstanding change, or do nothing if there are none.
 

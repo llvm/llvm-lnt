@@ -387,8 +387,11 @@ export function libcxxSynthetic(realRuns: Submission[]): {
   // The experiment: the newest commit's Linux build, with a faster std::format. Both of its runs
   // have profiles, which differ a little, as two measurements do: the second run's hottest function
   // is a little faster again.
+  // Like a real experiment, it cleans up after itself once nothing has been submitted for it in a
+  // while (O10), generously enough that a development database keeps it.
   const experiment: Submission['commit'] = {
     value: EXPERIMENT,
+    delete_after_inactive_days: 365,
     fields: { commit_info: 'A/B experiment: a faster floating-point path for std::format' },
   }
   for (let run = 0; run < 2; run++) {

@@ -34,6 +34,7 @@ from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
 from lnt_v5.routes.runs import RUNS_PATH, Runs
+from lnt_v5.suites import inactivity
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.registry import Suite, SuiteRegistry
@@ -102,13 +103,17 @@ def background() -> Iterator[Callable[..., Future[Any]]]:
 def submitted_machine(
     name: str = "linux", *, tracked: bool = True, **fields: Any
 ) -> SubmittedMachine:
-    return SubmittedMachine(name=name, tracked=tracked, fields=fields)
+    return SubmittedMachine(
+        name=name, tracked=tracked, delete_after_inactive_days=None, fields=fields
+    )
 
 
 def submitted_commit(
     value: str = "abc", *, ordinal: int | None = None, tag: str | None = None, **fields: Any
 ) -> SubmittedCommit:
-    return SubmittedCommit(value=value, ordinal=ordinal, tag=tag, fields=fields)
+    return SubmittedCommit(
+        value=value, ordinal=ordinal, tag=tag, delete_after_inactive_days=None, fields=fields
+    )
 
 
 def until_blocked(engine: Engine) -> None:
@@ -1201,3 +1206,111 @@ class TestContendingWithASchemaChange:
             suite_scope(SuiteRegistry(), connection, "nts"),
         ):
             connection.execute(text("SELEC 1"))
+
+
+def test_a_run_whose_machine_or_commit_was_deleted_meanwhile_is_a_retry(
+    db_engine: Engine, suite: Suite, machines: Machines, commits: Commits
+) -> None:
+    # O8: what a submission gets if a `DELETE` route, or O10's sweep, deletes its machine or its
+    # commit after the submission resolved it but before its run was stored. Resending it unchanged
+    # creates the entity again.
+    for doomed in (suite.tables.machine, suite.tables.commit):
+        with db_engine.begin() as connection:
+            machine_id = machines.get_or_create(connection, submitted_machine())
+            commit_id = commits.get_or_create(connection, submitted_commit())
+        with db_engine.begin() as connection:
+            connection.execute(delete(doomed))
+
+        with db_engine.begin() as connection, pytest.raises(ApiError) as raised:
+            Runs(suite).create(connection, str(uuid4()), machine_id, commit_id, {})
+
+        assert raised.value.code is ErrorCode.RETRY
+
+
+class TestInactivityDeletion:
+    """O10's deletion of an inactive entity, raced against a submission naming it."""
+
+    @pytest.fixture
+    def due(self, db_engine: Engine, suite: Suite, machines: Machines, commits: Commits) -> Any:
+        """A machine that has been inactive for longer than it asked, and a commit to run on."""
+        with db_engine.begin() as connection:
+            machine_id = machines.get_or_create(connection, submitted_machine())
+            commit_id = commits.get_or_create(connection, submitted_commit())
+            connection.execute(
+                update(suite.tables.machine).values(
+                    delete_after_inactive_days=30,
+                    first_seen_at=text("now() - INTERVAL '31 days'"),
+                )
+            )
+        return machine_id, commit_id
+
+    def test_a_run_being_inserted_keeps_its_machine(
+        self, db_engine: Engine, suite: Suite, due: Any, background: Callable[..., Future[Any]]
+    ) -> None:
+        # The sweep's lock waits for the run's key-share lock on the machine, and its deletion
+        # then sees the run once committed.
+        machine_id, commit_id = due
+        machine = inactivity._kinds(suite)[0]
+
+        def sweep_it() -> bool | None:
+            with db_engine.connect() as connection:
+                return inactivity._delete_if_due(connection, suite, machine, machine_id, "linux")
+
+        submission = db_engine.connect()
+        try:
+            transaction = submission.begin()
+            Runs(suite).create(submission, str(uuid4()), machine_id, commit_id, {})
+            sweeping = background(sweep_it)
+            until_blocked(db_engine)
+            transaction.commit()
+        finally:
+            submission.close()
+
+        assert sweeping.result(timeout=BLOCK_TIMEOUT) is False
+        assert stored(db_engine, suite, "machine", "name", "linux") is not None
+
+    def test_a_run_inserted_after_its_machine_is_locked_for_deletion_is_a_retry(
+        self, db_engine: Engine, suite: Suite, due: Any, background: Callable[..., Future[Any]]
+    ) -> None:
+        # The other order: the run's foreign key check waits for the deletion, then fails, and
+        # O8 answers that with a 409 the submitter can resend.
+        machine_id, commit_id = due
+        machine = suite.tables.machine
+
+        def delete_machine(connection: Connection) -> None:
+            connection.execute(select(machine.c.id).with_for_update())
+            connection.execute(delete(machine))
+
+        def submit_run(connection: Connection) -> None:
+            Runs(suite).create(connection, str(uuid4()), machine_id, commit_id, {})
+
+        submitting = raced(db_engine, background, delete_machine, submit_run)
+
+        with pytest.raises(ApiError) as raised:
+            submitting.result(timeout=BLOCK_TIMEOUT)
+        assert raised.value.code is ErrorCode.RETRY
+
+    def test_a_machine_deleted_while_a_submission_fills_it_in_is_a_retry(
+        self,
+        db_engine: Engine,
+        suite: Suite,
+        machines: Machines,
+        due: Any,
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        # O8: the submission read the machine before the deletion committed, found a field to fill
+        # in, and its locked re-read then finds the machine gone.
+        machine = suite.tables.machine
+
+        def delete_machine(connection: Connection) -> None:
+            connection.execute(select(machine.c.id).with_for_update())
+            connection.execute(delete(machine))
+
+        def fill(connection: Connection) -> None:
+            machines.get_or_create(connection, submitted_machine(hardware="x86_64"))
+
+        filling = raced(db_engine, background, delete_machine, fill)
+
+        with pytest.raises(ApiError) as raised:
+            filling.result(timeout=BLOCK_TIMEOUT)
+        assert raised.value.code is ErrorCode.RETRY

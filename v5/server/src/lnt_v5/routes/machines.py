@@ -46,6 +46,7 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import (
     Contradiction,
+    DeleteAfterInactiveDays,
     EntityObject,
     FieldValue,
     MachineName,
@@ -94,7 +95,15 @@ _CREATE_EXAMPLES = {
             "tracked": True,
             "fields": examples.OTHER_MACHINE_VALUES,
         },
-    }
+    },
+    "experiment": {
+        "summary": "A machine for an experiment, deleted once unused for 30 days",
+        "value": {
+            "name": "pr-160237-O3",
+            "tracked": False,
+            "delete_after_inactive_days": examples.DELETE_AFTER_INACTIVE_DAYS,
+        },
+    },
 }
 
 _UPDATE_EXAMPLES = {
@@ -106,19 +115,24 @@ _UPDATE_EXAMPLES = {
         "summary": "Set one field and clear another",
         "value": {"fields": {"os": "macOS 26.6 (25G5)", "sdk": None}},
     },
+    "keep": {
+        "summary": "Keep a machine however long it is unused",
+        "value": {"delete_after_inactive_days": None},
+    },
 }
 
 # The docstrings of the models and endpoints below are published, as the descriptions I8's document
 # gives them, so they are written for API users.
 
 
-# `tracked` and `fields` are redeclared without their defaults. I4 requires every documented key to
-# be present in a response, and inheriting the request model's optionality would instead tell a
-# generated client both may be absent.
+# `tracked`, `delete_after_inactive_days` and `fields` are redeclared without their defaults. I4
+# requires every documented key to be present in a response, and inheriting the request model's
+# optionality would instead tell a generated client they may be absent.
 class Machine(MachineObject):
     """A machine that benchmarks run on."""
 
     tracked: Tracked
+    delete_after_inactive_days: DeleteAfterInactiveDays | None
     fields: dict[str, FieldValue] = Field(
         description=(
             "The machine's values for the fields defined in the suite's schema, keyed by field "
@@ -139,13 +153,14 @@ class Machine(MachineObject):
 # so sending either as null is a 400 rather than an instruction to clear it.
 class MachineUpdate(EntityObject):
     """Changes to a machine. Only include what you want to change; this also applies to the keys
-    of `fields`. Set a field to null to clear it. Set `name` to rename the machine. `name` and
-    `tracked` can't be null."""
+    of `fields`. Set a field or `delete_after_inactive_days` to null to clear it. Set `name` to
+    rename the machine. `name` and `tracked` can't be null."""
 
     model_config = ConfigDict(json_schema_extra=omit_defaults)
 
     name: MachineName = ""
     tracked: Tracked = True
+    delete_after_inactive_days: DeleteAfterInactiveDays | None = None
 
 
 class Machines:
@@ -180,6 +195,7 @@ class Machines:
         return select(
             self.table.c.name,
             self.table.c.tracked,
+            self.table.c.delete_after_inactive_days,
             *(self.table.c[field.name] for field in self.schema.machine_fields),
             self.last_run_at,
         ).select_from(self.table.outerjoin(self._probe, true()))
@@ -205,6 +221,7 @@ class Machines:
         return Machine.model_construct(
             name=row._mapping[self.table.c.name],
             tracked=row._mapping[self.table.c.tracked],
+            delete_after_inactive_days=row._mapping[self.table.c.delete_after_inactive_days],
             fields=rendered_fields(self.schema.machine_fields, self.table, row),
             last_run_at=row._mapping[self.last_run_at],
         )
@@ -229,16 +246,23 @@ class Machines:
         already exists, whereas a submission is expected to name the same machine on every run. The
         two share this reader for the table and the wording, and nothing else.
 
-        `tracked` is written at creation and never compared afterwards -- O1 and O2 make it
-        first-write-wins, so re-submitting it for an existing machine is ignored rather than being a
-        mismatch. The declared fields are reconciled instead: a stored NULL is filled in, a stored
-        value that agrees is left alone, and one that disagrees is refused.
+        `tracked` and `delete_after_inactive_days` are written at creation and never compared
+        afterwards -- O1 and O2 make the first first-write-wins and the second creation-only, so
+        re-submitting either for an existing machine is ignored rather than being a mismatch. For
+        `delete_after_inactive_days` this is also what keeps a `submit` key from scheduling an
+        existing machine's deletion: not even a stored null is filled in. The declared fields are
+        reconciled instead: a stored NULL is filled in, a stored value that agrees is left alone,
+        and one that disagrees is refused.
         """
         return create_or_reconcile(
             connection,
             self.table.c.name,
             submitted.name,
-            values={"tracked": submitted.tracked, **submitted.fields},
+            values={
+                "tracked": submitted.tracked,
+                "delete_after_inactive_days": submitted.delete_after_inactive_days,
+                **submitted.fields,
+            },
             matched=submitted.fields,
             contradiction=self._contradicted(submitted.name),
         )
@@ -383,7 +407,12 @@ def create_machine(
             MACHINE_NAME_CONSTRAINT, ErrorCode.DUPLICATE, machines.taken(body.name)
         ):
             connection.execute(
-                insert(machines.table).values(name=body.name, tracked=body.tracked, **values)
+                insert(machines.table).values(
+                    name=body.name,
+                    tracked=body.tracked,
+                    delete_after_inactive_days=body.delete_after_inactive_days,
+                    **values,
+                )
             )
         created = machines.one(connection, body.name)
 
@@ -418,7 +447,8 @@ def update_machine(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> Machine:
-    """Rename a machine, change whether it is tracked, or set or clear its fields.
+    """Rename a machine, change whether it is tracked or when it is deleted, or set or clear its
+    fields.
 
     Only include what you want to change. If you change a field here, later run submissions that
     still send the old value are rejected with a 409 `conflict` until they are updated. If you
@@ -428,7 +458,9 @@ def update_machine(
         machines = Machines(suite)
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
-            key: changes[key] for key in ("name", "tracked") if key in changes
+            key: changes[key]
+            for key in ("name", "tracked", "delete_after_inactive_days")
+            if key in changes
         }
         if "fields" in changes:
             values |= validate_fields(suite.schema, MachineField, changes["fields"])

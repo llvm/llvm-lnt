@@ -75,7 +75,7 @@ from lnt_v5.suites.scope import (
     suite_scope,
 )
 from lnt_v5.suites.submission import RunSubmission, SubmittedTest, validate_submission
-from lnt_v5.suites.tables import RUN_UUID_CONSTRAINT
+from lnt_v5.suites.tables import RUN_COMMIT_CONSTRAINT, RUN_MACHINE_CONSTRAINT, RUN_UUID_CONSTRAINT
 
 RUNS_PATH = f"{SUITES_PATH}/{{testsuite}}/runs"
 
@@ -329,6 +329,10 @@ class Runs:
     ) -> int:
         """Insert the run row, or answer I4's `duplicate` for a UUID already used (O1).
 
+        Or I4's `retry`, if the machine or the commit the submission resolved has been deleted since
+        (O8): by its DELETE route or by O10's sweep, which takes the entity's row lock only after
+        this transaction resolved it. Resending creates it again.
+
         `submitted_at` is deliberately not written: D5 gives the column a `now()` default, so the
         value comes from the database's clock rather than from this process, and concurrent workers
         agree on the ordering it defines. A `measured_at` the client omitted is left to the same
@@ -336,7 +340,18 @@ class Runs:
         afterwards.
         """
         taken = f"A run '{uuid}' already exists in test suite '{self.schema.name}'"
-        with reporting_violation(RUN_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken):
+
+        def deleted(noun: str) -> str:
+            return (
+                f"The {noun} of this run was deleted from test suite '{self.schema.name}' while "
+                "the run was being stored. Retry."
+            )
+
+        with (
+            reporting_violation(RUN_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken),
+            reporting_violation(RUN_MACHINE_CONSTRAINT, ErrorCode.RETRY, deleted("machine")),
+            reporting_violation(RUN_COMMIT_CONSTRAINT, ErrorCode.RETRY, deleted("commit")),
+        ):
             return int(
                 connection.execute(
                     insert(self.table)
@@ -592,7 +607,9 @@ def list_runs(
         conflict=(
             "`duplicate`: a run with this UUID already exists. `conflict`: the submission "
             "contradicts what is stored for its machine or commit, or another commit already has "
-            f"its ordinal. {SUITE_SCHEMA_CHANGED}"
+            f"its ordinal. {SUITE_SCHEMA_CHANGED} The same `retry` is returned if the run's "
+            "machine or commit was deleted while the run was being stored; sending it again "
+            "creates them."
         )
     ),
 )

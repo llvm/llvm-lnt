@@ -68,6 +68,11 @@ submission nests under `machine` (see O1):
   Untracked machines are excluded only from *automatic* machine selection, and
   every endpoint otherwise returns them like any other machine. A run
   submission can also set it when it creates the machine (see O1).
+- `delete_after_inactive_days`: a built-in integer from 1 to 36500, or `null`:
+  the number of days without activity after which the machine is deleted, along
+  with everything `DELETE` deletes (see O10). `null` when omitted at creation,
+  meaning the machine is never deleted that way. A run submission can also set
+  it when it creates the machine (see O1).
 - `fields`: the values of the suite's declared `machine_fields`. An undeclared
   key is rejected with 400 (see O2).
 
@@ -79,8 +84,9 @@ read-only `last_run_at`: the latest `measured_at` among the machine's runs, or
 null if it has no runs. It is derived rather than stored (see D5).
 
 **Updating.** On `PATCH`, an omitted key is left unchanged, and supplying
-`name` renames the machine. `PATCH` can flip `tracked` at any time. Inside
-`fields`, an explicit `null` clears a stored value, the same convention as
+`name` renames the machine. `PATCH` can flip `tracked` at any time, and set
+`delete_after_inactive_days` or clear it with `null`. Inside `fields`, an
+explicit `null` clears a stored value, the same convention as
 `PATCH /api/suites/{testsuite}/commits/{value}`.
 
 **Responses.**
@@ -135,6 +141,9 @@ submission nests under `commit` (see O1):
 - `ordinal` and `tag`: built-in attributes. A run submission can set them
   inline (see O1), and they can be set at creation or at any time with `PATCH`
   (see O2 and O6).
+- `delete_after_inactive_days`: a built-in attribute, as on a machine (see E2),
+  after which the commit is deleted along with everything `DELETE` deletes. It
+  has no effect while the commit has an ordinal (see O10).
 - `fields`: the values of the suite's declared `commit_fields`. An undeclared
   key is rejected with 400 (see O2).
 
@@ -145,7 +154,8 @@ skipped. Both keys are `null` at either end of the ordered range, and on a
 commit that has no ordinal itself.
 
 **Updating.** On `PATCH`, an omitted key is left unchanged. Sending
-`ordinal: null` or `tag: null` clears a previously set value.
+`ordinal: null`, `tag: null` or `delete_after_inactive_days: null` clears a
+previously set value.
 
 **Responses.**
 
@@ -200,19 +210,19 @@ ignored: each commit appears at most once in the response.
 ```json
 {
   "results": {
-    "abc": {"value": "abc", "ordinal": 42, "tag": null, "fields": {"git_sha": "..."}},
-    "def": {"value": "def", "ordinal": null, "tag": null, "fields": {}}
+    "abc": {"value": "abc", "ordinal": 42, "tag": null, "delete_after_inactive_days": null, "fields": {"git_sha": "..."}},
+    "def": {"value": "def", "ordinal": null, "tag": null, "delete_after_inactive_days": 30, "fields": {}}
   },
   "not_found": ["unknown"]
 }
 ```
 
 `results` maps each commit string that was found to its commit object
-(`{value, ordinal, tag, fields}`), without the `previous` and `next` the detail
-response adds. Strings that match no commit are listed in `not_found`,
-including ones no commit could ever have, such as a string longer than the
-column holds. A string containing a NUL character is the exception: it is
-rejected with 400 (see D5).
+(`{value, ordinal, tag, delete_after_inactive_days, fields}`), without the
+`previous` and `next` the detail response adds. Strings that match no commit
+are listed in `not_found`, including ones no commit could ever have, such as a
+string longer than the column holds. A string containing a NUL character is the
+exception: it is rejected with 400 (see D5).
 
 Not paginated: the response is bounded by the size of the request.
 
@@ -263,7 +273,7 @@ with the submission (see O2). A profile that O7 refuses is rejected with 400.
 
 | Route | Success | Errors |
 |-------|---------|--------|
-| `POST /runs` | 201 with the created run in its detail form, and a `Location` header pointing at its detail route | 400 for an undeclared key in `machine.fields` or `commit.fields`, or an undeclared metric in a test's `samples`; 409 `duplicate` for a UUID a run already has (see O1); 409 `conflict` for metadata that contradicts what is stored, including a contradicted `ordinal` (see O2), or for an `ordinal` already held by another commit (see O6) |
+| `POST /runs` | 201 with the created run in its detail form, and a `Location` header pointing at its detail route | 400 for an undeclared key in `machine.fields` or `commit.fields`, or an undeclared metric in a test's `samples`; 409 `duplicate` for a UUID a run already has (see O1); 409 `conflict` for metadata that contradicts what is stored, including a contradicted `ordinal` (see O2), or for an `ordinal` already held by another commit (see O6); 409 `retry` if the machine or the commit was deleted while the run was being stored (see O8) |
 | `DELETE /runs/{uuid}` | 204 | |
 
 **Filters:**

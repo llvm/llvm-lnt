@@ -22,7 +22,9 @@ from . import keys, migrate
 from .config import Settings, get_settings
 from .db import is_undefined_table, make_engine
 from .scopes import Scope
+from .suites import inactivity
 from .suites import migrations as suite_migrations
+from .suites.registry import SuiteRegistry
 
 APP = "lnt_v5.app:create_app"
 
@@ -171,6 +173,41 @@ def _create_key(settings: Settings, name: str, scope: Scope) -> int:
     return 0
 
 
+def _sweep(settings: Settings) -> int:
+    """Delete the machines and commits that have been inactive for too long (`server sweep`, O10).
+
+    What a running server does about once an hour, run once and now. Does not migrate, like
+    `create-key`, but refuses a database that is not up to date, whose tables may not have the
+    columns the sweep reads.
+    """
+    try:
+        with _database(settings) as engine:
+            with engine.connect() as connection:
+                if not migrate.is_up_to_date(connection):
+                    return _fail(
+                        "the database is not at the structure this build expects; run "
+                        "`lnt-v5 server migrate`, which brings it up to date or says why it can't"
+                    )
+            swept = inactivity.sweep(engine, SuiteRegistry())
+    except DBAPIError as error:
+        return _fail(_database_problem(error))
+
+    if swept is None:
+        return _fail("another process is sweeping the database; try again later")
+    lines = [
+        f"Deleted {len(names)} inactive {noun}(s) from test suite '{suite.suite}': "
+        f"{', '.join(names)}."
+        for suite in swept
+        for noun, names in suite.deleted.items()
+        if names
+    ]
+    print("\n".join(lines) if lines else "No machine or commit was due for deletion.")
+    failures = sum(suite.failures for suite in swept)
+    if failures:
+        return _fail(f"{failures} step(s) of the sweep failed; see the warnings above")
+    return 0
+
+
 def _print_openapi() -> int:
     """Print the OpenAPI document this build serves (`server openapi`).
 
@@ -207,6 +244,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     commands.add_parser("dev", help="serve with autoreload, for development")
     commands.add_parser("migrate", help="bring the database up to date")
+    commands.add_parser(
+        "sweep", help="delete the machines and commits that have been inactive for too long"
+    )
     commands.add_parser("openapi", help="print the OpenAPI document of this build's API")
 
     create_key = commands.add_parser("create-key", help="create an API key")
@@ -246,6 +286,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _serve_dev(settings)
     if args.command == "migrate":
         return _migrate(settings)
+    if args.command == "sweep":
+        return _sweep(settings)
     if args.command == "create-key":
         return _create_key(settings, args.name, Scope(args.scope))
     raise AssertionError(f"unhandled command: {args.command}")
