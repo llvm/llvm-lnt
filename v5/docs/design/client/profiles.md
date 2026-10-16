@@ -54,14 +54,16 @@ etc...
    DT2), which fills in side A with the run and the test.
 
 The Compare and Run Detail links fill in each side they set entirely: suite,
-machine, commit, run and test.
+machine, commit, run and test. When the Compare link fills in both sides, it
+leaves side B's test out, so that side B follows side A's (see PF2).
 
 
 ### PF2: Side Selection
 
 Each side has its own cascading controls, in a controls panel (see AR5). The
 two sides are independent: they may select different suites, machines, commits
-or tests.
+or tests. The exception is that side B follows side A's test and function while
+it has none of its own (see below and PF4).
 
 - **Suite**: a dropdown over the test suites defined on the instance. Changing
   the suite clears the side's machine, commit, run and test.
@@ -85,18 +87,31 @@ or tests.
   selected run, sorted by name and filtered locally. Disabled until a run is
   selected, showing "Select a run first".
 
-When the user's picks change a side's run, the side keeps its test if the new
-run has a profile of it. Otherwise, it takes the other side's test if the new
-run has a profile of that one, and else it has no test. This way, a test
-selected once follows the user from commit to commit, and side B starts on the
-test side A shows.
+**Side B follows side A.** Side B's test is its own -- picked by the user, or
+named by the URL -- if it has one. Otherwise, while side B has a commit, it is
+side A's test, as A's URL names it, if side B's run has a profile of it, and
+none otherwise. So side B changes with side A's test, and loses it with side A.
+Clearing side B's own test makes it follow side A's again, and leaves its
+function as it is (see PF4). Side A follows nothing.
 
-A side **shows a profile** once it has a test: the profile of that test in the
-selected run. The side counts as showing the profile while it is still loading:
-while its runs are listed, its test is checked against the run's profiles, and
-the profile is fetched. It also counts as showing the profile if any of these
-requests fail. This way, the page's layout holds still while a side's profile
-changes.
+While side B follows a test, its Test combobox holds no value, and shows the
+test in place of its placeholder, in italics and greyed out, with a contrast of
+at least 4.5:1. Assistive technology reads the test, and that it is following
+side A, which is not shown. Holding no value, the combobox has no button to
+clear it: to show side A's profile alone, the user clears side B's commit. Side
+B shows the test from the start, while it checks it against its run.
+
+When the user's picks change a side's run, the side keeps its own test if the
+new run has a profile of it, and otherwise has none of its own: side A has no
+test, and side B follows side A's. This way, a test selected once follows the
+user from commit to commit.
+
+A side **shows a profile** once it has a test, its own or the one it follows:
+the profile of that test in the selected run. The side counts as showing the
+profile while it is still loading: while its runs are listed, its test is
+checked against the run's profiles, and the profile is fetched. It also counts
+as showing the profile if any of these requests fail. This way, the page's
+layout holds still while a side's profile changes.
 
 
 ### PF3: Counter Comparison
@@ -122,9 +137,10 @@ Below the counters, a last row compares the functions the two sides show (see
 PF4), labelled `Function` and the selected counter's name: A and B are each
 side's function's value for the selected counter (see E7), as AR6 shows a
 `real`, and Difference is computed and colored as above. A side's value is N/A
-when its function does not have the counter or its profile lists no functions,
-and empty until its function is known. The functions need not have the same
-name: the row compares whatever the two sides show.
+when its function does not have the counter, its profile lists no functions or
+it shows no function (see PF4), and empty until its function is known. The
+functions need not have the same name: the row compares whatever the two sides
+show.
 
 When only one side shows a profile, the table has the columns Counter and
 Value, holding that profile's top-level counters.
@@ -172,13 +188,23 @@ Each side that shows a profile then has a **function selector**: a combobox
   heat scale (see PF6). A function without the counter, or a profile whose
   top-level value for it is 0, has no badge. The selected function's badge is
   also shown beside the combobox.
-- A side starts on its hottest function, unless the URL names another (see
-  PF9). When the user's picks change the side's profile to another profile of
-  the same test, the side keeps its function if the new profile has a function
-  of that name. Otherwise, when both sides show profiles of the same test, it
-  takes the other side's function if the new profile has it, and else its
-  hottest function. If the other side's profile is changing at the same time,
-  the side uses the function that the other side showed before the change.
+- Side A starts on its hottest function, unless the URL names another (see PF9).
+  When the user's picks change side A's profile to another profile of the same
+  test, it keeps its function if the new profile has a function of that name,
+  and otherwise takes its hottest.
+- Side B's function is its own -- picked by the user, or named by the URL -- if
+  its profile has a function of that name, whatever test side B shows.
+  Otherwise, it is side A's function if side B's profile has a function of that
+  name, and none otherwise: also while side A shows none. Side B then shows no
+  function: its function selector says "Select a function", it has no
+  disassembly view, and its counters still count in the counter comparison.
+  While the user's picks change side A's profile to another of the same test,
+  side B keeps following the function side A showed until side A's new one is
+  known.
+- While side B follows side A's function, its function selector holds no value,
+  and shows the function as side B's Test combobox shows the test it follows
+  (see PF2), with its badge beside it. Clearing side B's own function makes it
+  follow side A's again. Side A's function cannot be cleared.
 - Changing the counter re-sorts the suggestions, but does not change the
   functions selected.
 
@@ -309,11 +335,15 @@ All selection state is encoded as query parameters for shareability:
 - `counter`
 - `values`: `absolute` or `cumulative`
 
-As AR2 "State" describes, a function is left out of the URL when it is its
-side's hottest under the counter shown, and the counter and the Values when
-they are their defaults. A selected run is always kept, however, although the
-latest run is selected by default: which run is the latest can change as runs
-are submitted, and a link to a profile must keep showing that profile.
+As AR2 "State" describes, the counter and the Values are left out of the URL
+when they are their defaults, and side A's function when it is A's hottest under
+the counter shown. `test_b` and `function_b` hold side B's own test and
+function, whose default is none, which makes side B follow side A (see PF2,
+PF4): a test or function picked on side B is written, even when it is side A's,
+and one side B follows is left out. Clearing side B's test leaves its function.
+A selected run is always kept, however, although the latest run is selected by
+default: which run is the latest can change as runs are submitted, and a link to
+a profile must keep showing that profile.
 
 A value the page cannot use is dropped (see AR2 "State"):
 - a suite or machine that does not exist, a commit the side's commit picker
@@ -324,8 +354,10 @@ A value the page cannot use is dropped (see AR2 "State"):
   instead, or a run named without a commit. A commit named without a run also
   selects the latest run;
 - a test the side's run has no profile of, or a test named without a commit,
-  along with the side's function. When the URL names a commit and a test but no
-  run, the page selects the latest run and checks the test against it;
-- a function the side's profile does not have, or a function named without a
-  test;
+  along with side A's function. Side B then follows side A's test, and its
+  function is checked against the profile of the test it then shows. When the
+  URL names a commit and a test but no run, the page selects the latest run and
+  checks the test against it;
+- a function the side's profile does not have, or a function named while the
+  side has no test, its own or the one it follows;
 - a counter that the profiles shown do not have, or an unknown Values setting.

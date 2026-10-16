@@ -121,7 +121,10 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
   await expect(page).toHaveURL(new RegExp(`commit_a=${older.value}.*commit_b=${newer.value}`))
 })
 
-test('links a test to its profile on both sides', async ({ page, request }) => {
+test("links a test to its profile on both sides, side B following side A's test", async ({
+  page,
+  request,
+}) => {
   const [, newest] = await newestCommits(request)
   const runA = await profiledRun(request, LINUX, newest.value)
   const runB = await profiledRun(request, LINUX, EXPERIMENT)
@@ -148,7 +151,6 @@ test('links a test to its profile on both sides', async ({ page, request }) => {
     machine_b: LINUX,
     commit_b: EXPERIMENT,
     run_b: runB,
-    test_b: PROFILED_TEST,
   })
   await expect(row.getByRole('link', { name: 'Profile' })).toHaveAttribute(
     'href',

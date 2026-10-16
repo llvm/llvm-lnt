@@ -92,13 +92,14 @@ describe('the Profiles page: counter comparison (PF3)', () => {
 
   it('compares the functions shown under the counter shown, whatever their names', async () => {
     mockWorld()
-    renderPage(BOTH)
-    await waitFor(() => expect(functionRow()).toBe('Function cycles | 60 | 50 | -16.7%'))
+    // Side B shows a function of its own, cool, rather than side A's.
+    renderPage(`${BOTH}&function_b=cool`)
+    await waitFor(() => expect(functionRow()).toBe('Function cycles | 60 | 40 | -33.3%'))
 
     await pickOption('Counter', 'instructions')
-    await waitFor(() => expect(functionRow()).toBe('Function instructions | 20 | 50 | +150%'))
+    await waitFor(() => expect(functionRow()).toBe('Function instructions | 20 | 100 | +400%'))
     await pick('Function', 'warm', columnOf('A')!, /^warm, /)
-    await waitFor(() => expect(functionRow()).toBe('Function instructions | 150 | 50 | -66.7%'))
+    await waitFor(() => expect(functionRow()).toBe('Function instructions | 150 | 100 | -33.3%'))
   })
 
   it('gives N/A for a function without the counter, or a profile that lists none', async () => {
@@ -131,7 +132,8 @@ describe('the Profiles page: counter comparison (PF3)', () => {
           ? HttpResponse.json({ items: [{ name: 'hot', counters: { cycles: 60 }, length: 2 }] })
           : undefined,
     })
-    const { queryClient } = renderPage(BOTH)
+    // Side B shows hot as its own: beta has no warm to follow.
+    const { queryClient } = renderPage(`${BOTH}&function_b=hot`)
     await pick('Function', 'warm', columnOf('A')!, /^warm, /)
     await waitFor(() => expect(functionRow()).toBe('Function cycles | 30 | 50 | +66.7%'))
 

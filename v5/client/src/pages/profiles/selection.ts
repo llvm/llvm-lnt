@@ -9,17 +9,17 @@ import type { HeldFunction, ShownFunction } from './functions'
 type Run = Schemas['Run']
 
 /**
- * What a side showed when the user's picks began changing its profile: its test (`''` for none) and
- * its function. While a side has a carry, it may take the other side's test (PF2), and it carries
- * its function over (PF4). Without a carry, the page only checks what the URL names (PF9). The
- * carry is used up once the side's new function is known, or once the side is left without a
- * profile.
+ * What side A showed when the user's picks began changing its profile: its test (`''` for none) and
+ * its function. While side A has a carry, it carries its function over (PF4). Without a carry, the
+ * page only checks what the URL names (PF9). The carry is used up once the side's new function is
+ * known, or once the side is left without a profile.
  */
 export type Carry = ShownFunction
 
 /**
- * What a side keeps of the user's picks, besides the URL, for as long as the page is open: what it
- * carries over (see `Carry`), and the function it holds for its profile (see `HeldFunction`).
+ * What side A keeps of the user's picks, besides the URL, for as long as the page is open: what it
+ * carries over (see `Carry`), and the function it holds for its profile (see `HeldFunction`). Side
+ * B keeps nothing: its function is its own, which the URL names, or side A's (PF4).
  */
 export interface SidePicks {
   carry: Carry | null
@@ -65,24 +65,6 @@ export function runChoice(runs: readonly Run[], run: string): string {
   return runs.at(-1)?.uuid ?? ''
 }
 
-/**
- * The test a side shows, once it knows that its run has profiles of `tests` (PF2). It keeps `test`
- * if the run has a profile of it. Otherwise, while the user's picks are changing the side's profile
- * (`carrying`), it takes the other side's test, `other`, if the run has a profile of that one.
- * Otherwise it shows none. Without such picks, the page drops a test the run has no profile of
- * (PF9).
- */
-export function testChoice(
-  tests: { has(test: string): boolean },
-  test: string,
-  other: string,
-  carrying: boolean,
-): string {
-  if (tests.has(test)) return test
-  if (carrying && tests.has(other)) return other
-  return ''
-}
-
 type ProfileMetadata = Schemas['ProfileMetadata']
 
 /**
@@ -113,8 +95,9 @@ interface Fetched<Data> {
 
 /**
  * How far a side has got (see `SideStatus`). It depends on what the side has fetched, and on the
- * run and test it is to select once the runs and the run's profiles are known (see `runChoice` and
- * `testChoice`). Until the URL holds that run and test, the side is pending.
+ * run and test it is to select once the runs and the run's profiles are known (see `runChoice`):
+ * the test if the run has a profile of it, and none otherwise. Until the URL holds that run and
+ * test, the side is pending.
  */
 export function sideStatus({
   test,

@@ -1,6 +1,7 @@
 /**
  * A side of the Profiles page (PF2): the suite, machine, commit, run and test that the URL names,
- * checked against what the API holds, and the profile that the side shows.
+ * checked against what the API holds, and the profile that the side shows. Side B follows side A's
+ * test while it has none of its own.
  */
 
 import { useCallback, useEffect, useMemo, type Dispatch } from 'react'
@@ -25,7 +26,6 @@ import {
   NO_PICKS,
   runChoice,
   sideStatus,
-  testChoice,
   type Carry,
   type SidePicks,
   type SidePicksAction,
@@ -36,7 +36,15 @@ type Run = Schemas['Run']
 
 export interface ProfileSide {
   id: SideId
+  /** The side's own settings, as the URL holds them. */
   settings: SideSettings
+  /**
+   * The test the side shows, or is checking against its run: its own, or the one it follows. It is
+   * `''` once the side turns out to have none.
+   */
+  test: string
+  /** Whether side B follows side A's test, having a commit but no test of its own. */
+  follows: boolean
   /** The side's suite, once the suite list shows that it exists. */
   schema: SuiteSchema | undefined
   machines: Machines
@@ -55,15 +63,18 @@ export interface ProfileSide {
   status: SideStatus
   /** The UUID of the test's profile in the run that the URL names, once the profiles are listed. */
   uuid: string | undefined
-  /** What the side showed when the user's picks began changing its profile (see `Carry`). */
+  /**
+   * What side A showed when the user's picks began changing its profile (see `Carry`). These last
+   * three are side A's: side B, which keeps no picks, carries and holds nothing.
+   */
   carry: Carry | null
   /**
-   * The function the side shows (null for none), once known for the profile shown. The side holds
-   * it by its name, never as a placeholder for the hottest function (see `ShownFunction`).
+   * The function side A shows (null for none), once known for the profile shown. It holds it by
+   * its name, never as a placeholder for the hottest function (see `ShownFunction`).
    */
   heldFunction: string | null | undefined
   /**
-   * The side's function is now known: hold it, and drop the carry. Only the component that holds
+   * Side A's function is now known: hold it, and drop the carry. Only the component that holds
    * the side's picks may call this, while it renders (see `useProfileSide`).
    */
   settleFunction(held: HeldFunction): void
@@ -76,9 +87,10 @@ export interface ProfileSide {
 
 /**
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
- * lists the suites of the instance. `picks` holds what the side keeps of the user's picks besides
- * the URL (see `SidePicks`). This hook and `useFunctions` both change it while rendering. React
- * only allows that for a component's own state, so the component that calls them must hold `picks`.
+ * lists the suites of the instance. `picks` holds what side A keeps of the user's picks besides
+ * the URL (see `SidePicks`); side B keeps none. This hook and `useFunctions` both change it while
+ * rendering. React only allows that for a component's own state, so the component that calls them
+ * must hold `picks`.
  *
  * The side sends every request with the URL's values as they are, without first checking them
  * (PF8). It only uses what depends on the run once the run list includes the run. That shows that
@@ -90,12 +102,16 @@ export function useProfileSide(
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
-  [picks, dispatch]: [SidePicks, Dispatch<SidePicksAction>],
+  picks?: [SidePicks, Dispatch<SidePicksAction>],
 ): ProfileSide {
   const settings = sideSettings(all, id)
-  const { suite, machine, commit, run, test } = settings
-  const otherTest = sideSettings(all, id === 'a' ? 'b' : 'a').test
-  const { carry, held } = picks
+  const { suite, machine, commit, run, test: own } = settings
+  const [kept, dispatch] = picks ?? [NO_PICKS, undefined]
+  const { carry, held } = kept
+  // Side B follows side A's test, as A's URL names it, while it has a commit and no test of its
+  // own (PF2). It checks that test against its run as it would its own, but never drops it.
+  const follows = id === 'b' && own === '' && commit !== ''
+  const named = follows ? all.test_a : own
 
   // What the page drops, as unusable (AR2 "State").
   const drop = useCallback(
@@ -104,8 +120,8 @@ export function useProfileSide(
   )
   // When a pick clears what the side showed, or the page drops it, the side keeps nothing of it.
   const clear = (changes: Partial<SideSettings>) => {
-    dispatch({ type: 'clear' })
-    update(sideChanges(id, changes))
+    dispatch?.({ type: 'clear' })
+    drop(changes)
   }
   const { schema, machines } = useSuiteAndMachine({
     suite,
@@ -135,7 +151,7 @@ export function useProfileSide(
     () => profiles.data && new Map(profiles.data.map((profile) => [profile.test, profile.uuid])),
     [profiles.data],
   )
-  const uuid = profileOf?.get(test)
+  const uuid = profileOf?.get(named)
   const metadata = useQuery({ ...profileQuery(suite, uuid ?? ''), enabled: uuid !== undefined })
   // The tests the side's run has a profile of, once the run is known to be the side's.
   const tested = selected ? profileOf : undefined
@@ -143,14 +159,6 @@ export function useProfileSide(
     () => (selected && profileOf ? [...profileOf.keys()].sort(compareStrings) : undefined),
     [selected, profileOf],
   )
-
-  // Drop what the side names without the control it depends on, as clearing that does (PF9).
-  useEffect(() => {
-    if (suite === '') drop(CLEARED_WITH.suite)
-    else if (machine === '') drop(CLEARED_WITH.machine)
-    else if (commit === '') drop(CLEARED_WITH.commit)
-    else if (test === '') drop(CLEARED_WITH.test)
-  }, [suite, machine, commit, test, drop])
 
   // Select the latest run when there is none, or when the run is not listed (PF2, PF9). With no
   // run to select, the side has no test either.
@@ -160,38 +168,54 @@ export function useProfileSide(
     else if (runPick !== undefined && runPick !== run) drop({ run: runPick })
   }, [runPick, run, drop])
 
-  // Once the run is known to be the side's, check the test against the run's profiles. Keep it,
-  // take the other side's, or drop it (PF2, PF9).
-  const testPick = tested && testChoice(tested, test, otherTest, carry !== null)
+  // Once the run is known to be the side's, check the test against the run's profiles: keep it, or
+  // drop it, which leaves side B following side A's (PF2, PF9). A test that side B follows is never
+  // dropped: side B shows none while its run has no profile of it.
+  const testPick = tested && (tested.has(named) ? named : '')
   useEffect(() => {
-    if (testPick !== undefined && testPick !== test) drop({ test: testPick, function: '' })
-  }, [testPick, test, drop])
+    if (!follows && testPick === '') drop({ test: '' })
+  }, [follows, testPick, drop])
+  const test = follows && testPick === '' ? '' : named
+
+  // Drop what the side names without the control it depends on, as clearing that does (PF9).
+  // Side B's function needs a test, which may be the one it follows.
+  useEffect(() => {
+    if (suite === '') drop(CLEARED_WITH.suite)
+    else if (machine === '') drop(CLEARED_WITH.machine)
+    else if (commit === '') drop(CLEARED_WITH.commit)
+    else if (test === '') drop(CLEARED_WITH.test)
+  }, [suite, machine, commit, test, drop])
 
   const status = sideStatus({ test, run, runPick, runsFailed, profiles, testPick, uuid, metadata })
 
   // A side left without a profile keeps nothing of it. A side that shows a profile drops its carry
   // once its function is known (see `useFunctions`).
-  if (picks !== NO_PICKS && (runPick === '' || testPick === '')) dispatch({ type: 'clear' })
+  if (kept !== NO_PICKS && (runPick === '' || testPick === '')) dispatch?.({ type: 'clear' })
 
   const heldFunction =
     status.kind === 'shown' && held?.profile === status.uuid ? held.name : undefined
   const settleFunction = useCallback(
-    (next: HeldFunction) => dispatch({ type: 'settle', held: next }),
+    (next: HeldFunction) => dispatch?.({ type: 'settle', held: next }),
     [dispatch],
   )
 
-  // A pick that changes the side's profile carries over what the side showed. Until the side knows
-  // its function, it carries the URL's function, which the new profile is checked against anyway.
-  // The pick also removes the function from the URL, along with the test it belonged to.
+  // A pick that changes side A's profile carries over what it showed. Until side A knows its
+  // function, it carries the URL's function, which the new profile is checked against anyway. The
+  // pick also removes the function from the URL, along with the test it belonged to. Side B carries
+  // nothing, and keeps its own function in the URL, whatever its test: the new profile is checked
+  // against it (PF4, PF9).
   const change = (changes: Partial<SideSettings>) => {
+    if (id === 'b') return drop(changes)
     const name = heldFunction !== undefined ? heldFunction : settings.function || null
-    dispatch({ type: 'change', shown: { test, name } })
-    update(sideChanges(id, { ...changes, function: '' }))
+    dispatch?.({ type: 'change', shown: { test, name } })
+    drop({ ...changes, function: '' })
   }
 
   return {
     id,
     settings,
+    test,
+    follows,
     schema,
     machines,
     runs,
@@ -216,7 +240,10 @@ export function useProfileSide(
         ? clear({ commit: '', ...CLEARED_WITH.commit })
         : change({ commit: value, run: '' }),
     pickRun: (uuid) => change({ run: uuid }),
-    pickTest: (name) =>
-      name === null ? clear({ test: '', ...CLEARED_WITH.test }) : change({ test: name }),
+    pickTest: (name) => {
+      if (name !== null) change({ test: name })
+      // Side B's own function does not depend on its test (PF4).
+      else clear({ test: '', ...(id === 'a' && CLEARED_WITH.test) })
+    },
   }
 }

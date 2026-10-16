@@ -9,6 +9,7 @@ import { useLocalSuggestions } from '../../components/suggestions'
 import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
 import { runPath } from '../../paths'
+import { followedFromA } from './following'
 import type { ProfileSide } from './use-side'
 import styles from './profiles.module.css'
 
@@ -94,7 +95,11 @@ function RunField({ side }: { side: ProfileSide }) {
   )
 }
 
-/** The tests that have a profile in the side's run, sorted by name and filtered locally (PF2). */
+/**
+ * The tests that have a profile in the side's run, sorted by name and filtered locally (PF2). Side
+ * B, following side A's test, shows that test as inherited, also while it checks it against its
+ * run.
+ */
 function TestField({ side }: { side: ProfileSide }) {
   const { settings, run, profiles, tests } = side
   const suggestions = useLocalSuggestions(
@@ -116,6 +121,7 @@ function TestField({ side }: { side: ProfileSide }) {
         onChange={(picked) => side.pickTest(picked?.key ?? null)}
         suggestions={suggestions}
         placeholder={placeholder}
+        inherited={side.follows ? followedFromA(side.test) : undefined}
         isDisabled={tests === undefined}
         // A run can have a profile of each of thousands of tests (AR9).
         virtualized

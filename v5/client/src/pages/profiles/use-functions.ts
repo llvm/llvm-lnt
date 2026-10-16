@@ -6,7 +6,13 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { disassemblyQuery, profileFunctionsQuery } from '../../api/profiles'
-import { functionChoice, hottestFirst, type ProfileFunction, type ShownFunction } from './functions'
+import {
+  followerChoice,
+  functionChoice,
+  hottestFirst,
+  type FunctionPick,
+  type ProfileFunction,
+} from './functions'
 import { sideChanges, urlValue, type Settings } from './settings'
 import type { Counter } from './use-counter'
 import type { ProfileSide } from './use-side'
@@ -18,12 +24,17 @@ export interface SideFunctions {
   ordered: ProfileFunction[] | undefined
   /**
    * The function the side shows, once its profile is shown and its function is known. It is null
-   * when the profile lists no functions, and undefined until then.
+   * when the profile lists no functions, or side B follows a function its profile does not have,
+   * and undefined until then.
    */
   name: string | null | undefined
+  /** Whether side B shows that function, or none, because it follows side A's. */
+  followed: boolean
   /** The instructions of that function. */
   disassembly: UseQueryResult<Schemas['FunctionDisassembly']>
   pick(name: string): void
+  /** Clear the side's own function: side B only, as side A's cannot be cleared. */
+  clear: (() => void) | undefined
 }
 
 /** A side's functions, hottest first, and the hottest one, once the counter is settled. */
@@ -52,41 +63,34 @@ function useFunctionList(side: ProfileSide, counter: Counter): FunctionList {
 }
 
 /**
- * The function that `other` offers to a side that shows a profile of `test` (see `functionChoice`):
- * the function `other` shows, or showed when the user's picks began changing its profile. It is
- * undefined while that is not known yet, and null when `other` has nothing to offer.
+ * Side A's function, as side B follows it (PF4): null when A shows none, also when its profile or
+ * functions could not be loaded, and undefined while it is not known yet. While A's picks change
+ * its profile to another of the same test, B keeps following the function A showed until A's new
+ * one is known.
  */
-function otherShown(
-  other: ProfileSide,
+function followedFunction(
+  a: ProfileSide,
   list: FunctionList,
-  test: string,
-): ShownFunction | null | undefined {
-  // Only a side that shows, or is about to show, a profile of the same test has a function for us.
-  if (other.settings.test !== test || other.status.kind === 'none') return null
-  // A side whose profile is changing does not wait for this one, so this one need not wait for it.
-  if (other.carry !== null) return other.carry
-  if (other.heldFunction !== undefined) return { test, name: other.heldFunction }
-  if (other.status.kind === 'failed' || list.functions.isError) return null
+  choice: FunctionPick | undefined,
+): string | null | undefined {
+  if (choice !== undefined) return choice.name
+  const { kind } = a.status
+  if (kind === 'none' || kind === 'failed' || list.functions.isError) return null
+  if (a.carry !== null && a.carry.test === a.test) return a.carry.name
   return undefined
 }
 
-/** `side`'s function: the one it holds, or the one `functionChoice` resolves. */
-function choiceOf(
-  side: ProfileSide,
-  list: FunctionList,
-  other: ProfileSide,
-  otherList: FunctionList,
-): { name: string | null } | undefined {
-  if (side.status.kind !== 'shown') return undefined
-  if (side.heldFunction !== undefined) return { name: side.heldFunction }
+/** Side A's function: the one it holds, or the one `functionChoice` resolves. */
+function choiceOfA(a: ProfileSide, list: FunctionList): FunctionPick | undefined {
+  if (a.status.kind !== 'shown') return undefined
+  if (a.heldFunction !== undefined) return { name: a.heldFunction }
   if (list.functions.data === undefined) return undefined
   return functionChoice({
-    test: side.settings.test,
+    test: a.test,
     functions: list.functions.data,
     hottest: list.hottest,
-    carry: side.carry,
-    url: side.settings.function,
-    other: otherShown(other, otherList, side.settings.test),
+    carry: a.carry,
+    url: a.settings.function,
   })
 }
 
@@ -94,10 +98,12 @@ function choiceOf(
  * The function of each side, `a` and `b`, under the counter shown, `counter`. `update` changes the
  * URL.
  *
- * The page resolves a side's function once the side shows its profile and the profile's functions
+ * The page resolves side A's function once side A shows its profile and the profile's functions
  * are listed. Then it holds the function by its name (see `ProfileSide.heldFunction`), so that a
- * counter change never changes it (PF4). The URL leaves the function out while it is the side's
- * hottest under the counter shown. The page writes the URL again whenever that changes.
+ * counter change never changes it (PF4). The URL leaves side A's function out while it is A's
+ * hottest under the counter shown, and the page writes the URL again whenever that changes. Side B
+ * holds nothing: its function is its own exactly when the URL names it, and otherwise side A's, or
+ * none (see `followerChoice`).
  */
 export function useFunctions(
   a: ProfileSide,
@@ -107,24 +113,35 @@ export function useFunctions(
 ): { a: SideFunctions; b: SideFunctions } {
   const listA = useFunctionList(a, counter)
   const listB = useFunctionList(b, counter)
+  const choiceA = choiceOfA(a, listA)
+  const functionsB = listB.functions.data
+  const choiceB =
+    b.status.kind === 'shown' && functionsB !== undefined
+      ? followerChoice(functionsB, b.settings.function, followedFunction(a, listA, choiceA))
+      : undefined
   return {
-    a: useSideFunction(a, listA, choiceOf(a, listA, b, listB), update),
-    b: useSideFunction(b, listB, choiceOf(b, listB, a, listA), update),
+    a: useSideFunction(a, listA, choiceA, update),
+    b: useSideFunction(b, listB, choiceB, update),
   }
 }
 
+/**
+ * The function of `side`, `choice`, its instructions, and the means to change it. Side B holds
+ * nothing, and the user's picks are its own: written to the URL as they are, and cleared from it.
+ */
 function useSideFunction(
   side: ProfileSide,
   list: FunctionList,
-  choice: { name: string | null } | undefined,
+  choice: FunctionPick | undefined,
   update: (changes: Partial<Settings>) => void,
 ): SideFunctions {
   const { id, status, carry, settings, settleFunction } = side
   const { hottest } = list
   const profile = status.kind === 'shown' ? status.uuid : undefined
+  const follower = id === 'b'
 
-  // Once the function is known, hold it, and drop the carry it came from.
-  if (choice !== undefined && profile !== undefined) {
+  // Once side A's function is known, hold it, and drop the carry it came from.
+  if (!follower && choice !== undefined && profile !== undefined) {
     if (side.heldFunction === undefined || carry !== null) {
       settleFunction({ profile, name: choice.name })
     }
@@ -138,10 +155,12 @@ function useSideFunction(
     enabled: side.uuid !== undefined && name !== null,
   })
 
-  // Leave the function out of the URL while it is the hottest. Wait until the counter is settled,
-  // since only then does the hottest function stop changing on its own.
-  const written =
-    choice !== undefined && hottest !== undefined ? urlValue(choice.name, hottest) : undefined
+  // Side B's URL names its own function, and nothing else. Side A's leaves its function out while
+  // it is the hottest, once the counter is settled, since only then does the hottest function stop
+  // changing on its own.
+  let written: string | undefined
+  if (choice !== undefined && follower) written = (!choice.followed && choice.name) || ''
+  else if (choice !== undefined && hottest !== undefined) written = urlValue(choice.name, hottest)
   // Written again for each new profile too: a pick that changes the profile removes the function
   // from the URL, and a profile already loaded can show the same function at once, leaving
   // `written` as it was.
@@ -152,10 +171,25 @@ function useSideFunction(
   const pick = useCallback(
     (picked: string) => {
       if (profile === undefined) return
+      if (follower) {
+        // Side B's pick is its own, even when it is side A's.
+        update(sideChanges(id, { function: picked }))
+        return
+      }
       settleFunction({ profile, name: picked })
       update(sideChanges(id, { function: urlValue(picked, hottest) }))
     },
-    [id, profile, hottest, settleFunction, update],
+    [id, profile, hottest, follower, settleFunction, update],
   )
-  return { functions: list.functions, ordered: list.ordered, name: choice?.name, disassembly, pick }
+  // Clearing side B's own function makes it follow side A's again.
+  const clear = useCallback(() => update(sideChanges(id, { function: '' })), [id, update])
+  return {
+    functions: list.functions,
+    ordered: list.ordered,
+    name: choice?.name,
+    followed: choice?.followed === true,
+    disassembly,
+    pick,
+    clear: follower ? clear : undefined,
+  }
 }

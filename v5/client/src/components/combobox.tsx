@@ -1,6 +1,7 @@
 import {
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -35,6 +36,13 @@ interface CommonProps {
   /** From `useLocalSuggestions` or `useServerSuggestions`. */
   suggestions: Suggestions
   placeholder?: string
+  /**
+   * A value the combobox follows from elsewhere while it holds none of its own. It is shown in
+   * place of the placeholder, in italics, and assistive technology reads `description` with the
+   * combobox, which names it and says where it comes from, as not every one reads a placeholder.
+   * Being no value of the combobox, it has no button to clear it.
+   */
+  inherited?: { text: string; description: string }
   /**
    * What the combobox says when it has nothing at all to suggest (see `Suggestions.isEmpty`). It
    * replaces `placeholder`, and shows in the list. Write it as a phrase, without a final period.
@@ -117,6 +125,7 @@ export function Combobox({
   onPick,
   suggestions,
   placeholder,
+  inherited,
   emptyMessage,
   isDisabled,
   isReadOnly,
@@ -127,6 +136,7 @@ export function Combobox({
   virtualized = false,
 }: Props) {
   const [text, setText] = useState(value?.text ?? '')
+  const descriptionId = useId()
 
   // A value set from outside -- or one whose text arrived later, like a commit's display value --
   // replaces the text the input showed for the previous one. Text the user is typing stays.
@@ -203,8 +213,11 @@ export function Combobox({
         <div className={styles.inputBox}>
           <Input
             ref={inputRef}
-            placeholder={(suggestions.isEmpty && emptyMessage) || placeholder}
-            className={styles.input}
+            placeholder={
+              inherited?.text ?? ((suggestions.isEmpty && emptyMessage) || placeholder)
+            }
+            className={clsx(styles.input, inherited && styles.inherited)}
+            aria-describedby={inherited && descriptionId}
           />
           {text !== '' && !isDisabled && !isReadOnly && (
             <button
@@ -223,6 +236,13 @@ export function Combobox({
           )}
         </div>
       </Field>
+      {/* Hidden, yet a description still: unlike text that is only visually hidden, it is not
+          read again on its own, after the combobox. */}
+      {inherited && (
+        <span id={descriptionId} hidden>
+          {inherited.description}
+        </span>
+      )}
       {/* Short enough that a page of suggestions scrolls rather than fills the window. */}
       <Popover
         className={clsx(shared.popover, virtualized && styles.virtualPopover)}

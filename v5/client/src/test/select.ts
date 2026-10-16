@@ -38,3 +38,8 @@ export async function pick(
   await user.keyboard(name)
   await user.click(await screen.findByRole('option', { name: option }))
 }
+
+/** Empty the combobox labelled `label`, inside `container`, with the button in its input (AR14). */
+export async function clearCombobox(label: string, container: HTMLElement = document.body) {
+  await userEvent.setup().click(within(container).getByRole('button', { name: `Clear ${label}` }))
+}

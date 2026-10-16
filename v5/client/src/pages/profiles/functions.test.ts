@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { functionChoice, functionShare, hottestFirst } from './functions'
+import { followerChoice, functionChoice, functionShare, hottestFirst } from './functions'
 
 const fn = (name: string, counters: Record<string, number>) => ({ name, counters, length: 1 })
 
@@ -54,7 +54,7 @@ describe('hottestFirst', () => {
 
 describe('functionChoice', () => {
   const functions = [fn('main', { cycles: 1 }), fn('hot', { cycles: 9 }), fn('warm', { cycles: 5 })]
-  const base = { test: 't1', functions, hottest: 'hot', carry: null, url: '', other: null }
+  const base = { test: 't1', functions, hottest: 'hot', carry: null, url: '' }
 
   it('has none for a profile that lists none', () => {
     expect(functionChoice({ ...base, functions: [] })).toEqual({ name: null })
@@ -71,32 +71,50 @@ describe('functionChoice', () => {
     expect(functionChoice({ ...base, hottest: undefined, url: 'warm' })).toEqual({ name: 'warm' })
   })
 
-  it('keeps its own function, of the same test, without asking the other side', () => {
-    const carry = { test: 't1', name: 'main' }
-    expect(functionChoice({ ...base, carry, other: undefined })).toEqual({ name: 'main' })
-  })
-
-  it("then takes the other side's, waiting for it, and the hottest otherwise", () => {
-    const other = { test: 't1', name: 'warm' }
+  it('keeps the function it carries, of the same test, and takes the hottest otherwise', () => {
+    expect(functionChoice({ ...base, carry: { test: 't1', name: 'main' } })).toEqual({
+      name: 'main',
+    })
     for (const carry of [
       { test: 't0', name: 'main' },
       { test: 't1', name: 'gone' },
       { test: 't1', name: null },
     ]) {
-      expect(functionChoice({ ...base, carry, other: undefined })).toBeUndefined()
-      expect(functionChoice({ ...base, carry, other })).toEqual({ name: 'warm' })
-      expect(functionChoice({ ...base, carry, other: null })).toEqual({ name: 'hot' })
+      expect(functionChoice({ ...base, carry })).toEqual({ name: 'hot' })
     }
-    // The other side's function must be of the same test too.
     const carry = { test: 't0', name: 'main' }
-    expect(functionChoice({ ...base, carry, other: { test: 't0', name: 'warm' } })).toEqual({
-      name: 'hot',
-    })
-    expect(functionChoice({ ...base, carry, other: null, hottest: undefined })).toBeUndefined()
+    expect(functionChoice({ ...base, carry, hottest: undefined })).toBeUndefined()
   })
 
   it('ignores the URL while carrying', () => {
     const carry = { test: 't0', name: 'main' }
     expect(functionChoice({ ...base, carry, url: 'warm' })).toEqual({ name: 'hot' })
+  })
+})
+
+describe('followerChoice', () => {
+  const functions = [fn('main', { cycles: 1 }), fn('hot', { cycles: 9 })]
+
+  it('takes its own function if the profile has it, before side A\'s', () => {
+    expect(followerChoice(functions, 'main', 'hot')).toEqual({ name: 'main' })
+    expect(followerChoice(functions, 'main', undefined)).toEqual({ name: 'main' })
+  })
+
+  it("otherwise takes side A's function when the profile has one of that name", () => {
+    expect(followerChoice(functions, '', 'hot')).toEqual({ name: 'hot', followed: true })
+    expect(followerChoice(functions, 'gone', 'hot')).toEqual({ name: 'hot', followed: true })
+  })
+
+  it('shows none, rather than its hottest, when it does not, or side A shows none', () => {
+    expect(followerChoice(functions, '', 'gone')).toEqual({ name: null, followed: true })
+    expect(followerChoice(functions, '', null)).toEqual({ name: null, followed: true })
+  })
+
+  it("waits for side A's function to be known", () => {
+    expect(followerChoice(functions, '', undefined)).toBeUndefined()
+  })
+
+  it('has none for a profile that lists none', () => {
+    expect(followerChoice([], 'main', 'main')).toEqual({ name: null })
   })
 })
