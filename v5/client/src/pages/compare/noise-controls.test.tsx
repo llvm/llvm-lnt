@@ -48,7 +48,7 @@ describe('noise (CP1)', () => {
     await user.clear(threshold)
     await user.type(threshold, '60')
     // Once typing pauses.
-    await waitFor(() => expect(query().noise_pct).toEqual(['60']), { timeout: 2000 })
+    await waitFor(() => expect(query().noise_pct).toEqual(['60']))
     await close()
     await waitFor(async () => expect(await statusOf('d')).toBe('Noise'))
 
