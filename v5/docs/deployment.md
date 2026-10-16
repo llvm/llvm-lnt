@@ -75,17 +75,14 @@ After applying, configure the following once in the GitHub repository, under eac
 
 ## The CDN
 
-Each environment selects its CDN with the `cdn` variable. Either way, the origin only accepts traffic
-from the CDN's published IPv4 ranges, which are looked up on every apply. The CDN of an existing
-environment cannot be switched in place: tear the environment down first.
+Each environment selects its CDN with the `cdn` variable, which can't be changed on an existing
+environment without tearing it down first.
 
-With **Cloudflare**, Terraform manages the Cloudflare side too: it points the domain at the instance
-with a proxied DNS record, and has the origin certificate signed by Cloudflare's Origin CA.
+With **Cloudflare**, Terraform manages the DNS record and the origin certificate.
 
-With **Fastly**, nothing on the Fastly side is managed by Terraform: the domain's DNS record and the
-Fastly service are managed outside of it. Terraform signs the origin certificate with a private CA of
-its own, and the service's backend has to be pointed at the instance by hand. The values it needs are
-Terraform outputs:
+With **Fastly**, the DNS record and the Fastly service are managed outside of Terraform. The origin
+certificate is signed by a private CA, and the service's backend has to be configured by hand with
+these outputs:
 
 ```sh
 terraform -chdir=v5/deployment/main workspace select production
@@ -103,8 +100,8 @@ Configure the backend as follows:
 - Health check: `GET /healthz`, with the domain as the host.
 
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
-is torn down and recreated, or if its domain changes. Until the backend points at the instance, the deploy workflow's final
-`/healthz` check fails, since it goes through the domain.
+is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
+deploy workflow's final `/healthz` check fails, since it goes through the domain.
 
 ## Building and pushing the app image
 
