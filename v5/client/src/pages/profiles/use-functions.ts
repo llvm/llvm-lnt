@@ -66,7 +66,7 @@ function useFunctionList(side: ProfileSide, counter: Counter): FunctionList {
  * Side A's function, as side B follows it (PF4): null when A shows none, also when its profile or
  * functions could not be loaded, and undefined while it is not known yet. While A's picks change
  * its profile to another of the same test, B keeps following the function A showed until A's new
- * one is known.
+ * one is known. A carry without a function says nothing: A may not have known its function yet.
  */
 function followedFunction(
   a: ProfileSide,
@@ -76,7 +76,7 @@ function followedFunction(
   if (choice !== undefined) return choice.name
   const { kind } = a.status
   if (kind === 'none' || kind === 'failed' || list.functions.isError) return null
-  if (a.carry !== null && a.carry.test === a.test) return a.carry.name
+  if (a.carry?.name != null && a.carry.test === a.test) return a.carry.name
   return undefined
 }
 

@@ -156,6 +156,26 @@ describe('the Profiles page: side B follows side A (PF4)', () => {
     await followsFunction('warm')
   })
 
+  it("waits for side A's function, not yet known, as side A's profile changes", async () => {
+    // Side A's functions of alpha in run 1 are on their way, and so are the runs of m2.
+    const functions = heldBack((uuid: string) => uuid === profileUuid('1', 'alpha'))
+    const runs = heldBack((q: URLSearchParams) => q.get('machine') === 'm2')
+    mockWorld({ functionsAnswer: functions.answer, runsAnswer: runs.answer })
+    renderPage(withBFollowing('alpha', '2'))
+    await waitFor(() => expect(columnOf('B')).toHaveTextContent('Loading the function...'))
+
+    // Side A does not know its function yet, which is not none.
+    await pick('Machine', 'm2', sideOf('A'))
+    await settle()
+    expect(columnOf('B')).toHaveTextContent('Loading the function...')
+    expect(functionField('B')).not.toHaveAttribute('placeholder', 'Select a function')
+
+    runs.open()
+    await showsFunction('A', 'hot')
+    await followsFunction('hot')
+    functions.open()
+  })
+
   for (const failing of ['metadata', 'functions'] as const) {
     it(`shows no function once side A's new ${failing} cannot be loaded`, async () => {
       // m2 has a profile of alpha at c1, in run 4, whose ${failing} cannot be loaded.
