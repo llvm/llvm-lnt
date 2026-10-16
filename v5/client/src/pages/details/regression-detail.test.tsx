@@ -71,8 +71,8 @@ const DETAIL = regressionDetail('a', {
 interface Options {
   url?: string
   suites?: SuiteSchema[]
-  /** The suite's machines, `linux` and `macos` by default. */
-  machines?: string[]
+  /** The suite's machines, by name or whole, `linux` and `macos` by default. */
+  machines?: (string | Schemas['Machine'])[]
   /** The answer to `GET /regressions/{uuid}`: `detail` by default. */
   respond?: () => Response | Promise<Response>
   detail?: Regression
@@ -88,7 +88,9 @@ function renderRegression({
 }: Options = {}) {
   const calls = { count: 0 }
   mockSuites(suites)
-  mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
+  mockMachines(() => ({
+    items: machines.map((entry) => (typeof entry === 'string' ? machine(entry) : entry)),
+  }))
   mockResolve([TAGGED, PLAIN])
   mockCommits((query) => {
     const text = query.get('search') ?? ''
@@ -638,6 +640,27 @@ describe('the Add indicators panel', () => {
       ['linux', 'execution_time'],
       ['macos', 'execution_time'],
     ])
+  })
+
+  it('lists the untracked machines last, marked as such, and selects across them (AR18)', async () => {
+    mockMachineTests()
+    // By name, as the API lists them.
+    renderRegression({ machines: [machine('a-retired', { tracked: false }), 'linux', 'macos'] })
+    await waitFor(() =>
+      expect(namesIn('Machines')).toEqual(['linux', 'macos', 'a-retired, untracked']),
+    )
+    const badge = within(list('Machines')).getByText('untracked')
+    expect(badge).toHaveAttribute('title', expect.stringMatching(/^Untracked machines/))
+    expect(badge.closest('label')).toHaveTextContent('a-retired')
+
+    // A range ends on the untracked machine as on any other (AR10).
+    const user = userEvent.setup()
+    await user.click(checkbox('linux'))
+    await user.keyboard('{Shift>}')
+    await user.click(checkbox('a-retired, untracked'))
+    await user.keyboard('{/Shift}')
+    expect(checkbox('macos')).toBeChecked()
+    expect(checkbox('a-retired, untracked')).toBeChecked()
   })
 
   it('previews and adds an indicator for each machine and test, then says what was added', async () => {

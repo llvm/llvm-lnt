@@ -55,6 +55,11 @@ export function useMachineNames(suite: string, enabled = true) {
   return useQuery({ ...machinesQuery(suite), select: namesOf, enabled })
 }
 
+/** The suite's machines, by name (E2), fetched once for the pickers to filter locally (AR18). */
+export function useMachineList(suite: string, enabled = true) {
+  return useQuery({ ...machinesQuery(suite), enabled })
+}
+
 /** The query key of the machine `name`, which a change to it updates. */
 export function machineKey(suite: string, name: string) {
   return [...queryKeys.machines(suite), 'detail', name] as const

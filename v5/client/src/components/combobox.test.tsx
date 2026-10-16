@@ -416,6 +416,58 @@ function ServerCommitPicker({ initial = null, delayMs }: { initial?: Suggestion 
   )
 }
 
+describe('Combobox with suggestions in groups', () => {
+  // As machine pickers list them (AR18): two in no group, then two under a heading, one of which is
+  // named like the heading.
+  const GROUPED: Suggestion[] = [
+    { key: 'linux-x86_64', text: 'linux-x86_64' },
+    { key: 'macos-arm64', text: 'macos-arm64' },
+    { key: 'linux-O3', text: 'linux-O3', section: 'Untracked' },
+    { key: 'Untracked', text: 'Untracked', section: 'Untracked' },
+  ]
+
+  it('lists a group under its heading, after the suggestions in none (AR14)', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker machines={GROUPED} />)
+
+    await openList(user)
+    expect(options()).toEqual(['linux-x86_64', 'macos-arm64', 'linux-O3', 'Untracked'])
+    const group = screen.getByRole('group', { name: 'Untracked' })
+    expect(within(group).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'linux-O3',
+      'Untracked',
+    ])
+  })
+
+  it('moves past the heading with the arrow keys, and picks what is under it', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker machines={GROUPED} />)
+
+    // One suggestion either side of the heading.
+    await user.type(input(), 'linux')
+    expect(options()).toEqual(['linux-x86_64', 'linux-O3'])
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+    expect(value()).toBe('linux-O3')
+  })
+
+  it('picks the suggestion named like the heading, by its text', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker machines={GROUPED} />)
+
+    await user.type(input(), 'Untracked{Enter}')
+    expect(value()).toBe('Untracked')
+  })
+
+  it('hides a heading while no suggestion under it matches the text', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker machines={GROUPED} />)
+
+    await user.type(input(), 'macos')
+    expect(options()).toEqual(['macos-arm64'])
+    expect(screen.queryByRole('group', { name: 'Untracked' })).toBeNull()
+  })
+})
+
 describe('useLocalSuggestions', () => {
   it('filters in a deferred render, loading until it has caught up with the text', () => {
     const renders: { isLoading: boolean; items: string[] }[] = []

@@ -80,6 +80,37 @@ test('its tracked flag is changed by a holder of manage scope', async ({
   })
 })
 
+test('its deletion after inactivity is edited by a holder of manage scope', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`/suites/${suite}/machines/m1`)
+    const info = page.getByRole('group', { name: 'Machine', exact: true })
+    const days = page.getByRole('textbox', { name: 'Delete after inactivity' })
+
+    await page.getByRole('button', { name: 'Edit Delete after inactivity' }).click()
+    await days.fill('30')
+    await days.press('Enter')
+    await expect(days).toHaveCount(0)
+    await expect(info).toContainText('30 days')
+    const stored = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    expect(stored.delete_after_inactive_days).toBe(30)
+
+    // Emptied, it is cleared.
+    await page.getByRole('button', { name: 'Edit Delete after inactivity' }).click()
+    await days.fill('')
+    await days.press('Enter')
+    await expect(days).toHaveCount(0)
+    await expect(info).not.toContainText('30 days')
+    const cleared = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    expect(cleared.delete_after_inactive_days).toBeNull()
+  })
+})
+
 test('deleting the machine shows the machines left', async ({
   page,
   request,

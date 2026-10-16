@@ -517,8 +517,8 @@ describe('the Machines tab', () => {
     )
     expect(within(machines).getByText('untracked')).toHaveAttribute(
       'title',
-      "Untracked machines are left out of the Dashboard's trend overview, but are listed and " +
-        'usable everywhere else.',
+      "Untracked machines are left out of the Dashboard's trend overview, and listed after the " +
+        'tracked ones wherever a machine is picked, but are usable everywhere.',
     )
     // Every machine, in one request, with no page to ask for or move between (E2).
     expect([...queries[0].keys()]).toEqual([])

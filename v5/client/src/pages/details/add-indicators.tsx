@@ -1,7 +1,8 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { Schemas } from '../../api/client'
-import { useMachineNames } from '../../api/machines'
+import { useMachineList } from '../../api/machines'
+import { inPickerOrder } from '../../components/machine-suggestions'
 import {
   addIndicators,
   INDICATOR_BATCH,
@@ -11,6 +12,7 @@ import {
 import type { SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { useScopeGate } from '../../auth/scope'
+import { Badge } from '../../components/badge'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { useRangeSelection, type RangeSelection } from '../../components/range-selection'
@@ -19,6 +21,7 @@ import { SelectAllBox, SelectBox } from '../../components/select-box'
 import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { plural } from '../../format'
+import { UNTRACKED_HELP } from '../../machines'
 import { defaultMetric, metricOptions } from '../../schema'
 import styles from './details.module.css'
 
@@ -38,9 +41,18 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
   const [metric, setMetric] = useState(defaultMetric(schema)?.name ?? '')
   const [report, setReport] = useState<string | null>(null)
 
-  const machineNames = useMachineNames(suite)
-  const allMachines = machineNames.data ?? NO_NAMES
-  const machines = useCheckboxList(allMachines, machineNames.data)
+  const machineNames = useMachineList(suite)
+  // In the order every machine picker offers them, the untracked ones last (AR18).
+  const listed = useMemo(
+    () => machineNames.data && inPickerOrder(machineNames.data).map((machine) => machine.name),
+    [machineNames.data],
+  )
+  const untracked = useMemo(
+    () => new Set(machineNames.data?.filter((m) => !m.tracked).map((m) => m.name)),
+    [machineNames.data],
+  )
+  const allMachines = listed ?? NO_NAMES
+  const machines = useCheckboxList(allMachines, listed)
   // In the order of the list, so that the same machines ask for their tests in the same order.
   const selectedMachines = useMemo(
     () => allMachines.filter((name) => machines.selection.selected.has(name)),
@@ -138,6 +150,7 @@ export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: str
           noun="machine"
           list={machines}
           status={machineStatus}
+          untracked={untracked}
           compact
         />
         <CheckboxList label="Tests" noun="test" list={testList} status={testStatus} />
@@ -174,6 +187,8 @@ interface CheckboxListState {
   selection: RangeSelection
 }
 
+const NO_UNTRACKED: ReadonlySet<string> = new Set()
+
 /**
  * `names`, filtered, with a selection among them. The filter does not change the selection: names
  * can be selected under one filter, then others under another. A name that is no longer among
@@ -196,6 +211,8 @@ interface CheckboxListProps {
   status?: ReactNode
   /** Show only a few names at once, as DT4 asks of the machines' list, rather than more. */
   compact?: boolean
+  /** The names of the untracked machines, which a machines' list marks as such (AR18). */
+  untracked?: ReadonlySet<string>
 }
 
 /**
@@ -203,7 +220,14 @@ interface CheckboxListProps {
  * time with Shift held (AR10). It can hold thousands of names, such as a suite's tests, so it
  * scrolls in a box of its own.
  */
-function CheckboxList({ label, noun, list, status, compact = false }: CheckboxListProps) {
+function CheckboxList({
+  label,
+  noun,
+  list,
+  status,
+  compact = false,
+  untracked = NO_UNTRACKED,
+}: CheckboxListProps) {
   const { names, filter, selection } = list
   const headingId = useId()
   const shown = filter.rows
@@ -223,13 +247,19 @@ function CheckboxList({ label, noun, list, status, compact = false }: CheckboxLi
         ),
         cell: (name) => (
           <label className={styles.checkboxLabel}>
-            <SelectBox rows={rows} rowKey={name} label={name} />
+            {/* The badge says it only on hover, so the checkbox's name says it too. */}
+            <SelectBox
+              rows={rows}
+              rowKey={name}
+              label={untracked.has(name) ? `${name}, untracked` : name}
+            />
             {name}
+            {untracked.has(name) && <Badge help={UNTRACKED_HELP}>untracked</Badge>}
           </label>
         ),
       },
     ],
-    [rows, shown, noun, header],
+    [rows, shown, noun, header, untracked],
   )
 
   // Among those selected, those the list holds, and those of them its filter hides. Counted over

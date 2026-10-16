@@ -24,6 +24,8 @@ import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
+import { InactivityRow } from '../../components/inactivity-row'
+import { ORDERED_COMMIT_NOTE } from '../../inactivity'
 import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
 import { SearchInput } from '../../components/search-input'
@@ -181,6 +183,12 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
           onSave={(tag) => update({ tag })}
         />
       </InfoRow>
+      <InactivityRow
+        value={commit.delete_after_inactive_days}
+        gate={manage}
+        note={commit.ordinal === null ? undefined : ORDERED_COMMIT_NOTE}
+        onSave={(days) => update({ delete_after_inactive_days: days })}
+      />
       {schema.commit_fields.map((field) => (
         <InfoRow
           key={field.name}

@@ -17,6 +17,11 @@ export interface Suggestion {
    * commit shown by its display value.
    */
   aliases?: readonly string[]
+  /**
+   * The heading of the group the suggestion is listed under (AR14), if it is in one. The
+   * suggestions in no group come first, then each group, in the order the suggestions give them.
+   */
+  section?: string
 }
 
 export interface Suggestions {

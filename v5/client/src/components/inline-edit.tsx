@@ -43,6 +43,8 @@ interface Props {
   editor?: (props: EditorProps) => ReactNode
   /** Why Save is refused while the editor reports pending input (see `EditorProps`). */
   pendingReason?: string
+  /** The id of what describes the field, such as its help, for the Edit button and the input. */
+  describedBy?: string
   /**
    * Save `text`, trimmed, or clear the value (null) when the input is emptied. The input closes
    * once it resolves, and stays open, saying why, if it rejects.
@@ -66,6 +68,7 @@ export function InlineEdit({
   multiline = false,
   editor,
   pendingReason,
+  describedBy,
   onSave,
 }: Props) {
   const [editing, setEditing] = useState(false)
@@ -138,6 +141,7 @@ export function InlineEdit({
           ref={editButton}
           className={styles.button}
           aria-label={`Edit ${label}`}
+          aria-describedby={describedBy}
           {...gate}
           onClick={open}
         >
@@ -156,7 +160,9 @@ export function InlineEdit({
     readOnly: saving,
     maxLength,
     'aria-invalid': reason !== undefined || undefined,
-    'aria-describedby': reason === undefined ? undefined : reasonId,
+    'aria-describedby':
+      [describedBy, reason === undefined ? undefined : reasonId].filter(Boolean).join(' ') ||
+      undefined,
     autoComplete: 'off',
     spellCheck: false,
   }
