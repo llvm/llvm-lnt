@@ -9,7 +9,8 @@
 
 source "$(dirname "$0")/lib.sh"
 
-readonly SUITES="${BASE_URL}/api/suites"
+# Not readonly: the restart below moves the server to another port.
+SUITES="${BASE_URL}/api/suites"
 
 # Its own key: the checks are declared independent, so this cannot inherit 009's. Assigned apart
 # from `readonly`, whose own exit status would otherwise hide a failing `mint_key` from `set -e`.
@@ -79,8 +80,8 @@ request -X POST -H "$JSON" --data '{"name":"denied","metrics":[]}' "$SUITES"
 expect_status 401
 
 echo "  the schema survives a restart, which is the only test of the lazy load"
-docker restart "$CONTAINER" >/dev/null
-wait_for_health
+restart_server
+SUITES="${BASE_URL}/api/suites"
 request "${SUITES}/integration"
 expect_status 200
 expect_body '"code_size"'

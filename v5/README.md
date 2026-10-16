@@ -100,13 +100,37 @@ Stop the local database with `npm run db:down` when you're done.
 
 `npm run test:e2e` tests the whole stack in a browser, with [Playwright](https://playwright.dev).
 It builds the client, then creates a throwaway database on the Postgres from `npm run db:up`,
-migrates it, starts the server, creates an admin key, and seeds the database as `npm run seed`
-does. It drops the database and stops the server when the tests are done. Install the browser
-they use once, with `npx playwright install chromium`; `npm run screenshot` (below) needs it too.
+migrates it, starts the server on a free port (`E2E_PORT` picks one instead), creates an admin key,
+and seeds the database as `npm run seed` does. It drops the database and stops the server when the
+tests are done. Install the browser they use once, with `npx playwright install chromium`;
+`npm run screenshot` (below) needs it too.
 
 A failing test keeps a trace, a screenshot, and the server's log while it ran, in `e2e/test-results`;
 open the report with `npx playwright show-report e2e/playwright-report`. The whole server log is in
 `e2e/server.log`.
+
+#### Several checkouts at once
+
+Every test suite can run in several checkouts (clones or `git worktree`s) on one machine at the same
+time, with no configuration. The server tests and the end-to-end tests share the Postgres from
+`npm run db:up`, in databases of their own with random names; the end-to-end server listens on a
+port the system picks; and each integration run gives its containers and network names of its own,
+lets Docker pick the host port, and removes only what it created.
+
+An integration run that is killed outright (with SIGKILL, say) leaves its containers, network and
+image behind, and one terminated while it builds the image may leave the image. Remove them with
+the following, but only when no integration run is in progress in any checkout, since it removes
+theirs too:
+
+```sh
+for container in $(docker ps --all --quiet --filter label=lnt-v5-integration); do
+  docker rm --force "$container"
+done
+docker network prune --force --filter label=lnt-v5-integration
+for image in $(docker images --format '{{.Repository}}:{{.Tag}}' 'lnt-v5:integration-*'); do
+  docker image rm "$image"
+done
+```
 
 #### Screenshots
 

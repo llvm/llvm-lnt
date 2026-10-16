@@ -7,6 +7,18 @@ set -euo pipefail
 
 trap 'echo "  FAILED ${0##*/}:${LINENO} -> ${BASH_COMMAND}" >&2' ERR
 
+# look_up_base_url -- set BASE_URL to where the app container is reachable from here.
+#
+# Docker picks the host port anew each time the container starts, so this is looked up rather than
+# handed down by run.sh: once per check, and again by restart_server. In two steps, so that a
+# failing `docker port` stops the check rather than yielding "http://".
+look_up_base_url() {
+    local address
+    address="$(docker port "$CONTAINER" 3000/tcp)"
+    BASE_URL="http://${address}"
+}
+look_up_base_url
+
 # Set by `request`, read by the expect_* helpers.
 STATUS=""
 BODY=""
@@ -44,6 +56,13 @@ wait_for_health() {
     done
     echo "  server never became reachable at ${BASE_URL}/healthz within ${limit}s" >&2
     exit 1
+}
+
+# restart_server -- restart the app container, and wait until it answers at its new BASE_URL.
+restart_server() {
+    docker restart "$CONTAINER" >/dev/null
+    look_up_base_url
+    wait_for_health
 }
 
 # request <curl args...> -- perform a request, capturing status, headers and body.
