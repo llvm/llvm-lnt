@@ -47,11 +47,11 @@ Each side has its own controls:
 
 - **Suite**: a dropdown over the test suites defined on the instance. Changing
   the suite clears the side's machine, commit and runs.
-- **Machine**: a combobox (see AR14) over the selected suite's machines. The
-  suite's full machine list is fetched once and filtered locally (see AR9).
-  Disabled until a suite is selected, showing "Select a suite first". When the
-  user picks another machine, the side keeps its commit if the new machine has
-  runs at that commit (checked as AR15 describes), and selects all of those
+- **Machine**: a combobox (see AR14) over the selected suite's machines (see
+  AR18). The suite's full machine list is fetched once and filtered locally (see
+  AR9). Disabled until a suite is selected, showing "Select a suite first". When
+  the user picks another machine, the side keeps its commit if the new machine
+  has runs at that commit (checked as AR15 describes), and selects all of those
   runs. Otherwise, the commit is cleared. Clearing the machine clears the
   commit and the runs.
 - **Commit**: a commit picker (see AR15) over the commits at which the selected

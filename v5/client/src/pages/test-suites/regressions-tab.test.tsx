@@ -140,6 +140,28 @@ describe('the Regressions tab', () => {
     expect(await screen.findByText('No regressions match these filters.')).toBeInTheDocument()
   })
 
+  it('offers the untracked machines last, under their heading (AR18)', async () => {
+    mockSuites()
+    mockMachines(() => ({
+      items: [machine('a-retired', { tracked: false }), ...MACHINES.map((name) => machine(name))],
+    }))
+    mockRegressions()
+    renderPage('/suites/libcxx?tab=regressions')
+    const user = userEvent.setup()
+
+    await user.type(await screen.findByRole('combobox', { name: 'Machine' }), '-')
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'linux-x86_64',
+        'macos-arm64',
+        'a-retired',
+      ]),
+    )
+    const group = screen.getByRole('group', { name: 'Untracked' })
+    await user.click(within(group).getByRole('option', { name: 'a-retired' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=a-retired'))
+  })
+
   it('filters by state, machine, metric, commit and title, each from the first page', async () => {
     const { regressions } = renderTab('', (query) =>
       cursorPage([regression('a')], query.has('cursor') ? null : 'p2'),

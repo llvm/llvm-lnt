@@ -459,7 +459,8 @@ as `{suite}.commit`, and the tables below are named that way.
   time. It only affects *automatic* machine selection: untracked machines are
   left out when the server or the UI picks machines on the user's behalf (like
   the Dashboard's trend overview; see DA2), but remain fully addressable
-  wherever a machine is chosen deliberately. Typical uses are one-off
+  wherever a machine is chosen deliberately, where the UI only lists them after
+  the tracked ones (see AR18). Typical uses are one-off
   comparison configurations (e.g. the same hardware built at `-O2` and `-O3`),
   and retired hardware whose history is worth keeping.
 - `first_seen_at` and `delete_after_inactive_days` mean what they mean on

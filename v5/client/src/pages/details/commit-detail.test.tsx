@@ -3,6 +3,7 @@ import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { Schemas } from '../../api/client'
 import { withoutNeighbours } from '../../api/commits'
+import { INACTIVITY_HELP } from '../../inactivity'
 import type { SuiteSchema } from '../../api/suites'
 import { signIn, TOKEN } from '../../test/auth'
 import { commit, cursorPage, regression, run, SUITE, uuidOf } from '../../test/fixtures'
@@ -144,6 +145,7 @@ describe('the Commit Detail page', () => {
       ['Commit', VALUE],
       ['Ordinal', '100Edit'],
       ['Tag', 'v1Edit'],
+      ['Delete after inactivity', `--Edit${INACTIVITY_HELP}`],
       ['svn_revision display', 'r100'],
       ['commit_info', 'Fix the vectorizer'],
     ])
@@ -173,14 +175,14 @@ describe('the Commit Detail page', () => {
         HttpResponse.json({ ...DETAIL, fields: { ...DETAIL.fields, svn_revision: null } }),
     })
 
-    expect((await infoRows('Commit'))[3]).toEqual(['svn_revision display', '--'])
+    expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', '--'])
   })
 
   it('marks no field when the schema has none to display', async () => {
     const fields = SUITE.commit_fields.map((field) => ({ ...field, display: false }))
     renderCommit({ suites: [{ ...SUITE, commit_fields: fields }] })
 
-    expect((await infoRows('Commit')).slice(3)).toEqual([
+    expect((await infoRows('Commit')).slice(4)).toEqual([
       ['svn_revision', 'r100'],
       ['commit_info', 'Fix the vectorizer'],
     ])
@@ -303,7 +305,7 @@ describe('the Commit Detail page', () => {
       renderCommit()
 
       await screen.findByRole('group', { name: 'Commit' })
-      for (const field of ['Ordinal', 'Tag']) {
+      for (const field of ['Ordinal', 'Tag', 'Delete after inactivity']) {
         await waitFor(() =>
           expect(editButton(field)).toHaveAttribute(
             'title',
@@ -486,6 +488,84 @@ describe('the Commit Detail page', () => {
 
       expect(await within(await table('Commits')).findByText('v9')).toBeInTheDocument()
       expect(listQueries).toHaveLength(2)
+    })
+  })
+
+  describe('its deletion after inactivity', () => {
+    const row = async () => (await infoRows('Commit'))[3]
+
+    it('shows the days, and that they have no effect while the commit has an ordinal', async () => {
+      renderCommit({
+        detail: () => HttpResponse.json({ ...DETAIL, delete_after_inactive_days: 30 }),
+      })
+
+      expect(await row()).toEqual([
+        'Delete after inactivity',
+        `30 days (No effect while the commit has an ordinal.)Edit${INACTIVITY_HELP}`,
+      ])
+    })
+
+    it('shows the days alone for a commit without an ordinal', async () => {
+      renderCommit({
+        detail: () =>
+          HttpResponse.json({
+            ...DETAIL,
+            ordinal: null,
+            previous: null,
+            next: null,
+            delete_after_inactive_days: 1,
+          }),
+      })
+
+      expect(await row()).toEqual(['Delete after inactivity', `1 dayEdit${INACTIVITY_HELP}`])
+    })
+
+    it('explains itself, on hover and to assistive technology', async () => {
+      renderCommit()
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(screen.getByText('Delete after inactivity')).toHaveAttribute('title', INACTIVITY_HELP)
+      expect(editButton('Delete after inactivity')).toHaveAccessibleDescription(INACTIVITY_HELP)
+    })
+
+    it('is changed with PATCH, and cleared when emptied', async () => {
+      signIn('manage')
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
+      renderCommit()
+      await ready('Commit', () => editButton('Delete after inactivity'))
+
+      save('Delete after inactivity', ' 30 ')
+      await expectInfo(3, [
+        'Delete after inactivity',
+        `30 days (No effect while the commit has an ordinal.)Edit${INACTIVITY_HELP}`,
+      ])
+      save('Delete after inactivity', '')
+      await expectInfo(3, ['Delete after inactivity', `--Edit${INACTIVITY_HELP}`])
+
+      expect(sent.map(({ body }) => body)).toEqual([
+        { delete_after_inactive_days: 30 },
+        { delete_after_inactive_days: null },
+      ])
+    })
+
+    it('does not accept anything but a whole number of days from 1 to 36500', async () => {
+      signIn('manage')
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => HttpResponse.json(patched(body)))
+      renderCommit()
+      await ready('Commit', () => editButton('Delete after inactivity'))
+      save('Delete after inactivity', '0')
+      const input = screen.getByRole('textbox', { name: 'Delete after inactivity' })
+      const why = 'A number of days is a whole number from 1 to 36500.'
+
+      for (const text of ['0', '36501', '1.5', '-1', '1e3', 'week']) {
+        fireEvent.change(input, { target: { value: text } })
+        fireEvent.submit(input)
+        expect(input).toHaveAccessibleDescription(expect.stringContaining(why))
+      }
+      expect(sent).toEqual([])
+
+      fireEvent.change(input, { target: { value: '36500' } })
+      expect(input).not.toHaveAccessibleDescription(expect.stringContaining(why))
     })
   })
 

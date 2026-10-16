@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AGGREGATION_OPTIONS, AGGREGATIONS, type Aggregation } from '../../aggregation'
-import { useMachineNames } from '../../api/machines'
+import { useMachineList, useMachineNames } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
@@ -105,6 +105,7 @@ function GraphPage() {
   // The machines chosen that exist, once that is known: nothing is fetched for the others, which
   // are dropped.
   const machineNames = useMachineNames(suite, schema !== undefined)
+  const machineList = useMachineList(suite, schema !== undefined)
   const names = machineNames.data
   const machines = useMemo(
     () => (names ? settings.machine.filter((name) => names.includes(name)) : NO_NAMES),
@@ -238,7 +239,7 @@ function GraphPage() {
           <MachineChips
             // Once the machines are known, only those that exist, as the chart marks them.
             machines={names ? machines : settings.machine}
-            names={names}
+            all={machineList.data}
             pending={!disabled && machineNames.isPending}
             error={machineNames.error}
             isDisabled={disabled}

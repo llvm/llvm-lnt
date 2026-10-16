@@ -5,7 +5,7 @@
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { EXPERIMENT, LINUX, PROFILED_TEST } from '../tools/synthetic.ts'
+import { EXPERIMENT, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { pickOption, pickSuggestion } from './select.ts'
@@ -119,6 +119,19 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
 
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
   await expect(page).toHaveURL(new RegExp(`commit_a=${older.value}.*commit_b=${newer.value}`))
+})
+
+test('offers the untracked machines last, under their heading (AR18)', async ({ page }) => {
+  await page.goto('/compare?suite_a=libcxx')
+  const machine = sideOf(page, 'A').getByRole('combobox', { name: 'Machine' })
+
+  await machine.fill('macos-26.5-arm64')
+
+  const untracked = page.getByRole('group', { name: 'Untracked' })
+  await expect(untracked.getByRole('option')).toHaveText([UNTRACKED])
+  // After every tracked machine matching the text.
+  await expect(page.getByRole('option').last()).toHaveText(UNTRACKED)
+  await expect(page.getByRole('option').first()).not.toHaveText(UNTRACKED)
 })
 
 test("links a test to its profile on both sides, side B on its default test", async ({
