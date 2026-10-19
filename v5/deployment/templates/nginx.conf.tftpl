@@ -15,8 +15,14 @@ server {
     # BODY_LIMIT in config.py.
     client_max_body_size 128m;
 
+    # Look the app up through Docker's DNS on each request, rather than once when Nginx starts: the
+    # app's container can get another address when it restarts, for example to retry a migration
+    # that failed. Proxying to a variable is what makes Nginx use the resolver.
+    resolver 127.0.0.11 valid=10s;
+
     location / {
-        proxy_pass http://app:3000;
+        set $app http://app:3000;
+        proxy_pass $app;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
