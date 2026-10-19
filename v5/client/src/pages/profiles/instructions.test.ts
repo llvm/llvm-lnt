@@ -114,16 +114,18 @@ describe('valueColumns', () => {
     [[1.23456, 0]],
     [[123456789.5, 0.25]],
     [[1e-9, 1]],
+    [[0.0012345, 3]],
+    [[1.2345e-100]],
   ])('is as wide as the widest of %j, however it is shown', (raws) => {
     const values = instructionValues(instructions(...raws), 'cycles')!
     const widest = Math.max(...modes.flatMap((mode) => shown(values, mode).map((s) => s.length)))
     expect(valueColumns(values)).toBeGreaterThanOrEqual(widest)
   })
 
-  it('fits a small value in full', () => {
+  it('fits a small value in exponent notation', () => {
     const values = instructionValues(instructions(0.000123456), 'cycles')!
-    expect(formatInstructionValue(values, 0, 'absolute')).toBe('0.000123456')
-    expect(valueColumns(values)).toBe(11)
+    expect(formatInstructionValue(values, 0, 'absolute')).toBe('1.235e-4')
+    expect(valueColumns(values)).toBe(8)
   })
 
   it('is 7 columns without values', () => {

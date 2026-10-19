@@ -337,7 +337,7 @@ describe('optional columns (CP2)', () => {
         .find((row) => row.startsWith('b |'))
         ?.split(' | ')
         .at(-2),
-    ).toMatch(/^\d\.\d\de-\d+$/)
+    ).toMatch(/^\d(\.\d+)?e-\d+$/)
   })
 
   it('sorts by a statistic from its header, and keeps the sort when another column goes', async () => {

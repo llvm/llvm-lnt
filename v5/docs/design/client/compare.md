@@ -36,7 +36,7 @@ o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%
 301 of 303 tests shown                                                [Columns] [Copy as CSV]
 [-]  Test                 Value A    Value B    Delta     Delta %   Ratio     Status
      Geomean              ...
-[x]  BM_find_if/1024      1.26432    1.31007    0.04575   +3.62%    1.0362    Regressed
+[x]  BM_find_if/1024      1.264      1.31       0.04575   +3.62%    1.0362    Regressed
 [ ]  BM_sort/4096         ...
 ```
 
@@ -204,8 +204,8 @@ all use these rows.
   Computation Reference), from all its selected runs together, before any
   aggregation: the sample and run aggregation settings do not affect them. A
   line above the Columns menu's items says that they are computed over all
-  samples without aggregation. A p-value below 0.0001 is shown in exponent
-  notation (`2.01e-29`).
+  samples without aggregation. A p-value is shown as AR6 shows a measured
+  `real` value, so a tiny one in exponent notation (`2.012e-29`).
 
   A per-side statistic adds an A and a B column. Optional columns sit between
   Ratio and Status, in the order above, A before B. They are empty on the

@@ -82,7 +82,7 @@ describe('plotlyTraces', () => {
     const [drawn] = plotlyTraces([trace], display, metric('execution_time')) as PlotData[]
 
     expect(drawn.customdata).toEqual([
-      ['&lt;c1&gt;', '1.23457', '1 run'],
+      ['&lt;c1&gt;', '1.235', '1 run'],
       ['&lt;c2&gt;', '2', '3 runs'],
     ])
     expect(drawn.hovertemplate).toContain('<b>BM_vector&lt;int&gt;</b>')

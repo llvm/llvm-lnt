@@ -57,20 +57,43 @@ export function truncate(text: string, max: number): string {
 
 // Fixed to one locale, so that a value reads the same in every browser. No grouping, so that a
 // value can be copied as a number. Of the two limits, the one keeping more digits applies, so that
-// the integer part is never rounded.
+// the integer part is never rounded. No sign for -0.
 const NUMBER = new Intl.NumberFormat('en-US', {
-  maximumSignificantDigits: 6,
+  maximumSignificantDigits: 4,
   maximumFractionDigits: 0,
   roundingPriority: 'morePrecision',
   useGrouping: false,
+  signDisplay: 'negative',
+})
+
+// The same digits in exponent notation, rounded as NUMBER rounds them: `3.75E-10`.
+const SCIENTIFIC = new Intl.NumberFormat('en-US', {
+  notation: 'scientific',
+  maximumSignificantDigits: 4,
 })
 
 /**
- * A measured number, to at most 6 significant digits but with its whole integer part (AR6):
- * `1.26432`, `66655.7`, `4123456789`.
+ * A measured number, to at most 4 significant digits but with its whole integer part, and in
+ * exponent notation when it rounds to less than 0.001 (AR6): `1.264`, `66656`, `4123456789`,
+ * `3.75e-10`.
  */
 export function formatNumber(value: number): string {
+  if (value !== 0 && Math.abs(value) < 1e-3) {
+    const [digits, exponent] = SCIENTIFIC.format(value).split('E')
+    if (Number(exponent) < -3) return `${digits}e${exponent}`
+  }
   return NUMBER.format(value)
+}
+
+/**
+ * At least as many characters as `formatNumber` takes for any number from `smallest` to `largest`,
+ * both positive, or for 0 when `smallest` is infinite: none from 1 up takes more than `1.234` and
+ * `largest`, and none below 1 more than the widest number of `smallest`'s magnitude in exponent
+ * notation, `0.001234` and `1.234e-4` being as wide.
+ */
+export function longestFormatted(smallest: number, largest: number): number {
+  const longest = Math.max('1.234'.length, formatNumber(largest).length)
+  return smallest < 1 ? Math.max(longest, smallest.toExponential(3).length) : longest
 }
 
 // One decimal place at most, so that a whole number drops its `.0`. Neither shows a sign for a

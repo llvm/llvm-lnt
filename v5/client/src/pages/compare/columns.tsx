@@ -37,7 +37,7 @@ export interface CompareColumn {
   csv(row: Row): CsvCell
 }
 
-/** A side's value, or a difference between them: to at most 6 significant digits (AR6). */
+/** A side's value, or a difference between them, as AR6 shows a measured value. */
 function formatValue(value: number | null): string {
   return value === null ? NA : formatNumber(value)
 }
@@ -91,11 +91,14 @@ function numberColumn(
   }
 }
 
-/** Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2). */
+/**
+ * Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2): |Delta %| to
+ * 2 decimal places, as the Delta % column shows it, and the other values as measured values are.
+ */
 function describeNoise({ knob, value, threshold }: NoiseReason): string {
   switch (knob) {
     case 'pct':
-      return `Delta ${formatNumber(value)}% below ${threshold}% threshold`
+      return `Delta ${value.toFixed(2)}% below ${threshold}% threshold`
     case 'pval':
       return `p-value ${formatNumber(value)} above ${threshold}`
     case 'floor':
@@ -165,10 +168,6 @@ type Statistic = { label: string; format: (value: number) => string } & (
 
 const toFixed2 = (value: number) => value.toFixed(2)
 
-/** A p-value: below 0.0001, in exponent notation, rather than with dozens of zeros. */
-const formatPValue = (value: number) =>
-  value !== 0 && value < 1e-4 ? value.toExponential(2) : formatNumber(value)
-
 /** The optional statistics (CP2 "Optional columns"), each over a side's samples for a test. */
 const STATISTICS: Record<OptionalKey, Statistic> = {
   samples: { label: 'Samples', format: String, perSide: true, of: (side) => side.count },
@@ -178,7 +177,7 @@ const STATISTICS: Record<OptionalKey, Statistic> = {
   max: { label: 'Max', format: formatNumber, perSide: true, of: (side) => side.max },
   stddev: { label: 'Std dev', format: formatNumber, perSide: true, of: (side) => side.stddev },
   cv: { label: 'CV %', format: toFixed2, perSide: true, of: (side) => side.cv },
-  pvalue: { label: 'P-value', format: formatPValue, perSide: false, of: (row) => row.pValue },
+  pvalue: { label: 'P-value', format: formatNumber, perSide: false, of: (row) => row.pValue },
 }
 
 /** How the Columns menu names the optional statistic `key`. */
