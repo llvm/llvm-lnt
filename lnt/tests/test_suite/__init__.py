@@ -19,15 +19,12 @@ import jinja2
 import click
 
 from lnt.lnttool.common import submit_options
-from lnt.util import logger
 from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
+from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
+                   resolve_command_path, timestamp)
 import lnt.testing.profile
 import lnt.testing.util.compilers
 import lnt.util.ImportData
-from lnt.testing.util.misc import timestamp
-from lnt.testing.util.commands import fatal
-from lnt.testing.util.commands import mkdir_p
-from lnt.testing.util.commands import resolve_command_path, isexecfile
 
 from lnt.tests.builtintest import BuiltinTest
 
@@ -1468,6 +1465,7 @@ class TestSuiteTest(BuiltinTest):
               help="Path to the LIT test runner [llvm-lit]")
 @submit_options
 def cli_action(*args, **kwargs):
+    init_logging()
     test_suite = TestSuiteTest()
 
     for key, value in kwargs.items():
