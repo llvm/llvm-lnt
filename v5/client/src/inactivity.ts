@@ -10,7 +10,7 @@ const INACTIVE_DAYS_MAX = 36500
 export const INACTIVITY_HELP =
   'Delete it automatically, along with its runs, once this many days have passed since it ' +
   'was created or since a run was last submitted for it, whichever is later. Empty to keep it ' +
-  'however long it is unused.'
+  'forever.'
 
 /** Why `text` is not a number of days the setting can hold, if it is not (AR11). */
 export function invalidInactiveDays(text: string): string | undefined {
