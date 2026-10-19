@@ -23,7 +23,7 @@ describe('noise (CP1)', () => {
     expect(await statusOf('d')).toBe('Regressed')
     expect(screen.getByText('Noise', { selector: '[title]' })).toHaveAttribute(
       'title',
-      'Delta 0.5% below 1% threshold',
+      'Delta 0.50% below 1% threshold',
     )
   })
 

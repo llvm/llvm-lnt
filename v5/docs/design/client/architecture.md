@@ -135,7 +135,7 @@ These hold on every page, unless the page specifies otherwise.
   with fewer digits than its integer part has (`1.264`, `66656`, `4123456789`).
   A value that rounds to less than 0.001 in magnitude, other than 0, is shown in
   exponent notation rather than with its leading zeros (`3.75e-10`,
-  `-1.235e-4`).
+  `-1.235e-4`). Zero is shown as `0`, without a sign.
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
 - A regression's bug is a link opening in a new tab when it is an `http` or

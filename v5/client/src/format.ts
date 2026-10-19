@@ -87,9 +87,9 @@ export function formatNumber(value: number): string {
 
 /**
  * At least as many characters as `formatNumber` takes for any number from `smallest` to `largest`,
- * both positive: none from 1 up takes more than `1.234` and `largest`, and none below 1 more than
- * the widest number of `smallest`'s magnitude in exponent notation, `0.001234` and `1.234e-4` being
- * as wide.
+ * both positive, or for 0 when `smallest` is infinite: none from 1 up takes more than `1.234` and
+ * `largest`, and none below 1 more than the widest number of `smallest`'s magnitude in exponent
+ * notation, `0.001234` and `1.234e-4` being as wide.
  */
 export function longestFormatted(smallest: number, largest: number): number {
   const longest = Math.max('1.234'.length, formatNumber(largest).length)

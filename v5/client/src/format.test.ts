@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   formatNumber,
   formatPercent,
-  longestFormatted,
   formatTimestamp,
+  longestFormatted,
   parseNumber,
   plural,
   regressionTitle,
@@ -83,24 +83,23 @@ describe('formatNumber', () => {
 })
 
 describe('longestFormatted', () => {
-  // Numbers of every shape formatNumber gives, around its thresholds and digit counts.
+  // Numbers of every shape formatNumber gives, around its thresholds and digit counts, in order.
   const numbers = [
-    5e-324, 1.2345e-100, 9.99996e-10, 1.2345e-10, 1e-9, 1.2345e-5, 0.00099996, 0.0012345, 0.012345,
+    5e-324, 1.2345e-100, 1.2345e-10, 9.99996e-10, 1e-9, 1.2345e-5, 0.00099996, 0.0012345, 0.012345,
     0.5, 1, 1.2345, 99.995, 12345.6, 4123456789.4,
   ]
 
-  const ranges = numbers.flatMap((smallest) =>
-    numbers.filter((largest) => largest >= smallest).map((largest) => [smallest, largest]),
-  )
-
-  it.each(ranges)(
-    'is at least as long as any number from %s to %s, as shown',
-    (smallest, largest) => {
-      const between = numbers.filter((n) => n >= smallest && n <= largest)
-      const longest = Math.max(...between.map((n) => formatNumber(n).length))
-      expect(longestFormatted(smallest, largest)).toBeGreaterThanOrEqual(longest)
-    },
-  )
+  it('is at least as long as any number of a range, as shown', () => {
+    numbers.forEach((smallest, first) => {
+      numbers.slice(first).forEach((largest, count) => {
+        const range = numbers.slice(first, first + count + 1)
+        const longest = Math.max(...range.map((n) => formatNumber(n).length))
+        expect(longestFormatted(smallest, largest), `${smallest} to ${largest}`).toBeGreaterThanOrEqual(
+          longest,
+        )
+      })
+    })
+  })
 })
 
 describe('formatPercent', () => {

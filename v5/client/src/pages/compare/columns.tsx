@@ -91,11 +91,14 @@ function numberColumn(
   }
 }
 
-/** Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2). */
+/**
+ * Why a knob classified a test as noise, e.g. `Delta 0.31% below 1% threshold` (CP2): |Delta %| to
+ * 2 decimal places, as the Delta % column shows it, and the other values as measured values are.
+ */
 function describeNoise({ knob, value, threshold }: NoiseReason): string {
   switch (knob) {
     case 'pct':
-      return `Delta ${formatNumber(value)}% below ${threshold}% threshold`
+      return `Delta ${value.toFixed(2)}% below ${threshold}% threshold`
     case 'pval':
       return `p-value ${formatNumber(value)} above ${threshold}`
     case 'floor':
