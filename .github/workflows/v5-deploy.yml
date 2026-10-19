@@ -91,5 +91,5 @@ jobs:
             fi
             sleep 5
           done
-          echo "::error::Server not healthy after 30 minutes. The app may still be migrating the database, or failing to start: on the instance, check 'cd /opt/app && sudo docker compose ps' and 'sudo docker compose logs app'."
+          echo "::error::Server not healthy after 30 minutes. The app may still be migrating the database, or failing to start."
           exit 1
