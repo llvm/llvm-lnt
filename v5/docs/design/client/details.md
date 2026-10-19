@@ -78,9 +78,7 @@ number from 1 to 36500 is invalid (see AR11), and emptying it clears the
 setting. The label carries a help tooltip saying what the setting does (see
 O10): the machine is deleted, with its runs, once that many days have passed
 since it was created or since a run was last submitted for it, whichever is
-later. It also warns that a number of days the machine has already been unused
-for gets it deleted shortly after it is saved. Saving is not confirmed; the
-help warns instead.
+later. Saving is not confirmed.
 
 ### Active regressions table
 
