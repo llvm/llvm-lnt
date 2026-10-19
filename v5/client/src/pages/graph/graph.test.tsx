@@ -4,9 +4,18 @@ import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { colorOfName } from '../../chart-colors'
-import { cursorPage } from '../../test/fixtures'
+import { cursorPage, machine } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { currentUrl, gate, main, mockTests, query, renderPage, search } from '../../test/page'
+import {
+  currentUrl,
+  gate,
+  main,
+  mockMachines,
+  mockTests,
+  query,
+  renderPage,
+  search,
+} from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
@@ -107,6 +116,40 @@ describe('the Graph page (GR1)', () => {
     expect(screen.getByRole('button', { name: 'Remove m1' })).toHaveFocus()
     await userEvent.setup().keyboard('{Enter}')
     expect(screen.getByRole('combobox', { name: 'Machines' })).toHaveFocus()
+  })
+
+  it('offers the untracked machines last, under their heading, until they are added (AR18)', async () => {
+    mockWorld()
+    mockMachines(() => ({
+      items: [machine('m0', { tracked: false }), machine('m1'), machine('m2')],
+    }))
+    renderPage('/graph?suite=libcxx')
+    const user = userEvent.setup()
+    const combobox = await screen.findByRole('combobox', { name: 'Machines' })
+    await waitFor(() => expect(combobox).toBeEnabled())
+
+    await user.type(combobox, 'm')
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'm1',
+        'm2',
+        'm0',
+      ]),
+    )
+    expect(
+      within(screen.getByRole('group', { name: 'Untracked' })).getByRole('option'),
+    ).toHaveTextContent('m0')
+    await user.keyboard('{Escape}')
+
+    await addMachine('m0')
+    await user.type(combobox, 'm')
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'm1',
+        'm2',
+      ]),
+    )
+    expect(screen.queryByRole('group', { name: 'Untracked' })).toBeNull()
   })
 
   it('says nothing is missing while the suite and machines of its URL are checked', async () => {

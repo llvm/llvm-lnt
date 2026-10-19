@@ -23,12 +23,13 @@ libcxx › Machines
 
 # Machine: linux-x86_64-20260812
 
-+----------------------------------------------------------------+
-| Tracked:           [x]                                         |
-| compiler:          clang version 22.1.0                        |
-| test_suite_commit: 8bb5e216937e6b541f351aa1637c67e85a43ada0    |
-| etc...                                                         |
-+----------------------------------------------------------------+
++-----------------------------------------------------------------------+
+| Tracked:                  [x]                                         |
+| Delete after inactivity:  --    [Edit]                                |
+| compiler:                 clang version 22.1.0                        |
+| test_suite_commit:        8bb5e216937e6b541f351aa1637c67e85a43ada0    |
+| etc...                                                                |
++-----------------------------------------------------------------------+
 
 [View Graph] [Compare] [Delete Machine]
 
@@ -63,8 +64,21 @@ may take a while for machines with many runs.
 The info box shows a `Tracked` checkbox reflecting the machine's `tracked` flag.
 Toggling it saves the change at once with `PATCH /machines/{name}`, which
 requires `manage` scope (see AR13). Unchecking it excludes the machine from the
-Dashboard's trend overview -- it stays fully available in Graph, Compare,
+Dashboard's trend overview, and lists it after the tracked machines wherever a
+machine is picked (see AR18) -- it stays fully available in Graph, Compare,
 Profiles, and every listing. The label carries a help tooltip saying so.
+
+### Deletion after inactivity
+
+The info box shows the machine's `delete_after_inactive_days` (see O10) in a
+`Delete after inactivity` row: `N days` (`1 day`), or `--` when it is not set.
+It is edited in place (see AR12) through `PATCH /machines/{name}`, which requires
+`manage` scope. The input takes a number of days: any text other than a whole
+number from 1 to 36500 is invalid (see AR11), and emptying it clears the
+setting. The label carries a help tooltip saying what the setting does (see
+O10): the machine is deleted, with its runs, once that many days have passed
+since it was created or since a run was last submitted for it, whichever is
+later. Saving is not confirmed.
 
 ### Active regressions table
 
@@ -193,6 +207,7 @@ libcxx › Commits
 | Commit                  014621ede7c175aece29796adcaf5000f891cf0c  |
 | Ordinal                 593922    [Edit]                          |
 | Tag                     --        [Edit]                          |
+| Delete after inactivity --        [Edit]                          |
 | svn_revision [display]  r593922                                   |
 | <other commit-fields>                                             |
 +-------------------------------------------------------------------+
@@ -230,7 +245,10 @@ the badge explains that the UI shows a commit by that field's value, when it has
 than by its commit string (see AR6). The ordinal and the tag are edited in place (see AR12)
 through `PATCH /commits/{value}`, which requires `manage` scope. Emptying either clears it.
 An ordinal is an integer that its column can hold (see D3 and D5): any other text is invalid
-(see AR11).
+(see AR11). The commit's `delete_after_inactive_days` is shown and edited in a
+`Delete after inactivity` row, as on the Machine Detail page (see DT1). While the setting is
+set and the commit has an ordinal, the row says after the number of days that it has no effect
+(see O10). It can still be edited, since it takes effect again if the ordinal is cleared.
 
 ### Navigation
 
@@ -351,7 +369,8 @@ tests side by side, in the order they are picked. It is a form (see AR2
 - Metric: a dropdown over every metric of the suite, which starts on the metric
   Run Detail selects by default (DT2). A suite with no metrics has no dropdown,
   and nothing can be added to it.
-- Machines: a list of every machine of the suite, each with a checkbox.
+- Machines: a list of every machine of the suite, each with a checkbox, the
+  untracked ones last (see AR18).
 - Tests: a list of the tests that have a value for the metric on at least one of
   the machines selected, sorted by name, each with a checkbox. Until a machine
   is selected, the list says so.

@@ -276,6 +276,12 @@ Otherwise, the text stays as it is. An Enter pressed before those suggestions
 have loaded takes effect once they have, unless the text has changed meanwhile,
 as it does when the user leaves the combobox.
 
+A combobox may list some of its suggestions in groups, each under a heading,
+after the suggestions in no group. A heading is not a suggestion: it cannot be
+picked, and moving through the suggestions skips it. It is shown only while
+some suggestion under it is shown, so typing that matches none of a group's
+suggestions also hides its heading.
+
 
 ## AR15: Commit Pickers
 
@@ -351,3 +357,19 @@ token does not grant -- or any scope above `read`, when no valid token is set --
 is disabled, and hovering it says which scope it needs. A request the API
 nevertheless refuses with 401 or 403 is reported as
 `Permission denied. Set an API token with the required scope in Settings.`
+
+
+## AR18: Machine Pickers
+
+Every control that picks machines from a suite's machine list lists the tracked
+machines first, then the untracked ones (see D5), each in the order the API
+lists them (by name; see E2).
+
+A combobox lists the untracked machines in a group headed `Untracked` (see
+AR14). A list of machines with checkboxes marks each untracked machine with the
+`untracked` badge of the Machines tab (TS3) instead, which assistive technology
+reads as part of the machine's name. Filtering, by typing in a combobox or with
+a list's filter, covers both tracked and untracked machines.
+
+The Machines tab (TS3) is a listing rather than a picker: it lists every
+machine by name.

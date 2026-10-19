@@ -172,6 +172,37 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
   })
 })
 
+test('its deletion after inactivity is edited, and has no effect while it has an ordinal', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`/suites/${suite}/commits/c2`)
+    const info = page.getByRole('group', { name: 'Commit', exact: true })
+    const days = page.getByRole('textbox', { name: 'Delete after inactivity' })
+
+    await page.getByRole('button', { name: 'Edit Delete after inactivity' }).click()
+    await days.fill('7')
+    await days.press('Enter')
+    await expect(days).toHaveCount(0)
+    await expect(info).toContainText('7 days (No effect while the commit has an ordinal.)')
+    const stored = await json<Schemas['CommitDetail']>(request, `/api/suites/${suite}/commits/c2`)
+    expect(stored.delete_after_inactive_days).toBe(7)
+
+    // Without its ordinal, it has an effect again.
+    await page.getByRole('button', { name: 'Edit Ordinal' }).click()
+    const ordinal = page.getByRole('textbox', { name: 'Ordinal' })
+    await ordinal.fill('')
+    await ordinal.press('Enter')
+    await expect(ordinal).toHaveCount(0)
+    await expect(info).toContainText('7 days')
+    await expect(info).not.toContainText('No effect')
+  })
+})
+
 test('deleting a commit shows the commits left, and keeps its regressions without it', async ({
   page,
   request,

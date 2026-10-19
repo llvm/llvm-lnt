@@ -1,7 +1,9 @@
 import { useMemo, useRef } from 'react'
 import { ChipList } from '../../components/chip-list'
 import { Combobox } from '../../components/combobox'
+import { machineSuggestions } from '../../components/machine-suggestions'
 import { useLocalSuggestions } from '../../components/suggestions'
+import type { Schemas } from '../../api/client'
 import { markerOf } from './chart'
 import styles from './graph.module.css'
 
@@ -9,7 +11,7 @@ interface Props {
   /** The machines added, in order. */
   machines: string[]
   /** Every machine of the suite, once they are listed. */
-  names: string[] | undefined
+  all: Schemas['Machine'][] | undefined
   /** Whether the suite's machines are still being listed. */
   pending: boolean
   /** Why the suite's machines could not be listed, if they could not. */
@@ -22,14 +24,9 @@ interface Props {
  * The machines plotted (GR1): a combobox adding one, filtering the suite's machines as the user
  * types, and a chip per machine added, which shows its marker on the chart and removes it.
  */
-export function MachineChips({ machines, names, pending, error, isDisabled, onChange }: Props) {
-  const offered = useMemo(
-    () =>
-      names
-        ?.filter((name) => !machines.includes(name))
-        .map((name) => ({ key: name, text: name })),
-    [names, machines],
-  )
+export function MachineChips({ machines, all, pending, error, isDisabled, onChange }: Props) {
+  // Those not added yet, as every machine picker offers them (AR18).
+  const offered = useMemo(() => all && machineSuggestions(all, machines), [all, machines])
   const suggestions = useLocalSuggestions(offered, error)
 
   const root = useRef<HTMLDivElement>(null)

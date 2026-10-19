@@ -7,6 +7,7 @@
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { SuiteSchema } from '../api/suites'
 import { useDropUnusable } from '../url-state'
+import { hasMachine } from '../api/machines'
 import { useMachineSuggestions, type Machines } from './machine-suggestions'
 
 /**
@@ -36,7 +37,7 @@ export function useSuiteAndMachine({
   const machines = useMachineSuggestions(suite, schema !== undefined)
   useDropUnusable(
     machines.machines,
-    (names) => machine === '' || names.includes(machine),
+    (list) => machine === '' || hasMachine(list, machine),
     onUnusableMachine,
   )
   return { schema, machines }
@@ -48,7 +49,8 @@ export function useSuiteAndMachine({
  * does report it when the machine list itself failed, since it cannot check the machine then.
  */
 export function machineFailuresReportable(machines: Machines, machine: string): boolean {
-  return (machines.machines.data?.includes(machine) ?? false) || machines.machines.isError
+  const { data, isError } = machines.machines
+  return (data !== undefined && hasMachine(data, machine)) || isError
 }
 
 /** Whether listing the side's runs, `runs`, failed, and the page should report it. */

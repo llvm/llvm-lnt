@@ -2,22 +2,27 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
+import { INACTIVITY_HELP } from '../../inactivity'
 import { machinePath } from '../../paths'
 import { signIn, TOKEN } from '../../test/auth'
 import { commit, cursorPage, machine, regression, run, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
+  editButton,
   gate,
+  inactivityCell,
   infoRows,
   main,
   mockMachines,
   mockResolve,
+  mockSent,
   mockSuites,
   ready,
   recording,
   renderPage,
   rowsOf,
+  save,
   table,
   trailLink,
 } from '../../test/page'
@@ -114,7 +119,8 @@ describe('the Machine Detail page', () => {
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Machine: ${NAME}`)
     const rows = await infoRows('Machine')
     expect(rows[0][0]).toBe('Tracked')
-    expect(rows.slice(1)).toEqual([
+    expect(rows[1]).toEqual(['Delete after inactivity', inactivityCell('--')])
+    expect(rows.slice(2)).toEqual([
       ['Hardware', 'AMD EPYC'],
       ['os', '--'],
       ['Cores', '64'],
@@ -143,8 +149,8 @@ describe('the Machine Detail page', () => {
 
     await screen.findByRole('group', { name: 'Machine' })
     const help =
-      "Untracked machines are left out of the Dashboard's trend overview, but are listed and " +
-      'usable everywhere else.'
+      "Untracked machines are left out of the Dashboard's trend overview, and listed after the " +
+      'tracked ones wherever a machine is picked, but are usable everywhere.'
     expect(trackedBox()).toHaveAccessibleDescription(help)
     expect(screen.getByText('Tracked')).toHaveAttribute('title', help)
   })
@@ -295,6 +301,60 @@ describe('the Machine Detail page', () => {
 
       expect(await within(await table('Machines')).findByText('untracked')).toBeInTheDocument()
       expect(machineQueries).toHaveLength(2)
+    })
+  })
+
+  describe('its deletion after inactivity', () => {
+    const row = async () => (await infoRows('Machine'))[1]
+
+    it('cannot be changed without manage scope', async () => {
+      signIn('triage')
+      renderMachine()
+
+      await screen.findByRole('group', { name: 'Machine' })
+      await waitFor(() =>
+        expect(editButton('Delete after inactivity')).toHaveAttribute(
+          'title',
+          expect.stringMatching(/has the 'triage' scope/),
+        ),
+      )
+      expect(editButton('Delete after inactivity')).toBeDisabled()
+    })
+
+    it('shows the days, explaining them on hover and to assistive technology', async () => {
+      signIn('manage')
+      mockPage({
+        machine: () => HttpResponse.json({ ...LINUX, delete_after_inactive_days: 30 }),
+      })
+      renderPage(PAGE)
+
+      expect(await row()).toEqual(['Delete after inactivity', inactivityCell('30 days')])
+      await waitFor(() => expect(editButton('Delete after inactivity')).toBeEnabled())
+      expect(screen.getByText('Delete after inactivity')).toHaveAttribute('title', INACTIVITY_HELP)
+      expect(editButton('Delete after inactivity')).toHaveAccessibleDescription(INACTIVITY_HELP)
+    })
+
+    it('is changed with PATCH, sent with the token, and cleared when emptied', async () => {
+      signIn('manage')
+      const sent = mockSent('patch', MACHINE_ROUTE, (body) =>
+        HttpResponse.json({ ...LINUX, ...body }),
+      )
+      renderMachine()
+      await ready('Machine', () => editButton('Delete after inactivity'))
+
+      save('Delete after inactivity', '1')
+      await waitFor(async () =>
+        expect(await row()).toEqual(['Delete after inactivity', inactivityCell('1 day')]),
+      )
+      save('Delete after inactivity', ' ')
+      await waitFor(async () =>
+        expect(await row()).toEqual(['Delete after inactivity', inactivityCell('--')]),
+      )
+
+      expect(sent).toEqual([
+        { body: { delete_after_inactive_days: 1 }, auth: `Bearer ${TOKEN}` },
+        { body: { delete_after_inactive_days: null }, auth: `Bearer ${TOKEN}` },
+      ])
     })
   })
 
