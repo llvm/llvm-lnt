@@ -363,10 +363,7 @@ nevertheless refuses with 401 or 403 is reported as
 
 Every control that picks machines from a suite's machine list lists the tracked
 machines first, then the untracked ones (see D5), each in the order the API
-lists them (by name; see E2). Untracked machines include one-off
-configurations, such as the machines of experiments, which O10 asks to be
-submitted untracked and which may be many, so they are kept out of the way of
-the machines LNT monitors, while remaining pickable.
+lists them (by name; see E2).
 
 A combobox lists the untracked machines in a group headed `Untracked` (see
 AR14). A list of machines with checkboxes marks each untracked machine with the
