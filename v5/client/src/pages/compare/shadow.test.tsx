@@ -289,16 +289,16 @@ describe('the shadow (CP8)', () => {
     mockWorld(WORLD)
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
-    const name = (test: string) => screen.getByRole('cell', { name: test }).querySelector('span')
+    const row = (test: string) => screen.getByRole('cell', { name: test }).closest('tr')
     const event = (trace: number, index: number) =>
       ({
         points: [{ data: chart().data[trace], pointNumber: index }],
       }) as unknown as PlotMouseEvent & PlotHoverEvent
 
     act(() => chart().onHover?.(event(0, 0)))
-    expect(name('c')).toHaveClass('hovered')
+    expect(row('c')).toHaveClass('hoveredRow')
     // From the bar straight to the line, with no unhover between.
     act(() => chart().onHover?.(event(1, 0)))
-    expect(name('c')).not.toHaveClass('hovered')
+    expect(row('c')).not.toHaveClass('hoveredRow')
   })
 })

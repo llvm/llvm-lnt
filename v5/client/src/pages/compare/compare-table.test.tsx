@@ -6,6 +6,8 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
 import { headersOf, main, query, renderPage, search, table } from '../../test/page'
 import { mockClipboard } from '../../test/clipboard'
+import { fakeLayout } from '../../test/layout'
+import { resize } from '../../test/resize-observer'
 import { uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, NOISY, ROWS, runBox, showBox } from './compare-world'
 
@@ -91,6 +93,19 @@ describe('the comparison table (CP2)', () => {
 
     expect(await screen.findByText('No tests match the filter.')).toBeInTheDocument()
   })
+
+  it("keeps the checkboxes and the tests' names in view only while the columns do not fit", async () => {
+    // Content far wider than the box, as `fakeLayout` lays every element out.
+    fakeLayout()
+    mockWorld()
+    renderPage(COMPARED)
+    const box = (await table('Comparison')).parentElement!
+    expect(box).toHaveClass('overflowing')
+
+    vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockReturnValue(800)
+    act(() => resize())
+    expect(box).not.toHaveClass('overflowing')
+  })
 })
 
 describe('hidden tests (CP2)', () => {
@@ -103,6 +118,9 @@ describe('hidden tests (CP2)', () => {
     await user.click(showBox('d'))
 
     expect(await listedTests()).toEqual(['d', 'a', 'b', 'c'])
+    // Greyed out.
+    expect(showBox('d').closest('tr')).toHaveClass('hiddenRow')
+    expect(showBox('a').closest('tr')).not.toHaveClass('hiddenRow')
     expect(screen.getByText('3 of 4 tests shown')).toBeInTheDocument()
     await waitFor(() => expect(query().hidden_test).toEqual(['d']))
     // The geomean is a's alone.

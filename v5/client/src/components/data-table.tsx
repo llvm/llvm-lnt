@@ -1,4 +1,11 @@
-import { memo, useMemo, type HTMLAttributes, type ReactNode, type Ref } from 'react'
+import {
+  memo,
+  useMemo,
+  useSyncExternalStore,
+  type HTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import clsx from 'clsx'
 import { nextSort, sortRows, type SortKey, type TableSort } from './table-sort'
 import styles from './data-table.module.css'
@@ -23,6 +30,21 @@ export interface Column<Row> {
   sortKey?: (row: Row) => SortKey
 }
 
+/** Attributes of a row's `<tr>`, `data-` attributes included. */
+export type RowAttributes = HTMLAttributes<HTMLTableRowElement> & {
+  [attribute: `data-${string}`]: string
+}
+
+/**
+ * Classes of the rows that change without the table rendering again, such as that of a row greyed
+ * out while it is hidden: each row reads its own, and renders again on its own when they change.
+ * The same object for as long as the table is shown, as rows render again when it changes.
+ */
+export interface RowClasses<Row> {
+  subscribe(listener: () => void): () => void
+  of(row: Row): string | undefined
+}
+
 /** The classes of a cell of `column`: one of its body cells, or its header. */
 function cellClass<Row>({ looks = [], className }: Column<Row>, header: boolean): string {
   const shown = header ? looks.filter((look) => look === 'numeric') : looks
@@ -40,7 +62,9 @@ interface Props<Row> {
   rows: Row[]
   rowKey: (row: Row) => string
   /** Attributes of a row's `<tr>`: a click handler, or a class to grey it out, say. */
-  rowProps?: (row: Row) => HTMLAttributes<HTMLTableRowElement>
+  rowProps?: (row: Row) => RowAttributes
+  /** Classes of the rows that change without the table rendering again (see `RowClasses`). */
+  rowClasses?: RowClasses<Row>
   /** What to say, in place of the rows, when there are none. */
   empty: ReactNode
   /** The rows shown are about to be replaced, by another page or another search's. */
@@ -66,9 +90,12 @@ interface Props<Row> {
  * A table of entities, styled the same on every page (AR5).
  *
  * It renders again only when one of its props changes, so that a page can render again around a
- * table of thousands of rows -- on every keystroke in a filter, say -- without rendering them. Such
- * a page passes it props that keep their identity: memoized rows and columns, and functions that
- * are not created anew on each render.
+ * table of thousands of rows -- on every keystroke in a filter, say -- without rendering them. Even
+ * then, a row renders again only when it, the columns, `rowProps`, whether it is `confirming` or its
+ * classes in `rowClasses` change, so that sorting or filtering the rows does not render those it
+ * keeps. Such a page passes
+ * it props that keep their identity: memoized rows and columns, and functions that are not created
+ * anew on each render.
  */
 export const DataTable = memo(DataTableImpl) as typeof DataTableImpl
 
@@ -78,6 +105,7 @@ function DataTableImpl<Row>({
   rows,
   rowKey,
   rowProps,
+  rowClasses,
   empty,
   busy = false,
   ref,
@@ -139,28 +167,48 @@ function DataTableImpl<Row>({
             </td>
           </tr>
         ) : (
-          [...(pinned ?? []), ...sorted].map((row) => {
-            const props = rowProps?.(row)
-            return (
-              <tr
-                key={rowKey(row)}
-                {...props}
-                className={clsx(
-                  styles.row,
-                  confirming?.(row) && styles.confirming,
-                  props?.className,
-                )}
-              >
-                {columns.map((column) => (
-                  <td key={column.id} className={cellClass(column, false)}>
-                    {column.cell(row)}
-                  </td>
-                ))}
-              </tr>
-            )
-          })
+          [...(pinned ?? []), ...sorted].map((row) => (
+            <DataRow
+              key={rowKey(row)}
+              row={row}
+              columns={columns}
+              rowProps={rowProps}
+              rowClasses={rowClasses}
+              confirming={confirming?.(row) ?? false}
+            />
+          ))
         )}
       </tbody>
     </table>
+  )
+}
+
+type DataRowProps<Row> = Pick<Props<Row>, 'columns' | 'rowProps' | 'rowClasses'> & {
+  row: Row
+  confirming: boolean
+}
+
+/** The subscription of a table without `rowClasses`, whose rows' classes never change. */
+const subscribeToNothing = () => () => {}
+
+/** A row of the table, which renders again only when one of its props, or its classes, change. */
+const DataRow = memo(DataRowImpl) as typeof DataRowImpl
+
+function DataRowImpl<Row>({ row, columns, rowProps, rowClasses, confirming }: DataRowProps<Row>) {
+  const classes = useSyncExternalStore(rowClasses?.subscribe ?? subscribeToNothing, () =>
+    rowClasses?.of(row),
+  )
+  const props = rowProps?.(row)
+  return (
+    <tr
+      {...props}
+      className={clsx(styles.row, confirming && styles.confirming, props?.className, classes)}
+    >
+      {columns.map((column) => (
+        <td key={column.id} className={cellClass(column, false)}>
+          {column.cell(row)}
+        </td>
+      ))}
+    </tr>
   )
 }

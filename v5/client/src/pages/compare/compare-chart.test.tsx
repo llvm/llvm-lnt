@@ -112,7 +112,7 @@ describe('the chart (CP3)', () => {
     mockWorld(NOISY)
     renderPage(COMPARED)
     await comparison()
-    const name = (test: string) => screen.getByRole('cell', { name: test }).querySelector('span')
+    const row = (test: string) => screen.getByRole('cell', { name: test }).closest('tr')
     const event = (index: number) =>
       ({ points: [{ data: chart().data[0], pointNumber: index }] }) as unknown as PlotMouseEvent &
         PlotHoverEvent
@@ -126,9 +126,9 @@ describe('the chart (CP3)', () => {
     const outline = () => document.querySelector('svg rect')
 
     act(() => chart().onHover?.(event(1)))
-    expect(name('d')).toHaveClass('hovered')
+    expect(row('d')).toHaveClass('hoveredRow')
     act(() => chart().onUnhover?.(event(1)))
-    expect(name('d')).not.toHaveClass('hovered')
+    expect(row('d')).not.toHaveClass('hoveredRow')
 
     const data = chart().data
     fireEvent.mouseEnter(screen.getByRole('cell', { name: 'a' }).closest('tr')!)
@@ -155,6 +155,11 @@ describe('the chart (CP3)', () => {
     fireEvent.mouseEnter(d)
     expect(outline()).not.toBeNull()
     fireEvent.mouseOver(box)
+    expect(outline()).toBeNull()
+    // Nor once it moves to the geomean's row, which has no bar.
+    fireEvent.mouseEnter(d)
+    expect(outline()).not.toBeNull()
+    fireEvent.mouseOver(screen.getByRole('cell', { name: 'Geomean' }))
     expect(outline()).toBeNull()
   })
 })

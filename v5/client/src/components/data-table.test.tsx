@@ -1,7 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { DataTable, type Column } from './data-table'
+import { ValueStore } from '../value-store'
+import { DataTable, type Column, type RowClasses } from './data-table'
 import type { TableSort } from './table-sort'
 
 const COLUMNS: Column<string>[] = [
@@ -50,5 +52,57 @@ describe('DataTable', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: /Name/ }))
 
     expect(onSort).toHaveBeenCalledWith({ column: 'name', direction: 'descending' })
+  })
+
+  it('renders again only the rows whose classes change, and no row when the rows are reordered', () => {
+    const cell = vi.fn((row: string) => row)
+    const columns: Column<string>[] = [{ id: 'name', header: 'Name', cell }]
+    const marked = new ValueStore<string | null>(null)
+    const rowClasses: RowClasses<string> = {
+      subscribe: marked.subscribe,
+      of: (row) => (row === marked.get() ? 'marked' : undefined),
+    }
+    const table = (rows: string[]) => (
+      <DataTable
+        label="Names"
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row}
+        rowClasses={rowClasses}
+        empty="None."
+      />
+    )
+    const { rerender } = render(table(['a', 'b', 'c']))
+    cell.mockClear()
+
+    rerender(table(['c', 'b', 'a']))
+    expect(shown()).toEqual(['c', 'b', 'a'])
+    expect(cell).not.toHaveBeenCalled()
+
+    act(() => marked.set('b'))
+    expect(screen.getByRole('row', { name: 'b' })).toHaveClass('marked')
+    expect(screen.getByRole('row', { name: 'a' })).not.toHaveClass('marked')
+    expect(cell.mock.calls).toEqual([['b']])
+  })
+
+  it('renders again only the row whose confirmation starts or ends', () => {
+    const cell = vi.fn((row: string) => row)
+    const columns: Column<string>[] = [{ id: 'name', header: 'Name', cell }]
+    const table = (confirming: string | null) => (
+      <DataTable
+        label="Names"
+        columns={columns}
+        rows={['a', 'b', 'c']}
+        rowKey={(row) => row}
+        // Inline, as callers pass it.
+        confirming={(row) => row === confirming}
+        empty="None."
+      />
+    )
+    const { rerender } = render(table(null))
+    cell.mockClear()
+
+    rerender(table('b'))
+    expect(cell.mock.calls).toEqual([['b']])
   })
 })
