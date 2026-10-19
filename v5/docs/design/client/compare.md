@@ -390,7 +390,7 @@ page or the table.
 - Each side's metrics come from its suite's schema, as listed by `GET suites`.
 - A suite's machines come from `GET machines`. They are fetched once per suite,
   and shared by both sides and the shadow. A side's commit picker
-  searches `GET commits?machine={name}&sort=-first_seen` (see AR15).
+  searches `GET commits?machine={name}&sort=-ordinal` (see AR15).
 - A side's runs come from `GET runs?machine={name}&commit={value}`, every page
   of it. The side has no runs to compare until the whole list has loaded.
 - The samples of each selected run come from `GET runs/{uuid}/samples`, every

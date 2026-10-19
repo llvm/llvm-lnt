@@ -288,15 +288,14 @@ suggestions also hides its heading.
 ## AR15: Commit Pickers
 
 Every combobox that selects a commit -- on the Compare and Profiles pages, for
-Graph baselines, and for a regression's commit -- lists its suggestions most
-recently seen first, as `GET commits?sort=-first_seen` returns them with the
-picker's filters (see E3). That order keeps commits without an ordinal (ad-hoc
-A/B experiment commits; see D1) selectable, placed by recency among the ordered
-ones, whereas `sort=-ordinal` would drop them. A picker searches the server, as
-AR9 describes, rather than fetching every commit and filtering locally: a
-machine can have tens of thousands of commits. The search covers the display
-value the suggestions show only if the schema marks the display field
-`searchable` (see O4).
+Graph baselines, and for a regression's commit -- lists its suggestions highest
+ordinal first, followed by the commits without an ordinal (ad-hoc A/B
+experiment commits; see D1), most recently seen first, as
+`GET commits?sort=-ordinal` returns them with the picker's filters (see E3). A
+picker searches the server, as AR9 describes, rather than fetching every commit
+and filtering locally: a machine can have tens of thousands of commits. The
+search covers the display value the suggestions show only if the schema marks
+the display field `searchable` (see O4).
 
 A commit the picker is given rather than
 chosen -- restored from the URL, or kept while its filters change -- is looked

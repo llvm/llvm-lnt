@@ -106,9 +106,10 @@ loading.
 
 To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the
 graph page pre-fetches the complete list of commit values for each selected
-machine via paginated calls to `GET commits?machine={name}&sort=ordinal`. This
-returns commits in ordinal order, excluding commits without ordinals (which have
-no meaningful position in a time series). When multiple machines are selected,
+machine via paginated calls to
+`GET commits?machine={name}&has_ordinal=true&sort=ordinal`. This returns
+commits in ordinal order, excluding commits without ordinals (which have no
+meaningful position in a time series). When multiple machines are selected,
 the scaffold is the **union** of all machines' commit values, sorted by ordinal,
 so the x-axis spans the full range across all machines. A trace has no value at
 the commits where its machine has no data for its test. Data on a commit that
@@ -209,7 +210,7 @@ comparisons. The selector is a panel, opened by a "+" button beside the
 "Baselines" label, with cascading selectors: Suite
 (populated from the test suites defined on the instance) -> Machine (populated from the selected
 suite's machines endpoint, see AR18) -> Commit (populated from the selected machine's
-commits via `GET commits?machine={name}&sort=-first_seen`; see AR15). Picking
+commits via `GET commits?machine={name}&sort=-ordinal`; see AR15). Picking
 a commit adds the baseline and closes the panel; "+" closes it too. Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
 where `display_value` is the commit's display value (see AR6), or the commit
@@ -339,8 +340,9 @@ not points.
 - `POST query` in a baseline's suite, with JSON body `{machine, metric, commit}`
   (baseline data; see GR9)
 - `GET tests?machine=...&metric=...` (test name discovery)
-- `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
-- `GET commits?machine={name}&sort=-first_seen&search=...` (baseline commit picker)
+- `GET commits?machine={name}&has_ordinal=true&sort=ordinal` (x-axis scaffold,
+  per machine)
+- `GET commits?machine={name}&sort=-ordinal&search=...` (baseline commit picker)
 - `GET commits?machine={name}&commit={value}` (baselines loaded from the URL)
 - `GET machines` (machine combobox, and the baseline panel's machines)
 - `GET suites` (suite selector, and the selected suite's metrics)

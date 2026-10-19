@@ -250,9 +250,9 @@ The primary query pattern is: "give me metric values for (machine, test,
 metric), ordered by commit ordinal." This is `Sample JOIN Run JOIN Commit`,
 filtered by `machine_id` and `test_id`, and ordered by `Commit.ordinal`.
 
-When sorting by ordinal, commits without an ordinal are excluded, since they
-have no position in that order. When not sorting by ordinal, all runs are
-included, whatever their commit's ordinal.
+When a time series is sorted by commit ordinal, the commits without an ordinal
+are excluded, since they have no position in that order. When it is not sorted
+by ordinal, all runs are included, whatever their commit's ordinal.
 
 **Cursor pagination** requires a deterministic row order with no repeats. The
 server appends an internal unique tiebreaker to the caller's sort to guarantee
@@ -271,10 +271,13 @@ its sort values change: reassigning an ordinal (O6) while a client pages by
 ordinal can move a commit from behind the cursor to ahead of it, and the client
 then sees it twice. No cursor scheme prevents that.
 
-A sort key must have a value in every matching row: either it is never null, or
-the endpoint excludes the rows where it is null, as sorting by ordinal does. A
-null compares as unknown against a cursor's value, so a row with one would fall
-on neither side of the position and vanish from every page.
+A null sort value compares as unknown against a cursor's value, so a row with
+one would fall on neither side of the position and vanish from every page. A
+sort key is therefore either never null, or the endpoint handles the rows where
+it is null in one of two ways: it excludes them, as a time series sorted by
+commit does, or it serves them after every row that has a value, ordered among
+themselves by the rest of the sort, as the commit list sorted by ordinal does
+(see E3).
 
 
 ## O6: Ordinal Management

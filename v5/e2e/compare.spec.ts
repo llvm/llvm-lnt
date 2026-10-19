@@ -170,6 +170,16 @@ test('offers the untracked machines last, under their heading (AR18)', async ({ 
   await expect(page.getByRole('option').first()).not.toHaveText(UNTRACKED)
 })
 
+test('suggests the commits highest ordinal first (AR15)', async ({ page, request }) => {
+  const [, newest] = await newestCommits(request)
+  await page.goto(`/compare?suite_a=libcxx&machine_a=${LINUX}`)
+
+  await sideOf(page, 'A').getByRole('button', { name: 'Show suggestions Commit' }).click()
+
+  // Not the experiment, although LINUX saw it last: it has no ordinal, so it comes after them.
+  await expect(page.getByRole('option').first()).toContainText(String(newest.fields.svn_revision))
+})
+
 test("links a test to its profile on both sides, side B on its default test", async ({
   page,
   request,

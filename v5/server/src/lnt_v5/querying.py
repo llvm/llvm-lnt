@@ -232,6 +232,9 @@ class Keyset:
     but its last are given as sort keys and the last as `tiebreaker`. The whole need only be unique
     among the rows the list's filters admit.
 
+    A row with no value for a sort key has no position relative to a cursor, so it is either left
+    out (`_defined`) or, with `nulls_last`, served after every row that has one (`statements`).
+
     The cursor names a *position in the ordering* -- the key values of the last row served -- and
     not the row itself. That is what keeps a resumption correct when the page's last row is deleted
     before the next request arrives: an implementation that stored the row's id and re-read its
@@ -249,7 +252,7 @@ class Keyset:
     shared across workers and survive restarts.
     """
 
-    def __init__(self, *keys: SortKey, tiebreaker: Column[Any]) -> None:
+    def __init__(self, *keys: SortKey, tiebreaker: Column[Any], nulls_last: bool = False) -> None:
         # The tiebreaker takes the direction of the last key it breaks ties for: having every term
         # agree is what lets `after` be a row comparison, which is the whole difference between a
         # bounded index scan and a scan of every row already paged past. With no keys it is the
@@ -263,56 +266,67 @@ class Keyset:
         else:
             self._keys = (*keys, SortKey(tiebreaker, descending))
         self._descending = descending
+        # `nulls_last` keeps the rows whose leading key is null, after all the others, ordered among
+        # themselves by the remaining keys. Only the leading key may be null, so that the rows
+        # carrying a null still have a total order of their own to page through.
+        if nulls_last and (
+            not self._keys[0].column.nullable or any(key.column.nullable for key in self._keys[1:])
+        ):
+            raise ValueError("nulls_last needs a nullable leading key, and no other nullable key")
+        self._nulls_last = nulls_last
         # Resolved up front, so that a key column of a type no cursor can carry is a failure before
-        # any SQL runs rather than a 500 handed to whichever caller first passes a cursor.
+        # any SQL runs rather than a 500 handed to whichever caller first passes a cursor. A null
+        # is read back only where `nulls_last` makes it a position.
         self._readers = [_reader(key.column) for key in self._keys]
+        if nulls_last:
+            self._readers[0] = _or_null(self._readers[0])
 
-    def order(self) -> list[UnaryExpression[Any]]:
-        """The ORDER BY this keyset imposes, caller's terms first and the tiebreaker last."""
-        return [key.ordered() for key in self._keys]
-
-    def defined(self) -> list[ColumnElement[bool]]:
+    def _defined(self) -> list[ColumnElement[bool]]:
         """What a row must satisfy to have a position in this order at all.
 
         A null sort value compares as unknown against a cursor's, so a row carrying one would fall
-        on neither side of the boundary and vanish from every page after the first. O5 answers
-        this by excluding those rows outright -- which is also what endpoints.md asks for by name,
-        where `sort=ordinal` excludes the commits that have none. Derived from the columns rather
-        than left to each endpoint, so the four lists that page this way cannot each forget it.
+        on neither side of the boundary and vanish from every page after the first. Unless the
+        keyset serves them last (`nulls_last`), O5 answers this by excluding those rows outright --
+        as `POST /query` does for unordered commits under `sort=commit`. Derived from the columns
+        rather than left to each endpoint, so the lists that page this way cannot each forget it.
         """
         return [key.column.is_not(None) for key in self._keys if key.column.nullable]
 
-    def after(self, cursor: str, scope: str) -> ColumnElement[bool]:
-        """The rows that come strictly after the position a cursor names.
+    def statements(
+        self, statement: Select[Any], position: Sequence[Any] | None
+    ) -> list[Select[Any]]:
+        """The statements that serve a page from `position` on, in order, each in this order.
 
-        A row comparison -- `(ordinal, id) > (50, 100)` -- rather than the equivalent OR of AND
-        chains, because PostgreSQL derives an index condition from the former and nothing at all
-        from the latter. With the OR spelling, reaching page N costs a scan of everything on pages
-        1..N-1, so walking a list is quadratic in its length. Row comparison requires every term to
-        run in the same direction, which `__init__` guarantees.
+        One, unless the keyset is `nulls_last`: a row comparison cannot carry a null, so the rows
+        with a null leading key are read by a statement of their own, ordered by the remaining keys,
+        after those with a value. Two statements in sequence rather than one UNION, whose combined
+        ORDER BY PostgreSQL cannot derive from its branches': it would read the second group in full
+        on every page, where `cursor_page` only reaches it once the first cannot fill the page.
         """
-        values = self._decode(cursor, scope)
-        row = tuple_(*(key.column for key in self._keys))
-        position = tuple_(
-            *(
-                literal(value, key.column.type)
-                for key, value in zip(self._keys, values, strict=True)
-            )
-        )
-        comparison: ColumnElement[bool] = row < position if self._descending else row > position
-        return comparison
+        if not self._nulls_last:
+            return [self._part(statement, self._keys, self._defined(), position)]
+        lead, *rest = self._keys
+        if position is not None and position[0] is None:
+            return [self._part(statement, rest, [lead.column.is_(None)], position[1:])]
+        return [
+            self._part(statement, self._keys, [lead.column.is_not(None)], position),
+            self._part(statement, rest, [lead.column.is_(None)], None),
+        ]
 
-    def cursor(self, row: Row[Any], scope: str) -> str:
-        """The cursor that resumes after this row. Its key columns must be in the SELECT."""
-        values = [_wire(row._mapping[key.column]) for key in self._keys]
-        payload = json.dumps([self._fingerprint(scope), values], separators=(",", ":"))
-        return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    def _part(
+        self,
+        statement: Select[Any],
+        keys: Sequence[SortKey],
+        conditions: list[ColumnElement[bool]],
+        position: Sequence[Any] | None,
+    ) -> Select[Any]:
+        """`statement`'s rows meeting `conditions`, after `position` if given, ordered by `keys`."""
+        if position is not None:
+            conditions = [*conditions, self._after(keys, position)]
+        return statement.where(*conditions).order_by(*(key.ordered() for key in keys))
 
-    def _fingerprint(self, scope: str) -> str:
-        """A short digest of the scope, so that a cursor cannot be replayed against another list."""
-        return hashlib.sha256(scope.encode()).hexdigest()[:12]
-
-    def _decode(self, cursor: str, scope: str) -> list[Any]:
+    def position(self, cursor: str, scope: str) -> list[Any]:
+        """The key values a cursor names, refused with I4's 400 unless issued for `scope`."""
         try:
             padded = cursor + "=" * (-len(cursor) % 4)
             fingerprint, values = json.loads(base64.urlsafe_b64decode(padded))
@@ -328,6 +342,32 @@ class Keyset:
                 "is no longer valid. Pass back the 'cursor.next' from a page of this same request, "
                 "unmodified, or start again from the first page.",
             ) from error
+
+    def _after(self, keys: Sequence[SortKey], values: Sequence[Any]) -> ColumnElement[bool]:
+        """The rows that come strictly after `values` on `keys`.
+
+        A row comparison -- `(ordinal, id) > (50, 100)` -- rather than the equivalent OR of AND
+        chains, because PostgreSQL derives an index condition from the former and nothing at all
+        from the latter. With the OR spelling, reaching page N costs a scan of everything on pages
+        1..N-1, so walking a list is quadratic in its length. Row comparison requires every term to
+        run in the same direction, which `__init__` guarantees.
+        """
+        row = tuple_(*(key.column for key in keys))
+        position = tuple_(
+            *(literal(value, key.column.type) for key, value in zip(keys, values, strict=True))
+        )
+        comparison: ColumnElement[bool] = row < position if self._descending else row > position
+        return comparison
+
+    def cursor(self, row: Row[Any], scope: str) -> str:
+        """The cursor that resumes after this row. Its key columns must be in the SELECT."""
+        values = [_wire(row._mapping[key.column]) for key in self._keys]
+        payload = json.dumps([self._fingerprint(scope), values], separators=(",", ":"))
+        return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+
+    def _fingerprint(self, scope: str) -> str:
+        """A short digest of the scope, so that a cursor cannot be replayed against another list."""
+        return hashlib.sha256(scope.encode()).hexdigest()[:12]
 
 
 @dataclass(frozen=True)
@@ -356,7 +396,7 @@ def cursor_page[T](
 
     A cursor is only accepted by the statement it was issued for, so a cursor from `?search=foo` is
     refused by `?search=bar` rather than answered with the `bar` rows past the position it names --
-    a page that would silently skip every earlier one. The scope is the statement itself, ordered
+    a page that would silently skip every earlier one. The scope is what the list executes, ordered
     and compiled with its parameters, rather than the request that built it: that is exactly what
     decides which rows the list holds and in what order, so no filter can be left out of it --
     whether it came from the query string, the path or a body -- and nothing else is in it, so
@@ -374,17 +414,28 @@ def cursor_page[T](
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
     making every client pay for one extra request to discover that.
+
+    A keyset that reads its rows with several statements (`Keyset.statements`) runs the next only
+    while the page, look-ahead row included, is not full. Each reads the database as of its own
+    execution, so a row whose sort values change in between can be served twice or skipped: O5's
+    caveat, within a single page.
     """
-    statement = statement.where(*keyset.defined()).order_by(*keyset.order())
     scoped = statement
     if resolved is not None:
         scoped = statement.where(resolved.stands_for)
         statement = statement.where(resolved.executed)
-    compiled = scoped.compile(dialect=connection.dialect)
-    scope = json.dumps([str(compiled), compiled.params], default=str, separators=(",", ":"))
-    if cursor is not None:
-        statement = statement.where(keyset.after(cursor, scope))
-    rows = connection.execute(statement.limit(limit + 1)).all()
+    compiled = [
+        part.compile(dialect=connection.dialect) for part in keyset.statements(scoped, None)
+    ]
+    scope = json.dumps(
+        [[str(part), part.params] for part in compiled], default=str, separators=(",", ":")
+    )
+    position = None if cursor is None else keyset.position(cursor, scope)
+    rows: list[Row[Any]] = []
+    for part in keyset.statements(statement, position):
+        rows += connection.execute(part.limit(limit + 1 - len(rows))).all()
+        if len(rows) > limit:
+            break
     page = rows[:limit]
     return CursorPage.of(
         [read(row) for row in page],
@@ -413,7 +464,7 @@ def _real(value: Any) -> float:
     if not isinstance(value, int | float) or isinstance(value, bool):
         raise ValueError("expected a number")
     # JSON's integers are unbounded, and one past a float's range raises `OverflowError` here,
-    # which would otherwise escape `Keyset._decode` as a 500.
+    # which would otherwise escape `Keyset.position` as a 500.
     try:
         return float(value)
     except OverflowError:
@@ -441,6 +492,11 @@ _READERS: dict[type, Callable[[Any], Any]] = {
     str: _text,
     datetime: _timestamp,
 }
+
+
+def _or_null(reader: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """`reader`, also reading back a null: the position of a row whose key has no value."""
+    return lambda value: None if value is None else reader(value)
 
 
 def _reader(column: Column[Any]) -> Callable[[Any], Any]:

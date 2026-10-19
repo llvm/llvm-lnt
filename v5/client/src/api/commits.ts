@@ -4,15 +4,18 @@ import { queryKeys } from './keys'
 import type { paths } from './schema'
 import type { Commit } from '../schema'
 
-type CommitListQuery = NonNullable<
+type CommitListParameters = NonNullable<
   paths['/api/suites/{testsuite}/commits']['get']['parameters']['query']
 >
 
-/** One page of `GET /commits` (E3), most recently seen first unless `query` sorts otherwise. */
+/** A `GET /commits` query (E3). It always gives a sort, since the lists that use it differ in that. */
+type CommitListQuery = CommitListParameters & Required<Pick<CommitListParameters, 'sort'>>
+
+/** One page of `GET /commits` (E3). */
 export function fetchCommitPage(suite: string, query: CommitListQuery, signal?: AbortSignal) {
   return unwrap(
     api.GET('/api/suites/{testsuite}/commits', {
-      params: { path: { testsuite: suite }, query: { sort: '-first_seen', ...query } },
+      params: { path: { testsuite: suite }, query },
       signal,
     }),
   )
@@ -62,7 +65,8 @@ export async function lookUpCommit(
   value: string,
   signal?: AbortSignal,
 ): Promise<Commit | null> {
-  return firstCommit(suite, { ...filters, commit: value }, signal)
+  // Any sort lists every commit the filters keep, so the cheapest does: a single statement (E3).
+  return firstCommit(suite, { ...filters, commit: value, sort: '-first_seen' }, signal)
 }
 
 /** The first commit `GET /commits` lists for `query` (E3), or null if it lists none. */

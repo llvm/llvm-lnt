@@ -575,8 +575,10 @@ class TestCommitOperations:
         "name",
         [
             "search",
+            "commit",
             "machine",
             "has_profiles",
+            "has_ordinal",
             "after_commit",
             "before_commit",
             "sort",
