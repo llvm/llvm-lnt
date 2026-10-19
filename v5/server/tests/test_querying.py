@@ -380,17 +380,26 @@ class TestNullsLast:
         assert failure.value.code.value == "invalid_request"
 
     @pytest.mark.parametrize(
-        "keys",
+        ("keys", "tiebreaker"),
         [
-            [SortKey(events.c.at)],
-            [SortKey(events.c.rank), SortKey(events.c.score)],
-            [],
+            ([SortKey(events.c.at)], events.c.id),
+            ([SortKey(events.c.rank), SortKey(events.c.score)], events.c.id),
+            ([], events.c.id),
+            # Nothing would be left to order the rows whose rank is null.
+            ([SortKey(events.c.rank)], events.c.rank),
         ],
-        ids=["leading-key-never-null", "another-nullable-key", "no-key-but-the-tiebreaker"],
+        ids=[
+            "leading-key-never-null",
+            "another-nullable-key",
+            "no-key-but-the-tiebreaker",
+            "leading-key-is-the-tiebreaker",
+        ],
     )
-    def test_refuses_an_order_it_cannot_serve_the_nulls_of(self, keys: list[SortKey]) -> None:
+    def test_refuses_an_order_it_cannot_serve_the_nulls_of(
+        self, keys: list[SortKey], tiebreaker: Column[Any]
+    ) -> None:
         with pytest.raises(ValueError, match="nulls_last"):
-            Keyset(*keys, tiebreaker=events.c.id, nulls_last=True)
+            Keyset(*keys, tiebreaker=tiebreaker, nulls_last=True)
 
 
 @pytest.mark.usefixtures("rows")

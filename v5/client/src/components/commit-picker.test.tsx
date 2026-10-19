@@ -249,8 +249,9 @@ describe('CommitPicker', () => {
     await waitFor(() => expect(input).toHaveValue('r1'))
     const [lookup] = lookups(queries)
     expect(lookup.get('commit')).toBe(OLD.value)
-    // The filters of its suggestions, narrowed to the commit.
+    // The request of its suggestions, narrowed to the commit.
     expect(lookup.get('machine')).toBe('linux')
+    expect(lookup.get('sort')).toBe('-ordinal')
     expect(resolved).toEqual([])
   })
 

@@ -285,7 +285,8 @@ class Commits:
         ids were handed out in, so the tiebreaker alone is that whole order.
 
         `ordinal` places the commits without one after the others, in that same order (E3), unless
-        the filters keep only one of the two groups (`has_ordinal`). Then the order is that group's:
+        the filters keep only one of the two groups (`has_ordinal`, which the caller also sets when
+        a commit bound keeps only the ordered commits). Then the order is that group's:
         `nulls_last` would still look for the other, under contradictory conditions that PostgreSQL
         answers by scanning every commit.
         """
@@ -628,13 +629,13 @@ def list_commits(
         if has_profiles is not None:
             profiled = commits.has_run(on_machine, profiled=True)
             conditions.append(profiled if has_profiles else ~profiled)
-        # A NULL ordinal compares as unknown against either bound, so the commits without one drop
-        # out here whatever the sort, as endpoints.md requires.
+        # The bounds leave out the commits with no ordinal, whatever the sort (endpoints.md).
         conditions += exclusive_range(
             commits.table.c.ordinal,
             None if after_commit is None else commit_ordinal(connection, suite, after_commit),
             None if before_commit is None else commit_ordinal(connection, suite, before_commit),
         )
+        # A bound implies `has_ordinal=true`, so that the keyset never looks for unordered commits.
         if has_ordinal is None and (after_commit is not None or before_commit is not None):
             has_ordinal = True
         if has_ordinal is not None:

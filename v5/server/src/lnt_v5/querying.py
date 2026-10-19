@@ -270,9 +270,13 @@ class Keyset:
         # themselves by the remaining keys. Only the leading key may be null, so that the rows
         # carrying a null still have a total order of their own to page through.
         if nulls_last and (
-            not self._keys[0].column.nullable or any(key.column.nullable for key in self._keys[1:])
+            len(self._keys) < 2
+            or not self._keys[0].column.nullable
+            or any(key.column.nullable for key in self._keys[1:])
         ):
-            raise ValueError("nulls_last needs a nullable leading key, and no other nullable key")
+            raise ValueError(
+                "nulls_last needs a nullable leading key, followed by keys that are never null"
+            )
         self._nulls_last = nulls_last
         # Resolved up front, so that a key column of a type no cursor can carry is a failure before
         # any SQL runs rather than a 500 handed to whichever caller first passes a cursor. A null

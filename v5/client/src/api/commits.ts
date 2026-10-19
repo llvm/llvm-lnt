@@ -65,8 +65,7 @@ export async function lookUpCommit(
   value: string,
   signal?: AbortSignal,
 ): Promise<Commit | null> {
-  // Any sort lists every commit the filters keep, so the cheapest does: a single statement (E3).
-  return firstCommit(suite, { ...filters, commit: value, sort: '-first_seen' }, signal)
+  return firstCommit(suite, { ...filters, commit: value, sort: '-ordinal' }, signal)
 }
 
 /** The first commit `GET /commits` lists for `query` (E3), or null if it lists none. */
