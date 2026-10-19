@@ -81,7 +81,7 @@ export function useCursorPages<Item>({
     if (hasNextPage && !isFetching && !isError) void fetchNextPage()
   }, [data, hasNextPage, isFetching, isError, fetchNextPage])
 
-  useRestartOnRejectedCursor(query, options.queryKey, isComplete)
+  useRestartOnRejectedCursor(query, options.queryKey)
 
   const items = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data])
   // A rejected cursor, which the restart above did not recover from, would only be rejected again:
@@ -95,6 +95,7 @@ export function useCursorPages<Item>({
 
 /** The parts of an infinite query that restarting it after a rejected cursor needs. */
 interface Restartable {
+  data: { pages: unknown[] } | undefined
   error: Error | null
   isFetchNextPageError: boolean
   refetch: () => unknown
@@ -104,26 +105,26 @@ interface Restartable {
  * Start the pages of `query` again from the first one when the server rejects the cursor of a
  * later one (a 400), which may only mean that the server or the suite's schema changed since it was
  * issued (I2). A refetch starts from the first page, and takes each later cursor from the page
- * before it. The query is restarted once until `settled` says that its pages are good again, so
- * that a cursor rejected for any other reason is reported rather than retried forever.
+ * before it, for as many pages as the query had. The query is not restarted again until it holds
+ * more pages than it did then, or fewer since something else started it over, so that a cursor
+ * rejected for any other reason is reported rather than retried forever.
  */
-export function useRestartOnRejectedCursor(
-  query: Restartable,
-  queryKey: QueryKey,
-  settled: boolean,
-): void {
-  const { error, isFetchNextPageError, refetch } = query
-  // The query restarted since it last settled, if any.
-  const restarted = useRef<string | null>(null)
+export function useRestartOnRejectedCursor(query: Restartable, queryKey: QueryKey): void {
+  const { data, error, isFetchNextPageError, refetch } = query
+  // The query last restarted, and how many pages it had then.
+  const restarted = useRef<{ key: string; pages: number } | null>(null)
   const key = hashKey(queryKey)
+  const pages = data?.pages.length ?? 0
   useEffect(() => {
-    if (settled) {
-      restarted.current = null
-    } else if (isFetchNextPageError && rejectsCursor(error) && restarted.current !== key) {
-      restarted.current = key
-      void refetch()
-    }
-  }, [settled, isFetchNextPageError, error, key, refetch])
+    const last = restarted.current?.key === key ? restarted.current : null
+    // With fewer pages, something else started the query over since, such as removing it from
+    // the cache: a cursor rejected from here on may be from a later change of the server.
+    if (last !== null && pages < last.pages) restarted.current = null
+    if (!isFetchNextPageError || !rejectsCursor(error)) return
+    if (last !== null && pages === last.pages) return
+    restarted.current = { key, pages }
+    void refetch()
+  }, [isFetchNextPageError, error, key, pages, refetch])
 }
 
 /**

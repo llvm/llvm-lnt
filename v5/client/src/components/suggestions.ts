@@ -31,7 +31,10 @@ export interface Suggestions {
   isLoading: boolean
   /**
    * Whether there are more suggestions to load, by scrolling to the end of the list. Not after
-   * loading more failed, which would otherwise be retried for as long as the end is in view.
+   * anything failed, which would otherwise be retried for as long as the end is in view: the
+   * failure stands until the list is fetched again successfully, so this also covers the restart
+   * after a rejected cursor (I2). Nor while the list is fetched again for any other reason, which
+   * loading more would cancel.
    */
   hasMore: boolean
   isLoadingMore: boolean
@@ -165,17 +168,17 @@ export function useServerSuggestions<Item>({
     enabled,
   })
   const { data, error, hasNextPage, isFetchingNextPage, isPlaceholderData, isPending } = query
-  const { fetchNextPage, isFetchNextPageError } = query
-  // Settled once a page after the first has loaded since: a restart only refetches the first.
-  const pageCount = data?.pages.length ?? 0
-  useRestartOnRejectedCursor(query, fullKey, pageCount > 1 && !isFetchNextPageError)
+  const { fetchNextPage, isError, isRefetching } = query
+  useRestartOnRejectedCursor(query, fullKey)
 
   const items = useMemo(
     () => data?.pages.flatMap((page) => page.items.map(toSuggestion)) ?? [],
     [data, toSuggestion],
   )
-  // A placeholder is the previous text's pages: their next page would not be this text's.
-  const hasMore = hasNextPage && !isPlaceholderData && !isFetchNextPageError
+  // A placeholder is the previous text's pages: their next page would not be this text's. Loading
+  // more during a refetch would cancel it, and ask for the page after those it is replacing; that
+  // includes a restart after a rejected cursor, which `isError` already covers.
+  const hasMore = hasNextPage && !isPlaceholderData && !isError && !isRefetching
   const loadMore = useCallback(() => {
     if (hasMore && !isFetchingNextPage) void fetchNextPage()
   }, [hasMore, isFetchingNextPage, fetchNextPage])
