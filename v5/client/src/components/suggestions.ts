@@ -30,8 +30,10 @@ export interface Suggestions {
   /** Whether the suggestions for the latest search are still on their way. */
   isLoading: boolean
   /**
-   * Whether there are more suggestions to load, by scrolling to the end of the list. Not after
-   * loading more failed, which would otherwise be retried for as long as the end is in view.
+   * Whether there are more suggestions to load, by scrolling to the end of the list. Not while the
+   * list is being fetched again from the first page (after a rejected cursor, or any other refetch),
+   * which loading more would cancel, and not after anything failed, which would otherwise be
+   * retried for as long as the end is in view.
    */
   hasMore: boolean
   isLoadingMore: boolean
@@ -165,17 +167,16 @@ export function useServerSuggestions<Item>({
     enabled,
   })
   const { data, error, hasNextPage, isFetchingNextPage, isPlaceholderData, isPending } = query
-  const { fetchNextPage, isFetchNextPageError } = query
-  // Settled once a page after the first has loaded since: a restart only refetches the first.
-  const pageCount = data?.pages.length ?? 0
-  useRestartOnRejectedCursor(query, fullKey, pageCount > 1 && !isFetchNextPageError)
+  const { fetchNextPage, isError, isRefetching } = query
+  useRestartOnRejectedCursor(query, fullKey)
 
   const items = useMemo(
     () => data?.pages.flatMap((page) => page.items.map(toSuggestion)) ?? [],
     [data, toSuggestion],
   )
-  // A placeholder is the previous text's pages: their next page would not be this text's.
-  const hasMore = hasNextPage && !isPlaceholderData && !isFetchNextPageError
+  // A placeholder is the previous text's pages: their next page would not be this text's. Loading
+  // more during a refetch would also cancel it, and ask for the page after those it is replacing.
+  const hasMore = hasNextPage && !isPlaceholderData && !isError && !isRefetching
   const loadMore = useCallback(() => {
     if (hasMore && !isFetchingNextPage) void fetchNextPage()
   }, [hasMore, isFetchingNextPage, fetchNextPage])

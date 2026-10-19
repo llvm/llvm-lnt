@@ -129,7 +129,9 @@ describe('useCursorPages', () => {
 
   it('starts again from the first page when its cursor is rejected', async () => {
     // As after a deploy: the cursor the first page handed out is no longer accepted, and the first
-    // page now hands out one that is.
+    // page now hands out one that is. Unlike a combobox's (see its tests), the next page is never
+    // asked for while the first is on its way again, whenever it arrives: the hook only asks for
+    // one while nothing is being fetched (`!isFetching`) and nothing failed (`!isError`).
     const requested: string[] = []
     let firstPages = 0
     server.use(
@@ -167,6 +169,25 @@ describe('useCursorPages', () => {
     expect(await screen.findByText('Invalid cursor')).toBeInTheDocument()
     expect(screen.getByText('loading more')).toBeInTheDocument()
     expect(requested).toHaveLength(4)
+  })
+
+  it('starts again only once, however many pages it had fetched', async () => {
+    const { requested } = servePages()
+    server.use(
+      mockApi('get', SAMPLES, ({ request }) => {
+        if (new URL(request.url).searchParams.get('cursor') !== 'p3') return undefined
+        requested.push('p3')
+        return errorResponse(400, 'invalid_request', 'Invalid cursor')
+      }),
+    )
+    renderWithProviders(<Samples />)
+
+    // Starting again fetches every page it had again, then the one after them.
+    await waitFor(() => expect(requested).toEqual(['first', 'p2', 'p3', 'first', 'p2', 'p3']))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(requested).toHaveLength(6)
+    expect(screen.getByText('Invalid cursor')).toBeInTheDocument()
+    expect(screen.getByText('a,b')).toBeInTheDocument()
   })
 
   describe('retry', () => {

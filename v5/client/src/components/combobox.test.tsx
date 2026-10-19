@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, unwrap, type Schemas } from '../api/client'
+import { cursorPage } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { scrollToEnd } from '../test/intersection-observer'
 import { fakeLayout } from '../test/layout'
@@ -382,6 +383,72 @@ function serveCommits({ hold = false } = {}): Requests {
   return { seen, release: () => waiting.splice(0).forEach((resolve) => resolve()) }
 }
 
+interface RestartOptions {
+  /** How many commits there are, `c0`, `c1` and so on. */
+  total: number
+  /** Whether the server rejects `cursor`, the `generation:start` of a page after the first. */
+  rejects?: (cursor: { generation: number; start: number }) => boolean
+  /**
+   * What becomes of a first page asked for again: it waits until released (`hold`), or fails with
+   * a 500 (`fail`).
+   */
+  restart?: 'hold' | 'fail'
+}
+
+interface RestartRequests extends Requests {
+  /** The requests aborted, by cursor (`@` for the first page). */
+  aborted: string[]
+}
+
+/**
+ * Serves GET commits as a server whose cursors can stop being accepted (I2). Each first page starts
+ * a new generation of cursors, `generation:start`, so that the first page asked for again can hand
+ * out other cursors than the first time. Each request is seen as its cursor, followed by `rejected`
+ * or `failed` when it is not answered with a page.
+ */
+function serveRestarts({ total, rejects = () => false, restart }: RestartOptions): RestartRequests {
+  const commits = Array.from({ length: total }, (_, i) => commit(`c${i}`))
+  const seen: string[] = []
+  const aborted: string[] = []
+  const waiting: (() => void)[] = []
+  let generation = 0
+  server.use(
+    mockApi('get', '/api/suites/{testsuite}/commits', async ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor')
+      const label = cursor ?? '@'
+      request.signal.addEventListener('abort', () => aborted.push(label))
+      let start = 0
+      if (cursor === null) {
+        if (generation > 0 && restart === 'fail') {
+          seen.push('@ failed')
+          return errorResponse(500, 'internal_error', 'The server failed.')
+        }
+        seen.push('@')
+        if (generation > 0 && restart === 'hold') {
+          await new Promise<void>((resolve) => waiting.push(resolve))
+        }
+        generation++
+      } else {
+        const [of, at] = cursor.split(':').map(Number)
+        if (rejects({ generation: of, start: at })) {
+          seen.push(`${cursor} rejected`)
+          return errorResponse(400, 'invalid_request', 'This cursor is not valid.')
+        }
+        seen.push(cursor)
+        start = at
+      }
+      const next = start + PAGE_SIZE < total ? `${generation}:${start + PAGE_SIZE}` : null
+      return HttpResponse.json(cursorPage(commits.slice(start, start + PAGE_SIZE), next))
+    }),
+  )
+  return { seen, aborted, release: () => waiting.splice(0).forEach((resolve) => resolve()) }
+}
+
+/** Let what a render sends go out and be answered, to check that nothing more is sent. */
+function settle() {
+  return act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+}
+
 /** A commit picker's suggestion: the display value, picked by the commit string too. */
 function toSuggestion(c: Commit): Suggestion {
   const display = c.fields.short_sha
@@ -747,26 +814,88 @@ describe('Combobox with server-side suggestions', () => {
     expect(requests.seen).toEqual(['@', '@2'])
   })
 
-  it('starts again from the first page when the server rejects a cursor (I2)', async () => {
-    const requests = serveCommits()
-    let rejected = false
-    server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
-        if (rejected || new URL(request.url).searchParams.get('cursor') === null) return undefined
-        rejected = true
-        requests.seen.push('rejected')
-        return errorResponse(400, 'invalid_request', 'This cursor is not valid.')
-      }),
-    )
-    const user = userEvent.setup()
-    renderWithProviders(<ServerCommitPicker />)
+  describe('when the server rejects a cursor (I2)', () => {
+    /** Show the first page, then scroll to the end of the list, and keep it in view. */
+    async function scrollPastFirstPage() {
+      const user = userEvent.setup()
+      renderWithProviders(<ServerCommitPicker />)
+      await openList(user)
+      await waitFor(() => expect(options()).toHaveLength(2))
+      scrollToEnd()
+    }
 
+    it('starts again from the first page, and loads more from there', async () => {
+      // As after a deploy: the cursors the first page handed out are no longer accepted, and the
+      // first page now hands out others.
+      const requests = serveRestarts({
+        total: 4,
+        rejects: ({ generation }) => generation === 1,
+        restart: 'hold',
+      })
+      await scrollPastFirstPage()
+
+      // While the first page is on its way again, the end of the list is in view, but there is
+      // nothing to load more from yet: the cursor of the page shown would only be rejected again.
+      await waitFor(() => expect(requests.seen).toEqual(['@', '1:2 rejected', '@']))
+      await settle()
+      expect(requests.seen).toEqual(['@', '1:2 rejected', '@'])
+
+      requests.release()
+      await waitFor(() => expect(options()).toHaveLength(4))
+      expect(requests.seen).toEqual(['@', '1:2 rejected', '@', '2:2'])
+      expect(requests.aborted).toEqual([])
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('says why when the first page fails as it starts again', async () => {
+      const requests = serveRestarts({
+        total: 4,
+        rejects: ({ generation }) => generation === 1,
+        restart: 'fail',
+      })
+      await scrollPastFirstPage()
+
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The server failed.'))
+      // Nothing to load more from, although the end of the list is still in view.
+      await settle()
+      expect(requests.seen).toEqual(['@', '1:2 rejected', '@ failed'])
+      expect(screen.getByRole('alert')).toHaveTextContent('The server failed.')
+    })
+
+    it('starts again only once, however many pages it had loaded', async () => {
+      // The third page's cursor is rejected every time, whatever the first page hands out.
+      const requests = serveRestarts({ total: 8, rejects: ({ start }) => start === 4 })
+      await scrollPastFirstPage()
+
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent('This cursor is not valid.'),
+      )
+      await settle()
+      // Starting again fetches every page it had again, then the one after them.
+      expect(requests.seen).toEqual(['@', '1:2', '1:4 rejected', '@', '2:2', '2:4 rejected'])
+      expect(options()).toHaveLength(4)
+    })
+  })
+
+  it('loads more only once the suggestions fetched again have arrived', async () => {
+    // As when a change elsewhere on the page invalidates them.
+    const requests = serveRestarts({ total: 4, restart: 'hold' })
+    const user = userEvent.setup()
+    const { queryClient } = renderWithProviders(<ServerCommitPicker />)
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))
+
+    void queryClient.invalidateQueries()
+    await waitFor(() => expect(requests.seen).toEqual(['@', '@']))
+    // Loading more now would cancel the refetch, and add to the pages it is replacing.
     scrollToEnd()
-    // The end of the list stays in view, so the list started again loads more on its own.
+    await settle()
+    expect(requests.seen).toEqual(['@', '@'])
+
+    requests.release()
     await waitFor(() => expect(options()).toHaveLength(4))
-    expect(requests.seen).toEqual(['@', 'rejected', '@', '@2'])
+    expect(requests.seen).toEqual(['@', '@', '2:2'])
+    expect(requests.aborted).toEqual([])
   })
 
   it('stops loading more once loading more fails, and says why', async () => {
@@ -786,7 +915,7 @@ describe('Combobox with server-side suggestions', () => {
     scrollToEnd()
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The server failed.'))
     // The end of the list stays in view, which must not load more again (and again).
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await settle()
     expect(requests.seen.filter((request) => request === 'failed').length).toBeLessThanOrEqual(3)
     expect(options()).toHaveLength(2)
   })
