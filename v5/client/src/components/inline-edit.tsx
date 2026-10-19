@@ -102,9 +102,9 @@ export function InlineEdit({
   const form = useRef<HTMLFormElement>(null)
   // Whether the focus goes to the input, or back to Edit, once the editor has opened or closed.
   const refocus = useRef(false)
+  const focusInput = () => form.current?.querySelector<HTMLElement>('input, textarea')?.focus()
   // In the commit, before the page is painted, so that the value never shows without the focus on
   // Edit after a save.
-  const focusInput = () => form.current?.querySelector<HTMLElement>('input, textarea')?.focus()
   useLayoutEffect(() => {
     if (!refocus.current) return
     refocus.current = false
@@ -132,7 +132,6 @@ export function InlineEdit({
     // Nothing to change -- the text the input opened with, or the value itself -- so no request,
     // which for a value stored with surrounding spaces would replace it with its trimmed form.
     if (text === (value ?? '') || term === (value ?? '')) return close()
-    setError(null)
     if (confirm) setConfirming(true)
     else await commit()
   }
@@ -143,6 +142,7 @@ export function InlineEdit({
   }
   const commit = async () => {
     setSaving(true)
+    setError(null)
     try {
       await onSave(term === '' ? null : term)
       close()
@@ -155,12 +155,13 @@ export function InlineEdit({
 
   // Before the input sees it, so that an editor's own handling of Escape cannot keep it from
   // cancelling -- except while the editor has a popup expanded, such as a combobox's list, which
-  // the Escape closes instead.
+  // the Escape closes instead. While the confirmation is asked, it cancels the confirmation.
   const onKeyDownCapture = (event: KeyboardEvent) => {
     // An Escape ending an input method's composition belongs to it.
     if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
     if ((event.target as Element).getAttribute('aria-expanded') === 'true') return
-    if (!busy) close()
+    if (confirming) closePrompt()
+    else if (!saving) close()
   }
 
   if (!editing) {

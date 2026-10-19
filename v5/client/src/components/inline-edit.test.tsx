@@ -130,10 +130,14 @@ describe('InlineEdit', () => {
     const prompt = screen.getByRole('form', { name: 'Confirmation' })
     expect(prompt).toHaveTextContent('Really v2?')
     expect(onSave).not.toHaveBeenCalled()
-    // Escape cancels the confirmation rather than the edit.
+    // Escape cancels the confirmation rather than the edit, from the prompt or from the input.
     fireEvent.keyDown(within(prompt).getByRole('button', { name: 'Cancel' }), { key: 'Escape' })
     expect(input()).toHaveValue(' v2 ')
     expect(input()).toHaveFocus()
+    fireEvent.submit(input())
+    fireEvent.keyDown(input(), { key: 'Escape' })
+    expect(screen.queryByRole('form', { name: 'Confirmation' })).not.toBeInTheDocument()
+    expect(input()).toHaveValue(' v2 ')
     expect(onSave).not.toHaveBeenCalled()
 
     fireEvent.submit(input())
@@ -142,6 +146,23 @@ describe('InlineEdit', () => {
     expect(await screen.findByText('v2')).toBeInTheDocument()
     expect(onSave).toHaveBeenCalledWith('v2')
     expect(editButton()).toHaveFocus()
+  })
+
+  it('keeps why a save failed when its confirmation is cancelled, since nothing is sent', async () => {
+    renderEditor({
+      confirm: (text) => `Really ${text}?`,
+      save: () => Promise.reject(new ApiError(409, 'duplicate', 'Taken.')),
+    })
+    edit('v2')
+    fireEvent.submit(input())
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Taken.')
+
+    fireEvent.submit(input())
+    const prompt = screen.getByRole('form', { name: 'Confirmation' })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Taken.')
   })
 
   it('closes without saving when the text is the value', () => {

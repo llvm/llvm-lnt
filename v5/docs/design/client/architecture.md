@@ -239,12 +239,12 @@ the text the input opened with, or the stored value once trimmed -- closes the
 input without sending anything, so a stored value with whitespace at either end
 keeps it. Invalid text cannot be saved. A field whose changes must be confirmed,
 such as a machine's name (DT1), asks for the confirmation when saved, and saves
-only once it is given. While a save is in progress, the input and its buttons
-cannot be used. If the save fails, the input stays open with its text and says
-why. If it succeeds, the input closes and the field shows the value the API
-returned, so an edit never appears before the API has accepted it. When the
-input closes, the focus returns to the Edit button. Edit and Save need the scope
-that the change needs (see AR17).
+only once it is given. While the confirmation is asked or a save is in progress,
+the input and its buttons cannot be used. If the save fails, the input stays
+open with its text and says why. If it succeeds, the input closes and the field
+shows the value the API returned, so an edit never appears before the API has
+accepted it. When the input closes, the focus returns to the Edit button. Edit
+and Save need the scope that the change needs (see AR17).
 
 
 ## AR13: Controls Saving on Change

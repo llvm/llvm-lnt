@@ -6,7 +6,8 @@ import App from '../../app'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { INACTIVITY_HELP } from '../../inactivity'
 import { machinePath } from '../../paths'
-import { signIn, TOKEN } from '../../test/auth'
+import { changeInAnotherTab, signIn, TOKEN } from '../../test/auth'
+import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
 import { commit, cursorPage, machine, regression, run, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -444,6 +445,24 @@ describe('the Machine Detail page', () => {
         expect(nameInput()).toHaveFocus()
         expect(nameInput()).not.toHaveAttribute('readonly')
       }
+      await settle()
+      expect(sent).toEqual([])
+    })
+
+    it('cannot be confirmed once the scope is lost while asking', async () => {
+      signIn('manage')
+      const sent = mockRename()
+      renderMachine()
+      await ready('Machine', () => editButton('Name'))
+      save('Name', NEW)
+      const ok = within(prompt()).getByRole('button', { name: 'OK' })
+      expect(ok).toBeEnabled()
+
+      changeInAnotherTab(TOKEN_STORAGE_KEY, null)
+
+      await waitFor(() => expect(ok).toBeDisabled())
+      expect(ok).toHaveAttribute('title', expect.stringMatching(/'manage' scope/))
+      fireEvent.click(ok)
       await settle()
       expect(sent).toEqual([])
     })
