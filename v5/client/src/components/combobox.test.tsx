@@ -2,15 +2,20 @@ import { useState, type ReactNode } from 'react'
 import { act, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, unwrap, type Schemas } from '../api/client'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { scrollToEnd } from '../test/intersection-observer'
 import { fakeLayout } from '../test/layout'
-import { renderWithProviders } from '../test/render'
+import { providers, renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 import { Combobox } from './combobox'
-import { useLocalSuggestions, useServerSuggestions, type Suggestion } from './suggestions'
+import {
+  SEARCH_DELAY_MS,
+  useLocalSuggestions,
+  useServerSuggestions,
+  type Suggestion,
+} from './suggestions'
 
 const MACHINES: Suggestion[] = ['linux-x86_64', 'linux-aarch64', 'macos-arm64'].map((name) => ({
   key: name,
@@ -432,6 +437,34 @@ describe('useLocalSuggestions', () => {
   })
 })
 
+describe('useServerSuggestions', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('searches once typing pauses, for the text typed last', () => {
+    // Never answered: only what is searched for matters here.
+    const fetchPage = vi.fn<(term: string) => Promise<never>>(() => new Promise(() => {}))
+    const { result } = renderHook(
+      () =>
+        useServerSuggestions({
+          queryKey: ['commits'],
+          fetchPage,
+          toSuggestion: (item: Suggestion) => item,
+        }),
+      providers(),
+    )
+
+    act(() => result.current.search('8'))
+    act(() => vi.advanceTimersByTime(SEARCH_DELAY_MS - 1))
+    act(() => result.current.search('8b'))
+    act(() => vi.advanceTimersByTime(SEARCH_DELAY_MS - 1))
+    expect(fetchPage.mock.calls.map(([term]) => term)).toEqual([''])
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(fetchPage.mock.calls.map(([term]) => term)).toEqual(['', '8b'])
+  })
+})
+
 describe('Combobox handing on what is picked', () => {
   /** A combobox adding the machines picked to a list, as the Graph page adds machine chips. */
   function MachineAdder() {
@@ -679,9 +712,9 @@ describe('Combobox with server-side suggestions', () => {
     await openList(user)
     await waitFor(() => expect(options()).toHaveLength(2))
     scrollToEnd()
-    await waitFor(() => expect(requests.seen).toEqual(['@', 'rejected', '@']))
-    scrollToEnd()
+    // The end of the list stays in view, so the list started again loads more on its own.
     await waitFor(() => expect(options()).toHaveLength(4))
+    expect(requests.seen).toEqual(['@', 'rejected', '@', '@2'])
   })
 
   it('stops loading more once loading more fails, and says why', async () => {
@@ -708,7 +741,9 @@ describe('Combobox with server-side suggestions', () => {
 
   it('searches once the user stops typing, for the whole text', async () => {
     const requests = serveCommits()
-    const user = userEvent.setup()
+    // No delay at all between keystrokes, not even a zero one, so that the search's timer cannot
+    // run out between them, however slowly each is handled.
+    const user = userEvent.setup({ delay: null })
     renderWithProviders(<ServerCommitPicker />)
 
     await user.type(input(), '8bb')
