@@ -205,13 +205,15 @@ machine, and ignored rather than compared afterwards.
 
 **Submit a throwaway experiment**, such as the A/B runs of a pull request, on a
 commit with no ordinal (e.g. `"value": "pr-1234"`), and on a machine of its own
-if it measures a configuration no existing machine has, submitted with
-`"tracked": false`. Give that commit and machine
-`"delete_after_inactive_days": 30` in the submission: the server
+if it measures a configuration no existing machine has. Give that commit and
+machine `"delete_after_inactive_days": 30` in the submission: the server
 deletes each of them, with its runs, once no run has been submitted for it in
 that many days. A commit with an ordinal is never deleted that way. Like
 `tracked`, the setting is only used when the submission creates the machine or
-the commit; `PATCH` changes or clears it afterwards.
+the commit; `PATCH` changes or clears it afterwards. Submit such a machine with
+`"tracked": false` as well: it then stays out of dashboards, and the web UI
+lists it after the machines LNT monitors wherever a machine is picked, so that
+experiments don't crowd them.
 
 **Chart a metric over time** with `POST /query`:
 
