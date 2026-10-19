@@ -25,6 +25,7 @@ import {
   save,
   table,
   trailLink,
+  typeInto,
 } from '../../test/page'
 import { server } from '../../test/server'
 
@@ -37,8 +38,8 @@ type Respond = (query: URLSearchParams) => Response | Promise<Response>
 const MACHINE_ROUTE = '/api/suites/{testsuite}/machines/{machine_name}'
 
 interface PageMocks {
-  /** The answer to `GET /machines/{name}`: `LINUX` by default. */
-  machine?: (request: Request) => Response
+  /** The answer to `GET /machines/{name}`, given the request and the name: `LINUX` by default. */
+  machine?: (request: Request, name: string) => Response
   regressions?: Respond
   runs?: Respond
 }
@@ -61,9 +62,9 @@ function mockPage({
     commit('abc123', { tag: 'v1', fields: { svn_revision: 'r100', commit_info: null } }),
   ])
   server.use(
-    mockApi('get', MACHINE_ROUTE, ({ request }) => {
+    mockApi('get', MACHINE_ROUTE, ({ request, params }) => {
       machineCalls.count++
-      return machine(request)
+      return machine(request, params.machine_name)
     }),
     mockApi('get', '/api/suites/{testsuite}/regressions', ({ request }) =>
       regressionList.answer(request),
@@ -113,14 +114,16 @@ function deleteButton() {
 }
 
 describe('the Machine Detail page', () => {
-  it('shows the machine, its tracked flag and its fields, labelled', async () => {
+  it('shows the machine, its name, its tracked flag and its fields, labelled', async () => {
     renderMachine()
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Machine: ${NAME}`)
     const rows = await infoRows('Machine')
-    expect(rows[0][0]).toBe('Tracked')
-    expect(rows[1]).toEqual(['Delete after inactivity', inactivityCell('--')])
-    expect(rows.slice(2)).toEqual([
+    expect(rows[0][0]).toBe('Name')
+    expect(rows[0][1]).toMatch(new RegExp(`^${NAME}Edit`))
+    expect(rows[1][0]).toBe('Tracked')
+    expect(rows[2]).toEqual(['Delete after inactivity', inactivityCell('--')])
+    expect(rows.slice(3)).toEqual([
       ['Hardware', 'AMD EPYC'],
       ['os', '--'],
       ['Cores', '64'],
@@ -305,7 +308,7 @@ describe('the Machine Detail page', () => {
   })
 
   describe('its deletion after inactivity', () => {
-    const row = async () => (await infoRows('Machine'))[1]
+    const row = async () => (await infoRows('Machine'))[2]
 
     it('cannot be changed without manage scope', async () => {
       signIn('triage')
@@ -355,6 +358,209 @@ describe('the Machine Detail page', () => {
         { body: { delete_after_inactive_days: 1 }, auth: `Bearer ${TOKEN}` },
         { body: { delete_after_inactive_days: null }, auth: `Bearer ${TOKEN}` },
       ])
+    })
+  })
+
+  describe('its name', () => {
+    const NEW = 'macos-arm64'
+    const NEW_PAGE = machinePath('libcxx', NEW)
+    const nameInput = () => screen.getByRole('textbox', { name: 'Name' })
+    const heading = () => screen.getByRole('heading', { level: 1 })
+    const back = () => fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+
+    /** Answer a rename with the machine renamed, once `wait` resolves; returns what was sent. */
+    function mockRename(wait?: Promise<void>) {
+      return mockSent('patch', MACHINE_ROUTE, async (body) => {
+        await wait
+        return HttpResponse.json({ ...LINUX, ...body })
+      })
+    }
+
+    it('cannot be changed without manage scope', async () => {
+      signIn('triage')
+      renderMachine()
+
+      await screen.findByRole('group', { name: 'Machine' })
+      await waitFor(() =>
+        expect(editButton('Name')).toHaveAttribute(
+          'title',
+          expect.stringMatching(/has the 'triage' scope/),
+        ),
+      )
+      expect(editButton('Name')).toBeDisabled()
+    })
+
+    it('explains what a rename means for submissions, on hover and to assistive technology', async () => {
+      signIn('manage')
+      renderMachine()
+      await ready('Machine', () => editButton('Name'))
+
+      const help =
+        'Run submissions that still use the old name will create a new machine, so whatever ' +
+        'submits runs for this machine must be updated too.'
+      expect(screen.getByText('Name')).toHaveAttribute('title', help)
+      expect(editButton('Name')).toHaveAccessibleDescription(help)
+    })
+
+    it('cannot be saved empty, nor as a name that no URL could address', async () => {
+      signIn('manage')
+      const sent = mockRename()
+      renderMachine()
+      await ready('Machine', () => editButton('Name'))
+
+      fireEvent.click(editButton('Name'))
+      expect(nameInput()).toHaveAttribute('maxLength', '256')
+      const empty = 'A machine needs a name.'
+      const unaddressable = "A machine name cannot contain '/' or '%', or be '.' or '..'."
+      const reasons = {
+        '': empty,
+        ' ': empty,
+        'a/b': unaddressable,
+        'a%b': unaddressable,
+        '.': unaddressable,
+        '..': unaddressable,
+      }
+      for (const [text, reason] of Object.entries(reasons)) {
+        typeInto(nameInput(), text)
+        expect(nameInput()).toHaveAttribute('aria-invalid', 'true')
+        expect(nameInput()).toHaveAccessibleDescription(expect.stringContaining(reason))
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+        fireEvent.submit(nameInput())
+      }
+      typeInto(nameInput(), '...')
+      expect(nameInput()).not.toHaveAttribute('aria-invalid')
+      expect(sent).toEqual([])
+    })
+
+    it('is changed with PATCH, then shown on the page of the new name, in place of the old', async () => {
+      signIn('manage')
+      const answer = gate()
+      const sent = mockRename(answer.promise)
+      const { machineCalls, regressionQueries, runQueries } = mockPage()
+      mockMachines(() => ({ items: [LINUX] }))
+      // From the Machines tab, whose list is then cached.
+      renderPage('/suites/libcxx?tab=machines')
+      fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
+      await ready('Machine', () => editButton('Name'))
+      const machineQueries = mockMachines(() => ({ items: [machine(NEW)] }))
+
+      save('Name', ` ${NEW} `)
+
+      // Under way: the page still shows the old name.
+      await waitFor(() => expect(sent).toHaveLength(1))
+      expect(heading()).toHaveTextContent(`Machine: ${NAME}`)
+      expect(currentUrl()).toBe(PAGE)
+      act(() => answer.open())
+
+      await waitFor(() => expect(currentUrl()).toBe(NEW_PAGE))
+      expect(heading()).toHaveTextContent(`Machine: ${NEW}`)
+      expect((await infoRows('Machine'))[0][1]).toMatch(new RegExp(`^${NEW}Edit`))
+      await waitFor(() => expect(editButton('Name')).toHaveFocus())
+      expect(sent).toEqual([{ body: { name: NEW }, auth: `Bearer ${TOKEN}` }])
+      // The machine is shown as the API returned it, rather than asked for again, and its lists are
+      // asked for under its new name.
+      expect(machineCalls.count).toBe(1)
+      await waitFor(() => expect(regressionQueries.at(-1)!.get('machine')).toBe(NEW))
+      await waitFor(() => expect(runQueries.at(-1)!.get('machine')).toBe(NEW))
+
+      // Back leaves for the page before, whose list, read before the rename, is not shown.
+      back()
+      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=machines'))
+      expect(screen.queryByRole('link', { name: NAME })).not.toBeInTheDocument()
+      expect(await within(await table('Machines')).findByRole('link', { name: NEW })).toBeVisible()
+      expect(machineQueries).toHaveLength(1)
+    })
+
+    it('keeps showing the runs until those under the new name arrive', async () => {
+      signIn('manage')
+      mockRename()
+      const runs = gate()
+      mockPage({
+        runs: async (query) => {
+          const renamed = query.get('machine') === NEW
+          if (renamed) await runs.promise
+          return HttpResponse.json(cursorPage([run(renamed ? 'b' : 'a')]))
+        },
+      })
+      renderPage(PAGE)
+      await ready('Machine', () => editButton('Name'))
+      const history = await table('Run history')
+
+      save('Name', NEW)
+
+      await waitFor(() => expect(currentUrl()).toBe(NEW_PAGE))
+      expect(rowsOf(history)[0]).toMatch(/^aaaaaaaa…/)
+      expect(history).toHaveAttribute('aria-busy', 'true')
+      act(() => runs.open())
+      await waitFor(() => expect(rowsOf(history)[0]).toMatch(/^bbbbbbbb…/))
+    })
+
+    it('stays open with its text when the name is taken, saying so', async () => {
+      signIn('manage')
+      const taken = "A machine named 'other' already exists in test suite 'libcxx'"
+      mockPatch(() => errorResponse(409, 'duplicate', taken))
+      renderMachine()
+      await ready('Machine', () => editButton('Name'))
+
+      save('Name', 'other')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(taken)
+      expect(nameInput()).toHaveValue('other')
+      expect(currentUrl()).toBe(PAGE)
+      expect(heading()).toHaveTextContent(`Machine: ${NAME}`)
+    })
+
+    it('is not shown under its old name when the history leads back to its page', async () => {
+      signIn('manage')
+      let renamed = false
+      mockPatch(() => {
+        renamed = true
+        return HttpResponse.json(machine(NEW))
+      })
+      mockPage({
+        machine: (_, name) => {
+          if (name === NEW) return HttpResponse.json(machine(NEW))
+          return renamed
+            ? errorResponse(404, 'not_found', `Machine '${NAME}' not found`)
+            : HttpResponse.json(LINUX)
+        },
+        runs: () => HttpResponse.json(cursorPage([run('a', { machine: renamed ? NEW : NAME })])),
+      })
+      mockMachines(() => ({ items: [] }))
+      // The machine's page, then the Runs tab, then the machine's page again, from its run's row.
+      renderPage(PAGE)
+      await ready('Machine', () => editButton('Name'))
+      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      fireEvent.click(within(await table('Runs')).getByRole('link', { name: NAME }))
+      await ready('Machine', () => editButton('Name'))
+
+      save('Name', NEW)
+      await waitFor(() => expect(currentUrl()).toBe(NEW_PAGE))
+      back()
+      back()
+
+      expect(currentUrl()).toBe(PAGE)
+      expect(screen.queryByRole('group', { name: 'Machine' })).not.toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent('not found')
+    })
+
+    it('does not leave a page the user has already left, and refreshes the one shown', async () => {
+      signIn('manage')
+      const answer = gate()
+      const sent = mockRename(answer.promise)
+      const { runQueries } = renderMachine()
+      await ready('Machine', () => editButton('Name'))
+      save('Name', NEW)
+      await waitFor(() => expect(sent).toHaveLength(1))
+
+      // To the Runs tab of the suite, which lists the machine's runs, while the rename runs.
+      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      await table('Runs')
+      const fetched = runQueries.length
+      act(() => answer.open())
+
+      await waitFor(() => expect(runQueries.length).toBe(fetched + 1))
+      expect(currentUrl()).toBe('/suites/libcxx')
     })
   })
 

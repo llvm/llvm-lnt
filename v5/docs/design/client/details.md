@@ -24,6 +24,7 @@ libcxx › Machines
 # Machine: linux-x86_64-20260812
 
 +-----------------------------------------------------------------------+
+| Name:                     linux-x86_64-20260812    [Edit]             |
 | Tracked:                  [x]                                         |
 | Delete after inactivity:  --    [Edit]                                |
 | compiler:                 clang version 22.1.0                        |
@@ -58,6 +59,24 @@ Clicking "Delete Machine" shows its confirmation prompt (see AR16) below the act
 Deletion requires `manage` scope. On success, navigates to the Machines tab of the Test
 Suites page. While the delete is in progress, a message reassures the user that deletion
 may take a while for machines with many runs.
+
+### Name
+
+The info box shows the machine's name in a `Name` row, edited in place (see
+AR12) through `PATCH /machines/{name}`, which requires `manage` scope. A name is
+required, so emptying the input makes its text invalid (see AR11), as does a
+name that I1 rejects: one containing `/` or `%`, or exactly `.` or `..`. The
+label carries a help tooltip saying that run submissions that still use the old
+name will create a new machine, so whatever submits runs for this machine must
+be updated too (see E2). Saving is not confirmed. A name already taken by
+another machine is refused, and the input says so (see AR12).
+
+The page header changes only once a rename is saved. The page then shows the
+machine at `/suites/{ts}/machines/{new name}`, which takes the place of the old
+name's URL in the history, unless the user has left the page meanwhile (see
+AR16). Once the rename has succeeded, no page shows the machine under its old
+name. The old name's URL is not redirected: it says that the machine does not
+exist, unless another machine has taken the name since.
 
 ### Tracked toggle
 

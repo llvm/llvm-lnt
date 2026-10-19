@@ -33,6 +33,11 @@ interface Props {
   gate: ScopeGate
   /** Why `text`, trimmed and not empty, cannot be saved, or undefined if it can. */
   invalid?: (text: string) => string | undefined
+  /**
+   * Why empty text cannot be saved, for a field that must have a value. Without it, emptying the
+   * input clears the value.
+   */
+  required?: string
   maxLength?: number
   /**
    * Edit in a text area, where Enter starts a new line and Ctrl+Enter (Cmd+Enter on a Mac)
@@ -64,6 +69,7 @@ export function InlineEdit({
   display,
   gate,
   invalid,
+  required,
   maxLength,
   multiline = false,
   editor,
@@ -92,7 +98,7 @@ export function InlineEdit({
   }, [editing])
 
   const term = text.trim()
-  const reason = term === '' ? undefined : invalid?.(term)
+  const reason = term === '' ? required : invalid?.(term)
 
   const open = () => {
     setText(value ?? '')

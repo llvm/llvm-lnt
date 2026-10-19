@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { useScopeGate, type Scope } from '../auth/scope'
 import { ConfirmDelete } from './confirm-delete'
 import { DangerButton } from './danger-button'
+import { useMounted } from './use-mounted'
 import styles from './action-row.module.css'
 
 /** The deletion of what a page, or a part of one, is about. */
@@ -44,13 +45,7 @@ export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
   const [confirming, setConfirming] = useState(false)
   const deleteButton = useRef<HTMLButtonElement>(null)
   // Whether the row is still shown once the deletion is done.
-  const shown = useRef(false)
-  useEffect(() => {
-    shown.current = true
-    return () => {
-      shown.current = false
-    }
-  }, [])
+  const shown = useMounted()
 
   const remove = async () => {
     await onDelete()

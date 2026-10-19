@@ -12,12 +12,13 @@ interface Options {
   value?: string | null
   gate?: ScopeGate
   invalid?: (text: string) => string | undefined
+  required?: string
   /** What saving does; by default, it succeeds, and the value becomes what was saved. */
   save?: (text: string | null) => Promise<unknown>
 }
 
 /** An editor of a field labelled `Tag`, whose owner stores what a save succeeds with. */
-function renderEditor({ value = 'v1', gate = ALLOWED, invalid, save }: Options = {}) {
+function renderEditor({ value = 'v1', gate = ALLOWED, invalid, required, save }: Options = {}) {
   const onSave = vi.fn(save ?? (() => Promise.resolve()))
   function Owner() {
     const [stored, setStored] = useState(value)
@@ -27,6 +28,7 @@ function renderEditor({ value = 'v1', gate = ALLOWED, invalid, save }: Options =
         value={stored}
         gate={gate}
         invalid={invalid}
+        required={required}
         maxLength={256}
         onSave={async (text) => {
           await onSave(text)
@@ -94,6 +96,21 @@ describe('InlineEdit', () => {
 
     expect(await screen.findByText('--')).toBeInTheDocument()
     expect(onSave).toHaveBeenCalledWith(null)
+  })
+
+  it('refuses empty text, even of spaces, when a value is required, saying why', () => {
+    const { onSave } = renderEditor({ required: 'A tag is required.' })
+
+    for (const text of ['', '   ']) {
+      edit(text)
+      expect(input()).toHaveAttribute('aria-invalid', 'true')
+      expect(input()).toHaveAccessibleDescription('A tag is required.')
+      expect(saveButton()).toBeDisabled()
+      expect(saveButton()).toHaveAttribute('title', 'A tag is required.')
+      fireEvent.submit(input())
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    }
+    expect(onSave).not.toHaveBeenCalled()
   })
 
   it('closes without saving when the text is the value', () => {

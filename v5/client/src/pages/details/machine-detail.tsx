@@ -1,10 +1,10 @@
-import { useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { authedApi, PAGE_SIZE, unwrap, type Schemas } from '../../api/client'
-import { queryKeys } from '../../api/keys'
-import { machineKey, useMachine } from '../../api/machines'
+import { forgetSuite, forgetUnobserved, queryKeys } from '../../api/keys'
+import { MACHINE_NAME_LENGTH, machineKey, useMachine } from '../../api/machines'
 import { fetchRegressions } from '../../api/regressions'
 import { fetchRunPage } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
@@ -16,11 +16,13 @@ import { ErrorMessage, Loaded } from '../../components/feedback'
 import { HelpLabel } from '../../components/help-label'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InactivityRow } from '../../components/inactivity-row'
+import { InlineEdit } from '../../components/inline-edit'
 import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
+import { useMounted } from '../../components/use-mounted'
 import { WithSchema } from '../../components/with-schema'
-import { UNTRACKED_HELP } from '../../machines'
-import { comparePath, graphPath } from '../../paths'
+import { invalidMachineName, RENAME_HELP, UNTRACKED_HELP } from '../../machines'
+import { comparePath, graphPath, machinePath } from '../../paths'
 import { ACTIVE_STATES } from '../../regression-states'
 import { formatFieldValue, labelOf, type Commit } from '../../schema'
 import { suiteTabPath } from '../test-suites/settings'
@@ -31,16 +33,37 @@ import styles from './details.module.css'
 
 type Machine = Schemas['Machine']
 
+/** The history state of the page that a rename leads to, in place of the old name's. */
+interface Renamed {
+  renamedFrom: string
+}
+
 /** The Machine Detail page (DT1). */
 export default function MachineDetail() {
   const { suite = '', name = '' } = useParams()
+  const renamedFrom = (useLocation().state as Renamed | null)?.renamedFrom
+  const queryClient = useQueryClient()
+  // The content is keyed, so that nothing of a machine's page, an open prompt say, stays on
+  // another's. A rename keeps the key, since the page still shows the same machine: the Edit button
+  // of its name keeps the focus (AR12). Only the name shown until now is renamed: the history state
+  // stays with the entry, across a reload, say, which shows the page afresh anyway.
+  const [shown, setShown] = useState({ suite, name, key: `${suite}/${name}`, renamed: false })
+  if (shown.suite !== suite || shown.name !== name) {
+    // React renders the page again at once, before any of its content, with the key decided here.
+    const renamed = shown.suite === suite && renamedFrom === shown.name
+    setShown({ suite, name, key: renamed ? shown.key : `${suite}/${name}`, renamed })
+  }
+  useEffect(() => {
+    // What the page read under the old name, which its parts have stopped observing in their own
+    // effects, run before this one: dropped rather than shown if the history leads back to it.
+    if (shown.renamed) forgetUnobserved(queryClient, shown.suite)
+  }, [queryClient, shown])
   return (
     <section>
       <SuiteTrail suite={suite} tab="machines" />
       <h1>Machine: {name}</h1>
       <WithSchema suite={suite}>
-        {/* Keyed, so that nothing of a machine's page, an open prompt say, stays on another's. */}
-        {(schema) => <MachineContent key={`${suite}/${name}`} schema={schema} name={name} />}
+        {(schema) => <MachineContent key={shown.key} schema={schema} name={name} />}
       </WithSchema>
     </section>
   )
@@ -67,6 +90,7 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
   return (
     <>
       <InfoBox label="Machine">
+        <NameRow suite={suite} machine={machine} />
         <TrackedRow suite={suite} machine={machine} />
         <InactivityDays suite={suite} machine={machine} />
         {schema.machine_fields.map((field) => (
@@ -85,10 +109,14 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
 /**
  * Change the machine `name` with `PATCH /machines/{name}` (E2), and show what the API returned.
  * Changes are sent one after the other, so that the answer to an earlier one, arriving late, does
- * not replace a later one's.
+ * not replace a later one's. Once renamed, the page moves to the new name, in place of the old one
+ * in the history, unless the user has left it already (AR16).
  */
 function useUpdateMachine(suite: string, name: string) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  // Whether the page still shows the machine once the change is done.
+  const mounted = useMounted()
   return useMutation({
     scope: { id: JSON.stringify(machineKey(suite, name)) },
     // A fetch of the machine under way could land after the answer, and show it as it was.
@@ -101,15 +129,57 @@ function useUpdateMachine(suite: string, name: string) {
         }),
       ),
     onSuccess: async (updated) => {
-      // Lists of machines fetch it again when next shown. The machine's own key is among theirs,
-      // so it is stored after, as the API returned it, which leaves it fresh.
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.machines(suite),
-        refetchType: 'none',
-      })
-      queryClient.setQueryData(machineKey(suite, name), updated)
+      const renamed = updated.name !== name
+      const leaving = renamed && mounted.current
+      if (renamed) {
+        // Its runs, its regressions' indicators, and everything listed or keyed by machine name
+        // now name it differently, so the whole suite is forgotten, as after a deletion.
+        await forgetSuite(queryClient, suite, { leaving })
+      } else {
+        // Lists of machines fetch it again when next shown.
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.machines(suite),
+          refetchType: 'none',
+        })
+      }
+      // Stored after, as the API returned it, which leaves it fresh: the page shows it at once.
+      queryClient.setQueryData(machineKey(suite, updated.name), updated)
+      if (leaving) {
+        const state = { renamedFrom: name } satisfies Renamed
+        navigate(machinePath(suite, updated.name), { replace: true, state })
+      }
     },
   })
+}
+
+/** The machine's name, which a holder of `manage` scope can change (DT1). */
+function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
+  const labelId = useId()
+  const helpId = useId()
+  const manage = useScopeGate('manage')
+  const update = useUpdateMachine(suite, machine.name)
+  return (
+    <InfoRow
+      label={
+        <HelpLabel id={labelId} help={RENAME_HELP}>
+          Name
+        </HelpLabel>
+      }
+    >
+      <InlineEdit
+        label="Name"
+        value={machine.name}
+        gate={manage}
+        invalid={invalidMachineName}
+        required="A machine needs a name."
+        maxLength={MACHINE_NAME_LENGTH}
+        describedBy={helpId}
+        // Never null, since the name is required.
+        onSave={(text) => update.mutateAsync({ name: text ?? '' })}
+      />
+      <VisuallyHidden id={helpId}>{RENAME_HELP}</VisuallyHidden>
+    </InfoRow>
+  )
 }
 
 /** The machine's `tracked` flag, which a holder of `manage` scope can flip (DT1). */

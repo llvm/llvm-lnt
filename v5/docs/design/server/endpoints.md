@@ -84,7 +84,9 @@ read-only `last_run_at`: the latest `measured_at` among the machine's runs, or
 null if it has no runs. It is derived rather than stored (see D5).
 
 **Updating.** On `PATCH`, an omitted key is left unchanged, and supplying
-`name` renames the machine. `PATCH` can flip `tracked` at any time, and set
+`name` renames the machine. The old name is not kept as an alias: run
+submissions find their machine by name (see O2), so those that still use the old
+name create a new machine. `PATCH` can flip `tracked` at any time, and set
 `delete_after_inactive_days` or clear it with `null`. Inside `fields`, an
 explicit `null` clears a stored value, the same convention as
 `PATCH /api/suites/{testsuite}/commits/{value}`.
@@ -94,7 +96,7 @@ explicit `null` clears a stored value, the same convention as
 | Route | Success | Errors |
 |-------|---------|--------|
 | `POST /machines` | 201 with the created machine, and a `Location` header pointing at its detail route | 400 for an undeclared key in `fields`; 409 `duplicate` if a machine of that name already exists |
-| `PATCH /machines/{machine_name}` | 200 with the updated machine | 400 for an undeclared key in `fields`; 409 `duplicate` when renaming to the name of an existing machine |
+| `PATCH /machines/{machine_name}` | 200 with the updated machine | 400 for an undeclared key in `fields`, or a new name that I1 rejects; 409 `duplicate` when renaming to the name of an existing machine |
 | `DELETE /machines/{machine_name}` | 204 | |
 
 `DELETE` removes the machine, its runs (with their samples and profiles), and
