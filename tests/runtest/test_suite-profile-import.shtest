@@ -1,0 +1,21 @@
+# Check that the profiles gathered with --use-perf are added to the report.
+# RUN: rm -rf %t.SANDBOX
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-profile-import \
+# RUN:     --use-perf=all \
+# RUN:     -j2 \
+# RUN:     --verbose \
+# RUN:     > %t.log 2> %t.err
+# RUN: filecheck < %t.SANDBOX/build/report.json %s
+
+# CHECK:      "Tests": [
+# CHECK:      "{{[A-Za-z0-9+/]{20,}=*}}"
+# CHECK-NEXT: ],
+# CHECK-NEXT: "Info": {},
+# CHECK-NEXT: "Name": "nts.bar.profile"

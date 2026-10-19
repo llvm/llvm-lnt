@@ -1,0 +1,67 @@
+{
+    "Machine": {
+        "Info": {},
+        "Name": "my-machine__clang_DEV__"
+    },
+    "Run": {
+        "End Time": "2026-10-19 20:03:14",
+        "Info": {
+            "__report_version__": "1",
+            "cc1_exec_hash": "ca64130de494b28fb0fadbd2701a96062feab5ab",
+            "cc_as_version": "unrecognized argument vector: ('-c', '-Wa,-v', '-o', '/dev/null', '-O0', '-O2', '-g', '--target=', '-x', 'assembler', '/dev/null')",
+            "cc_build": "DEV",
+            "cc_dumpmachine": "x86_64-apple-darwin11.0.0",
+            "cc_exec_hash": "ca64130de494b28fb0fadbd2701a96062feab5ab",
+            "cc_ld_version": "unrecognized argument vector: ('-Wl,-v', '-dynamiclib')",
+            "cc_name": "clang",
+            "cc_src_branch": "trunk",
+            "cc_src_revision": "154331",
+            "cc_target": "",
+            "cc_target_assembly": "; ModuleID = '/dev/null'\ntarget datalayout = \"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64\"\ntarget triple = \"\"",
+            "cc_version": "clang version 3.1 (trunk 154331) (llvm/trunk 154329)\nTarget: x86_64-apple-darwin11.3.0\nThread model: posix\nInstalledDir: /home/foo/bin\n\n \"/path/to/clang-r154331\" \"-cc1\" \"-E\" ... more boring stuff here ...",
+            "cc_version_number": "3.1",
+            "inferred_run_order": "154331",
+            "no_errors": "True",
+            "run_order": "154331",
+            "tag": "nts"
+        },
+        "Start Time": "2026-10-19 20:03:13"
+    },
+    "Tests": [
+        {
+            "Data": [
+                1.3
+            ],
+            "Info": {},
+            "Name": "nts.bar.compile"
+        },
+        {
+            "Data": [
+                1.4
+            ],
+            "Info": {},
+            "Name": "nts.bar.exec"
+        },
+        {
+            "Data": [
+                "xyz"
+            ],
+            "Info": {},
+            "Name": "nts.bar.hash"
+        },
+        {
+            "Data": [
+                1.5
+            ],
+            "Info": {},
+            "Name": "nts.bar.score"
+        },
+        {
+            "Data": [
+                "AgAEBAgMBhIOIA4uDjwlCmEBcmF3CgFjeWNsZXMKAQCKsfJyQlpoORdyRThQkAAAAABCWmg5F3JFOFCQAAAAAEJaaDkXckU4UJAAAAAAQlpoOTFBWSZTWZ59lp0AAABAAAAQIAAhGEaC7kinChITz7LToAA="
+            ],
+            "Info": {},
+            "Name": "nts.bar.profile"
+        }
+    ]
+}
