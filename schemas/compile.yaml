@@ -1,4 +1,5 @@
-# This schema is used by the `lnt runtest compile` suite.
+# This schema was used by the `lnt runtest compile` test, which has been removed.
+# It is kept so that existing instances can still serve the data they hold.
 format_version: '2'
 name: compile
 metrics:
