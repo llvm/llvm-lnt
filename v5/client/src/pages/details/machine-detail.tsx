@@ -43,15 +43,15 @@ export default function MachineDetail() {
   const { suite = '', name = '' } = useParams()
   const renamedFrom = (useLocation().state as Renamed | null)?.renamedFrom
   const queryClient = useQueryClient()
-  // The content is keyed, so that nothing of a machine's page, an open prompt say, stays on
-  // another's. A rename keeps the key, since the page still shows the same machine: the Edit button
-  // of its name keeps the focus (AR12). Only the name shown until now is renamed: the history state
-  // stays with the entry, across a reload, say, which shows the page afresh anyway.
-  const [shown, setShown] = useState({ suite, name, key: `${suite}/${name}`, renamed: false })
+  // The content's key changes with the machine shown, so that nothing of a machine's page, an open
+  // prompt say, stays on another's. A rename keeps it, since the page still shows the same machine,
+  // whose name's Edit button keeps the focus (DT1). `renamedFrom` is compared with the name shown,
+  // since the history state outlives the rename (a reload, Back or Forward).
+  const [shown, setShown] = useState({ suite, name, key: 0, renamed: false })
   if (shown.suite !== suite || shown.name !== name) {
     // React renders the page again at once, before any of its content, with the key decided here.
     const renamed = shown.suite === suite && renamedFrom === shown.name
-    setShown({ suite, name, key: renamed ? shown.key : `${suite}/${name}`, renamed })
+    setShown({ suite, name, key: renamed ? shown.key : shown.key + 1, renamed })
   }
   useEffect(() => {
     // What the page read under the old name, which its parts have stopped observing in their own
@@ -174,7 +174,7 @@ function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
         required="A machine needs a name."
         maxLength={MACHINE_NAME_LENGTH}
         describedBy={helpId}
-        // Never null, since the name is required.
+        // `required` keeps the text from being null.
         onSave={(text) => update.mutateAsync({ name: text ?? '' })}
       />
       <VisuallyHidden id={helpId}>{RENAME_HELP}</VisuallyHidden>

@@ -74,9 +74,11 @@ another machine is refused, and the input says so (see AR12).
 The page header changes only once a rename is saved. The page then shows the
 machine at `/suites/{ts}/machines/{new name}`, which takes the place of the old
 name's URL in the history, unless the user has left the page meanwhile (see
-AR16). Once the rename has succeeded, no page shows the machine under its old
-name. The old name's URL is not redirected: it says that the machine does not
-exist, unless another machine has taken the name since.
+AR16). The page stays that of the same machine, so the focus stays on the Edit
+button of its name (see AR12), even though its URL has changed. Once the rename
+has succeeded, no page shows the machine under its old name. The old name's URL
+is not redirected: it says that the machine does not exist, unless another
+machine has taken the name since.
 
 ### Tracked toggle
 

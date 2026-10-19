@@ -10,7 +10,10 @@ export const RENAME_HELP =
   'Run submissions that still use the old name will create a new machine, so whatever submits ' +
   'runs for this machine must be updated too.'
 
-/** Why a machine cannot be named `text`, which the URLs addressing it must carry (I1), if not. */
+/**
+ * Why a machine cannot be named `text`, or undefined if it can: the URLs addressing the machine
+ * must carry its name intact (I1).
+ */
 export function invalidMachineName(text: string): string | undefined {
   return text.includes('/') || text.includes('%') || text === '.' || text === '..'
     ? "A machine name cannot contain '/' or '%', or be '.' or '..'."

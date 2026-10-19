@@ -51,8 +51,8 @@ interface Props {
   /** The id of what describes the field, such as its help, for the Edit button and the input. */
   describedBy?: string
   /**
-   * Save `text`, trimmed, or clear the value (null) when the input is emptied. The input closes
-   * once it resolves, and stays open, saying why, if it rejects.
+   * Save `text`, trimmed, or clear the value (null) when the input is emptied, which `required`
+   * prevents. The input closes once it resolves, and stays open, saying why, if it rejects.
    */
   onSave(text: string | null): Promise<unknown>
 }

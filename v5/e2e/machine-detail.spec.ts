@@ -58,7 +58,7 @@ test('cannot be changed without a token', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Delete Machine' })).toBeDisabled()
 })
 
-test('it is renamed by a holder of manage scope, and listed under its new name only', async ({
+test('its name is changed by a holder of manage scope, and listed as changed', async ({
   page,
   request,
   tokenFor,
@@ -90,7 +90,7 @@ test('it is renamed by a holder of manage scope, and listed under its new name o
   })
 })
 
-test('it cannot be renamed to the name of another machine', async ({
+test('its name cannot be changed to that of another machine', async ({
   page,
   request,
   tokenFor,

@@ -218,8 +218,8 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 An input whose text is invalid -- an invalid regex in a test filter, a name the
 schema editor rejects (AD3), an ordinal that is not an integer its column can
-hold (DT3), a machine name the API would reject (DT1) -- shows a red halo (red
-border and glow) for as long as its text stays invalid.
+hold (DT3), a machine name that I1 rejects, or an empty one (DT1) -- shows a red
+halo (red border and glow) for as long as its text stays invalid.
 
 
 ## AR12: Inline Editing

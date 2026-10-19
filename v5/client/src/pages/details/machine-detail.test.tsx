@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
+import { useNavigate } from 'react-router'
 import { describe, expect, it } from 'vitest'
+import App from '../../app'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { INACTIVITY_HELP } from '../../inactivity'
 import { machinePath } from '../../paths'
@@ -27,6 +29,7 @@ import {
   trailLink,
   typeInto,
 } from '../../test/page'
+import { renderWithProviders } from '../../test/render'
 import { server } from '../../test/server'
 
 const NAME = 'linux-x86_64'
@@ -493,6 +496,41 @@ describe('the Machine Detail page', () => {
       expect(history).toHaveAttribute('aria-busy', 'true')
       act(() => runs.open())
       await waitFor(() => expect(rowsOf(history)[0]).toMatch(/^bbbbbbbb…/))
+    })
+
+    it('is not kept by the page of another machine that the page goes to in place', async () => {
+      signIn('manage')
+      const other = 'other-machine'
+      mockPage({ machine: (_, name) => HttpResponse.json(name === NAME ? LINUX : machine(name)) })
+      // Nothing in the app goes from one machine's page to another's in place, but the history
+      // could, so the test does it itself: to `NAME`'s page, then back to `other`'s, cached.
+      function GoTo() {
+        const navigate = useNavigate()
+        return [PAGE, machinePath('libcxx', other)].map((to) => (
+          <button key={to} onClick={() => navigate(to)}>
+            Go to {to}
+          </button>
+        ))
+      }
+      renderWithProviders(
+        <>
+          <App />
+          <GoTo />
+        </>,
+        { url: machinePath('libcxx', other) },
+      )
+      await ready('Machine', deleteButton)
+      fireEvent.click(screen.getByRole('button', { name: `Go to ${PAGE}` }))
+      await waitFor(() => expect(heading()).toHaveTextContent(`Machine: ${NAME}`))
+      await ready('Machine', deleteButton)
+      fireEvent.click(deleteButton())
+      expect(screen.getByRole('form', { name: 'Confirmation' })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: `Go to ${machinePath('libcxx', other)}` }))
+
+      expect(heading()).toHaveTextContent(`Machine: ${other}`)
+      expect(screen.getByRole('group', { name: 'Machine' })).toBeInTheDocument()
+      expect(screen.queryByRole('form', { name: 'Confirmation' })).not.toBeInTheDocument()
     })
 
     it('stays open with its text when the name is taken, saying so', async () => {
