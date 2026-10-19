@@ -30,10 +30,11 @@ export interface Suggestions {
   /** Whether the suggestions for the latest search are still on their way. */
   isLoading: boolean
   /**
-   * Whether there are more suggestions to load, by scrolling to the end of the list. Not while the
-   * list is being fetched again from the first page (after a rejected cursor, or any other refetch),
-   * which loading more would cancel, and not after anything failed, which would otherwise be
-   * retried for as long as the end is in view.
+   * Whether there are more suggestions to load, by scrolling to the end of the list. Not after
+   * anything failed, which would otherwise be retried for as long as the end is in view: the
+   * failure stands until the list is fetched again successfully, so this also covers the restart
+   * after a rejected cursor (I2). Nor while the list is fetched again for any other reason, which
+   * loading more would cancel.
    */
   hasMore: boolean
   isLoadingMore: boolean
@@ -175,7 +176,8 @@ export function useServerSuggestions<Item>({
     [data, toSuggestion],
   )
   // A placeholder is the previous text's pages: their next page would not be this text's. Loading
-  // more during a refetch would also cancel it, and ask for the page after those it is replacing.
+  // more during a refetch would cancel it, and ask for the page after those it is replacing; that
+  // includes a restart after a rejected cursor, which `isError` already covers.
   const hasMore = hasNextPage && !isPlaceholderData && !isError && !isRefetching
   const loadMore = useCallback(() => {
     if (hasMore && !isFetchingNextPage) void fetchNextPage()

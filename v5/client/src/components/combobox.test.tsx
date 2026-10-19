@@ -8,6 +8,7 @@ import { cursorPage } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { scrollToEnd } from '../test/intersection-observer'
 import { fakeLayout } from '../test/layout'
+import { gate, settle } from '../test/page'
 import { providers, renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 import { Combobox } from './combobox'
@@ -410,7 +411,7 @@ function serveRestarts({ total, rejects = () => false, restart }: RestartOptions
   const commits = Array.from({ length: total }, (_, i) => commit(`c${i}`))
   const seen: string[] = []
   const aborted: string[] = []
-  const waiting: (() => void)[] = []
+  const held = gate()
   let generation = 0
   server.use(
     mockApi('get', '/api/suites/{testsuite}/commits', async ({ request }) => {
@@ -424,9 +425,7 @@ function serveRestarts({ total, rejects = () => false, restart }: RestartOptions
           return errorResponse(500, 'internal_error', 'The server failed.')
         }
         seen.push('@')
-        if (generation > 0 && restart === 'hold') {
-          await new Promise<void>((resolve) => waiting.push(resolve))
-        }
+        if (generation > 0 && restart === 'hold') await held.promise
         generation++
       } else {
         const [of, at] = cursor.split(':').map(Number)
@@ -441,12 +440,7 @@ function serveRestarts({ total, rejects = () => false, restart }: RestartOptions
       return HttpResponse.json(cursorPage(commits.slice(start, start + PAGE_SIZE), next))
     }),
   )
-  return { seen, aborted, release: () => waiting.splice(0).forEach((resolve) => resolve()) }
-}
-
-/** Let what a render sends go out and be answered, to check that nothing more is sent. */
-function settle() {
-  return act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+  return { seen, aborted, release: held.open }
 }
 
 /** A commit picker's suggestion: the display value, picked by the commit string too. */

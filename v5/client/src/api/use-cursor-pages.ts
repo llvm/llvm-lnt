@@ -106,8 +106,8 @@ interface Restartable {
  * later one (a 400), which may only mean that the server or the suite's schema changed since it was
  * issued (I2). A refetch starts from the first page, and takes each later cursor from the page
  * before it, for as many pages as the query had. The query is not restarted again until it holds
- * more pages than it did then, so that a cursor rejected for any other reason is reported rather
- * than retried forever.
+ * more pages than it did then, or fewer since something else started it over, so that a cursor
+ * rejected for any other reason is reported rather than retried forever.
  */
 export function useRestartOnRejectedCursor(query: Restartable, queryKey: QueryKey): void {
   const { data, error, isFetchNextPageError, refetch } = query
@@ -116,9 +116,12 @@ export function useRestartOnRejectedCursor(query: Restartable, queryKey: QueryKe
   const key = hashKey(queryKey)
   const pages = data?.pages.length ?? 0
   useEffect(() => {
+    const last = restarted.current?.key === key ? restarted.current : null
+    // With fewer pages, something else started the query over since, such as removing it from
+    // the cache: a cursor rejected from here on may be from a later change of the server.
+    if (last !== null && pages < last.pages) restarted.current = null
     if (!isFetchNextPageError || !rejectsCursor(error)) return
-    const last = restarted.current
-    if (last !== null && last.key === key && pages <= last.pages) return
+    if (last !== null && pages === last.pages) return
     restarted.current = { key, pages }
     void refetch()
   }, [isFetchNextPageError, error, key, pages, refetch])

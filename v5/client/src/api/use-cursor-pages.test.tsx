@@ -6,6 +6,7 @@ import { api, errorMessage, unwrap } from './client'
 import { useCursorPages } from './use-cursor-pages'
 import { sample as fixtureSample } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
+import { settle } from '../test/page'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 
@@ -130,7 +131,7 @@ describe('useCursorPages', () => {
   it('starts again from the first page when its cursor is rejected', async () => {
     // As after a deploy: the cursor the first page handed out is no longer accepted, and the first
     // page now hands out one that is. Unlike a combobox's (see its tests), the next page is never
-    // asked for while the first is on its way again, whenever it arrives: the hook only asks for
+    // asked for while the first is on its way again, however long it takes: the hook only asks for
     // one while nothing is being fetched (`!isFetching`) and nothing failed (`!isError`).
     const requested: string[] = []
     let firstPages = 0
@@ -184,10 +185,36 @@ describe('useCursorPages', () => {
 
     // Starting again fetches every page it had again, then the one after them.
     await waitFor(() => expect(requested).toEqual(['first', 'p2', 'p3', 'first', 'p2', 'p3']))
-    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    await settle()
     expect(requested).toHaveLength(6)
     expect(screen.getByText('Invalid cursor')).toBeInTheDocument()
     expect(screen.getByText('a,b')).toBeInTheDocument()
+  })
+
+  it('starts again once more after the pages it started again were dropped', async () => {
+    // The runs whose next cursor is rejected once, as after a deploy.
+    const rejectOnce = new Set([RUN])
+    servePages()
+    server.use(
+      mockApi('get', SAMPLES, ({ request, params }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor')
+        if (cursor === null || !rejectOnce.delete(params.uuid)) return undefined
+        return errorResponse(400, 'invalid_request', 'Invalid cursor')
+      }),
+    )
+    const { rerender, queryClient } = renderWithProviders(<Samples />)
+    expect(await screen.findByText('complete')).toBeInTheDocument()
+
+    // Another run meanwhile, and the first one's pages dropped from the cache.
+    rerender(<Samples run={OTHER_RUN} />)
+    expect(await screen.findByText('complete')).toBeInTheDocument()
+    queryClient.removeQueries({ queryKey: ['samples', RUN] })
+
+    rejectOnce.add(RUN)
+    rerender(<Samples />)
+    await waitFor(() => expect(rejectOnce.has(RUN)).toBe(false))
+    expect(await screen.findByText('complete')).toBeInTheDocument()
+    expect(screen.getByText('a,b,c')).toBeInTheDocument()
   })
 
   describe('retry', () => {
