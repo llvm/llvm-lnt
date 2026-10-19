@@ -108,7 +108,6 @@ describe('the comparison table (CP2)', () => {
   })
 })
 
-
 describe('hidden tests (CP2)', () => {
   it('hides a test from the comparison, but not from the table', async () => {
     mockWorld(NOISY)

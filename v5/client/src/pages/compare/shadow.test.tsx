@@ -299,6 +299,6 @@ describe('the shadow (CP8)', () => {
     expect(row('c')).toHaveClass('hoveredRow')
     // From the bar straight to the line, with no unhover between.
     act(() => chart().onHover?.(event(1, 0)))
-    expect(row('c')).not.toHaveAttribute('data-hovered')
+    expect(row('c')).not.toHaveClass('hoveredRow')
   })
 })

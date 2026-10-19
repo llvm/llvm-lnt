@@ -9,7 +9,7 @@ import { EXPERIMENT, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { pickOption, pickSuggestion } from './select.ts'
-import { plotOf, type PlotDiv } from './plot.ts'
+import { plotOf, pointOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
@@ -56,6 +56,29 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   const cells = rows(comparison).nth(1).locator('td')
   expect(await positionOf(cells.nth(0))).toBe('static')
   expect(await positionOf(cells.nth(1))).toBe('static')
+})
+
+test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, request }) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+  )
+  const comparison = table(page, 'Comparison')
+  await expect(rows(comparison).first()).toContainText('Geomean')
+
+  await plotOf(page).hover({ position: await pointOf(page, 0, 0) })
+  const label = page.locator('.hoverlayer .hovertext')
+  await expect(label).toBeVisible()
+  // The rows whose background differs from the geomean's, which is never highlighted, by test.
+  const highlighted = () =>
+    rows(comparison).evaluateAll((all) => {
+      const background = (row: Element) => getComputedStyle(row).backgroundColor
+      const usual = background(all[0])
+      return all.filter((row) => background(row) !== usual).map((row) => row.children[1].textContent)
+    })
+  await expect.poll(highlighted).toHaveLength(1)
+  await expect(label).toContainText((await highlighted())[0]!)
 })
 
 test('scrolls the table rather than the page when its columns do not fit', async ({

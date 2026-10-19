@@ -77,8 +77,8 @@ function clickedTest(target: EventTarget): string | null {
 
 /**
  * Whether `box`'s content is wider than it, which it then scrolls horizontally (CP2 "Width"), from
- * the sizes of the box and of what it holds, which the columns shown change. Measured before the
- * page is painted, and again on every resize of either.
+ * the sizes of the box and of what it holds -- the table, which stays the same element -- which the
+ * columns shown change. Measured before the page is painted, and again on every resize of either.
  */
 function useOverflowing(box: RefObject<HTMLElement | null>): boolean {
   const [overflowing, setOverflowing] = useState(false)

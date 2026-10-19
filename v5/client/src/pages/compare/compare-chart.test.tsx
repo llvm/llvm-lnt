@@ -128,7 +128,7 @@ describe('the chart (CP3)', () => {
     act(() => chart().onHover?.(event(1)))
     expect(row('d')).toHaveClass('hoveredRow')
     act(() => chart().onUnhover?.(event(1)))
-    expect(row('d')).not.toHaveAttribute('data-hovered')
+    expect(row('d')).not.toHaveClass('hoveredRow')
 
     const data = chart().data
     fireEvent.mouseEnter(screen.getByRole('cell', { name: 'a' }).closest('tr')!)
@@ -155,6 +155,11 @@ describe('the chart (CP3)', () => {
     fireEvent.mouseEnter(d)
     expect(outline()).not.toBeNull()
     fireEvent.mouseOver(box)
+    expect(outline()).toBeNull()
+    // Nor once it moves to the geomean's row, which has no bar.
+    fireEvent.mouseEnter(d)
+    expect(outline()).not.toBeNull()
+    fireEvent.mouseOver(screen.getByRole('cell', { name: 'Geomean' }))
     expect(outline()).toBeNull()
   })
 })

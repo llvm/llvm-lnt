@@ -271,7 +271,7 @@
  * The row of the test whose bar is hovered on the chart (CP5). Opaque, as the sticky cells take
  * their row's background (see `.tableBox tr`).
  */
-.hoveredRow {
+.testRow.hoveredRow {
   background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
 }
 

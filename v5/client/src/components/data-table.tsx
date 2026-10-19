@@ -91,8 +91,9 @@ interface Props<Row> {
  *
  * It renders again only when one of its props changes, so that a page can render again around a
  * table of thousands of rows -- on every keystroke in a filter, say -- without rendering them. Even
- * then, a row renders again only when it, the columns, `rowProps` or whether it is `confirming`
- * changes, so that sorting or filtering the rows does not render those it keeps. Such a page passes
+ * then, a row renders again only when it, the columns, `rowProps`, whether it is `confirming` or its
+ * classes in `rowClasses` change, so that sorting or filtering the rows does not render those it
+ * keeps. Such a page passes
  * it props that keep their identity: memoized rows and columns, and functions that are not created
  * anew on each render.
  */

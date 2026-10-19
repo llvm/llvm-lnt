@@ -84,4 +84,25 @@ describe('DataTable', () => {
     expect(screen.getByRole('row', { name: 'a' })).not.toHaveClass('marked')
     expect(cell.mock.calls).toEqual([['b']])
   })
+
+  it('renders again only the row whose confirmation starts or ends', () => {
+    const cell = vi.fn((row: string) => row)
+    const columns: Column<string>[] = [{ id: 'name', header: 'Name', cell }]
+    const table = (confirming: string | null) => (
+      <DataTable
+        label="Names"
+        columns={columns}
+        rows={['a', 'b', 'c']}
+        rowKey={(row) => row}
+        // Inline, as callers pass it.
+        confirming={(row) => row === confirming}
+        empty="None."
+      />
+    )
+    const { rerender } = render(table(null))
+    cell.mockClear()
+
+    rerender(table('b'))
+    expect(cell.mock.calls).toEqual([['b']])
+  })
 })
