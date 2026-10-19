@@ -131,9 +131,11 @@ These hold on every page, unless the page specifies otherwise.
   rather than when it was submitted: runs are listed in that order, the latest
   run is the one measured last, and where a time shown for a run is labelled,
   the label is `Measured`. A page that uses `submitted_at` instead says so.
-- A measured `real` value is shown to at most 6 significant digits, but never
-  with fewer digits than its integer part has (`1.26432`, `66655.7`,
-  `4123456789`).
+- A measured `real` value is shown to at most 4 significant digits, but never
+  with fewer digits than its integer part has (`1.264`, `66656`, `4123456789`).
+  A value that rounds to less than 0.001 in magnitude, other than 0, is shown in
+  exponent notation rather than with its leading zeros (`3.75e-10`,
+  `-1.235e-4`).
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
 - A regression's bug is a link opening in a new tab when it is an `http` or

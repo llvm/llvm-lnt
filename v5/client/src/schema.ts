@@ -43,7 +43,7 @@ export function defaultMetric(schema: SuiteSchema): Metric | undefined {
   return schema.metrics.find(isNumeric) ?? schema.metrics[0]
 }
 
-/** A metric's value, as shown: a `real` to 6 significant digits (AR6), anything else in full. */
+/** A metric's value, as shown: a `real` as AR6 says, anything else in full. */
 export function formatMetricValue(value: FieldValue, metric: Metric): string {
   if (typeof value === 'number' && metric.type === 'real') return formatNumber(value)
   return formatFieldValue(value, metric.type)

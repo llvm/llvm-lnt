@@ -133,9 +133,9 @@ Metric [metric dropdown]
 
 Test                                                                                  Value
 -------------------------------------------------------------------------------------------
-BM_align/1                                                                          1.26432
-BM_ascii_text<char>                                                                 66655.7
-BM_BitsetToString<1048576>/Dense_(90%)/90                                           59242.7
+BM_align/1                                                                            1.264
+BM_ascii_text<char>                                                                   66656
+BM_BitsetToString<1048576>/Dense_(90%)/90                                             59243
 ```
 
 The info box has one row per top-level key of the run's `run_parameters`, ordered by key: a

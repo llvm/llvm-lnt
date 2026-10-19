@@ -425,8 +425,8 @@ describe('the Run Detail page', () => {
       await waitFor(() =>
         expect(rowsOf(samples)).toEqual([
           'a/test | 1 | ',
-          'b/test | 2.12346 | Profile',
-          'b/test | 66655.7 | Profile',
+          'b/test | 2.123 | Profile',
+          'b/test | 66656 | Profile',
           'c/test | -- | ',
         ]),
       )

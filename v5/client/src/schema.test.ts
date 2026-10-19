@@ -112,8 +112,8 @@ describe('defaultMetric', () => {
 })
 
 describe('formatMetricValue', () => {
-  it('shows a real to 6 significant digits, and an integer in full', () => {
-    expect(formatMetricValue(1.2643218, metric('time'))).toBe('1.26432')
+  it('shows a real to 4 significant digits, and an integer in full', () => {
+    expect(formatMetricValue(1.2643218, metric('time'))).toBe('1.264')
     expect(formatMetricValue(1234567891, metric('size', { type: 'integer' }))).toBe('1234567891')
   })
 

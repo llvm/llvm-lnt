@@ -47,8 +47,8 @@ describe('sparklineTraces', () => {
 })
 
 describe('formatTrendValue', () => {
-  it("is written to 6 significant digits, with the unit's abbreviation, or else the unit", () => {
-    expect(formatTrendValue(1.23456789, METRIC)).toBe('1.23457 s')
+  it("is written to 4 significant digits, with the unit's abbreviation, or else the unit", () => {
+    expect(formatTrendValue(1.23456789, METRIC)).toBe('1.235 s')
     expect(formatTrendValue(42, metric('cycles', { unit: 'cycles' }))).toBe('42 cycles')
     expect(formatTrendValue(42, metric('score'))).toBe('42')
   })
