@@ -4,9 +4,14 @@ set -euo pipefail
 dnf install -y docker jq
 systemctl enable --now docker
 
+# Pin Compose, and check it against the checksum its release publishes, so that every deployment runs
+# the same Compose. The checksum is for the arm64 build, since the AMI is arm64 (see ec2.tf).
+COMPOSE_VERSION=v5.6.0
+COMPOSE_SHA256=733ec76717ceb59052a9609b9dadfb523b2df8eab57a54212872d10a58078ea2
 mkdir -p /usr/libexec/docker/cli-plugins
-curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+curl -fsSL "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-linux-aarch64" \
   -o /usr/libexec/docker/cli-plugins/docker-compose
+echo "$COMPOSE_SHA256  /usr/libexec/docker/cli-plugins/docker-compose" | sha256sum --check --strict
 chmod +x /usr/libexec/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/app/certs
