@@ -20,6 +20,12 @@
 # MINIMAL: Validation succeeded. Machine: minimal / Tests: 0
 #
 #
+# Check a report written by `lnt runtest test-suite`
+# RUN: lnt checkformat %{shared_inputs}/test-suite-report.json 2>&1 | filecheck %s --check-prefix=TEST-SUITE
+#
+# TEST-SUITE: Validation succeeded. Machine: my-machine__clang_DEV__ / Tests: 1
+#
+#
 # Check invalid format
 # RUN: lnt checkformat %S/Inputs/invalid_submission0.json 2>&1 | filecheck %s --check-prefix=CHECKFAIL0
 #

@@ -6,7 +6,7 @@
 # RUN:     --sandbox %t.SANDBOX-A \
 # RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
-# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
@@ -22,7 +22,7 @@
 # RUN:     --sandbox %t.SANDBOX-B \
 # RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
-# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
@@ -93,7 +93,7 @@
 # RUN:     --sandbox %t.SANDBOX-ERR \
 # RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
-# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
 # RUN:     --build \
 # RUN:     --exec \
 # RUN:     > %t.err1.log 2> %t.err1.err
