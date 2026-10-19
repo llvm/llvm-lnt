@@ -261,18 +261,22 @@
   font-size: 0.8rem;
 }
 
-/* A test's row, which a click hides or shows (CP2), and greys out while it is hidden. */
+/* A test's row, which a click hides or shows (CP2). */
 .testRow {
   cursor: pointer;
   user-select: none;
 }
 
-/* Opaque, as the sticky cells take their row's background (see `.tableBox tr`). */
-.testRow:has(.hovered) {
+/*
+ * The row of the test whose bar is hovered on the chart (CP5). Opaque, as the sticky cells take
+ * their row's background (see `.tableBox tr`).
+ */
+.hoveredRow {
   background: color-mix(in srgb, var(--lnt-accent) 10%, var(--lnt-bg));
 }
 
-.testRow:has(> td > input[type='checkbox']:not(:checked)) {
+/* A hidden test's row, greyed out. */
+.hiddenRow {
   color: var(--lnt-muted);
   opacity: 0.6;
 }
@@ -297,8 +301,9 @@
   background: var(--lnt-bg);
 }
 
-.showColumn,
-.testColumn {
+/* Only while the box scrolls (see `CompareTable`). */
+.overflowing .showColumn,
+.overflowing .testColumn {
   position: sticky;
   z-index: 1;
   background: inherit;

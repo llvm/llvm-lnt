@@ -1,15 +1,22 @@
 import {
-  useCallback,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { Link } from 'react-router'
+import clsx from 'clsx'
 import { VisuallyHidden } from 'react-aria-components'
 import { CopyButton } from '../../components/copy-button'
-import { DataTable, type Column } from '../../components/data-table'
+import {
+  DataTable,
+  type Column,
+  type RowAttributes,
+  type RowClasses,
+} from '../../components/data-table'
 import { isolateRow, type RowSelection } from '../../components/range-selection'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
 import type { TableSort } from '../../components/table-sort'
@@ -28,10 +35,19 @@ const PINNED: GeomeanRow[] = [
   { test: null, a: null, b: null, delta: null, deltaPct: null, ratio: null, status: 'na' },
 ]
 
-/** A test's name, marked while its bar is hovered on the chart, which highlights its row (CP5). */
-function HoverMark({ store, test }: { store: ValueStore<string | null>; test: string }) {
-  const hovered = useStoreValue(store, (shown) => shown === test)
-  return <span className={hovered ? styles.hovered : undefined}>{test}</span>
+/**
+ * The header's checkbox, over the tests the table shows, which it reads from `shownTests` so that
+ * the columns need not change with them: a change to the columns renders every row again.
+ */
+function ShowAllBox({
+  rows,
+  shownTests,
+}: {
+  rows: RowSelection
+  shownTests: ValueStore<string[]>
+}) {
+  const tests = useStoreValue(shownTests, (value) => value)
+  return <SelectAllBox rows={rows} shown={tests} label="Show all tests shown" />
 }
 
 /** A cell of the geomean row, as `column` shows the values `store` holds. */
@@ -41,6 +57,43 @@ function GeomeanCell({ store, column }: { store: ValueStore<Values>; column: Com
 }
 
 const testOf = (row: Row) => row.test ?? ''
+
+/**
+ * A test's row, which a click hides or shows, and which says which test it is, for the table's
+ * handlers to tell (see `CompareTable`).
+ */
+const rowProps = (row: Row): RowAttributes =>
+  row.test === null ? {} : { className: styles.testRow, 'data-test': row.test }
+
+/** The test of the row `target` is in, if it is a test's row. */
+function rowTestOf(target: EventTarget): string | null {
+  return (target as Element).closest('tr[data-test]')?.getAttribute('data-test') ?? null
+}
+
+/** The test of the row clicked, unless the click is on a checkbox or a link, which handle it. */
+function clickedTest(target: EventTarget): string | null {
+  return (target as Element).closest('input, a') === null ? rowTestOf(target) : null
+}
+
+/**
+ * Whether `box`'s content is wider than it, which it then scrolls horizontally (CP2 "Width"), from
+ * the sizes of the box and of what it holds, which the columns shown change. Measured before the
+ * page is painted, and again on every resize of either.
+ */
+function useOverflowing(box: RefObject<HTMLElement | null>): boolean {
+  const [overflowing, setOverflowing] = useState(false)
+  useLayoutEffect(() => {
+    const element = box.current
+    if (element === null) return
+    const measure = () => setOverflowing(element.scrollWidth > element.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    for (const child of element.children) observer.observe(child)
+    return () => observer.disconnect()
+  }, [box])
+  return overflowing
+}
 
 /** What the table shows, computed from the comparison (see `useComparisonTable`). */
 export interface TableView {
@@ -105,12 +158,36 @@ export function CompareTable({
 }: Props) {
   const [store] = useState(() => new ValueStore(geomean))
   useLayoutEffect(() => store.set(geomean), [geomean, store])
+  const [shownTests] = useState(() => new ValueStore(tests))
+  useLayoutEffect(() => shownTests.set(tests), [tests, shownTests])
+
+  const box = useRef<HTMLDivElement>(null)
+  const overflowing = useOverflowing(box)
+
+  // A hidden test's row is greyed out, and the row of the test whose bar is hovered on the chart
+  // highlighted (CP5), rendering only the rows that change.
+  const rowClasses = useMemo(
+    (): RowClasses<Row> => ({
+      subscribe: (listener) => {
+        const unsubscribe = [hidden.subscribe(listener), hovered.subscribe(listener)]
+        return () => unsubscribe.forEach((call) => call())
+      },
+      of: ({ test }) =>
+        test === null
+          ? undefined
+          : clsx(
+              hidden.selected().has(test) && styles.hiddenRow,
+              hovered.get() === test && styles.hoveredRow,
+            ),
+    }),
+    [hidden, hovered],
+  )
 
   const columns = useMemo(() => {
     const all: Column<Row>[] = [
       {
         id: 'show',
-        header: <SelectAllBox rows={hidden} shown={tests} label="Show all tests shown" />,
+        header: <ShowAllBox rows={hidden} shownTests={shownTests} />,
         className: styles.showColumn,
         cell: (row) =>
           row.test === null ? null : (
@@ -123,13 +200,7 @@ export function CompareTable({
         looks: column.looks,
         className: column.id === 'test' ? styles.testColumn : undefined,
         cell: (row) =>
-          row.test === null ? (
-            <GeomeanCell store={store} column={column} />
-          ) : column.id === 'test' ? (
-            <HoverMark store={hovered} test={row.test} />
-          ) : (
-            column.cell(row)
-          ),
+          row.test === null ? <GeomeanCell store={store} column={column} /> : column.cell(row),
         // Only says that the column can be sorted by: the rows come sorted (see `sortComparison`).
         sortKey: () => null,
       })),
@@ -146,34 +217,26 @@ export function CompareTable({
       })
     }
     return all
-  }, [hidden, tests, store, shownColumns, hovered, profiled, links])
+  }, [hidden, shownTests, store, shownColumns, profiled, links])
 
-  const rowProps = useCallback(
-    (row: Row) => {
-      const { test } = row
-      if (test === null) return { onMouseEnter: () => emphasis.set(null) }
-      return {
-        className: styles.testRow,
-        onClick: (event: MouseEvent) => {
-          // The checkbox and the links handle their own clicks.
-          if ((event.target as Element).closest('input, a') !== null) return
-          hidden.click(test, event.shiftKey)
-        },
-        onDoubleClick: (event: MouseEvent) => {
-          // Shows only `test` among the rows, or all of them again (CP2 "Hidden tests").
-          if ((event.target as Element).closest('input, a') === null) {
-            hidden.replace(isolateRow(hidden.selected(), tests, test, hidden.inverted()))
-          }
-        },
-        // Shift selects a range of rows, and a double-click isolates one, rather than text.
-        onMouseDown: (event: MouseEvent) => {
-          if (event.shiftKey || event.detail > 1) event.preventDefault()
-        },
-        onMouseEnter: () => emphasis.set(test),
-      }
-    },
-    [hidden, tests, emphasis],
-  )
+  // The rows' handlers, on the box holding the table rather than on each of thousands of rows.
+  const onClick = (event: MouseEvent) => {
+    const test = clickedTest(event.target)
+    if (test !== null) hidden.click(test, event.shiftKey)
+  }
+  const onDoubleClick = (event: MouseEvent) => {
+    // Shows only `test` among the rows, or all of them again (CP2 "Hidden tests").
+    const test = clickedTest(event.target)
+    if (test !== null) {
+      hidden.replace(isolateRow(hidden.selected(), shownTests.get(), test, hidden.inverted()))
+    }
+  }
+  // Shift selects a range of rows, and a double-click isolates one, rather than text.
+  const onMouseDown = (event: MouseEvent) => {
+    if (rowTestOf(event.target) !== null && (event.shiftKey || event.detail > 1)) {
+      event.preventDefault()
+    }
+  }
 
   return (
     <>
@@ -191,14 +254,18 @@ export function CompareTable({
       </div>
       {/*
         Leaving a row for another outlines the other's bar at once, with no gap between. Leaving
-        the rows for the header, or for the box's scrollbar, outlines none.
+        the rows for the geomean's, the header, or the box's scrollbar, outlines none.
+        The checkboxes and the tests' names stick only while the box scrolls: sticky cells by the
+        thousand are slow to scroll past, and are of no use while everything is in view.
       */}
       <div
-        className={styles.tableBox}
+        ref={box}
+        className={clsx(styles.tableBox, overflowing && styles.overflowing)}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        onMouseDown={onMouseDown}
         onMouseLeave={() => emphasis.set(null)}
-        onMouseOver={(event) => {
-          if ((event.target as Element).closest('tbody') === null) emphasis.set(null)
-        }}
+        onMouseOver={(event) => emphasis.set(rowTestOf(event.target))}
       >
         <DataTable
           label="Comparison"
@@ -206,6 +273,7 @@ export function CompareTable({
           rows={rows}
           rowKey={testOf}
           rowProps={rowProps}
+          rowClasses={rowClasses}
           pinned={PINNED}
           empty={empty}
           sort={sort}

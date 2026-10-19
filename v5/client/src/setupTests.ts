@@ -3,9 +3,11 @@ import { afterAll, afterEach, beforeAll } from 'vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { NO_CREDENTIALS, setCredentials } from './api/client'
 import { FakeIntersectionObserver, resetIntersections } from './test/intersection-observer'
+import { FakeResizeObserver, resetResizes } from './test/resize-observer'
 import { server } from './test/server'
 
 globalThis.IntersectionObserver = FakeIntersectionObserver
+globalThis.ResizeObserver = FakeResizeObserver
 
 // How long `waitFor` and the `find*` queries wait: a time budget for loaded machines (slow CI
 // runners, or several suites running at once), where a page's first render can take seconds. Not
@@ -29,6 +31,7 @@ beforeAll(() =>
 afterEach(() => {
   cleanup()
   resetIntersections()
+  resetResizes()
   server.resetHandlers()
   // What the test's token store left behind: the token, and the API client's use of it.
   localStorage.clear()

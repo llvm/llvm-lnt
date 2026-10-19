@@ -19,6 +19,10 @@ function sideOf(page: Page, side: 'A' | 'B') {
   return page.getByRole('region', { name: new RegExp(`^Side ${side} `) })
 }
 
+/** The CSS `position` of `cell`, which is `sticky` for a cell kept in view (CP2 "Width"). */
+const positionOf = (cell: Locator) =>
+  cell.evaluate((element) => getComputedStyle(element).position)
+
 /** The two newest commits LINUX has runs at, by ordinal: the older first. */
 async function newestCommits(request: APIRequestContext) {
   const path = `/api/suites/libcxx/commits?machine=${LINUX}&sort=-ordinal&limit=2`
@@ -46,6 +50,12 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   const drawn = () =>
     plotOf(page).evaluate((element) => (element as PlotDiv)._fullData?.[0]?.y.length ?? 0)
   await expect.poll(drawn).toBe((await rows(comparison).count()) - 1)
+  // The columns fit, so none sticks: sticky cells by the thousand are slow to scroll past.
+  const box = comparison.locator('xpath=..')
+  expect(await box.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  const cells = rows(comparison).nth(1).locator('td')
+  expect(await positionOf(cells.nth(0))).toBe('static')
+  expect(await positionOf(cells.nth(1))).toBe('static')
 })
 
 test('scrolls the table rather than the page when its columns do not fit', async ({
@@ -87,7 +97,10 @@ test('scrolls the table rather than the page when its columns do not fit', async
   await expect(status).not.toBeInViewport()
   await box.evaluate((element) => (element.scrollLeft = element.scrollWidth))
   await expect(status).toBeInViewport()
-  // The checkbox and the name stay in view, over the columns scrolled under them.
+  // The checkbox and the name stay in view, over the columns scrolled under them: they stick once
+  // the page has found that the columns do not fit.
+  await expect.poll(() => positionOf(check)).toBe('sticky')
+  await expect.poll(() => positionOf(name)).toBe('sticky')
   const onTop = (cell: Locator) =>
     cell.evaluate((element) => {
       const { left, top, width, height } = element.getBoundingClientRect()

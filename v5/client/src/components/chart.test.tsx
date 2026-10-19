@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { Data, Layout, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { observerCount, resize } from '../test/resize-observer'
 import { Chart } from './chart'
 import { PageErrorBoundary } from './page-error-boundary'
 
@@ -23,28 +24,11 @@ const plotly = vi.hoisted(() => {
 })
 vi.mock('plotly.js-basic-dist-min', () => ({ default: plotly }))
 
-/** jsdom has no ResizeObserver: this one's callbacks are in `observed`, to call as a resize. */
-const observed = new Set<() => void>()
-class FakeResizeObserver {
-  private callback: () => void
-  constructor(callback: () => void) {
-    this.callback = callback
-  }
-  observe() {
-    observed.add(this.callback)
-  }
-  disconnect() {
-    observed.delete(this.callback)
-  }
-}
-
 beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', FakeResizeObserver)
   plotly.listeners.clear()
   vi.clearAllMocks()
 })
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
@@ -181,7 +165,7 @@ describe('Chart', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The chart could not be drawn.')
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     expect(plotly.purge).toHaveBeenCalledTimes(1)
-    expect(observed.size).toBe(0)
+    expect(observerCount()).toBe(0)
   })
 
   it('resizes the plot with its container, and frees it when unmounted', async () => {
@@ -189,15 +173,15 @@ describe('Chart', () => {
     await waitFor(() => expect(plotly.listeners.size).toBeGreaterThan(0))
     const container = screen.getByRole('img', { name: 'A trend' })
 
-    observed.forEach((callback) => callback())
+    resize()
     expect(plotly.Plots.resize).toHaveBeenCalledWith(container)
     // A resize of a plot that is not displayed is rejected, which is nothing to report.
     plotly.Plots.resize.mockRejectedValueOnce(new Error('not displayed'))
-    observed.forEach((callback) => callback())
+    resize()
 
     unmount()
     expect(plotly.purge).toHaveBeenCalledWith(container)
-    expect(observed.size).toBe(0)
+    expect(observerCount()).toBe(0)
   })
 
   it("leaves it to the page's error boundary to say that Plotly could not be loaded", async () => {
