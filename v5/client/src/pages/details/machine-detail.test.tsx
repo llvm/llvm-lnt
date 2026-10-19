@@ -25,6 +25,7 @@ import {
   renderPage,
   rowsOf,
   save,
+  settle,
   table,
   trailLink,
   typeInto,
@@ -370,6 +371,13 @@ describe('the Machine Detail page', () => {
     const nameInput = () => screen.getByRole('textbox', { name: 'Name' })
     const heading = () => screen.getByRole('heading', { level: 1 })
     const back = () => fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    const prompt = () => screen.getByRole('form', { name: 'Confirmation' })
+
+    /** Save the name `text`, and confirm it. */
+    function rename(text: string) {
+      save('Name', text)
+      fireEvent.click(within(prompt()).getByRole('button', { name: 'OK' }))
+    }
 
     /** Answer a rename with the machine renamed, once `wait` resolves; returns what was sent. */
     function mockRename(wait?: Promise<void>) {
@@ -393,16 +401,64 @@ describe('the Machine Detail page', () => {
       expect(editButton('Name')).toBeDisabled()
     })
 
-    it('explains what a rename means for submissions, on hover and to assistive technology', async () => {
+    it('asks to confirm a new name, saying what it means for submissions, before sending it', async () => {
       signIn('manage')
+      const sent = mockRename()
       renderMachine()
       await ready('Machine', () => editButton('Name'))
 
-      const help =
-        'Run submissions that still use the old name will create a new machine, so whatever ' +
-        'submits runs for this machine must be updated too.'
-      expect(screen.getByText('Name')).toHaveAttribute('title', help)
-      expect(editButton('Name')).toHaveAccessibleDescription(help)
+      save('Name', ` ${NEW} `)
+
+      expect(prompt()).toHaveTextContent(
+        `Rename ${NAME} to ${NEW}? Run submissions that still use the name ${NAME} will create a ` +
+          'new machine, so whatever submits runs for this machine must be updated too.',
+      )
+      expect(within(prompt()).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+      // The input waits for the answer, unchanged.
+      expect(nameInput()).toHaveAttribute('readonly')
+      expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true')
+      await settle()
+      expect(sent).toEqual([])
+    })
+
+    it('is not sent once its confirmation is cancelled, with Cancel or Escape, which goes back to the input', async () => {
+      signIn('manage')
+      const sent = mockRename()
+      renderMachine()
+      await ready('Machine', () => editButton('Name'))
+      const cancels = [
+        () => fireEvent.click(within(prompt()).getByRole('button', { name: 'Cancel' })),
+        () => fireEvent.keyDown(within(prompt()).getByRole('button', { name: 'Cancel' }), {
+          key: 'Escape',
+        }),
+      ]
+
+      fireEvent.click(editButton('Name'))
+      for (const cancel of cancels) {
+        typeInto(nameInput(), ` ${NEW} `)
+        fireEvent.submit(nameInput())
+        cancel()
+
+        expect(screen.queryByRole('form', { name: 'Confirmation' })).not.toBeInTheDocument()
+        expect(nameInput()).toHaveValue(` ${NEW} `)
+        expect(nameInput()).toHaveFocus()
+        expect(nameInput()).not.toHaveAttribute('readonly')
+      }
+      await settle()
+      expect(sent).toEqual([])
+    })
+
+    it('closes without asking anything when the name is unchanged', async () => {
+      signIn('manage')
+      const sent = mockRename()
+      renderMachine()
+      await ready('Machine', () => editButton('Name'))
+
+      save('Name', ` ${NAME} `)
+
+      expect(screen.queryByRole('form', { name: 'Confirmation' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument()
+      expect(sent).toEqual([])
     })
 
     it('cannot be saved empty, nor as a name that no URL could address', async () => {
@@ -447,10 +503,12 @@ describe('the Machine Detail page', () => {
       await ready('Machine', () => editButton('Name'))
       const machineQueries = mockMachines(() => ({ items: [machine(NEW)] }))
 
-      save('Name', ` ${NEW} `)
+      rename(` ${NEW} `)
 
-      // Under way: the page still shows the old name.
+      // Under way: the page still shows the old name, and the input, which has the focus back.
       await waitFor(() => expect(sent).toHaveLength(1))
+      expect(screen.queryByRole('form', { name: 'Confirmation' })).not.toBeInTheDocument()
+      expect(nameInput()).toHaveFocus()
       expect(heading()).toHaveTextContent(`Machine: ${NAME}`)
       expect(currentUrl()).toBe(PAGE)
       act(() => answer.open())
@@ -489,7 +547,7 @@ describe('the Machine Detail page', () => {
       await ready('Machine', () => editButton('Name'))
       const history = await table('Run history')
 
-      save('Name', NEW)
+      rename(NEW)
 
       await waitFor(() => expect(currentUrl()).toBe(NEW_PAGE))
       expect(rowsOf(history)[0]).toMatch(/^aaaaaaaa…/)
@@ -540,7 +598,7 @@ describe('the Machine Detail page', () => {
       renderMachine()
       await ready('Machine', () => editButton('Name'))
 
-      save('Name', 'other')
+      rename('other')
 
       expect(await screen.findByRole('alert')).toHaveTextContent(taken)
       expect(nameInput()).toHaveValue('other')
@@ -572,7 +630,7 @@ describe('the Machine Detail page', () => {
       fireEvent.click(within(await table('Runs')).getByRole('link', { name: NAME }))
       await ready('Machine', () => editButton('Name'))
 
-      save('Name', NEW)
+      rename(NEW)
       await waitFor(() => expect(currentUrl()).toBe(NEW_PAGE))
       back()
       back()
@@ -588,7 +646,7 @@ describe('the Machine Detail page', () => {
       const sent = mockRename(answer.promise)
       const { runQueries } = renderMachine()
       await ready('Machine', () => editButton('Name'))
-      save('Name', NEW)
+      rename(NEW)
       await waitFor(() => expect(sent).toHaveLength(1))
 
       // To the Runs tab of the suite, which lists the machine's runs, while the rename runs.

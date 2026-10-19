@@ -70,7 +70,7 @@ export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
       {confirming && (
         <ConfirmDelete
           expected={expected}
-          scope={scope}
+          gate={gate}
           busyMessage={busyMessage}
           onConfirm={remove}
           onCancel={() => {

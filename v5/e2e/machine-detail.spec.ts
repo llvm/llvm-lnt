@@ -73,6 +73,10 @@ test('its name is changed by a holder of manage scope, and listed as changed', a
     await page.getByRole('button', { name: 'Edit Name' }).click()
     await name.fill('renamed')
     await name.press('Enter')
+    await expect(page.getByRole('form', { name: 'Confirmation' })).toContainText(
+      'will create a new machine',
+    )
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
 
     await expect(page).toHaveURL(`/suites/${suite}/machines/renamed`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: renamed')
@@ -105,6 +109,7 @@ test('its name cannot be changed to that of another machine', async ({
     await page.getByRole('button', { name: 'Edit Name' }).click()
     await name.fill('m2')
     await name.press('Enter')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
 
     await expect(page.getByRole('alert')).toContainText("A machine named 'm2' already exists")
     await expect(name).toHaveValue('m2')

@@ -153,7 +153,7 @@ function EditForm({ schema, onClose }: FormProps) {
             <ConfirmDelete
               expected={name}
               confirmLabel="Save"
-              scope="manage"
+              gate={gate}
               busyMessage="Removing entries from a suite with much data may take a while."
               onConfirm={() =>
                 save.mutateAsync({ patch: patchOf(draft), confirm: true }, { onSuccess: onClose })

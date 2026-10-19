@@ -274,7 +274,7 @@ function KeysTable({
         <ConfirmDelete
           key={revoking.prefix}
           confirmLabel="Revoke"
-          scope="admin"
+          gate={gate}
           onConfirm={() => revoke.mutateAsync(revoking)}
           onCancel={rowConfirm.cancel}
         >

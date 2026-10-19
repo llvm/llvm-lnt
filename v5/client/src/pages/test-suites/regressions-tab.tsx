@@ -159,7 +159,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
         <ConfirmDelete
           key={deleting.uuid}
           expected={uuidPrefix(deleting.uuid)}
-          scope="triage"
+          gate={triage}
           onConfirm={() => remove.mutateAsync(deleting)}
           onCancel={rowConfirm.cancel}
         >

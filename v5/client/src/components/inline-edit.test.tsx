@@ -1,24 +1,31 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { useState, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, PERMISSION_DENIED } from '../api/client'
 import type { ScopeGate } from '../auth/scope'
+import { ALLOWED } from '../test/auth'
 import { gate as settle } from '../test/page'
 import { InlineEdit, type EditorProps } from './inline-edit'
-
-const ALLOWED: ScopeGate = { disabled: false, title: undefined }
 
 interface Options {
   value?: string | null
   gate?: ScopeGate
   invalid?: (text: string) => string | undefined
   required?: string
+  confirm?: (text: string) => ReactNode
   /** What saving does; by default, it succeeds, and the value becomes what was saved. */
   save?: (text: string | null) => Promise<unknown>
 }
 
 /** An editor of a field labelled `Tag`, whose owner stores what a save succeeds with. */
-function renderEditor({ value = 'v1', gate = ALLOWED, invalid, required, save }: Options = {}) {
+function renderEditor({
+  value = 'v1',
+  gate = ALLOWED,
+  invalid,
+  required,
+  confirm,
+  save,
+}: Options = {}) {
   const onSave = vi.fn(save ?? (() => Promise.resolve()))
   function Owner() {
     const [stored, setStored] = useState(value)
@@ -29,6 +36,7 @@ function renderEditor({ value = 'v1', gate = ALLOWED, invalid, required, save }:
         gate={gate}
         invalid={invalid}
         required={required}
+        confirm={confirm}
         maxLength={256}
         onSave={async (text) => {
           await onSave(text)
@@ -111,6 +119,29 @@ describe('InlineEdit', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     }
     expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('asks to confirm the text when told to, and saves it only on OK', async () => {
+    const { onSave } = renderEditor({ confirm: (text) => `Really ${text}?` })
+    edit(' v2 ')
+
+    fireEvent.submit(input())
+
+    const prompt = screen.getByRole('form', { name: 'Confirmation' })
+    expect(prompt).toHaveTextContent('Really v2?')
+    expect(onSave).not.toHaveBeenCalled()
+    // Escape cancels the confirmation rather than the edit.
+    fireEvent.keyDown(within(prompt).getByRole('button', { name: 'Cancel' }), { key: 'Escape' })
+    expect(input()).toHaveValue(' v2 ')
+    expect(input()).toHaveFocus()
+    expect(onSave).not.toHaveBeenCalled()
+
+    fireEvent.submit(input())
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }))
+
+    expect(await screen.findByText('v2')).toBeInTheDocument()
+    expect(onSave).toHaveBeenCalledWith('v2')
+    expect(editButton()).toHaveFocus()
   })
 
   it('closes without saving when the text is the value', () => {

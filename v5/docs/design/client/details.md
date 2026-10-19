@@ -65,11 +65,13 @@ may take a while for machines with many runs.
 The info box shows the machine's name in a `Name` row, edited in place (see
 AR12) through `PATCH /machines/{name}`, which requires `manage` scope. A name is
 required, so emptying the input makes its text invalid (see AR11), as does a
-name that I1 rejects: one containing `/` or `%`, or exactly `.` or `..`. The
-label carries a help tooltip saying that run submissions that still use the old
-name will create a new machine, so whatever submits runs for this machine must
-be updated too (see E2). Saving is not confirmed. A name already taken by
-another machine is refused, and the input says so (see AR12).
+name that I1 rejects: one containing `/` or `%`, or exactly `.` or `..`. Saving
+a new name first asks for a plain confirmation (see AR16), with OK and Cancel,
+which names the old and the new name and says that run submissions that still
+use the old name will create a new machine, so whatever submits runs for this
+machine must be updated too (see E2). Only OK sends the rename. Cancel, or
+Escape, closes the prompt and returns to the input, with its text. A name
+already taken by another machine is refused, and the input says so (see AR12).
 
 The page header changes only once a rename is saved. The page then shows the
 machine at `/suites/{ts}/machines/{new name}`, which takes the place of the old

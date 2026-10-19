@@ -21,7 +21,7 @@ import { CursorPager } from '../../components/pagination'
 import { runColumns } from '../../components/run-columns'
 import { useMounted } from '../../components/use-mounted'
 import { WithSchema } from '../../components/with-schema'
-import { invalidMachineName, RENAME_HELP, UNTRACKED_HELP } from '../../machines'
+import { invalidMachineName, UNTRACKED_HELP } from '../../machines'
 import { comparePath, graphPath, machinePath } from '../../paths'
 import { ACTIVE_STATES } from '../../regression-states'
 import { formatFieldValue, labelOf, type Commit } from '../../schema'
@@ -152,20 +152,15 @@ function useUpdateMachine(suite: string, name: string) {
   })
 }
 
-/** The machine's name, which a holder of `manage` scope can change (DT1). */
+/**
+ * The machine's name, which a holder of `manage` scope can change, once they have confirmed what it
+ * means for whatever submits its runs (DT1).
+ */
 function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
-  const labelId = useId()
-  const helpId = useId()
   const manage = useScopeGate('manage')
   const update = useUpdateMachine(suite, machine.name)
   return (
-    <InfoRow
-      label={
-        <HelpLabel id={labelId} help={RENAME_HELP}>
-          Name
-        </HelpLabel>
-      }
-    >
+    <InfoRow label="Name">
       <InlineEdit
         label="Name"
         value={machine.name}
@@ -173,11 +168,16 @@ function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
         invalid={invalidMachineName}
         required="A machine needs a name."
         maxLength={MACHINE_NAME_LENGTH}
-        describedBy={helpId}
+        confirm={(name) => (
+          <p>
+            Rename <strong>{machine.name}</strong> to <strong>{name}</strong>? Run submissions that
+            still use the name <strong>{machine.name}</strong> will create a new machine, so whatever
+            submits runs for this machine must be updated too.
+          </p>
+        )}
         // `required` keeps the text from being null.
         onSave={(text) => update.mutateAsync({ name: text ?? '' })}
       />
-      <VisuallyHidden id={helpId}>{RENAME_HELP}</VisuallyHidden>
     </InfoRow>
   )
 }

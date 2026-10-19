@@ -237,12 +237,14 @@ empty input -- unless the field must have a value, such as a machine's name
 (DT1), in which case empty text is invalid (see AR11). Saving unchanged text --
 the text the input opened with, or the stored value once trimmed -- closes the
 input without sending anything, so a stored value with whitespace at either end
-keeps it. Invalid text cannot be saved. While a save is in progress, the input
-and its buttons cannot be used. If the save fails, the input stays open with its
-text and says why. If it succeeds, the input closes and the field shows the
-value the API returned, so an edit never appears before the API has accepted it.
-When the input closes, the focus returns to the Edit button. Edit and Save need
-the scope that the change needs (see AR17).
+keeps it. Invalid text cannot be saved. A field whose changes must be confirmed,
+such as a machine's name (DT1), asks for the confirmation when saved, and saves
+only once it is given. While a save is in progress, the input and its buttons
+cannot be used. If the save fails, the input stays open with its text and says
+why. If it succeeds, the input closes and the field shows the value the API
+returned, so an edit never appears before the API has accepted it. When the
+input closes, the focus returns to the Edit button. Edit and Save need the scope
+that the change needs (see AR17).
 
 
 ## AR13: Controls Saving on Change
@@ -322,9 +324,10 @@ a commit, the first 8 characters of the UUID of a run or a regression -- before
 the request is sent; the prompt shows the text to type. Saving a schema change
 that removes entries (AD3) is confirmed the same way, by typing the suite name,
 since it destroys their stored values. Revoking an API key (AD1), which destroys
-nothing, asks for a plain confirmation instead. Removing indicators from a
-regression (DT4) is not confirmed at all: it destroys no measured data, and the
-indicators can be added again.
+nothing, asks for a plain confirmation instead, as does renaming a machine
+(DT1), since run submissions that still use the old name create a new machine.
+Removing indicators from a regression (DT4) is not confirmed at all: it destroys
+no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry
