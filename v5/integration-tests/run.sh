@@ -10,50 +10,67 @@
 # container.
 #
 # Each check is run with:
-#   BASE_URL      where the server is reachable
 #   CONTAINER     the app container, for checks that signal or restart it
 #   DB_CONTAINER  the Postgres container, for checks that take the database away
 #
-# Checks source lib.sh for strict mode and test helpers. They run in filename order and are
-# independent, with one exception: anything that stops the server has to sort last, which is
-# what the numeric prefixes are for.
+# Checks source lib.sh for strict mode and test helpers, and for BASE_URL, where the server is
+# reachable. They run in filename order and are independent, with one exception: anything that
+# stops the server has to sort last, which is what the numeric prefixes are for.
+#
+# Several runs can go on at once, from different checkouts say: a run names everything it creates
+# after a random identifier, and removes only that. A run killed outright (SIGKILL), or terminated
+# while it builds the image, leaves its containers, network or image behind. This removes them,
+# along with those of any run in progress, so only use it when none is:
+#
+#   for container in $(docker ps --all --quiet --filter label=lnt-v5-integration); do
+#       docker rm --force "$container"
+#   done
+#   docker network prune --force --filter label=lnt-v5-integration
+#   for image in $(docker images --format '{{.Repository}}:{{.Tag}}' 'lnt-v5:integration-*'); do
+#       docker image rm "$image"
+#   done
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# With no argument, build the image from the tree first, so that `npm run test:integration` is
-# a single command from a clean checkout. CI passes the tag it just built, and so skips this.
-if [ $# -ge 1 ]; then
-    IMAGE="$1"
-else
-    IMAGE="lnt-v5:integration"
-    echo "Building ${IMAGE}..."
-    docker build --tag "$IMAGE" "${HERE}/.."
-fi
+ID="$(printf '%04x%04x' "$RANDOM" "$RANDOM")"
+NETWORK="lnt-v5-integration-${ID}"
+APP="lnt-v5-integration-${ID}-app"
+PG="lnt-v5-integration-${ID}-db"
+# What the cleanup commands above look for.
+LABEL="lnt-v5-integration"
+# Only set if this run builds the image, which it then removes.
+BUILT=""
 
-# Not 3000: a dev server is often already sitting there.
-PORT="${PORT:-3100}"
-
-NETWORK="lnt-v5-integration"
-APP="lnt-v5-integration-app"
-PG="lnt-v5-integration-db"
-
-export BASE_URL="http://localhost:${PORT}"
 export CONTAINER="$APP"
 export DB_CONTAINER="$PG"
 
 cleanup() {
     docker rm --force "$APP" "$PG" >/dev/null 2>&1 || true
     docker network rm "$NETWORK" >/dev/null 2>&1 || true
+    if [ -n "$BUILT" ]; then docker image rm "$BUILT" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
-# Also up front, in case a previous run was killed before its trap fired.
-cleanup
+
+# With no argument, build the image from the tree first, so that `npm run test:integration` is
+# a single command from a clean checkout. CI passes the tag it just built, and so skips this.
+#
+# The tag is this run's own: a run in another checkout could otherwise move it to an image of its
+# own in the meantime, which can make this one unreachable. The build cache, which is shared,
+# keeps building it again cheap.
+if [ $# -ge 1 ]; then
+    IMAGE="$1"
+else
+    IMAGE="lnt-v5:integration-${ID}"
+    BUILT="$IMAGE"
+    echo "Building ${IMAGE}..."
+    docker build --tag "$IMAGE" "${HERE}/.."
+fi
 
 echo "Starting Postgres..."
-docker network create "$NETWORK" >/dev/null
-docker run --detach --name "$PG" --network "$NETWORK" \
+docker network create --label "$LABEL" "$NETWORK" >/dev/null
+docker run --detach --name "$PG" --label "$LABEL" --network "$NETWORK" \
     --env POSTGRES_USER=lnt --env POSTGRES_PASSWORD=lnt --env POSTGRES_DB=lnt \
     --health-cmd='pg_isready -U lnt' --health-interval=2s \
     --health-timeout=3s --health-retries=15 \
@@ -70,16 +87,20 @@ if [ "$(docker inspect -f '{{.State.Health.Status}}' "$PG")" != healthy ]; then
 fi
 
 echo "Starting ${IMAGE}..."
+# The host port is left to Docker (see lib.sh for how the checks find it).
+#
 # BODY_LIMIT is lowered from its 128 MiB default so that body-size checks can be done without
 # having to send huge payloads.
 #
 # WEB_CONCURRENCY is set to exercise multiple concurrent workers in the integration tests.
-docker run --detach --init --name "$APP" --network "$NETWORK" --publish "${PORT}:3000" \
+docker run --detach --init --name "$APP" --label "$LABEL" --network "$NETWORK" \
+    --publish 127.0.0.1::3000 \
     --env DATABASE_URL="postgres://lnt:lnt@${PG}:5432/lnt" \
     --env BODY_LIMIT=1048576 \
     --env WEB_CONCURRENCY=4 \
     "$IMAGE" >/dev/null
 
+BASE_URL="http://$(docker port "$APP" 3000/tcp)"
 for _ in $(seq 1 60); do
     curl --silent --fail --output /dev/null "${BASE_URL}/healthz" && break
     sleep 1

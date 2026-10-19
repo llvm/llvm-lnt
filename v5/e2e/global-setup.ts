@@ -1,11 +1,13 @@
 /**
  * The stack every end-to-end run tests against, set up once before the tests and torn down after
  * them: a throwaway database on the local PostgreSQL, the real server serving the built client on
- * its own port (`lnt-v5 server run`, which migrates the database first), an admin key, and the
- * seed data.
+ * a free port (`lnt-v5 server run`, which migrates the database first), an admin key, and the
+ * seed data. The database and the port are this run's own, so that several checkouts can run the
+ * tests at once.
  *
- * The admin token reaches the tests as `E2E_ADMIN_TOKEN` (see fixtures.ts). The server's output is
- * written to `SERVER_LOG`, which fixtures.ts attaches to each failing test.
+ * The server's URL and the admin token reach the tests as `E2E_BASE_URL` and `E2E_ADMIN_TOKEN`
+ * (see fixtures.ts). The server's output is written to `SERVER_LOG`, which fixtures.ts attaches to
+ * each failing test.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -15,10 +17,13 @@ import path from 'node:path'
 import { seed } from '../tools/seed.ts'
 import { uv, UV_RUN, V5 } from '../tools/uv.ts'
 
-/** Not 3000 (the dev server) nor 3100 (the integration tests), so that all three can coexist. */
-const PORT = Number(process.env.E2E_PORT ?? 3200)
-export const BASE_URL = `http://127.0.0.1:${PORT}`
 export const SERVER_LOG = path.join(import.meta.dirname, 'server.log')
+
+/**
+ * The line uvicorn logs once it listens. The match runs past the port, so that a line still being
+ * written cannot yield half of one.
+ */
+const LISTENING = /Uvicorn running on \S+:(\d+) \(Press CTRL\+C/
 
 /**
  * The server to create the throwaway database on: the one `npm run db:up` starts, and the one CI's
@@ -35,22 +40,28 @@ function sql(statement: string): void {
   uv(['python', '-c', script, `${POSTGRES}/lnt`, statement])
 }
 
-async function isServing(): Promise<boolean> {
+async function isServing(url: string): Promise<boolean> {
   try {
-    return (await fetch(`${BASE_URL}/healthz`)).ok
+    return (await fetch(`${url}/healthz`)).ok
   } catch {
     return false
   }
 }
 
-async function waitForServer(server: ChildProcess): Promise<void> {
+/**
+ * Wait for `server` to answer, and return its URL. The port is read from the server's own log
+ * rather than probed for, so that the server found there is this one, whatever else is running.
+ */
+async function waitForServer(server: ChildProcess): Promise<string> {
   for (let attempt = 0; attempt < 300; attempt++) {
-    if (server.exitCode !== null) break
-    if (await isServing()) return
+    if (server.exitCode !== null || server.signalCode !== null) break
+    const port = LISTENING.exec(readFileSync(SERVER_LOG, 'utf8'))?.[1]
+    const url = `http://127.0.0.1:${port}`
+    if (port && (await isServing(url))) return url
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   const tail = readFileSync(SERVER_LOG, 'utf8').split('\n').slice(-20).join('\n')
-  throw new Error(`The server never answered ${BASE_URL}/healthz. Its last output:\n${tail}`)
+  throw new Error(`The server never answered. Its last output:\n${tail}`)
 }
 
 /** Send `signal` to the server's whole process group, which may have exited already. */
@@ -74,14 +85,6 @@ async function stop(server: ChildProcess): Promise<void> {
 }
 
 export default async function globalSetup() {
-  // Otherwise the tests would quietly run against whatever is already there.
-  if (await isServing()) {
-    throw new Error(
-      `Something is already serving ${BASE_URL}: a server left behind by an e2e run that was ` +
-        'killed, perhaps, which you can stop. Or set E2E_PORT to use another port.',
-    )
-  }
-
   const database = `lnt_e2e_${randomBytes(6).toString('hex')}`
   const env = {
     DATABASE_URL: `${POSTGRES}/${database}`,
@@ -120,18 +123,20 @@ export default async function globalSetup() {
     created = true
 
     const log = openSync(SERVER_LOG, 'w')
-    server = spawn('uv', [...UV_RUN, 'lnt-v5', 'server', 'run', '--port', String(PORT)], {
+    // Port 0: the server picks a free port, which waitForServer reads from its log.
+    server = spawn('uv', [...UV_RUN, 'lnt-v5', 'server', 'run', '--port', '0'], {
       env: { ...process.env, ...env },
       stdio: ['ignore', log, log],
       detached: true,
     })
     closeSync(log)
-    await waitForServer(server)
+    const url = await waitForServer(server)
+    process.env.E2E_BASE_URL = url
 
     const args = ['lnt-v5', 'server', 'create-key', '--name', 'e2e-admin', '--scope', 'admin']
     const token = uv(args, env).trim()
     process.env.E2E_ADMIN_TOKEN = token
-    await seed({ url: BASE_URL, token: () => token, log: () => {} })
+    await seed({ url, token: () => token, log: () => {} })
   } catch (error) {
     await teardown()
     throw error

@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "concurrently -n client,server -c blue,green \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "npm run dev -w client",
-    "dev:server": "uv run --project server --env-file .env lnt-v5 server dev",
+    "dev:server": "uv run --project server --env-file .env sh -c 'exec lnt-v5 server dev --port ${DEV_SERVER_PORT:-3000}'",
     "build": "npm run build -w client",
     "test": "npm run test:client && npm run test:server",
     "test:client": "npm run test -w client",

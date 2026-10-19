@@ -43,12 +43,12 @@ npm run dev
 ```
 
 This starts the Vite dev server at http://localhost:5173 and the FastAPI server at
-http://localhost:3000. Vite proxies `/api`, `/healthz`, `/llms.txt`, and `/robots.txt` through to
-FastAPI.
+http://localhost:3000, unless `.env` moves them (see `.env.example`). Vite proxies `/api`,
+`/healthz`, `/llms.txt`, and `/robots.txt` through to FastAPI.
 
 The server reads its configuration from the environment; `npm run dev:server` passes `.env` to it
-via `uv run --env-file`. Nothing loads `.env` implicitly, so the test suite is unaffected by
-whatever you have in it. To create a token against your local database:
+via `uv run --env-file`. Only the development commands read `.env`, never the tests, so the test
+suite is unaffected by whatever you have in it. To create a token against your local database:
 
 ```sh
 npm run create-key                                # a token named "dev", with admin scope
@@ -63,7 +63,7 @@ Paste the token into the web UI's Settings panel to use it from the browser.
 With `npm run dev` running, populate the dev database through the REST API:
 
 ```sh
-npm run seed                                      # against http://localhost:3000
+npm run seed                                      # against the dev server
 npm run seed -- --token <token>                   # with a token of your own
 ```
 
@@ -92,7 +92,8 @@ Note that the server tests need the Postgres from `npm run db:up`: they create t
 of their own and drop them afterwards, so they don't touch the one used by `npm run dev`.
 
 The integration tests are what CI runs against the image; they need Docker, but create and remove
-their own database.
+their own database. A run killed outright (with SIGKILL, say) cannot clean up after itself:
+`integration-tests/run.sh` says how to remove what it leaves behind.
 
 Stop the local database with `npm run db:down` when you're done.
 
