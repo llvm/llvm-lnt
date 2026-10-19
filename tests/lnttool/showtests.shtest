@@ -1,4 +1,3 @@
 # RUN: lnt showtests | filecheck %s
 # CHECK: Available tests:
-# CHECK-NEXT: compile    - Single file compile-time performance testing
 # CHECK-NEXT: test_suite - LLVM test-suite
