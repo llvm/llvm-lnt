@@ -557,17 +557,25 @@ as `{suite}.commit`, and the tables below are named that way.
 
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | INTEGER | PK |
-| run_id | INTEGER FK -> Run | not null |
-| test_id | INTEGER FK -> Test | not null |
+| run_id | INTEGER FK -> Run | PK |
+| test_id | INTEGER FK -> Test | PK |
+| repetition | INTEGER | PK |
 | _(dynamic)_ | per metrics | nullable |
 
-- Compound index on `(run_id, test_id)`, for "all samples of a run".
-- Compound index on `(test_id, run_id)`, for time-series queries.
+- `repetition` is the sample's position, from 0, among its test's samples in
+  the submission (see O1). It tells the repetitions of a test in a run apart in
+  storage, and is not exposed by the API (see E6).
+- The primary key leads with the run. It serves
+  `GET /api/suites/{testsuite}/runs/{uuid}/samples`, with or without `test=`;
+  the deletion of a run's samples; `POST /api/suites/{testsuite}/query` without
+  a sort, whose cursor follows the key; and `POST /api/suites/{testsuite}/query`
+  when it reaches the samples through their runs, as it does for a machine's.
+- Compound index on `(test_id, run_id)`: serves the `test` filter of
+  `POST /api/suites/{testsuite}/query`.
 - Dynamic columns are created from the schema's metrics (see D3 for the
   type-to-column mapping).
-- Metric names must not collide with the built-in column names (`id`,
-  `run_id`, `test_id`), or with those of `{suite}.test_coverage`.
+- Metric names must not collide with the built-in column names (`run_id`,
+  `test_id`, `repetition`), or with those of `{suite}.test_coverage`.
 
 #### `{suite}.test_coverage`
 

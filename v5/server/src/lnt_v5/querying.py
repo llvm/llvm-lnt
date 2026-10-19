@@ -228,7 +228,9 @@ class Keyset:
     O5's rule: cursor pagination needs a deterministic, non-repeating row ordering, so the
     caller's sort specification is followed by an internal unique tiebreaker. Without one, two rows
     sharing a sort value have no fixed relative position, and a page boundary falling between them
-    would drop one and repeat the other on the next page.
+    would drop one and repeat the other on the next page. A tiebreaker may span several columns: all
+    but its last are given as sort keys and the last as `tiebreaker`. The whole need only be unique
+    among the rows the list's filters admit.
 
     The cursor names a *position in the ordering* -- the key values of the last row served -- and
     not the row itself. That is what keeps a resumption correct when the page's last row is deleted

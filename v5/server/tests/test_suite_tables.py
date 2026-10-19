@@ -132,9 +132,7 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         .values(uuid="11111111-1111-4111-8111-111111111111", machine_id=machine, commit_id=commit)
         .returning(tables.run.c.id)
     ).scalar_one()
-    sample = connection.execute(
-        insert(tables.sample).values(run_id=run, test_id=test).returning(tables.sample.c.id)
-    ).scalar_one()
+    connection.execute(insert(tables.sample).values(run_id=run, test_id=test, repetition=0))
     connection.execute(insert(tables.test_coverage).values(machine_id=machine, test_id=test))
     regression = connection.execute(
         insert(tables.regression)
@@ -183,7 +181,6 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         "test": test,
         "metric": metric,
         "run": run,
-        "sample": sample,
         "regression": regression,
         "profile": profile,
     }
@@ -298,9 +295,9 @@ class TestBuiltInColumns:
             (
                 "sample",
                 [
-                    "id",
                     "run_id",
                     "test_id",
+                    "repetition",
                     "execution_time",
                     "compile_status",
                     "build_id",
@@ -506,7 +503,7 @@ class TestDynamicColumns:
             rows = seed(connection, tables)
             connection.execute(
                 tables.sample.update()
-                .where(tables.sample.c.id == rows["sample"])
+                .where(tables.sample.c.run_id == rows["run"])
                 .values({"order": 7})
             )
             assert connection.execute(select(tables.sample.c["order"])).scalar_one() == 7
@@ -626,17 +623,21 @@ class TestIndexes:
         assert index["column_names"] == ["delete_after_inactive_days"]
         assert index.get("dialect_options", {}).get("postgresql_where") is not None
 
-    def test_sample_is_indexed_in_both_orders(
+    def test_sample_is_keyed_by_run_and_indexed_by_test(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5 names both deliberately: (run_id, test_id) covers "all samples for a run", and
-        # (test_id, run_id) covers the time-series query (O5).
+        # D5: the key leads with the run, which is how a run's samples are reached, and the index
+        # leads with the test, for E9's `test` filter. No other index.
         make_suite("nts")
 
-        indexes = indexes_of(inspect(db_engine), "nts", "sample")
+        inspector = inspect(db_engine)
+        key = inspector.get_pk_constraint("sample", schema="nts")
+        indexes = indexes_of(inspector, "nts", "sample")
 
-        assert indexes["ix_sample_run_id_test_id"]["column_names"] == ["run_id", "test_id"]
-        assert indexes["ix_sample_test_id_run_id"]["column_names"] == ["test_id", "run_id"]
+        assert key["constrained_columns"] == ["run_id", "test_id", "repetition"]
+        assert {name: index["column_names"] for name, index in indexes.items()} == {
+            "ix_sample_test_id_run_id": ["test_id", "run_id"]
+        }
 
     def test_run_is_indexed_by_machine_and_measurement_time(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

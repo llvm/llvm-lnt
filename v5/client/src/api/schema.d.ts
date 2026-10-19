@@ -1813,7 +1813,7 @@ export interface components {
          * @description Something the suite's tests measure, such as execution time. In a run submission, each
          *     sample of a test reports its value under the metric's name.
          *
-         *     The name can't be `id`, `run_id`, `test_id` or `machine_id`.
+         *     The name can't be `run_id`, `test_id`, `repetition` or `machine_id`.
          * @example {
          *       "bigger_is_better": false,
          *       "display_name": "Execution Time",
@@ -1878,7 +1878,7 @@ export interface components {
          * @description Something the suite's tests measure, such as execution time. In a run submission, each
          *     sample of a test reports its value under the metric's name.
          *
-         *     The name can't be `id`, `run_id`, `test_id` or `machine_id`.
+         *     The name can't be `run_id`, `test_id`, `repetition` or `machine_id`.
          * @example {
          *       "bigger_is_better": false,
          *       "display_name": "Execution Time",

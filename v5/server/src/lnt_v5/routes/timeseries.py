@@ -271,6 +271,10 @@ class Points:
         self._test: Table = suite.tables.test
         self.metric = metric.name
         self.value: Column[Any] = self.table.c[metric.name]
+        # D5's primary key, which the cursor orders by after the caller's sort. On `sample` rather
+        # than through the joined `run.id`, so that without a sort the cursor's comparison is a
+        # condition on the key's index.
+        self._key = (self.table.c.run_id, self.table.c.test_id, self.table.c.repetition)
         # The columns the range filters bound.
         self.ordinal: Column[Any] = self._commit.c.ordinal
         self.submitted_at: Column[Any] = self._run.c.submitted_at
@@ -284,11 +288,11 @@ class Points:
         }
 
     def select(self) -> Select[Any]:
-        """Every column a point is rendered from, plus the sample id the cursor orders by. A sample
-        with no value for the metric is not a point."""
+        """Every column a point is rendered from, plus the sample's key, which the cursor orders by.
+        A sample with no value for the metric is not a point."""
         return (
             select(
-                self.table.c.id,
+                *self._key,
                 self._test.c.name,
                 self._machine.c.name,
                 self.value,
@@ -309,17 +313,21 @@ class Points:
         )
 
     def keyset(self, sort: QuerySort | None) -> Keyset:
-        """O5's ordering: the caller's sort, then the sample's id as the unique tiebreaker.
+        """O5's ordering: the caller's sort, then the sample's key to break ties.
 
         `Keyset.defined` drops the rows whose sort key is null, which is what excludes unordered
-        commits under `sort=commit` (O5). The sort key and the tiebreaker live on different tables,
-        so the cursor comparison is not a pure index condition; PostgreSQL still drives the join
-        from the sort column's index and finishes with an incremental sort, so a page stops early.
+        commits under `sort=commit` (O5). The sort key and the sample's key live on different
+        tables, so the cursor comparison is not a pure index condition; PostgreSQL still drives the
+        join from the sort column's index and finishes with an incremental sort, so a page stops
+        early.
         """
-        if sort is None:
-            return Keyset(tiebreaker=self.table.c.id)
-        field, descending = sort_order(sort)
-        return Keyset(SortKey(self._sortable[field], descending), tiebreaker=self.table.c.id)
+        keys: list[SortKey] = []
+        descending = False
+        if sort is not None:
+            field, descending = sort_order(sort)
+            keys = [SortKey(self._sortable[field], descending)]
+        *leading, last = self._key
+        return Keyset(*keys, *(SortKey(column, descending) for column in leading), tiebreaker=last)
 
     def measured_on(self, machine: int) -> ColumnElement[bool]:
         """I3's `machine=`, by id so that it uses D5's `(machine_id, measured_at)` index."""
