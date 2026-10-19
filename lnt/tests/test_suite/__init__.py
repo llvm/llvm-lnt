@@ -20,7 +20,7 @@ import click
 
 from lnt.lnttool.common import submit_options
 from lnt.util import logger
-import lnt.testing
+from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
 import lnt.testing.profile
 import lnt.testing.util.compilers
 import lnt.util.ImportData
@@ -111,10 +111,7 @@ def _importProfile(objdump, name_filename):
 
     pf.upgrade()
     profilefile = pf.render()
-    return lnt.testing.TestSamples(name + '.profile',
-                                   [profilefile],
-                                   {},
-                                   str)
+    return TestSamples(name + '.profile', [profilefile], str)
 
 
 def _lit_json_to_template(json_reports, template_engine):
@@ -637,7 +634,7 @@ class TestSuiteTest(BuiltinTest):
         run = reports[0].run
         run.end_time = reports[-1].run.end_time
         test_samples = sum([r.tests for r in reports], [])
-        return lnt.testing.Report(machine, run, test_samples)
+        return Report(machine, run, test_samples)
 
     def _filter_exec_samples(self, reports, json_reports):
         """Filter out execution samples based on --drop-exec option.
@@ -928,12 +925,12 @@ class TestSuiteTest(BuiltinTest):
 
     def _get_lnt_code(self, code):
         return {
-            'FAIL': lnt.testing.FAIL,
-            'NOEXE': lnt.testing.FAIL,
-            'PASS': lnt.testing.PASS,
-            'UNRESOLVED': lnt.testing.FAIL,
-            'XFAIL': lnt.testing.XFAIL,
-            'XPASS': lnt.testing.FAIL,
+            'FAIL': FAIL,
+            'NOEXE': FAIL,
+            'PASS': PASS,
+            'UNRESOLVED': FAIL,
+            'XFAIL': XFAIL,
+            'XPASS': FAIL,
         }[code]
 
     def _extract_cmake_vars_from_cache(self):
@@ -1011,8 +1008,6 @@ class TestSuiteTest(BuiltinTest):
             'link_mem_bytes': float
         }
 
-        # We don't use the test info, currently.
-        test_info = {}
         test_samples = []
 
         # FIXME: Populate with keys not to upload
@@ -1068,23 +1063,17 @@ class TestSuiteTest(BuiltinTest):
                         server_name = name + '-link.' + LIT_METRIC_TO_LNT[k]
 
                     test_samples.append(
-                        lnt.testing.TestSamples(server_name,
-                                                [v],
-                                                test_info,
-                                                LIT_METRIC_CONV_FN[k]))
+                        TestSamples(server_name, [v], LIT_METRIC_CONV_FN[k]))
 
             if code == 'NOEXE':
                 test_samples.append(
-                    lnt.testing.TestSamples(name + '.compile.status',
-                                            [lnt.testing.FAIL],
-                                            test_info))
+                    TestSamples(name + '.compile.status', [FAIL]))
                 no_errors = False
 
             elif not is_pass:
                 lnt_code = self._get_lnt_code(test_data['code'])
                 test_samples.append(
-                    lnt.testing.TestSamples(name + '.exec.status',
-                                            [lnt_code], test_info))
+                    TestSamples(name + '.exec.status', [lnt_code]))
                 no_errors = False
 
         # Now import the profiles in parallel.
@@ -1120,12 +1109,9 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.run_order:
             run_info['run_order'] = self.opts.run_order
 
-        machine_info = {
-        }
-
-        machine = lnt.testing.Machine(self.opts.label, machine_info)
-        run = lnt.testing.Run(self.start_time, timestamp(), info=run_info)
-        report = lnt.testing.Report(machine, run, test_samples)
+        machine = Machine(self.opts.label)
+        run = Run(self.start_time, timestamp(), info=run_info)
+        report = Report(machine, run, test_samples)
         return report
 
     def _unix_quote_args(self, s):
