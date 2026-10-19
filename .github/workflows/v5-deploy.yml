@@ -77,16 +77,19 @@ jobs:
           TF_VAR_app_image_tag: ${{ inputs.app_image_tag }}
         run: terraform apply -auto-approve
 
+      # The app migrates the database before it serves, and a migration that rewrites a large table
+      # can take a while, so be generous.
       - name: Wait for /healthz
         env:
           DOMAIN: ${{ vars.V5_DOMAIN }}
         run: |
-          for _ in $(seq 1 60); do
+          deadline=$((SECONDS + 30 * 60))
+          while [ "$SECONDS" -lt "$deadline" ]; do
             if curl --silent --fail --max-time 10 "https://${DOMAIN}/healthz" | grep -q '"ok":true'; then
               echo "Server is healthy"
               exit 0
             fi
             sleep 5
           done
-          echo "Server never became healthy"
+          echo "::error::Server not healthy after 30 minutes. The app may still be migrating the database, or failing to start."
           exit 1
