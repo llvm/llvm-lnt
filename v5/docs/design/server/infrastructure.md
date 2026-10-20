@@ -89,14 +89,16 @@ To get the next page, a client sends `cursor.next` back as `cursor`, along with
 the same filters and `sort` as the request that returned it: as the `cursor=`
 query parameter, or as the `cursor` body key on an endpoint that takes its
 filters in the request body (where `limit` is a body key too). Only `limit` may
-change from one page to the next. A cursor that is malformed, or that is sent
-with a request for different results than the one it was issued for (other
-path parameters, other filters or another ordering), is rejected with 400
-rather than answered with a page of the wrong rows.
+change from one page to the next. A cursor string that is malformed, or that
+is sent with a request for different results than the one it was issued for
+(other path parameters, other filters or another ordering), is rejected with
+400 `invalid_cursor` rather than answered with a page of the wrong rows.
 
-A cursor may also stop being accepted if the suite's schema, the server, or an
-entity named by one of the request's filters changes between two pages. A
-client whose unmodified cursor is rejected starts again from the first page.
+A cursor may also stop being accepted, with the same error, if the suite's
+schema, the server, or an entity named by one of the request's filters changes
+between two pages. Whatever the reason, `invalid_cursor` means that the cursor
+cannot be used any more, and that the results are available again from the
+first page. No other error means this.
 
 Opacity is a contract on the client, not a cryptographic guarantee: a cursor
 need not be unforgeable, because it can only point into a query its holder
@@ -222,6 +224,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | Code | Status | Meaning |
 |------|--------|---------|
 | `invalid_request` | 400 | The request is malformed or invalid: bad syntax, a failed validation, an unknown query parameter (see I3), a key the request body does not define, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
+| `invalid_cursor` | 400 | The cursor is malformed, was issued for a request for different results, or is no longer accepted (see I2) |
 | `unauthorized` | 401 | A credential was required and no usable one was sent, or the `Authorization` header does not hold a usable one (see I5) |
 | `forbidden` | 403 | The token is valid, but its scope is insufficient (see I5) |
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
@@ -232,8 +235,9 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |
 
-409 has three codes because each one calls for a different reaction from the
-client:
+400 has two codes because `invalid_cursor` calls for a different reaction from
+the client: starting again from the first page (see I2). 409 has three codes for
+the same reason:
 
 - `duplicate`: the entity is already stored. For a run or regression whose
   UUID the client chose itself, this most likely means that an earlier attempt

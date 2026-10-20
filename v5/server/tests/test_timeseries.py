@@ -668,7 +668,7 @@ class TestQueryPagination:
         response = query(api_client, metric="execution_time", sort="-commit", cursor=cursor)
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     @pytest.mark.parametrize(
         "change",
@@ -690,7 +690,7 @@ class TestQueryPagination:
         response = query(api_client, metric="execution_time", **change, cursor=cursor)
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_accepts_a_cursor_with_another_page_size_or_a_spelled_out_default(
         self, api_client: TestClient, many: None
@@ -712,7 +712,7 @@ class TestQueryPagination:
         response = query(api_client, metric="execution_time", cursor=cursor)
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     # Out of I2's bounds, or not a JSON integer.
     @pytest.mark.parametrize("limit", [0, 10001, True, "5", 2.5])

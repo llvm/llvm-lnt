@@ -162,10 +162,14 @@ This also applies outside tables: when a page cannot fetch something it needs,
 it says what could not be loaded, offers a way to try again, and keeps showing
 everything else it can.
 
-While a table that loads every page, or a picker's list of suggestions (see
-AR9), fetches again what it failed to load, it keeps the rows it shows, if any,
-and says that it is still loading. It reports a failure only if fetching again
-fails too.
+When the cursor of a later page is rejected with `invalid_cursor` (I2),
+whatever fetches the pages of a paginated endpoint starts again from the first
+page rather than report a failure: a table shown a page at a time goes back to
+it, and anything else fetches its pages again. While it does, or while a table
+that loads every page or a picker's list of suggestions (see AR9) fetches again
+what it failed to load, it keeps the rows it shows, if any, and says that it is
+still loading. It reports a failure only if fetching again fails too, such as
+when a cursor is rejected again right after starting again.
 
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would

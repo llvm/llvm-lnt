@@ -43,19 +43,28 @@ export interface CursorPagerState<Page> {
  *
  * When a page fails to load, the pager has no page to show, only the error and `retry`. A cursor
  * the server rejects (see `rejectsCursor`) starts the pager again from a first page fetched afresh,
- * since a cached one would only hand out the same cursor again.
+ * since a cached one would only hand out the same cursor again -- unless no later page has loaded
+ * since starting again, in which case the rejection is shown like any other failure (AR7).
  */
 export function useCursorPager<Page extends Paged>({
   queryKey,
   fetchPage,
   enabled = true,
 }: Options<Page>): CursorPagerState<Page> {
-  // The cursors of the pages after the first that lead to the one shown, for the query `identity`,
-  // and how many times the pager started again from scratch, which every page's key includes.
+  // The cursors of the pages after the first that lead to the one shown, for the query `identity`;
+  // how many times the pager started again from scratch, which every page's key includes; and
+  // whether it last did so because a cursor was rejected, with no later page loaded since.
   const identity = hashKey(queryKey)
-  const [position, setPosition] = useState({ identity, generation: 0, cursors: [] as string[] })
-  const { generation } = position
-  if (position.identity !== identity) setPosition({ identity, generation, cursors: [] })
+  const [position, setPosition] = useState({
+    identity,
+    generation: 0,
+    cursors: [] as string[],
+    restarted: false,
+  })
+  const { generation, restarted } = position
+  if (position.identity !== identity) {
+    setPosition({ identity, generation, cursors: [], restarted: false })
+  }
   // React renders again at once with the reset state; meanwhile, query nothing with a stale cursor.
   const cursors = position.identity === identity ? position.cursors : []
   const cursor = cursors.at(-1) ?? null
@@ -67,14 +76,17 @@ export function useCursorPager<Page extends Paged>({
     placeholderData: keepPreviousData,
     enabled,
   })
-  const { data, error, isPlaceholderData, refetch } = query
+  const { data, error, isPlaceholderData, isSuccess, refetch } = query
   const page = shownData(query)
 
-  if (cursor !== null && rejectsCursor(error)) {
-    setPosition({ identity, generation: generation + 1, cursors: [] })
+  if (cursor !== null && rejectsCursor(error) && !restarted) {
+    setPosition({ identity, generation: generation + 1, cursors: [], restarted: true })
+  } else if (restarted && cursor !== null && isSuccess && !isPlaceholderData) {
+    // A later page loaded since: a cursor rejected from here on may be from a later change.
+    setPosition({ ...position, restarted: false })
   }
 
-  const moveTo = (to: string[]) => setPosition({ identity, generation, cursors: to })
+  const moveTo = (to: string[]) => setPosition({ identity, generation, cursors: to, restarted })
   // Only the page asked for, once it has arrived, leads further.
   const nextCursor = isPlaceholderData ? null : (data?.cursor.next ?? null)
   return {

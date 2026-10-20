@@ -29,10 +29,11 @@ class ErrorCode(StrEnum):
     """I4's machine-readable error codes; see infrastructure.md for what each one means.
 
     Callers name a code and the status follows from it, never the other way round: the relation
-    is not invertible, since I4 serves three distinct codes as 409.
+    is not invertible, since I4 serves several codes under one status.
     """
 
     INVALID_REQUEST = "invalid_request"
+    INVALID_CURSOR = "invalid_cursor"
     UNAUTHORIZED = "unauthorized"
     FORBIDDEN = "forbidden"
     NOT_FOUND = "not_found"
@@ -47,6 +48,7 @@ class ErrorCode(StrEnum):
 # The status I4 serves each code with.
 _STATUS: dict[ErrorCode, int] = {
     ErrorCode.INVALID_REQUEST: 400,
+    ErrorCode.INVALID_CURSOR: 400,
     ErrorCode.UNAUTHORIZED: 401,
     ErrorCode.FORBIDDEN: 403,
     ErrorCode.NOT_FOUND: 404,
@@ -97,9 +99,9 @@ class ErrorEnvelope(BaseModel):
 class ApiError(Exception):
     """An error an endpoint reports by naming its I4 code.
 
-    The code is what a client branches on, and it does not follow from the status: I4 serves three
-    distinct codes as 409. So a caller names the code and the status follows, which is why this
-    exists rather than endpoints raising HTTPException with a status the handler would have to
+    The code is what a client branches on, and it does not follow from the status: I4 serves
+    several codes under one status. So a caller names the code and the status follows, which is why
+    this exists rather than endpoints raising HTTPException with a status the handler would have to
     guess a code from.
 
     `headers` carries anything the response must include beside the envelope -- today only I5's

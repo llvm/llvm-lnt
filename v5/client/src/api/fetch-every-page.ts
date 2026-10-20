@@ -5,8 +5,8 @@ import { rejectsCursor, type CursorPage } from './use-cursor-pages'
  * `fetchPage`, which fetches the page at `cursor`, the first one when it is null. For a list the
  * caller needs whole before it can use any of it; one shown as it arrives uses `useCursorPages`.
  *
- * If the server rejects the cursor of a later page, which may only mean that the server or the
- * suite's schema changed meanwhile (I2), the pages are fetched again from the first, once.
+ * If the server rejects the cursor of a later page (see `rejectsCursor`), the pages are fetched
+ * again from the first, once.
  */
 export function fetchEveryPage<Item>(
   fetchPage: (cursor: string | null) => Promise<CursorPage<Item>>,

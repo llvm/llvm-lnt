@@ -35,8 +35,8 @@ at most 10000.
 **Cursor pagination.** To get the next page, repeat the same request with `cursor` set to the
 `cursor.next` value from the previous response. Keep the same filters and sort; only `limit` may
 change. When `cursor.next` is null, there are no more pages. Treat cursors as opaque strings. If a
-cursor is rejected (for example because the suite's schema changed in the meantime), start over
-from the first page.
+cursor is rejected with `invalid_cursor` (for example because the suite's schema changed in the
+meantime), start over from the first page.
 
 Most cursor-paginated operations take `cursor` as a query parameter. The few that take their
 filters in a JSON body (`POST .../query` and `POST .../regressions/indicators/query`) expect
@@ -66,6 +66,7 @@ Check `code` in your code. `message` is meant for people and may change.
 | Code | Status | Meaning |
 |------|--------|---------|
 | `invalid_request` | 400 | The request is malformed or invalid. |
+| `invalid_cursor` | 400 | The `cursor` is malformed, was issued for other filters, sort or path parameters, or is no longer accepted, for example because the suite's schema changed. Start over from the first page. |
 | `unauthorized` | 401 | The operation needs an API key and none was sent, or the key is malformed, unknown or revoked. |
 | `forbidden` | 403 | The API key doesn't have the required scope. |
 | `not_found` | 404 | The path doesn't exist, or something the request refers to doesn't exist. |

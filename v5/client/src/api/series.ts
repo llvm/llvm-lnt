@@ -116,9 +116,9 @@ async function fetchPage(
 }
 
 /**
- * The pages of a trace's measurements, one after the other. If the server refuses the cursor of a
- * later page, which may only mean that the server or the suite's schema changed meanwhile (I2), the
- * pages are fetched again from the first, once, which replaces those fetched before it.
+ * The pages of a trace's measurements, one after the other. If the server rejects the cursor of a
+ * later page (see `rejectsCursor`), the pages are fetched again from the first, once, which
+ * replaces those fetched before it.
  */
 async function* pagesOf(
   suite: string,

@@ -593,7 +593,7 @@ class TestSort:
         response = listed(api_client, f"sort=-created_at&limit=1&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_sort_field_it_does_not_offer(
         self, api_client: TestClient, suite: SuiteTables
@@ -1724,7 +1724,7 @@ class TestIndicatorLookupPagination:
         response = lookup(api_client, machine=["linux"], limit=2, cursor=cursor)
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_accepts_its_cursor_whatever_order_the_states_are_named_in(
         self, api_client: TestClient
@@ -1936,7 +1936,7 @@ class TestPagination:
         response = api_client.get(f"{COMMITS}?limit=2&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_cursor_issued_under_other_filters(self, api_client: TestClient) -> None:
         # infrastructure.md: the page would hold only regressions the new filter matches, but would
@@ -1946,7 +1946,7 @@ class TestPagination:
         response = listed(api_client, f"search=slow&limit=2&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_accepts_a_cursor_whatever_order_the_states_are_named_in(
         self, api_client: TestClient

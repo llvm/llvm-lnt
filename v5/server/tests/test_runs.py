@@ -1852,7 +1852,7 @@ class TestListSearch:
         response = listed(api_client, f"{other}sort=-submitted_at&limit=1&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_cursor_issued_without_a_search(self, api_client: TestClient) -> None:
         cursor = listed(api_client, "sort=-submitted_at&limit=1").json()["cursor"]["next"]
@@ -1860,7 +1860,7 @@ class TestListSearch:
         response = listed(api_client, f"{self.AT_RELEASE}&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
 
 class TestListPagination:
@@ -1896,7 +1896,7 @@ class TestListPagination:
         response = listed(api_client, f"sort=-submitted_at&limit=2&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_cursor_issued_for_another_entitys_list(
         self, api_client: TestClient, run_at: Callable[..., str]
@@ -1906,6 +1906,7 @@ class TestListPagination:
         response = api_client.get(f"{COMMITS}?limit=2&cursor={cursor}")
 
         assert response.status_code == 400
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_cursor_issued_under_other_filters(self, api_client: TestClient) -> None:
         # infrastructure.md: the page would hold only runs the new filter matches, but would
@@ -1915,7 +1916,7 @@ class TestListPagination:
         response = listed(api_client, f"machine=linux&limit=2&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_cursor_issued_for_another_machine(
         self, api_client: TestClient, run_at: Callable[..., str]
@@ -1928,7 +1929,7 @@ class TestListPagination:
         response = listed(api_client, f"machine=darwin&limit=2&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
 
 class TestDetail:

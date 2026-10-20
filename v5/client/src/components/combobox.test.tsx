@@ -431,7 +431,7 @@ function serveRestarts({ total, rejects = () => false, restart }: RestartOptions
         const [of, at] = cursor.split(':').map(Number)
         if (rejects({ generation: of, start: at })) {
           seen.push(`${cursor} rejected`)
-          return errorResponse(400, 'invalid_request', 'This cursor is not valid.')
+          return errorResponse(400, 'invalid_cursor', 'This cursor is not valid.')
         }
         seen.push(cursor)
         start = at
