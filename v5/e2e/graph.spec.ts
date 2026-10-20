@@ -269,6 +269,28 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
   })
 })
 
+test("shows a test's name as it is in the tooltip, even with Plotly's template syntax (GR10)", async ({
+  page,
+  request,
+  tokenFor,
+}, testInfo) => {
+  const name = 'fmt/%{x} <&>'
+  const run = {
+    machine: 'm1',
+    commit: 'c1',
+    ordinal: 1,
+    tests: [{ name, samples: [{ execution_time: 1 }] }],
+  }
+  await ownSuite(request, tokenFor, testInfo, [run], async (suite) => {
+    const query = new URLSearchParams({ suite, machine: 'm1', metric: 'execution_time', test: name })
+    await page.goto(`/graph?${query}`)
+    await expect(tracesOf(page)).toHaveCount(1)
+
+    await plotOf(page).hover({ position: await pointOf(page, 0, 0) })
+    await expect(page.locator('.hoverlayer .hovertext')).toContainText(name)
+  })
+})
+
 test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ page }) => {
   await page.goto(LINUX_TEST)
   await expect(tracesOf(page)).toHaveCount(1)

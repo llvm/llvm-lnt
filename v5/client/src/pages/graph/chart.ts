@@ -33,24 +33,27 @@ export type DisplayValue = (commit: string) => string
  * The traces as Plotly draws them: lines with a marker at each point, placed on the x-axis by
  * commit, with a tooltip naming the test, the machine and the commit, giving the value and how many
  * runs it combines, and saying that a click shows the point's details (GR10). Text from the API is
- * escaped, as Plotly reads it as HTML.
+ * escaped and passed as data rather than written into the template (see chart.tsx).
  */
 export function plotlyTraces(traces: Trace[], displayValue: DisplayValue, metric: Metric): Data[] {
   return traces.map(({ test, machine, machineIndex, color, points }) => {
-    const name = `${escapeHtml(test)} - ${escapeHtml(machine)}`
+    const escapedTest = escapeHtml(test)
+    const escapedMachine = escapeHtml(machine)
     return {
       type: 'scatter',
       mode: 'lines+markers',
-      name,
+      name: `${escapedTest} - ${escapedMachine}`,
       x: points.map((point) => point.commit),
       y: points.map((point) => point.value),
       customdata: points.map((point) => [
         escapeHtml(displayValue(point.commit)),
         formatMetricValue(point.value, metric),
         plural(point.runs, 'run'),
+        escapedTest,
+        escapedMachine,
       ]),
       hovertemplate:
-        `<b>${escapeHtml(test)}</b><br>Machine: ${escapeHtml(machine)}<br>` +
+        '<b>%{customdata[3]}</b><br>Machine: %{customdata[4]}<br>' +
         'Commit: %{customdata[0]}<br>Value: %{customdata[1]}<br>%{customdata[2]}<br>' +
         '<i>Click for details</i><extra></extra>',
       line: { color, width: 1.5 },
@@ -90,19 +93,23 @@ const SPAN = Array.from({ length: ACROSS }, (_, i) => i / (ACROSS - 1))
  * however many commits the chart has, so that the line can be hovered from anywhere along it.
  */
 export function baselineTraces(lines: BaselineLine[], metric: Metric): Data[] {
-  return lines.map(({ suite, machine, commit, test, value, color }) => ({
-    type: 'scatter',
-    mode: 'lines',
-    name: `${escapeHtml(test)} - baseline ${escapeHtml(`${suite}/${machine}/${commit}`)}`,
-    xaxis: 'x2',
-    x: SPAN,
-    y: SPAN.map(() => value),
-    hovertemplate:
-      `<b>Baseline</b><br>Suite: ${escapeHtml(suite)}<br>Machine: ${escapeHtml(machine)}<br>` +
-      `Commit: ${escapeHtml(commit)}<br>Test: ${escapeHtml(test)}<br>` +
-      `Value: ${escapeHtml(formatMetricValue(value, metric))}<extra></extra>`,
-    line: { color, width: 1.5, dash: 'dash' },
-  }))
+  return lines.map(({ suite, machine, commit, test, value, color }) => {
+    const tooltip = [suite, machine, commit, test, formatMetricValue(value, metric)].map(escapeHtml)
+    return {
+      type: 'scatter',
+      mode: 'lines',
+      name: `${escapeHtml(test)} - baseline ${escapeHtml(`${suite}/${machine}/${commit}`)}`,
+      xaxis: 'x2',
+      x: SPAN,
+      y: SPAN.map(() => value),
+      customdata: SPAN.map(() => tooltip),
+      hovertemplate:
+        '<b>Baseline</b><br>Suite: %{customdata[0]}<br>Machine: %{customdata[1]}<br>' +
+        'Commit: %{customdata[2]}<br>Test: %{customdata[3]}<br>' +
+        'Value: %{customdata[4]}<extra></extra>',
+      line: { color, width: 1.5, dash: 'dash' },
+    }
+  })
 }
 
 /** A regression placed on the chart (GR15). */
@@ -182,8 +189,9 @@ export function regressionMarkers(marks: RegressionMark[]): Data[] {
       yaxis: 'y2',
       x: [commit],
       y: [markerHeight(stack)],
+      customdata: [[escapeHtml(regressionTitle({ title })), `${named}${more}`]],
       hovertemplate:
-        `<b>${escapeHtml(regressionTitle({ title }))}</b><br>Affects:<br>${named}${more}<br>` +
+        '<b>%{customdata[0]}</b><br>Affects:<br>%{customdata[1]}<br>' +
         '<i>Click for details</i><extra></extra>',
       marker: { color: stateColor(state), size: 10, symbol: 'triangle-down' },
     }

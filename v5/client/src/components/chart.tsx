@@ -76,7 +76,12 @@ export interface ChartProps {
    * another chart. `layout` may be either: Plotly is given a copy of it.
    *
    * Plotly reads the text it draws -- names, hover labels, titles -- as a subset of HTML, so text
-   * from the API, such as a machine or test name, goes through `escapeHtml` (see format.ts).
+   * from the API, such as a machine or test name, goes through `escapeHtml` (see format.ts). In a
+   * `hovertemplate`, Plotly also reads `%{...}` as a field to fill, so such text is never written
+   * into the template: it is passed as `customdata` (or `text`) and named by a field, which Plotly
+   * fills in a single pass, without reading the values it fills in. Escaped, the values cannot
+   * form the template's `<extra>` part either. Setting `meta` would make Plotly read `%{...}` in
+   * names, titles and annotations too, so no chart sets it.
    */
   data: Data[]
   layout: Partial<Layout>
