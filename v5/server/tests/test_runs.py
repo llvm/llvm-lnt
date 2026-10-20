@@ -12,6 +12,7 @@ once a database is involved.
 
 from __future__ import annotations
 
+import gzip
 import json
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -1329,6 +1330,24 @@ class TestOversizedBody:
 
         assert response.status_code == 413
         assert response.headers["content-type"].startswith("text/plain")
+
+
+def test_a_gzip_compressed_submission_is_stored_as_sent_uncompressed(
+    api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
+) -> None:
+    # O1 encourages compressing a submission whole (I4), profiles included.
+    body = payload(tests=[entry("suite/one", {"execution_time": 1.5}, profile=encoded_profile())])
+    response = api_client.post(
+        RUNS,
+        content=gzip.compress(json.dumps(body).encode()),
+        headers={**submitter, "Content-Type": "application/json", "Content-Encoding": "gzip"},
+    )
+
+    assert response.status_code == 201, response.text
+    uuid = response.json()["uuid"]
+    samples = api_client.get(f"{RUNS}/{uuid}/samples").json()["items"]
+    assert [sample["metrics"] for sample in samples] == [{"execution_time": 1.5}]
+    assert len(api_client.get(f"{RUNS}/{uuid}/profiles").json()["items"]) == 1
 
 
 class TestAtomicity:

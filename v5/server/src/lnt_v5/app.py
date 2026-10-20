@@ -10,9 +10,11 @@ from typing import Any
 
 from fastapi import FastAPI
 from starlette.middleware.body_limit import RequestBodyLimitMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from .caching import CachingFastAPI
 from .config import Settings, get_settings
+from .content_coding import DecodeRequestBody
 from .db import make_engine
 from .errors import register_error_handlers
 from .keys import LastUseRecorder
@@ -130,6 +132,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_error_handlers(app)
     refine_document(app)
+    # I4's compressed responses, at zlib's default level: the highest costs about three times the
+    # CPU for a couple of percent.
+    app.add_middleware(GZipMiddleware, compresslevel=6)
+    # I4's compressed request bodies, and the limit on their decoded size. Inside the limit on the
+    # body as sent, which therefore applies to the compressed bytes.
+    app.add_middleware(DecodeRequestBody, max_body_size=settings.body_limit)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
     app.add_middleware(RedirectTrailingSlash)
     app.add_middleware(RejectNulInUrl)

@@ -170,20 +170,22 @@ that updates or removes an entry is addressing that entry instead, and returns
 All REST API responses are JSON. A list of results comes in one of the
 envelopes from I2; any other response is the entity object itself, unless its
 endpoint specifies otherwise. Status codes are limited to 200, 201, 204, 400,
-401, 403, 404, 405, 409, and 500.
+401, 403, 404, 405, 409, 415, and 500.
 
 The routes exempt from the scope system (see I5) are not part of the REST
 API and follow their own sections. They serve plain text and HTML as well as
 JSON.
 
-Three cases are also outside the REST API, because they are handled before a
+Four cases are also outside the REST API, because they are handled before a
 request reaches any endpoint:
 - An oversized request body is rejected with 413 (see Errors below).
+- A request body with a content coding the server does not accept is rejected
+  with 415 `unsupported_encoding` (see Compression below).
 - A trailing slash is redirected with 307 (see I1).
 - A URL containing a NUL character is rejected with 400 `invalid_request`,
   since no value the API can act on contains one (see D5).
 
-All three are handled the same way whatever credential the request carries.
+All four are handled the same way whatever credential the request carries.
 None of them names a resource, so the reason I5 gives for authorizing before
 looking up the resource does not apply.
 
@@ -226,6 +228,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a suite name, a schema entry added to a list that already has one of that name |
 | `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), a suite name already used by a database namespace |
 | `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a schema change could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
+| `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |
 
 409 has three codes because each one calls for a different reaction from the
@@ -262,7 +265,26 @@ public in the API document (I8, with HEAD implied by GET).
 **Oversized request bodies** must be rejected with 413, but they do not have to
 use the error envelope: they may be rejected at the transport layer instead.
 This is a property of the deployment rather than of any endpoint, so no
-endpoint documents it.
+endpoint documents it. The limit applies to a compressed body both as sent and
+once decoded, and a body is refused once its decoded size exceeds the limit, so
+that a small body which expands enormously costs no more than the limit allows.
+
+**Compression.** A request body may be compressed with the gzip content coding,
+named in its `Content-Encoding` header (RFC 9110, section 8.4), and the server
+must accept it on every request that carries a body. An endpoint sees the body
+decoded: whatever the endpoints spec says about a body is about its decoded
+form. A body sent with any other content coding, or with more than one, is
+rejected with 415 `unsupported_encoding`, and the response's `Accept-Encoding`
+header names the codings the server accepts (RFC 9110, section 15.5.16). A body
+that does not decode as its coding says -- corrupt, truncated, or followed by
+data that is not part of it -- is rejected with 400 `invalid_request`, like a
+body that is not valid JSON (see I5).
+
+A response may be compressed with any content coding the request's
+`Accept-Encoding` header accepts (RFC 9110, section 12.5.3). A request without
+an `Accept-Encoding` header gets an uncompressed response, so a client that
+does not ask for compression never has to decode one. A response whose coding
+depends on the request's `Accept-Encoding` carries `Vary: Accept-Encoding`.
 
 
 ## I5: Authentication and Authorization
@@ -338,11 +360,12 @@ matters for the API keys, the only resources whose existence is not already
 public, but the rule applies to every endpoint so that there is only one order
 to implement and reason about.
 
-Two more errors may be returned before authentication: a 400 for a body that cannot
-be read at all (JSON that does not parse), and a 400 for a query parameter that
-I3 rejects. Like the cases I4 handles before reaching an endpoint, neither
-depends on whether anything exists -- which parameters an endpoint accepts is
-public in the API document (I8) -- so returning them first reveals nothing.
+Two more errors may be returned before authentication: a 400 for a body that
+cannot be read at all (a content coding that does not decode, or JSON that does
+not parse), and a 400 for a query parameter that I3 rejects. Like the cases I4
+handles before reaching an endpoint, neither depends on whether anything exists
+-- which parameters an endpoint accepts is public in the API document (I8) -- so
+returning them first reveals nothing.
 
 **Authorization is not cached.** Every authenticated request looks its token up
 in the database, so revoking a key takes effect immediately. The lookup is a

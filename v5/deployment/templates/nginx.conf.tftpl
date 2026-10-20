@@ -12,7 +12,9 @@ server {
     ssl_certificate_key /etc/nginx/certs/origin.key;
 
     # Run submissions can be large: bump the default limit. Keep this in sync with the app's
-    # BODY_LIMIT in config.py.
+    # BODY_LIMIT in config.py. This limits a body as sent; the app also limits a compressed body
+    # once decompressed, which Nginx does not do. Nginx does not compress responses either: the app
+    # does it.
     client_max_body_size 128m;
 
     # Look the app up through Docker's DNS on each request, rather than once when Nginx starts: the

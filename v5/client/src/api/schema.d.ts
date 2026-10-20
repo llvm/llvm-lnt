@@ -1358,7 +1358,7 @@ export interface components {
         ErrorBody: {
             /**
              * Code
-             * @description A stable, machine-readable error code: one of `invalid_request`, `unauthorized`, `forbidden`, `not_found`, `method_not_allowed`, `duplicate`, `conflict`, `retry`, `internal_error`. Check this to handle errors.
+             * @description A stable, machine-readable error code: one of `invalid_request`, `unauthorized`, `forbidden`, `not_found`, `method_not_allowed`, `duplicate`, `conflict`, `retry`, `unsupported_encoding`, `internal_error`. Check this to handle errors.
              * @example not_found
              */
             code: string;

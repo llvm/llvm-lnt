@@ -8,7 +8,8 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Bump the default value to handle potentially large profile payloads. The reverse proxy in
-# front of the app has to agree with this setting: keep both in sync.
+# front of the app has to agree with this setting: keep both in sync. It also limits a compressed
+# body once decoded (I4).
 DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
 
 

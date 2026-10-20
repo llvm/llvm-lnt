@@ -35,11 +35,11 @@ or in the ``LNT_V5_TOKEN`` environment variable.
    submits those that are missing, e.g. after an interrupted submission, or
    once more runs have been added to the input.
 3. The other runs are submitted in the order they are read, by ``--workers``
-   concurrent requests. A ``409 duplicate`` response means that the run was
-   submitted already, and counts as a success. Network errors, 5xx responses
-   and ``409 retry`` responses are retried a few times. Any other failure, and
-   any line that is not a JSON object, is reported along with its line number,
-   the run's UUID, machine and commit, and the instance's message, and the
-   command carries on with the next run.
+   concurrent requests, each gzip-compressed. A ``409 duplicate`` response
+   means that the run was submitted already, and counts as a success. Network
+   errors, 5xx responses and ``409 retry`` responses are retried a few times.
+   Any other failure, and any line that is not a JSON object, is reported along
+   with its line number, the run's UUID, machine and commit, and the instance's
+   message, and the command carries on with the next run.
 
 The command exits with a non-zero status if any run could not be submitted.

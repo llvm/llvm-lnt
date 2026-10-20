@@ -5,6 +5,7 @@
 # RUN: python %s > %t.out
 # RUN: filecheck %s < %t.out
 
+import gzip
 import json
 import os
 import tempfile
@@ -79,7 +80,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts = urlparse(self.path).path.strip('/').split('/')
-        body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        data = self.rfile.read(int(self.headers['Content-Length']))
+        # Runs are submitted gzip-compressed, which a real instance decodes.
+        if parts[-1] == 'runs':
+            if self.headers.get('Content-Encoding') != 'gzip':
+                return self.reply(*error(400, 'invalid_request',
+                                         'the run is not gzip-compressed'))
+            data = gzip.decompress(data)
+        body = json.loads(data)
         with lock:
             if parts == ['api', 'suites']:
                 if body['name'] in suites:

@@ -24,6 +24,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
+import { gzipSync } from 'node:zlib'
 import createClient, { type Client } from 'openapi-fetch'
 import type { components, paths } from '../client/src/api/schema.d.ts'
 import { libcxxSynthetic, type Submission } from './synthetic.ts'
@@ -95,8 +96,14 @@ function realRuns(suite: string): Submission[] {
 
 async function submitAll(api: Api, suite: string, runs: Submission[]): Promise<void> {
   // One at a time, so that commits are first seen, and runs submitted, in a reproducible order.
+  // Compressed, as O1 encourages, so that the end-to-end tests, which seed with this, submit runs
+  // the way real clients should.
   const params = { path: { testsuite: suite } }
-  for (const body of runs) check(await api.POST('/api/suites/{testsuite}/runs', { params, body }))
+  const headers = { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' }
+  const bodySerializer = (body: Submission) => gzipSync(JSON.stringify(body))
+  for (const body of runs) {
+    check(await api.POST('/api/suites/{testsuite}/runs', { params, body, headers, bodySerializer }))
+  }
 }
 
 async function populate(api: Api, url: string, suite: Suite): Promise<void> {

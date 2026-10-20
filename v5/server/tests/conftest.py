@@ -399,6 +399,11 @@ def uuids_in(response: Any) -> list[str]:
     return [item["uuid"] for item in response.json()["items"]]
 
 
+def vary(response: Any) -> list[str]:
+    """The request headers a response says it varies with, as `Vary` lists them."""
+    return [token.strip() for token in response.headers.get("vary", "").split(",") if token.strip()]
+
+
 def code_of(response: Any) -> str:
     """The I4 error code a failing response carries, having checked it is the whole body.
 

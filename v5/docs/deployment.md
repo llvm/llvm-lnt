@@ -98,6 +98,15 @@ Configure the backend as follows:
 - First byte timeout: 60 seconds, the time Nginx waits for the app by default. Fastly's default of 15
   seconds is too short for large submissions.
 
+**Compression.** The app compresses responses with gzip for the clients that ask for it, and accepts
+gzip-compressed request bodies (I4 in the design docs). Cloudflare also compresses responses at its
+edge, and passes request bodies through untouched. Fastly passes through what the app compresses,
+but compresses nothing itself unless its service is configured to; there is no need to, except to
+use a coding the app does not offer, such as Brotli.
+
+Cloudflare limits a request body to 100 MB on its Free and Pro plans, less than the 128 MiB the app
+and Nginx accept. Compressing large submissions keeps them well below either limit.
+
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
 deploy workflow's final `/healthz` check fails, since it goes through the domain.
@@ -210,6 +219,14 @@ Memory scales with concurrency too. Parsing a profile at the largest size the se
 about 200 MiB, and each submission in flight can reach that at the same time. Reading such a profile
 back whole, as a document, peaks at about 60 MiB per request, and needs no API key. Scale the
 instance in accordance with the expected usage.
+
+The request body itself is held in memory and parsed whole, before the request is authenticated, so
+that a request without an API key can cost as much as a submission. `BODY_LIMIT` bounds it, both as
+sent and once a compressed body is decompressed: a small compressed body cannot expand past it. JSON
+parses into Python objects several times its size, though: at the default of 128 MiB, a body made of
+nothing but samples can take well over 1 GiB, more than the memory of the default instance. Real
+submissions are much smaller, but lower `BODY_LIMIT` (and Nginx's `client_max_body_size` with it) if
+that matters more than accepting the largest ones.
 
 ## Caching
 

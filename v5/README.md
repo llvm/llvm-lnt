@@ -158,7 +158,7 @@ serve the client shell.
 |----------|---------|---------|
 | `DATABASE_URL` | *(required)* | Postgres connection URL. `postgres://` and `postgresql://` are normalized to the psycopg driver. |
 | `DATABASE_SSL_CA` | unset | Path to a CA bundle. When set, connections use `sslmode=verify-full`. |
-| `BODY_LIMIT` | `134217728` | Maximum request body, in bytes. A reverse proxy in front of the server needs a matching limit; raise both together. |
+| `BODY_LIMIT` | `134217728` | Maximum request body, in bytes, both as sent and, for a gzip-compressed body, once decompressed. A reverse proxy in front of the server needs a matching limit; raise both together. |
 | `CLIENT_DIST` | derived | Path to the built client. Set explicitly in the Docker image. |
 | `WEB_CONCURRENCY` | `1` | Number of worker processes. Each holds its own database connection pool, so this multiplies how many connections the server can open; see the sizing notes in [docs/deployment.md](docs/deployment.md). |
 | `INACTIVITY_SWEEP_INTERVAL` | `3600` | Seconds between two sweeps of the machines and commits that asked to be deleted after some days of inactivity (O10 in the design docs). `0` turns the periodic sweep off; `lnt-v5 server sweep` runs one by hand either way. |

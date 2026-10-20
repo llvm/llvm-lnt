@@ -287,4 +287,9 @@ class SpaStaticFiles(StaticFiles):
         # timestamps would break it.
         hashed = path.startswith(f"{ASSETS}/")
         response.headers["Cache-Control"] = IMMUTABLE if hashed else REVALIDATE
+        # Weak, because the file may be sent compressed (I4), and a strong ETag would have to differ
+        # between the compressed and uncompressed forms (RFC 9110, section 8.8.3). StaticFiles has
+        # already compared it with `If-None-Match`, ignoring the `W/` a client sends back.
+        if etag := response.headers.get("etag"):
+            response.headers["ETag"] = f"W/{etag}"
         return response

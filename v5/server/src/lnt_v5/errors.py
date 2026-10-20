@@ -40,6 +40,7 @@ class ErrorCode(StrEnum):
     DUPLICATE = "duplicate"
     CONFLICT = "conflict"
     RETRY = "retry"
+    UNSUPPORTED_ENCODING = "unsupported_encoding"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -53,6 +54,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.DUPLICATE: 409,
     ErrorCode.CONFLICT: 409,
     ErrorCode.RETRY: 409,
+    ErrorCode.UNSUPPORTED_ENCODING: 415,
     ErrorCode.INTERNAL_ERROR: 500,
 }
 
