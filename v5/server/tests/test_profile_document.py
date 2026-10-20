@@ -113,29 +113,48 @@ class TestWhatIsStored:
         assert main.counters == {"cycles": 4.0, "misses": 2.0}
         assert main.length == 2
 
-    def test_a_counter_an_instruction_leaves_out_is_read_back_as_0(self) -> None:
+    def test_a_counter_an_instruction_leaves_out_stays_left_out(self) -> None:
+        # O7: a counter left out has no value there, which is not a value of 0.
         listed = [
             instruction(0, cycles=1),
             instruction(4, misses=2),
+            instruction(8, cycles=0, misses=0),
             # Not `instruction`, which gives an instruction without counters one.
-            {"address": 8, "counters": {}, "text": "nop"},
+            {"address": 12, "counters": {}, "text": "nop"},
         ]
         value = document(
             {"name": "f", "instructions": listed}, counters={"cycles": 10, "misses": 10}
         )
 
         assert [instruction["counters"] for instruction in read_back(value, "f")] == [
-            {"cycles": 1.0, "misses": 0.0},
-            {"cycles": 0.0, "misses": 2.0},
+            {"cycles": 1.0},
+            {"misses": 2.0},
             {"cycles": 0.0, "misses": 0.0},
+            {},
         ]
-        assert function(stored(value), "f").counters == {"cycles": 1.0, "misses": 2.0}
 
-    def test_a_function_with_no_instructions_has_every_counter_at_0(self) -> None:
+    def test_a_function_has_the_counters_at_least_one_of_its_instructions_has(self) -> None:
+        # Each summed over the instructions that have it; a top-level counter none of them has is
+        # not the function's, whereas one they only have as 0 is.
+        value = document(
+            {
+                "name": "f",
+                "instructions": [
+                    instruction(0, cycles=1),
+                    instruction(4, cycles=2, misses=0),
+                    {"address": 8, "counters": {}, "text": "nop"},
+                ],
+            },
+            counters={"cycles": 10, "misses": 10, "stalls": 10},
+        )
+
+        assert function(stored(value), "f").counters == {"cycles": 3.0, "misses": 0.0}
+
+    def test_a_function_with_no_instructions_has_no_counters(self) -> None:
         value = document({"name": "empty", "instructions": []})
         empty = function(stored(value), "empty")
 
-        assert (empty.counters, empty.length) == ({"cycles": 0.0}, 0)
+        assert (empty.counters, empty.length) == ({}, 0)
         assert read_back(value, "empty") == []
 
     def test_a_profile_may_list_no_functions(self) -> None:
@@ -214,26 +233,18 @@ class TestReadBackWhole:
 
         assert json.loads(self.served(stored(value))) == value
 
-    def test_leaves_out_the_counts_that_are_0(self) -> None:
-        # Whether the document left a counter out or gave it as 0, it is read back left out.
+    def test_keeps_a_count_of_0_apart_from_a_counter_left_out(self) -> None:
         listed = [
             instruction(cycles=1, misses=0),
             instruction(4, misses=2),
             instruction(8, cycles=0),
+            {"address": 12, "counters": {}, "text": "nop"},
         ]
         value = document(
             {"name": "f", "instructions": listed}, counters={"cycles": 10, "misses": 10}
         )
 
-        served = json.loads(self.served(stored(value)))
-
-        assert [
-            instruction["counters"] for instruction in served["functions"][0]["instructions"]
-        ] == [
-            {"cycles": 1.0},
-            {"misses": 2.0},
-            {},
-        ]
+        assert json.loads(self.served(stored(value))) == value
 
 
 class TestEncoding:

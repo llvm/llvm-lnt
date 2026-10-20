@@ -50,7 +50,7 @@ SUBMITTED: dict[str, Any] = {
             ],
         },
         {"name": "Zebra", "instructions": [ret(0x2000, cycles=100, **{"branch-misses": 5})]},
-        {"name": "tie_b", "instructions": [ret(0x3000, cycles=10)]},
+        {"name": "tie_b", "instructions": [ret(0x3000, cycles=10, **{"branch-misses": 0})]},
         {"name": "tie_a", "instructions": [ret(0x4000, cycles=10)]},
         {"name": "cold", "instructions": []},
     ],
@@ -315,12 +315,16 @@ class TestFunctionList:
 
         assert functions["Zebra"] == {"cycles": 100.0, "branch-misses": 5.0}
 
-    def test_a_function_has_every_counter_of_the_profile(self, listed: dict[str, Any]) -> None:
-        # O7: a counter the instructions leave out counts as 0, as it does for one with none.
+    def test_a_function_has_the_counters_its_instructions_have(
+        self, listed: dict[str, Any]
+    ) -> None:
+        # O7: `tie_a`'s instruction has no `branch-misses`, `tie_b`'s has 0 of them, and a function
+        # with no instructions has no counters.
         functions = {item["name"]: item["counters"] for item in listed["items"]}
 
-        assert functions["tie_a"] == {"cycles": 10.0, "branch-misses": 0.0}
-        assert functions["cold"] == {"cycles": 0.0, "branch-misses": 0.0}
+        assert functions["tie_a"] == {"cycles": 10.0}
+        assert functions["tie_b"] == {"cycles": 10.0, "branch-misses": 0.0}
+        assert functions["cold"] == {}
 
     def test_the_length_is_the_instruction_count(self, listed: dict[str, Any]) -> None:
         lengths = {item["name"]: item["length"] for item in listed["items"]}
@@ -366,15 +370,20 @@ class TestDisassembly:
     def test_an_address_is_an_integer(self, main: dict[str, Any]) -> None:
         assert all(isinstance(one["address"], int) for one in main["instructions"])
 
-    def test_serves_every_counter_of_the_profile_for_every_instruction(
-        self, api_client: TestClient, stored: Callable[..., str]
+    @pytest.mark.parametrize(
+        ("name", "served"),
+        [
+            ("tie_a", ret(0x4000, cycles=10.0)),
+            ("tie_b", ret(0x3000, cycles=10.0, **{"branch-misses": 0.0})),
+        ],
+    )
+    def test_serves_each_instruction_with_the_counters_it_was_submitted_with(
+        self, api_client: TestClient, stored: Callable[..., str], name: str, served: dict[str, Any]
     ) -> None:
-        # `tie_a`'s instruction was submitted without `branch-misses`, which counts as 0 (O7).
-        response = api_client.get(disassembly(stored()), params={"function": "tie_a"})
+        # O7: a counter left out stays left out, and a count of 0 is served as 0.
+        response = api_client.get(disassembly(stored()), params={"function": name})
 
-        assert response.json()["instructions"] == [
-            {"address": 0x4000, "counters": {"cycles": 10.0, "branch-misses": 0.0}, "text": "ret"}
-        ]
+        assert response.json()["instructions"] == [served]
 
     def test_serves_instructions_exactly_as_submitted(
         self, api_client: TestClient, stored: Callable[..., str]

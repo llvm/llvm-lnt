@@ -396,11 +396,11 @@ profile's top-level counters), and `disassembly_format` (string).
 
 **Functions** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`): I2's
 unpaginated envelope over `{name, counters, length}` objects. `counters` maps
-each of the profile's top-level counters to a number: the function's counter,
-summed over its instructions. `length` is the function's number of
-instructions. Sorted by name, in ascending code-point order. How hot a function
-is depends on which counter the user picks, so the client sorts by that itself
-(see PF4).
+each counter that at least one of the function's instructions has to a number:
+the function's counter, summed over the instructions that have it (see O7).
+`length` is the function's number of instructions. Sorted by name, in
+ascending code-point order. How hot a function is depends on which counter the
+user picks, so the client sorts by that itself (see PF4).
 
 **Disassembly** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 
@@ -410,8 +410,8 @@ is depends on which counter the user picks, so the client sorts by that itself
 - Returns `name`, `counters` (the function's counters, as in the functions
   response), `disassembly_format`, and `instructions`: an array of
   `{address, counters, text}`, one per instruction, in the order the profile
-  document listed them. `address` is an integer, and `counters` maps each of
-  the profile's top-level counters to a number.
+  document listed them. `address` is an integer, and `counters` maps each
+  counter the instruction was submitted with to a number.
 
 **Document** (`GET /api/suites/{testsuite}/profiles/{uuid}/document`): the
 whole profile in one response, as the profile document defined in O7:
@@ -420,15 +420,12 @@ whole profile in one response, as the profile document defined in O7:
 
 - It is plain JSON, rather than the gzip-compressed, base64-encoded string a
   submission carries. Once compressed and encoded that way, it can be used as a
-  test entry's `profile` to store an equivalent profile, so that a profile can
-  be copied to another run or instance without one request per function. The
+  test entry's `profile` to store the same profile, so that a profile can be
+  copied to another run or instance without one request per function. The
   server's encoding of it may be larger than the submitted one, so a profile
   submitted close to O7's size limits may exceed them when read back.
 - It contains only what a profile document contains, so the functions' derived
   counters and lengths are absent.
-- Each instruction's `counters` holds only its counts that are not 0, so that
-  the document stays about as large as the one submitted. A count submitted as
-  0 is therefore left out, which O7 makes equivalent.
 - `functions` are in the order of the functions response, not necessarily the
   order they were submitted in. Each function's `instructions` are in the order
   the disassembly response gives them.

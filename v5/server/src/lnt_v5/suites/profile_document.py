@@ -19,7 +19,7 @@ import zlib
 from collections.abc import Iterable, Iterator
 from compression import zstd
 from dataclasses import dataclass
-from itertools import accumulate, pairwise, repeat
+from itertools import accumulate, pairwise
 from math import isfinite
 from typing import Annotated, cast
 
@@ -166,7 +166,8 @@ class _Columns(Struct, gc=False):
     """
 
     address_deltas: list[int]
-    counters: dict[str, list[float]]
+    # One list per counter that at least one instruction has, holding None where one does not.
+    counters: dict[str, list[float | None]]
     text: list[str]
 
 
@@ -179,7 +180,8 @@ _ENCODER = msgspec.json.Encoder()
 class StoredFunction:
     """One `{suite}.profile_function` row: a function's index entry and its compressed instructions.
 
-    `counters` are the function's own, each the sum of that counter over its instructions (O7).
+    `counters` are the function's own: each counter at least one of its instructions has, summed
+    over the instructions that have it (O7).
     """
 
     name: str
@@ -208,30 +210,21 @@ def stored_profile(encoded: str) -> StoredProfile:
     )
 
 
-def instructions(
-    data: bytes, *, nonzero: bool = False
-) -> Iterator[tuple[int, dict[str, float], str]]:
-    """The address, counters and text of each instruction a stored function holds, in order.
+def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
+    """The address, counters and text of each instruction a stored function holds, in order, each
+    with exactly the counters it was submitted with.
 
-    The inverse of `_stored`, over bytes only this module wrote. With `nonzero`, the counters that
-    are 0 are left out.
+    The inverse of `_stored`, over bytes only this module wrote.
     """
     columns = _COLUMNS_DECODER.decode(zstd.decompress(data))
-    names = list(columns.counters)
-    # A function measured with no counters has no columns to zip, but still one row per instruction;
-    # `repeat` is endless, so only finite columns can be held to the same length.
-    values = zip(*columns.counters.values(), strict=True) if names else repeat(())
-    for address, row, text in zip(
-        accumulate(columns.address_deltas), values, columns.text, strict=bool(names)
-    ):
-        if nonzero:
-            yield (
-                address,
-                {name: value for name, value in zip(names, row, strict=True) if value},
-                text,
-            )
-        else:
-            yield address, dict(zip(names, row, strict=True)), text
+    counters = columns.counters.items()
+    addresses = accumulate(columns.address_deltas)
+    for index, (address, text) in enumerate(zip(addresses, columns.text, strict=True)):
+        yield (
+            address,
+            {name: value for name, values in counters if (value := values[index]) is not None},
+            text,
+        )
 
 
 def document_json(
@@ -240,9 +233,7 @@ def document_json(
     """A stored profile as the JSON profile document it was submitted as, uncompressed (E7).
 
     `functions` are the name and stored instructions of each function, in the order the document is
-    to list them. Each instruction lists only its counters that are not 0 (E7), which O7 makes
-    equivalent, so that the document is about the size of the one submitted rather than one padded
-    with every counter. The document is written into one buffer a function at a time, so that only
+    to list them. The document is written into one buffer a function at a time, so that only
     one function's instructions are ever held as Python objects -- a whole profile's would take
     several times the memory of the document -- and no part of the document is copied to assemble
     it.
@@ -259,7 +250,7 @@ def document_json(
         _ENCODER.encode_into(
             [
                 InstructionDocument(address=address, counters=values, text=text)
-                for address, values, text in instructions(stored, nonzero=True)
+                for address, values, text in instructions(stored)
             ],
             document,
             -1,
@@ -273,23 +264,28 @@ def _stored(function: FunctionDocument, top_level: Iterable[str]) -> StoredFunct
     """A function's row: its counters, the sums of its columns (O7), and its instructions in the
     layout `instructions` reads.
 
-    There is a column for each of `top_level`, the profile's counters, holding 0 wherever an
-    instruction left that counter out, so that every function, and every instruction read back,
-    has every counter of its profile.
+    There is a column for each of `top_level`, the profile's counters, that at least one instruction
+    has, holding None wherever an instruction has no value for it. A function whose instructions
+    have no counters, or which has no instructions, has none.
     """
     rows = function.instructions
     # Integers by now; see `ProfileDocument.__post_init__`.
     addresses = [cast(int, instruction.address) for instruction in rows]
+    present: set[str] = set().union(*(instruction.counters for instruction in rows))
     columns = _Columns(
         address_deltas=[after - before for before, after in pairwise([0, *addresses])],
+        # In the order of the top-level counters, so that the order is the same for every function.
         counters={
-            counter: [instruction.counters.get(counter, 0.0) for instruction in rows]
+            counter: [instruction.counters.get(counter) for instruction in rows]
             for counter in top_level
+            if counter in present
         },
         text=[instruction.text for instruction in rows],
     )
-    # Started from 0.0 so that a function without instructions has real counters, like the others.
-    counters = {counter: sum(values, 0.0) for counter, values in columns.counters.items()}
+    # `filter(None, ...)` leaves out the 0s along with the Nones, which changes no sum.
+    counters = {
+        counter: sum(filter(None, values), 0.0) for counter, values in columns.counters.items()
+    }
     for counter, total in counters.items():
         if not isfinite(total):
             raise _refused(

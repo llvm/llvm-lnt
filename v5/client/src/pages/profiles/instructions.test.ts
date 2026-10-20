@@ -44,9 +44,24 @@ describe('instructionValues', () => {
     expect(instructionValues(instructions(1, 2), 'misses')).toBeUndefined()
   })
 
-  it('gives empty values, rather than none, for a function without instructions', () => {
-    const values = instructionValues([], 'cycles')!
-    expect(values.raw).toHaveLength(0)
+  it('gives none for a function without instructions, which has no counters', () => {
+    expect(instructionValues([], 'cycles')).toBeUndefined()
+  })
+
+  it('counts an instruction without the counter as 0, which is shown as nothing', () => {
+    // Only the second instruction has the counter: the function has it all the same.
+    const sparse: Instruction[] = [
+      { address: 4096, counters: {}, text: 'nop' },
+      { address: 4100, counters: { cycles: 3 }, text: 'add' },
+      { address: 4104, counters: { misses: 1 }, text: 'ret' },
+    ]
+    const values = instructionValues(sparse, 'cycles')!
+    expect([...values.raw]).toEqual([0, 3, 0])
+    expect([...values.shares]).toEqual([0, 100, 0])
+    expect([...values.cumulative]).toEqual([0, 100, 100])
+    expect(values.total).toBe(3)
+    expect(shown(values, 'relative')).toEqual(['', '100%', ''])
+    expect(shown(values, 'absolute')).toEqual(['', '3', ''])
   })
 })
 

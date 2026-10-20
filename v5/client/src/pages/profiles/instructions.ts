@@ -13,7 +13,7 @@ export type ValueMode = 'relative' | 'absolute' | 'cumulative'
 
 /** The values of a function's instructions for a counter, one entry per instruction, in order. */
 export interface InstructionValues {
-  /** The instruction's value. */
+  /** The instruction's value: 0 when it does not have the counter. */
   raw: Float64Array
   /** The instruction's share of the function's value, as a percentage: 0 when that value is 0. */
   shares: Float64Array
@@ -24,10 +24,9 @@ export interface InstructionValues {
 }
 
 /**
- * The values of `instructions`, a function's, for `counter`. None when the function does not have
- * the counter, which happens when its profile does not: each instruction has every counter of its
- * profile (E7). A function without instructions has values, none of them, rather than lacking the
- * counter.
+ * The values of `instructions`, a function's, for `counter`. An instruction without the counter
+ * counts as 0. None when the function does not have the counter: when none of its instructions has
+ * it (E7), as for a function without instructions.
  *
  * The function's value is summed here rather than taken from the API, so that the running sum ends
  * at exactly 100%, whatever order the server added the values in.
@@ -36,14 +35,18 @@ export function instructionValues(
   instructions: readonly Instruction[],
   counter: string,
 ): InstructionValues | undefined {
-  if (instructions.length > 0 && !(counter in instructions[0].counters)) return undefined
   const count = instructions.length
   const raw = new Float64Array(count)
+  let found = false
   let total = 0
   for (let i = 0; i < count; i++) {
-    raw[i] = instructions[i].counters[counter]
-    total += raw[i]
+    const value = instructions[i].counters[counter]
+    if (value === undefined) continue
+    found = true
+    raw[i] = value
+    total += value
   }
+  if (!found) return undefined
   const shares = new Float64Array(count)
   const cumulative = new Float64Array(count)
   if (total > 0) {

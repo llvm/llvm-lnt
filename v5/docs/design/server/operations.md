@@ -335,15 +335,17 @@ in one run. It is submitted inline as a test entry's `profile` (see O1): a JSON
   instruction has its `address` (a non-negative `integer`), its `counters`
   (non-negative `real`s) and its disassembled `text`. Either list may be empty.
 
-Every counter value is a **raw count**, never a percentage. A function's own
-counters are not submitted: the server computes each one as the sum of that
-counter over the function's instructions.
+Every counter value is a **raw count**, never a percentage.
 
-An instruction's `counters` may leave out any of the top-level counters, and a
-counter left out counts as 0. A top-level counter is a total for the whole
-profile, so it was measured over all of it: an instruction with no count for it
-had none. Likewise, a producer may leave out a function, for example one it
-cannot name within the limits below.
+An instruction's `counters` holds the counters it has a value for, and may
+leave out any of the top-level counters. A counter left out has no value at
+that instruction, which is not the same as a value of 0: this lets a producer
+say that a counter was not measured for some code. A function's own counters
+are not submitted: a function has each counter that at least one of its
+instructions has, and the server computes it as the sum over the instructions
+that have it. A function with no instructions therefore has no counters.
+Likewise, a producer may leave out a function, for example one it cannot name
+within the limits below.
 
 **Decoding and validation.** The `profile` string is decoded as standard,
 padded base64, ignoring ASCII whitespace (so line-wrapped output is accepted),
@@ -367,9 +369,8 @@ and then as exactly one gzip member. Each of the following is rejected with
 was submitted with, each typed as above (an address `8.0` is returned as `8`,
 an instruction counter `5` as a `real`), with each function's counters computed
 as above, and with each function's instructions in the order the document
-listed them. Every function and every instruction is returned with every
-top-level counter, 0 for those the document left out, except in the profile
-document itself (see E7). It is stored as D5's `{suite}.profile` and
+listed them. Each instruction is returned with exactly the counters it was
+submitted with. It is stored as D5's `{suite}.profile` and
 `{suite}.profile_function` rows. Since everything is validated at submission,
 the read endpoints can serve any stored profile. Profiles are read-only after
 creation, and deleting a run deletes its profiles.
