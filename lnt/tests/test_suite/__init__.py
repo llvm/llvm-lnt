@@ -21,7 +21,6 @@ import click
 
 from .compilers import get_cc_info, infer_cxx_compiler
 from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
-from .submit import submit
 from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
                    resolve_command_path, timestamp)
 import lnt.testing.profile
@@ -185,10 +184,6 @@ class TestSuiteTest(object):
     def run_test(self):
         opts = self.opts
 
-        if opts.submit_url is not None and '://' not in opts.submit_url:
-            self._fatal("--submit must be the URL of an LNT server; to submit "
-                        "to a local instance, use 'lnt submit' on the report")
-
         # Validate build/exec mode options
         if opts.build and opts.exec_mode:
             self._fatal("--build and --exec are mutually exclusive")
@@ -275,6 +270,10 @@ class TestSuiteTest(object):
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
             self._fatal("LIT tool not found (looked for %s)" % opts.lit)
+        if opts.submit_url is not None:
+            opts.lnt = resolve_command_path(opts.lnt)
+            if not isexecfile(opts.lnt):
+                self._fatal("LNT tool not found (looked for %s)" % opts.lnt)
         if opts.run_under:
             split = shlex.split(opts.run_under)
             split[0] = resolve_command_path(split[0])
@@ -483,9 +482,23 @@ class TestSuiteTest(object):
             fd.write(str_template)
 
         if opts.submit_url is not None:
-            logger.info("submitting result to %r" % (opts.submit_url,))
-            submit(opts.submit_url, report_path, opts.select_machine,
-                   opts.merge, opts.verbose)
+            self._submit(report_path)
+
+    def _submit(self, report_path):
+        """Submit the report at report_path with `lnt submit`, and exit with
+        an error if that fails."""
+        cmd = [self.opts.lnt, 'submit', self.opts.submit_url, report_path,
+               '--select-machine', self.opts.select_machine,
+               '--merge', self.opts.merge]
+        if self.opts.verbose:
+            cmd.append('--verbose')
+        # So that what we printed so far comes before what `lnt submit` prints.
+        sys.stdout.flush()
+        try:
+            self._check_call(cmd)
+        except subprocess.CalledProcessError:
+            fatal("Submitting the report failed. It can be submitted again "
+                  "with: %s" % shlex.join(cmd))
 
     def _run_interleaved_builds(self, opts):
         """Run tests from multiple builds in an interleaved fashion."""
@@ -1434,8 +1447,9 @@ class TestSuiteTest(object):
               help="Whether to automatically derive the submission name")
 @click.option("--run-order", "run_order", metavar="STR",
               help="String to use to identify and order this run")
-@click.option("--submit", "submit_url", metavar="URL",
-              help="autosubmit the test result to the given server",
+@click.option("--submit", "submit_url", metavar="URLORPATH",
+              help="autosubmit the test result to the given server"
+                   " (or local instance), with `lnt submit`",
               type=click.UNPROCESSED, default=None)
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",
@@ -1469,6 +1483,9 @@ class TestSuiteTest(object):
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
+@click.option("--use-lnt", "lnt", metavar="PATH", type=click.UNPROCESSED,
+              default="lnt",
+              help="Path to the LNT command line tool [lnt]")
 # Submission
 @click.option("--merge", default="replace", show_default=True,
               type=click.Choice(['reject', 'replace', 'append']),

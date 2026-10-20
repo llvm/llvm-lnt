@@ -47,8 +47,9 @@ documentation.
    executable.
 
 #. If you already have a LNT server instance running, you can submit these results to it
-   by passing ``--submit http://<server>/db_default/submitRun``. To submit them to a local instance instead,
-   pass the ``report.json`` written in the build directory to ``lnt submit``.
+   by passing ``--submit http://<server>/db_default/submitRun``, or ``--submit <path-of-instance>``
+   for a local instance. The results are submitted with ``lnt submit``, which ``--use-lnt``
+   names if it is not on your ``PATH``.
 
 #. On most systems, the execution time results will be a bit noisy. There are
    a range of things you can do to reduce noise:
