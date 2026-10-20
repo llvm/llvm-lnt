@@ -176,15 +176,6 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
     return result
 
 
-def no_submit():
-    """Do not submit but create dummy submission report."""
-    return {
-        'success': True,
-        'result_url': None,
-        'test_results': None,
-    }
-
-
 def print_report_result(result, out, err, verbose=True):
     """
     print_report_result(result, out, [err], [verbose]) -> None

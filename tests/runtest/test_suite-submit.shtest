@@ -1,19 +1,22 @@
 # Check what `lnt runtest test-suite --submit` sends to an LNT server that
 # accepts the report, and what it prints of the server's answer.
 #
+# DEFINE: %{runtest} = \
+# DEFINE:   lnt runtest test-suite my-machine \
+# DEFINE:     --sandbox %t.SANDBOX \
+# DEFINE:     --no-timestamp \
+# DEFINE:     --test-suite %S/Inputs/test-suite-cmake \
+# DEFINE:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# DEFINE:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# DEFINE:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# DEFINE:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# DEFINE:     --submit @URL@
+#
 # RUN: rm -rf %t.SANDBOX
 # RUN: python %S/Inputs/with-fake-lnt-server.py \
 # RUN:     --reply %S/Inputs/submit-replies/accepted.json \
 # RUN:     --requests %t.requests --posted %t.posted -- \
-# RUN:   lnt runtest test-suite my-machine \
-# RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
-# RUN:     --test-suite %S/Inputs/test-suite-cmake \
-# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
-# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
-# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
-# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
-# RUN:     --submit @URL@ \
+# RUN:   %{runtest} \
 # RUN:     > %t.out 2> %t.err
 # RUN: diff %t.posted %t.SANDBOX/build/report.json
 # RUN: filecheck --check-prefix CHECK-REQUEST < %t.requests %s
@@ -61,15 +64,7 @@
 # RUN: python %S/Inputs/with-fake-lnt-server.py \
 # RUN:     --reply %S/Inputs/submit-replies/accepted.json \
 # RUN:     --requests %t.verbose.requests --posted %t.verbose.posted -- \
-# RUN:   lnt runtest test-suite my-machine \
-# RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
-# RUN:     --test-suite %S/Inputs/test-suite-cmake \
-# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
-# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
-# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
-# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
-# RUN:     --submit @URL@ --verbose --merge append --select-machine split \
+# RUN:   %{runtest} --verbose --merge append --select-machine split \
 # RUN:     > %t.verbose.out 2> %t.verbose.err
 # RUN: diff %t.verbose.posted %t.SANDBOX/build/report.json
 # RUN: filecheck --check-prefix CHECK-VERBOSE-REQUEST < %t.verbose.requests %s
