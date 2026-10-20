@@ -201,7 +201,8 @@ class TestSuiteTest(object):
         sys.stderr.write("%s error: %s\n" % (prog_name, msg))
         sys.exit(2)
 
-    def run_test(self, opts):
+    def run_test(self):
+        opts = self.opts
 
         # Validate build/exec mode options
         if opts.build and opts.exec_mode:
@@ -1487,4 +1488,4 @@ class TestSuiteTest(object):
 def cli_action(*args, **kwargs):
     init_logging()
     opts = types.SimpleNamespace(**kwargs)
-    TestSuiteTest(opts).run_test(opts)
+    TestSuiteTest(opts).run_test()
