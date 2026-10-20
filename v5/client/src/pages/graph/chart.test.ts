@@ -137,10 +137,11 @@ describe('baselineTraces (GR9)', () => {
     expect(hoverText(drawn, 100)).toBe(hoverText(drawn, 0))
   })
 
-  it('shows the test and the commit as they are, even with template fields in them', () => {
+  it("shows the test and the commit's display value as they are, even with template fields", () => {
     const line = {
       suite: 'nts',
       machine: '<&>',
+      // The commit's display value, which unlike a commit string may contain a `%` (I1).
       commit: 'r10 %{x}',
       test: 'fmt/%{y}',
       value: 1.5,
