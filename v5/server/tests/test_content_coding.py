@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -161,20 +162,47 @@ class TestIncrementalDecoding:
         assert refused.value.status_code == 400
 
     @pytest.mark.parametrize("chunk", [1, 1 << 20])
-    def test_a_bomb_is_refused_once_it_reaches_the_limit(self, chunk: int) -> None:
-        # 64 MiB of zeros, about 64 KiB compressed: refused at a 1 KiB limit, without being expanded
-        # in full, which the output cap on each step ensures.
+    def test_a_bomb_is_refused_without_being_expanded_past_the_limit(
+        self, chunk: int, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # 64 MiB of zeros, about 64 KiB compressed, refused at a 1 KiB limit. Sent whole as well as
+        # a byte at a time: an uncapped decoder handed the whole body would expand all 64 MiB
+        # before noticing, so what the decompressors produce is counted.
+        produced = 0
+        decompressobj = zlib.decompressobj
+
+        class Counting:
+            def __init__(self, **kwargs: Any) -> None:
+                self._inner = decompressobj(**kwargs)
+
+            def decompress(self, data: bytes, max_length: int = 0) -> bytes:
+                nonlocal produced
+                output = self._inner.decompress(data, max_length)
+                produced += len(output)
+                return output
+
+            def __getattr__(self, name: str) -> Any:
+                return getattr(self._inner, name)
+
+        monkeypatch.setattr(zlib, "decompressobj", Counting)
         bomb = gzip.compress(bytes(64 << 20), compresslevel=9)
 
         with pytest.raises(HTTPException) as refused:
             drive(bomb, chunk, limit=1024)
 
         assert refused.value.status_code == 413
+        assert produced == 1025
 
     def test_the_limit_itself_is_accepted(self) -> None:
         data = b"x" * 1024
 
         assert drive(gzipped(data), 1, limit=1024)[0] == data
+
+    def test_one_byte_past_the_limit_is_refused(self) -> None:
+        with pytest.raises(HTTPException) as refused:
+            drive(gzipped(b"x" * 1025), 1, limit=1024)
+
+        assert refused.value.status_code == 413
 
 
 @pytest.fixture
@@ -237,3 +265,5 @@ class TestWebUiFiles:
         )
         assert revalidated.status_code == 304
         assert revalidated.headers["etag"] == first.headers["etag"]
+        # RFC 9110, section 15.4.5: a 304 repeats the `Vary` its 200 would carry.
+        assert "Accept-Encoding" in vary(revalidated)

@@ -105,7 +105,8 @@ but compresses nothing itself unless its service is configured to; there is no n
 use a coding the app does not offer, such as Brotli.
 
 Cloudflare limits a request body to 100 MB on its Free and Pro plans, less than the 128 MiB the app
-and Nginx accept. Compressing large submissions keeps them well below either limit.
+and Nginx accept. Compressing a large submission keeps it under Cloudflare's limit, which applies to
+the body as sent, but not under the app's, which also applies to the body once decompressed.
 
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
@@ -224,9 +225,10 @@ The request body itself is held in memory and parsed whole, before the request i
 that a request without an API key can cost as much as a submission. `BODY_LIMIT` bounds it, both as
 sent and once a compressed body is decompressed: a small compressed body cannot expand past it. JSON
 parses into Python objects several times its size, though: at the default of 128 MiB, a body made of
-nothing but samples can take well over 1 GiB, more than the memory of the default instance. Real
-submissions are much smaller, but lower `BODY_LIMIT` (and Nginx's `client_max_body_size` with it) if
-that matters more than accepting the largest ones.
+nothing but samples can take well over 1 GiB, more than the memory of the default instance.
+Compression makes that worst case hundreds of times cheaper to send: a few hundred kilobytes of
+gzip can decompress into a 128 MiB body. Real submissions are much smaller, but lower `BODY_LIMIT` (and
+Nginx's `client_max_body_size` with it) if that matters more than accepting the largest ones.
 
 ## Caching
 

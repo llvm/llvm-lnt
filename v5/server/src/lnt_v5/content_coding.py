@@ -132,10 +132,10 @@ class _GzipBody:
                 # Worded as Starlette's own 413, which errors.py renders the same way.
                 raise HTTPException(413, "Content Too Large")
             chunks.append(chunk)
-            # What follows the end of a member, if anything. Input is left over for want of output
-            # room only when the output reached `allowed`, which is the 413 above, so there is no
-            # `unconsumed_tail` to carry on with here.
+            # Input is left over for want of output room only when the output reached `allowed`,
+            # which is the 413 above, so all that can remain is what follows the end of a member.
             decompressor = self._decompressor
+            assert not decompressor.unconsumed_tail
             data = decompressor.unused_data if decompressor.eof else b""
         return b"".join(chunks)
 

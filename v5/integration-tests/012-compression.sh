@@ -30,10 +30,12 @@ request -X POST -H "$AUTH" -H "$JSON" -H "$GZIP" --data-binary "@${scratch}/run.
 expect_status 201
 expect_body '"machine":"m"'
 
-echo "  data that is not gzip is 400, and another coding is 415"
-request -X POST -H "$AUTH" -H "$JSON" -H "$GZIP" --data-binary '{"format_version": "5"}' "$RUNS"
+echo "  a valid run that is not actually gzip-compressed is 400, and another coding is 415"
+gzip -dc "${scratch}/run.gz" > "${scratch}/run.json"
+request -X POST -H "$AUTH" -H "$JSON" -H "$GZIP" --data-binary "@${scratch}/run.json" "$RUNS"
 expect_status 400
 expect_body '"code":"invalid_request"'
+expect_body 'cannot be decoded'
 
 request -X POST -H "$AUTH" -H "$JSON" -H 'Content-Encoding: br' \
     --data-binary "@${scratch}/run.gz" "$RUNS"
@@ -48,6 +50,7 @@ echo "  a body that decompresses past BODY_LIMIT is 413, however small it is com
   printf '"}}'; } | gzip -c > "${scratch}/bomb.gz"
 request -X POST -H "$AUTH" -H "$JSON" -H "$GZIP" --data-binary "@${scratch}/bomb.gz" "$RUNS"
 expect_status 413
+expect_header Content-Type 'text/plain'
 
 echo "  plain curl gets an uncompressed response, and --compressed a gzip one"
 request "${BASE_URL}/api/openapi.json"

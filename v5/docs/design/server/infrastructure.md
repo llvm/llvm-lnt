@@ -179,8 +179,9 @@ JSON.
 Four cases are also outside the REST API, because they are handled before a
 request reaches any endpoint:
 - An oversized request body is rejected with 413 (see Errors below).
-- A request body with a content coding the server does not accept is rejected
-  with 415 `unsupported_encoding` (see Compression below).
+- A request naming a content coding the server does not accept in its
+  `Content-Encoding` header is rejected with 415 `unsupported_encoding` (see
+  Compression below).
 - A trailing slash is redirected with 307 (see I1).
 - A URL containing a NUL character is rejected with 400 `invalid_request`,
   since no value the API can act on contains one (see D5).
@@ -273,18 +274,20 @@ that a small body which expands enormously costs no more than the limit allows.
 named in its `Content-Encoding` header (RFC 9110, section 8.4), and the server
 must accept it on every request that carries a body. An endpoint sees the body
 decoded: whatever the endpoints spec says about a body is about its decoded
-form. A body sent with any other content coding, or with more than one, is
-rejected with 415 `unsupported_encoding`, and the response's `Accept-Encoding`
-header names the codings the server accepts (RFC 9110, section 15.5.16). A body
+form. A request whose `Content-Encoding` header names any other content coding,
+or more than one, is rejected with 415 `unsupported_encoding`, and the
+response's `Accept-Encoding` header names the codings the server accepts (RFC
+9110, section 15.5.16). A body
 that does not decode as its coding says -- corrupt, truncated, or followed by
 data that is not part of it -- is rejected with 400 `invalid_request`, like a
 body that is not valid JSON (see I5).
 
-A response may be compressed with any content coding the request's
-`Accept-Encoding` header accepts (RFC 9110, section 12.5.3). A request without
-an `Accept-Encoding` header gets an uncompressed response, so a client that
-does not ask for compression never has to decode one. A response whose coding
-depends on the request's `Accept-Encoding` carries `Vary: Accept-Encoding`.
+A response may be compressed with a content coding that the request's
+`Accept-Encoding` header names (RFC 9110, section 12.5.3). A request without
+an `Accept-Encoding` header, or whose header names no coding the server
+compresses with, gets an uncompressed response, so a client that does not ask
+for compression never has to decode one. A response whose coding depends on
+the request's `Accept-Encoding` carries `Vary: Accept-Encoding`.
 
 
 ## I5: Authentication and Authorization
