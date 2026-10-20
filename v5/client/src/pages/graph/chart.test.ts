@@ -1,10 +1,10 @@
 import type { PlotData } from 'plotly.js'
 import { describe, expect, it } from 'vitest'
+import { markerOf } from '../../chart-markers'
 import { metric } from '../../test/fixtures'
 import {
   baselineTraces,
   graphLayout,
-  markerOf,
   plotlyTraces,
   regressionMarkers,
   regressionShapes,
@@ -181,13 +181,5 @@ describe('the regression annotations (GR15)', () => {
     expect(layout.shapes).toHaveLength(1)
     expect(layout.xaxis2).toMatchObject({ overlaying: 'x', range: [0, 1], fixedrange: true })
     expect(layout.yaxis2).toMatchObject({ overlaying: 'y', range: [0, 1], visible: false })
-  })
-})
-
-describe('markerOf', () => {
-  it('gives each machine its own marker, starting over once all are taken', () => {
-    expect(markerOf(0).symbol).toBe('circle')
-    expect(markerOf(1)).toEqual({ symbol: 'triangle-up', char: '▲' })
-    expect(markerOf(8)).toBe(markerOf(0))
   })
 })

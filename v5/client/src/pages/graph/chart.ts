@@ -4,30 +4,12 @@
  */
 
 import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape } from 'plotly.js'
+import { markerOf } from '../../chart-markers'
 import { noDataAnnotations } from '../../components/plot-annotations'
 import { escapeHtml, plural, regressionTitle } from '../../format'
 import type { RegressionState } from '../../regression-states'
 import { formatMetricValue, type Metric } from '../../schema'
 import type { Point } from './points'
-
-/**
- * The marker of each machine, by its position among the machines' chips (GR1): Plotly's symbol,
- * and the character showing it on the machine's chip. Once all are taken, they start over.
- */
-const MARKERS = [
-  { symbol: 'circle', char: '●' },
-  { symbol: 'triangle-up', char: '▲' },
-  { symbol: 'square', char: '■' },
-  { symbol: 'diamond', char: '◆' },
-  { symbol: 'cross', char: '✚' },
-  { symbol: 'x', char: '✖' },
-  { symbol: 'star', char: '★' },
-  { symbol: 'pentagon', char: '⬟' },
-] as const
-
-export function markerOf(index: number): (typeof MARKERS)[number] {
-  return MARKERS[index % MARKERS.length]
-}
 
 /** An axis over `axis` spanning the plot from 0 to 1 whatever its zoom, which is not shown. */
 function overlayAxis(axis: 'x' | 'y'): Partial<LayoutAxis> {

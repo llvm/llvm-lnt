@@ -266,7 +266,7 @@ test('adds the comparison to a new regression, then to that one', async ({
   })
 })
 
-test('overlays a pinned side B on the chart once side B changes', async ({ page, request }) => {
+test('overlays sides B pinned on the chart, keeping them on a swap', async ({ page, request }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
     `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
@@ -274,12 +274,15 @@ test('overlays a pinned side B on the chart once side B changes', async ({ page,
   )
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
 
-  await page.getByRole('button', { name: 'Pin as shadow' }).click()
-  await expect(page.getByText(/^Shadow:/)).toHaveText(
-    `Shadow: ${newer.fields.svn_revision} on ${LINUX}×`,
-  )
-  await expect(page.getByRole('button', { name: 'Dismiss the shadow' })).toBeFocused()
-  // Side B on the experiment: its comparison is the bars, and the newest commit's the line.
+  const pin = page.getByRole('button', { name: 'Pin as shadow' })
+  const chips = page.getByRole('list', { name: 'Shadows' }).getByRole('listitem')
+  const shadows = () => new URL(page.url()).searchParams.getAll('shadow')
+  const first = `libcxx/${LINUX}/${newer.fields.svn_revision}`
+  await pin.click()
+  await expect(chips).toHaveText([`●Shadow: ${first}×`])
+  await expect(page.getByRole('button', { name: `Dismiss the shadow ${first}` })).toBeFocused()
+  await expect(pin).toBeDisabled()
+  // Side B on the experiment: its comparison is the bars, and the newest commit's a line.
   // Typed key by key, as a user does: `fill`, which sets the whole text at once, is sometimes lost
   // when the focus comes from the chip's button.
   const commitB = sideOf(page, 'B').getByRole('combobox', { name: 'Commit' })
@@ -288,17 +291,39 @@ test('overlays a pinned side B on the chart once side B changes', async ({ page,
   await commitB.pressSequentially(EXPERIMENT)
   await page.getByRole('option', { name: EXPERIMENT, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${EXPERIMENT}(&|$)`))
-  await expect(page).toHaveURL(new RegExp(`[?&]commit_shadow_b=${newer.value}(&|$)`))
   const traces = () =>
     plotOf(page).evaluate((element) =>
       (element as PlotDiv)._fullData.map((trace) => ({ name: trace.name, y: trace.y })),
     )
   await expect.poll(async () => (await traces()).map((trace) => trace.name)).toEqual([
     'comparison',
-    'shadow',
+    'shadow 1',
   ])
   // The line goes through a point per test, sorted by its own ratios.
   const points = (await traces())[1].y
   expect(points.length).toBeGreaterThan(10)
   expect(points).toEqual([...points].sort((x, y) => x - y))
+
+  // The experiment pinned too: two lines.
+  await pin.click()
+  await expect(chips).toHaveCount(2)
+  expect(shadows()).toEqual([`libcxx/${LINUX}/${newer.value}`, `libcxx/${LINUX}/${EXPERIMENT}`])
+  await expect.poll(async () => (await traces()).map((trace) => trace.name)).toEqual([
+    'comparison',
+    'shadow 1',
+    'shadow 2',
+  ])
+
+  // Swapping the sides keeps both, compared with the new side A.
+  await page.getByRole('button', { name: 'Swap sides' }).click()
+  await expect(page).toHaveURL(new RegExp(`[?&]commit_a=${EXPERIMENT}(&|$)`))
+  await expect(chips).toHaveCount(2)
+  expect(shadows()).toHaveLength(2)
+  await expect.poll(async () => (await traces()).length).toBe(3)
+
+  // Dismissing the first gives the focus to the chip after it.
+  await page.getByRole('button', { name: `Dismiss the shadow ${first}` }).click()
+  await expect(chips).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /^Dismiss the shadow / })).toBeFocused()
+  expect(shadows()).toEqual([`libcxx/${LINUX}/${EXPERIMENT}`])
 })

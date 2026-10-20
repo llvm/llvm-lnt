@@ -12,8 +12,26 @@ export function sameElements(a: readonly unknown[], b: readonly unknown[]): bool
  */
 export function useSameElements<A extends readonly unknown[] | undefined>(array: A): A {
   const [kept, setKept] = useState(array)
-  const same =
-    kept === array || (kept !== undefined && array !== undefined && sameElements(kept, array))
+  const same = bothSame(kept, array)
   if (!same) setKept(array)
   return same ? kept : array
+}
+
+/** Whether `a` and `b` are both undefined, or hold the same elements. */
+function bothSame(a: readonly unknown[] | undefined, b: readonly unknown[] | undefined): boolean {
+  return a === b || (a !== undefined && b !== undefined && sameElements(a, b))
+}
+
+/**
+ * `arrays`, each of them the one it was before if that holds the same elements, as
+ * `useSameElements` keeps one array, and the list of them the one it was before if none changed.
+ */
+export function useSameElementsEach<A extends readonly unknown[] | undefined>(
+  arrays: readonly A[],
+): readonly A[] {
+  const [kept, setKept] = useState(arrays)
+  const each = arrays.map((array, i) => (bothSame(kept[i], array) ? kept[i] : array))
+  const same = sameElements(kept, each)
+  if (!same) setKept(each)
+  return same ? kept : each
 }

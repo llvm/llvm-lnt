@@ -4,6 +4,7 @@ import { AGGREGATIONS } from '../../aggregation'
 import { sortParam } from '../../components/table-sort'
 import type { NoiseKnob, NoiseSettings } from './comparison'
 import { OPTIONAL_KEYS, SORTABLE } from './columns'
+import { shadowParam } from './shadow-specs'
 import {
   booleanParam,
   enumListParam,
@@ -14,11 +15,8 @@ import {
   trimmedStringParam,
 } from '../../url-state'
 
-/**
- * The two sides of the comparison, A, the baseline, and B, the new one, and the shadow (CP8): a
- * side B pinned, which the URL holds like a side.
- */
-export type SideId = 'a' | 'b' | 'shadow_b'
+/** The two sides of the comparison, A, the baseline, and B, the new one. */
+export type SideId = 'a' | 'b'
 
 /** At most how many hidden tests the URL holds (CP7). */
 export const HIDDEN_IN_URL = 10
@@ -33,12 +31,10 @@ export const PARAMS = {
   machine_b: stringParam(),
   commit_b: stringParam(),
   runs_b: listParam(),
-  suite_shadow_b: stringParam(),
-  machine_shadow_b: stringParam(),
-  commit_shadow_b: stringParam(),
-  runs_shadow_b: listParam(),
+  /** The shadows (CP8), each a side B pinned, in the order they were pinned. */
+  shadow: shadowParam(),
   metric: stringParam(),
-  // How both sides' runs, and the shadow's, are combined, and the samples within each run (CP1).
+  // How both sides' runs, and the shadows', are combined, and the samples within each run (CP1).
   run_agg: enumParam(AGGREGATIONS, 'median'),
   sample_agg: enumParam(AGGREGATIONS, 'median'),
   // Each noise knob's value, present exactly while the knob is enabled (CP1).
@@ -104,11 +100,3 @@ export function noiseSettings(settings: Settings): NoiseSettings {
     floor: settings[NOISE_PARAMS.floor],
   }
 }
-
-/** The changes to the URL that dismiss the shadow (CP8). */
-export const NO_SHADOW: Partial<Settings> = sideChanges('shadow_b', {
-  suite: '',
-  machine: '',
-  commit: '',
-  runs: [],
-})

@@ -4,7 +4,7 @@ import { Combobox } from '../../components/combobox'
 import { machineSuggestions } from '../../components/machine-suggestions'
 import { useLocalSuggestions } from '../../components/suggestions'
 import type { Schemas } from '../../api/client'
-import { markerOf } from './chart'
+import { markerOf } from '../../chart-markers'
 import styles from './graph.module.css'
 
 interface Props {

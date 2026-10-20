@@ -28,7 +28,8 @@ Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [media
 > Add to regression
 
 <progress and errors>
-[Shadow: 0f69d2804b9b on linux-x86_64  x]
+[● Shadow: libcxx/linux-x86_64/0f69d2804b9b  x]
+[▲ Shadow: libcxx/linux-x86_64/014621ede7c1 (1 of 2 runs)  x]
 <chart>
 
 o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o Zero baseline 1
@@ -67,7 +68,7 @@ Each side has its own controls:
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to
-be fetched again.
+be fetched again. The shadows are kept (see CP8).
 
 Global controls, shared by both sides:
 
@@ -332,12 +333,12 @@ Interactivity:
   the zoom. The user's zoom is kept when settings change, but is reset when the
   comparison is replaced: a different suite, machine, commit or runs on either
   side, swapping the sides, or a different metric. When the user hasn't
-  zoomed, both axes fit everything plotted: the bars, the shadow trace and the
+  zoomed, both axes fit everything plotted: the bars, the shadows' lines and the
   noise band. Zooming does not filter the table.
 - **Noise band**: see Computation Reference for how the Delta % threshold is
   converted to log2 space. The p-value and absolute floor knobs do not have
   chart-level visualization.
-- **Empty state**: when there is a comparison but neither the bars nor the
+- **Empty state**: when there is a comparison but neither the bars nor any
   shadow's line (see CP8) have anything to plot, the chart area displays "No
   data to plot", as on the Graph page (see GR12). CP6 says what is shown while
   there is no comparison.
@@ -389,14 +390,14 @@ page or the table.
 
 - Each side's metrics come from its suite's schema, as listed by `GET suites`.
 - A suite's machines come from `GET machines`. They are fetched once per suite,
-  and shared by both sides and the shadow. A side's commit picker
+  and shared by both sides and the shadows. A side's commit picker
   searches `GET commits?machine={name}&sort=-ordinal` (see AR15).
 - A side's runs come from `GET runs?machine={name}&commit={value}`, every page
   of it. The side has no runs to compare until the whole list has loaded.
 - The samples of each selected run come from `GET runs/{uuid}/samples`, every
   page of it, in as few requests as the API allows. Once fetched, a run's
   samples are kept for as long as the run belongs to one of the sides' or the
-  shadow's commits. This way, changing the metric, an aggregation, the noise
+  shadows' commits. This way, changing the metric, an aggregation, the noise
   settings, the run selection or the hidden tests, swapping the sides, or
   pinning a shadow never fetches them again. If a run stops belonging to any of
   those commits while its samples are loading, its loading stops, without
@@ -408,11 +409,13 @@ page or the table.
   comparison.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
-  There is one exception: the page waits for the list of suites before it
+  There are exceptions: the page waits for the list of suites before it
   fetches the suite's machines or looks up the commit (see AR15), because both
   need the suite's schema. The commit's display value, for example, comes from
-  the schema. A side whose URL names no runs can only ask for samples once its
-  runs are listed. If a value turns out to be unusable, the page discards what
+  the schema. A shadow's commit is looked up only once its suite's machines are
+  listed and hold its machine (see CP8). A side whose URL names no runs can only
+  ask for samples once its runs are listed, and a shadow only asks for its runs'
+  samples once they are listed. If a value turns out to be unusable, the page discards what
   it fetched for that value and does not report its failures (see AR2
   "State").
 
@@ -421,7 +424,7 @@ selected runs have loaded, in place of the comparison. The page never shows a
 comparison that does not match the current controls.
 
 When the page cannot fetch something it needs -- the suites, a suite's machines,
-a side's runs, a commit lookup, a selected run's samples or profiles, the
+a side's runs, a commit lookup, a selected run's samples or profiles, a
 shadow's runs or samples -- it says so (see AR7). If the samples of any selected
 run cannot be fetched, no comparison is shown, rather than one silently based on
 fewer runs. If profiles cannot be fetched, only the Profile links are missing.
@@ -455,10 +458,10 @@ All selection state is encoded as query parameters for shareability:
   `delta`, `delta_pct`, `ratio` or `status`, or the key of an optional column
   shown, suffixed with `_a` or `_b` for a per-side one), prefixed with `-` for
   descending
-- The shadow trace's parameters (see CP8)
+- `shadow`: the shadows (see CP8)
 
-`runs_a`, `runs_b`, `hidden_test` and `columns` repeat their parameter once per
-value (see AR2 "State"). `runs_a` and `runs_b` are left out when all of the
+`runs_a`, `runs_b`, `hidden_test`, `columns` and `shadow` repeat their
+parameter once per value (see AR2 "State"). `runs_a` and `runs_b` are left out when all of the
 side's runs are selected, which is the default. They are left out too when none
 is, since the URL cannot say so: loading such a URL selects every run.
 
@@ -476,63 +479,94 @@ A value the page cannot use is dropped (see AR2 "State"):
 - a hidden test that is not in the comparison.
 
 
-### CP8: Shadow Trace (Comparison Overlay)
+### CP8: Shadow Traces (Comparison Overlays)
 
-A shadow trace overlays a pinned comparison on the chart, allowing the user to
-visually compare how a ratio profile changed between two versions of side B
-against a shared baseline (side A). For example: pin GCC vs LLVM20, then change
-side B to LLVM21 to see both comparisons overlaid.
+A shadow overlays a pinned comparison on the chart, allowing the user to
+visually compare how a ratio profile changed between versions of side B against
+a shared baseline (side A). For example: pin GCC vs LLVM20, then change side B
+to LLVM21 to see both comparisons overlaid, pin that too, and change side B to
+LLVM22 to see all three.
 
-**Workflow:**
-1. User sets up a comparison and sees the chart.
-2. Clicks "Pin as shadow", in the header of side B's panel. Side B's current
-   selection is captured as the shadow.
-3. A chip appears above the chart: "Shadow: {commit} on {machine}", where
-   `{commit}` is the commit's display value (see AR6), or the commit string
-   until it is known, with a dismiss (×) button.
-4. User changes side B. The chart now shows the main comparison as bars and the
-   shadow comparison as a thin line.
-5. To remove the shadow, click × on the chip.
+A shadow is a pinned specification: a suite, a machine, a commit, and the runs
+selected among the commit's runs, as side B had them when pinned. It keeps them
+whatever happens to side B afterwards. Its runs are kept as the URL holds them
+(see CP7): when every run of side B was selected, the shadow selects every run
+of its commit.
 
-The pin button is shown only while there is a comparison and no shadow is
-pinned.
+**Pinning.** A "Pin as shadow" button, in the header of side B's panel, pins
+side B as it is as a new shadow, after those already pinned. It is shown while
+there is a comparison. It is disabled, saying why on hover and to assistive
+technology, while side B as it is -- the same suite, machine, commit and runs --
+is pinned already, and once 5 shadows are pinned: beyond that, the chart is
+unreadable. A shadow just pinned gives the focus to its chip's dismiss button.
+
+**Chips.** Each shadow has a chip above the chart, in the order they were
+pinned: "Shadow: {suite}/{machine}/{commit}", where `{commit}` is the commit's
+display value (see AR6), or the commit string until it is known, followed by
+" ({k} of {n} runs)" when the shadow selects only some of its commit's runs,
+once they are listed. The chip shows the shadow's color and marker (see
+"Rendering"), and has a dismiss (×) button. Dismissing a shadow gives the focus
+to the dismiss button of the chip after it, or else before it, or to the pin
+button once none is left; while there is no comparison, and so no pin button,
+it goes back to the page. Chips are shown whether or not there is a comparison,
+so that shadows can always be dismissed.
 
 **Rendering:**
-- The shadow comparison is computed the same way as the main one, between side
-  A and the shadow's runs. The line plots the compared rows (see CP2) that can
-  be plotted in the shadow comparison, each at its ratio there. A test can
+- Each shadow's comparison is computed the same way as the main one, between
+  side A and the shadow's runs. Its line plots the compared rows (see CP2) that
+  can be plotted in the shadow's comparison, each at its ratio there. A test can
   have a point without a bar, or a bar without a point.
-- The line is sorted by its own ratios, so a test's point on the line is not
-  necessarily above its bar. The X-axis is wide enough for whichever of the two
-  has more tests. Its color is distinct from the status colors of the bars, and
-  there is no legend: the chip identifies the trace.
-- Hovering a shadow point shows the same information as a main bar, with a
-  "(shadow)" label. Table-to-chart hover highlighting targets the main bars
-  only.
-- If side A's suite and the shadow's suite don't both offer the selected
-  metric, under CP1's rule for comparing a metric across suites, the shadow
-  draws nothing.
+- Each line is sorted by its own ratios, so a test's point on a line is not
+  necessarily above its bar. The X-axis is wide enough for whichever of the
+  bars and the lines has the most tests. The lines are drawn over the bars, in
+  the order the shadows were pinned.
+- Each shadow has a color and a marker of its own, given by its position among
+  the shadows, so that dismissing a shadow changes those of the shadows after
+  it. The colors differ from each other, from the status colors of the bars and
+  from the outline of a bar whose row is hovered (see CP5), and have a contrast
+  of at least 3:1 against the page's background. Colors alone cannot keep five
+  lines apart for every reader, which the markers do. The chart has no legend:
+  the chips serve as one.
+- Hovering a point of a line shows the same information as a main bar, with a
+  line naming its shadow as its chip does. Table-to-chart hover highlighting
+  targets the main bars only, and hovering a point of a line highlights no row.
+- If side A's suite and a shadow's suite don't both offer the selected metric,
+  under CP1's rule for comparing a metric across suites, that shadow draws
+  nothing.
 
 **Scope:** chart only -- no table columns, no summary bar counts. Add to
 Regression (see CP9) operates on the main comparison only.
 
-**What it follows.** The shadow follows changes to the metric, the run and
-sample aggregations and the compared rows. It keeps side B's suite, machine,
-commit and runs as they were when pinned, whatever happens to side B
-afterwards. Its runs are kept as the URL holds them (see CP7): when every run
-of side B was selected, the shadow selects every run of its commit. Changing side A's suite, machine, commit or runs, or swapping
-the sides, dismisses the shadow.
+**What they follow.** The shadows follow changes to the metric, the run and
+sample aggregations, the compared rows, and side A. Changing side A's suite,
+machine, commit or runs, clearing them, or swapping the sides keeps the
+shadows, whose lines are computed again against the new side A. While there is
+no comparison, as when side A has no commit, nothing is drawn, but the shadows
+are kept. A swap drops no shadow: one equal to the new side A draws a flat line
+at 0%, and one equal to the new side B lies on the bars.
 
-**Data:** the shadow's samples are fetched like a side's (see CP6). The main
-comparison never waits for them. The line is drawn only once all of them have
-loaded. If some cannot be fetched, the line is not drawn, and the error is
-reported.
+**Data:** a shadow's runs are listed, and its selected runs' samples fetched,
+as a side's are (see CP6). Its commit is looked up as a commit given to a
+commit picker is (see AR15), once its suite's machines are listed and hold its
+machine. The main comparison never waits for the shadows. A shadow's line is
+drawn only once all its samples have loaded. If something a shadow needs cannot
+be fetched, its line is not drawn, and the page says that a shadow could not be
+loaded, offering to try again everything that failed (see AR7). A failure for a
+run that a side selects too is reported as the side's.
 
-**URL encoding:** the shadow is encoded like a side, with the suffix `shadow_b`:
-`suite_shadow_b`, `machine_shadow_b`, `commit_shadow_b` and `runs_shadow_b`,
-following the same rules (see CP7). The shadow is dropped if its suite, machine
-or commit is missing or unusable, or if side A has no commit. When unusable
-runs are dropped from side A's URL values, the shadow is kept.
+**URL encoding:** the URL holds each shadow as a `shadow` parameter (see CP7),
+in the order they were pinned: `{suite}/{machine}/{commit}`, followed by
+`/{run},{run}...` when it selects only some of its commit's runs, named by
+their UUIDs, each once, in ascending order. None of the names can contain a `/`
+(see I1), and only the runs are told apart by commas, which a machine or a
+commit may contain. A value with fewer than three parts or more than four, or
+with an empty part or run, is malformed. As soon as the URL is read, malformed
+values are dropped, then repeated ones, then any beyond the first 5. A shadow is
+dropped once its suite or machine turns out not to exist, or its commit to be
+one its machine's commit picker would not offer (see AR15); the other shadows
+are kept. Once its runs are listed, those it names that are not among them are
+dropped. If that leaves none, or it names every run, it selects every run, which
+the URL holds by naming none.
 
 
 ### CP9: Add to Regression

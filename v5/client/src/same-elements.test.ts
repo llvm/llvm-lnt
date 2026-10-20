@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { useSameElements } from './same-elements'
+import { useSameElements, useSameElementsEach } from './same-elements'
 
 describe('useSameElements', () => {
   it('keeps the array it had while a new one holds the same elements', () => {
@@ -29,5 +29,27 @@ describe('useSameElements', () => {
     expect(result.current).toBe(array)
     rerender({ array: undefined })
     expect(result.current).toBeUndefined()
+  })
+})
+
+describe('useSameElementsEach', () => {
+  it('keeps each array it had, and the list of them, while they hold the same elements', () => {
+    const first = [['a'], undefined, ['b']]
+    const { result, rerender } = renderHook(({ arrays }) => useSameElementsEach(arrays), {
+      initialProps: { arrays: first as (string[] | undefined)[] },
+    })
+    expect(result.current).toBe(first)
+    rerender({ arrays: [['a'], undefined, ['b']] })
+    expect(result.current).toBe(first)
+
+    const changed = ['c']
+    rerender({ arrays: [['a'], changed, ['b']] })
+    expect(result.current).not.toBe(first)
+    expect(result.current[0]).toBe(first[0])
+    expect(result.current[1]).toBe(changed)
+    expect(result.current[2]).toBe(first[2])
+
+    rerender({ arrays: [['b']] })
+    expect(result.current).toEqual([['b']])
   })
 })
