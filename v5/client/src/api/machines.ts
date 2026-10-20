@@ -5,6 +5,9 @@ import type { paths } from './schema'
 
 type Machine = Schemas['Machine']
 
+/** The longest name a machine can have (D5's column). */
+export const MACHINE_NAME_LENGTH = 256
+
 type MachineListQuery = NonNullable<
   paths['/api/suites/{testsuite}/machines']['get']['parameters']['query']
 >

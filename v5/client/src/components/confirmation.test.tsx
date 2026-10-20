@@ -1,23 +1,22 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, PERMISSION_DENIED } from '../api/client'
-import { providers } from '../test/render'
-import { ConfirmDelete } from './confirm-delete'
+import { ALLOWED } from '../test/auth'
+import { Confirmation } from './confirmation'
 
 function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve()) {
   const onCancel = vi.fn()
   const confirm = vi.fn(onConfirm)
   render(
-    <ConfirmDelete
+    <Confirmation
       expected="573af861"
-      scope="read"
+      gate={ALLOWED}
       onConfirm={confirm}
       onCancel={onCancel}
       busyMessage="Hold on."
     >
       <p>Delete the run?</p>
-    </ConfirmDelete>,
-    providers(),
+    </Confirmation>,
   )
   return {
     input: screen.getByLabelText(/to confirm/),
@@ -27,7 +26,7 @@ function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve(
   }
 }
 
-describe('ConfirmDelete', () => {
+describe('Confirmation', () => {
   it('says what it does, and what to type to confirm', () => {
     renderPrompt()
 
@@ -97,10 +96,9 @@ describe('ConfirmDelete', () => {
     const onConfirm = vi.fn(() => Promise.resolve())
     const onCancel = vi.fn()
     render(
-      <ConfirmDelete confirmLabel="Revoke" scope="read" onConfirm={onConfirm} onCancel={onCancel}>
+      <Confirmation confirmLabel="Revoke" gate={ALLOWED} onConfirm={onConfirm} onCancel={onCancel}>
         <p>Revoke the key?</p>
-      </ConfirmDelete>,
-      providers(),
+      </Confirmation>,
     )
 
     const prompt = screen.getByRole('form', { name: 'Confirmation' })
@@ -115,21 +113,22 @@ describe('ConfirmDelete', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 
-  it('cannot confirm without the scope the action needs, saying why', () => {
+  it('cannot confirm while its gate disallows the action, saying why', () => {
     const onConfirm = vi.fn(() => Promise.resolve())
     render(
-      <ConfirmDelete confirmLabel="Revoke" scope="admin" onConfirm={onConfirm} onCancel={() => {}}>
+      <Confirmation
+        confirmLabel="Revoke"
+        gate={{ disabled: true, title: 'Needs admin.' }}
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      >
         <p>Revoke the key?</p>
-      </ConfirmDelete>,
-      providers(),
+      </Confirmation>,
     )
 
     const button = screen.getByRole('button', { name: 'Revoke' })
     expect(button).toBeDisabled()
-    expect(button).toHaveAttribute(
-      'title',
-      "Needs an API token with the 'admin' scope. Set one in Settings.",
-    )
+    expect(button).toHaveAttribute('title', 'Needs admin.')
     fireEvent.submit(screen.getByRole('form', { name: 'Confirmation' }))
     expect(onConfirm).not.toHaveBeenCalled()
   })

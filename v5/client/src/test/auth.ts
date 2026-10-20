@@ -2,12 +2,15 @@ import { HttpResponse } from 'msw'
 import type { Schemas } from '../api/client'
 import { TOKEN_STORAGE_KEY } from '../auth/storage-key'
 import type { ApiKey } from '../auth/credentials'
-import type { Scope } from '../auth/scope'
+import type { Scope, ScopeGate } from '../auth/scope'
 import { errorResponse, mockApi } from './mock-api'
 import { server } from './server'
 
 /** A token of the right shape (I5). Which one does not matter, since the API is mocked. */
 export const TOKEN = 'a'.repeat(64)
+
+/** The gate of a control whose action the token allows (see `useScopeGate`). */
+export const ALLOWED: ScopeGate = { disabled: false, title: undefined }
 
 export function apiKey(scope: Scope, overrides: Partial<ApiKey> = {}): ApiKey {
   return {

@@ -218,8 +218,8 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 An input whose text is invalid -- an invalid regex in a test filter, a name the
 schema editor rejects (AD3), an ordinal that is not an integer its column can
-hold (DT3) -- shows a red halo (red border and glow) for as long as its text
-stays invalid.
+hold (DT3), a machine name that I1 rejects, or an empty one (DT1) -- shows a red
+halo (red border and glow) for as long as its text stays invalid.
 
 
 ## AR12: Inline Editing
@@ -233,15 +233,18 @@ saves.
 
 Whitespace at either end of the text is ignored: it is removed before the text
 is checked or saved, so text that is only whitespace clears the value, like an
-empty input. Saving unchanged text -- the text the input opened with, or the
-stored value once trimmed -- closes the input without sending anything, so a
-stored value with whitespace at either end keeps it. Invalid text cannot be
-saved. While a save is in progress, the input and its buttons cannot be used. If
-the save fails, the input stays open with its text and says why. If it succeeds,
-the input closes and the field shows the value the API returned, so an edit
-never appears before the API has accepted it. When the input closes, the focus
-returns to the Edit button. Edit and Save need the scope that the change needs
-(see AR17).
+empty input -- unless the field must have a value, such as a machine's name
+(DT1), in which case empty text is invalid (see AR11). Saving unchanged text --
+the text the input opened with, or the stored value once trimmed -- closes the
+input without sending anything, so a stored value with whitespace at either end
+keeps it. Invalid text cannot be saved. A field whose changes must be confirmed,
+such as a machine's name (DT1), asks for the confirmation when saved, and saves
+only once it is given. While the confirmation is asked or a save is in progress,
+the input and its buttons cannot be used. If the save fails, the input stays
+open with its text and says why. If it succeeds, the input closes and the field
+shows the value the API returned, so an edit never appears before the API has
+accepted it. When the input closes, the focus returns to the Edit button. Edit
+and Save need the scope that the change needs (see AR17).
 
 
 ## AR13: Controls Saving on Change
@@ -312,7 +315,7 @@ commit other than the one the text shows. An empty picker is fine: it means no
 commit, which a form may accept.
 
 
-## AR16: Deletions
+## AR16: Confirmations and Deletions
 
 Deleting a suite, a machine, a commit, a run or a regression is confirmed by
 typing its identifier -- the name of a suite or a machine, the commit string of
@@ -320,17 +323,20 @@ a commit, the first 8 characters of the UUID of a run or a regression -- before
 the request is sent; the prompt shows the text to type. Saving a schema change
 that removes entries (AD3) is confirmed the same way, by typing the suite name,
 since it destroys their stored values. Revoking an API key (AD1), which destroys
-nothing, asks for a plain confirmation instead. Removing indicators from a
-regression (DT4) is not confirmed at all: it destroys no measured data, and the
-indicators can be added again.
+nothing, asks for a plain confirmation instead, as does renaming a machine
+(DT1), since run submissions that still use the old name create a new machine.
+Removing indicators from a regression (DT4) is not confirmed at all: it destroys
+no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry
 (an exception to AR2 "State"), so that Back from the page shown next does not
-return to it. If the user has already left the page when the deletion completes,
-they stay where they are. Data fetched before a deletion is never used to show
-the deleted entity again: not on the page shown next while it loads, and not on
-the entity's own page if the user gets back to it through the browser history.
+return to it. The same goes for the page of a machine once it has been renamed
+(DT1), which leaves for the page of the new name. If the user has already left
+the page when the deletion or the rename completes, they stay where they are.
+Data fetched before a deletion is never used to show the deleted entity again:
+not on the page shown next while it loads, and not on the entity's own page if
+the user gets back to it through the browser history.
 
 
 ## AR17: Authentication

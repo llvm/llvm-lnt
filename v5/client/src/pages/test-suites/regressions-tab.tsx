@@ -10,7 +10,7 @@ import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
 import { BugLink } from '../../components/bug-link'
 import { Combobox } from '../../components/combobox'
-import { ConfirmDelete } from '../../components/confirm-delete'
+import { Confirmation } from '../../components/confirmation'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
 import { hasMachine } from '../../api/machines'
@@ -156,10 +156,10 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       </div>
       {creating && <CreateRegression schema={schema} onCancel={() => setCreating(false)} />}
       {deleting && (
-        <ConfirmDelete
+        <Confirmation
           key={deleting.uuid}
           expected={uuidPrefix(deleting.uuid)}
-          scope="triage"
+          gate={triage}
           onConfirm={() => remove.mutateAsync(deleting)}
           onCancel={rowConfirm.cancel}
         >
@@ -167,7 +167,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
             Delete the regression <strong>{regressionTitle(deleting)}</strong>, and its indicators?
             This cannot be undone.
           </p>
-        </ConfirmDelete>
+        </Confirmation>
       )}
     </>
   )

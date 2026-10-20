@@ -53,8 +53,69 @@ test('shows the machine and its active regressions, and links to all of them', a
 test('cannot be changed without a token', async ({ page }) => {
   await page.goto(`/suites/libcxx/machines/${MACOS}`)
 
+  await expect(page.getByRole('button', { name: 'Edit Name' })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Tracked' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Delete Machine' })).toBeDisabled()
+})
+
+test('its name is changed by a holder of manage scope, and listed as changed', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`/suites/${suite}?tab=machines`)
+    await table(page, 'Machines').getByRole('link', { name: 'm1', exact: true }).click()
+    const name = page.getByRole('textbox', { name: 'Name' })
+
+    await page.getByRole('button', { name: 'Edit Name' }).click()
+    await name.fill('renamed')
+    await name.press('Enter')
+    await expect(page.getByRole('form', { name: 'Confirmation' })).toContainText(
+      'will create a new machine',
+    )
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+
+    await expect(page).toHaveURL(`/suites/${suite}/machines/renamed`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: renamed')
+    await expect(name).toHaveCount(0)
+    await expect(rows(table(page, 'Run history'))).toHaveCount(1)
+    expect((await request.get(`/api/suites/${suite}/machines/renamed`)).status()).toBe(200)
+    expect((await request.get(`/api/suites/${suite}/machines/m1`)).status()).toBe(404)
+
+    // The page of the old name was replaced in the history by the new one's.
+    await page.goBack()
+    await expect(page).toHaveURL(`/suites/${suite}?tab=machines`)
+    const machines = table(page, 'Machines')
+    await expect(machines.getByRole('link', { name: 'renamed', exact: true })).toBeVisible()
+    await expect(rows(machines)).toHaveCount(1)
+  })
+})
+
+test('its name cannot be changed to that of another machine', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  const runs = [...RUNS, { ...RUNS[0], machine: 'm2' }]
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`/suites/${suite}/machines/m1`)
+    const name = page.getByRole('textbox', { name: 'Name' })
+
+    await page.getByRole('button', { name: 'Edit Name' }).click()
+    await name.fill('m2')
+    await name.press('Enter')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+
+    await expect(page.getByRole('alert')).toContainText("A machine named 'm2' already exists")
+    await expect(name).toHaveValue('m2')
+    await expect(page).toHaveURL(`/suites/${suite}/machines/m1`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: m1')
+  })
 })
 
 test('its tracked flag is changed by a holder of manage scope', async ({

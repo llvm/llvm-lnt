@@ -1,11 +1,11 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
-import { useScopeGate, type Scope } from '../auth/scope'
+import type { ScopeGate } from '../auth/scope'
 import { DangerButton } from './danger-button'
 import { ErrorMessage } from './feedback'
-import styles from './confirm-delete.module.css'
+import styles from './confirmation.module.css'
 
 interface Props {
-  /** What is about to happen, and what it destroys. */
+  /** What is about to happen, and what it destroys or entails. */
   children: ReactNode
   /**
    * The text to type to confirm (AR16): a name, a commit string, or the first 8 characters of a
@@ -18,10 +18,10 @@ interface Props {
   /** Shown while `onConfirm` runs, for an action that may take a while. */
   busyMessage?: string
   /**
-   * The scope the action needs, without which the confirming button is disabled, as AR17 gates it:
-   * the token may change, or be checked again, while the prompt is open.
+   * Whether the action is allowed (see `useScopeGate`), without which the confirming button is
+   * disabled, as AR17 gates it: the token may change, or be checked again, while the prompt is open.
    */
-  scope: Scope
+  gate: ScopeGate
   /** Do it. A rejection is shown in the prompt, which stays open to try again. */
   onConfirm(): Promise<unknown>
   onCancel(): void
@@ -30,21 +30,21 @@ interface Props {
 /**
  * The confirmation of a destructive action, by typing `expected` before it is sent (AR16): the
  * prompt says what to type, and its button is enabled once it is typed exactly. Without `expected`,
- * it is a plain confirmation. Escape cancels. Its owner closes it once `onConfirm` succeeds,
- * navigating away, say.
+ * it is a plain confirmation, for an action that destroys nothing but has consequences the user
+ * must acknowledge. Escape cancels. Its owner closes it once `onConfirm` succeeds, navigating away,
+ * say.
  */
-export function ConfirmDelete({
+export function Confirmation({
   children,
   expected,
   confirmLabel = 'Delete',
   busyMessage,
-  scope,
+  gate,
   onConfirm,
   onCancel,
 }: Props) {
   const promptId = useId()
   const messageId = useId()
-  const gate = useScopeGate(scope)
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
