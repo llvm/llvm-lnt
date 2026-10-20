@@ -163,11 +163,9 @@ it says what could not be loaded, offers a way to try again, and keeps showing
 everything else it can.
 
 While a table that loads every page, or a picker's list of suggestions (see
-AR9), fetches again what it failed to load -- for instance because it starts
-again from the first page after the server rejects a cursor (see I2), or because
-the user asked to try again -- it keeps the rows it shows, if any, and says that
-it is still loading. It reports a failure only if fetching again fails too, or
-does not get past the rejected cursor.
+AR9), fetches again what it failed to load, it keeps the rows it shows, if any,
+and says that it is still loading. It reports a failure only if fetching again
+fails too.
 
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
