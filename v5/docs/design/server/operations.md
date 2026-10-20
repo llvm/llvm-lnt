@@ -137,12 +137,6 @@ O2).
 O2). This lets a client submit the `fields` dict a response returned, which has a
 `null` for every unset field (see I4).
 
-**Compression.** A submission may be sent gzip-compressed as a whole (see I4
-"Compression"), and clients are encouraged to compress large ones, such as those
-carrying many samples or profiles: a submission's JSON typically shrinks several
-times over. Compressing the whole submission also recovers most of what the
-base64 encoding of its profiles costs (see O7).
-
 
 ## O2: Machine and Commit Metadata Population
 

@@ -176,8 +176,8 @@ The routes exempt from the scope system (see I5) are not part of the REST
 API and follow their own sections. They serve plain text and HTML as well as
 JSON.
 
-Four cases are also outside the REST API, because they are handled before a
-request reaches any endpoint:
+The following cases are also outside the REST API, because they are handled
+before a request reaches any endpoint:
 - An oversized request body is rejected with 413 (see Errors below).
 - A request naming a content coding the server does not accept in its
   `Content-Encoding` header is rejected with 415 `unsupported_encoding` (see
@@ -186,7 +186,7 @@ request reaches any endpoint:
 - A URL containing a NUL character is rejected with 400 `invalid_request`,
   since no value the API can act on contains one (see D5).
 
-All four are handled the same way whatever credential the request carries.
+Each of them is handled the same way whatever credential the request carries.
 None of them names a resource, so the reason I5 gives for authorizing before
 looking up the resource does not apply.
 
@@ -276,11 +276,10 @@ must accept it on every request that carries a body. An endpoint sees the body
 decoded: whatever the endpoints spec says about a body is about its decoded
 form. A request whose `Content-Encoding` header names any other content coding,
 or more than one, is rejected with 415 `unsupported_encoding`, and the
-response's `Accept-Encoding` header names the codings the server accepts (RFC
-9110, section 15.5.16). A body
-that does not decode as its coding says -- corrupt, truncated, or followed by
-data that is not part of it -- is rejected with 400 `invalid_request`, like a
-body that is not valid JSON (see I5).
+response's `Accept-Encoding` header names the codings the server accepts
+(RFC 9110, section 15.5.16). A body that does not decode as its coding says --
+corrupt, truncated, or followed by data that is not part of it -- is rejected
+with 400 `invalid_request`, like a body that is not valid JSON (see I5).
 
 A response may be compressed with a content coding that the request's
 `Accept-Encoding` header names (RFC 9110, section 12.5.3). A request without
@@ -363,12 +362,12 @@ matters for the API keys, the only resources whose existence is not already
 public, but the rule applies to every endpoint so that there is only one order
 to implement and reason about.
 
-Two more errors may be returned before authentication: a 400 for a body that
+Some errors may also be returned before authentication: a 400 for a body that
 cannot be read at all (a content coding that does not decode, or JSON that does
 not parse), and a 400 for a query parameter that I3 rejects. Like the cases I4
-handles before reaching an endpoint, neither depends on whether anything exists
--- which parameters an endpoint accepts is public in the API document (I8) -- so
-returning them first reveals nothing.
+handles before reaching an endpoint, none of them depends on whether anything
+exists -- which parameters an endpoint accepts is public in the API document
+(I8) -- so returning them first reveals nothing.
 
 **Authorization is not cached.** Every authenticated request looks its token up
 in the database, so revoking a key takes effect immediately. The lookup is a
