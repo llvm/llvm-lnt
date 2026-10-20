@@ -117,8 +117,8 @@ export function useProfileLinks(a: Side, b: Side): ProfileLinks {
       const refB = ofB.get(test)
       if (refB === undefined) continue
       // Side B is left on its default test, side A's (PF1).
-      const sideA = { ...sideOf(machineA, commitA, refA), test }
-      result.set(test, profilesPath(sideA, sideOf(machineB, commitB, refB)))
+      const first = { ...sideOf(machineA, commitA, refA), test }
+      result.set(test, profilesPath(first, sideOf(machineB, commitB, refB)))
     }
     return result.size === 0 ? NO_LINKS : result
   }, [refs, profiles, refsA, refsB, machineA, commitA, machineB, commitB])
