@@ -115,11 +115,10 @@ interface Restartable {
 
 /**
  * Start the pages of `query` again from the first one when the server rejects the cursor of a
- * later one (a 400), which may only mean that the server or the suite's schema changed since it was
- * issued (I2). A refetch starts from the first page, and takes each later cursor from the page
- * before it, for as many pages as the query had. The query is not restarted again until it holds
- * more pages than it did then, or fewer since something else started it over, so that a cursor
- * rejected for any other reason is reported rather than retried forever.
+ * later one (see `rejectsCursor`). A refetch starts from the first page, and takes each later
+ * cursor from the page before it, for as many pages as the query had. The query is not restarted
+ * again until it holds more pages than it did then, or fewer since something else started it over,
+ * so that a cursor rejected again right away is reported rather than retried forever (AR7).
  */
 export function useRestartOnRejectedCursor(query: Restartable, queryKey: QueryKey): void {
   const { data, error, isFetchNextPageError, refetch } = query
@@ -140,9 +139,10 @@ export function useRestartOnRejectedCursor(query: Restartable, queryKey: QueryKe
 }
 
 /**
- * Whether `error`, from a request for a page after the first, is the server rejecting its cursor,
- * which may only mean that the server or the suite's schema changed since it was issued (I2).
+ * Whether `error` is the server rejecting a page's cursor with I2's `invalid_cursor`, which may only
+ * mean that the server or the suite's schema changed since it was issued: the pages start again
+ * from the first one. Any other error, even a 400, is not the cursor's fault.
  */
 export function rejectsCursor(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 400
+  return error instanceof ApiError && error.code === 'invalid_cursor'
 }

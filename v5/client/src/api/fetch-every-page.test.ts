@@ -11,7 +11,7 @@ const PAGES: Record<string, CursorPage<string>> = {
   p3: cursorPage(['c']),
 }
 
-const rejected = () => new ApiError(400, 'invalid_request', 'This cursor was not issued here.')
+const rejected = () => new ApiError(400, 'invalid_cursor', 'This cursor was not issued here.')
 
 describe('fetchEveryPage', () => {
   it('fetches every page in turn, each at the cursor the previous one gave', async () => {

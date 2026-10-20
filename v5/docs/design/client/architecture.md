@@ -167,6 +167,12 @@ AR9), fetches again what it failed to load, it keeps the rows it shows, if any,
 and says that it is still loading. It reports a failure only if fetching again
 fails too.
 
+Whatever fetches the pages of a paginated endpoint fetches them again from the
+first one, as above, when the cursor of a later page is rejected with
+`invalid_cursor` (I2), rather than report a failure; a table shown a page at a
+time goes back to its first page. A cursor rejected again right after that is
+reported.
+
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
 get the same answer.

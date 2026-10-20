@@ -57,7 +57,8 @@ MAX_LIMIT = 10_000
 _LIMIT = "The maximum number of results to return."
 _CURSOR = (
     "To get the next page, set this to `cursor.next` from the previous response, and keep the "
-    "other parameters the same (except `limit`). Omit it to get the first page."
+    "other parameters the same (except `limit`). Omit it to get the first page. If it is rejected "
+    "with `invalid_cursor`, start again from the first page."
 )
 
 Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
@@ -330,7 +331,7 @@ class Keyset:
         return statement.where(*conditions).order_by(*(key.ordered() for key in keys))
 
     def position(self, cursor: str, scope: str) -> list[Any]:
-        """The key values a cursor names, refused with I4's 400 unless issued for `scope`."""
+        """The key values a cursor names, refused (`invalid_cursor`) unless issued for `scope`."""
         try:
             padded = cursor + "=" * (-len(cursor) % 4)
             fingerprint, values = json.loads(base64.urlsafe_b64decode(padded))
@@ -341,7 +342,7 @@ class Keyset:
         # payload nested deeper than it recurses, which only a hand-made cursor can be.
         except (ValueError, TypeError, RecursionError) as error:
             raise ApiError(
-                ErrorCode.INVALID_REQUEST,
+                ErrorCode.INVALID_CURSOR,
                 "This cursor was not issued for these path parameters, filters and sort order, or "
                 "is no longer valid. Pass back the 'cursor.next' from a page of this same request, "
                 "unmodified, or start again from the first page.",

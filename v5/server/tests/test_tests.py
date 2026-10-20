@@ -305,4 +305,4 @@ class TestPagination:
         response = api_client.get(f"{COMMITS}?limit=2&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"

@@ -377,7 +377,7 @@ class TestNullsLast:
         with pytest.raises(ApiError) as failure:
             one_page(db_engine, keyset(), 2, forged(cursor, *values))
 
-        assert failure.value.code.value == "invalid_request"
+        assert failure.value.code.value == "invalid_cursor"
 
     @pytest.mark.parametrize(
         ("keys", "tiebreaker"),
@@ -483,7 +483,7 @@ class TestCursorOpacity:
         with pytest.raises(ApiError) as failure:
             one_page(db_engine, by_time(), 3, cursor)
 
-        assert failure.value.code.value == "invalid_request", reason
+        assert failure.value.code.value == "invalid_cursor", reason
 
     def test_refuses_a_cursor_issued_for_the_other_direction(self, db_engine: Engine) -> None:
         # Decoding would succeed -- same columns, same types -- and the page would be silently
@@ -524,7 +524,7 @@ class TestCursorOpacity:
         with pytest.raises(ApiError) as failure:
             one_page(db_engine, keyset, 3, forged(cursor, "a\x00b", 1))
 
-        assert failure.value.code.value == "invalid_request"
+        assert failure.value.code.value == "invalid_cursor"
 
     @pytest.mark.parametrize("value", [2**31, -(2**31) - 1, 2**70])
     def test_refuses_a_value_outside_its_column_s_range(
@@ -539,7 +539,7 @@ class TestCursorOpacity:
         with pytest.raises(ApiError) as failure:
             one_page(db_engine, keyset, 3, forged(cursor, value))
 
-        assert failure.value.code.value == "invalid_request"
+        assert failure.value.code.value == "invalid_cursor"
 
     def test_refuses_a_real_too_large_to_read_as_one(self, db_engine: Engine) -> None:
         # JSON's integers are unbounded, and one past what a float holds does not convert at all.
@@ -552,7 +552,7 @@ class TestCursorOpacity:
         with pytest.raises(ApiError) as failure:
             one_page(db_engine, keyset, 3, forged(cursor, 10**400, 1))
 
-        assert failure.value.code.value == "invalid_request"
+        assert failure.value.code.value == "invalid_cursor"
 
     def test_accepts_a_value_at_either_end_of_its_column_s_range(self, db_engine: Engine) -> None:
         # The bounds are the column's own, not one short of them.

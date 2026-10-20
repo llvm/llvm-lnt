@@ -737,7 +737,7 @@ describe('loading (GR2, GR4, GR8)', () => {
         sent.push(cursor)
         // The first cursor is refused, as after a change to the suite's schema (I2).
         if (cursor && sent.length === 2) {
-          return errorResponse(400, 'invalid_request', 'This cursor was not issued here.')
+          return errorResponse(400, 'invalid_cursor', 'This cursor was not issued here.')
         }
         if (!cursor && sent.length > 1) await restart.promise
         const sample: Sample = cursor ? ['c20', 'r2', 2] : ['c10', 'r1', 1]

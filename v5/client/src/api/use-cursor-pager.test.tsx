@@ -92,7 +92,7 @@ describe('useCursorPager', () => {
     // The first page hands out `stale` until the server changes, and `c1` afterwards.
     let firstPages = 0
     const { result, fetch } = renderPager(async (cursor) => {
-      if (cursor === 'stale') throw new ApiError(400, 'invalid_request', 'Invalid cursor')
+      if (cursor === 'stale') throw new ApiError(400, 'invalid_cursor', 'Invalid cursor')
       if (cursor === null) return cursorPage(['a', 'b'], firstPages++ === 0 ? 'stale' : 'c1')
       return PAGES[cursor]
     })
@@ -107,6 +107,20 @@ describe('useCursorPager', () => {
     act(() => result.current.next())
     await waitFor(() => expect(result.current.page?.items).toEqual(['c', 'd']))
     expect(fetch.mock.calls.at(-1)).toEqual(['c1'])
+  })
+
+  it('shows any other 400 from a later page rather than go back to the first one', async () => {
+    const { result, fetch } = renderPager(async (cursor) => {
+      if (cursor === 'c1') throw new ApiError(400, 'invalid_request', 'This commit has no ordinal')
+      return PAGES[cursor ?? 'first']
+    })
+    await waitFor(() => expect(result.current.hasNext).toBe(true))
+
+    act(() => result.current.next())
+    await waitFor(() => expect(result.current.error?.message).toBe('This commit has no ordinal'))
+    expect(result.current.page).toBeUndefined()
+    expect(result.current.hasPrevious).toBe(true)
+    expect(fetch.mock.calls).toEqual([[null], ['c1']])
   })
 
   it('shows no page once one fails to load, nor while asking for it again', async () => {

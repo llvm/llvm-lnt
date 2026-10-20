@@ -1358,7 +1358,7 @@ export interface components {
         ErrorBody: {
             /**
              * Code
-             * @description A stable, machine-readable error code: one of `invalid_request`, `unauthorized`, `forbidden`, `not_found`, `method_not_allowed`, `duplicate`, `conflict`, `retry`, `unsupported_encoding`, `internal_error`. Check this to handle errors.
+             * @description A stable, machine-readable error code: one of `invalid_request`, `invalid_cursor`, `unauthorized`, `forbidden`, `not_found`, `method_not_allowed`, `duplicate`, `conflict`, `retry`, `unsupported_encoding`, `internal_error`. Check this to handle errors.
              * @example not_found
              */
             code: string;
@@ -1511,7 +1511,7 @@ export interface components {
             limit?: number;
             /**
              * Cursor
-             * @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page.
+             * @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page.
              */
             cursor?: string | null;
         };
@@ -2147,7 +2147,7 @@ export interface components {
             limit?: number;
             /**
              * Cursor
-             * @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page.
+             * @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page.
              */
             cursor?: string | null;
         };
@@ -3925,7 +3925,7 @@ export interface operations {
     list_commits: {
         parameters: {
             query?: {
-                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
+                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
                 /** @description Only return commits whose value, tag or any searchable field contains this text. Not case-sensitive. */
                 search?: string | null;
@@ -4343,7 +4343,7 @@ export interface operations {
     list_runs: {
         parameters: {
             query?: {
-                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
+                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
                 /** @description Only return runs whose machine (its name or any searchable field) or commit (its value, its tag or any searchable field) contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;
@@ -4626,7 +4626,7 @@ export interface operations {
     list_samples: {
         parameters: {
             query?: {
-                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
+                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
                 /** @description Only return the samples of this test. Returns 404 if the test doesn't exist in the suite. If the run didn't measure it, the result is empty. */
                 test?: string | null;
@@ -5002,7 +5002,7 @@ export interface operations {
     list_tests: {
         parameters: {
             query?: {
-                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
+                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
                 /** @description Only return tests whose name contains this text. Not case-sensitive. */
                 search?: string | null;
@@ -5072,7 +5072,7 @@ export interface operations {
     list_regressions: {
         parameters: {
             query?: {
-                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. */
+                /** @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page. */
                 cursor?: string | null;
                 /** @description Only return regressions whose title contains this text, or whose UUID starts with it. Not case-sensitive. */
                 search?: string | null;

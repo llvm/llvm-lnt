@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { api, errorMessage, unwrap } from './client'
-import { useCursorPages } from './use-cursor-pages'
+import { api, ApiError, errorMessage, unwrap } from './client'
+import { rejectsCursor, useCursorPages } from './use-cursor-pages'
 import { sample as fixtureSample } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { gate, settle } from '../test/page'
@@ -96,7 +96,7 @@ function serveRestart(restart?: 'hold' | 'fail') {
         const next = firstPages === 1 ? 'stale' : 'fresh'
         return HttpResponse.json({ items: [sample('a')], cursor: { next, previous: null } })
       }
-      if (cursor === 'stale') return errorResponse(400, 'invalid_request', 'Invalid cursor')
+      if (cursor === 'stale') return errorResponse(400, 'invalid_cursor', 'Invalid cursor')
       return HttpResponse.json({ items: [sample('b')], cursor: { next: null, previous: null } })
     }),
   )
@@ -203,7 +203,7 @@ describe('useCursorPages', () => {
       mockApi('get', SAMPLES, ({ request }) => {
         const cursor = new URL(request.url).searchParams.get('cursor')
         requested.push(cursor ?? 'first')
-        if (cursor !== null) return errorResponse(400, 'invalid_request', 'Invalid cursor')
+        if (cursor !== null) return errorResponse(400, 'invalid_cursor', 'Invalid cursor')
         return HttpResponse.json({ items: [sample('a')], cursor: { next: 'bad', previous: null } })
       }),
     )
@@ -221,7 +221,7 @@ describe('useCursorPages', () => {
       mockApi('get', SAMPLES, ({ request }) => {
         if (new URL(request.url).searchParams.get('cursor') !== 'p3') return undefined
         requested.push('p3')
-        return errorResponse(400, 'invalid_request', 'Invalid cursor')
+        return errorResponse(400, 'invalid_cursor', 'Invalid cursor')
       }),
     )
     renderWithProviders(<Samples />)
@@ -242,7 +242,7 @@ describe('useCursorPages', () => {
       mockApi('get', SAMPLES, ({ request, params }) => {
         const cursor = new URL(request.url).searchParams.get('cursor')
         if (cursor === null || !rejectOnce.delete(params.uuid)) return undefined
-        return errorResponse(400, 'invalid_request', 'Invalid cursor')
+        return errorResponse(400, 'invalid_cursor', 'Invalid cursor')
       }),
     )
     const { rerender, queryClient } = renderWithProviders(<Samples />)
@@ -316,7 +316,7 @@ describe('useCursorPages', () => {
             const next = accepted ? 'good' : 'bad'
             return HttpResponse.json({ items: [sample('a')], cursor: { next, previous: null } })
           }
-          if (cursor === 'bad') return errorResponse(400, 'invalid_request', 'Invalid cursor')
+          if (cursor === 'bad') return errorResponse(400, 'invalid_cursor', 'Invalid cursor')
           return HttpResponse.json({ items: [sample('b')], cursor: { next: null, previous: null } })
         }),
       )
@@ -351,5 +351,12 @@ describe('useCursorPages', () => {
     expect(await screen.findByText('other-2cb0')).toBeInTheDocument()
     expect(screen.getByText('complete')).toBeInTheDocument()
     await waitFor(() => expect(aborted).toEqual(['p2']))
+  })
+})
+
+describe('rejectsCursor', () => {
+  it('is the server rejecting a cursor with `invalid_cursor` (I2), and no other 400', () => {
+    expect(rejectsCursor(new ApiError(400, 'invalid_cursor', 'Not this cursor'))).toBe(true)
+    expect(rejectsCursor(new ApiError(400, 'invalid_request', 'No ordinal'))).toBe(false)
   })
 })

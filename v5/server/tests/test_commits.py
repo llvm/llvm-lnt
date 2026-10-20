@@ -618,7 +618,7 @@ class TestListHasOrdinalFilter:
         response = page(api_client, f"sort=-ordinal&has_ordinal=true&limit=1&cursor={cursor}")
 
         assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_value_that_is_not_a_boolean(self, api_client: TestClient) -> None:
         response = page(api_client, "has_ordinal=maybe")
@@ -731,7 +731,7 @@ class TestListPagination:
         response = page(api_client, query.format(cursor=cursor))
 
         assert response.status_code == 400, reason
-        assert code_of(response) == "invalid_request"
+        assert code_of(response) == "invalid_cursor"
 
     def test_accepts_a_cursor_with_another_page_size_and_parameter_order(
         self, api_client: TestClient
@@ -777,6 +777,48 @@ class TestListPagination:
         )
 
         assert elsewhere.status_code == 400
+
+    def test_refuses_a_cursor_once_the_suite_s_schema_changes(
+        self, api_client: TestClient, manage: dict[str, str]
+    ) -> None:
+        # I2: the list selects every commit field, so a field added between two pages changes the
+        # list the cursor was issued for.
+        cursor = page(api_client, "limit=2").json()["cursor"]["next"]
+        changed = api_client.patch(
+            f"{SUITES_PATH}/nts/schema",
+            json={"commit_fields": {"add": [{"name": "branch", "type": "text"}]}},
+            headers=manage,
+        )
+        assert changed.status_code == 200
+
+        response = page(api_client, f"limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_cursor"
+
+    def test_does_not_blame_the_cursor_for_a_bound_that_lost_its_ordinal(
+        self, api_client: TestClient, patch: Callable[..., Any]
+    ) -> None:
+        # I3 refuses the bound, whether or not a cursor comes with it: starting again from the first
+        # page, as I2 has a client do on `invalid_cursor`, would only be refused the same way.
+        cursor = page(api_client, "after_commit=c4&limit=2").json()["cursor"]["next"]
+        patch("c4", {"ordinal": None})
+
+        response = page(api_client, f"after_commit=c4&limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize("query", ["limit=0", "limit=2&nope=1"])
+    def test_does_not_blame_a_valid_cursor_for_another_invalid_parameter(
+        self, api_client: TestClient, query: str
+    ) -> None:
+        cursor = page(api_client, "limit=2").json()["cursor"]["next"]
+
+        response = page(api_client, f"{query}&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     @pytest.mark.parametrize("query", ["limit=0", "limit=10001"])
     def test_refuses_a_page_it_cannot_serve(self, api_client: TestClient, query: str) -> None:
