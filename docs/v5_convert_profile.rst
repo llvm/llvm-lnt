@@ -41,22 +41,6 @@ profiles, if each lists only one of them.
 The instructions' text is whatever ``objdump`` produces.
 
 
-Counters
---------
-
-The profile's counters are the events ``perf record`` sampled, each count an
-estimate of how many of an event occurred, from its samples. An instruction
-leaves out the events it has no sample of.
-
-Since ``perf`` samples every event over the whole recording, a function in
-which no sample of an event landed has an estimated count of 0 for it. The
-command says so explicitly: it gives the function's first instruction a count
-of 0 for each of the profile's counters that none of the function's
-instructions has. Otherwise, a v5 instance would show the function as not
-having the counter rather than as 0. A function without instructions has no
-counters.
-
-
 What is left out
 ----------------
 
