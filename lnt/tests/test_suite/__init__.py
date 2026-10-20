@@ -11,6 +11,7 @@ import glob
 import re
 import multiprocessing
 import getpass
+import types
 
 import datetime
 from collections import defaultdict
@@ -25,8 +26,7 @@ from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
 import lnt.testing.profile
 import lnt.testing.util.compilers
 import lnt.util.ImportData
-
-from lnt.tests.builtintest import BuiltinTest
+import lnt.util.ServerUtil
 
 # This is the list of architectures in
 # test-suite/cmake/modules/DetectArchitecture.cmake. If you update this list,
@@ -170,15 +170,39 @@ def _lit_json_to_csv(json_reports):
     return _lit_json_to_template(json_reports, template_engine)
 
 
-class TestSuiteTest(BuiltinTest):
-    def __init__(self):
-        super(TestSuiteTest, self).__init__()
+def _submit(report_path, opts):
+    """Submit the report at report_path to the server given by --submit, if
+    any, and print the server's answer."""
+    if opts.submit_url is not None:
+        logger.info("submitting result to %r" % (opts.submit_url,))
+        server_report = lnt.util.ServerUtil.submitFile(
+            opts.submit_url, report_path, opts.verbose,
+            select_machine=opts.select_machine, merge_run=opts.merge)
+    else:
+        server_report = lnt.util.ImportData.no_submit()
+    if server_report:
+        lnt.util.ImportData.print_report_result(server_report, sys.stdout,
+                                                sys.stderr, opts.verbose)
+        if server_report.get('result_url') is not None:
+            print("Results available at:", server_report['result_url'])
+
+
+class TestSuiteTest(object):
+    def __init__(self, opts):
+        self.opts = opts
         self.configured = False
         self.compiled = False
         self.trained = False
         self.remote_run = False
 
-    def run_test(self, opts):
+    def _fatal(self, msg):
+        """Exit with an error, as OptionParser.error does."""
+        prog_name = os.path.basename(sys.argv[0])
+        sys.stderr.write("%s error: %s\n" % (prog_name, msg))
+        sys.exit(2)
+
+    def run_test(self):
+        opts = self.opts
 
         # Validate build/exec mode options
         if opts.build and opts.exec_mode:
@@ -369,11 +393,13 @@ class TestSuiteTest(BuiltinTest):
 
         #  If we are doing diagnostics, skip the usual run and do them now.
         if opts.diagnose:
-            return self.diagnose()
+            self.diagnose()
+            return
 
         # Handle exec-interleaved-builds mode separately
         if opts.exec_interleaved_builds:
-            return self._run_interleaved_builds(opts)
+            self._run_interleaved_builds(opts)
+            return
 
         # Configure if needed (skip in exec mode)
         if not opts.exec_mode:
@@ -419,7 +445,7 @@ class TestSuiteTest(BuiltinTest):
             self.run(cmake_vars, compile=True, test=False, skip_lit=True)
             logger.info("Build complete. Build directory: %s" % self._base_path)
             logger.info("Use --exec --build-dir %s to run tests." % self._base_path)
-            return lnt.util.ImportData.no_submit()
+            return
 
         # Now do the actual run.
         reports = []
@@ -472,7 +498,7 @@ class TestSuiteTest(BuiltinTest):
         with open(csv_report_path, 'w') as fd:
             fd.write(str_template)
 
-        return self.submit(report_path, opts, 'nts')
+        _submit(report_path, opts)
 
     def _run_interleaved_builds(self, opts):
         """Run tests from multiple builds in an interleaved fashion."""
@@ -586,9 +612,6 @@ class TestSuiteTest(BuiltinTest):
 
         logger.info("Reports written to each build directory.")
         logger.info("To submit results, use 'lnt submit' with each report file.")
-
-        # Return no_submit since we have multiple reports
-        return lnt.util.ImportData.no_submit()
 
     def _configure_if_needed(self):
         mkdir_p(self._base_path)
@@ -1288,8 +1311,6 @@ class TestSuiteTest(BuiltinTest):
                            "this is not Darwin.")
         logger.info("Report produced in: " + report_path)
 
-        return lnt.util.ImportData.no_submit()
-
 
 @click.command("test-suite", short_help=str(__doc__))
 @click.argument("label", default=platform.uname()[1], required=False,
@@ -1466,11 +1487,5 @@ class TestSuiteTest(BuiltinTest):
 @submit_options
 def cli_action(*args, **kwargs):
     init_logging()
-    test_suite = TestSuiteTest()
-
-    for key, value in kwargs.items():
-        setattr(test_suite.opts, key, value)
-
-    results = test_suite.run_test(test_suite.opts)
-    if results:
-        test_suite.show_results_url(results)
+    opts = types.SimpleNamespace(**kwargs)
+    TestSuiteTest(opts).run_test()

@@ -1,6 +1,8 @@
 """
 Access to built-in tests.
 """
+import importlib
+
 # FIXME: There are better ways to do this, no doubt. We also would like this to
 # be extensible outside of the installation. Lookup how 'nose' handles this.
 
@@ -16,10 +18,9 @@ def get_names():
 
 
 def get_module(name):
-    import importlib
-    """get_test_instance(name) -> lnt.test.BuiltinTest
+    """get_module(name) -> module
 
-    Return an instance of the named test.
+    Return the module of the named test, whose `cli_action` is its command.
     """
     # Allow hyphens instead of underscores when specifying the test on the
     # command line. (test-suite instead of test_suite).
