@@ -85,11 +85,12 @@ test('scrolls the table rather than the page when its columns do not fit', async
   page,
   request,
 }) => {
-  const [older, newer] = await newestCommits(request)
+  // Both sides have profiles, so that the Profile column is shown.
+  const [, newest] = await newestCommits(request)
   const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time` +
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newest.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${EXPERIMENT}&metric=execution_time` +
       statistics.map((key) => `&columns=${key}`).join(''),
   )
   const comparison = table(page, 'Comparison')

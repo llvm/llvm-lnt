@@ -4,7 +4,7 @@ import { act } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
-import { headersOf, main, query, renderPage, search, table } from '../../test/page'
+import { headersOf, main, query, renderPage, search, settle, table } from '../../test/page'
 import { mockClipboard } from '../../test/clipboard'
 import { fakeLayout } from '../../test/layout'
 import { resize } from '../../test/resize-observer'
@@ -441,7 +441,10 @@ describe('Copy as CSV (CP2)', () => {
 })
 
 describe('the Profile column (CP2)', () => {
-  /** The runs of COMPARED with profiles, by hex: those of side A (1, 2), and side B's (3). */
+  /**
+   * The runs of COMPARED with profiles, by hex: those of side A (1, 2), and side B's (3). Only a
+   * has a profile on both sides.
+   */
   const PROFILES = { '1': ['a', 'b'], '2': ['a'], '3': ['a', 'c'] }
 
   /** The Profile links of the comparison table, by the test of their row. */
@@ -463,28 +466,42 @@ describe('the Profile column (CP2)', () => {
    * The Profiles page's URL for `test`, with side A in the run `a` and side B in the run `b`, by
    * the hex of their UUIDs. Side B is left on its default test, side A's (PF1).
    */
-  function profilesUrl(test: string, a: string, b?: string) {
+  function profilesUrl(test: string, a: string, b: string) {
     const side = (letter: string, hex: string) => [
       [`suite_${letter}`, 'libcxx'],
       [`machine_${letter}`, 'm1'],
       [`commit_${letter}`, COMMITS[hex]],
       [`run_${letter}`, uuidOf(hex)],
     ]
-    const params = [...side('a', a), ['test_a', test], ...(b === undefined ? [] : side('b', b))]
-    return `/profiles?${new URLSearchParams(params)}`
+    return `/profiles?${new URLSearchParams([...side('a', a), ['test_a', test], ...side('b', b)])}`
   }
 
-  it("links each test to the latest selected run's profile on each side", async () => {
+  /**
+   * A `profilesAnswer` answering as `answer` does, recording in `seen` the hex of each run it
+   * answers, and a way to wait until it has answered some runs and the page has had the time to use
+   * their profiles: a link missing before that would prove nothing.
+   */
+  function recorded(answer: (hex: string) => Response | undefined = () => undefined) {
+    const seen: string[] = []
+    return {
+      profilesAnswer: (hex: string) => {
+        seen.push(hex)
+        return answer(hex)
+      },
+      async answered(...hexes: string[]) {
+        await waitFor(() => expect(seen).toEqual(expect.arrayContaining(hexes)))
+        await settle()
+      },
+    }
+  }
+
+  it("links each test profiled on both sides to the latest selected run's profile on each", async () => {
     mockWorld({ profiles: PROFILES })
     renderPage(COMPARED)
 
-    // A test with a profile on side B only has it shown on side A of the Profiles page.
+    // b has a profile on side A only, and c on side B only: neither has a link.
     await waitFor(async () =>
-      expect(await profileLinks()).toEqual({
-        a: profilesUrl('a', '2', '3'),
-        b: profilesUrl('b', '1'),
-        c: profilesUrl('c', '3'),
-      }),
+      expect(await profileLinks()).toEqual({ a: profilesUrl('a', '2', '3') }),
     )
     expect(screen.getByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()
   })
@@ -492,65 +509,60 @@ describe('the Profile column (CP2)', () => {
   it('follows the runs selected', async () => {
     mockWorld({ profiles: PROFILES })
     renderPage(COMPARED)
-    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(1))
 
     await userEvent.setup().click(runBox('2', 'A'))
     await waitFor(async () =>
-      expect((await profileLinks()).a).toBe(profilesUrl('a', '1', '3')),
+      expect(await profileLinks()).toEqual({ a: profilesUrl('a', '1', '3') }),
     )
   })
 
-  it('is not shown when no test compared has a profile', async () => {
-    mockWorld({ profiles: { '1': ['elsewhere'] } })
+  it('is not shown when no test of the comparison has a profile on both sides', async () => {
+    const { profilesAnswer, answered } = recorded()
+    // Only elsewhere, which is not in the comparison, has a profile on both sides.
+    mockWorld({ profiles: { '1': ['b', 'elsewhere'], '3': ['c', 'elsewhere'] }, profilesAnswer })
     renderPage(COMPARED)
 
     expect(await comparison()).toEqual(ROWS)
+    await answered('1', '3')
     expect(screen.queryByRole('columnheader', { name: 'Profile' })).not.toBeInTheDocument()
   })
 
-  it('says when profiles could not be listed, linking those of the other side', async () => {
+  it('says when profiles could not be listed, linking none', async () => {
     let fail = true
-    mockWorld({
-      profiles: PROFILES,
-      profilesAnswer: (hex) =>
-        hex === '3' && fail ? errorResponse(500, 'internal_error', 'Boom') : undefined,
-    })
+    const { profilesAnswer, answered } = recorded((hex) =>
+      hex === '3' && fail ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    )
+    mockWorld({ profiles: PROFILES, profilesAnswer })
     renderPage(COMPARED)
 
     expect(
       await screen.findByText(/The profiles could not be listed: Boom/),
     ).toBeInTheDocument()
-    await waitFor(async () =>
-      expect(await profileLinks()).toEqual({
-        a: profilesUrl('a', '2'),
-        b: profilesUrl('b', '1'),
-      }),
-    )
+    // Side A's profiles are listed, but they link nothing without side B's.
+    await answered('1', '2')
+    expect(screen.queryByRole('columnheader', { name: 'Profile' })).not.toBeInTheDocument()
 
     fail = false
     await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(async () =>
-      expect((await profileLinks()).c).toBe(profilesUrl('c', '3')),
+      expect(await profileLinks()).toEqual({ a: profilesUrl('a', '2', '3') }),
     )
     expect(screen.queryByText(/could not be listed/)).not.toBeInTheDocument()
   })
 
-  it("links none of a side's profiles until all its selected runs' are listed", async () => {
-    mockWorld({
-      profiles: PROFILES,
-      profilesAnswer: (hex) =>
-        hex === '2' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
-    })
+  it("links none until all selected runs' profiles are listed on both sides", async () => {
+    const { profilesAnswer, answered } = recorded((hex) =>
+      hex === '2' ? errorResponse(500, 'internal_error', 'Boom') : undefined,
+    )
+    mockWorld({ profiles: PROFILES, profilesAnswer })
     renderPage(COMPARED)
 
-    // Side A's run 1 is listed, but not its latest, so none of side A's profiles is linked.
+    // Side A's run 1 has a profile of a, as side B's run 3 does, but side A's latest run is not
+    // listed: linking run 1's would lead to the profile of an older run.
     expect(await screen.findByText(/The profiles could not be listed/)).toBeInTheDocument()
-    await waitFor(async () =>
-      expect(await profileLinks()).toEqual({
-        a: profilesUrl('a', '3'),
-        c: profilesUrl('c', '3'),
-      }),
-    )
+    await answered('1', '3')
+    expect(screen.queryByRole('columnheader', { name: 'Profile' })).not.toBeInTheDocument()
   })
 
   it('says when the runs with profiles could not be listed, still comparing', async () => {
@@ -571,22 +583,22 @@ describe('the Profile column (CP2)', () => {
 
     fail = false
     await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(1))
   })
 
   it('swaps the links with the sides', async () => {
     mockWorld({ profiles: PROFILES })
     renderPage(COMPARED)
-    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(3))
+    await waitFor(async () => expect(Object.keys(await profileLinks())).toHaveLength(1))
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Swap sides' }))
     await waitFor(async () =>
-      expect((await profileLinks()).a).toBe(profilesUrl('a', '3', '2')),
+      expect(await profileLinks()).toEqual({ a: profilesUrl('a', '3', '2') }),
     )
   })
 
-  it('is shown whatever the filter, while a test of the comparison has a profile', async () => {
-    mockWorld({ profiles: { '1': ['b'] } })
+  it('is shown whatever the filter, while a test of the comparison has a link', async () => {
+    mockWorld({ profiles: { '1': ['a'], '3': ['a'] } })
     renderPage(`${COMPARED}&test_filter=c`)
 
     expect(await screen.findByRole('columnheader', { name: 'Profile' })).toBeInTheDocument()

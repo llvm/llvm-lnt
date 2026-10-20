@@ -112,9 +112,9 @@ export interface TableView {
   geomean: Values
   /** What the table says when it has no row, and why. */
   empty: string
-  /** The Profiles page of each test that has a profile, by test. */
+  /** The Profiles page of each test that has a profile on both sides, by test. */
   links: ReadonlyMap<string, string>
-  /** Whether any compared test has a profile, which the Profile column is shown for. */
+  /** Whether any test of the comparison has such a link, which the Profile column is shown for. */
   profiled: boolean
   sort: TableSort
   onSort(sort: TableSort): void
@@ -133,8 +133,8 @@ interface Props extends TableView {
 
 /**
  * The comparison table (CP2): a row per test, with a checkbox hiding it, each side's value, how
- * they differ, the test's status and a link to its profiles, if it has any, sorted by any column
- * but the last, with the geomean summary row first.
+ * they differ, the test's status and a link to its profiles, if both sides have one, sorted by any
+ * column but the last, with the geomean summary row first.
  * Rows are hidden and shown with their checkboxes, a click on the row, a range at a time with Shift
  * (AR10), or all but one with a double-click.
  */

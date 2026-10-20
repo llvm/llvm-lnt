@@ -47,15 +47,15 @@ etc...
 1. **Navigation bar**: the `[Profiles]` link, with side A's suite pre-filled
    when it is followed from a suite-scoped page (see AR4).
 2. **Compare page**: the "Profile" link of a test in the comparison table (see
-   CP2). It fills in both sides when both have a profile of the test, and side
-   A with whichever side has one otherwise. On each side, it uses the latest
-   of the selected runs (see AR6) that has a profile of the test.
+   CP2), shown when both sides have a profile of the test. It fills in both
+   sides, each with the latest of its selected runs (see AR6) that has a
+   profile of the test.
 3. **Run Detail page**: the "Profile" link of a test in the samples table (see
    DT2), which fills in side A with the run and the test.
 
 The Compare and Run Detail links fill in each side they set entirely: suite,
-machine, commit, run and test. When the Compare link fills in both sides, it
-leaves out side B's test, so that side B shows its default test (see PF2).
+machine, commit, run and test, except that the Compare link leaves out side B's
+test, so that side B shows its default test (see PF2).
 
 
 ### PF2: Side Selection
