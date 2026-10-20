@@ -19,8 +19,8 @@ interface Props {
 
 /**
  * What could not be loaded of the shadows (CP8), and their chips, which name them, count the tests
- * their lines plot, once they can, show their colours and markers, and dismiss them. A shadow just pinned gives the focus to its chip's button,
- * since side B, as it is, can no longer be pinned.
+ * their lines plot, once they can, show their colours and markers, and dismiss them. A shadow just
+ * pinned gives the focus to its chip's button, since side B, as it is, can no longer be pinned.
  */
 export function ShadowStatus({
   shadows: { shadows, failures, dismiss },

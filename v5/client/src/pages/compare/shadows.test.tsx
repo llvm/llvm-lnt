@@ -244,6 +244,8 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
 
     await waitFor(() => expect(line()?.y).toEqual([2]))
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 1 test'])
+    expect(chart().layout.xaxis?.title).toEqual({ text: '0 tests, by ratio' })
     expect(chart().layout.annotations).toEqual([])
     expect(Math.max(...(chart().layout.yaxis!.tickvals as number[]))).toBeGreaterThan(1.5)
   })
@@ -313,10 +315,23 @@ describe('the shadows (CP8)', () => {
   })
 
   it("plots no test when its suite does not offer the metric as side A's does", async () => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
     mockWorld(WORLD)
+    // Holding the millis shadow's runs back, then answering as the world does.
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs', async ({ params }) => {
+        if (params.testsuite === 'millis') await held
+      }),
+    )
     renderPage(`${SHADOWED}&shadow=millis/m1/c2`)
     await comparison()
 
+    // Until its samples have arrived, it counts nothing.
+    await waitFor(() =>
+      expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests', '▲Shadow: millis/m1/c2']),
+    )
+    release()
     await waitFor(() =>
       expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests', '▲Shadow: millis/m1/c2 · 0 tests']),
     )
@@ -351,6 +366,7 @@ describe('the shadows (CP8)', () => {
     expect(await screen.findByText(/A shadow could not be loaded: Boom/)).toBeInTheDocument()
     await comparison()
     expect(line()).toBeUndefined()
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2'])
   })
 
   it("reports a run side B shares with it once, as side B's", async () => {

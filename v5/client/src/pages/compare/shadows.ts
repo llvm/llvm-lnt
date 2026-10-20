@@ -186,9 +186,7 @@ const NO_SAMPLES: Sample[][] = []
 /** No noise knob enabled: the shadows' lines need no statuses. */
 const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
-/**
- * A shadow's line: its points, sorted by their ratios, once they can be computed, and what names it.
- */
+/** A shadow's line: its points, sorted by their ratios, once they are known, and what names it. */
 export interface ShadowLine {
   label: string
   points: Bar[] | undefined
@@ -197,8 +195,9 @@ export interface ShadowLine {
 /**
  * The shadows' lines, a shadow's at its position among them: the tests the chart plots,
  * `plotted`, compared between side A, whose suite is `schemaA`, and the shadow, sorted by their
- * own ratios. A line has no points until there is a comparison and all the shadow's samples have
- * arrived. A shadow plots no test unless side A's suite and its own both offer `metric`.
+ * own ratios. A line's points are unknown (undefined) until there is a comparison and all the
+ * shadow's samples have arrived. A shadow plots no test unless side A's suite and its own both
+ * offer `metric`.
  */
 export function useShadowLines(
   shadows: readonly ShadowState[],
@@ -211,7 +210,8 @@ export function useShadowLines(
   const name = metric?.name
   // The samples of the shadows, the same arrays for as long as they hold the same samples, so that
   // their values are not computed again when only side A or B changes. A shadow whose suite does
-  // not offer the metric as side A's does has no value for it: none of its samples count.
+  // not offer the metric as side A's does has no value for it: once its samples have arrived, none
+  // of them count, and until then, its values are unknown, as any shadow's are.
   const runSamples = useSameElementsEach(
     shadows.map(({ schema, runSamples: samples }) =>
       offeredMetrics(schemaA, schema).some((entry) => entry.name === name)

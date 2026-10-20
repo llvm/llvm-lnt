@@ -279,7 +279,7 @@ test('overlays sides B pinned on the chart, keeping them on a swap', async ({ pa
   const shadows = () => new URL(page.url()).searchParams.getAll('shadow')
   const first = `libcxx/${LINUX}/${newer.fields.svn_revision}`
   await pin.click()
-  await expect(chips).toContainText([`●Shadow: ${first} · `])
+  await expect(chips).toHaveText([new RegExp(`^●Shadow: ${first} · \\d+ tests×$`)])
   await expect(page.getByRole('button', { name: `Dismiss the shadow ${first}` })).toBeFocused()
   await expect(pin).toBeDisabled()
   // Side B on the experiment: its comparison is the bars, and the newest commit's a line.

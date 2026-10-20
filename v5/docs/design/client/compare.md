@@ -510,14 +510,13 @@ it is known, followed by " · {k} of {n} runs" when the shadow selects only some
 of its commit's runs, once they are listed. While there is a comparison and all
 the shadow's samples have loaded, the name is followed by " · {N} tests" in
 muted text, where N is the number of tests its line plots (see "Rendering"),
-even 0. The tests of a line may differ from the bars' (the shadow's commit may
-lack some of them), and the count, with the X-axis title's (see CP3), lets the
-user see so. The chip shows the shadow's color and marker (see "Rendering"),
-and has a dismiss (×) button. Dismissing a shadow gives the focus to the
-dismiss button of the chip after it, or else before it, or to the pin button
-once none is left; while there is no comparison, and so no pin button, it goes
-back to the page. Chips are shown whether or not there is a comparison, so that
-shadows can always be dismissed.
+even 0. The tests of a line may differ from the bars' (see "Rendering"), and the
+count, with the X-axis title's (see CP3), lets the user see so. The chip shows
+the shadow's color and marker (see "Rendering"), and has a dismiss (×) button.
+Dismissing a shadow gives the focus to the dismiss button of the chip after it,
+or else before it, or to the pin button once none is left; while there is no
+comparison, and so no pin button, it goes back to the page. Chips are shown
+whether or not there is a comparison, so that shadows can always be dismissed.
 
 **Rendering:**
 - Each shadow's comparison is computed the same way as the main one, between
