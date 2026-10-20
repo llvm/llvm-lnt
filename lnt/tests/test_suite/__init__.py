@@ -19,7 +19,6 @@ from functools import partial
 import jinja2
 import click
 
-from lnt.lnttool.common import submit_options
 from .compilers import get_cc_info, infer_cxx_compiler
 from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
 from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
@@ -1482,7 +1481,15 @@ class TestSuiteTest(object):
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
-@submit_options
+# Submission
+@click.option("--merge", default="replace", show_default=True,
+              type=click.Choice(['reject', 'replace', 'append']),
+              help="Merge strategy when run already exists")
+@click.option("--select-machine", default='match',
+              type=click.Choice(['match', 'update', 'split']),
+              help="How to select and create missing machine")
+@click.option("--commit", type=int, help="deprecated/ignored option",
+              expose_value=False)
 def cli_action(*args, **kwargs):
     init_logging()
     opts = types.SimpleNamespace(**kwargs)
