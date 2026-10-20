@@ -833,6 +833,9 @@ describe('Combobox with server-side suggestions', () => {
       await waitFor(() => expect(requests.seen).toEqual(['@', '1:2 rejected', '@']))
       await settle()
       expect(requests.seen).toEqual(['@', '1:2 rejected', '@'])
+      // Meanwhile, the list is loading more, as it was when the cursor was rejected.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText('Loading more...')).toBeInTheDocument()
 
       requests.release()
       await waitFor(() => expect(options()).toHaveLength(4))
@@ -912,6 +915,35 @@ describe('Combobox with server-side suggestions', () => {
     await settle()
     expect(requests.seen.filter((request) => request === 'failed').length).toBeLessThanOrEqual(3)
     expect(options()).toHaveLength(2)
+  })
+
+  it('loads more, rather than says why it could not, while it is fetched again', async () => {
+    // As when a change elsewhere on the page invalidates the suggestions after loading more failed.
+    const requests = serveRestarts({ total: 4, restart: 'hold' })
+    let failing = true
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        if (!failing || new URL(request.url).searchParams.get('cursor') === null) return undefined
+        return errorResponse(500, 'internal_error', 'The server failed.')
+      }),
+    )
+    const user = userEvent.setup()
+    const { queryClient } = renderWithProviders(<ServerCommitPicker />)
+    await openList(user)
+    await waitFor(() => expect(options()).toHaveLength(2))
+    scrollToEnd()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The server failed.'))
+
+    failing = false
+    void queryClient.invalidateQueries()
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    expect(options()).toEqual(['c0', 'c1', 'Loading more...'])
+    expect(requests.seen).toEqual(['@', '@'])
+
+    requests.release()
+    await waitFor(() => expect(options()).toEqual(['c0', 'c1', 'c2', 'c3']))
+    expect(requests.seen).toEqual(['@', '@', '2:2'])
+    expect(requests.aborted).toEqual([])
   })
 
   it('searches once the user stops typing, for the whole text', async () => {

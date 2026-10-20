@@ -298,7 +298,10 @@ function sectioned(items: readonly Suggestion[]) {
   return { unsectioned, sections: [...sections] }
 }
 
-/** The list of suggestions, and the item loading more of them, if there are more. */
+/**
+ * The list of suggestions, and the item loading more of them, while there are more or they are on
+ * their way.
+ */
 function List({
   suggestions,
   renderSuggestion,
@@ -347,7 +350,7 @@ function List({
           </Collection>
         </ListBoxSection>
       ))}
-      {suggestions.hasMore && (
+      {(suggestions.hasMore || suggestions.isLoadingMore) && (
         <ListBoxLoadMoreItem
           className={styles.status}
           onLoadMore={suggestions.loadMore}

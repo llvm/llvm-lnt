@@ -162,6 +162,11 @@ This also applies outside tables: when a page cannot fetch something it needs,
 it says what could not be loaded, offers a way to try again, and keeps showing
 everything else it can.
 
+While a table that loads every page, or a picker's list of suggestions (see
+AR9), fetches again what it failed to load, it keeps the rows it shows, if any,
+and says that it is still loading. It reports a failure only if fetching again
+fails too.
+
 Wherever a failure offers a way to try again, an error saying that what was
 asked for does not exist (I4's `not_found`) does not, since trying again would
 get the same answer.

@@ -5,6 +5,7 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { hashKey, useInfiniteQuery, type QueryKey } from '@tanstack/react-query'
+import { isRecovering } from '../api/shown-data'
 import { cursorPaging, useRestartOnRejectedCursor, type CursorPage } from '../api/use-cursor-pages'
 
 export interface Suggestion {
@@ -37,8 +38,15 @@ export interface Suggestions {
    * loading more would cancel.
    */
   hasMore: boolean
+  /**
+   * Whether more suggestions are on their way: the next page, or the list fetched again after a
+   * failure, which can be while `hasMore` is false. The latter fetches the pages already loaded
+   * again, from the first, rather than more of them (after an invalidation, say), but shows as
+   * loading more, since what failed was.
+   */
   isLoadingMore: boolean
   loadMore: () => void
+  /** Why the suggestions could not be loaded, but not while they are fetched again. */
   error: Error | null
   /**
    * Whether there is nothing to suggest at all, whatever the user types: the suggestions for an
@@ -170,6 +178,8 @@ export function useServerSuggestions<Item>({
   const { data, error, hasNextPage, isFetchingNextPage, isPlaceholderData, isPending } = query
   const { fetchNextPage, isError, isRefetching } = query
   useRestartOnRejectedCursor(query, fullKey)
+  // While fetched again after a failure, the list is loading more rather than failed (AR7).
+  const recovering = isRecovering(query)
 
   const items = useMemo(
     () => data?.pages.flatMap((page) => page.items.map(toSuggestion)) ?? [],
@@ -187,9 +197,9 @@ export function useServerSuggestions<Item>({
     items,
     isLoading: text !== term || isPlaceholderData || isPending,
     hasMore,
-    isLoadingMore: isFetchingNextPage,
+    isLoadingMore: isFetchingNextPage || recovering,
     loadMore,
-    error,
+    error: recovering ? null : error,
     search,
     isEmpty: term === '' && data !== undefined && !isPlaceholderData && items.length === 0,
   }
