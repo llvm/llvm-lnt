@@ -23,15 +23,21 @@ request -X POST -H "$AUTH" -H "$JSON" --data \
     "${BASE_URL}/api/suites"
 expect_status 201
 
-echo "  a gzip-compressed submission is stored"
 printf '%s' '{"format_version": "5", "machine": {"name": "m"}, "commit": {"value": "c"},
-  "tests": [{"name": "bench", "samples": [{"execution_time": 1.5}]}]}' | gzip -c > "${scratch}/run.gz"
+  "tests": [{"name": "bench", "samples": [{"execution_time": 1.5}]}]}' > "${scratch}/run.json"
+gzip -c "${scratch}/run.json" > "${scratch}/run.gz"
+
+echo "  an uncompressed submission is still stored, as existing clients send it"
+request -X POST -H "$AUTH" -H "$JSON" --data-binary "@${scratch}/run.json" "$RUNS"
+expect_status 201
+expect_body '"machine":"m"'
+
+echo "  a gzip-compressed submission is stored"
 request -X POST -H "$AUTH" -H "$JSON" -H "$GZIP" --data-binary "@${scratch}/run.gz" "$RUNS"
 expect_status 201
 expect_body '"machine":"m"'
 
 echo "  a valid run that is not actually gzip-compressed is 400, and another coding is 415"
-gzip -dc "${scratch}/run.gz" > "${scratch}/run.json"
 request -X POST -H "$AUTH" -H "$JSON" -H "$GZIP" --data-binary "@${scratch}/run.json" "$RUNS"
 expect_status 400
 expect_body '"code":"invalid_request"'
