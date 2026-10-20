@@ -1,13 +1,13 @@
-# Check the 'lnt.testing.utils.compilers' version sniffing code.
+# Check the compiler version sniffing of `lnt runtest test-suite`.
 #
-# RUN: python %s %{shared_inputs}/FakeCompilers
+# RUN: python %s %S/Inputs/FakeCompilers
 
 import logging
 import os
 import pprint
 import sys
 
-import lnt.testing.util.compilers
+from lnt.tests.test_suite.compilers import get_cc_info
 
 basedir = sys.argv[1]
 
@@ -16,8 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def get_info(name):
     logging.info("checking compiler: %r", name)
-    return lnt.testing.util.compilers.get_cc_info(
-        os.path.join(basedir, name))
+    return get_cc_info(os.path.join(basedir, name))
 
 
 # Check icc.

@@ -3,6 +3,7 @@ import datetime
 import errno
 import logging
 import os
+import subprocess
 import sys
 
 logger = logging.getLogger(__package__)
@@ -21,6 +22,19 @@ def init_logging():
 def fatal(message):
     logger.critical(message)
     sys.exit(1)
+
+
+def capture(args, include_stderr=False):
+    """capture(command) - Run the given argv list and return its standard
+    output as text, with its standard error merged in if include_stderr is
+    set. Its exit status is ignored."""
+    stderr = subprocess.STDOUT if include_stderr else subprocess.PIPE
+    try:
+        return subprocess.run(args, stdout=subprocess.PIPE, stderr=stderr,
+                              universal_newlines=True).stdout
+    except FileNotFoundError:
+        fatal('no such file or directory: %r when running %s.' %
+              (args[0], ' '.join(args)))
 
 
 def mkdir_p(path):

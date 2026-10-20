@@ -20,11 +20,11 @@ import jinja2
 import click
 
 from lnt.lnttool.common import submit_options
+from .compilers import get_cc_info, infer_cxx_compiler
 from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
 from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
                    resolve_command_path, timestamp)
 import lnt.testing.profile
-import lnt.testing.util.compilers
 import lnt.util.ImportData
 import lnt.util.ServerUtil
 
@@ -244,13 +244,12 @@ class TestSuiteTest(object):
         if opts.cc is not None:
             opts.cc = resolve_command_path(opts.cc)
 
-            if not lnt.testing.util.compilers.is_valid(opts.cc):
+            if not isexecfile(opts.cc):
                 self._fatal('--cc does not point to a valid executable.')
 
             # If there was no --cxx given, attempt to infer it from the --cc.
             if opts.cxx is None:
-                opts.cxx = \
-                    lnt.testing.util.compilers.infer_cxx_compiler(opts.cc)
+                opts.cxx = infer_cxx_compiler(opts.cc)
                 if opts.cxx is not None:
                     logger.info("Inferred C++ compiler under test as: %r"
                                 % (opts.cxx,))
@@ -993,13 +992,12 @@ class TestSuiteTest(object):
                          cmake_vars["CMAKE_C_FLAGS_" + build_type.upper()]
                          .split(" "))
         # FIXME: this probably needs to be conditionalized on the compiler
-        # being clang. Or maybe we need an
-        # lnt.testing.util.compilers.get_cc_info uses cmake somehow?
+        # being clang. Or maybe we need a get_cc_info that uses cmake somehow?
         if "CMAKE_C_COMPILER_TARGET" in cmake_vars:
             cflags += " --target=" + cmake_vars["CMAKE_C_COMPILER_TARGET"]
         target_flags = shlex.split(cflags)
 
-        return lnt.testing.util.compilers.get_cc_info(
+        return get_cc_info(
             cmake_vars["CMAKE_C_COMPILER"], target_flags)
 
     def _parse_lit_output(self, path, data, cmake_vars, only_test=False):

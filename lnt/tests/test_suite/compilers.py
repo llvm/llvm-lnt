@@ -1,8 +1,10 @@
+"""Information about the compiler under test, as `lnt runtest test-suite`
+reports it."""
 import hashlib
 import os
 import re
 
-from lnt.testing.util.commands import logger, capture, fatal
+from .util import capture, fatal, logger
 
 
 def ishexhash(string):
@@ -10,11 +12,6 @@ def ishexhash(string):
         len([c
              for c in string
              if c.isdigit() or c in 'abcdef']) == 40
-
-
-def is_valid(path):
-    """Does this path point to a valid executable?"""
-    return os.path.isfile(path) and os.access(path, os.X_OK)
 
 
 def get_cc_info(path, cc_flags=[]):
@@ -295,13 +292,3 @@ def infer_cxx_compiler(cc_path):
                         '-print-prog-name=%s' % expected_cxx_name]).strip()
     if os.path.exists(cxx_path):
         return cxx_path
-
-
-o__all__ = ['get_cc_info', 'infer_cxx_compiler']
-
-
-if __name__ == '__main__':
-    import pprint
-    import sys
-    pprint.pprint(('get_cc_info', get_cc_info(sys.argv[1], sys.argv[2:])))
-    pprint.pprint(('infer_cxx_compiler', infer_cxx_compiler(sys.argv[1])))
