@@ -6,7 +6,7 @@ import { api, errorMessage, unwrap } from './client'
 import { useCursorPages } from './use-cursor-pages'
 import { sample as fixtureSample } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
-import { settle } from '../test/page'
+import { gate, settle } from '../test/page'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 
@@ -75,6 +75,34 @@ function servePages(held: Set<string> = new Set(), failing: Set<string> = new Se
   return { requested, aborted, release }
 }
 
+/**
+ * Serves pages as a server does after a deploy: the cursor the first page hands out is rejected, and
+ * the first page asked for again hands out one that is accepted. That first page waits until
+ * released (`hold`), fails with a 500 (`fail`), or neither.
+ */
+function serveRestart(restart?: 'hold' | 'fail') {
+  const requested: string[] = []
+  const held = gate()
+  let firstPages = 0
+  server.use(
+    mockApi('get', SAMPLES, async ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor') ?? 'first'
+      requested.push(cursor)
+      if (cursor === 'first') {
+        if (++firstPages > 1) {
+          if (restart === 'fail') return errorResponse(500, 'internal_error', 'Boom')
+          if (restart === 'hold') await held.promise
+        }
+        const next = firstPages === 1 ? 'stale' : 'fresh'
+        return HttpResponse.json({ items: [sample('a')], cursor: { next, previous: null } })
+      }
+      if (cursor === 'stale') return errorResponse(400, 'invalid_request', 'Invalid cursor')
+      return HttpResponse.json({ items: [sample('b')], cursor: { next: null, previous: null } })
+    }),
+  )
+  return { requested, release: () => act(held.open) }
+}
+
 describe('useCursorPages', () => {
   it('fetches every page, showing the items as they arrive', async () => {
     const { release } = servePages(new Set(['p3']))
@@ -129,29 +157,44 @@ describe('useCursorPages', () => {
   })
 
   it('starts again from the first page when its cursor is rejected', async () => {
-    // As after a deploy: the cursor the first page handed out is no longer accepted, and the first
-    // page now hands out one that is. Unlike a combobox's (see its tests), the next page is never
-    // asked for while the first is on its way again, however long it takes: the hook only asks for
-    // one while nothing is being fetched (`!isFetching`) and nothing failed (`!isError`).
-    const requested: string[] = []
-    let firstPages = 0
-    server.use(
-      mockApi('get', SAMPLES, ({ request }) => {
-        const cursor = new URL(request.url).searchParams.get('cursor') ?? 'first'
-        requested.push(cursor)
-        if (cursor === 'first') {
-          const next = ++firstPages === 1 ? 'stale' : 'fresh'
-          return HttpResponse.json({ items: [sample('a')], cursor: { next, previous: null } })
-        }
-        if (cursor === 'stale') return errorResponse(400, 'invalid_request', 'Invalid cursor')
-        return HttpResponse.json({ items: [sample('b')], cursor: { next: null, previous: null } })
-      }),
-    )
+    // Unlike a combobox's (see its tests), the next page is never asked for while the first is on
+    // its way again, however long it takes: the hook only asks for one while nothing is being
+    // fetched (`!isFetching`) and nothing failed (`!isError`).
+    const { requested } = serveRestart()
     renderWithProviders(<Samples />)
 
     expect(await screen.findByText('complete')).toBeInTheDocument()
     expect(screen.getByText('a,b')).toBeInTheDocument()
     expect(requested).toEqual(['first', 'stale', 'first', 'fresh'])
+  })
+
+  describe('while it starts again', () => {
+    it('says that it is loading, keeping its items, rather than why the cursor was rejected', async () => {
+      const { requested, release } = serveRestart('hold')
+      renderWithProviders(<Samples />)
+
+      await waitFor(() => expect(requested).toEqual(['first', 'stale', 'first']))
+      await settle()
+      expect(screen.queryByText('Invalid cursor')).not.toBeInTheDocument()
+      expect(screen.getByText('a')).toBeInTheDocument()
+      expect(screen.getByText('loading more')).toBeInTheDocument()
+      // Nor does it ask for the page after those it is fetching again.
+      expect(requested).toEqual(['first', 'stale', 'first'])
+
+      release()
+      expect(await screen.findByText('complete')).toBeInTheDocument()
+      expect(screen.getByText('a,b')).toBeInTheDocument()
+      expect(requested).toEqual(['first', 'stale', 'first', 'fresh'])
+    })
+
+    it('says why when the first page fails as it starts again', async () => {
+      serveRestart('fail')
+      renderWithProviders(<Samples />)
+
+      expect(await screen.findByText('Boom')).toBeInTheDocument()
+      expect(screen.getByText('a')).toBeInTheDocument()
+      expect(screen.getByText('some pages')).toBeInTheDocument()
+    })
   })
 
   it('starts again only once', async () => {
@@ -229,6 +272,24 @@ describe('useCursorPages', () => {
 
       expect(await screen.findByText('a,b,c')).toBeInTheDocument()
       expect(requested).toEqual(['first', 'p2', 'p2', 'p3'])
+    })
+
+    it('says that it is loading, rather than why, while the page that failed is fetched again', async () => {
+      const held = new Set<string>()
+      const failing = new Set(['p2'])
+      const { release } = servePages(held, failing)
+      renderWithProviders(<Samples />)
+      expect(await screen.findByText('Boom')).toBeInTheDocument()
+
+      failing.clear()
+      held.add('p2')
+      fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+
+      await waitFor(() => expect(screen.queryByText('Boom')).not.toBeInTheDocument())
+      expect(screen.getByText('a')).toBeInTheDocument()
+      expect(screen.getByText('loading more')).toBeInTheDocument()
+      await release('p2')
+      expect(await screen.findByText('a,b,c')).toBeInTheDocument()
     })
 
     it('fetches the first page again when it is the one that failed', async () => {

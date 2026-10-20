@@ -158,6 +158,12 @@ arrive, gives way to the error in the same way if the first page cannot be
 fetched. If a later page cannot be, it keeps the rows it has, says that they are
 incomplete, and offers to load the rest.
 
+While a list fetches again what it failed to load -- because it starts again
+from the first page after the server rejects a cursor (see I2), or because the
+user asked to try again -- it keeps the rows it shows, if any, and says that it
+is still loading. It reports a failure only if fetching again fails too, or does
+not get past the rejected cursor.
+
 This also applies outside tables: when a page cannot fetch something it needs,
 it says what could not be loaded, offers a way to try again, and keeps showing
 everything else it can.

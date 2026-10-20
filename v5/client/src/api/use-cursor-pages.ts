@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { hashKey, useInfiniteQuery, type QueryKey } from '@tanstack/react-query'
 import { ApiError } from './client'
+import { isRecovering } from './shown-data'
 
 /** I2's cursor envelope, whichever items it carries. */
 export interface CursorPage<Item> {
@@ -31,7 +32,11 @@ export interface CursorPages<Item> {
   isPending: boolean
   /** Every page has been fetched. */
   isComplete: boolean
-  /** Why fetching stopped, if it failed. The pages fetched before then are still in `items`. */
+  /**
+   * Why fetching stopped, if it failed, but not while fetching again, which may recover from it:
+   * starting again after a rejected cursor, or a retry. The pages fetched before then are still in
+   * `items`.
+   */
   error: Error | null
   /** Whether any page has been fetched, even an empty one: when not, an error is the first page's. */
   hasPages: boolean
@@ -90,7 +95,14 @@ export function useCursorPages<Item>({
     if (isFetchNextPageError && !rejectsCursor(error)) void fetchNextPage()
     else void refetch()
   }
-  return { items, isPending, isComplete, error, hasPages: data !== undefined, retry }
+  return {
+    items,
+    isPending,
+    isComplete,
+    error: isRecovering(query) ? null : error,
+    hasPages: data !== undefined,
+    retry,
+  }
 }
 
 /** The parts of an infinite query that restarting it after a rejected cursor needs. */

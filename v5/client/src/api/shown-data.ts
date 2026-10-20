@@ -18,3 +18,23 @@ export function shownData<Data>({
 }: Placeheld<Data>): Data | undefined {
   return isPlaceholderData && errorUpdateCount > 0 ? undefined : data
 }
+
+/** The parts of a query result that tell whether it is fetched again after a failure. */
+interface Refetched {
+  isError: boolean
+  isFetching: boolean
+}
+
+/**
+ * Whether a query whose data is shown is being fetched again after a failure: starting again after
+ * a rejected cursor (I2), or tried again. That may recover from the failure, so the list is loading
+ * rather than failing (AR7). TanStack keeps the failure until then, as `isError` and `error`, which
+ * is what a list's own decisions should still go by, so that it does not load more meanwhile.
+ *
+ * The restart after a rejected cursor starts from an effect (see `useRestartOnRejectedCursor`), so
+ * the render that sees the rejection still shows it, for a frame at most, and a screen reader may
+ * announce the alert showing it.
+ */
+export function isRecovering({ isError, isFetching }: Refetched): boolean {
+  return isError && isFetching
+}
