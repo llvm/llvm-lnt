@@ -135,7 +135,7 @@ class FunctionDisassembly(BaseModel):
 
 class DocumentFunction(BaseModel):
     """One function in a profile document: its name and its instructions. The function's own
-    counters aren't included, since they are just the sums over its instructions."""
+    counters aren't included, since they are derived from its instructions."""
 
     name: str = Field(
         description="The function's name. Can't be empty, and must be unique.",

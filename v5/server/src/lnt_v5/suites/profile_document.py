@@ -282,9 +282,9 @@ def _stored(function: FunctionDocument, top_level: Iterable[str]) -> StoredFunct
         },
         text=[instruction.text for instruction in rows],
     )
-    # `filter(None, ...)` leaves out the 0s along with the Nones, which changes no sum.
     counters = {
-        counter: sum(filter(None, values), 0.0) for counter, values in columns.counters.items()
+        counter: sum((value for value in values if value is not None), 0.0)
+        for counter, values in columns.counters.items()
     }
     for counter, total in counters.items():
         if not isfinite(total):

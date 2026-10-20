@@ -340,12 +340,13 @@ Every counter value is a **raw count**, never a percentage.
 An instruction's `counters` holds the counters it has a value for, and may
 leave out any of the top-level counters. A counter left out has no value at
 that instruction, which is not the same as a value of 0: this lets a producer
-say that a counter was not measured for some code. A function's own counters
-are not submitted: a function has each counter that at least one of its
-instructions has, and the server computes it as the sum over the instructions
-that have it. A function with no instructions therefore has no counters.
-Likewise, a producer may leave out a function, for example one it cannot name
-within the limits below.
+say that a counter was not measured for some code. Likewise, a producer may
+leave out a function, for example one it cannot name within the limits below.
+
+A function's own counters are not submitted: a function has each counter that
+at least one of its instructions has, and the server computes it as the sum
+over the instructions that have it. A function with no instructions therefore
+has no counters.
 
 **Decoding and validation.** The `profile` string is decoded as standard,
 padded base64, ignoring ASCII whitespace (so line-wrapped output is accepted),

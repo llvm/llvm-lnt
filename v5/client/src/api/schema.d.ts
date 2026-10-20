@@ -1307,7 +1307,7 @@ export interface components {
         /**
          * DocumentFunction
          * @description One function in a profile document: its name and its instructions. The function's own
-         *     counters aren't included, since they are just the sums over its instructions.
+         *     counters aren't included, since they are derived from its instructions.
          */
         DocumentFunction: {
             /**
