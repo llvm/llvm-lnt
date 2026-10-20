@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type Reac
 import { VisuallyHidden } from 'react-aria-components'
 import type { ScopeGate } from '../auth/scope'
 import { MISSING } from '../format'
-import { ConfirmDelete } from './confirm-delete'
+import { Confirmation } from './confirmation'
 import { ErrorMessage } from './feedback'
 import { pendingGuard } from './pending-guard'
 import styles from './inline-edit.module.css'
@@ -263,7 +263,7 @@ export function InlineEdit({
       </form>
       {confirming && confirm && (
         // The focus starts on its Cancel, and goes back to the input once it closes.
-        <ConfirmDelete
+        <Confirmation
           confirmLabel="OK"
           gate={gate}
           onConfirm={async () => {
@@ -273,7 +273,7 @@ export function InlineEdit({
           onCancel={closePrompt}
         >
           {confirm(term)}
-        </ConfirmDelete>
+        </Confirmation>
       )}
       {error !== null && <ErrorMessage error={error} />}
     </div>

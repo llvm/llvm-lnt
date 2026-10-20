@@ -6,7 +6,7 @@ import { authedApi, PERMISSION_DENIED, unwrap } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { grants, scopeRank, SCOPES, useScopeGate, type Scope, type ScopeGate } from '../../auth/scope'
 import { acceptedKey, useAuth } from '../../auth/use-auth'
-import { ConfirmDelete } from '../../components/confirm-delete'
+import { Confirmation } from '../../components/confirmation'
 import { ActionButton } from '../../components/action-button'
 import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
@@ -271,7 +271,7 @@ function KeysTable({
   return (
     <>
       {revoking && (
-        <ConfirmDelete
+        <Confirmation
           key={revoking.prefix}
           confirmLabel="Revoke"
           gate={gate}
@@ -289,7 +289,7 @@ function KeysTable({
               token shown above, not copied yet, will be lost.
             </p>
           )}
-        </ConfirmDelete>
+        </Confirmation>
       )}
       <DataTable
         label="API keys"

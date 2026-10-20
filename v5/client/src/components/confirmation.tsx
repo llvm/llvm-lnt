@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import type { ScopeGate } from '../auth/scope'
 import { DangerButton } from './danger-button'
 import { ErrorMessage } from './feedback'
-import styles from './confirm-delete.module.css'
+import styles from './confirmation.module.css'
 
 interface Props {
   /** What is about to happen, and what it destroys or entails. */
@@ -34,7 +34,7 @@ interface Props {
  * must acknowledge. Escape cancels. Its owner closes it once `onConfirm` succeeds, navigating away,
  * say.
  */
-export function ConfirmDelete({
+export function Confirmation({
   children,
   expected,
   confirmLabel = 'Delete',

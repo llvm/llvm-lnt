@@ -316,7 +316,7 @@ commit other than the one the text shows. An empty picker is fine: it means no
 commit, which a form may accept.
 
 
-## AR16: Deletions
+## AR16: Confirmations and Deletions
 
 Deleting a suite, a machine, a commit, a run or a regression is confirmed by
 typing its identifier -- the name of a suite or a machine, the commit string of

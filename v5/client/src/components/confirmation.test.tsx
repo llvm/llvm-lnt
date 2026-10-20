@@ -2,13 +2,13 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, PERMISSION_DENIED } from '../api/client'
 import { ALLOWED } from '../test/auth'
-import { ConfirmDelete } from './confirm-delete'
+import { Confirmation } from './confirmation'
 
 function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve()) {
   const onCancel = vi.fn()
   const confirm = vi.fn(onConfirm)
   render(
-    <ConfirmDelete
+    <Confirmation
       expected="573af861"
       gate={ALLOWED}
       onConfirm={confirm}
@@ -16,7 +16,7 @@ function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve(
       busyMessage="Hold on."
     >
       <p>Delete the run?</p>
-    </ConfirmDelete>,
+    </Confirmation>,
   )
   return {
     input: screen.getByLabelText(/to confirm/),
@@ -26,7 +26,7 @@ function renderPrompt(onConfirm: () => Promise<unknown> = () => Promise.resolve(
   }
 }
 
-describe('ConfirmDelete', () => {
+describe('Confirmation', () => {
   it('says what it does, and what to type to confirm', () => {
     renderPrompt()
 
@@ -96,9 +96,9 @@ describe('ConfirmDelete', () => {
     const onConfirm = vi.fn(() => Promise.resolve())
     const onCancel = vi.fn()
     render(
-      <ConfirmDelete confirmLabel="Revoke" gate={ALLOWED} onConfirm={onConfirm} onCancel={onCancel}>
+      <Confirmation confirmLabel="Revoke" gate={ALLOWED} onConfirm={onConfirm} onCancel={onCancel}>
         <p>Revoke the key?</p>
-      </ConfirmDelete>,
+      </Confirmation>,
     )
 
     const prompt = screen.getByRole('form', { name: 'Confirmation' })
@@ -116,14 +116,14 @@ describe('ConfirmDelete', () => {
   it('cannot confirm while its gate disallows the action, saying why', () => {
     const onConfirm = vi.fn(() => Promise.resolve())
     render(
-      <ConfirmDelete
+      <Confirmation
         confirmLabel="Revoke"
         gate={{ disabled: true, title: 'Needs admin.' }}
         onConfirm={onConfirm}
         onCancel={() => {}}
       >
         <p>Revoke the key?</p>
-      </ConfirmDelete>,
+      </Confirmation>,
     )
 
     const button = screen.getByRole('button', { name: 'Revoke' })

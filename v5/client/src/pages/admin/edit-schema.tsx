@@ -4,7 +4,7 @@ import { api, ApiError, authedApi, unwrap, type Schemas } from '../../api/client
 import { refetchSuites, removeSuite, updateSuite, type SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
-import { ConfirmDelete } from '../../components/confirm-delete'
+import { Confirmation } from '../../components/confirmation'
 import { ErrorMessage, Loaded } from '../../components/feedback'
 import { draftOf, draftProblem, patchOf, removedEntries } from './schema-editor-model'
 import { LIST_INFO } from './schema-lists'
@@ -150,7 +150,7 @@ function EditForm({ schema, onClose }: FormProps) {
       below={
         <>
           {confirming && (
-            <ConfirmDelete
+            <Confirmation
               expected={name}
               confirmLabel="Save"
               gate={gate}
@@ -176,7 +176,7 @@ function EditForm({ schema, onClose }: FormProps) {
                 {removesMetric && ', along with the regression indicators of each removed metric'}.
                 This cannot be undone.
               </p>
-            </ConfirmDelete>
+            </Confirmation>
           )}
           {/* A confirmed save shows its failure in the prompt. */}
           {save.isError && save.variables.confirm === false && <ErrorMessage error={save.error} />}

@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { useScopeGate, type Scope } from '../auth/scope'
-import { ConfirmDelete } from './confirm-delete'
+import { Confirmation } from './confirmation'
 import { DangerButton } from './danger-button'
 import { useMounted } from './use-mounted'
 import styles from './action-row.module.css'
@@ -68,7 +68,7 @@ export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
         </DangerButton>
       </div>
       {confirming && (
-        <ConfirmDelete
+        <Confirmation
           expected={expected}
           gate={gate}
           busyMessage={busyMessage}
@@ -79,7 +79,7 @@ export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
           }}
         >
           {message}
-        </ConfirmDelete>
+        </Confirmation>
       )}
     </>
   )
