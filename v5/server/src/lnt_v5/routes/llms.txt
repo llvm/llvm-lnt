@@ -127,8 +127,7 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **Cursors**: send `cursor.next` back unchanged -- as `cursor=`, or as the
   `cursor` key of a request body -- with the same filters and `sort`; only
   `limit` may change. Stop when it is null. Never parse or build one. A cursor
-  rejected with `invalid_cursor` (400) -- after a change to the suite's schema,
-  say -- means: start again from the first page.
+  rejected with `invalid_cursor` (400) means: start again from the first page.
 - **Sorting**: `sort=<name>`, prefixed with `-` for descending.
 - **Query parameters**: give several values by repeating the parameter
   (`?state=active&state=detected`). A parameter the endpoint does not take is

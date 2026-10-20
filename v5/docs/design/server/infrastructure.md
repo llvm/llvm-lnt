@@ -96,9 +96,9 @@ is sent with a request for different results than the one it was issued for
 
 A cursor may also stop being accepted, with the same error, if the suite's
 schema, the server, or an entity named by one of the request's filters changes
-between two pages. A client whose unmodified cursor is rejected with
-`invalid_cursor` starts again from the first page. Only `invalid_cursor` means
-this.
+between two pages. Whatever the reason, `invalid_cursor` means that the cursor
+cannot be used any more, and that the results are available again from the
+first page. No other error means this.
 
 Opacity is a contract on the client, not a cryptographic guarantee: a cursor
 need not be unforgeable, because it can only point into a query its holder
@@ -235,11 +235,9 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |
 
-400 has two codes because `invalid_cursor` calls for a reaction of its own:
-starting again from the first page (see I2).
-
-409 has three codes for the same reason, each calling for a different reaction
-from the client:
+400 has two codes because `invalid_cursor` calls for a different reaction from
+the client: starting again from the first page (see I2). 409 has three codes for
+the same reason:
 
 - `duplicate`: the entity is already stored. For a run or regression whose
   UUID the client chose itself, this most likely means that an earlier attempt
