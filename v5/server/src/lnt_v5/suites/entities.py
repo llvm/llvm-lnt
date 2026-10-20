@@ -320,8 +320,8 @@ Ordinal = Annotated[
         description=(
             "The commit's position in the suite's history, used to order time series. Each commit "
             "must have a different ordinal, and it is never derived from the commit's value. Null "
-            "if the commit has none; such commits are left out when sorting by ordinal or "
-            "filtering on a range of commits."
+            "if the commit has none; such commits come last when listing commits by ordinal, and "
+            "are left out of time series sorted by commit and of ranges of commits."
         ),
         examples=[examples.ORDINAL],
     ),

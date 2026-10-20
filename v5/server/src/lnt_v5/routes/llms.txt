@@ -31,11 +31,15 @@
   Carries the declared `commit_fields` under `fields`, plus two optional
   built-ins: `ordinal`, an integer placing the commit in the suite's total order,
   and `tag`, a label such as `release-18.1`. An ordinal is never inferred, not
-  even from a numeric commit string. A commit without one has no position, so it
-  is absent from every result ordered by ordinal. Listing commits orders them
-  by when the server first saw each one by default (`sort=first_seen`), keeping
-  every commit; `sort=-first_seen` puts the most recently seen first.
-  `after_commit=` and `before_commit=` bound the list by ordinal.
+  even from a numeric commit string. A commit without one has no position in a
+  time series, so it is absent from time series sorted by commit. Listing
+  commits orders them by when the server first saw each one by default
+  (`sort=first_seen`); `sort=-first_seen` puts the most recently seen first.
+  `sort=ordinal` (`-ordinal`) orders them by ordinal, followed by the commits
+  without one, by when they were first seen in the same direction.
+  `has_ordinal=true|false` keeps only the commits with or without an ordinal,
+  and `after_commit=` and `before_commit=` bound the list by ordinal, leaving out
+  the commits without one.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names
@@ -74,7 +78,7 @@ GET    /api/suites/{testsuite}/machines/{machine_name}        read    One machin
 PATCH  /api/suites/{testsuite}/machines/{machine_name}        manage  Update or rename a machine
 DELETE /api/suites/{testsuite}/machines/{machine_name}        manage  Delete a machine and its runs
 
-GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, commit=, before_commit=, sort=, ...)
+GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, commit=, has_ordinal=, before_commit=, sort=, ...)
 POST   /api/suites/{testsuite}/commits                        submit  Create a commit
 POST   /api/suites/{testsuite}/commits/resolve                read    Look up many commits by value at once
 GET    /api/suites/{testsuite}/commits/{value}                read    One commit, with its previous/next by ordinal

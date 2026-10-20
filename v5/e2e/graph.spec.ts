@@ -78,7 +78,7 @@ test('keeps the x-axis as it is while the data arrives (GR3)', async ({ page, re
   // The axis spans every commit of both machines, before anything is plotted.
   const commits = new Set<string>()
   for (const machine of [LINUX, MACOS]) {
-    const path = `/api/suites/libcxx/commits?machine=${machine}&sort=ordinal&limit=10000`
+    const path = `/api/suites/libcxx/commits?machine=${machine}&has_ordinal=true&sort=ordinal&limit=10000`
     const list = await json<ListPage<{ value: string }>>(request, path)
     for (const commit of list.items) commits.add(commit.value)
   }

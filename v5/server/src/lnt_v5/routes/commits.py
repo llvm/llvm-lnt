@@ -10,8 +10,8 @@ Three things here are specific to commits. `ordinal` is unique within the suite 
 that would give two commits the same one is refused with I4's `conflict` rather than failing in the
 database -- every write path that can set an ordinal attributes `uq_commit_ordinal` for that.
 `previous`/`next` on the detail response are computed by asking for the nearest ordinal in
-each direction, never by following a stored link (O6). And this list is the first cursor-paginated
-one: see `querying.Keyset` for the mechanism, which the run, test and time-series lists will share.
+each direction, never by following a stored link (O6). And `sort=ordinal` keeps the commits that
+have no ordinal, after the others: see `Commits.keyset`.
 """
 
 from __future__ import annotations
@@ -278,16 +278,26 @@ class Commits:
             *(self.table.c[field.name] for field in self.schema.commit_fields),
         )
 
-    def keyset(self, sort: CommitSort) -> Keyset:
+    def keyset(self, sort: CommitSort, has_ordinal: bool | None) -> Keyset:
         """O5's ordering for this list: the caller's sort, then the internal tiebreaker.
 
         `first_seen` is the order in which the server first saw each commit, which is the order the
-        ids were handed out in, so the tiebreaker alone is that whole order. It is never null, so
-        unlike `ordinal` it keeps every commit.
+        ids were handed out in, so the tiebreaker alone is that whole order.
+
+        `ordinal` places the commits without one after the others, in that same order (E3), unless
+        the filters keep only one of the two groups (`has_ordinal`, which the caller also sets when
+        a commit bound keeps only the ordered commits). Then the order is that group's:
+        `nulls_last` would still look for the other, under contradictory conditions that PostgreSQL
+        answers by scanning every commit.
         """
         field, descending = sort_order(sort)
-        column = self.table.c.ordinal if field == "ordinal" else self.table.c.id
-        return Keyset(SortKey(column, descending), tiebreaker=self.table.c.id)
+        if field == "first_seen" or has_ordinal is False:
+            return Keyset(SortKey(self.table.c.id, descending), tiebreaker=self.table.c.id)
+        return Keyset(
+            SortKey(self.table.c.ordinal, descending),
+            tiebreaker=self.table.c.id,
+            nulls_last=has_ordinal is None,
+        )
 
     def search(self, term: str) -> ColumnElement[bool]:
         return commit_search(self.suite, term)
@@ -552,6 +562,15 @@ def list_commits(
             )
         ),
     ] = None,
+    has_ordinal: Annotated[
+        bool | None,
+        Query(
+            description=(
+                "Only return commits that have (`true`) or don't have (`false`) an ordinal. Leave "
+                "out to return both."
+            )
+        ),
+    ] = None,
     after_commit: Annotated[
         str | None,
         Query(
@@ -579,7 +598,8 @@ def list_commits(
             description=(
                 "`first_seen`: in the order the commits were added, oldest first "
                 "(`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: "
-                "highest first); commits without an ordinal are left out."
+                "highest first), followed by the commits without an ordinal, in the order they "
+                "were added (`-ordinal`: newest first)."
             )
         ),
     ] = "first_seen",
@@ -590,8 +610,6 @@ def list_commits(
     For `sort=first_seen`, a commit's position is set when it is created (explicitly or by a run
     submission). Later runs or ordinal changes don't move it.
     """
-    # `sort=ordinal` excludes the commits that have no ordinal; that exclusion comes from the keyset
-    # rather than from here (O5, `Keyset.defined`).
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         conditions: list[ColumnElement[bool]] = []
@@ -611,18 +629,23 @@ def list_commits(
         if has_profiles is not None:
             profiled = commits.has_run(on_machine, profiled=True)
             conditions.append(profiled if has_profiles else ~profiled)
-        # A NULL ordinal compares as unknown against either bound, so the commits without one drop
-        # out here whatever the sort, as endpoints.md requires.
+        # The bounds leave out the commits with no ordinal, whatever the sort (endpoints.md).
         conditions += exclusive_range(
             commits.table.c.ordinal,
             None if after_commit is None else commit_ordinal(connection, suite, after_commit),
             None if before_commit is None else commit_ordinal(connection, suite, before_commit),
         )
+        # A bound implies `has_ordinal=true`, so that the keyset never looks for unordered commits.
+        if has_ordinal is None and (after_commit is not None or before_commit is not None):
+            has_ordinal = True
+        if has_ordinal is not None:
+            ordinal = commits.table.c.ordinal
+            conditions.append(ordinal.is_not(None) if has_ordinal else ordinal.is_(None))
 
         return cursor_page(
             connection,
             commits.select().where(*conditions),
-            commits.keyset(sort),
+            commits.keyset(sort, has_ordinal),
             limit,
             cursor,
             commits.read,

@@ -315,7 +315,7 @@ class Points:
     def keyset(self, sort: QuerySort | None) -> Keyset:
         """O5's ordering: the caller's sort, then the sample's key to break ties.
 
-        `Keyset.defined` drops the rows whose sort key is null, which is what excludes unordered
+        The keyset drops the rows whose sort key is null, which is what excludes unordered
         commits under `sort=commit` (O5). The sort key and the sample's key live on different
         tables, so the cursor comparison is not a pure index condition; PostgreSQL still drives the
         join from the sort column's index and finishes with an incremental sort, so a page stops

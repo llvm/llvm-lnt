@@ -213,16 +213,6 @@ class TestList:
         assert values_in(page(api_client, "sort=ordinal")) == ["alpha", "zebra"]
         assert values_in(page(api_client, "sort=-ordinal")) == ["zebra", "alpha"]
 
-    @pytest.mark.parametrize("sort", ["ordinal", "-ordinal"])
-    def test_sorting_by_ordinal_excludes_the_commits_that_have_none(
-        self, api_client: TestClient, create: Callable[..., Any], sort: str
-    ) -> None:
-        # endpoints.md: both directions exclude them, because they have no position in that order.
-        create("ordered", ordinal=1)
-        create("unordered")
-
-        assert values_in(page(api_client, f"sort={sort}")) == ["ordered"]
-
     def test_refuses_a_sort_field_it_does_not_offer(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
@@ -544,13 +534,97 @@ class TestListCommitFilter:
         assert values_in(page(api_client, "commit=abc123&after_commit=abc")) == ["abc123"]
         assert values_in(page(api_client, "commit=abc&after_commit=abc")) == []
 
-    def test_follows_the_ordinal_order_in_leaving_out_unordered_commits(
+    def test_finds_a_commit_with_no_ordinal_unless_the_list_leaves_those_out(
         self, api_client: TestClient
     ) -> None:
-        # O5: sorting by ordinal excludes the commits without one, this filter or not.
-        assert values_in(page(api_client, "commit=abc&sort=ordinal")) == ["abc"]
-        assert values_in(page(api_client, "commit=unordered&sort=ordinal")) == []
-        assert values_in(page(api_client, "commit=unordered&sort=-first_seen")) == ["unordered"]
+        # How a commit picker, which lists by `-ordinal`, checks it would offer an unordered commit.
+        assert values_in(page(api_client, "commit=unordered&sort=-ordinal")) == ["unordered"]
+        assert values_in(page(api_client, "commit=unordered&has_ordinal=true")) == []
+        assert values_in(page(api_client, "commit=abc&has_ordinal=false")) == []
+
+
+class TestListHasOrdinalFilter:
+    @pytest.fixture(autouse=True)
+    def commits(self, create: Callable[..., Any], add_run: Callable[..., str]) -> None:
+        # Ordered and unordered commits interleaved, and created out of ordinal order, so that each
+        # order tells them apart.
+        create("c30", ordinal=30)
+        create("old")
+        create("c10", ordinal=10)
+        create("mid")
+        create("new")
+        create("c20", ordinal=20)
+        for commit in ("c10", "c30", "old", "new"):
+            add_run(commit, "linux")
+        add_run("mid", "experiments")
+        add_run("c20", "ordered")
+
+    @pytest.mark.parametrize(
+        ("query", "expected"),
+        [
+            ("", ["c30", "old", "c10", "mid", "new", "c20"]),
+            ("sort=ordinal", ["c10", "c20", "c30", "old", "mid", "new"]),
+            ("sort=-ordinal", ["c30", "c20", "c10", "new", "mid", "old"]),
+            ("has_ordinal=true", ["c30", "c10", "c20"]),
+            ("has_ordinal=true&sort=ordinal", ["c10", "c20", "c30"]),
+            ("has_ordinal=true&sort=-ordinal", ["c30", "c20", "c10"]),
+            ("has_ordinal=true&after_commit=c10&sort=-ordinal", ["c30", "c20"]),
+            ("has_ordinal=false", ["old", "mid", "new"]),
+            ("has_ordinal=false&sort=-first_seen", ["new", "mid", "old"]),
+            # endpoints.md: the commits without an ordinal are in first-seen order.
+            ("has_ordinal=false&sort=ordinal", ["old", "mid", "new"]),
+            ("has_ordinal=false&sort=-ordinal", ["new", "mid", "old"]),
+            # A bound keeps only the commits that have an ordinal.
+            ("has_ordinal=false&after_commit=c10", []),
+        ],
+    )
+    def test_keeps_the_commits_with_or_without_an_ordinal_in_the_order_asked_for(
+        self, api_client: TestClient, query: str, expected: list[str]
+    ) -> None:
+        assert values_in(page(api_client, query)) == expected
+
+    def test_survives_a_page_boundary(self, api_client: TestClient) -> None:
+        # How the Graph page lists the commits of its x-axis (GR3).
+        assert walk(api_client, "has_ordinal=true&sort=ordinal&limit=1") == ["c10", "c20", "c30"]
+
+    @pytest.mark.parametrize("limit", [1, 2])
+    @pytest.mark.parametrize(
+        ("sort", "expected"),
+        [
+            ("ordinal", ["c10", "c30", "old", "new"]),
+            ("-ordinal", ["c30", "c10", "new", "old"]),
+        ],
+    )
+    def test_the_ordinal_order_pages_from_the_ordered_commits_into_the_others(
+        self, api_client: TestClient, sort: str, expected: list[str], limit: int
+    ) -> None:
+        assert walk(api_client, f"machine=linux&sort={sort}&limit={limit}") == expected
+
+    @pytest.mark.parametrize(
+        ("machine", "expected"), [("experiments", ["mid"]), ("ordered", ["c20"])]
+    )
+    @pytest.mark.parametrize("sort", ["ordinal", "-ordinal"])
+    def test_the_ordinal_order_serves_a_machine_with_only_one_kind_of_commit(
+        self, api_client: TestClient, machine: str, expected: list[str], sort: str
+    ) -> None:
+        response = page(api_client, f"machine={machine}&sort={sort}&limit=1")
+
+        assert values_in(response) == expected
+        assert response.json()["cursor"]["next"] is None
+
+    def test_refuses_a_cursor_issued_without_it(self, api_client: TestClient) -> None:
+        cursor = page(api_client, "sort=-ordinal&limit=1").json()["cursor"]["next"]
+
+        response = page(api_client, f"sort=-ordinal&has_ordinal=true&limit=1&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_value_that_is_not_a_boolean(self, api_client: TestClient) -> None:
+        response = page(api_client, "has_ordinal=maybe")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 class TestListPagination:

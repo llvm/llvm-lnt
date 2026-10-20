@@ -71,8 +71,9 @@ export const UNPICKED_COMMIT = 'Pick a commit from the list, or clear the field.
 /**
  * A combobox selecting a commit (AR15). It searches the server rather than filtering a list it
  * holds, since a suite can have tens of thousands of commits: its suggestions are the pages of
- * `GET commits?sort=-first_seen` under its filters, most recently seen first, searched with
- * `search=` once typing pauses, and the next page is loaded when the list is scrolled to its end.
+ * `GET commits?sort=-ordinal` under its filters, highest ordinal first and then the commits without
+ * one, most recently seen first, searched with `search=` once typing pauses, and the next page is
+ * loaded when the list is scrolled to its end.
  * The suggestions and the input show display values, and Enter also takes a commit string.
  *
  * A commit the picker is given rather than one picked among its suggestions -- from the URL, or
@@ -105,7 +106,7 @@ export function CommitPicker({
     fetchPage: (term, cursor, signal) =>
       fetchCommitPage(
         suite,
-        { ...filters, search: term || undefined, limit: PAGE_SIZE, cursor },
+        { ...filters, search: term || undefined, sort: '-ordinal', limit: PAGE_SIZE, cursor },
         signal,
       ),
     toSuggestion,

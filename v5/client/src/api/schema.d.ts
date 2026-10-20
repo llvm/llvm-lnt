@@ -954,7 +954,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits are left out when sorting by ordinal or filtering on a range of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
              * @example 554973
              */
             ordinal: number | null;
@@ -1007,7 +1007,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits are left out when sorting by ordinal or filtering on a range of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
              * @example 554973
              */
             ordinal: number | null;
@@ -1175,7 +1175,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits are left out when sorting by ordinal or filtering on a range of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
              * @example 554973
              */
             ordinal?: number | null;
@@ -1208,7 +1208,7 @@ export interface components {
             };
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits are left out when sorting by ordinal or filtering on a range of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
              * @example 554973
              */
             ordinal?: number | null;
@@ -3935,11 +3935,13 @@ export interface operations {
                 machine?: string | null;
                 /** @description Only return commits that have (`true`) or don't have (`false`) a run with profiles. If `machine` is given, only that machine's runs are considered. Leave out to return both. */
                 has_profiles?: boolean | null;
+                /** @description Only return commits that have (`true`) or don't have (`false`) an ordinal. Leave out to return both. */
+                has_ordinal?: boolean | null;
                 /** @description Only return commits after this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
                 after_commit?: string | null;
                 /** @description Only return commits before this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. To find the commit before a given one at which a machine has runs, combine it with `machine`, `sort=-ordinal` and `limit=1`. */
                 before_commit?: string | null;
-                /** @description `first_seen`: in the order the commits were added, oldest first (`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: highest first); commits without an ordinal are left out. */
+                /** @description `first_seen`: in the order the commits were added, oldest first (`-first_seen`: newest first). `ordinal`: by ordinal, lowest first (`-ordinal`: highest first), followed by the commits without an ordinal, in the order they were added (`-ordinal`: newest first). */
                 sort?: "first_seen" | "-first_seen" | "ordinal" | "-ordinal";
                 /** @description The maximum number of results to return. */
                 limit?: number;

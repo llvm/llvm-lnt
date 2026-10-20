@@ -180,6 +180,8 @@ The regressions attributed to the commit are kept, with no commit (see D5).
 - `has_profiles=`: boolean. `true` returns only commits where at least one run
   has profile data, and `false` only commits where no run does. Combined with
   `machine=`, only the runs on that machine are considered.
+- `has_ordinal=`: boolean. `true` returns only commits with an ordinal, and
+  `false` only commits without one.
 - `after_commit=`, `before_commit=`: exclusive bounds on the ordinal (strictly
   after, strictly before the named commit's). When either is given, commits
   with no ordinal are excluded, whatever the `sort`. Combined with `machine=`
@@ -193,12 +195,17 @@ The regressions attributed to the commit are kept, with no commit (see D5).
   each one, oldest first, and `sort=-first_seen` most recently seen first. The
   server first sees a commit when the commit is created, explicitly or by a run
   submission, and its place in this order never changes: neither a later run nor
-  a change to its ordinal moves it. Both directions include every commit,
-  including those with no ordinal, which makes `-first_seen` the order for a
-  commit picker (see AR15).
-- `sort=ordinal` orders by ordinal ascending (oldest first), and
-  `sort=-ordinal` by ordinal descending (newest first). Both exclude commits
-  with no ordinal.
+  a change to its ordinal moves it.
+- `sort=ordinal` orders the commits with an ordinal by ordinal ascending
+  (oldest first), and `sort=-ordinal` by ordinal descending (newest first),
+  which makes `-ordinal` the order for a commit picker (see AR15). In both
+  directions, the commits without an ordinal follow, in first-seen order in the
+  same direction: oldest first under `ordinal`, most recently seen first under
+  `-ordinal`. With `has_ordinal=false`, `ordinal` and `-ordinal` are therefore
+  the `first_seen` and `-first_seen` orders.
+
+No sort leaves out the commits without an ordinal: only `has_ordinal=true` and
+the commit bounds do.
 
 ### Batch Resolve
 

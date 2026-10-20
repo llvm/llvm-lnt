@@ -52,7 +52,13 @@ export function useScaffold(suite: string, machines: readonly string[]): Scaffol
       // Every commit at which the machine has runs, leaving out those without an ordinal.
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchEveryPage((cursor) => {
-          const query = { machine, sort: 'ordinal' as const, cursor, limit: MAX_PAGE_SIZE }
+          const query = {
+            machine,
+            has_ordinal: true,
+            sort: 'ordinal' as const,
+            cursor,
+            limit: MAX_PAGE_SIZE,
+          }
           return fetchCommitPage(suite, query, signal)
         }),
       staleTime: Infinity,
@@ -74,7 +80,7 @@ function combineScaffolds(machines: readonly string[], results: QueryResult[]): 
   const commits = new Map<string, Commit>()
   for (const { data } of results) for (const commit of data ?? []) commits.set(commit.value, commit)
   return {
-    // Every commit listed has an ordinal: the list sorted by them leaves out those without one.
+    // Every commit listed has an ordinal: `has_ordinal=true` leaves out those without one.
     commits: [...commits.values()].sort((a, b) => a.ordinal! - b.ordinal!),
     listed: new Set(machines.filter((_, i) => results[i].data !== undefined)),
     pending: results.some((result) => result.data === undefined && result.error === null),

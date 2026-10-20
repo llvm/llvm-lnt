@@ -122,7 +122,8 @@ Common filters include:
 - `after_commit=`, `before_commit=`: exclusive bounds on the commit order
 - `state=` (for regressions; takes several values)
 - `commit=`
-- `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
+- `has_commit=` (for regressions), `has_profiles=` (for commits and runs),
+  `has_ordinal=` (for commits)
 - `tracked=` (boolean, for machines; omitting it returns both)
 
 **Sorting.** `sort=<name>` selects one ordering. Prefix the name with `-` for

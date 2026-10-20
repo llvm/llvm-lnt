@@ -135,7 +135,7 @@ function settle() {
 }
 
 describe('CommitPicker', () => {
-  it('suggests the commits most recently seen first, by display value', async () => {
+  it('suggests the commits in the order of `sort=-ordinal`, by display value', async () => {
     const queries = serveCommits()
     const user = userEvent.setup()
     renderPicker()
@@ -143,7 +143,7 @@ describe('CommitPicker', () => {
     await openList(user)
 
     await waitFor(() => expect(options()).toEqual(['r100 (v1)', 'abc456', 'r200']))
-    expect(queries[0].get('sort')).toBe('-first_seen')
+    expect(queries[0].get('sort')).toBe('-ordinal')
     expect(queries[0].get('limit')).toBe('25')
     expect(queries[0].has('search')).toBe(false)
     // Without a value, there is nothing to look up.
@@ -251,7 +251,7 @@ describe('CommitPicker', () => {
     expect(lookup.get('commit')).toBe(OLD.value)
     // The request of its suggestions, narrowed to the commit.
     expect(lookup.get('machine')).toBe('linux')
-    expect(lookup.get('sort')).toBe('-first_seen')
+    expect(lookup.get('sort')).toBe('-ordinal')
     expect(resolved).toEqual([])
   })
 

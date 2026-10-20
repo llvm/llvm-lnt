@@ -1,11 +1,12 @@
 """I3's shared list conventions, and I2's cursor pagination (`querying.py`).
 
-The commit list is the first endpoint to page with a cursor, but the mechanism is shared -- the run,
-test and time-series lists will all use it -- so it is covered here, against a table of its own,
-rather than only through the endpoint that happens to reach it first. That table deliberately has a
+The mechanism is shared by every cursor-paginated list -- commits, runs, tests, samples, regressions
+and the time series -- so it is covered here, against a table of its own, rather than only through
+the endpoints that use it. That table deliberately has a
 *non-unique* sort column, which no suite table offers: O5's tiebreaker only does anything when two
 rows share a sort value, and a test over unique values could not tell whether it was there at all.
-It also has a nullable one, for the rows O5 excludes from an order they have no position in.
+It also has a nullable one, for the rows O5 excludes from an order they have no position in, or
+serves after all the others.
 """
 
 from __future__ import annotations
@@ -117,6 +118,16 @@ def by_rank() -> Keyset:
     return Keyset(SortKey(events.c.rank), tiebreaker=events.c.id)
 
 
+def order_by(keyset: Keyset) -> str:
+    """The ORDER BY of the statement `keyset` serves a first page with."""
+    (statement,) = keyset.statements(sql_select(events), None)
+    return str(statement).split("ORDER BY ")[1]
+
+
+def by_rank_nulls_last(*, descending: bool = False) -> Keyset:
+    return Keyset(SortKey(events.c.rank, descending), tiebreaker=events.c.id, nulls_last=True)
+
+
 def forged(cursor: str, *values: Any) -> str:
     """A cursor for the same ordering as `cursor`, carrying other key values.
 
@@ -155,8 +166,7 @@ class TestOrdering:
         # deterministic and non-repeating.
         keyset = by_time()
 
-        assert len(keyset.order()) == 2
-        assert "id" in str(keyset.order()[-1])
+        assert order_by(keyset) == "querying_events.at ASC, querying_events.id ASC"
 
     def test_the_tiebreaker_alone_is_a_complete_order(self, db_engine: Engine) -> None:
         keyset = Keyset(tiebreaker=events.c.id)
@@ -173,7 +183,7 @@ class TestOrdering:
         # unique, so the order is that one term, and it pages like any other.
         keyset = Keyset(SortKey(events.c.id, descending), tiebreaker=events.c.id)
 
-        assert len(keyset.order()) == 1
+        assert order_by(keyset) == f"querying_events.id {'DESC' if descending else 'ASC'}"
         assert walk(keyset, 2) == (rows[::-1] if descending else rows)
 
     def test_orders_rows_sharing_a_sort_value_by_the_tiebreaker(self, db_engine: Engine) -> None:
@@ -257,6 +267,139 @@ class TestPaging:
                 connection.execute(events.update().where(events.c.label == label).values(rank=rank))
 
         assert walk(by_rank(), 2) == ["a", "b", "c", "d"]
+
+
+# The ranked rows of `TestNullsLast`, and the rest in insertion order, which is the tiebreaker's.
+RANKED = ["a", "b", "c", "d"]
+UNRANKED = ["e", "i", "f", "g", "h"]
+
+
+class TestNullsLast:
+    """A keyset that serves the rows with no value for its leading key after all the others.
+
+    Which is how the commit list's `sort=ordinal` keeps the commits without an ordinal (E3): ordered
+    among themselves by the remaining keys, in the same direction.
+    """
+
+    @pytest.fixture(autouse=True)
+    def ranked(self, db_engine: Engine, rows: list[str]) -> None:
+        with db_engine.begin() as connection:
+            for rank, label in enumerate(RANKED, start=1):
+                connection.execute(events.update().where(events.c.label == label).values(rank=rank))
+
+    @pytest.mark.parametrize("limit", [1, 2, 3, 4, 5, 8, 9, 10])
+    def test_serves_the_rows_without_a_value_last_whatever_the_page_size(
+        self, walk: Callable[..., list[str]], limit: int
+    ) -> None:
+        # Page sizes putting a boundary just before, at and just after the last ranked row.
+        assert walk(by_rank_nulls_last(), limit) == RANKED + UNRANKED
+
+    @pytest.mark.parametrize("limit", [1, 4, 5, 9])
+    def test_runs_both_groups_backwards_when_descending(
+        self, walk: Callable[..., list[str]], limit: int
+    ) -> None:
+        # The ranked rows highest first, then the others, last inserted first.
+        assert walk(by_rank_nulls_last(descending=True), limit) == RANKED[::-1] + UNRANKED[::-1]
+
+    def test_a_page_ending_on_the_last_ranked_row_looks_ahead_into_the_others(
+        self, db_engine: Engine
+    ) -> None:
+        # The ranked rows alone fill the page exactly, so only the first unranked one can say
+        # whether there is a next page.
+        page, cursor = one_page(db_engine, by_rank_nulls_last(), 4)
+        assert [row.label for row in page] == RANKED
+        assert cursor is not None
+
+        following, last = one_page(db_engine, by_rank_nulls_last(), 9, cursor)
+
+        assert [row.label for row in following] == UNRANKED
+        assert last is None
+
+    def test_resumes_inside_the_rows_without_a_value(self, db_engine: Engine) -> None:
+        _, cursor = one_page(db_engine, by_rank_nulls_last(), 6)
+
+        following, _ = one_page(db_engine, by_rank_nulls_last(), 9, cursor)
+
+        assert [row.label for row in following] == UNRANKED[2:]
+
+    @pytest.mark.parametrize("limit", [4, 6])
+    def test_a_deleted_last_row_does_not_invalidate_the_cursor(
+        self, db_engine: Engine, limit: int
+    ) -> None:
+        # The last ranked row, and a row among the others.
+        page, cursor = one_page(db_engine, by_rank_nulls_last(), limit)
+        with db_engine.begin() as connection:
+            connection.execute(events.delete().where(events.c.label == page[-1].label))
+
+        following, _ = one_page(db_engine, by_rank_nulls_last(), 9, cursor)
+
+        assert [row.label for row in following] == (RANKED + UNRANKED)[limit:]
+
+    def test_carries_the_filters_across_both_groups(self, walk: Callable[..., list[str]]) -> None:
+        labels = ["a", "c", "e", "g"]
+
+        assert walk(by_rank_nulls_last(), 1, labels=labels) == labels
+
+    def test_a_row_given_a_value_behind_the_cursor_is_not_served(self, db_engine: Engine) -> None:
+        # O5: a row whose sort values change mid-traversal may move behind the cursor. Here an
+        # unranked row not yet served gains a rank once the walk has reached the unranked rows.
+        _, cursor = one_page(db_engine, by_rank_nulls_last(), 5)
+        with db_engine.begin() as connection:
+            connection.execute(events.update().where(events.c.label == "g").values(rank=5))
+
+        following, _ = one_page(db_engine, by_rank_nulls_last(), 9, cursor)
+
+        assert [row.label for row in following] == ["i", "f", "h"]
+
+    def test_refuses_a_cursor_issued_for_the_order_that_excludes_them(
+        self, db_engine: Engine
+    ) -> None:
+        _, cursor = one_page(db_engine, by_rank(), 2)
+        assert cursor is not None
+
+        with pytest.raises(ApiError):
+            one_page(db_engine, by_rank_nulls_last(), 2, cursor)
+
+    @pytest.mark.parametrize(
+        ("keyset", "values"),
+        [
+            (by_rank, [None, 1]),
+            (by_rank_nulls_last, [1, None]),
+        ],
+        ids=["without-nulls-last", "on-the-tiebreaker"],
+    )
+    def test_refuses_a_null_anywhere_but_a_nulls_last_leading_key(
+        self, db_engine: Engine, keyset: Callable[[], Keyset], values: list[Any]
+    ) -> None:
+        _, cursor = one_page(db_engine, keyset(), 2)
+        assert cursor is not None
+
+        with pytest.raises(ApiError) as failure:
+            one_page(db_engine, keyset(), 2, forged(cursor, *values))
+
+        assert failure.value.code.value == "invalid_request"
+
+    @pytest.mark.parametrize(
+        ("keys", "tiebreaker"),
+        [
+            ([SortKey(events.c.at)], events.c.id),
+            ([SortKey(events.c.rank), SortKey(events.c.score)], events.c.id),
+            ([], events.c.id),
+            # Nothing would be left to order the rows whose rank is null.
+            ([SortKey(events.c.rank)], events.c.rank),
+        ],
+        ids=[
+            "leading-key-never-null",
+            "another-nullable-key",
+            "no-key-but-the-tiebreaker",
+            "leading-key-is-the-tiebreaker",
+        ],
+    )
+    def test_refuses_an_order_it_cannot_serve_the_nulls_of(
+        self, keys: list[SortKey], tiebreaker: Column[Any]
+    ) -> None:
+        with pytest.raises(ValueError, match="nulls_last"):
+            Keyset(*keys, tiebreaker=tiebreaker, nulls_last=True)
 
 
 @pytest.mark.usefixtures("rows")

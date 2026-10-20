@@ -286,7 +286,7 @@ profile, the page says that a test is to be selected on either side.
 - Each side's suite list comes from `GET suites`. A suite's machines come from
   `GET machines`, fetched once per suite and shared by both sides.
 - A side's commit picker searches
-  `GET commits?machine={name}&has_profiles=true&sort=-first_seen` (see AR15).
+  `GET commits?machine={name}&has_profiles=true&sort=-ordinal` (see AR15).
 - A side's runs come from `GET runs?machine={name}&commit={value}&has_profiles=true`,
   every page of it. The side has no run to select until the whole list has
   loaded, since the latest run is selected.

@@ -10,6 +10,7 @@ import {
   currentUrl,
   gate,
   main,
+  mockCommits,
   mockMachines,
   mockTests,
   query,
@@ -662,6 +663,26 @@ describe('loading (GR2, GR4, GR8)', () => {
     await waitFor(() => expect(m2.signal.aborted).toBe(true))
     expect(recorded.queries.find(({ body }) => body.machine === 'm1')!.signal.aborted).toBe(false)
     act(() => held.open())
+  })
+
+  it('lays out its x-axis from the commits of each machine that have an ordinal (GR3)', async () => {
+    mockWorld()
+    const asked = mockCommits((query) => {
+      const machineName = query.get('machine') as 'm1' | 'm2'
+      return cursorPage(COMMITS[machineName].map(commitAt))
+    })
+    renderPage(`${GRAPHED}&test=b`)
+
+    await waitFor(() => expect(traces()).toEqual(['b - m1: c10=3', 'b - m2: c40=4']))
+    const scaffolds = asked.map((query) => [
+      query.get('machine'),
+      query.get('sort'),
+      query.get('has_ordinal'),
+    ])
+    expect(scaffolds.sort()).toEqual([
+      ['m1', 'ordinal', 'true'],
+      ['m2', 'ordinal', 'true'],
+    ])
   })
 
   it("holds back a machine's traces until its commits are listed, saying why", async () => {
