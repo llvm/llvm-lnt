@@ -134,9 +134,10 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
   never on `message`. The codes are `invalid_request` (400), `unauthorized`
   (401), `forbidden` (403), `not_found` (404), `method_not_allowed` (405, with
-  an `Allow` header), `duplicate`, `conflict` and `retry` (409), and
-  `internal_error` (500). A request body too large for the deployment is a
-  plain-text 413 instead. Among the 409s:
+  an `Allow` header), `duplicate`, `conflict` and `retry` (409),
+  `unsupported_encoding` (415, see Compression), and `internal_error` (500). A
+  request body too large for the deployment is a plain-text 413 instead. Among
+  the 409s:
   - `duplicate`: the entity exists. For a run or a regression whose UUID you
     chose, an earlier attempt most likely succeeded: do not resend under a fresh
     UUID, which would store it twice.
@@ -160,6 +161,11 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **References are flat**: a run carries `"machine": "linux-x86_64"` and
   `"commit": "abc123"`, not nested objects. `POST /commits/resolve` turns a page
   of commit values into full commits in one call.
+- **Compression**: a request body may be gzip-compressed, with
+  `Content-Encoding: gzip`; any other coding is 415 `unsupported_encoding`, and
+  data that does not decode is 400. Responses are compressed only when the
+  request's `Accept-Encoding` asks for it: plain `curl` gets plain JSON, and
+  `curl --compressed` decodes what it asked for.
 
 ## Authentication
 
@@ -206,6 +212,16 @@ It never overwrites what is stored: a field, tag or ordinal that differs from
 the stored one is 409, and `PATCH` is the only way to change it. The machine's
 `tracked` flag is the exception: it is set only when the submission creates the
 machine, and ignored rather than compared afterwards.
+
+**Compress a large submission** whole, which typically shrinks it several
+times over. curl does not compress a request body itself; compress it first, and
+send it with `--data-binary`, which sends it byte for byte:
+
+```
+gzip -c run.json | curl --data-binary @- -H 'Content-Type: application/json' \
+  -H 'Content-Encoding: gzip' -H "Authorization: Bearer $TOKEN" \
+  "$LNT_URL/api/suites/nts/runs"
+```
 
 **Submit a throwaway experiment**, such as the A/B runs of a pull request, on a
 commit with no ordinal (e.g. `"value": "pr-1234"`), and on a machine of its own

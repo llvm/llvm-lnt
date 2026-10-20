@@ -287,4 +287,16 @@ class SpaStaticFiles(StaticFiles):
         # timestamps would break it.
         hashed = path.startswith(f"{ASSETS}/")
         response.headers["Cache-Control"] = IMMUTABLE if hashed else REVALIDATE
+        # Weak, because the file may be sent compressed (I4), and a strong ETag would have to differ
+        # between the compressed and uncompressed forms (RFC 9110, section 8.8.3). StaticFiles has
+        # already compared it with `If-None-Match`, ignoring the `W/` a client sends back. It also
+        # honours an `If-Range` that names it, which RFC 9110 (section 13.1.5) reserves for strong
+        # ETags; that is harmless, since the ETag changes with the file and only an uncompressed
+        # response is ever a range.
+        if etag := response.headers.get("etag"):
+            response.headers["ETag"] = f"W/{etag}"
+        # The `Vary` the 200 carried when it was compressed, which a 304 has to repeat (RFC 9110,
+        # section 15.4.5). Only on the 304: the compression middleware adds it to a 200 itself.
+        if response.status_code == 304:
+            response.headers["Vary"] = "Accept-Encoding"
         return response

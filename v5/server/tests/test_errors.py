@@ -12,7 +12,7 @@ from lnt_v5.config import Settings
 from lnt_v5.errors import ErrorCode, error_response, register_error_handlers
 
 # The statuses I4 permits a REST API response to carry.
-I4_STATUSES = {200, 201, 204, 400, 401, 403, 404, 405, 409, 500}
+I4_STATUSES = {200, 201, 204, 400, 401, 403, 404, 405, 409, 415, 500}
 
 
 class Body(BaseModel):

@@ -73,9 +73,20 @@ Check `code` in your code. `message` is meant for people and may change.
 | `duplicate` | 409 | The thing you are creating already exists. If you chose the UUID of a run or a regression yourself, a previous attempt probably succeeded: don't resend it with a new UUID, or you'll store it twice. |
 | `conflict` | 409 | The request contradicts data that is already stored. Sending it again won't help: change the request or the stored data first. |
 | `retry` | 409 | The suite's schema was being changed at the same time, or the suite was too busy for a schema change to start. Nothing was saved: send the same request again. |
+| `unsupported_encoding` | 415 | The request body is compressed in a way the server doesn't accept. The `Accept-Encoding` header lists what it accepts: `gzip`. |
 | `internal_error` | 500 | Something went wrong on the server. |
 
 A request body that is too large is rejected with a 413, which may not have this body.
+
+## Compression
+
+Any request body can be sent gzip-compressed, with a `Content-Encoding: gzip` header. This is
+worth doing for large run submissions, which typically shrink several times over. A body
+compressed any other way is rejected with a 415, and one that isn't valid gzip data with a 400.
+The size limit on a request body applies to it both as sent and once decompressed.
+
+Responses are compressed only if the request's `Accept-Encoding` header allows it. A request
+without one, such as one sent by plain `curl`, gets an uncompressed response.
 
 ## Conventions
 

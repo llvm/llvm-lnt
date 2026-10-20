@@ -40,6 +40,7 @@ class ErrorCode(StrEnum):
     DUPLICATE = "duplicate"
     CONFLICT = "conflict"
     RETRY = "retry"
+    UNSUPPORTED_ENCODING = "unsupported_encoding"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -53,6 +54,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.DUPLICATE: 409,
     ErrorCode.CONFLICT: 409,
     ErrorCode.RETRY: 409,
+    ErrorCode.UNSUPPORTED_ENCODING: 415,
     ErrorCode.INTERNAL_ERROR: 500,
 }
 
@@ -149,8 +151,9 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     # REST API surface at all, so I4 leaves it plain text and outside the envelope. Starlette's
     # RequestBodyLimitMiddleware (installed in app.py) already answers exactly this way when a
     # Content-Length is present -- which is every request in production, since the reverse proxy
-    # buffers. Without one it cannot pre-empt the response and the rejection arrives here
-    # instead; matching its wording keeps the two paths indistinguishable to a client.
+    # buffers. Two rejections arrive here instead, because they are only found while the body is
+    # read: a body without a Content-Length, and a compressed body too large once decompressed
+    # (content_coding.py). Matching the wording keeps the paths indistinguishable to a client.
     if exc.status_code == 413:
         return PlainTextResponse("Content Too Large", status_code=413)
 
@@ -158,7 +161,8 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     if exc.status_code == 404:
         return error_response(ErrorCode.NOT_FOUND, str(exc.detail))
 
-    # FastAPI's own answer to a body it could not read at all, such as JSON that is not UTF-8.
+    # A body that could not be read at all: FastAPI's own answer, such as for JSON that is not
+    # UTF-8, or content_coding.py's for compressed data that does not decode.
     if exc.status_code == 400:
         return error_response(ErrorCode.INVALID_REQUEST, str(exc.detail))
 

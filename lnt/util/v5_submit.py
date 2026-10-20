@@ -8,6 +8,7 @@ read a line at a time, and only a bounded number of runs is ever in flight.
 """
 
 import collections
+import gzip
 import json
 import threading
 import time
@@ -219,10 +220,14 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
 
     def post(line: _Line) -> str | None:
         """Submit a run; returns why it failed, or None."""
+        # Compressed, as v5 encourages: runs compress several times over. At
+        # zlib's default level, since the highest costs far more for little.
+        data = gzip.compress(line.data, compresslevel=6)
         try:
             response = client.request(
-                'POST', path + '/runs', data=line.data,
-                headers={'Content-Type': 'application/json'})
+                'POST', path + '/runs', data=data,
+                headers={'Content-Type': 'application/json',
+                         'Content-Encoding': 'gzip'})
         except requests.RequestException as e:
             return str(e)
         if response.status_code == 201 or (response.status_code == 409 and

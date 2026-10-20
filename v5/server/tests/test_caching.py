@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
+from conftest import vary
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
 from lnt_v5.scopes import Scope
@@ -33,7 +34,9 @@ EITHER_REQUEST = pytest.mark.parametrize(
 
 def assert_cache_headers(response: Response, cache_control: str) -> None:
     assert response.headers["cache-control"] == cache_control
-    assert response.headers["vary"] == "Authorization"
+    # Once: a header added twice comes back joined with a comma. `Accept-Encoding` may be there too,
+    # on a response large enough to be compressed (I4).
+    assert vary(response).count("Authorization") == 1
 
 
 class TestWithoutTheDatabase:
@@ -110,7 +113,7 @@ class TestWithoutTheDatabase:
 
         assert response.status_code == 200
         assert response.headers["cache-control"] == cache_control
-        assert "vary" not in response.headers
+        assert "Authorization" not in vary(response)
 
 
 def test_the_key_a_request_authenticated_with_is_private(
