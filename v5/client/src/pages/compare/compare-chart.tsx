@@ -83,7 +83,7 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
   const lines = useMemo(
     () =>
       shadows.flatMap(({ points, label }, i) =>
-        points.length === 0 ? [] : [shadowTrace(points, i, `Shadow: ${label}`)],
+        points?.length ? [shadowTrace(points, i, `Shadow: ${label}`)] : [],
       ),
     [shadows],
   )
@@ -105,7 +105,7 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
       chartExtent(
         bars,
         band,
-        shadows.map((line) => line.points),
+        shadows.map((line) => line.points ?? []),
       ),
     [bars, band, shadows],
   )

@@ -74,7 +74,7 @@ describe('the shadows (CP8)', () => {
 
     const user = userEvent.setup()
     await user.click(pinButton()!)
-    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2'])
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests'])
     expect(dismissButton('libcxx/m1/c2')).toHaveFocus()
     expect(query().shadow).toEqual(['libcxx/m1/c2'])
     // Side B as it is cannot be pinned twice.
@@ -99,7 +99,7 @@ describe('the shadows (CP8)', () => {
     const user = userEvent.setup()
     await user.click(pinButton()!)
     expect(query().shadow).toEqual(['libcxx/m1/c2', 'libcxx/m2/c2'])
-    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2', '▲Shadow: libcxx/m2/c2'])
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests', '▲Shadow: libcxx/m2/c2 · 3 tests'])
     expect(dismissButton('libcxx/m2/c2')).toHaveFocus()
 
     await waitFor(() => expect(lines()).toHaveLength(2))
@@ -129,7 +129,7 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
 
     await waitFor(() => expect(line()?.y).toEqual([-1, 1, 2]))
-    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2'])
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests'])
     expect([...sampled].sort()).toEqual(['1', '3', '4'])
     // Only pinning one gives the focus to its chip.
     expect(dismissButton('libcxx/m1/c2')).not.toHaveFocus()
@@ -140,6 +140,33 @@ describe('the shadows (CP8)', () => {
     renderPage(`${SHADOWED}&hidden_test=a`)
 
     await waitFor(() => expect(line()?.tests).toEqual(['b', 'c']))
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 2 tests'])
+  })
+
+  it('counts its tests only once there is a comparison and its samples have arrived', async () => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    mockWorld(WORLD)
+    // Holding the shadow's run back, then answering as the world does.
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', async ({ params }) => {
+        if (params.uuid === uuidOf('3')) await held
+      }),
+    )
+    renderPage(SHADOWED)
+    await comparison()
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2'])
+
+    release()
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests']))
+  })
+
+  it('counts no test when the chart plots none', async () => {
+    mockWorld(WORLD)
+    renderPage(`${SHADOWED}&hidden_test=a&hidden_test=b&hidden_test=c`)
+
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 0 tests']))
+    expect(line()).toBeUndefined()
   })
 
   it('is dismissed with its chip, which gives the focus to the pin button once none is left', async () => {
@@ -166,7 +193,7 @@ describe('the shadows (CP8)', () => {
     await userEvent.setup().click(dismissButton('libcxx/m2/c1'))
     await waitFor(() => expect(lines()).toHaveLength(2))
     expect(query().shadow).toEqual(['libcxx/m1/c2', 'libcxx/m2/c2'])
-    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2', '▲Shadow: libcxx/m2/c2'])
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests', '▲Shadow: libcxx/m2/c2 · 3 tests'])
     expect(lines()[1]).toMatchObject({ y: [-1, 1, 1], color: shadowLook(1).color })
     expect(dismissButton('libcxx/m2/c2')).toHaveFocus()
   })
@@ -190,7 +217,7 @@ describe('the shadows (CP8)', () => {
     await user.click(runBox('3', 'B'))
     await user.click(pinButton()!)
     expect(query().shadow).toEqual([`libcxx/m1/c2/${uuidOf('6')},${uuidOf('7')}`])
-    await waitFor(() => expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 (2 of 3 runs)']))
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 2 of 3 runs · 1 test']))
     await waitFor(() => expect(line()?.y).toEqual([3]))
 
     // Side B changes, but not the shadow: min(8, 16), against 1. Side B with all its runs is not
@@ -215,6 +242,7 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
 
     await waitFor(() => expect(line()?.y).toEqual([2]))
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 1 test'])
     expect(chart().layout.annotations).toEqual([])
     expect(Math.max(...(chart().layout.yaxis!.tickvals as number[]))).toBeGreaterThan(1.5)
   })
@@ -261,6 +289,7 @@ describe('the shadows (CP8)', () => {
 
     await pick('Commit', 'c1', sideOf('A'))
     await waitFor(() => expect(line()?.y).toEqual([-1, 1, 2]))
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests'])
     expect(query().shadow).toEqual(['libcxx/m1/c2'])
   })
 
@@ -282,13 +311,27 @@ describe('the shadows (CP8)', () => {
     await waitFor(() => expect(query().shadow).toEqual(['libcxx/m1/c2']))
   })
 
-  it("draws nothing when its suite does not offer the metric as side A's does", async () => {
+  it("plots no test when its suite does not offer the metric as side A's does", async () => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
     mockWorld(WORLD)
+    // Holding the millis shadow's runs back, then answering as the world does.
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs', async ({ params }) => {
+        if (params.testsuite === 'millis') await held
+      }),
+    )
     renderPage(`${SHADOWED}&shadow=millis/m1/c2`)
     await comparison()
 
-    await waitFor(() => expect(chips()).toHaveLength(2))
-    await waitFor(() => expect(line()).toBeDefined())
+    // Until its samples have arrived, it counts nothing.
+    await waitFor(() =>
+      expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests', '▲Shadow: millis/m1/c2']),
+    )
+    release()
+    await waitFor(() =>
+      expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 3 tests', '▲Shadow: millis/m1/c2 · 0 tests']),
+    )
     expect(lines()).toHaveLength(1)
     expect(lines()[0].color).toBe(shadowLook(0).color)
   })
@@ -304,6 +347,7 @@ describe('the shadows (CP8)', () => {
     expect(await screen.findByText(/A shadow could not be loaded: Boom/)).toBeInTheDocument()
     await comparison()
     expect(line()).toBeUndefined()
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2'])
   })
 
   it('says when its runs could not be listed, still comparing', async () => {
@@ -319,6 +363,7 @@ describe('the shadows (CP8)', () => {
     expect(await screen.findByText(/A shadow could not be loaded: Boom/)).toBeInTheDocument()
     await comparison()
     expect(line()).toBeUndefined()
+    expect(chips()).toEqual(['●Shadow: libcxx/m1/c2'])
   })
 
   it("reports a run side B shares with it once, as side B's", async () => {
@@ -343,9 +388,9 @@ describe('the shadows (CP8)', () => {
 
     await waitFor(() => expect(lines()).toHaveLength(3))
     expect(chips()).toEqual([
-      '●Shadow: libcxx/m1/c2',
-      '▲Shadow: libcxx/m1/c1 (1 of 2 runs)',
-      '■Shadow: libcxx/m1/c1',
+      '●Shadow: libcxx/m1/c2 · 3 tests',
+      '▲Shadow: libcxx/m1/c1 · 1 of 2 runs · 1 test',
+      '■Shadow: libcxx/m1/c1 · 3 tests',
     ])
     expect(warn).not.toHaveBeenCalledWith(expect.stringMatching(/Duplicate Queries/))
     warn.mockRestore()

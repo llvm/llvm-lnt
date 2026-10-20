@@ -131,7 +131,7 @@ export function useShadows(
         const { uuids, selected, chosen } = runs[i]
         const subset =
           spec.runs.length > 0 && uuids !== undefined && selected !== undefined
-            ? ` (${selected.size} of ${uuids.length} runs)`
+            ? ` · ${selected.size} of ${uuids.length} runs`
             : ''
         return {
           key: keys[i],
@@ -180,19 +180,24 @@ export function useShadows(
   return { shadows, pinReason, pin, dismiss, failures }
 }
 
+/** The samples of a shadow that has none for the metric compared. */
+const NO_SAMPLES: Sample[][] = []
+
 /** No noise knob enabled: the shadows' lines need no statuses. */
 const NO_NOISE: NoiseSettings = { pct: null, pval: null, floor: null }
 
-/** A shadow's line: its points, sorted by their ratios, and what names it. */
+/** A shadow's line: its points, sorted by their ratios, once they are known, and what names it. */
 export interface ShadowLine {
   label: string
-  points: Bar[]
+  points: Bar[] | undefined
 }
 
 /**
  * The shadows' lines, a shadow's at its position among them: the tests the chart plots,
  * `plotted`, compared between side A, whose suite is `schemaA`, and the shadow, sorted by their
- * own ratios. A shadow draws nothing unless side A's suite and its own both offer `metric`.
+ * own ratios. A line's points are unknown (undefined) until there is a comparison and all the
+ * shadow's samples have arrived. A shadow plots no test unless side A's suite and its own both
+ * offer `metric`.
  */
 export function useShadowLines(
   shadows: readonly ShadowState[],
@@ -203,13 +208,15 @@ export function useShadowLines(
   plotted: readonly ComparisonRow[],
 ): ShadowLine[] {
   const name = metric?.name
-  // The samples of the shadows that can draw, the same arrays for as long as they hold the same
-  // samples, so that their values are not computed again when only side A or B changes.
+  // The samples of the shadows, the same arrays for as long as they hold the same samples, so that
+  // their values are not computed again when only side A or B changes. A shadow whose suite does
+  // not offer the metric as side A's does has no value for it: once its samples have arrived, none
+  // of them count, and until then, its values are unknown, as any shadow's are.
   const runSamples = useSameElementsEach(
-    shadows.map((shadow) =>
-      offeredMetrics(schemaA, shadow.schema).some((entry) => entry.name === name)
-        ? shadow.runSamples
-        : undefined,
+    shadows.map(({ schema, runSamples: samples }) =>
+      offeredMetrics(schemaA, schema).some((entry) => entry.name === name)
+        ? samples
+        : samples && NO_SAMPLES,
     ),
   )
   const values = useMemo(
@@ -226,7 +233,7 @@ export function useShadowLines(
       values.map((ofShadow) =>
         tests && valuesA && ofShadow
           ? chartBars(compareRows(tests, valuesA, ofShadow, { biggerIsBetter, noise: NO_NOISE }))
-          : [],
+          : undefined,
       ),
     [values, tests, valuesA, biggerIsBetter],
   )
@@ -237,7 +244,7 @@ export function useShadowLines(
     const kept = new Set(plotted.map((row) => row.test))
     return labels.map((label, i) => ({
       label,
-      points: bars[i].filter((bar) => kept.has(bar.test)),
+      points: bars[i]?.filter((bar) => kept.has(bar.test)),
     }))
   }, [labels, bars, plotted])
 }

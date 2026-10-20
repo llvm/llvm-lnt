@@ -6,6 +6,8 @@ export interface Chip {
   /** What the chip shows, before its text: a machine's marker, say. */
   mark?: ReactNode
   text: string
+  /** What the chip shows after its text, set apart as secondary: a count, say. */
+  detail?: string
 }
 
 interface Props {
@@ -50,7 +52,15 @@ export function ChipList({ label, chips, removeLabel, onRemove, focusWhenEmpty }
       {chips.map((chip, i) => (
         <li key={chip.key} className={styles.chip}>
           {chip.mark}
-          {chip.text}
+          <span>
+            {chip.text}
+            {chip.detail !== undefined && (
+              <>
+                {' '}
+                <span className={styles.detail}>· {chip.detail}</span>
+              </>
+            )}
+          </span>
           <button
             type="button"
             className={styles.remove}
