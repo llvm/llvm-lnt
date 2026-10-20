@@ -271,9 +271,16 @@ class TestSuiteTest(object):
         if not isexecfile(opts.lit):
             self._fatal("LIT tool not found (looked for %s)" % opts.lit)
         if opts.submit_url is not None:
+            if opts.lnt is None:
+                # The `lnt` installed along with the Python running us, if
+                # any, so that a virtualenv works without being activated.
+                opts.lnt = os.path.join(os.path.dirname(sys.executable), 'lnt')
+                if not isexecfile(opts.lnt):
+                    opts.lnt = 'lnt'
             opts.lnt = resolve_command_path(opts.lnt)
             if not isexecfile(opts.lnt):
-                self._fatal("LNT tool not found (looked for %s)" % opts.lnt)
+                self._fatal("LNT tool not found (looked for %s); use "
+                            "--use-lnt to name it" % opts.lnt)
         if opts.run_under:
             split = shlex.split(opts.run_under)
             split[0] = resolve_command_path(split[0])
@@ -1484,8 +1491,9 @@ class TestSuiteTest(object):
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
 @click.option("--use-lnt", "lnt", metavar="PATH", type=click.UNPROCESSED,
-              default="lnt",
-              help="Path to the LNT command line tool [lnt]")
+              default=None,
+              help="Path to the LNT command line tool [the lnt installed "
+                   "along with this Python, or else lnt]")
 # Submission
 @click.option("--merge", default="replace", show_default=True,
               type=click.Choice(['reject', 'replace', 'append']),

@@ -15,7 +15,7 @@
 # RUN: rm -rf %t.SANDBOX %t.*.args*
 
 # The report the run wrote is submitted, with the default submission options,
-# and what `lnt submit` prints is shown.
+# and what `lnt submit` prints is shown, after what the run printed.
 # RUN: env FAKE_LNT_LOG=%t.default.args \
 # RUN:   %{runtest} --submit http://lnt.example.com/db_default/submitRun \
 # RUN:   > %t.default.out 2> %t.default.err
@@ -32,6 +32,7 @@
 # CHECK-DEFAULT-NEXT: replace
 # CHECK-DEFAULT-NOT:  --verbose
 #
+# CHECK-DEFAULT-OUT: CMAKE_C_COMPILER:FILEPATH={{.*}}
 # CHECK-DEFAULT-OUT: http://lnt.example.com/db_default/v4/nts/42
 
 # --verbose and the submission options are passed on to `lnt submit`, and so
@@ -72,4 +73,4 @@
 # RUN: filecheck --check-prefix CHECK-NO-LNT < %t.no-lnt.err %s
 # RUN: not test -e %t.SANDBOX
 #
-# CHECK-NO-LNT: error: LNT tool not found (looked for {{.*}}.no-lnt)
+# CHECK-NO-LNT: error: LNT tool not found (looked for {{.*}}.no-lnt); use --use-lnt to name it
