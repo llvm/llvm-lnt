@@ -21,11 +21,10 @@ import click
 
 from .compilers import get_cc_info, infer_cxx_compiler
 from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
+from .submit import submit
 from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
                    resolve_command_path, timestamp)
 import lnt.testing.profile
-import lnt.util.ImportData
-import lnt.util.ServerUtil
 
 # This is the list of architectures in
 # test-suite/cmake/modules/DetectArchitecture.cmake. If you update this list,
@@ -174,16 +173,13 @@ def _submit(report_path, opts):
     any, and print the server's answer."""
     if opts.submit_url is not None:
         logger.info("submitting result to %r" % (opts.submit_url,))
-        server_report = lnt.util.ServerUtil.submitFile(
-            opts.submit_url, report_path, opts.verbose,
-            select_machine=opts.select_machine, merge_run=opts.merge)
+        submit(opts.submit_url, report_path, opts.select_machine, opts.merge,
+               opts.verbose)
     else:
-        server_report = lnt.util.ImportData.no_submit()
-    if server_report:
-        lnt.util.ImportData.print_report_result(server_report, sys.stdout,
-                                                sys.stderr, opts.verbose)
-        if server_report.get('result_url') is not None:
-            print("Results available at:", server_report['result_url'])
+        # What a server accepting the report would print first, which scripts
+        # may look for.
+        print("Import succeeded.")
+        print()
 
 
 class TestSuiteTest(object):
@@ -202,6 +198,10 @@ class TestSuiteTest(object):
 
     def run_test(self):
         opts = self.opts
+
+        if opts.submit_url is not None and '://' not in opts.submit_url:
+            self._fatal("--submit must be the URL of an LNT server; to submit "
+                        "to a local instance, use 'lnt submit' on the report")
 
         # Validate build/exec mode options
         if opts.build and opts.exec_mode:
@@ -1445,9 +1445,8 @@ class TestSuiteTest(object):
               help="Whether to automatically derive the submission name")
 @click.option("--run-order", "run_order", metavar="STR",
               help="String to use to identify and order this run")
-@click.option("--submit", "submit_url", metavar="URLORPATH",
-              help="autosubmit the test result to the given server"
-                   " (or local instance)",
+@click.option("--submit", "submit_url", metavar="URL",
+              help="autosubmit the test result to the given server",
               type=click.UNPROCESSED, default=None)
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",

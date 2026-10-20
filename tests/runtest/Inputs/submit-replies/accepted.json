@@ -1,0 +1,29 @@
+{
+    "success": true,
+    "error": null,
+    "import_file": "/srv/lnt/data-1234.json",
+    "load_time": 0.01,
+    "import_time": 0.02,
+    "report_time": 0.03,
+    "total_time": 0.06,
+    "report_to_address": null,
+    "added_machines": 1,
+    "added_runs": 1,
+    "added_tests": 6,
+    "committed": true,
+    "run_id": 42,
+    "result_url": "http://lnt.example.com/db_default/v4/nts/42",
+    "test_results": [
+        {
+            "pset": [],
+            "results": [
+                ["nts.foo.exec", "UNCHANGED_PASS", "REGRESSED"],
+                ["nts.bar.exec", "UNCHANGED_PASS", null],
+                ["nts.baz.compile", "REGRESSED", null],
+                ["nts.qux.exec", "UNCHANGED_PASS", "IMPROVED"],
+                ["nts.quux.compile", "IMPROVED", null],
+                ["nts.corge.compile", "UNCHANGED_FAIL", null]
+            ]
+        }
+    ]
+}

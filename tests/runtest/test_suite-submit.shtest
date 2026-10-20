@@ -1,0 +1,84 @@
+# Check what `lnt runtest test-suite --submit` sends to an LNT server that
+# accepts the report, and what it prints of the server's answer.
+#
+# RUN: rm -rf %t.SANDBOX
+# RUN: python %S/Inputs/with-fake-lnt-server.py \
+# RUN:     --reply %S/Inputs/submit-replies/accepted.json \
+# RUN:     --requests %t.requests --posted %t.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ \
+# RUN:     > %t.out 2> %t.err
+# RUN: diff %t.posted %t.SANDBOX/build/report.json
+# RUN: filecheck --check-prefix CHECK-REQUEST < %t.requests %s
+# RUN: filecheck --check-prefix CHECK-OUT < %t.out %s
+# RUN: filecheck --check-prefix CHECK-ERR < %t.err %s
+#
+# The report is posted once, as a form, with the default submission options.
+# CHECK-REQUEST:     {"accept": "application/json", "form": {"commit": ["1"], "merge": ["replace"], "select_machine": ["match"]}, "path": "/db_default/submitRun"}
+# CHECK-REQUEST-NOT: {
+#
+# CHECK-ERR: submitting result to 'http://127.0.0.1:{{[0-9]+}}/db_default/submitRun'
+#
+# The server's answer is printed, with the test results in 'lit' format,
+# leaving out those that pass.
+# CHECK-OUT:      Importing 'data-1234.json'
+# CHECK-OUT-NEXT: Import succeeded.
+# CHECK-OUT:      --- Tested: 6 tests --
+# CHECK-OUT-NEXT: REGRESSED: nts.foo.exec (1 of 6)
+# CHECK-OUT-NEXT: ******************** TEST 'nts.foo.exec' ********************
+# CHECK-OUT-NEXT: Performance regressed.
+# CHECK-OUT-NEXT: ********************
+# CHECK-OUT-NEXT: FAIL: nts.baz.compile (3 of 6)
+# CHECK-OUT-NEXT: IMPROVED: nts.qux.exec (4 of 6)
+# CHECK-OUT-NEXT: ******************** TEST 'nts.qux.exec' ********************
+# CHECK-OUT-NEXT: Performance improved.
+# CHECK-OUT-NEXT: ********************
+# CHECK-OUT-NEXT: IMPROVED: nts.quux.compile (5 of 6)
+# CHECK-OUT-NEXT: ******************** TEST 'nts.quux.compile' ********************
+# CHECK-OUT-NEXT: Test started passing.
+# CHECK-OUT-NEXT: ********************
+# CHECK-OUT-NEXT: FAIL: nts.corge.compile (6 of 6)
+# CHECK-OUT-NEXT: Processing Times
+# CHECK-OUT:      Added Machines: 1
+# CHECK-OUT-NEXT: Added Runs    : 1
+# CHECK-OUT-NEXT: Added Tests   : 6
+# CHECK-OUT:      Results
+# CHECK-OUT-DAG:  REGRESSED : 1
+# CHECK-OUT-DAG:  PASS : 1
+# CHECK-OUT-DAG:  FAIL : 2
+# CHECK-OUT-DAG:  IMPROVED : 2
+# CHECK-OUT:      Results available at: http://lnt.example.com/db_default/v4/nts/42
+
+# With --verbose, the tests that pass are printed too, and the submission
+# options are sent as given.
+# RUN: python %S/Inputs/with-fake-lnt-server.py \
+# RUN:     --reply %S/Inputs/submit-replies/accepted.json \
+# RUN:     --requests %t.verbose.requests --posted %t.verbose.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ --verbose --merge append --select-machine split \
+# RUN:     > %t.verbose.out 2> %t.verbose.err
+# RUN: diff %t.verbose.posted %t.SANDBOX/build/report.json
+# RUN: filecheck --check-prefix CHECK-VERBOSE-REQUEST < %t.verbose.requests %s
+# RUN: filecheck --check-prefix CHECK-VERBOSE-OUT < %t.verbose.out %s
+#
+# CHECK-VERBOSE-REQUEST:     {"accept": "application/json", "form": {"commit": ["1"], "merge": ["append"], "select_machine": ["split"]}, "path": "/db_default/submitRun"}
+# CHECK-VERBOSE-REQUEST-NOT: {
+#
+# CHECK-VERBOSE-OUT: REGRESSED: nts.foo.exec (1 of 6)
+# CHECK-VERBOSE-OUT: PASS: nts.bar.exec (2 of 6)
+# CHECK-VERBOSE-OUT: FAIL: nts.baz.compile (3 of 6)
+# CHECK-VERBOSE-OUT: Results available at: http://lnt.example.com/db_default/v4/nts/42

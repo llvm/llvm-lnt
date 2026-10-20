@@ -1,0 +1,13 @@
+# Check that `--submit` only accepts the URL of an LNT server, and says so
+# before running anything.
+#
+# RUN: rm -rf %t.SANDBOX
+# RUN: not lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --submit %t.instance \
+# RUN:     2> %t.err
+# RUN: filecheck %s < %t.err
+# RUN: not test -e %t.SANDBOX
+#
+# CHECK: error: --submit must be the URL of an LNT server; to submit to a local instance, use 'lnt submit' on the report

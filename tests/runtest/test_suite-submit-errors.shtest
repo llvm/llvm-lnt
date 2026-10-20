@@ -1,0 +1,108 @@
+# Check what `lnt runtest test-suite --submit` prints when the submission
+# fails, and that it still exits successfully: the report stays in the build
+# directory, where `lnt submit` can submit it again.
+#
+# RUN: rm -rf %t.SANDBOX
+#
+# A server that rejects the report: its error and message are printed.
+# RUN: python %S/Inputs/with-fake-lnt-server.py \
+# RUN:     --status 400 --reply %S/Inputs/submit-replies/rejected.json \
+# RUN:     --requests %t.rejected.requests --posted %t.rejected.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ \
+# RUN:     > %t.rejected.out 2> %t.rejected.err
+# RUN: diff %t.rejected.posted %t.SANDBOX/build/report.json
+# RUN: filecheck --check-prefix CHECK-REJECTED-ERR < %t.rejected.err %s
+# RUN: filecheck --check-prefix CHECK-NO-RESULT < %t.rejected.out %s
+#
+# CHECK-REJECTED-ERR:      error: lnt server: import failure: boom
+# CHECK-REJECTED-ERR-NEXT: Some details
+#
+# CHECK-NO-RESULT-NOT: Import succeeded.
+# CHECK-NO-RESULT-NOT: Results available at:
+
+# So is an answer saying that the import failed.
+# RUN: python %S/Inputs/with-fake-lnt-server.py \
+# RUN:     --reply %S/Inputs/submit-replies/rejected.json \
+# RUN:     --requests %t.failed.requests --posted %t.failed.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ \
+# RUN:     > %t.failed.out 2> %t.failed.err
+# RUN: filecheck --check-prefix CHECK-FAILED-ERR < %t.failed.err %s
+# RUN: filecheck --check-prefix CHECK-NO-RESULT < %t.failed.out %s
+#
+# CHECK-FAILED-ERR:      Import Failed:
+# CHECK-FAILED-ERR-NEXT: import failure: boom
+# CHECK-FAILED-ERR-EMPTY:
+# CHECK-FAILED-ERR-NEXT: Some details
+
+# An error that is not JSON is printed as it is.
+# RUN: python %S/Inputs/with-fake-lnt-server.py \
+# RUN:     --status 500 --reply %S/Inputs/submit-replies/internal-error.txt \
+# RUN:     --requests %t.error.requests --posted %t.error.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ \
+# RUN:     > %t.error.out 2> %t.error.err
+# RUN: filecheck --check-prefix CHECK-ERROR-OUT < %t.error.out %s
+# RUN: filecheck --check-prefix CHECK-NO-RESULT < %t.error.out %s
+#
+# CHECK-ERROR-OUT: error: {{.*}}Internal Server Error
+
+# So is an answer that is not JSON, with why it was not understood.
+# RUN: python %S/Inputs/with-fake-lnt-server.py \
+# RUN:     --reply %S/Inputs/submit-replies/not-json.txt \
+# RUN:     --requests %t.not-json.requests --posted %t.not-json.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ \
+# RUN:     > %t.not-json.out 2> %t.not-json.err
+# RUN: filecheck --check-prefix CHECK-NOT-JSON-OUT < %t.not-json.out %s
+# RUN: filecheck --check-prefix CHECK-NO-RESULT < %t.not-json.out %s
+#
+# CHECK-NOT-JSON-OUT: Unable to load result, not a valid JSON object.
+# CHECK-NOT-JSON-OUT: error: {{.*}}<html>not json</html>
+
+# A server that cannot be reached is reported as such.
+# RUN: python %S/Inputs/with-fake-lnt-server.py --unreachable \
+# RUN:     --requests %t.unreachable.requests --posted %t.unreachable.posted -- \
+# RUN:   lnt runtest test-suite my-machine \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %S/Inputs/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --submit @URL@ \
+# RUN:     > %t.unreachable.out 2> %t.unreachable.err
+# RUN: filecheck --check-prefix CHECK-UNREACHABLE-ERR < %t.unreachable.err %s
+# RUN: filecheck --check-prefix CHECK-NO-RESULT < %t.unreachable.out %s
+#
+# CHECK-UNREACHABLE-ERR: error: could not resolve 'http://127.0.0.1:{{[0-9]+}}/db_default/submitRun'
