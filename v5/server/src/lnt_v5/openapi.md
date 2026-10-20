@@ -66,7 +66,7 @@ Check `code` in your code. `message` is meant for people and may change.
 | Code | Status | Meaning |
 |------|--------|---------|
 | `invalid_request` | 400 | The request is malformed or invalid. |
-| `invalid_cursor` | 400 | The `cursor` is malformed, comes from a request with other parameters, or is no longer accepted, for example because the suite's schema changed. Start over from the first page. |
+| `invalid_cursor` | 400 | The `cursor` is malformed, was issued for other filters, sort or path parameters, or is no longer accepted, for example because the suite's schema changed. Start over from the first page. |
 | `unauthorized` | 401 | The operation needs an API key and none was sent, or the key is malformed, unknown or revoked. |
 | `forbidden` | 403 | The API key doesn't have the required scope. |
 | `not_found` | 404 | The path doesn't exist, or something the request refers to doesn't exist. |

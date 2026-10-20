@@ -777,6 +777,7 @@ class TestListPagination:
         )
 
         assert elsewhere.status_code == 400
+        assert code_of(elsewhere) == "invalid_cursor"
 
     def test_refuses_a_cursor_once_the_suite_s_schema_changes(
         self, api_client: TestClient, manage: dict[str, str]

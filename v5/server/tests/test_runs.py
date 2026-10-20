@@ -1906,6 +1906,7 @@ class TestListPagination:
         response = api_client.get(f"{COMMITS}?limit=2&cursor={cursor}")
 
         assert response.status_code == 400
+        assert code_of(response) == "invalid_cursor"
 
     def test_refuses_a_cursor_issued_under_other_filters(self, api_client: TestClient) -> None:
         # infrastructure.md: the page would hold only runs the new filter matches, but would

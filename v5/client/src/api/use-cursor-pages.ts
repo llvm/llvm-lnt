@@ -139,9 +139,8 @@ export function useRestartOnRejectedCursor(query: Restartable, queryKey: QueryKe
 }
 
 /**
- * Whether `error` is the server rejecting a page's cursor with I2's `invalid_cursor`, which may only
- * mean that the server or the suite's schema changed since it was issued: the pages start again
- * from the first one. Any other error, even a 400, is not the cursor's fault.
+ * Whether `error` is the server rejecting a page's cursor with `invalid_cursor`, on which the pages
+ * start again from the first one (I2). Any other error, even a 400, is not the cursor's fault.
  */
 export function rejectsCursor(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'invalid_cursor'

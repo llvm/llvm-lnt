@@ -109,9 +109,30 @@ describe('useCursorPager', () => {
     expect(fetch.mock.calls.at(-1)).toEqual(['c1'])
   })
 
-  it('shows any other 400 from a later page rather than go back to the first one', async () => {
+  it('shows a cursor rejected again right after starting again, rather than start again', async () => {
     const { result, fetch } = renderPager(async (cursor) => {
-      if (cursor === 'c1') throw new ApiError(400, 'invalid_request', 'This commit has no ordinal')
+      if (cursor !== null) throw new ApiError(400, 'invalid_cursor', 'Invalid cursor')
+      return PAGES.first
+    })
+    await waitFor(() => expect(result.current.hasNext).toBe(true))
+
+    act(() => result.current.next())
+    await waitFor(() => expect(fetch.mock.calls).toEqual([[null], ['c1'], [null]]))
+    await waitFor(() => expect(result.current.hasNext).toBe(true))
+    expect(result.current.error).toBeNull()
+
+    act(() => result.current.next())
+    await waitFor(() => expect(result.current.error?.message).toBe('Invalid cursor'))
+    expect(result.current.page).toBeUndefined()
+    expect(fetch.mock.calls).toEqual([[null], ['c1'], [null], ['c1']])
+  })
+
+  it('shows any other 400 from a later page rather than go back to the first one', async () => {
+    let failing = true
+    const { result, fetch } = renderPager(async (cursor) => {
+      if (cursor === 'c1' && failing) {
+        throw new ApiError(400, 'invalid_request', 'This commit has no ordinal')
+      }
       return PAGES[cursor ?? 'first']
     })
     await waitFor(() => expect(result.current.hasNext).toBe(true))
@@ -121,6 +142,15 @@ describe('useCursorPager', () => {
     expect(result.current.page).toBeUndefined()
     expect(result.current.hasPrevious).toBe(true)
     expect(fetch.mock.calls).toEqual([[null], ['c1']])
+
+    failing = false
+    act(() => result.current.retry())
+    await waitFor(() => expect(result.current.page?.items).toEqual(['c', 'd']))
+    expect(fetch.mock.calls).toEqual([[null], ['c1'], ['c1']])
+
+    act(() => result.current.previous())
+    await waitFor(() => expect(result.current.page?.items).toEqual(['a', 'b']))
+    expect(fetch).toHaveBeenCalledTimes(3)
   })
 
   it('shows no page once one fails to load, nor while asking for it again', async () => {
