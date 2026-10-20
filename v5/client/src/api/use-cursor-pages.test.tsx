@@ -169,7 +169,7 @@ describe('useCursorPages', () => {
   })
 
   describe('while it starts again', () => {
-    it('says that it is loading, keeping its items, rather than why the cursor was rejected', async () => {
+    it('keeps its items, but not why the cursor was rejected', async () => {
       const { requested, release } = serveRestart('hold')
       renderWithProviders(<Samples />)
 
@@ -178,7 +178,7 @@ describe('useCursorPages', () => {
       expect(screen.queryByText('Invalid cursor')).not.toBeInTheDocument()
       expect(screen.getByText('a')).toBeInTheDocument()
       expect(screen.getByText('loading more')).toBeInTheDocument()
-      // Nor does it ask for the page after those it is fetching again.
+      // Nor does it ask for the page after those it is fetching again meanwhile.
       expect(requested).toEqual(['first', 'stale', 'first'])
 
       release()
@@ -274,7 +274,7 @@ describe('useCursorPages', () => {
       expect(requested).toEqual(['first', 'p2', 'p2', 'p3'])
     })
 
-    it('says that it is loading, rather than why, while the page that failed is fetched again', async () => {
+    it('keeps its items, but not why, while the page that failed is fetched again', async () => {
       const held = new Set<string>()
       const failing = new Set(['p2'])
       const { release } = servePages(held, failing)

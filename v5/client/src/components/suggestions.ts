@@ -40,7 +40,9 @@ export interface Suggestions {
   hasMore: boolean
   /**
    * Whether more suggestions are on their way: the next page, or the list fetched again after a
-   * failure, which can be while `hasMore` is false.
+   * failure, which can be while `hasMore` is false. The latter fetches the pages already loaded
+   * again, from the first, rather than more of them (after an invalidation, say), but shows as
+   * loading more, since what failed was.
    */
   isLoadingMore: boolean
   loadMore: () => void
@@ -176,7 +178,7 @@ export function useServerSuggestions<Item>({
   const { data, error, hasNextPage, isFetchingNextPage, isPlaceholderData, isPending } = query
   const { fetchNextPage, isError, isRefetching } = query
   useRestartOnRejectedCursor(query, fullKey)
-  // Loading more, as the list was when it failed.
+  // While fetched again after a failure, the list is loading more rather than failed (AR7).
   const recovering = isRecovering(query)
 
   const items = useMemo(
