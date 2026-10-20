@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { uuidOf } from '../../test/fixtures'
-import { errorResponse } from '../../test/mock-api'
+import { errorResponse, mockApi } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
 import { pick, pickOption } from '../../test/select'
+import { server } from '../../test/server'
 import { shadowLook } from './chart'
 import { barsOf, chart, COMPARED, comparison, mockWorld, runBox, sideOf } from './compare-world'
 
@@ -329,6 +330,60 @@ describe('the shadows (CP8)', () => {
     renderPage(`${COMPARED}${SHADOW}`)
 
     expect(await screen.findByText(/The samples of a run could not be loaded/)).toBeInTheDocument()
+    expect(screen.queryByText(/A shadow could not be loaded/)).toBeNull()
+  })
+
+  it('asks once for what shadows of the same commit share', async () => {
+    const warn = vi.spyOn(console, 'warn')
+    mockWorld({
+      runs: { ...WORLD.runs, 'm1/c1': ['1', '2'] },
+      samples: { ...WORLD.samples, '2': [['a', 2]] },
+    })
+    renderPage(`${SHADOWED}&shadow=libcxx/m1/c1/${uuidOf('2')}&shadow=libcxx/m1/c1`)
+
+    await waitFor(() => expect(lines()).toHaveLength(3))
+    expect(chips()).toEqual([
+      '●Shadow: libcxx/m1/c2',
+      '▲Shadow: libcxx/m1/c1 (1 of 2 runs)',
+      '■Shadow: libcxx/m1/c1',
+    ])
+    expect(warn).not.toHaveBeenCalledWith(expect.stringMatching(/Duplicate Queries/))
+    warn.mockRestore()
+  })
+
+  it('says when its commit could not be looked up, still drawing its line', async () => {
+    let failing = true
+    mockWorld(WORLD)
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        const ofShadow = params.get('machine') === 'm1' && params.get('commit') === 'c2'
+        if (failing && ofShadow) return errorResponse(500, 'internal_error', 'Boom') as never
+      }),
+    )
+    renderPage(SHADOWED)
+
+    expect(await screen.findByText(/A shadow could not be loaded: Boom/)).toBeInTheDocument()
+    await waitFor(() => expect(line()?.y).toEqual([-1, 1, 2]))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
+
+    failing = false
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(screen.queryByText(/A shadow could not be loaded/)).toBeNull())
+    expect(line()?.y).toEqual([-1, 1, 2])
+  })
+
+  it("reports a runs list side B shares with it once, as side B's", async () => {
+    mockWorld({
+      ...WORLD,
+      runsAnswer: (query) =>
+        query.get('machine') === 'm1' && query.get('commit') === 'c2'
+          ? errorResponse(500, 'internal_error', 'Boom')
+          : undefined,
+    })
+    renderPage(`${COMPARED}${SHADOW}`)
+
+    expect(await screen.findByText(/The runs could not be listed: Boom/)).toBeInTheDocument()
     expect(screen.queryByText(/A shadow could not be loaded/)).toBeNull()
   })
 

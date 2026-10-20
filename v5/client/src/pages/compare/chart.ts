@@ -58,7 +58,7 @@ const STATUS_COLORS: Record<Status, string> = {
  * least 3:1 against the page's background. Each shadow also has a marker of its own, since
  * colours alone cannot keep five lines apart for every reader.
  */
-export const SHADOW_COLORS = ['#7c3aed', '#ea580c', '#0369a1', '#86198f', '#312e81'] as const
+export const SHADOW_COLORS = ['#7c3aed', '#d97706', '#0369a1', '#86198f', '#312e81'] as const
 
 /** The colour and the marker of the `index`th shadow. */
 export function shadowLook(index: number) {

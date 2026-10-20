@@ -64,9 +64,11 @@ export function useCheckedCommits(
   commits: readonly CommitOfMachine[],
   suites: readonly SuiteSchema[] | undefined,
 ): Failures & { states: CheckedCommit[] } {
+  // Each commit checked once, however many entries name it, so that no query is asked for twice.
+  const { distinct, at } = useMemo(() => distinctCommits(commits), [commits])
   const schemas = useMemo(
-    () => commits.map((entry) => suites?.find((schema) => schema.name === entry.suite)),
-    [commits, suites],
+    () => distinct.map((entry) => suites?.find((schema) => schema.name === entry.suite)),
+    [distinct, suites],
   )
   const named = useMemo(
     () => [...new Set(schemas.flatMap((schema) => schema?.name ?? []))],
@@ -78,16 +80,16 @@ export function useCheckedCommits(
   })
   const machineKnown = useMemo(
     () =>
-      commits.map((entry, i) => {
+      distinct.map((entry, i) => {
         if (schemas[i] === undefined) return undefined
         const list = machineLists.data[named.indexOf(entry.suite)]
         return list?.some((machine) => machine.name === entry.machine)
       }),
-    [commits, schemas, named, machineLists.data],
+    [distinct, schemas, named, machineLists.data],
   )
 
   const lookups = useQueries({
-    queries: commits.map(({ suite, machine, commit }, i) => {
+    queries: distinct.map(({ suite, machine, commit }, i) => {
       const schema = schemas[i]
       return {
         queryKey: commitLookupKey(suite, { machine }, commit),
@@ -102,7 +104,8 @@ export function useCheckedCommits(
 
   const states = useMemo(
     () =>
-      commits.map((entry, i): CheckedCommit => {
+      commits.map((entry, k): CheckedCommit => {
+        const i = at[k]
         const lookup = lookups.data[i]
         return {
           schema: schemas[i],
@@ -115,11 +118,32 @@ export function useCheckedCommits(
             lookup === null,
         }
       }),
-    [commits, suites, schemas, machineKnown, lookups.data],
+    [commits, at, suites, schemas, machineKnown, lookups.data],
   )
   return {
     states,
     error: machineLists.error ?? lookups.error,
     retry: () => [machineLists, lookups].forEach((group) => group.retry()),
   }
+}
+
+/**
+ * The commits `commits` name, each once, in the order first named, and the position among them of
+ * the one each entry of `commits` names.
+ */
+export function distinctCommits<C extends CommitOfMachine>(
+  commits: readonly C[],
+): { distinct: C[]; at: number[] } {
+  const positions = new Map<string, number>()
+  const distinct: C[] = []
+  const at = commits.map((entry) => {
+    const key = formatCommitOfMachine(entry)
+    let position = positions.get(key)
+    if (position === undefined) {
+      position = distinct.push(entry) - 1
+      positions.set(key, position)
+    }
+    return position
+  })
+  return { distinct, at }
 }

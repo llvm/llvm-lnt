@@ -415,9 +415,9 @@ page or the table.
   the schema. A shadow's commit is looked up only once its suite's machines are
   listed and hold its machine (see CP8). A side whose URL names no runs can only
   ask for samples once its runs are listed, and a shadow only asks for its runs'
-  samples once they are listed. If a value turns out to be unusable, the page discards what
-  it fetched for that value and does not report its failures (see AR2
-  "State").
+  samples once they are listed. If a value turns out to be unusable, the page
+  discards what it fetched for that value and does not report its failures (see
+  AR2 "State").
 
 While the samples are loading, a progress indicator shows how many of the
 selected runs have loaded, in place of the comparison. The page never shows a
@@ -461,9 +461,10 @@ All selection state is encoded as query parameters for shareability:
 - `shadow`: the shadows (see CP8)
 
 `runs_a`, `runs_b`, `hidden_test`, `columns` and `shadow` repeat their
-parameter once per value (see AR2 "State"). `runs_a` and `runs_b` are left out when all of the
-side's runs are selected, which is the default. They are left out too when none
-is, since the URL cannot say so: loading such a URL selects every run.
+parameter once per value (see AR2 "State"). `runs_a` and `runs_b` are left out
+when all of the side's runs are selected, which is the default. They are left
+out too when none is, since the URL cannot say so: loading such a URL selects
+every run.
 
 A value the page cannot use is dropped (see AR2 "State"):
 - a suite or machine that does not exist, a commit the side's commit picker
@@ -549,10 +550,11 @@ at 0%, and one equal to the new side B lies on the bars.
 as a side's are (see CP6). Its commit is looked up as a commit given to a
 commit picker is (see AR15), once its suite's machines are listed and hold its
 machine. The main comparison never waits for the shadows. A shadow's line is
-drawn only once all its samples have loaded. If something a shadow needs cannot
-be fetched, its line is not drawn, and the page says that a shadow could not be
-loaded, offering to try again everything that failed (see AR7). A failure for a
-run that a side selects too is reported as the side's.
+drawn only once all its samples have loaded: if its runs or samples cannot be
+fetched, its line is not drawn. Whatever a shadow cannot fetch, the page says
+that a shadow could not be loaded, offering to try again everything that failed
+(see AR7). A failure of a runs list or a run that a side has too is reported as
+the side's.
 
 **URL encoding:** the URL holds each shadow as a `shadow` parameter (see CP7),
 in the order they were pinned: `{suite}/{machine}/{commit}`, followed by

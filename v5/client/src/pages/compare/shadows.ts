@@ -11,7 +11,11 @@ import type { Schemas } from '../../api/client'
 import type { Failures } from '../../api/failures'
 import { commitRunsQuery, runRefKey, uniqueRuns, useRunSamples } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
-import { useCheckedCommits } from '../../components/checked-commits'
+import {
+  distinctCommits,
+  formatCommitOfMachine,
+  useCheckedCommits,
+} from '../../components/checked-commits'
 import { sameElements, useSameElements, useSameElementsEach } from '../../same-elements'
 import type { Metric } from '../../schema'
 import { chartBars, type Bar } from './chart'
@@ -84,10 +88,13 @@ export function useShadows(
 ): Shadows {
   const keys = useMemo(() => specs.map(formatShadow), [specs])
   const checked = useCheckedCommits(specs, suites)
-  const lists = useQueries({
-    queries: specs.map(({ suite, machine, commit }) => commitRunsQuery(suite, machine, commit)),
+  // Each commit's runs listed once, however many shadows name it.
+  const { distinct, at } = useMemo(() => distinctCommits(specs), [specs])
+  const distinctLists = useQueries({
+    queries: distinct.map(({ suite, machine, commit }) => commitRunsQuery(suite, machine, commit)),
     combine: runLists,
   })
+  const lists = useMemo(() => at.map((i) => distinctLists[i]), [at, distinctLists])
 
   // Each shadow's runs, once listed, those it selects, and those by `runRefKey`, in their order.
   const runs = useMemo(
@@ -147,14 +154,20 @@ export function useShadows(
   const dismiss = (key: string) => update({ shadow: specs.filter((_, i) => keys[i] !== key) })
 
   // A runs list that fails for a machine that may not exist is not reported (AR2 "State"), and
-  // the failures of the runs the sides select are reported as theirs.
+  // the failures of the runs lists and runs the sides share are reported as theirs.
   const ofSides = sidesRuns(a, b)
-  const failedLists = lists.filter((list) => list.error !== null)
+  const sideLists = new Set([a, b].map((side) => formatCommitOfMachine(side.settings)))
+  const failedLists = distinctLists.filter((list) => list.error !== null)
   const failedRuns = [...wanted]
     .filter((key) => !ofSides.has(key))
     .map((key) => states.get(key))
     .filter(hasFailed)
-  const reported = lists.find((list, i) => list.error && checked.states[i].machineKnown)
+  const reported = lists.find(
+    (list, i) =>
+      list.error &&
+      checked.states[i].machineKnown &&
+      !sideLists.has(formatCommitOfMachine(specs[i])),
+  )
   const failures: Failures = {
     error: checked.error ?? reported?.error ?? failedRuns[0]?.error ?? null,
     retry: () => {
