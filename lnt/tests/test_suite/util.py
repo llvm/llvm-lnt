@@ -25,8 +25,9 @@ def fatal(message):
 
 
 def capture(args, include_stderr=False):
-    """capture(command) - Run the given command (or argv list) and return the
-    standard output, and with include_stderr the standard error too."""
+    """capture(command) - Run the given argv list and return its standard
+    output as text, with its standard error merged in if include_stderr is
+    set. Its exit status is ignored."""
     stderr = subprocess.STDOUT if include_stderr else subprocess.PIPE
     try:
         return subprocess.run(args, stdout=subprocess.PIPE, stderr=stderr,
