@@ -168,20 +168,6 @@ def _lit_json_to_csv(json_reports):
     return _lit_json_to_template(json_reports, template_engine)
 
 
-def _submit(report_path, opts):
-    """Submit the report at report_path to the server given by --submit, if
-    any, and print the server's answer."""
-    if opts.submit_url is not None:
-        logger.info("submitting result to %r" % (opts.submit_url,))
-        submit(opts.submit_url, report_path, opts.select_machine, opts.merge,
-               opts.verbose)
-    else:
-        # What a server accepting the report would print first, which scripts
-        # may look for.
-        print("Import succeeded.")
-        print()
-
-
 class TestSuiteTest(object):
     def __init__(self, opts):
         self.opts = opts
@@ -496,7 +482,10 @@ class TestSuiteTest(object):
         with open(csv_report_path, 'w') as fd:
             fd.write(str_template)
 
-        _submit(report_path, opts)
+        if opts.submit_url is not None:
+            logger.info("submitting result to %r" % (opts.submit_url,))
+            submit(opts.submit_url, report_path, opts.select_machine,
+                   opts.merge, opts.verbose)
 
     def _run_interleaved_builds(self, opts):
         """Run tests from multiple builds in an interleaved fashion."""
