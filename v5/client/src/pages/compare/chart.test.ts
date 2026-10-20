@@ -6,10 +6,12 @@ import {
   compareLayout,
   noiseBand,
   ratioTicks,
+  SHADOW_COLORS,
   shadowTrace,
   type Bar,
 } from './chart'
 import { statisticsOf, type ComparisonRow, type Status } from './comparison'
+import { MAX_SHADOWS } from './shadow-specs'
 
 /** A compared row of `test`, valued `a` and `b`, with the ratio and Delta % they give. */
 function row(test: string, a: number | null, b: number | null, status: Status = 'regressed') {
@@ -102,9 +104,10 @@ describe('chartExtent', () => {
     expect(chartExtent(bars, noiseBand(10))).toEqual([Math.log2(0.9), 1])
   })
 
-  it("spans the shadow's points too", () => {
+  it("spans every shadow's points too", () => {
     const bars = chartBars([row('a', 1, 2)])
-    expect(chartExtent(bars, null, chartBars([row('a', 1, 4), row('b', 2, 1)]))).toEqual([-1, 2])
+    const shadows = [chartBars([row('a', 1, 4)]), chartBars([row('b', 2, 1)])]
+    expect(chartExtent(bars, null, shadows)).toEqual([-1, 2])
   })
 })
 
@@ -134,10 +137,34 @@ describe('barTrace', () => {
 })
 
 describe('shadowTrace', () => {
-  it('draws a line through the points, with the tooltip of a bar labelled as the shadow', () => {
-    const trace = shadowTrace(chartBars([row('a', 1, 2), row('b', 2, 1)]))
+  const points = chartBars([row('a', 1, 2), row('b', 2, 1)])
+
+  it('draws a line through the points, with the tooltip of a bar naming the shadow', () => {
+    const trace = shadowTrace(points, 0, 'Shadow: s/m/c')
     expect(trace).toMatchObject({ type: 'scatter', mode: 'lines+markers', x: [0, 1], y: [-1, 1] })
-    expect(trace.hovertemplate).toMatch(/^<b>%\{customdata\[0\]\}<\/b> \(shadow\)<br>Ratio/)
+    expect(trace.hovertemplate).toMatch(
+      /^<b>%\{customdata\[0\]\}<\/b><br>%\{customdata\[5\]\}<br>Ratio/,
+    )
+    expect((trace.customdata as unknown as string[][])[0][5]).toBe('Shadow: s/m/c')
+  })
+
+  it('escapes the label, and keeps it out of the template', () => {
+    const trace = shadowTrace(points, 0, 'Shadow: s/<m&>/%{x}')
+    expect((trace.customdata as unknown as string[][])[1][5]).toBe('Shadow: s/&lt;m&amp;&gt;/%{x}')
+    expect(trace.hovertemplate).not.toContain('%{x}')
+  })
+
+  it('gives each of the shadows a colour and a marker of its own, apart from the statuses', () => {
+    const looks = SHADOW_COLORS.map((_, i) => {
+      const { marker, line } = shadowTrace(points, i, '')
+      expect(line?.color).toBe((marker as { color: string }).color)
+      return marker as { color: string; symbol: string }
+    })
+    expect(new Set(looks.map((look) => look.color)).size).toBe(MAX_SHADOWS)
+    expect(new Set(looks.map((look) => look.symbol)).size).toBe(MAX_SHADOWS)
+    const everyStatus = [row('i', 2, 1, 'improved'), row('r', 1, 2), row('n', 1, 1, 'noise')]
+    const statuses = (barTrace(chartBars(everyStatus)).marker as { color: string[] }).color
+    expect(looks.some((look) => statuses.includes(look.color))).toBe(false)
   })
 })
 

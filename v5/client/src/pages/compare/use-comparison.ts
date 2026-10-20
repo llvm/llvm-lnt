@@ -26,19 +26,26 @@ type Sample = Schemas['Sample']
 const NO_ROWS: ComparisonRow[] = []
 
 /**
- * The samples of each of the runs `side` has selected, in the order they were measured, once they
- * have all arrived. With no run selected, there is nothing to compare, rather than nothing compared.
+ * The samples of each of the runs `chosen` names (by `runRefKey`), in its order, as `states` has
+ * them, once they have all arrived. With no run chosen, there is nothing to compare, rather than
+ * nothing compared.
  */
+export function samplesOfRuns(
+  chosen: readonly string[],
+  states: ReadonlyMap<string, SampleState>,
+): Sample[][] | undefined {
+  if (chosen.length === 0) return undefined
+  const samples = chosen.map((key) => states.get(key)?.samples)
+  return samples.every((entry) => entry !== undefined) ? samples : undefined
+}
+
+/** The samples of each of the runs `side` has selected, in the order they were measured. */
 function useRunSamplesOf(
   side: Side,
   states: ReadonlyMap<string, SampleState>,
 ): Sample[][] | undefined {
   const chosen = chosenRuns(side)
-  return useMemo(() => {
-    if (chosen.length === 0) return undefined
-    const samples = chosen.map((key) => states.get(key)?.samples)
-    return samples.every((entry) => entry !== undefined) ? samples : undefined
-  }, [chosen, states])
+  return useMemo(() => samplesOfRuns(chosen, states), [chosen, states])
 }
 
 /**
@@ -47,7 +54,7 @@ function useRunSamplesOf(
  * for as long as the side's runs' are, so that they are not combined again when only another
  * side's change.
  */
-export function useSideComparison(
+function useSideComparison(
   side: Side,
   states: ReadonlyMap<string, SampleState>,
   metric: string | undefined,
@@ -70,7 +77,7 @@ export interface Comparison {
   tests: ComparedTest[] | undefined
   /** Their rows, or none until then. */
   rows: ComparisonRow[]
-  /** Side A's value of each test, which the shadow is compared with too (CP8). */
+  /** Side A's value of each test, which the shadows are compared with too (CP8). */
   valuesA: ReadonlyMap<string, number> | undefined
   biggerIsBetter: boolean
 }

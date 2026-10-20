@@ -19,3 +19,14 @@ export function failuresOf(results: readonly Fetched[]): Failures {
     retry: () => failed.forEach((result) => void result.refetch()),
   }
 }
+
+/**
+ * The data of several queries shown together, and their failures: a `combine` for `useQueries`.
+ * Run again only when a result changes, so that the data is the same array from one render to the
+ * next until then.
+ */
+export function combineResults<Data>(
+  results: { data?: Data; error: Error | null; refetch: () => unknown }[],
+) {
+  return { data: results.map((result) => result.data), ...failuresOf(results) }
+}

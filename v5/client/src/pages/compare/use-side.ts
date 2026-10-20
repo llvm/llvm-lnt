@@ -1,7 +1,6 @@
 /**
  * The sides of the Compare page (CP1): each one's suite, machine, commit and runs, as the URL names
- * them, checked against what the API holds, and the selection among the runs. The shadow (CP8) is
- * read like a side.
+ * them, checked against what the API holds, and the selection among the runs.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -22,7 +21,6 @@ import { useSuiteAndMachine } from '../../components/side-selection'
 import { NO_RUNS_SELECTED, runsParam, selectedRuns } from './run-selection'
 import {
   CLEARED_WITH,
-  NO_SHADOW,
   sideChanges,
   sideSettings,
   type Settings,
@@ -67,29 +65,22 @@ export interface Side {
 }
 
 const NO_RUNS: string[] = []
-const NO_CHANGES: Partial<Settings> = {}
 
 /**
  * The side `id`, with the settings `all` gives it: the page's, which `update` changes. `suites`
- * lists the suites of the instance. The user's changes to the side also make the changes
- * `dismisses`: side A's dismiss the shadow (CP8).
+ * lists the suites of the instance.
  */
 export function useSide(
   id: SideId,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
-  dismisses: Partial<Settings> = NO_CHANGES,
 ): Side {
   const settings = sideSettings(all, id)
   const { suite, machine, commit } = settings
-  // What the user changes, from the side's panel or its runs.
+  // What the user changes, from the side's panel or its runs, and what the page drops, as unusable
+  // (AR2 "State").
   const updateSide = useCallback(
-    (changes: Partial<SideSettings>) => update({ ...sideChanges(id, changes), ...dismisses }),
-    [id, update, dismisses],
-  )
-  // What the page drops, as unusable (AR2 "State").
-  const drop = useCallback(
     (changes: Partial<SideSettings>) => update(sideChanges(id, changes)),
     [id, update],
   )
@@ -98,8 +89,8 @@ export function useSide(
     suite,
     machine,
     suites,
-    onUnusableSuite: () => drop({ suite: '', ...CLEARED_WITH.suite }),
-    onUnusableMachine: () => drop({ machine: '', ...CLEARED_WITH.machine }),
+    onUnusableSuite: () => updateSide({ suite: '', ...CLEARED_WITH.suite }),
+    onUnusableMachine: () => updateSide({ machine: '', ...CLEARED_WITH.machine }),
   })
 
   // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
@@ -128,11 +119,12 @@ export function useSide(
   // The URL's runs that are not listed are dropped, and so is what the side names without what it
   // depends on, as clearing that does (AR2 "State", CP1).
   useEffect(() => {
-    if (uuids !== undefined && selected !== undefined) drop({ runs: runsParam(uuids, selected) })
-    else if (suite === '') drop(CLEARED_WITH.suite)
-    else if (machine === '') drop(CLEARED_WITH.machine)
-    else if (commit === '') drop(CLEARED_WITH.commit)
-  }, [suite, machine, commit, selected, uuids, drop])
+    if (uuids !== undefined && selected !== undefined)
+      updateSide({ runs: runsParam(uuids, selected) })
+    else if (suite === '') updateSide(CLEARED_WITH.suite)
+    else if (machine === '') updateSide(CLEARED_WITH.machine)
+    else if (commit === '') updateSide(CLEARED_WITH.commit)
+  }, [suite, machine, commit, selected, uuids, updateSide])
 
   // The runs whose samples the side needs.
   const asked = named ? (uuids ?? settings.runs) : NO_RUNS
@@ -183,7 +175,7 @@ export function useSides(
   update: (changes: Partial<Settings>) => void,
   suites: UseQueryResult<SuiteSchema[]>,
 ): Sides {
-  const a = useSide('a', all, update, suites, NO_SHADOW)
+  const a = useSide('a', all, update, suites)
   const b = useSide('b', all, update, suites)
   const [swapped, setSwapped] = useState(false)
 
@@ -191,9 +183,9 @@ export function useSides(
   const wanted = useMemo(() => new Set([...a.wanted, ...b.wanted]), [a.wanted, b.wanted])
   const states = useRunSamples(refs, wanted)
 
-  // Swapping the sides dismisses the shadow (CP8).
+  // The shadows are kept (CP8).
   const swap = () => {
-    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings), ...NO_SHADOW })
+    update({ ...sideChanges('a', b.settings), ...sideChanges('b', a.settings) })
     a.setNoRunsOf(b.noRunsOf)
     b.setNoRunsOf(a.noRunsOf)
     setSwapped(!swapped)

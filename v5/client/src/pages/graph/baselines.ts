@@ -6,35 +6,30 @@
 import { useMemo } from 'react'
 import { skipToken, useQueries, type QueryClient } from '@tanstack/react-query'
 import { api, MAX_PAGE_SIZE, unwrap } from '../../api/client'
-import { failuresOf, type Failures } from '../../api/failures'
+import { combineResults, type Failures } from '../../api/failures'
 import { fetchEveryPage } from '../../api/fetch-every-page'
 import { forgetEverySuiteLater, queryKeys } from '../../api/keys'
-import { machinesQuery } from '../../api/machines'
 import { measurementOf, type Measurement } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
-import { commitLookupKey, commitLookupQuery } from '../../components/commit-lookup'
+import {
+  formatCommitOfMachine,
+  parseCommitOfMachine,
+  useCheckedCommits,
+  type CommitOfMachine,
+} from '../../components/checked-commits'
 import { isNumeric, type Metric } from '../../schema'
 import { listParam, type Param } from '../../url-state'
 
 /** A baseline: a commit of a machine, in a suite which may be another than the one plotted. */
-export interface Baseline {
-  suite: string
-  machine: string
-  commit: string
-}
+export type Baseline = CommitOfMachine
 
 /** The baseline `text` names, as the URL spells it, or null if it is malformed (GR9). */
 export function parseBaseline(text: string): Baseline | null {
-  const parts = text.split('/')
-  if (parts.length !== 3 || parts.some((part) => part === '')) return null
-  const [suite, machine, commit] = parts
-  return { suite, machine, commit }
+  return parseCommitOfMachine(text.split('/'))
 }
 
-/** `baseline`, as the URL spells it: none of its names can contain a `/` (GR9). */
-export function formatBaseline({ suite, machine, commit }: Baseline): string {
-  return `${suite}/${machine}/${commit}`
-}
+/** `baseline`, as the URL spells it (GR9). */
+export const formatBaseline = formatCommitOfMachine
 
 /** The baselines, repeated once per baseline (GR14), each once; malformed ones are dropped. */
 export function baselineParam(): Param<string[]> {
@@ -104,23 +99,11 @@ async function fetchSamples(
 }
 
 /**
- * The data of several queries shown together, and their failures. Run again only when a result
- * changes, so that the data is the same array from one render to the next until then.
- */
-function combine<Data>(results: { data?: Data; error: Error | null; refetch: () => unknown }[]) {
-  return { data: results.map((result) => result.data), ...failuresOf(results) }
-}
-
-/**
  * What is known of `baselines` (GR9), given the suites, once they are listed, and the metric
  * plotted: whether each is usable, its commit's display value, and its samples. The states are
  * the same array from one render to the next until one of them changes.
  *
- * A baseline is checked as a commit given to a commit picker is (AR15): its suite must be listed,
- * its machine among the suite's, and the machine must have runs at its commit, which the lookup of
- * the commit among the machine's says. The machine is checked first, since the lookup refuses a
- * machine that does not exist, and a request that fails shows nothing (AR2 "State").
- *
+ * A baseline is checked as a commit given to a commit picker is (AR15; see `useCheckedCommits`).
  * Its samples are fetched once it is known to be usable, and kept for as long as the page is open
  * (GR8; see `forgetBaselines`).
  */
@@ -129,55 +112,18 @@ export function useBaselines(
   suites: readonly SuiteSchema[] | undefined,
   metric: Metric | undefined,
 ): Baselines {
-  const schemas = useMemo(
-    () => baselines.map((baseline) => suites?.find((schema) => schema.name === baseline.suite)),
-    [baselines, suites],
-  )
-  const named = useMemo(
-    () => [...new Set(schemas.flatMap((schema) => schema?.name ?? []))],
-    [schemas],
-  )
-  const machineLists = useQueries({
-    queries: named.map((suite) => ({ ...machinesQuery(suite), staleTime: Infinity })),
-    combine,
-  })
-  // Whether each baseline's machine is among its suite's, once they are listed.
-  const machineKnown = useMemo(
-    () =>
-      baselines.map((baseline, i) => {
-        if (schemas[i] === undefined) return undefined
-        const list = machineLists.data[named.indexOf(baseline.suite)]
-        return list?.some((entry) => entry.name === baseline.machine)
-      }),
-    [baselines, schemas, named, machineLists.data],
-  )
-
-  const lookups = useQueries({
-    queries: baselines.map(({ suite, machine, commit }, i) => {
-      const schema = schemas[i]
-      return {
-        queryKey: commitLookupKey(suite, { machine }, commit),
-        queryFn:
-          schema && machineKnown[i]
-            ? commitLookupQuery(schema, { machine }, commit).queryFn
-            : skipToken,
-      }
-    }),
-    combine,
-  })
+  const checked = useCheckedCommits(baselines, suites)
 
   const drawable = useMemo(
     () =>
-      baselines.map((_, i) => {
-        const schema = schemas[i]
-        return (
+      checked.states.map(
+        ({ schema, found }) =>
           metric !== undefined &&
           schema !== undefined &&
-          lookups.data[i] != null &&
-          declares(schema, metric)
-        )
-      }),
-    [baselines, schemas, metric, lookups.data],
+          found === true &&
+          declares(schema, metric),
+      ),
+    [checked.states, metric],
   )
   const samples = useQueries({
     queries: baselines.map((baseline, i) => {
@@ -192,7 +138,7 @@ export function useBaselines(
         gcTime: Infinity,
       }
     }),
-    combine,
+    combine: combineResults,
   })
 
   const states = useMemo(
@@ -200,20 +146,17 @@ export function useBaselines(
       baselines.map(
         (baseline, i): BaselineState => ({
           baseline,
-          display: lookups.data[i]?.text ?? baseline.commit,
-          unusable:
-            (suites !== undefined && schemas[i] === undefined) ||
-            machineKnown[i] === false ||
-            lookups.data[i] === null,
+          display: checked.states[i].display,
+          unusable: checked.states[i].unusable,
           samples: drawable[i] ? samples.data[i] : undefined,
         }),
       ),
-    [baselines, suites, schemas, machineKnown, lookups.data, drawable, samples.data],
+    [baselines, checked.states, drawable, samples.data],
   )
   return {
     states,
-    error: machineLists.error ?? lookups.error ?? samples.error,
-    retry: () => [machineLists, lookups, samples].forEach((group) => group.retry()),
+    error: checked.error ?? samples.error,
+    retry: () => [checked, samples].forEach((group) => group.retry()),
   }
 }
 
