@@ -19,6 +19,11 @@
   background: var(--lnt-bg);
 }
 
+.detail {
+  color: var(--lnt-muted);
+  white-space: nowrap;
+}
+
 .remove {
   padding: 0 0.35rem;
   border: none;

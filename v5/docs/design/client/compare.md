@@ -28,8 +28,8 @@ Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [media
 > Add to regression
 
 <progress and errors>
-[● Shadow: libcxx/linux-x86_64/0f69d2804b9b  x]
-[▲ Shadow: libcxx/linux-x86_64/014621ede7c1 (1 of 2 runs)  x]
+[● Shadow: libcxx/linux-x86_64/0f69d2804b9b · 298 tests  x]
+[▲ Shadow: libcxx/linux-x86_64/014621ede7c1 (llvmorg-21.1.0) · 1 of 2 runs · 301 tests  x]
 <chart>
 
 o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o Zero baseline 1
@@ -319,7 +319,9 @@ falls inside the band has `|Delta %| < threshold`.
 
 A bar chart of the compared rows (see CP2), sorted by ratio. Rows that cannot be
 plotted are left out (see Computation Reference).
-- **X-axis**: tests, sorted by ratio, ascending
+- **X-axis**: tests, sorted by ratio, ascending. Its title counts the bars, as
+  in "301 tests, by ratio", except in the empty state (see below), where it is
+  "Tests, by ratio"
 - **Y-axis**: `log2(Ratio)` -- see Computation Reference. Tick labels show the
   equivalent percentage change at "nice" values (+/-1%, +/-5%, +/-10%,
   +/-50%, +/-100%, etc.), adapted to the range shown, so that zooming into a
@@ -502,15 +504,20 @@ is pinned already, and once 5 shadows are pinned: beyond that, the chart is
 unreadable. A shadow just pinned gives the focus to its chip's dismiss button.
 
 **Chips.** Each shadow has a chip above the chart, in the order they were
-pinned: "Shadow: {suite}/{machine}/{commit}", where `{commit}` is the commit's
-display value (see AR6), or the commit string until it is known, followed by
-" ({k} of {n} runs)" when the shadow selects only some of its commit's runs,
-once they are listed. The chip shows the shadow's color and marker (see
-"Rendering"), and has a dismiss (×) button. Dismissing a shadow gives the focus
-to the dismiss button of the chip after it, or else before it, or to the pin
-button once none is left; while there is no comparison, and so no pin button,
-it goes back to the page. Chips are shown whether or not there is a comparison,
-so that shadows can always be dismissed.
+pinned. It names the shadow as "Shadow: {suite}/{machine}/{commit}", where
+`{commit}` is the commit's display value (see AR6), or the commit string until
+it is known, followed by " · {k} of {n} runs" when the shadow selects only some
+of its commit's runs, once they are listed. While there is a comparison and all
+the shadow's samples have loaded, the name is followed by " · {N} tests" in
+muted text, where N is the number of tests its line plots (see "Rendering"),
+even 0. The tests of a line may differ from the bars' (the shadow's commit may
+lack some of them), and the count, with the X-axis title's (see CP3), lets the
+user see so. The chip shows the shadow's color and marker (see "Rendering"),
+and has a dismiss (×) button. Dismissing a shadow gives the focus to the
+dismiss button of the chip after it, or else before it, or to the pin button
+once none is left; while there is no comparison, and so no pin button, it goes
+back to the page. Chips are shown whether or not there is a comparison, so that
+shadows can always be dismissed.
 
 **Rendering:**
 - Each shadow's comparison is computed the same way as the main one, between
@@ -529,11 +536,12 @@ so that shadows can always be dismissed.
   lines apart for every reader, which the markers do. The chart has no legend:
   the chips serve as one.
 - Hovering a point of a line shows the same information as a main bar, with a
-  line naming its shadow as its chip does. Table-to-chart hover highlighting
-  targets the main bars only, and hovering a point of a line highlights no row.
+  line naming its shadow as its chip does, without its test count.
+  Table-to-chart hover highlighting targets the main bars only, and hovering a
+  point of a line highlights no row.
 - If side A's suite and a shadow's suite don't both offer the selected metric,
-  under CP1's rule for comparing a metric across suites, that shadow draws
-  nothing.
+  under CP1's rule for comparing a metric across suites, that shadow plots no
+  test, and draws nothing.
 
 **Scope:** chart only -- no table columns, no summary bar counts. Add to
 Regression (see CP9) operates on the main comparison only.

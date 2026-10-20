@@ -83,7 +83,7 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
   const lines = useMemo(
     () =>
       shadows.flatMap(({ points, label }, i) =>
-        points.length === 0 ? [] : [shadowTrace(points, i, `Shadow: ${label}`)],
+        points?.length ? [shadowTrace(points, i, `Shadow: ${label}`)] : [],
       ),
     [shadows],
   )
@@ -105,15 +105,16 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
       chartExtent(
         bars,
         band,
-        shadows.map((line) => line.points),
+        shadows.map((line) => line.points ?? []),
       ),
     [bars, band, shadows],
   )
   const [low, high] = (zoomedOn === revision ? zoom : null) ?? extent
   const empty = bars.length === 0 && lines.length === 0
   const layout = useMemo(
-    () => compareLayout({ ticks: ratioTicks(low, high), band, revision, empty }),
-    [low, high, band, revision, empty],
+    () =>
+      compareLayout({ ticks: ratioTicks(low, high), band, revision, bars: bars.length, empty }),
+    [low, high, band, revision, bars.length, empty],
   )
 
   // Where the plot draws, to outline a bar over it. Nothing drawn depends on it, so that a draw

@@ -1,12 +1,15 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { ChipList } from '../../components/chip-list'
 import { ErrorMessage } from '../../components/feedback'
+import { plural } from '../../format'
 import { shadowLook } from './chart'
-import type { Shadows } from './shadows'
+import type { ShadowLine, Shadows } from './shadows'
 import styles from './compare.module.css'
 
 interface Props {
   shadows: Shadows
+  /** The shadows' lines, a shadow's at its position among them, whose tests the chips count. */
+  lines: readonly ShadowLine[]
   /**
    * The button pinning a shadow, which takes the focus once the last shadow is dismissed. While
    * there is no comparison, there is no such button, and the focus goes back to the page.
@@ -15,11 +18,15 @@ interface Props {
 }
 
 /**
- * What could not be loaded of the shadows (CP8), and their chips, which name them, show their
- * colours and markers, and dismiss them. A shadow just pinned gives the focus to its chip's button,
+ * What could not be loaded of the shadows (CP8), and their chips, which name them, count the tests
+ * their lines plot, once they can, show their colours and markers, and dismiss them. A shadow just pinned gives the focus to its chip's button,
  * since side B, as it is, can no longer be pinned.
  */
-export function ShadowStatus({ shadows: { shadows, failures, dismiss }, pinButton }: Props) {
+export function ShadowStatus({
+  shadows: { shadows, failures, dismiss },
+  lines,
+  pinButton,
+}: Props) {
   const chipArea = useRef<HTMLDivElement>(null)
   // How many shadows there were as of the last render. Only pinning adds one: the shadows the page
   // starts with, from the URL, take no focus.
@@ -46,6 +53,7 @@ export function ShadowStatus({ shadows: { shadows, failures, dismiss }, pinButto
           label="Shadows"
           chips={shadows.map(({ key, label }, i) => {
             const { color, marker } = shadowLook(i)
+            const { points } = lines[i]
             return {
               key,
               mark: (
@@ -54,6 +62,7 @@ export function ShadowStatus({ shadows: { shadows, failures, dismiss }, pinButto
                 </span>
               ),
               text: `Shadow: ${label}`,
+              detail: points && plural(points.length, 'test'),
             }
           })}
           removeLabel={(chip) => `Dismiss the shadow ${labels.get(chip.key)}`}

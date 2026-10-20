@@ -172,7 +172,7 @@ function ComparePage() {
           onRetry={() => failed.forEach((state) => state.retry())}
         />
       )}
-      <ShadowStatus shadows={shadows} pinButton={pinButton} />
+      <ShadowStatus shadows={shadows} lines={lines} pinButton={pinButton} />
       {profiles.failure.error !== null && (
         <ErrorMessage
           context="The profiles could not be listed"

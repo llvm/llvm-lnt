@@ -172,9 +172,18 @@ describe('compareLayout', () => {
   it('draws the noise band, and says when there is nothing to plot', () => {
     const ticks = ratioTicks(-1, 1)
     const band = noiseBand(5)
-    const layout = compareLayout({ ticks, band, revision: 'r', empty: true })
+    const layout = compareLayout({ ticks, band, revision: 'r', bars: 0, empty: true })
     expect(layout.shapes?.map((shape) => shape.y0)).toEqual([band.upper, band.lower])
     expect(layout.annotations?.[0].text).toBe('No data to plot')
+    expect(layout.xaxis?.title).toEqual({ text: 'Tests, by ratio' })
     expect(layout.uirevision).toBe('r')
+  })
+
+  it('counts the bars in the x-axis title', () => {
+    const options = { ticks: ratioTicks(-1, 1), band: null, revision: 'r', empty: false }
+    expect(compareLayout({ ...options, bars: 1 }).xaxis?.title).toEqual({ text: '1 test, by ratio' })
+    expect(compareLayout({ ...options, bars: 0 }).xaxis?.title).toEqual({
+      text: '0 tests, by ratio',
+    })
   })
 })

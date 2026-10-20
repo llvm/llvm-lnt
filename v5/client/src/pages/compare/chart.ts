@@ -7,7 +7,7 @@
 import type { Layout, PlotData, Shape } from 'plotly.js'
 import { markerOf } from '../../chart-markers'
 import { noDataAnnotations } from '../../components/plot-annotations'
-import { compareStrings, escapeHtml, formatNumber } from '../../format'
+import { compareStrings, escapeHtml, formatNumber, plural } from '../../format'
 import { formatDeltaPct, formatRatio } from './columns'
 import type { ComparisonRow, Status } from './comparison'
 
@@ -215,6 +215,8 @@ interface LayoutOptions {
   band: { upper: number; lower: number } | null
   /** What the comparison is: a new value resets what the user did to the chart (CP3 "Zoom"). */
   revision: string
+  /** How many bars the chart draws, which the x-axis title counts (CP3). */
+  bars: number
   /** Whether to say that there is nothing to plot (CP3 "Empty state"). */
   empty: boolean
 }
@@ -235,14 +237,21 @@ function bandLine(y: number): Partial<Shape> {
 }
 
 /**
- * The chart's layout: no labels on the x-axis, whose bars are tests, and the y-axis labelled with
- * percentage changes at the positions of `ticks`. A zoom is kept until `revision` changes, and the
- * y-axis otherwise fits what is plotted (CP3).
+ * The chart's layout: no labels on the x-axis, whose bars are tests, but a title counting them, and
+ * the y-axis labelled with percentage changes at the positions of `ticks`. A zoom is kept until
+ * `revision` changes, and the y-axis otherwise fits what is plotted (CP3).
  */
-export function compareLayout({ ticks, band, revision, empty }: LayoutOptions): Partial<Layout> {
+export function compareLayout({
+  ticks,
+  band,
+  revision,
+  bars,
+  empty,
+}: LayoutOptions): Partial<Layout> {
+  const title = empty ? 'Tests, by ratio' : `${plural(bars, 'test')}, by ratio`
   return {
     margin: { t: 10, r: 20, b: 40, l: 70 },
-    xaxis: { showticklabels: false, zeroline: false, title: { text: 'Tests, by ratio' } },
+    xaxis: { showticklabels: false, zeroline: false, title: { text: title } },
     yaxis: { ...ticks, tickmode: 'array', zeroline: true, automargin: true },
     bargap: BAR_GAP,
     shapes: band === null ? [] : [bandLine(band.upper), bandLine(band.lower)],
