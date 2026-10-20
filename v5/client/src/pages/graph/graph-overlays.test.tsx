@@ -9,6 +9,7 @@ import type { PlotGeometry } from '../../components/chart'
 import { formatTimestamp, shortUuid } from '../../format'
 import { signIn } from '../../test/auth'
 import { cursorPage, metric, regression, regressionDetail, uuidOf } from '../../test/fixtures'
+import { hoverText } from '../../test/hover-text'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -650,9 +651,9 @@ describe('the regression annotations (GR15)', () => {
     const [active, fixed] = markers()
     expect(active.x).toEqual(['c20'])
     expect(active.marker.color).toBe('#dc2626')
-    expect(active.hovertemplate).toContain('<b>a slowed down</b><br>Affects:<br>a<br>')
+    expect(hoverText(active, 0)).toContain('<b>a slowed down</b><br>Affects:<br>a<br>')
     expect(fixed.marker.color).toBe('#6b7280')
-    expect(fixed.hovertemplate).toContain('<b>(untitled)</b>')
+    expect(hoverText(fixed, 0)).toContain('<b>(untitled)</b>')
     expect((fixed.y as number[])[0]).toBeLessThan((active.y as number[])[0])
     // The lines, at the commits on the x-axis only.
     expect(layout().shapes?.map((shape) => [shape.x0, shape.line?.color])).toEqual([
@@ -746,7 +747,7 @@ describe('the regression annotations (GR15)', () => {
     // Deselecting b drops its regression at once, and keeps a's while the lookup is answered.
     fireEvent.click(testTable().getByRole('checkbox', { name: 'b' }))
     await waitFor(() => expect(markers()).toHaveLength(1))
-    expect(markers()[0].hovertemplate).toContain('a slowed down')
+    expect(hoverText(markers()[0], 0)).toContain('a slowed down')
     act(() => held.open())
   })
 
@@ -959,7 +960,7 @@ describe('the baselines (GR9)', () => {
     expect(a.x).toHaveLength(101)
     expect(a.line.dash).toBe('dash')
     expect(a.line.color).toBe(line.line.color)
-    expect(a.hovertemplate).toContain('Suite: libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
+    expect(hoverText(a, 0)).toContain('Suite: libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
     // Every test's data at the commit, in no order, which leaves in commits without an ordinal.
     expect(recorded.queries.find(({ body }) => body.commit)?.body).toEqual({
       metric: 'execution_time',

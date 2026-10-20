@@ -2,6 +2,7 @@ import type { PlotData } from 'plotly.js'
 import { describe, expect, it } from 'vitest'
 import { markerOf } from '../../chart-markers'
 import { metric } from '../../test/fixtures'
+import { hoverText } from '../../test/hover-text'
 import {
   baselineTraces,
   graphLayout,
@@ -81,13 +82,21 @@ describe('plotlyTraces', () => {
   it("tells in its tooltip the commit's display value, the value as shown, and the runs", () => {
     const [drawn] = plotlyTraces([trace], display, metric('execution_time')) as PlotData[]
 
-    expect(drawn.customdata).toEqual([
-      ['&lt;c1&gt;', '1.235', '1 run'],
-      ['&lt;c2&gt;', '2', '3 runs'],
-    ])
-    expect(drawn.hovertemplate).toContain('<b>BM_vector&lt;int&gt;</b>')
-    // GR10: the last line says what a click does.
-    expect(drawn.hovertemplate).toMatch(/<i>Click for details<\/i><extra><\/extra>$/)
+    expect(hoverText(drawn, 0)).toBe(
+      '<b>BM_vector&lt;int&gt;</b><br>Machine: m&amp;1<br>Commit: &lt;c1&gt;<br>Value: 1.235<br>' +
+        // GR10: the last line says what a click does.
+        '1 run<br><i>Click for details</i><extra></extra>',
+    )
+    expect(hoverText(drawn, 1)).toContain('Commit: &lt;c2&gt;<br>Value: 2<br>3 runs<br>')
+  })
+
+  it('shows the test and the display value as they are, even with template fields in them', () => {
+    const named = { ...trace, test: 'fmt/%{x}', machine: '<&>' }
+    const [drawn] = plotlyTraces([named], (c) => `${c} %{y}`, metric('execution_time'))
+
+    expect(hoverText(drawn, 0)).toContain(
+      '<b>fmt/%{x}</b><br>Machine: &lt;&amp;&gt;<br>Commit: c1 %{y}<br>',
+    )
   })
 })
 
@@ -121,9 +130,26 @@ describe('baselineTraces (GR9)', () => {
     expect(drawn.x).toHaveLength(101)
     expect((drawn.x as number[]).at(-1)).toBe(1)
     expect(new Set(drawn.y as number[])).toEqual(new Set([1.5]))
-    expect(drawn.hovertemplate).toBe(
+    expect(hoverText(drawn, 0)).toBe(
       '<b>Baseline</b><br>Suite: nts<br>Machine: m&lt;1&gt;<br>Commit: r10<br>Test: t<br>' +
         'Value: 1.5<extra></extra>',
+    )
+    expect(hoverText(drawn, 100)).toBe(hoverText(drawn, 0))
+  })
+
+  it('shows the test and the commit as they are, even with template fields in them', () => {
+    const line = {
+      suite: 'nts',
+      machine: '<&>',
+      commit: 'r10 %{x}',
+      test: 'fmt/%{y}',
+      value: 1.5,
+      color: '#123456',
+    }
+    const [drawn] = baselineTraces([line], metric('execution_time'))
+
+    expect(hoverText(drawn, 50)).toContain(
+      'Machine: &lt;&amp;&gt;<br>Commit: r10 %{x}<br>Test: fmt/%{y}<br>',
     )
   })
 })
@@ -164,8 +190,19 @@ describe('the regression annotations (GR15)', () => {
 
     expect(first).toMatchObject({ mode: 'markers', yaxis: 'y2', x: ['c1'] })
     expect((second.y as number[])[0]).toBeLessThan((first.y as number[])[0])
-    expect(first.hovertemplate).toContain('<b>(untitled)</b><br>Affects:<br>t&lt;0&gt;<br>')
-    expect(first.hovertemplate).toContain('t&lt;9&gt;<br>and 2 more<br><i>Click for details</i>')
+    expect(hoverText(first, 0)).toContain('<b>(untitled)</b><br>Affects:<br>t&lt;0&gt;<br>')
+    expect(hoverText(first, 0)).toContain('t&lt;9&gt;<br>and 2 more<br><i>Click for details</i>')
+  })
+
+  it('shows the title and the tests as they are, even with template fields in them', () => {
+    const [drawn] = regressionMarkers([
+      mark({ title: '50%{y} <slower>', tests: ['fmt/%{x}', 'b'] }),
+    ])
+
+    expect(hoverText(drawn, 0)).toBe(
+      '<b>50%{y} &lt;slower&gt;</b><br>Affects:<br>fmt/%{x}<br>b<br>' +
+        '<i>Click for details</i><extra></extra>',
+    )
   })
 
   it('draws the lines over axes of their own, which span the plot whatever its zoom', () => {
