@@ -112,9 +112,8 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
   const [low, high] = (zoomedOn === revision ? zoom : null) ?? extent
   const empty = bars.length === 0 && lines.length === 0
   const layout = useMemo(
-    () =>
-      compareLayout({ ticks: ratioTicks(low, high), band, revision, bars: bars.length, empty }),
-    [low, high, band, revision, bars.length, empty],
+    () => compareLayout({ ticks: ratioTicks(low, high), band, revision, empty }),
+    [low, high, band, revision, empty],
   )
 
   // Where the plot draws, to outline a bar over it. Nothing drawn depends on it, so that a draw

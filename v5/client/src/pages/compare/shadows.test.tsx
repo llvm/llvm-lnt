@@ -86,9 +86,8 @@ describe('the shadows (CP8)', () => {
     expect(line()?.y).toEqual([-1, 1, 2])
     expect((chart().data[1] as PlotData).hovertemplate).toContain('%{customdata[5]}')
     expect((chart().data[1] as PlotData).customdata[0]).toContain('Shadow: libcxx/m1/c2')
-    // The bars are the main comparison's, which the x-axis title counts.
+    // The bars are the main comparison's.
     expect(barsOf()).toEqual([-1, 1, 1])
-    expect(chart().layout.xaxis?.title).toEqual({ text: '3 tests, by ratio' })
     expect(pinButton()).toBeEnabled()
   })
 
@@ -168,7 +167,6 @@ describe('the shadows (CP8)', () => {
 
     await waitFor(() => expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 0 tests']))
     expect(line()).toBeUndefined()
-    expect(chart().layout.xaxis?.title).toEqual({ text: 'Tests, by ratio' })
   })
 
   it('is dismissed with its chip, which gives the focus to the pin button once none is left', async () => {
@@ -245,7 +243,6 @@ describe('the shadows (CP8)', () => {
 
     await waitFor(() => expect(line()?.y).toEqual([2]))
     expect(chips()).toEqual(['●Shadow: libcxx/m1/c2 · 1 test'])
-    expect(chart().layout.xaxis?.title).toEqual({ text: '0 tests, by ratio' })
     expect(chart().layout.annotations).toEqual([])
     expect(Math.max(...(chart().layout.yaxis!.tickvals as number[]))).toBeGreaterThan(1.5)
   })
