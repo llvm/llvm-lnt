@@ -1307,7 +1307,7 @@ export interface components {
         /**
          * DocumentFunction
          * @description One function in a profile document: its name and its instructions. The function's own
-         *     counters aren't included, since they are just the sums over its instructions.
+         *     counters aren't included, since they are derived from its instructions.
          */
         DocumentFunction: {
             /**
@@ -1320,36 +1320,7 @@ export interface components {
              * Instructions
              * @description The function's instructions, in their original order.
              */
-            instructions: components["schemas"]["DocumentInstruction"][];
-        };
-        /**
-         * DocumentInstruction
-         * @description One instruction of a function in a profile document.
-         */
-        DocumentInstruction: {
-            /**
-             * Address
-             * @description The instruction's address. Can't be negative.
-             * @example 4096
-             */
-            address: number;
-            /**
-             * Counters
-             * @description The counts measured at this instruction, keyed by counter name. They can't be negative, and each must be one of the profile's counters. A counter of the profile that is left out counts as 0: the API leaves out every count that is 0.
-             * @example {
-             *       "cycles": 1200,
-             *       "instructions": 900
-             *     }
-             */
-            counters: {
-                [key: string]: number;
-            };
-            /**
-             * Text
-             * @description The disassembled instruction.
-             * @example ldrb w8, [x0], #1
-             */
-            text: string;
+            instructions: components["schemas"]["Instruction"][];
         };
         /**
          * ErrorBody
@@ -1388,7 +1359,7 @@ export interface components {
             name: string;
             /**
              * Counters
-             * @description The function's counters, keyed by counter name: one for each of the profile's counters. Each is the sum of that counter over the function's instructions.
+             * @description The function's counters, keyed by counter name: those that at least one of its instructions has. Each is the sum of that counter over the instructions that have it.
              * @example {
              *       "cycles": 4123456,
              *       "instructions": 5400000
@@ -1571,7 +1542,7 @@ export interface components {
             address: number;
             /**
              * Counters
-             * @description The counts measured at this instruction, keyed by counter name: one for each of the profile's counters, 0 where nothing was counted.
+             * @description The counts measured at this instruction, keyed by counter name. They can't be negative, and each must be one of the profile's counters. A counter the instruction has no value for is left out, which isn't the same as a value of 0.
              * @example {
              *       "cycles": 1200,
              *       "instructions": 900
@@ -2010,7 +1981,7 @@ export interface components {
             name: string;
             /**
              * Counters
-             * @description The function's counters, keyed by counter name: one for each of the profile's counters. Each is the sum of that counter over the function's instructions. To get a percentage of the profile, divide by the profile's counter of the same name.
+             * @description The function's counters, keyed by counter name: those that at least one of its instructions has. Each is the sum of that counter over the instructions that have it. To get a percentage of the profile, divide by the profile's counter of the same name.
              * @example {
              *       "cycles": 4123456,
              *       "instructions": 5400000

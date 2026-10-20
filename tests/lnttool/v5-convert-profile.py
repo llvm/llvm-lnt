@@ -98,7 +98,9 @@ print('functions: %s, instructions: %d' % (fib['name'],
                                            len(fib['instructions'])))
 for instruction in fib['instructions'][:3]:
     print(json.dumps(instruction, sort_keys=True))
-# Raw counts, as cPerf counts them, and no counter where it counted nothing.
+# Raw counts, as cPerf counts them, and no counter at an instruction where it
+# counted nothing. The function has a sample of its one counter, so it gets no
+# explicit 0.
 # CHECK-LABEL: # CONVERT
 # CHECK-NEXT: exit: 0
 # CHECK-NEXT: format: objdump, counters: {'cycles': 240949386}
@@ -178,9 +180,9 @@ def lines(start, count=1):
     return [[{'cycles': 1}, start + 4 * i, 'nop'] for i in range(count)]
 
 
-def stub(functions):
+def stub(functions, counters={'cycles': 100}):
     lnt.util.v5_profile._import_perf = lambda *args: {
-        'counters': {'cycles': 100},
+        'counters': counters,
         'functions': {name: {'counters': {}, 'data': data}
                       for name, data in functions.items()},
     }
@@ -243,6 +245,27 @@ names()
 # CHECK-NEXT: warning: the profile lists no function: check that {{.*}} can read the profiled binaries {{.*}}
 # CHECK-NEXT: exit: 0
 # CHECK-NEXT: []
+
+# ---------------------------------------------------------------------------
+print('# ZEROS')
+# perf samples every event everywhere: a function gets an explicit 0, on its
+# first instruction, for each counter of the profile it has no sample of.
+stub({
+    'none': [[{}, 0x100, 'nop'], [{}, 0x104, 'ret']],
+    'some': [[{'cycles': 1}, 0x200, 'nop'], [{'misses': 2}, 0x204, 'ret']],
+    'cycles': [[{'cycles': 1}, 0x300, 'nop'], [{}, 0x304, 'ret']],
+    'empty': [],
+}, counters={'cycles': 100, 'misses': 10, 'stalls': 5})
+for function in json.loads(convert())['functions']:
+    print(function['name'], json.dumps(
+        [instruction['counters'] for instruction in function['instructions']],
+        sort_keys=True))
+# CHECK-LABEL: # ZEROS
+# CHECK-NEXT: exit: 0
+# CHECK-NEXT: cycles [{"cycles": 1, "misses": 0, "stalls": 0}, {}]
+# CHECK-NEXT: empty []
+# CHECK-NEXT: none [{"cycles": 0, "misses": 0, "stalls": 0}, {}]
+# CHECK-NEXT: some [{"cycles": 1, "stalls": 0}, {"misses": 2}]
 
 # ---------------------------------------------------------------------------
 print('# LIMITS')

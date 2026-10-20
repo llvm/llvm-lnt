@@ -5,8 +5,9 @@ perf.data. docs/v5_convert_profile.rst specifies it.
 
 perf.data is read by cPerf, the same extension v4 uses (see
 lnt/testing/profile/cPerf.cpp), which returns absolute counts: exactly what a
-v5 profile document holds. What is left to do here is to name the functions
-and to keep the document within what a v5 instance accepts.
+v5 profile document holds. What is left to do here is to name the functions,
+to give each function an explicit 0 for the counters it has no sample of, and
+to keep the document within what a v5 instance accepts.
 """
 
 import base64
@@ -150,13 +151,24 @@ def convert_perf(path: str, objdump: str, binary_cache_root: str,
                  '%d' % (_shortened(name), MAX_ADDRESS))
             continue
         taken.add(name)
-        functions.append({
-            'name': name,
-            'instructions': [
-                {'address': address, 'counters': counters, 'text': text}
-                for counters, address, text in lines
-            ],
-        })
+        instructions = [
+            {'address': address, 'counters': counters, 'text': text}
+            for counters, address, text in lines
+        ]
+        # perf samples every event over the whole recording, so a function
+        # where no sample of an event landed has an estimated count of 0 for
+        # it. Say so with an explicit 0 on the function's first instruction,
+        # which is enough for the function to have the counter: v5 shows a
+        # function without a counter as not having it, rather than as 0.
+        # Instructions still leave such counters out, which v5 shows the same
+        # as a 0. A function without instructions has no counters.
+        if instructions:
+            present: set[str] = set().union(*(c for c, _, _ in lines))
+            zeros = {counter: 0 for counter in data['counters']
+                     if counter not in present}
+            first = instructions[0]
+            first['counters'] = {**first['counters'], **zeros}
+        functions.append({'name': name, 'instructions': instructions})
 
     if len(functions) > MAX_FUNCTIONS:
         raise ConvertError('the profile has %d functions, more than %d' %

@@ -176,9 +176,9 @@ Each side that shows a profile then has a **function selector**: a combobox
 (see AR14) over the functions of its profile, filtered locally (see AR9).
 
 - Functions are sorted hottest first: by their value for the selected counter
-  (the sum of that counter over their instructions; see E7), descending. A
-  function without the selected counter sorts after every one with it. Ties
-  are broken by name.
+  (the sum of that counter over the instructions that have it; see E7),
+  descending. A function without the selected counter sorts after every one
+  with it. Ties are broken by name.
 - Each suggestion shows the function's **share** of the profile's top-level
   value for the selected counter, as a percentage in a badge colored by the
   heat scale (see PF6). A function without the counter, or a profile whose
@@ -219,22 +219,23 @@ three columns:
 - The instruction's text, as submitted, in a fixed-width font that keeps its
   whitespace, since disassemblers align operands with spaces.
 
-The table says so when the function has no instructions, and when it does not
-have the selected counter, in which case the value column is empty.
+The table says so when the function has no instructions, and when it has
+instructions but not the selected counter, in which case the value column is
+empty.
 
 **Hottest instructions.** Above the table, "Previous" and "Next" buttons step
 through the function's instructions from the hottest to the coldest: by their
 value for the selected counter, descending, ties in the order the profile lists
-them, leaving out those whose value is 0. "Next" first moves to the hottest
-instruction, then to the next one in that order, and "Previous" moves back.
-The instruction moved to is highlighted and scrolled into view. This is how the
-hot spots of a long function are found, whose instructions may all be below
-the heat scale's 1% (see PF6). Once one is highlighted, the page says beside
-the buttons which it is, and how many there are. "Previous" is disabled before
-the hottest instruction and on it, and "Next" on the last one. Both are
-disabled when no instruction has a value. Changing the function, its profile,
-or the counter starts again from before the hottest instruction. The position
-is not kept in the URL.
+them, leaving out those whose value is 0 or that have no value. "Next" first
+moves to the hottest instruction, then to the next one in that order, and
+"Previous" moves back. The instruction moved to is highlighted and scrolled
+into view. This is how the hot spots of a long function are found, whose
+instructions may all be below the heat scale's 1% (see PF6). Once one is
+highlighted, the page says beside the buttons which it is, and how many there
+are. "Previous" is disabled before the hottest instruction and on it, and
+"Next" on the last one. Both are disabled when no instruction has a value
+above 0. Changing the function, its profile, or the counter starts again from
+before the hottest instruction. The position is not kept in the URL.
 
 A function can have up to 100,000 instructions (see O7). The view shows all of
 them, and scrolling through them, or changing the counter or the Values, must
@@ -257,9 +258,11 @@ value for the selected counter:
   100%. It shows how much of the function the instructions up to each one
   account for.
 
-In Relative % and Absolute, an instruction whose value is 0 shows nothing, so
-that the instructions that matter stand out. When the function's value for the
-counter is 0, every share is 0.
+An instruction that has no value for the counter counts as 0, in the
+function's value as in the shares and their running sum. In Relative % and
+Absolute, an instruction whose value is 0, or that has no value for the
+counter, shows nothing, so that the instructions that matter stand out. When
+the function's value for the counter is 0, every share is 0.
 
 **Heat scale.** A disassembly cell is colored by the instruction's own share,
 whatever the Values setting, so that switching between them never recolors the

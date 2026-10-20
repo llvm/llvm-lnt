@@ -51,8 +51,8 @@ _TEST = "The name of the test the profile was measured for."
 _DISASSEMBLY_FORMAT = "The tool that produced the instruction text, for example `llvm-objdump`."
 _INSTRUCTIONS = "The function's instructions, in their original order."
 _FUNCTION_COUNTERS = (
-    "The function's counters, keyed by counter name: one for each of the profile's counters. Each "
-    "is the sum of that counter over the function's instructions."
+    "The function's counters, keyed by counter name: those that at least one of its instructions "
+    "has. Each is the sum of that counter over the instructions that have it."
 )
 
 
@@ -109,26 +109,14 @@ class Instruction(BaseModel):
     )
     counters: dict[str, float] = Field(
         description=(
-            "The counts measured at this instruction, keyed by counter name: one for each of the "
-            "profile's counters, 0 where nothing was counted."
+            "The counts measured at this instruction, keyed by counter name. They can't be "
+            "negative, and each must be one of the profile's counters. A counter the instruction "
+            "has no value for is left out, which isn't the same as a value of 0."
         ),
         examples=[examples.INSTRUCTION_COUNTERS],
     )
     text: str = Field(
         description="The disassembled instruction.", examples=[examples.INSTRUCTION_TEXT]
-    )
-
-
-class DocumentInstruction(Instruction):
-    """One instruction of a function in a profile document."""
-
-    counters: dict[str, float] = Field(
-        description=(
-            "The counts measured at this instruction, keyed by counter name. They can't be "
-            "negative, and each must be one of the profile's counters. A counter of the profile "
-            "that is left out counts as 0: the API leaves out every count that is 0."
-        ),
-        examples=[examples.INSTRUCTION_COUNTERS],
     )
 
 
@@ -147,13 +135,13 @@ class FunctionDisassembly(BaseModel):
 
 class DocumentFunction(BaseModel):
     """One function in a profile document: its name and its instructions. The function's own
-    counters aren't included, since they are just the sums over its instructions."""
+    counters aren't included, since they are derived from its instructions."""
 
     name: str = Field(
         description="The function's name. Can't be empty, and must be unique.",
         examples=[examples.FUNCTION],
     )
-    instructions: list[DocumentInstruction] = Field(description=_INSTRUCTIONS)
+    instructions: list[Instruction] = Field(description=_INSTRUCTIONS)
 
 
 # Describes the response for I8 only: the endpoint encodes the document itself.
