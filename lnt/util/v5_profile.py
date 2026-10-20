@@ -158,7 +158,8 @@ def convert_perf(path: str, objdump: str, binary_cache_root: str,
         # perf samples every event over the whole recording, so a function
         # where no sample of an event landed has an estimated count of 0: say
         # so, since v5 shows a function without a counter as not having it.
-        # Instructions still leave such counters out, which v5 shows as a 0.
+        # Instructions still leave such counters out, which v5 shows the same
+        # as a 0.
         if instructions:
             present: set[str] = set().union(*(c for c, _, _ in lines))
             zeros = {counter: 0 for counter in data['counters']
