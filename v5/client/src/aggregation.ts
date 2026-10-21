@@ -11,6 +11,17 @@ export type Aggregation = Schemas['SampleAggregation']
 /** Every aggregation, the default first. */
 export const AGGREGATIONS: readonly Aggregation[] = ['median', 'mean', 'min', 'max']
 
+/** The aggregation the Graph and Compare pages combine values with by default (GR1, CP1). */
+export const DEFAULT_AGGREGATION: Aggregation = 'median'
+
+/**
+ * `how`, as a link to the Graph or Compare page sets it in the URL (see paths.ts): left out at their
+ * default, as the pages leave it out themselves (AR2 "State").
+ */
+export function linkedAggregation(how: Aggregation): Aggregation | undefined {
+  return how === DEFAULT_AGGREGATION ? undefined : how
+}
+
 /** Every aggregation, as the options of a `Select`. */
 export const AGGREGATION_OPTIONS = AGGREGATIONS.map((value) => ({ value, label: value }))
 

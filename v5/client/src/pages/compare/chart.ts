@@ -67,7 +67,8 @@ export function shadowLook(index: number) {
 
 /**
  * Where `bars` are drawn, at positions 0 to N - 1, and their tooltip, giving the test, followed by
- * a line holding `label` if any, the exact ratio, both sides' values and Delta % (CP3). The test
+ * a line holding `label` if any, the exact ratio, both sides' values and Delta % (CP3), and for the
+ * main bars, which have details (no `label`), a last line saying that clicking shows them. The test
  * and the label are escaped, and passed as data rather than written into the template: Plotly
  * reads them as HTML, and the template would read `%{` in them as its own.
  */
@@ -87,7 +88,8 @@ function plotted(bars: readonly Bar[], label?: string): Partial<PlotData> {
     hovertemplate:
       `<b>%{customdata[0]}</b>${label === undefined ? '' : '<br>%{customdata[5]}'}` +
       '<br>Ratio: %{customdata[1]}<br>A: %{customdata[2]}<br>' +
-      'B: %{customdata[3]}<br>Delta %: %{customdata[4]}<extra></extra>',
+      'B: %{customdata[3]}<br>Delta %: %{customdata[4]}' +
+      `${label === undefined ? '<br><i>Click for details</i>' : ''}<extra></extra>`,
   }
 }
 

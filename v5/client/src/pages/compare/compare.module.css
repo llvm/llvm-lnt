@@ -1,14 +1,11 @@
 /* The Compare page (CP1-CP7). */
 
-/* The chart (CP3), and what is drawn over its plot, which lets the pointer through. */
-.chartArea {
-  position: relative;
-}
-
+/* The chart (CP3). */
 .chart {
   height: 360px;
 }
 
+/* The outline of a bar, over the plot, which lets the pointer through. */
 .overlay {
   position: absolute;
   overflow: hidden;

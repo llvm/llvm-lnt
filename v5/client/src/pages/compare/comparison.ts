@@ -11,6 +11,7 @@
 
 import { aggregate, mean, type Aggregation } from '../../aggregation'
 import type { Schemas } from '../../api/client'
+import type { RunSamples } from '../../components/run-samples-table'
 import { compareStrings } from '../../format'
 
 type Sample = Schemas['Sample']
@@ -28,18 +29,47 @@ function append<Item>(map: Map<string, Item[]>, key: string, item: Item) {
   else items.push(item)
 }
 
-/** The samples of `runs`, the side's selected runs, for `metric`, a numeric one (CP1). */
+/** The value of `metric`, a numeric one (CP1), that `sample` has, if it has one. */
+function valueOf({ metrics }: Sample, metric: string): number | undefined {
+  const value = metrics[metric]
+  return typeof value === 'number' ? value : undefined
+}
+
+/** The samples of `runs`, the side's selected runs, for `metric`. */
 export function sideSamples(runs: readonly (readonly Sample[])[], metric: string): SideSamples {
   const side: SideSamples = new Map()
   for (const samples of runs) {
     const ofRun = new Map<string, number[]>()
-    for (const { test, metrics } of samples) {
-      const value = metrics[metric]
-      if (typeof value === 'number') append(ofRun, test, value)
+    for (const sample of samples) {
+      const value = valueOf(sample, metric)
+      if (value !== undefined) append(ofRun, sample.test, value)
     }
     for (const [test, values] of ofRun) append(side, test, values)
   }
   return side
+}
+
+/** A run of a side, and its samples. */
+export interface SampledRun {
+  uuid: string
+  measured_at: string
+  samples: readonly Sample[]
+}
+
+/**
+ * The runs among `runs`, a side's selected runs, that the side's samples for `test` come from (CP2),
+ * in the same order, each with its values of `metric` for the test, ascending (CP3 "Details").
+ */
+export function testRuns(runs: readonly SampledRun[], metric: string, test: string): RunSamples[] {
+  return runs.flatMap(({ uuid, measured_at, samples }) => {
+    const values: number[] = []
+    for (const sample of samples) {
+      const value = sample.test === test ? valueOf(sample, metric) : undefined
+      if (value !== undefined) values.push(value)
+    }
+    if (values.length === 0) return []
+    return [{ run: uuid, measured: measured_at, samples: values.sort((x, y) => x - y) }]
+  })
 }
 
 /** The statistics of a side's samples for a test (CP2 "Optional columns"). */

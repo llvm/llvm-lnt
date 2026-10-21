@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Aggregation } from '../../aggregation'
+import { linkedAggregation, type Aggregation } from '../../aggregation'
 import {
   createRegression,
   refetchMarkedRegressions,
@@ -13,13 +13,14 @@ import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ButtonLink } from '../../components/button-link'
-import { DataTable, type Column } from '../../components/data-table'
+import { ChartDialog, type Anchor } from '../../components/chart-dialog'
+import dialog from '../../components/chart-dialog.module.css'
 import { ErrorMessage } from '../../components/feedback'
-import { formatTimestamp, plural, shortUuid } from '../../format'
-import { commitPath, comparePath, machinePath, regressionPath, runPath } from '../../paths'
+import { RunSamplesTable, type RunSamples } from '../../components/run-samples-table'
+import { plural, shortUuid } from '../../format'
+import { commitPath, comparePath, machinePath, regressionPath } from '../../paths'
 import { formatMetricValue, type Metric } from '../../schema'
-import { ChartDialog, type Anchor } from './chart-dialog'
-import type { Point, RunSamples } from './points'
+import type { Point } from './points'
 import styles from './graph.module.css'
 
 interface Props {
@@ -42,7 +43,7 @@ interface Props {
   at: Anchor
   /** The markers of the point's samples (GR10), a press on which does not close the details. */
   companion?: RefObject<Element | null>
-  onClose(returnFocus?: boolean): void
+  onClose(): void
 }
 
 /**
@@ -68,8 +69,6 @@ export function PointDetails({
 }: Props) {
   const suite = schema.name
 
-  // An aggregation in the comparison's URL, unless it is Compare's default.
-  const unlessDefault = (how: Aggregation) => (how === 'median' ? undefined : how)
   const side = (commit: string) => ({ suite, machine, commit })
   let compare: string | null = null
   let why: string | undefined
@@ -80,7 +79,11 @@ export function PointDetails({
     compare = comparePath(
       side(previous.commit),
       side(point.commit),
-      { metric: metric.name, sampleAgg: unlessDefault(sampleAgg), runAgg: unlessDefault(runAgg) },
+      {
+        metric: metric.name,
+        sampleAgg: linkedAggregation(sampleAgg),
+        runAgg: linkedAggregation(runAgg),
+      },
     )
   }
 
@@ -92,7 +95,7 @@ export function PointDetails({
       companion={companion}
       onClose={onClose}
     >
-      <dl className={styles.detailsInfo}>
+      <dl className={dialog.info}>
         <dt>Machine</dt>
         <dd>
           <Link to={machinePath(suite, machine)}>{machine}</Link>
@@ -107,18 +110,10 @@ export function PointDetails({
         </dd>
       </dl>
       <div>
-        <h3 className={styles.detailsHeading}>Runs</h3>
-        <div className={styles.detailsRuns}>
-          <DataTable
-            label="Runs"
-            columns={runColumns(suite, metric)}
-            rows={runs}
-            rowKey={runKey}
-            empty="No runs."
-          />
-        </div>
+        <h3 className={dialog.heading}>Runs</h3>
+        <RunSamplesTable label="Runs" suite={suite} metric={metric} runs={runs} />
       </div>
-      <div className={styles.detailsActions}>
+      <div className={dialog.actions}>
         <ButtonLink to={compare} title={why}>
           Compare with previous commit
         </ButtonLink>
@@ -242,29 +237,3 @@ function CreateRegression({ suite, machine, test, metric, commit }: CreateRegres
 
 /** Focus the link to the regression created, for the dialog to keep the focus the form had. */
 const focusOnMount = (link: HTMLAnchorElement | null) => link?.focus()
-
-const runKey = (run: RunSamples) => run.run
-
-/** The columns of the table of a point's runs: when each was measured, which, and its samples. */
-function runColumns(suite: string, metric: Metric): Column<RunSamples>[] {
-  return [
-    {
-      id: 'measured',
-      header: 'Measured',
-      cell: (run) => formatTimestamp(run.measured),
-      looks: ['nowrap'],
-    },
-    {
-      id: 'run',
-      header: 'Run',
-      cell: (run) => <Link to={runPath(suite, run.run)}>{shortUuid(run.run)}</Link>,
-      looks: ['mono', 'nowrap'],
-    },
-    {
-      id: 'samples',
-      header: 'Samples',
-      cell: (run) => run.samples.map((value) => formatMetricValue(value, metric)).join(' · '),
-      looks: ['numeric', 'nowrap'],
-    },
-  ]
-}

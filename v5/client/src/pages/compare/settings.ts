@@ -1,6 +1,6 @@
 /** The Compare page's settings, as the URL keeps them (CP7). */
 
-import { AGGREGATIONS } from '../../aggregation'
+import { AGGREGATIONS, DEFAULT_AGGREGATION } from '../../aggregation'
 import { sortParam } from '../../components/table-sort'
 import type { NoiseKnob, NoiseSettings } from './comparison'
 import { OPTIONAL_KEYS, SORTABLE } from './columns'
@@ -35,8 +35,8 @@ export const PARAMS = {
   shadow: shadowParam(),
   metric: stringParam(),
   // How both sides' runs, and the shadows', are combined, and the samples within each run (CP1).
-  run_agg: enumParam(AGGREGATIONS, 'median'),
-  sample_agg: enumParam(AGGREGATIONS, 'median'),
+  run_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
+  sample_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
   // Each noise knob's value, present exactly while the knob is enabled (CP1).
   noise_pct: optionalNumberParam(0),
   noise_pval: optionalNumberParam(0, 1),

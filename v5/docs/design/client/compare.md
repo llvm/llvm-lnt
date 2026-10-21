@@ -328,7 +328,29 @@ plotted are left out (see Computation Reference).
 
 Interactivity:
 - **Hover**: tooltip showing test name, exact ratio, the values of both sides,
-  and Delta %. It also highlights the bar's table row (see CP5).
+  Delta %, and a last line saying that clicking the bar shows its details. It
+  also highlights the bar's table row (see CP5).
+- **Details**: clicking a bar opens a popover beside it, which behaves as a
+  Graph point's does (GR11), and whose accessible name is the test name. It
+  shows:
+  - the test name;
+  - Value A, Value B, Delta, Delta %, Ratio and Status, as the table's row
+    shows them (CP2), with their tooltips;
+  - for each side, the runs its samples for the test (see CP2 "Computation
+    Reference") come from, as GR11 lists a point's runs, in a list of their own
+    whose accessible name says the side;
+  - "View on graph": a link to the Graph page with side B's suite and machine,
+    the selected metric, the test selected, and Compare's run and sample
+    aggregations, so that its point at side B's commit, when drawn (GR3), is
+    Value B when side B selects every run;
+  - the test's Profile link, when its row has one (CP2).
+
+  It closes on Escape, on its close button, on a click anywhere but on it, on
+  a zoom or pan, and on any change to the compared rows, such as another
+  comparison, metric or aggregation, a noise setting, the test filter, "Hide
+  noise" or a hidden test. Changes to the shadows do not close it. A click on
+  another bar opens that bar's popover instead. A shadow's point (CP8) has no
+  details: clicking it opens nothing.
 - **Zoom**: dragging zooms into part of the chart, and double-clicking resets
   the zoom. The user's zoom is kept when settings change, but is reset when the
   comparison is replaced: a different suite, machine, commit or runs on either
@@ -398,8 +420,8 @@ page or the table.
   page of it, in as few requests as the API allows. Once fetched, a run's
   samples are kept for as long as the run belongs to one of the sides' or the
   shadows' commits. This way, changing the metric, an aggregation, the noise
-  settings, the run selection or the hidden tests, swapping the sides, or
-  pinning a shadow never fetches them again. If a run stops belonging to any of
+  settings, the run selection or the hidden tests, swapping the sides,
+  pinning a shadow, or opening a bar's details (CP3) never fetches them again. If a run stops belonging to any of
   those commits while its samples are loading, its loading stops, without
   affecting the other runs.
 - The Profile column needs to know which tests of each side have a profile. For
@@ -533,7 +555,8 @@ so that shadows can always be dismissed.
   lines apart for every reader, which the markers do. The chart has no legend:
   the chips serve as one.
 - Hovering a point of a line shows the same information as a main bar, with a
-  line naming its shadow as its chip does, without its test count.
+  line naming its shadow as its chip does, without its test count, and without
+  the line about clicking: a point of a line has no details (see CP3).
   Table-to-chart hover highlighting targets the main bars only, and hovering a
   point of a line highlights no row.
 - If side A's suite and a shadow's suite don't both offer the selected metric,

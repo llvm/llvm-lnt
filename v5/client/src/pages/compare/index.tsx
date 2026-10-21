@@ -11,6 +11,7 @@ import { useUrlState, useVisitKey } from '../../url-state'
 import { ValueStore } from '../../value-store'
 import type { NoiseKnob } from './comparison'
 import { AddToRegression } from './add-to-regression'
+import { BarDetails } from './bar-details'
 import { ColumnsMenu } from './columns-menu'
 import { chosenRuns, failedRuns, runCount, waiting } from './loading'
 import { useMetric } from './metrics'
@@ -193,6 +194,17 @@ function ComparePage() {
             revision={[...chosenRuns(a), '|', ...chosenRuns(b), '|', metric?.name].join('\n')}
             emphasis={emphasis}
             hovered={hovered}
+            details={(row) => (
+              <BarDetails
+                row={row}
+                a={a}
+                b={b}
+                states={sides.states}
+                metric={metric!}
+                settings={settings}
+                profile={profiles.links.get(row.test)}
+              />
+            )}
           />
           <SummaryBar counts={table.counts} />
           <CompareTable

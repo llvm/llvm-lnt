@@ -81,6 +81,63 @@ test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, 
   await expect(label).toContainText((await highlighted())[0]!)
 })
 
+test("shows a bar's details, linking to the test's history on the Graph page (CP3)", async ({
+  page,
+  request,
+}) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+  )
+  await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+
+  const position = await pointOf(page, 0, 0)
+  const label = page.locator('.hoverlayer .hovertext')
+  await plotOf(page).hover({ position })
+  await expect(label).toContainText('Click for details')
+  await plotOf(page).click({ position })
+  const details = page.getByRole('dialog')
+  await expect(details).toBeFocused()
+  // The details take the place of Plotly's label.
+  await expect(label).toHaveCount(0)
+  const test = (await details.getAttribute('aria-label'))!
+
+  // Each side's run, three samples of the test on one line.
+  for (const side of ['A', 'B']) {
+    const runs = details.getByRole('table', { name: `Side ${side} runs` })
+    await expect(runs.getByRole('link')).toHaveCount(1)
+    const samples = runs.getByRole('cell').last()
+    await expect(samples).toHaveText(/^[^·]+ · [^·]+ · [^·]+$/)
+    const lines = await samples.evaluate((cell) => {
+      const range = document.createRange()
+      range.selectNodeContents(cell)
+      return range.getClientRects().length
+    })
+    expect(lines).toBe(1)
+  }
+  const valueB = await details.getByRole('definition').nth(1).textContent()
+
+  // Side B selects its commit's every run: the Graph's point at its commit is Value B.
+  await details.getByRole('link', { name: 'View on graph' }).click()
+  await expect(page).toHaveURL(/\/graph\?/)
+  expect([...new URL(page.url()).searchParams]).toEqual([
+    ['suite', 'libcxx'],
+    ['machine', LINUX],
+    ['metric', 'execution_time'],
+    ['test', test],
+  ])
+  await expect(table(page, 'Tests').getByRole('checkbox', { name: test, exact: true })).toBeChecked()
+  const pointAtB = () =>
+    plotOf(page).evaluate((element, commit) => {
+      type Drawn = PlotDiv & { _fullData: { customdata: string[][] }[] }
+      const trace = (element as Drawn)._fullData?.[0]
+      const index = trace?.x.indexOf(commit) ?? -1
+      return index < 0 ? null : trace!.customdata[index][1]
+    }, newer.value)
+  await expect.poll(pointAtB).toBe(valueB)
+})
+
 test('scrolls the table rather than the page when its columns do not fit', async ({
   page,
   request,

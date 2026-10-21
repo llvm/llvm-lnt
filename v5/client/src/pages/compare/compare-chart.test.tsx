@@ -1,10 +1,15 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse } from 'msw'
 import { act } from 'react'
 import type { PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
-import { query, renderPage, search } from '../../test/page'
+import { formatTimestamp, shortUuid } from '../../format'
+import { cursorPage, sample, uuidOf } from '../../test/fixtures'
+import { mockApi } from '../../test/mock-api'
+import { gate, main, query, renderPage, search } from '../../test/page'
 import { pickOption } from '../../test/select'
+import { server } from '../../test/server'
 import type { PlotGeometry } from '../../components/chart'
 import { barsOf, chart, COMPARED, comparison, mockWorld, NOISY, runBox, showBox } from './compare-world'
 
@@ -161,5 +166,290 @@ describe('the chart (CP3)', () => {
     expect(outline()).not.toBeNull()
     fireEvent.mouseOver(screen.getByRole('cell', { name: 'Geomean' }))
     expect(outline()).toBeNull()
+  })
+})
+
+describe('the details of a bar (CP3)', () => {
+  /**
+   * COMPARED, with several samples of a test in a run: a's bar comes first, at 1.5, d's second, at
+   * 3, b and c being on one side only.
+   */
+  const WORLD = {
+    samples: {
+      '1': [
+        ['a', 3],
+        ['a', 1],
+        ['b', 2],
+        ['d', 1],
+      ],
+      '2': [
+        ['a', 2],
+        ['d', 1],
+      ],
+      '3': [
+        ['a', 4],
+        ['a', 2],
+        ['c', 5],
+        ['d', 3],
+      ],
+      '4': [['a', 1]],
+    } as Record<string, [string, number][]>,
+  }
+
+  /** Where the plot draws: a slot of 100 pixels per bar, the plot's middle at 100. */
+  const GEOMETRY: PlotGeometry = {
+    area: { left: 0, top: 10, width: 200, height: 100 },
+    x: (value) => 50 + 100 * value,
+    y: (value) => 50 - 10 * value,
+  }
+
+  /** A Plotly event on point `index` of the `trace`th trace: the bars, then the shadows' lines. */
+  const eventOn = (index: number, trace = 0, init: MouseEventInit = {}) =>
+    ({
+      points: [{ data: chart().data[trace], pointNumber: index }],
+      event: new MouseEvent('click', init),
+    }) as unknown as PlotMouseEvent & PlotHoverEvent
+
+  /** Click point `index` of the `trace`th trace, and say whether the click opened details. */
+  function click(index: number, trace = 0, init?: MouseEventInit) {
+    let opened: boolean | void = undefined
+    act(() => {
+      opened = chart().onClick?.(eventOn(index, trace, init))
+    })
+    return opened
+  }
+
+  /** Render `url`, once the comparison shows and the chart has been drawn. */
+  async function shown(url = COMPARED) {
+    renderPage(url)
+    await comparison()
+    act(() => chart().onDraw?.(GEOMETRY))
+  }
+
+  const dialog = () => screen.queryByRole('dialog')
+  const details = () => within(screen.getByRole('dialog'))
+  /** The rows of the runs table of `side`, without its header, as the text of their cells. */
+  const runsOf = (side: 'A' | 'B') =>
+    within(details().getByRole('table', { name: `Side ${side} runs` }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent))
+
+  it('opens beside the bar clicked, with its values, the runs and samples of both sides', async () => {
+    const sampled = mockWorld(WORLD)
+    await shown()
+    const asked = sampled.length
+
+    expect(click(0)).toBe(true)
+
+    const opened = screen.getByRole('dialog', { name: 'a' })
+    expect(opened).toHaveFocus()
+    // Right of a's bar, which ends at 95, in the left half of the plot, from the top of the plot.
+    expect(opened).toHaveStyle({ left: '95px', top: '10px' })
+    const values = details()
+      .getAllByRole('definition')
+      .map((value) => value.textContent)
+    expect(details().getAllByRole('term').map((label) => label.textContent)).toEqual([
+      'Value A',
+      'Value B',
+      'Delta',
+      'Delta %',
+      'Ratio',
+      'Status',
+    ])
+    expect(values).toEqual(['2', '3', '1', '+50.00%', '1.5000', 'Regressed'])
+    // As the table's cells, with their tooltips.
+    const valueA = details().getAllByRole('definition')[0]
+    expect(within(valueA).getByText('2')).toHaveAttribute('title', '3 samples across 2 runs')
+    // The runs the samples come from, in the order they were measured, each run's ascending.
+    expect(runsOf('A')).toEqual([
+      [formatTimestamp('2026-08-20T10:00:00Z'), shortUuid(uuidOf('1')), '1 · 3'],
+      [formatTimestamp('2026-08-21T10:00:00Z'), shortUuid(uuidOf('2')), '2'],
+    ])
+    expect(runsOf('B')).toEqual([
+      [formatTimestamp('2026-08-20T10:00:00Z'), shortUuid(uuidOf('3')), '2 · 4'],
+    ])
+    expect(details().getByRole('link', { name: shortUuid(uuidOf('3')) })).toHaveAttribute(
+      'href',
+      `/suites/libcxx/runs/${uuidOf('3')}`,
+    )
+    // The samples were all fetched for the comparison already.
+    expect(sampled).toHaveLength(asked)
+  })
+
+  it("lists only the runs a side's samples for the test come from", async () => {
+    mockWorld(WORLD)
+    await shown(`${COMPARED}&hidden_test=a`)
+
+    click(0)
+
+    expect(screen.getByRole('dialog', { name: 'd' })).toBeInTheDocument()
+    expect(runsOf('A').map(([, run]) => run)).toEqual([
+      shortUuid(uuidOf('1')),
+      shortUuid(uuidOf('2')),
+    ])
+    expect(runsOf('B').map(([, , samples]) => samples)).toEqual(['3'])
+  })
+
+  it("links to the test's history on the Graph page, in side B's context", async () => {
+    mockWorld(WORLD)
+    await shown(
+      `${COMPARED.replace('machine_b=m1&commit_b=c2', 'machine_b=m2&commit_b=c2')}` +
+        '&sample_agg=max&run_agg=min',
+    )
+
+    click(0)
+
+    expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
+      'href',
+      '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max',
+    )
+  })
+
+  it('leaves out the aggregations at their default from the link to the Graph page', async () => {
+    mockWorld(WORLD)
+    await shown()
+
+    click(0)
+
+    expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
+      'href',
+      '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a',
+    )
+  })
+
+  it("links to the test's profiles when its row does, as soon as they are listed", async () => {
+    const listed = gate()
+    mockWorld({ ...WORLD, profiles: { '1': ['a'], '3': ['a'] } })
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', async () => {
+        await listed.promise
+      }),
+    )
+    await shown()
+
+    click(0)
+    expect(details().queryByRole('link', { name: 'Profile' })).not.toBeInTheDocument()
+    act(() => listed.open())
+
+    // The details stay open as the links arrive.
+    const profile = await details().findByRole('link', { name: 'Profile' })
+    const row = screen.getByRole('cell', { name: 'a' }).closest('tr')!
+    expect(profile).toHaveAttribute(
+      'href',
+      within(row).getByRole('link', { name: 'Profile' }).getAttribute('href'),
+    )
+    expect(screen.getByRole('dialog', { name: 'a' })).toHaveFocus()
+
+    // d has no profile.
+    fireEvent.pointerDown(main().getByRole('heading', { name: 'Compare' }))
+    click(1)
+    expect(screen.getByRole('dialog', { name: 'd' })).toBeInTheDocument()
+    expect(details().queryByRole('link', { name: 'Profile' })).not.toBeInTheDocument()
+  })
+
+  it('closes on Escape, its close button, a press outside it, and a zoom', async () => {
+    mockWorld(WORLD)
+    await shown()
+    const user = userEvent.setup()
+
+    // Closed from the keyboard or its button, they give the focus back to the chart.
+    const area = main().getByRole('img').parentElement!
+    click(0)
+    await user.keyboard('{Escape}')
+    expect(dialog()).not.toBeInTheDocument()
+    expect(area).toHaveFocus()
+
+    click(0)
+    await user.click(details().getByRole('button', { name: 'Close' }))
+    expect(dialog()).not.toBeInTheDocument()
+    expect(area).toHaveFocus()
+
+    click(0)
+    // Moving the focus out does not close them, unlike a press.
+    await user.tab()
+    expect(dialog()).toBeInTheDocument()
+    fireEvent.pointerDown(main().getByRole('heading', { name: 'Compare' }))
+    expect(dialog()).not.toBeInTheDocument()
+
+    click(0)
+    act(() => chart().onRelayout?.({ 'yaxis.range[0]': 0, 'yaxis.range[1]': 1 } as PlotRelayoutEvent))
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
+  it('closes on a change to the compared rows, made without a press', async () => {
+    mockWorld(WORLD)
+    await shown()
+    const user = userEvent.setup()
+
+    click(0)
+    search('Filter tests', 'a')
+    await waitFor(() => expect(dialog()).not.toBeInTheDocument())
+    await waitFor(() => expect(barsOf()).toHaveLength(1))
+    search('Filter tests', '')
+    await waitFor(() => expect(barsOf()).toHaveLength(2))
+
+    // Hiding a test that has no bar changes the compared rows too, a's bar staying.
+    click(0)
+    showBox('b').focus()
+    await user.keyboard(' ')
+    await waitFor(() => expect(query().hidden_test).toEqual(['b']))
+    expect(dialog()).not.toBeInTheDocument()
+
+    click(0)
+    showBox('a').focus()
+    await user.keyboard(' ')
+    await waitFor(() => expect(barsOf()).toHaveLength(1))
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
+  it("stays open while a shadow's line arrives", async () => {
+    const arrived = gate()
+    mockWorld(WORLD)
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', async ({ params }) => {
+        if (params.uuid !== uuidOf('4')) return
+        await arrived.promise
+        return HttpResponse.json(cursorPage([sample('a', { execution_time: 1 })]))
+      }),
+    )
+    await shown(`${COMPARED}&shadow=libcxx/m2/c2`)
+    expect(chart().data).toHaveLength(1)
+
+    click(0)
+    act(() => arrived.open())
+
+    await waitFor(() => expect(chart().data).toHaveLength(2))
+    expect(screen.getByRole('dialog', { name: 'a' })).toHaveFocus()
+    // A shadow's point has no details, and its click closes those open, as any press elsewhere.
+    fireEvent.pointerDown(main().getByRole('img'))
+    expect(click(0, 1)).toBe(false)
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
+  it('opens the details of another bar clicked instead', async () => {
+    mockWorld(WORLD)
+    await shown()
+    click(0)
+
+    // Plotly sees the press first, and reports the click after.
+    fireEvent.pointerDown(main().getByRole('img'))
+    click(1)
+
+    const opened = screen.getByRole('dialog', { name: 'd' })
+    expect(opened).toHaveFocus()
+    // Left of d's bar, which starts at 105, in the right half of the plot, but from no further
+    // than the middle of the plot.
+    expect(opened).toHaveStyle({ left: '105px' })
+  })
+
+  it('opens nothing on a click of another button than the main one', async () => {
+    mockWorld(WORLD)
+    await shown()
+
+    expect(click(0, 0, { button: 2 })).toBe(false)
+    expect(click(0, 0, { button: 1 })).toBe(false)
+
+    expect(dialog()).not.toBeInTheDocument()
   })
 })

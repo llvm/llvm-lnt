@@ -49,6 +49,12 @@ describe('graphPath', () => {
     ).toBe('/graph?suite=nts&machine=m1&metric=execution_time&test=a%2Fb+c%26d&regressions=all')
   })
 
+  it('sets the run and sample aggregations, with GR14 names', () => {
+    expect(graphPath({ suite: 'nts', test: 't', sampleAgg: 'min', runAgg: 'max' })).toBe(
+      '/graph?suite=nts&test=t&run_agg=max&sample_agg=min',
+    )
+  })
+
   it('repeats the machine parameter once per machine, in order', () => {
     expect(graphPath({ suite: 'nts', machines: ['m2', 'm&1'], metric: 'score' })).toBe(
       '/graph?suite=nts&machine=m2&machine=m%261&metric=score',

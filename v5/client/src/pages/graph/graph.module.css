@@ -74,13 +74,7 @@
 
 /* The chart, and what is placed over it: the hovered point's runs, the point details. */
 .chartArea {
-  position: relative;
   margin: var(--lnt-space-3) 0;
-}
-
-/* Focused from script only, once the point details close, where an outline means nothing. */
-.chartArea:focus {
-  outline: none;
 }
 
 /* The samples of the point hovered (GR10), which the pointer goes through to the chart. */
@@ -114,70 +108,12 @@
   background: color-mix(in srgb, var(--lnt-accent) 10%, transparent);
 }
 
-/* The details of a point (GR11), beside it, over the chart. */
-.details {
-  position: absolute;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--lnt-space-2);
-  width: max-content;
-  max-width: 30rem;
-  padding: var(--lnt-space-2) var(--lnt-space-3);
-  border: 1px solid var(--lnt-border-strong);
-  border-radius: var(--lnt-radius);
-  background: var(--lnt-bg);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
-}
-
-.details:focus {
-  outline: none;
-}
-
-.detailsHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--lnt-space-2);
-}
-
-.detailsTitle {
-  overflow-wrap: anywhere;
-}
-
-.detailsInfo {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0 var(--lnt-space-2);
-  margin: 0;
-}
-
-.detailsInfo dt {
-  color: var(--lnt-muted);
-}
-
-.detailsInfo dd {
-  margin: 0;
-}
-
 /* A UUID, set in a fixed-width font as the tables' are. */
 .uuid {
   font-family: var(--lnt-font-mono);
 }
 
-/*
- * A list in the details, a point's runs or a regression's tests, which scrolls when it is long or
- * wider than the details. It reaches into the details' right padding, where its scroll bar goes:
- * one that overlays the content, as macOS's do, would otherwise hide the end of a run's samples.
- */
-.detailsRuns,
-.detailsTests {
-  max-height: 12rem;
-  overflow: auto;
-  margin-right: calc(-1 * var(--lnt-space-3));
-  padding-right: var(--lnt-space-3);
-}
-
+/* The list of a regression's tests (GR15), in the details' scrolling list. */
 .detailsTests {
   margin-top: 0;
   margin-bottom: 0;
@@ -185,17 +121,7 @@
   font-size: 0.9rem;
 }
 
-/*
- * The point's actions (GR11), on a row of their own, and the form creating a regression, which
- * takes a row of its own below them.
- */
-.detailsActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lnt-space-2);
-}
-
+/* The form creating a regression from a point (GR11), on a row of its own below its actions. */
 .detailsCreate {
   display: flex;
   flex-basis: 100%;
@@ -217,11 +143,6 @@
 .detailsField input {
   flex: 1;
   min-width: 8rem;
-}
-
-.detailsHeading {
-  margin: 0 0 var(--lnt-space-1);
-  font-size: 0.9rem;
 }
 
 /*

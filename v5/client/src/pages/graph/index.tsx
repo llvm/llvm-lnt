@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { AGGREGATION_OPTIONS, AGGREGATIONS, type Aggregation } from '../../aggregation'
+import {
+  AGGREGATION_OPTIONS,
+  AGGREGATIONS,
+  DEFAULT_AGGREGATION,
+  type Aggregation,
+} from '../../aggregation'
 import { hasMachine, useMachineList } from '../../api/machines'
 import { useMarkedRegressions } from '../../api/regressions'
 import { useScaffold } from '../../api/scaffold'
@@ -70,8 +75,8 @@ const PARAMS = {
   test_filter: trimmedStringParam(),
   test_filter_regex: booleanParam(false),
   test: listParam(),
-  sample_agg: enumParam(AGGREGATIONS, 'median'),
-  run_agg: enumParam(AGGREGATIONS, 'median'),
+  sample_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
+  run_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
   regressions: enumParam(ANNOTATIONS.map((option) => option.value), 'off'),
   baseline: baselineParam(),
 }

@@ -1,11 +1,13 @@
 import { Link } from 'react-router'
+import clsx from 'clsx'
 import type { MarkedRegression } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { BugLink } from '../../components/bug-link'
+import { ChartDialog, type Anchor } from '../../components/chart-dialog'
+import dialog from '../../components/chart-dialog.module.css'
 import { StateBadge } from '../../components/regression-state'
 import { formatTimestamp, regressionTitle, shortUuid } from '../../format'
 import { commitPath, regressionPath } from '../../paths'
-import { ChartDialog, type Anchor } from './chart-dialog'
 import styles from './graph.module.css'
 
 interface Props {
@@ -17,7 +19,7 @@ interface Props {
   display: string
   /** Where the regression's marker is. */
   at: Anchor
-  onClose(returnFocus?: boolean): void
+  onClose(): void
 }
 
 /**
@@ -31,7 +33,7 @@ export function RegressionDetails({ schema, regression, tests, display, at, onCl
   const title = regressionTitle(regression)
   return (
     <ChartDialog label={`Regression: ${title}`} title={title} at={at} onClose={onClose}>
-      <dl className={styles.detailsInfo}>
+      <dl className={dialog.info}>
         <dt>Regression</dt>
         <dd>
           <Link to={regressionPath(suite, uuid)} title={uuid} className={styles.uuid}>
@@ -54,8 +56,8 @@ export function RegressionDetails({ schema, regression, tests, display, at, onCl
         <dd>{formatTimestamp(created_at)}</dd>
       </dl>
       <div>
-        <h3 className={styles.detailsHeading}>Selected tests affected</h3>
-        <ul className={styles.detailsTests} aria-label="Selected tests affected">
+        <h3 className={dialog.heading}>Selected tests affected</h3>
+        <ul className={clsx(dialog.list, styles.detailsTests)} aria-label="Selected tests affected">
           {tests.map((test) => (
             <li key={test}>{test}</li>
           ))}
