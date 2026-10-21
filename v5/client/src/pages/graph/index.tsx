@@ -57,10 +57,10 @@ const TESTS_IN_URL = 10
 /** At most how many commits can be highlighted at once (GR16). */
 const HIGHLIGHT_LIMIT = { count: 10, why: 'At most 10 commits can be highlighted at once.' }
 
-/** The highlighted commits (GR16): each once, and only the first few of a URL naming more. */
+/** The highlighted commits (GR16): each once, and only the first 10 of a URL naming more. */
 function highlightParam(): Param<string[]> {
-  const parse = (values: string[]) => [...new Set(values)].slice(0, HIGHLIGHT_LIMIT.count)
-  return { ...listParam(), parse }
+  const list = listParam()
+  return { ...list, parse: (values) => list.parse(values)?.slice(0, HIGHLIGHT_LIMIT.count) }
 }
 
 /** Which regressions are marked on the chart (GR15). */

@@ -41,7 +41,7 @@ function useTestRuns(
 
 /**
  * "View on graph" (CP3): the Graph of `test` in side B's context, with side B's commit highlighted,
- * and side A's too when it is on the same machine, each once known to have an ordinal, without
+ * and side A's too when it has the same suite and machine, each once known to have an ordinal, without
  * which a commit is not on the Graph's x-axis (GR3, GR16). It leads nowhere while side B's commit
  * is looked up, or once it has none. A failed lookup leaves its commit out rather than block it.
  */

@@ -291,10 +291,10 @@ hidden until the pointer moves again. It shows:
   test. The link is disabled (see AR8) at the first point of a trace, and while
   the trace's data is still loading or could not all be loaded.
 - "Highlight this commit": a button adding the point's commit to the
-  highlighted commits (GR16), disabled, saying why, while as many are
-  highlighted as can be. While the point's commit is highlighted, it is "Remove
-  the highlight" instead, which removes it. Either way, the popover stays open
-  and the button keeps the focus.
+  highlighted commits (GR16), disabled, saying why, while 10 are highlighted.
+  While the point's commit is highlighted, it is "Remove the highlight" instead,
+  which removes it. Either way, the popover stays open and the button keeps the
+  focus.
 - "Create regression": a button opening a form below it that creates a
   regression in this suite, attributed to the point's commit, with a single
   indicator naming the point's machine and test and the plotted metric. The
@@ -435,5 +435,5 @@ A commit is kept as given, without being looked up, even when the suite has no
 such commit (an exception to AR2 "State"): whether it is drawn depends on the
 x-axis, which changes with the machines. Only the chips, a point's details
 (GR11) and a suite change (GR1) change the highlighted commits. A commit that
-the URL names twice is highlighted once, and of a URL naming more than 10, which
-the page never writes, only the first 10 are highlighted.
+the URL names twice is highlighted once, and of a URL naming more than 10
+commits, which the page never writes, only the first 10 are highlighted.

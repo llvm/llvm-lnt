@@ -1211,13 +1211,19 @@ describe('the highlighted commits (GR16)', () => {
 
   it('is removed with its chip, which gives the focus to the next chip, or before', async () => {
     mockWorld({ samples: HIGHLIGHTED })
-    renderPage(`${ONE_MACHINE}&test=a&highlight=c10&highlight=c20`)
+    renderPage(`${ONE_MACHINE}&test=a&highlight=c10&highlight=c20&highlight=c30`)
     await waitFor(() => expect(highlightCircles()).toEqual(['a - m1 - highlighted: c10=1 c20=2']))
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Remove the highlight of r10' }))
+    expect(query().highlight).toEqual(['c20', 'c30'])
+    expect(bands()).toEqual(['c20', 'c30'])
+    expect(highlightCircles()).toEqual(['a - m1 - highlighted: c20=2'])
+    expect(screen.getByRole('button', { name: 'Remove the highlight of r20' })).toHaveFocus()
+
+    // The last one gives it to the one before.
+    await user.click(screen.getByRole('button', { name: 'Remove the highlight of r30' }))
     expect(query().highlight).toEqual(['c20'])
-    expect(bands()).toEqual(['c20'])
     expect(screen.getByRole('button', { name: 'Remove the highlight of r20' })).toHaveFocus()
 
     await user.click(screen.getByRole('button', { name: 'Remove the highlight of r20' }))
@@ -1268,6 +1274,7 @@ describe('the highlighted commits (GR16)', () => {
 
     expect(query().highlight).toEqual(['c40'])
     expect(bands()).toEqual(['c40'])
+    expect(highlightCircles()).toEqual(['b - m2 - highlighted: c40=5'])
     expect(details().getByRole('button', { name: 'Highlight this commit' })).toHaveFocus()
   })
 
@@ -1278,17 +1285,24 @@ describe('the highlighted commits (GR16)', () => {
     const named = ['c10', 'c10', ...others].map((value) => `&highlight=${value}`).join('')
     renderPage(`${ONE_MACHINE}&test=a${named}`)
     await waitFor(() => expect(bands()).toEqual(['c10']))
+    expect(query().highlight).toEqual(['c10', ...others.slice(0, 9)])
     expect(within(highlightChip()).getAllByRole('listitem')).toHaveLength(10)
     expect(highlightChip()).toHaveTextContent(/^Highlighted: r10×Highlighted: x0×.*x8×$/)
     draw()
 
     click('a - m1', 1)
-    const add = details().getByRole('button', { name: 'Highlight this commit' })
-    expect(add).toBeDisabled()
-    expect(add).toHaveAccessibleDescription('At most 10 commits can be highlighted at once.')
-    // One highlighted already can still be removed.
+    const add = () => details().getByRole('button', { name: 'Highlight this commit' })
+    expect(add()).toBeDisabled()
+    expect(add()).toHaveAccessibleDescription('At most 10 commits can be highlighted at once.')
+    // Once one is removed, another can be highlighted. A click without a press leaves the
+    // details open.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove the highlight of x0' }))
+    expect(add()).toBeEnabled()
+
+    // One highlighted already can be removed.
     click('a - m1', 0)
-    expect(details().getByRole('button', { name: 'Remove the highlight' })).toBeEnabled()
+    await userEvent.setup().click(details().getByRole('button', { name: 'Remove the highlight' }))
+    expect(query().highlight).toEqual(others.slice(1, 9))
   })
 
   it('shows no chip until a suite is selected, which then clears it', async () => {

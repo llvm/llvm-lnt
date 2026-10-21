@@ -350,6 +350,15 @@ describe('the details of a bar (CP3)', () => {
     await waitFor(() => expect(graphLink()).toBe(`${GRAPH}&highlight=c2`))
   })
 
+  it("highlights only side B's commit when side A is in another suite", async () => {
+    mockWorld(WORLD)
+    await shown(COMPARED.replace('suite_a=libcxx', 'suite_a=other'))
+
+    click(0)
+
+    await waitFor(() => expect(graphLink()).toBe(`${GRAPH}&highlight=c2`))
+  })
+
   it("leads nowhere when side B's commit has no ordinal, saying why", async () => {
     mockWorld({ ...WORLD, adHoc: ['c2'] })
     await shown()
