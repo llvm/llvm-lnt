@@ -55,9 +55,9 @@ describe('graphPath', () => {
     )
   })
 
-  it('sets the highlighted commit (GR16), encoded', () => {
-    expect(graphPath({ suite: 'nts', test: 't', highlight: 'abc#1' })).toBe(
-      '/graph?suite=nts&test=t&highlight=abc%231',
+  it('repeats the highlighted commits (GR16), each once, encoded', () => {
+    expect(graphPath({ suite: 'nts', test: 't', highlight: ['abc#1', 'def', 'def'] })).toBe(
+      '/graph?suite=nts&test=t&highlight=abc%231&highlight=def',
     )
   })
 

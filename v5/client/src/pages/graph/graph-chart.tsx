@@ -52,9 +52,11 @@ interface Props {
   baselines: BaselineState[]
   /** The regressions to mark (GR15). */
   regressions: MarkedRegression[]
-  /** The highlighted commit, if it is on the x-axis (GR16). */
-  highlight: string | undefined
-  /** Highlight `commit`, or nothing when empty (GR16). */
+  /** The highlighted commits on the x-axis (GR16). */
+  highlights: readonly string[]
+  /** Why no other commit can be highlighted, if as many are as can be (GR16). */
+  highlightsFull: string | undefined
+  /** Highlight `commit`, or remove its highlight if it is highlighted already (GR16). */
   onHighlight(commit: string): void
   /** The test whose row is hovered in the test table, which the chart emphasizes (GR7). */
   emphasis: ValueStore<string | null>
@@ -180,8 +182,8 @@ function runsOf(samples: readonly Measurement[]) {
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
  * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
- * (GR9), the regressions' (GR15) and the highlighted commit's circles (GR16) over them, and its
- * band under them. Hovering a point shows its samples (GR10), and clicking it its details (GR11).
+ * (GR9), the regressions' (GR15) and the highlighted commits' circles (GR16) over them, and their
+ * bands under them. Hovering a point shows its samples (GR10), and clicking it its details (GR11).
  */
 export function GraphChart({
   schema,
@@ -195,7 +197,8 @@ export function GraphChart({
   settled,
   baselines,
   regressions,
-  highlight,
+  highlights,
+  highlightsFull,
   onHighlight,
   emphasis,
   hovered,
@@ -276,10 +279,10 @@ export function GraphChart({
     [placed, selected],
   )
 
-  // The points at the highlighted commit (GR16).
+  // The points at the highlighted commits (GR16).
   const circles = useMemo(
-    () => (highlight === undefined ? NO_CIRCLES : circlesAt(traces, highlight)),
-    [traces, highlight],
+    () => (highlights.length === 0 ? NO_CIRCLES : circlesAt(traces, highlights)),
+    [traces, highlights],
   )
 
   // Everything drawn, and what each curve is. Each kind is built apart, so that what changes one
@@ -329,7 +332,7 @@ export function GraphChart({
 
   // What the x-axis is made of: a change resets the zoom (GR5).
   const revision = machines.filter((machine) => listed.has(machine)).join('\0')
-  // Baselines, regressions and the highlighted commit are no points of their own (GR12).
+  // Baselines, regressions and the highlighted commits are no points of their own (GR12).
   const empty = traces.length === 0 && settled
   const layout = useMemo(() => {
     const values = commits.map((commit) => commit.value)
@@ -339,13 +342,10 @@ export function GraphChart({
       revision,
       metric: metric?.name,
       empty,
-      // The band first, so that a regression's line at its commit is drawn over it (GR16).
-      shapes: [
-        ...(highlight === undefined ? [] : [highlightShape(highlight)]),
-        ...regressionShapes(placed),
-      ],
+      // The bands first, so that a regression's line at their commit is drawn over them (GR16).
+      shapes: [...highlights.map(highlightShape), ...regressionShapes(placed)],
     })
-  }, [commits, displayValue, revision, metric, empty, placed, highlight])
+  }, [commits, displayValue, revision, metric, empty, placed, highlights])
 
   // Where the plot draws, to place the points' samples and the details over it. Nothing drawn
   // depends on it, so that a draw does not ask for another.
@@ -450,8 +450,9 @@ export function GraphChart({
             state={series.stateOf(trace.machine, trace.test)}
             sampleAgg={sampleAgg}
             runAgg={runAgg}
-            highlighted={point.commit === highlight}
-            onHighlight={() => onHighlight(point.commit === highlight ? '' : point.commit)}
+            highlighted={highlights.includes(point.commit)}
+            highlightsFull={highlightsFull}
+            onHighlight={() => onHighlight(point.commit)}
             at={{ x, y: geometry.y(point.value), side }}
             companion={pinnedCloud}
             onClose={close}

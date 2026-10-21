@@ -21,12 +21,13 @@ import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
 import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
-import { commitDisplayValue, isNumeric, labelOf, type Metric } from '../../schema'
+import { displayValueOf, isNumeric, labelOf, type Metric } from '../../schema'
 import {
   booleanParam,
   enumParam,
   listParam,
   stringParam,
+  type Param,
   trimmedStringParam,
   useDropUnusable,
   useUrlState,
@@ -52,6 +53,15 @@ const SELECTION_LIMIT = { count: 100, why: 'At most 100 tests can be selected at
 
 /** At most how many selected tests the URL holds (GR14). */
 const TESTS_IN_URL = 10
+
+/** At most how many commits can be highlighted at once (GR16). */
+const HIGHLIGHT_LIMIT = { count: 10, why: 'At most 10 commits can be highlighted at once.' }
+
+/** The highlighted commits (GR16): each once, and only the first few of a URL naming more. */
+function highlightParam(): Param<string[]> {
+  const parse = (values: string[]) => [...new Set(values)].slice(0, HIGHLIGHT_LIMIT.count)
+  return { ...listParam(), parse }
+}
 
 /** Which regressions are marked on the chart (GR15). */
 const ANNOTATIONS = [
@@ -80,11 +90,16 @@ const PARAMS = {
   run_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
   regressions: enumParam(ANNOTATIONS.map((option) => option.value), 'off'),
   baseline: baselineParam(),
-  highlight: stringParam(),
+  highlight: highlightParam(),
 }
 
 /** What a suite change clears, since it does not apply to another suite (GR1). */
-const IN_SUITE = { machine: [] as string[], metric: '', test: [] as string[], highlight: '' }
+const IN_SUITE = {
+  machine: [] as string[],
+  metric: '',
+  test: [] as string[],
+  highlight: [] as string[],
+}
 
 const NO_NAMES: string[] = []
 const NO_SUITES: SuiteSchema[] = []
@@ -226,18 +241,30 @@ function GraphPage() {
     update({ suite: name, ...IN_SUITE })
   }
 
-  // The highlighted commit (GR16), shown by its display value once on the x-axis, which gives it.
+  // The highlighted commits (GR16), each shown by its display value once on the x-axis, which
+  // gives it.
   const { highlight } = settings
-  const highlighted = useMemo(
-    () => scaffold.commits.find((commit) => commit.value === highlight),
-    [scaffold.commits, highlight],
+  const onAxis = useMemo(
+    () => new Map(scaffold.commits.map((commit) => [commit.value, commit])),
+    [scaffold.commits],
   )
-  const shownHighlight = highlighted && schema ? commitDisplayValue(highlighted, schema) : highlight
-  const highlightChip =
-    highlight !== '' && schema !== undefined
-      ? { key: highlight, text: `Highlighted: ${shownHighlight}` }
-      : undefined
-  // What takes the focus once the highlight is removed: the control before it.
+  const drawnHighlights = useMemo(
+    () => highlight.filter((value) => onAxis.has(value)),
+    [highlight, onAxis],
+  )
+  const shownHighlight = (value: string) =>
+    schema === undefined ? value : displayValueOf(value, onAxis, schema)
+  const highlightChips =
+    schema === undefined
+      ? []
+      : highlight.map((value) => ({ key: value, text: `Highlighted: ${shownHighlight(value)}` }))
+  const toggleHighlight = (commit: string) =>
+    update({
+      highlight: highlight.includes(commit)
+        ? highlight.filter((value) => value !== commit)
+        : [...highlight, commit],
+    })
+  // What takes the focus once the last highlight is removed: the control before them.
   const addBaselineButton = useRef<HTMLButtonElement>(null)
 
   const disabled = schema === undefined
@@ -328,10 +355,10 @@ function GraphPage() {
             toggle={addBaselineButton}
           />
           <ChipList
-            label="Highlighted commit"
-            chips={highlightChip ? [highlightChip] : []}
-            removeLabel={() => `Remove the highlight of ${shownHighlight}`}
-            onRemove={() => update({ highlight: '' })}
+            label="Highlighted commits"
+            chips={highlightChips}
+            removeLabel={(chip) => `Remove the highlight of ${shownHighlight(chip.key)}`}
+            onRemove={toggleHighlight}
             focusWhenEmpty={() => addBaselineButton.current}
           />
         </div>
@@ -393,8 +420,9 @@ function GraphPage() {
         }
         baselines={baselines.states}
         regressions={regressions.regressions}
-        highlight={highlighted?.value}
-        onHighlight={(commit) => update({ highlight: commit })}
+        highlights={drawnHighlights}
+        highlightsFull={highlight.length < HIGHLIGHT_LIMIT.count ? undefined : HIGHLIGHT_LIMIT.why}
+        onHighlight={toggleHighlight}
         emphasis={emphasis}
         hovered={hovered}
         closeOn={[

@@ -341,10 +341,14 @@ Interactivity:
     Reference") come from, as GR11 lists a point's runs, in a list of their own
     whose accessible name says the side;
   - "View on graph": a link to the Graph page with side B's suite and machine,
-    the selected metric, the test selected, side B's commit highlighted (GR16)
-    once it is known to have an ordinal, without which it is not on the Graph's
-    x-axis (GR3), and Compare's run and sample aggregations, so that its point
-    at side B's commit, when drawn, is Value B when side B selects every run;
+    the selected metric, the test selected, Compare's run and sample
+    aggregations, and highlighted commits (GR16), so that the Graph's point at
+    side B's commit is Value B when side B selects every run. Side B's commit
+    is highlighted, and so is side A's when side A has the same suite and
+    machine, each only if it has an ordinal, without which it is not on the
+    Graph's x-axis (GR3). The link is disabled (see AR8) while side B's commit
+    is being looked up (CP6), and when it has no ordinal. A commit whose lookup
+    fails is not highlighted, but does not disable the link;
   - the test's Profile link, when its row has one (CP2).
 
   It closes on Escape, on its close button, on a click anywhere but on it, on
@@ -431,8 +435,9 @@ page or the table.
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
   profiles of each of them that is selected. This never delays the
   comparison.
-- A bar's details (CP3) resolve side B's commit through
-  `POST commits/resolve`, for its ordinal. This never delays the details.
+- A bar's details resolve side B's commit, and side A's when side A has the
+  same suite and machine, through `POST commits/resolve`, for their ordinals
+  (see CP3).
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   There are exceptions: the page waits for the list of suites before it

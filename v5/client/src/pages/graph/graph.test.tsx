@@ -172,7 +172,7 @@ describe('the Graph page (GR1)', () => {
       return cursorPage(COMMITS[query.get('machine') as 'm1' | 'm2'].map(commitAt))
     })
     renderPage(`${GRAPHED}&highlight=c20`)
-    const chip = () => main().getByRole('list', { name: 'Highlighted commit' })
+    const chip = () => main().getByRole('list', { name: 'Highlighted commits' })
 
     // The commit string, until the x-axis gives its display value.
     await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: c20×$/))

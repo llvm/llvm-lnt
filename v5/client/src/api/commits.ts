@@ -185,13 +185,14 @@ export function useCommit(suite: string, value: string) {
 
 /**
  * The commit `value`, resolved on its own for its display value and ordinal (E3), or null once it
- * shows that no commit has that value.
+ * shows that no commit has that value. Nothing is asked unless `enabled`.
  */
-export function useResolvedCommit(suite: string, value: string) {
+export function useResolvedCommit(suite: string, value: string, enabled = true) {
   return useQuery({
     queryKey: resolvedCommitKey(suite, value),
     queryFn: async ({ signal }) =>
       (await resolveCommits(suite, [value], signal)).get(value) ?? null,
+    enabled,
   })
 }
 

@@ -39,9 +39,11 @@ interface Props {
   state: TraceState
   sampleAgg: Aggregation
   runAgg: Aggregation
-  /** Whether the point's commit is the highlighted one (GR16). */
+  /** Whether the point's commit is highlighted (GR16). */
   highlighted: boolean
-  /** Highlight the point's commit, or remove the highlight if it is highlighted already. */
+  /** Why no other commit can be highlighted, if as many are as can be. */
+  highlightsFull: string | undefined
+  /** Highlight the point's commit, or remove its highlight if it is highlighted already. */
   onHighlight(): void
   /** Where the point is. */
   at: Anchor
@@ -68,6 +70,7 @@ export function PointDetails({
   sampleAgg,
   runAgg,
   highlighted,
+  highlightsFull,
   onHighlight,
   at,
   companion,
@@ -124,9 +127,9 @@ export function PointDetails({
           Compare with previous commit
         </ButtonLink>
         {/* The same button either way, so that it keeps the focus (GR11). */}
-        <button type="button" onClick={onHighlight}>
+        <ActionButton reason={highlighted ? undefined : highlightsFull} onClick={onHighlight}>
           {highlighted ? 'Remove the highlight' : 'Highlight this commit'}
-        </button>
+        </ActionButton>
         <CreateRegression
           suite={suite}
           machine={machine}

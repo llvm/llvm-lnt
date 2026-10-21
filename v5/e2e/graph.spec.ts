@@ -377,7 +377,7 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   await expect.poll(() => xRange(page)).not.toEqual(before)
   await expectAround()
 
-  const chip = page.getByRole('list', { name: 'Highlighted commit' })
+  const chip = page.getByRole('list', { name: 'Highlighted commits' })
   await expect(chip).toContainText(`Highlighted: ${display}`)
   await chip.getByRole('button', { name: `Remove the highlight of ${display}` }).click()
   await expect(band).toHaveCount(0)

@@ -1089,28 +1089,31 @@ describe('the baselines (GR9)', () => {
   })
 })
 
-/** The traces of the circles around the points at the highlighted commit (GR16). */
+/** The traces of the circles around the points at the highlighted commits (GR16). */
 function circleTraces() {
   return (chart().data as PlotData[]).filter((trace) => trace.name.endsWith(' - highlighted'))
 }
 
-/** The circles around the points at the highlighted commit, as `name: commit=value`. */
+/** The circles around the points at the highlighted commits, as `name: commit=value...`. */
 function highlightCircles() {
-  return circleTraces().map(
-    (trace) => `${trace.name}: ${(trace.x as string[])[0]}=${(trace.y as number[])[0]}`,
-  )
+  return circleTraces().map((trace) => {
+    const points = (trace.x as string[]).map((x, i) => `${x}=${(trace.y as number[])[i]}`)
+    return `${trace.name}: ${points.join(' ')}`
+  })
 }
 
-/** The commit of the highlighted commit's band (GR16), if it is drawn. */
-function band() {
-  return layout().shapes?.find((shape) => shape.type === 'rect')?.xanchor
+/** The commits of the highlighted commits' bands (GR16). */
+function bands() {
+  return layout()
+    .shapes?.filter((shape) => shape.type === 'rect')
+    .map((shape) => shape.xanchor)
 }
 
 function highlightChip() {
-  return main().getByRole('list', { name: 'Highlighted commit' })
+  return main().getByRole('list', { name: 'Highlighted commits' })
 }
 
-describe('the highlighted commit (GR16)', () => {
+describe('the highlighted commits (GR16)', () => {
   const HIGHLIGHTED: Record<string, Sample[]> = {
     'm1/a': [
       ['c10', 'r1', 1],
@@ -1174,7 +1177,7 @@ describe('the highlighted commit (GR16)', () => {
     renderPage(`${GRAPHED}&highlight=c20`)
 
     await waitFor(() => expect(layout().annotations?.[0]?.text).toBe('No data to plot'))
-    expect(band()).toBe('c20')
+    expect(bands()).toEqual(['c20'])
     expect(highlightCircles()).toEqual([])
   })
 
@@ -1182,13 +1185,13 @@ describe('the highlighted commit (GR16)', () => {
     mockWorld({ samples: HIGHLIGHTED })
     renderPage(`${GRAPHED}&test=b&highlight=c40`)
     await waitFor(() => expect(highlightCircles()).toEqual(['b - m2 - highlighted: c40=5']))
-    expect(band()).toBe('c40')
+    expect(bands()).toEqual(['c40'])
     expect(highlightChip()).toHaveTextContent(/^Highlighted: r40×$/)
     const user = userEvent.setup()
 
     // Only m2 has runs at c40.
     await user.click(screen.getByRole('button', { name: 'Remove m2' }))
-    await waitFor(() => expect(band()).toBeUndefined())
+    await waitFor(() => expect(bands()).toEqual([]))
     expect(highlightCircles()).toEqual([])
     // Kept, by its commit string, which the x-axis no longer gives the display value of.
     expect(highlightChip()).toHaveTextContent(/^Highlighted: c40×$/)
@@ -1196,7 +1199,7 @@ describe('the highlighted commit (GR16)', () => {
     await pickOption('Metric', 'Compile Time')
     await pickOption('Run aggregation', 'max')
     await addMachine('m2')
-    await waitFor(() => expect(band()).toBe('c40'))
+    await waitFor(() => expect(bands()).toEqual(['c40']))
     expect(highlightChip()).toHaveTextContent(/^Highlighted: r40×$/)
     expect(query()).toMatchObject({
       machine: ['m1', 'm2'],
@@ -1206,22 +1209,26 @@ describe('the highlighted commit (GR16)', () => {
     })
   })
 
-  it('is removed with its chip, which gives the focus to the control before it', async () => {
+  it('is removed with its chip, which gives the focus to the next chip, or before', async () => {
     mockWorld({ samples: HIGHLIGHTED })
-    renderPage(`${ONE_MACHINE}&test=a&highlight=c20`)
-    await waitFor(() => expect(highlightCircles()).toHaveLength(1))
+    renderPage(`${ONE_MACHINE}&test=a&highlight=c10&highlight=c20`)
+    await waitFor(() => expect(highlightCircles()).toEqual(['a - m1 - highlighted: c10=1 c20=2']))
+    const user = userEvent.setup()
 
-    const remove = screen.getByRole('button', { name: 'Remove the highlight of r20' })
-    await userEvent.setup().click(remove)
+    await user.click(screen.getByRole('button', { name: 'Remove the highlight of r10' }))
+    expect(query().highlight).toEqual(['c20'])
+    expect(bands()).toEqual(['c20'])
+    expect(screen.getByRole('button', { name: 'Remove the highlight of r20' })).toHaveFocus()
 
+    await user.click(screen.getByRole('button', { name: 'Remove the highlight of r20' }))
     expect(query().highlight).toBeUndefined()
-    expect(band()).toBeUndefined()
+    expect(bands()).toEqual([])
     expect(highlightCircles()).toEqual([])
-    expect(main().queryByRole('list', { name: 'Highlighted commit' })).toBeNull()
+    expect(main().queryByRole('list', { name: 'Highlighted commits' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Add a baseline' })).toHaveFocus()
   })
 
-  it("leaves a point's details open once removed from the keyboard", async () => {
+  it("leaves a point's details open when its chip is removed from the keyboard", async () => {
     mockWorld({ samples: HIGHLIGHTED })
     renderPage(`${ONE_MACHINE}&test=a&highlight=c20`)
     await waitFor(() => expect(highlightCircles()).toHaveLength(1))
@@ -1231,12 +1238,12 @@ describe('the highlighted commit (GR16)', () => {
     // A click without a press, as from the keyboard, unlike a press outside the details.
     fireEvent.click(screen.getByRole('button', { name: 'Remove the highlight of r20' }))
 
-    await waitFor(() => expect(band()).toBeUndefined())
+    await waitFor(() => expect(bands()).toEqual([]))
     // Its band and circles neither move nor hide a point (GR11).
     expect(details().getByRole('button', { name: 'Highlight this commit' })).toBeInTheDocument()
   })
 
-  it("is set from a point's details, which stay open, the button keeping the focus", async () => {
+  it("is added from a point's details, and removed, which stay open with the focus", async () => {
     mockWorld({ samples: HIGHLIGHTED })
     renderPage(`${GRAPHED}&test=a&test=b&highlight=c40`)
     await waitFor(() => expect(highlightCircles()).toEqual(['b - m2 - highlighted: c40=5']))
@@ -1244,32 +1251,51 @@ describe('the highlighted commit (GR16)', () => {
     const user = userEvent.setup()
 
     click('a - m1', 1)
-    // In place of the commit highlighted before.
     await user.click(details().getByRole('button', { name: 'Highlight this commit' }))
 
-    expect(query().highlight).toEqual(['c20'])
-    expect(band()).toBe('c20')
+    // Besides the commits highlighted before.
+    expect(query().highlight).toEqual(['c40', 'c20'])
+    expect(bands()).toEqual(['c40', 'c20'])
     expect(highlightCircles()).toEqual([
       'a - m1 - highlighted: c20=2',
-      'b - m2 - highlighted: c20=4',
+      'b - m2 - highlighted: c20=4 c40=5',
     ])
-    expect(highlightChip()).toHaveTextContent(/^Highlighted: r20×$/)
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: r40×Highlighted: r20×$/)
     const remove = details().getByRole('button', { name: 'Remove the highlight' })
     expect(remove).toHaveFocus()
 
     await user.click(remove)
 
-    expect(query().highlight).toBeUndefined()
-    expect(band()).toBeUndefined()
-    expect(highlightCircles()).toEqual([])
+    expect(query().highlight).toEqual(['c40'])
+    expect(bands()).toEqual(['c40'])
     expect(details().getByRole('button', { name: 'Highlight this commit' })).toHaveFocus()
+  })
+
+  it('highlights at most 10 commits, saying why no other can be, each once', async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    const others = Array.from({ length: 10 }, (_, i) => `x${i}`)
+    // A commit named twice counts once, and of more than 10, only the first 10 are kept.
+    const named = ['c10', 'c10', ...others].map((value) => `&highlight=${value}`).join('')
+    renderPage(`${ONE_MACHINE}&test=a${named}`)
+    await waitFor(() => expect(bands()).toEqual(['c10']))
+    expect(within(highlightChip()).getAllByRole('listitem')).toHaveLength(10)
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: r10×Highlighted: x0×.*x8×$/)
+    draw()
+
+    click('a - m1', 1)
+    const add = details().getByRole('button', { name: 'Highlight this commit' })
+    expect(add).toBeDisabled()
+    expect(add).toHaveAccessibleDescription('At most 10 commits can be highlighted at once.')
+    // One highlighted already can still be removed.
+    click('a - m1', 0)
+    expect(details().getByRole('button', { name: 'Remove the highlight' })).toBeEnabled()
   })
 
   it('shows no chip until a suite is selected, which then clears it', async () => {
     mockWorld()
     renderPage('/graph?highlight=c20')
     await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
-    expect(main().queryByRole('list', { name: 'Highlighted commit' })).toBeNull()
+    expect(main().queryByRole('list', { name: 'Highlighted commits' })).toBeNull()
     expect(query().highlight).toEqual(['c20'])
 
     await pickOption('Suite', 'libcxx')

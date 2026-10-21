@@ -66,7 +66,7 @@
   font-size: 0.85em;
 }
 
-/* The row of what is drawn on the chart besides the data: the baselines, the highlighted commit. */
+/* The row of what is drawn on the chart besides the data: baselines, highlighted commits. */
 .overlays {
   display: flex;
   flex-basis: 100%;

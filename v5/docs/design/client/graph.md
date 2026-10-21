@@ -16,7 +16,7 @@ the suite is a query parameter, not a path segment.
   test filter, aggregation, regression annotations, baselines) are disabled
   until a suite is selected.
   Changing the suite clears the machines, the metric, the selected tests, the
-  highlighted commit (GR16) and the chart. The test filter, the aggregation,
+  highlighted commits (GR16) and the chart. The test filter, the aggregation,
   the regression annotation mode (GR15) and the baselines (GR9) are kept: a
   baseline names its own suite.
   When the page is loaded with `suite=` in the URL, the dropdown is
@@ -290,10 +290,11 @@ hidden until the pointer moves again. It shows:
   Run Detail's "Compare with previous commit" (DT2), it always has data for the
   test. The link is disabled (see AR8) at the first point of a trace, and while
   the trace's data is still loading or could not all be loaded.
-- "Highlight this commit": a button highlighting the point's commit (GR16), in
-  place of any commit highlighted before. While the point's commit is the
-  highlighted one, it is "Remove the highlight" instead, which removes it.
-  Either way, the popover stays open and the button keeps the focus.
+- "Highlight this commit": a button adding the point's commit to the
+  highlighted commits (GR16), disabled, saying why, while as many are
+  highlighted as can be. While the point's commit is highlighted, it is "Remove
+  the highlight" instead, which removes it. Either way, the popover stays open
+  and the button keeps the focus.
 - "Create regression": a button opening a form below it that creates a
   regression in this suite, attributed to the point's commit, with a single
   indicator naming the point's machine and test and the plotted metric. The
@@ -321,10 +322,10 @@ on its close button, on a click anywhere but on it or a marker of its point's
 scatter, and on any change to the chart other than
 data arriving, such as a zoom or pan, or a change to the selected tests,
 machines, metric, aggregation, baselines or regression annotation mode, and once
-its point is no longer drawn. A change to the highlighted commit (GR16) does not
-close it, since its band and circles neither move nor hide a point. Moving the
-focus out of it does not close it. A click on another point opens that point's
-popover instead.
+its point is no longer drawn. A change to the highlighted commits (GR16) does
+not close it, since their bands and circles neither move nor hide a point.
+Moving the focus out of it does not close it. A click on another point opens
+that point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or
 nothing.
 
@@ -337,7 +338,7 @@ chosen, when no test is selected, or when the selected tests have no data on the
 selected machines -- the chart displays an overlay "No data to plot" centered on
 the chart area, preserving the x-axis scaffold, if there is one, so the user can
 see the commit range. Baseline lines (GR9), regression annotations (GR15) and
-the highlighted commit (GR16) are not points.
+the highlighted commits (GR16) are not points.
 
 
 ### GR13: API Calls
@@ -360,7 +361,7 @@ the highlighted commit (GR16) are not points.
 
 ### GR14: URL State
 
-`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}&highlight={commit}`
+`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
 
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page says that the URL does not reflect the
@@ -402,34 +403,37 @@ regression by UUID only; their title, state and commit come from the regression
 list (`GET /regressions`), joined on the UUID.
 
 
-### GR16: Highlighted Commit
+### GR16: Highlighted Commits
 
-A commit can be highlighted on the chart: from a point's details (GR11), or by
-a link from another page, such as Compare's "View on graph" (CP3), to show where
-that commit is in the history. It is kept in the URL as `highlight={commit}`,
-and marked by:
+Up to 10 commits can be highlighted on the chart: from a point's details (GR11),
+or by a link from another page, such as Compare's "View on graph" (CP3), to show
+where those commits are in the history. They are kept in the URL as
+`highlight={commit}`, once per commit, in the order they were highlighted. Each
+is marked by:
 
 - A see-through vertical band at the commit, spanning the plot under the
-  traces, in a color that no regression annotation uses (GR15). Its width is a
-  fixed number of pixels, whatever the zoom, so that it can be seen at the full
-  range of a long history as well as zoomed in. A regression's line at the same
-  commit is drawn over it.
+  traces, in a color that no regression annotation uses (GR15), the same for
+  every highlighted commit. Its width is a fixed number of pixels, whatever the
+  zoom, so that it can be seen at the full range of a long history as well as
+  zoomed in. A regression's line at the same commit is drawn over it.
 - An open circle, in the trace's color, around the point of each drawn trace at
   that commit, so that the point stands out where the band spans several
   commits. A trace with no value at the commit has none. The circles fade with
   their trace when a test row is hovered (GR7).
 
-Neither the band nor the circles react to hover or click: the points under them
-keep their tooltip and details (GR10, GR11). They are drawn only while the
-commit is on the x-axis (GR3), as regression annotations are. The highlighted
-commit is not a point: it does not change the empty state (GR12), and adds no
+Neither the bands nor the circles react to hover or click: the points under
+them keep their tooltip and details (GR10, GR11). A commit's are drawn only
+while it is on the x-axis (GR3), as regression annotations are. The highlighted
+commits are not points: they do not change the empty state (GR12), and add no
 value to the y-axis range.
 
-While a suite is selected, the controls show a removable chip
-"Highlighted: {display value}", or the commit string while the commit is not on
-the x-axis, which gives its display value.
+While a suite is selected, the controls show a removable chip per highlighted
+commit, "Highlighted: {display value}", or the commit string while the commit is
+not on the x-axis, which gives its display value.
 
-The commit is kept as given, without being looked up, even when the suite has
-no such commit (an exception to AR2 "State"): whether it is drawn depends on the
-x-axis, which changes with the machines. It is removed with its chip or from the
-details of a point at it (GR11), and cleared when the suite changes (GR1).
+A commit is kept as given, without being looked up, even when the suite has no
+such commit (an exception to AR2 "State"): whether it is drawn depends on the
+x-axis, which changes with the machines. Only the chips, a point's details
+(GR11) and a suite change (GR1) change the highlighted commits. A commit that
+the URL names twice is highlighted once, and of a URL naming more than 10, which
+the page never writes, only the first 10 are highlighted.

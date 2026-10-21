@@ -225,7 +225,7 @@ describe('the regression annotations (GR15)', () => {
   })
 })
 
-describe('the highlighted commit (GR16)', () => {
+describe('the highlighted commits (GR16)', () => {
   const traceOf = (test: string, commits: string[]): Trace => ({
     test,
     machine: 'm1',
@@ -249,23 +249,23 @@ describe('the highlighted commit (GR16)', () => {
     })
   })
 
-  it('circles the point of each trace that has one at the commit', () => {
-    const a = traceOf('a', ['c1', 'c2'])
+  it('circles the points of each trace that has any at the commits', () => {
+    const a = traceOf('a', ['c1', 'c2', 'c3'])
     const b = traceOf('b', ['c1'])
-    const c = traceOf('c', ['c2', 'c3'])
+    const c = traceOf('c', ['c2', 'c4'])
 
-    const circles = circlesAt([a, b, c], 'c2')
-    expect(circles.map(({ trace, point }) => [trace.test, point.value])).toEqual([
-      ['a', 1],
-      ['c', 0],
+    const circles = circlesAt([a, b, c], ['c2', 'c3'])
+    expect(circles.map(({ trace, points }) => [trace.test, points.map((p) => p.value)])).toEqual([
+      ['a', [1, 2]],
+      ['c', [0]],
     ])
-    expect(circlesAt([a, b, c], 'c9')).toEqual([])
+    expect(circlesAt([a, b, c], ['c9'])).toEqual([])
 
     const [drawn] = highlightCircles(circles) as PlotData[]
     expect(drawn).toMatchObject({
       mode: 'markers',
-      x: ['c2'],
-      y: [1],
+      x: ['c2', 'c3'],
+      y: [1, 2],
       // Neither hovered nor clicked: the point under it keeps its own tooltip and details.
       hoverinfo: 'skip',
       // Whole at either end of the x-axis.
