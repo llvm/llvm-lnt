@@ -212,11 +212,11 @@ all use these rows.
   Ratio and Status, in the order above, A before B. They are empty on the
   geomean summary row. They are sortable. If the column the table is sorted by
   is removed, the table goes back to its default sort.
-- **Profile column**: when either side has a profile for a test in its
-  selected runs, a "Profile" link leads to the Profiles page, pre-populated as
-  PF1 describes. The column comes last, and cannot be sorted by. It is shown
-  while any test of the comparison has a profile, whatever the test filter,
-  "Hide noise" and the hidden tests.
+- **Profile column**: when both sides have a profile of a test in their
+  selected runs, a "Profile" link leads to the Profiles page, comparing the two
+  as PF1 describes. The column comes last, and cannot be sorted by. It is shown
+  while any test of the comparison has a link, whatever the test filter, "Hide
+  noise" and the hidden tests.
 - **Width**: when the columns don't fit in the page's width, the table scrolls
   horizontally in a box of its own rather than squeezing the Test column. The
   rest of the page, the summary message row included, stays in place. The

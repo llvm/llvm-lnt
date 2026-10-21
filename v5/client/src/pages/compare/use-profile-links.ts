@@ -1,6 +1,6 @@
 /**
  * The links of the Compare page's Profile column (CP2): the Profiles page of each test that has a
- * profile in either side's selected runs, pre-populated as PF1 describes.
+ * profile in both sides' selected runs, pre-populated as PF1 describes.
  */
 
 import { useMemo } from 'react'
@@ -20,11 +20,14 @@ import type { Side } from './use-side'
 type RunProfile = Schemas['RunProfile']
 
 export interface ProfileLinks {
-  /** The Profiles page of each test that has a profile on either side, by test. */
+  /** The Profiles page of each test that has a profile on both sides, by test. */
   links: ReadonlyMap<string, string>
-  /** Why some profiles could not be listed, if any could not: their links are missing. */
+  /** Why some profiles could not be listed, if any could not: the links are missing then. */
   failure: Failures
 }
+
+/** No links, the same each time, so that what depends on the links is not computed again. */
+const NO_LINKS: ReadonlyMap<string, string> = new Map()
 
 /** A query that has not failed, standing in for one whose failure is not to be reported. */
 const UNREPORTED = { error: null, refetch: () => {} }
@@ -82,17 +85,15 @@ function combineProfiles(
   return { profiles: results.map((result) => result.data), failures: failuresOf(results) }
 }
 
-/**
- * A side of the Profiles page: the profile of `test` in the run `ref`, one of the runs of `machine`
- * at `commit` (PF1). Without `test`, side B shows its default test, side A's.
- */
-function profileOf(machine: string, commit: string, ref: RunRef | undefined, test?: string) {
-  return ref && { suite: ref.suite, machine, commit, run: ref.uuid, test }
+/** A side of the Profiles page: the run `ref`, one of the runs of `machine` at `commit` (PF1). */
+function sideOf(machine: string, commit: string, ref: RunRef) {
+  return { suite: ref.suite, machine, commit, run: ref.uuid }
 }
 
 /**
- * The Profile column's links, from the profiles of both sides' selected runs (CP6). A side whose
- * profiles are not all listed has no links, so that none leads to the profile of an older run.
+ * The Profile column's links, from the profiles of both sides' selected runs (CP6). There are none
+ * until every selected run's profiles are listed, on both sides, so that none leads to the profile
+ * of an older run.
  */
 export function useProfileLinks(a: Side, b: Side): ProfileLinks {
   const sideA = useProfiledRuns(a)
@@ -110,16 +111,16 @@ export function useProfileLinks(a: Side, b: Side): ProfileLinks {
     const listed = new Map(refs.map((ref, i) => [runRefKey(ref), profiles[i]]))
     const ofA = profiledBy(refsA, listed)
     const ofB = profiledBy(refsB, listed)
+    if (ofA === undefined || ofB === undefined) return NO_LINKS
     const result = new Map<string, string>()
-    for (const test of new Set([...(ofA?.keys() ?? []), ...(ofB?.keys() ?? [])])) {
-      // Side A of the Profiles page shows whichever side has a profile, when only one does. When
-      // both do, side B is left on its default test, side A's (PF1).
-      const sideA = profileOf(machineA, commitA, ofA?.get(test), test)
-      const sideB = profileOf(machineB, commitB, ofB?.get(test), sideA ? undefined : test)
-      const [first, second] = [sideA, sideB].filter((side) => side !== undefined)
-      result.set(test, profilesPath(first, second))
+    for (const [test, refA] of ofA) {
+      const refB = ofB.get(test)
+      if (refB === undefined) continue
+      // Side B is left on its default test, side A's (PF1).
+      const first = { ...sideOf(machineA, commitA, refA), test }
+      result.set(test, profilesPath(first, sideOf(machineB, commitB, refB)))
     }
-    return result
+    return result.size === 0 ? NO_LINKS : result
   }, [refs, profiles, refsA, refsB, machineA, commitA, machineB, commitB])
 
   const failure = failuresOf([

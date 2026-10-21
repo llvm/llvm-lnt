@@ -21,7 +21,7 @@ const testOf = (row: ComparisonRow) => row.test
 
 /**
  * The table of `comparison`, with the page's `settings`, which `update` changes, and the Profiles
- * page of each test that has a profile, `links`.
+ * page of each test that has a profile on both sides, `links`.
  */
 export function useComparisonTable(
   { tests, rows, biggerIsBetter }: Comparison,
@@ -82,8 +82,8 @@ export function useComparisonTable(
     () => shown.filter((row) => !hiddenTests.has(row.test)),
     [shown, hiddenTests],
   )
-  // Whether to show the Profile column: whether any test of the comparison has a profile, whatever
-  // the filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
+  // Whether to show the Profile column: whether any test of the comparison has a link, whatever the
+  // filter, "Hide noise" and the hidden tests, so that the columns stay as they change.
   const profiled = useMemo(
     () => allTests?.some((test) => links.has(test)) ?? false,
     [allTests, links],
