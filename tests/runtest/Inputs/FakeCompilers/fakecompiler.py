@@ -148,11 +148,6 @@ InstalledDir: /home/foo/bin""", file=sys.stderr)
             g_program,), file=sys.stderr)
 
 
-fake_compilers = dict((value.compiler_name, value)
-                      for key, value in locals().items()
-                      if inspect.isclass(value) and issubclass(value, FakeCompiler))
-
-
 class ClangNoInfo(LLVMCompiler):
     compiler_name = "clang-no-info"
 
@@ -161,19 +156,6 @@ class ClangNoInfo(LLVMCompiler):
 clang version 3.2
 Target: x86_64-bla-bla
 Thread model: posix""", file=sys.stderr)
-        print("""\
- "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
-            g_program,), file=sys.stderr)
-
-
-class GenericLLVMCompiler(LLVMCompiler):
-    compiler_name = "llvm-compiler"
-
-    def print_verbose_info(self):
-        print("""\
-LLVM version 3.3 (git:/git/pz/clang.git 597522d740374f093a089a2acbec5b20466b2f34) (/d/g/pz/llvm git:/git/pz/llvm.git 6e95d969734af111bb33bcec0bcc27fd803a3b76)
-Target: x86_64-apple-darwin12.3.0
-Thread model: posix""", file=sys.stderr)  # noqa
         print("""\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,), file=sys.stderr)
