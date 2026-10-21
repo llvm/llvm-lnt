@@ -24,8 +24,6 @@ from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
 from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
                    resolve_command_path, timestamp)
 import lnt.testing.profile
-import lnt.util.ImportData
-import lnt.util.ServerUtil
 
 # This is the list of architectures in
 # test-suite/cmake/modules/DetectArchitecture.cmake. If you update this list,
@@ -169,23 +167,6 @@ def _lit_json_to_csv(json_reports):
     return _lit_json_to_template(json_reports, template_engine)
 
 
-def _submit(report_path, opts):
-    """Submit the report at report_path to the server given by --submit, if
-    any, and print the server's answer."""
-    if opts.submit_url is not None:
-        logger.info("submitting result to %r" % (opts.submit_url,))
-        server_report = lnt.util.ServerUtil.submitFile(
-            opts.submit_url, report_path, opts.verbose,
-            select_machine=opts.select_machine, merge_run=opts.merge)
-    else:
-        server_report = lnt.util.ImportData.no_submit()
-    if server_report:
-        lnt.util.ImportData.print_report_result(server_report, sys.stdout,
-                                                sys.stderr, opts.verbose)
-        if server_report.get('result_url') is not None:
-            print("Results available at:", server_report['result_url'])
-
-
 class TestSuiteTest(object):
     def __init__(self, opts):
         self.opts = opts
@@ -289,6 +270,17 @@ class TestSuiteTest(object):
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
             self._fatal("LIT tool not found (looked for %s)" % opts.lit)
+        if opts.submit_url is not None:
+            if opts.lnt is None:
+                # The `lnt` installed along with the Python running us, if
+                # any, so that a virtualenv works without being activated.
+                opts.lnt = os.path.join(os.path.dirname(sys.executable), 'lnt')
+                if not isexecfile(opts.lnt):
+                    opts.lnt = 'lnt'
+            opts.lnt = resolve_command_path(opts.lnt)
+            if not isexecfile(opts.lnt):
+                self._fatal("LNT tool not found (looked for %s); use "
+                            "--use-lnt to name it" % opts.lnt)
         if opts.run_under:
             split = shlex.split(opts.run_under)
             split[0] = resolve_command_path(split[0])
@@ -496,7 +488,24 @@ class TestSuiteTest(object):
         with open(csv_report_path, 'w') as fd:
             fd.write(str_template)
 
-        _submit(report_path, opts)
+        if opts.submit_url is not None:
+            self._submit(report_path)
+
+    def _submit(self, report_path):
+        """Submit the report at report_path with `lnt submit`, and exit with
+        an error if that fails."""
+        cmd = [self.opts.lnt, 'submit', self.opts.submit_url, report_path,
+               '--select-machine', self.opts.select_machine,
+               '--merge', self.opts.merge]
+        if self.opts.verbose:
+            cmd.append('--verbose')
+        # So that what we printed so far comes before what `lnt submit` prints.
+        sys.stdout.flush()
+        try:
+            self._check_call(cmd)
+        except subprocess.CalledProcessError:
+            fatal("Submitting the report failed. It can be submitted again "
+                  "with: %s" % shlex.join(cmd))
 
     def _run_interleaved_builds(self, opts):
         """Run tests from multiple builds in an interleaved fashion."""
@@ -1481,6 +1490,10 @@ class TestSuiteTest(object):
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
+@click.option("--use-lnt", "lnt", metavar="PATH", type=click.UNPROCESSED,
+              default=None,
+              help="Path to the LNT command line tool [the lnt installed "
+                   "along with this Python, or else lnt]")
 # Submission
 @click.option("--merge", default="replace", show_default=True,
               type=click.Choice(['reject', 'replace', 'append']),

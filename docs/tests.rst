@@ -47,7 +47,10 @@ documentation.
    executable.
 
 #. If you already have a LNT server instance running, you can submit these results to it
-   by passing ``--submit <path-or-URL-of-instance>``.
+   by passing ``--submit http://<server>/db_default/submitRun``, or ``--submit <path-of-instance>``
+   for a local instance. The results are submitted with ``lnt submit``: use ``--use-lnt``
+   to point to ``lnt`` if it is neither installed along with the Python running
+   ``lnt runtest`` nor on your ``PATH``.
 
 #. On most systems, the execution time results will be a bit noisy. There are
    a range of things you can do to reduce noise:
