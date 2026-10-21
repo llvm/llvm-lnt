@@ -272,7 +272,7 @@ interface LayoutOptions {
   metric: string | undefined
   /** Whether to say that there is nothing to plot (GR12). */
   empty: boolean
-  /** The lines of the highlighted commit and the regressions shown (GR15, GR16). */
+  /** The highlighted commit's band and the regressions' lines (GR15, GR16). */
   shapes?: Partial<Shape>[]
 }
 

@@ -16,7 +16,7 @@ interface Props {
   onAdd(baseline: Baseline): void
   onRemove(baseline: string): void
   isDisabled: boolean
-  /** The "+" button, which what comes after the panel may give the focus to. */
+  /** The "+" button, held by the page so that a control after the panel can give it the focus. */
   toggle: RefObject<HTMLButtonElement | null>
 }
 

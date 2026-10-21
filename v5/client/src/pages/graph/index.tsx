@@ -217,9 +217,9 @@ function GraphPage() {
   const listing =
     metric !== undefined && machines.length > 0 && !tests.complete && tests.error === null
   const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
-  // Whether the x-axis holds every commit it is to hold (GR3).
-  const axisComplete =
-    !checking && machines.length > 0 && !scaffold.pending && scaffold.failures.length === 0
+  // Whether the x-axis holds every commit it is to hold (GR3): the machines are known, and each
+  // one's commits listed.
+  const axisComplete = machines.length > 0 && !scaffold.pending && scaffold.failures.length === 0
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
@@ -323,7 +323,7 @@ function GraphPage() {
             isDisabled={disabled}
           />
         </div>
-        {/* What is drawn over the traces. */}
+        {/* What is drawn on the chart besides the data. */}
         <div className={styles.overlays}>
           <BaselinePanel
             suites={suites.data ?? NO_SUITES}

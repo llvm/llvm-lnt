@@ -178,8 +178,8 @@ function runsOf(samples: readonly Measurement[]) {
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
  * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
- * (GR9), the regressions' (GR15) and the highlighted commit (GR16) over them. Hovering a point
- * shows its samples (GR10), and clicking it its details (GR11).
+ * (GR9), the regressions' (GR15) and the highlighted commit's circles (GR16) over them, and its
+ * band under them. Hovering a point shows its samples (GR10), and clicking it its details (GR11).
  */
 export function GraphChart({
   schema,

@@ -268,6 +268,8 @@ describe('the highlighted commit (GR16)', () => {
       y: [1],
       // Neither hovered nor clicked: the point under it keeps its own tooltip and details.
       hoverinfo: 'skip',
+      // Whole at either end of the x-axis.
+      cliponaxis: false,
       marker: { color: '#aaaaaa', symbol: 'circle-open', line: { width: 2 } },
     })
   })

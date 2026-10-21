@@ -16,8 +16,9 @@ the suite is a query parameter, not a path segment.
   test filter, aggregation, regression annotations, baselines) are disabled
   until a suite is selected.
   Changing the suite clears the machines, the metric, the selected tests, the
-  highlighted commit (GR16) and the chart. The test filter, the aggregation, the regression annotation mode
-  (GR15) and the baselines (GR9) are kept: a baseline names its own suite.
+  highlighted commit (GR16) and the chart. The test filter, the aggregation,
+  the regression annotation mode (GR15) and the baselines (GR9) are kept: a
+  baseline names its own suite.
   When the page is loaded with `suite=` in the URL, the dropdown is
   pre-selected.
 
@@ -316,8 +317,9 @@ on its close button, on a click anywhere but on it or a marker of its point's
 scatter, and on any change to the chart other than
 data arriving, such as a zoom or pan, or a change to the selected tests,
 machines, metric, aggregation, baselines, regression annotation mode or
-highlighted commit (GR16), and once its point is no longer drawn. Moving the focus out of it does not close
-it. A click on another point opens that point's popover instead.
+highlighted commit (GR16), and once its point is no longer drawn. Moving the
+focus out of it does not close it. A click on another point opens that point's
+popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or
 nothing.
 
@@ -426,4 +428,5 @@ also says when the commit is not on it.
 The commit is kept as given, without being looked up, even when the suite has
 no such commit (an exception to AR2 "State"): whether it is drawn depends on the
 x-axis, which changes with the machines, and the chip says when it is not on
-it. Only a suite change clears it (GR1). It can only be set through the URL.
+it. Besides its chip, only a suite change clears it (GR1). It can only be set
+through the URL.

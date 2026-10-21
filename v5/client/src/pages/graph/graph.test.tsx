@@ -191,6 +191,34 @@ describe('the Graph page (GR1)', () => {
     expect(query().highlight).toEqual(['c99'])
   })
 
+  it('does not say the highlight is off the x-axis while no machine is plotted', async () => {
+    mockWorld()
+    renderPage('/graph?suite=libcxx&highlight=c20')
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Machines' })).toBeEnabled())
+    const chip = main().getByRole('list', { name: 'Highlighted commit' })
+    expect(chip).toHaveTextContent(/^Highlighted: c20×$/)
+    expect(query().highlight).toEqual(['c20'])
+  })
+
+  it("does not say the highlight is off the x-axis while a machine's commits failed", async () => {
+    mockWorld()
+    server.use(
+      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        const machineName = new URL(request.url).searchParams.get('machine') as 'm1' | 'm2'
+        if (machineName === 'm2') return errorResponse(500, 'internal_error', 'The commits broke.')
+        return HttpResponse.json(cursorPage(COMMITS[machineName].map(commitAt)))
+      }),
+    )
+    // Only m2 has runs at c40.
+    renderPage(`${GRAPHED}&highlight=c40`)
+
+    expect(await main().findByText(/The commits of m2 could not be listed/)).toBeInTheDocument()
+    await waitFor(() => expect(layout().xaxis?.categoryarray).toEqual(['c10', 'c20', 'c30']))
+    const chip = main().getByRole('list', { name: 'Highlighted commit' })
+    expect(chip).toHaveTextContent(/^Highlighted: c40×$/)
+  })
+
   it('says there is nothing to plot once the tests selected have no data', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test=c`)

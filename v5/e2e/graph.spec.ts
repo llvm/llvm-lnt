@@ -319,7 +319,6 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
   await expect(tracesOf(page)).toHaveCount(2)
 })
 
-
 test('highlights a commit with a band of fixed width, circling its point (GR16)', async ({
   page,
   request,
@@ -330,7 +329,7 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   )
   const { value: commit } = items[Math.floor(items.length / 2)]
   await page.goto(`${LINUX_TEST}&highlight=${commit}`)
-  // Named as the trace is, its test name escaped (see chart.tsx).
+  // Named as the trace is, its test name escaped (see client/src/pages/graph/chart.ts).
   const circle = `BM_num_get&lt;void*&gt; - ${LINUX} - highlighted`
   await expect.poll(() => draws(page, circle)).toBe(true)
 
