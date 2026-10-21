@@ -214,11 +214,9 @@ all use these rows.
   is removed, the table goes back to its default sort.
 - **Profile column**: when both sides have a profile of a test in their
   selected runs, a "Profile" link leads to the Profiles page, comparing the two
-  as PF1 describes. A test with a profile on one side only has no link: its
-  profile can be opened from its run's Run Detail page (see DT2). The column
-  comes last, and cannot be sorted by. It is shown while any test of the
-  comparison has a link, whatever the test filter, "Hide noise" and the hidden
-  tests.
+  as PF1 describes. The column comes last, and cannot be sorted by. It is shown
+  while any test of the comparison has a link, whatever the test filter, "Hide
+  noise" and the hidden tests.
 - **Width**: when the columns don't fit in the page's width, the table scrolls
   horizontally in a box of its own rather than squeezing the Test column. The
   rest of the page, the summary message row included, stays in place. The
