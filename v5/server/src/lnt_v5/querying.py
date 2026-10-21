@@ -73,6 +73,13 @@ BodyLimit = Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT, description=_LIMI
 
 BodyCursor = Annotated[str | None, Field(description=_CURSOR)]
 
+# What every time bound given as a query parameter tells a client about the timestamp it takes.
+# Published in I8's document.
+TIMESTAMP_HINT = (
+    "An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone "
+    "as `%2B`, otherwise it is read as a space."
+)
+
 # I3 spells a descending sort by prefixing the field name.
 DESCENDING = "-"
 

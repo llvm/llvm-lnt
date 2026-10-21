@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import (
     Column,
     ColumnElement,
+    Connection,
     Row,
     Select,
     Table,
@@ -101,6 +102,13 @@ _QUERY_EXAMPLES = {
         },
     },
 }
+
+# endpoints.md: `commit` names a point and the bounds name a range, so a request takes one or the
+# other. Shared with `GET /series`, which takes the same filters as query parameters.
+ONE_KIND_OF_COMMIT_FILTER = (
+    "'commit' selects one commit and 'after_commit'/'before_commit' select a range of them, so a "
+    "request may use one or the other but not both"
+)
 
 # The docstrings of the models and endpoints below, and the field descriptions, are published, as
 # the descriptions I8's document gives them, so they are written for API users.
@@ -249,14 +257,10 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def _one_kind_of_commit_filter(self) -> Self:
-        """endpoints.md: `commit` names a point and the bounds name a range, so never both."""
         if self.commit is not None and (
             self.after_commit is not None or self.before_commit is not None
         ):
-            raise ValueError(
-                "'commit' selects one commit and 'after_commit'/'before_commit' select a range of "
-                "them, so a request may use one or the other but not both"
-            )
+            raise ValueError(ONE_KIND_OF_COMMIT_FILTER)
         return self
 
 
@@ -275,7 +279,7 @@ class Points:
         # than through the joined `run.id`, so that without a sort the cursor's comparison is a
         # condition on the key's index.
         self._key = (self.table.c.run_id, self.table.c.test_id, self.table.c.repetition)
-        # The columns the range filters bound.
+        # The columns a point is sorted by, besides the test's name.
         self.ordinal: Column[Any] = self._commit.c.ordinal
         self.submitted_at: Column[Any] = self._run.c.submitted_at
         self.measured_at: Column[Any] = self._run.c.measured_at
@@ -341,10 +345,6 @@ class Points:
         the plan PostgreSQL picks, so an identical request could otherwise have its cursor refused.
         """
         return self.table.c.test_id.in_(sorted(tests))
-
-    def at_commit(self, value: str) -> ColumnElement[bool]:
-        """I3's `commit=`, by value so that an unknown commit is an empty page rather than 404."""
-        return self._commit.c.commit == value
 
     def read(self, row: Row[Any]) -> DataPoint:
         # By column object rather than by name: several joined tables have a `name`, and a metric
@@ -452,6 +452,37 @@ class Trends:
         )
 
 
+def run_conditions(
+    connection: Connection,
+    suite: Suite,
+    *,
+    commit: str | None,
+    after_commit: str | None,
+    before_commit: str | None,
+    submitted_after: datetime | None,
+    submitted_before: datetime | None,
+    measured_after: datetime | None,
+    measured_before: datetime | None,
+) -> list[ColumnElement[bool]]:
+    """The filters E9's endpoints share that select runs, as conditions on `run` and its commit.
+
+    `commit=` matches by value, so that an unknown commit is an empty result rather than 404 (I3).
+    The commit bounds are by ordinal, and resolving one is what answers I3's 404 or 400.
+    """
+    run, commits = suite.tables.run, suite.tables.commit
+    conditions: list[ColumnElement[bool]] = []
+    if commit is not None:
+        conditions.append(commits.c.commit == commit)
+    conditions += exclusive_range(
+        commits.c.ordinal,
+        None if after_commit is None else commit_ordinal(connection, suite, after_commit),
+        None if before_commit is None else commit_ordinal(connection, suite, before_commit),
+    )
+    conditions += exclusive_range(run.c.submitted_at, submitted_after, submitted_before)
+    conditions += exclusive_range(run.c.measured_at, measured_after, measured_before)
+    return conditions
+
+
 def _numeric(suite: Suite, name: str) -> Metric:
     """The metric a trend is taken of, which must be declared and numeric (D3); 400 otherwise."""
     metric = declared_entry(suite.schema, Metric, name)
@@ -492,18 +523,17 @@ def query_points(
             conditions.append(points.measured_on(machine_id(connection, suite, body.machine)))
         if body.test is not None:
             conditions.append(points.measured_for(test_ids(connection, suite, body.test).values()))
-        if body.commit is not None:
-            conditions.append(points.at_commit(body.commit))
-        after, before = body.after_commit, body.before_commit
-        conditions += exclusive_range(
-            points.ordinal,
-            None if after is None else commit_ordinal(connection, suite, after),
-            None if before is None else commit_ordinal(connection, suite, before),
+        conditions += run_conditions(
+            connection,
+            suite,
+            commit=body.commit,
+            after_commit=body.after_commit,
+            before_commit=body.before_commit,
+            submitted_after=body.submitted_after,
+            submitted_before=body.submitted_before,
+            measured_after=body.measured_after,
+            measured_before=body.measured_before,
         )
-        conditions += exclusive_range(
-            points.submitted_at, body.submitted_after, body.submitted_before
-        )
-        conditions += exclusive_range(points.measured_at, body.measured_after, body.measured_before)
 
         return cursor_page(
             connection,

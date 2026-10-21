@@ -75,6 +75,10 @@ there are few of them -- is unpaginated, and the others are cursor-paginated.
 unpaginated results are wrapped, so that adding pagination to an endpoint later
 keeps the shape of its responses.
 
+One endpoint is an exception: E9's series streams a machine's whole time
+series, unbounded and unpaginated, as newline-delimited JSON (one result per
+line, with no envelope), in an order no cursor could follow cheaply.
+
 This applies only to the top level of a response body. An array that is a
 field of a larger object keeps its own name (a regression's `indicators`, a
 function's `instructions`), and a response that is not a list of results, such
@@ -169,10 +173,11 @@ that updates or removes an entry is addressing that entry instead, and returns
 
 ## I4: Response Format
 
-All REST API responses are JSON. A list of results comes in one of the
-envelopes from I2; any other response is the entity object itself, unless its
-endpoint specifies otherwise. Status codes are limited to 200, 201, 204, 400,
-401, 403, 404, 405, 409, 415, and 500.
+All REST API responses are JSON, except a successful response from E9's
+series, which is newline-delimited JSON (see I2). A list of results comes in
+one of the envelopes from I2; any other response is the entity object itself,
+unless its endpoint specifies otherwise. Status codes are limited to 200, 201,
+204, 400, 401, 403, 404, 405, 409, 415, and 500.
 
 The routes exempt from the scope system (see I5) are not part of the REST
 API and follow their own sections. They serve plain text and HTML as well as
@@ -213,7 +218,8 @@ spec only needs to list its keys.
 - Unless specified otherwise, every key an endpoint documents is always
   present, and is `null` when it has no value.
 
-**Errors** all use one envelope:
+**Errors** all use one envelope, except a failure after the series of E9 has
+started streaming, which aborts the response instead (see E9):
 
 `{"error": {"code": "not_found", "message": "Machine 'foo' not found in test suite 'nts'"}}`
 

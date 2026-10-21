@@ -12,7 +12,7 @@ Key changes from v4:
   `Order` (separating identity, ordering, and display), no `FieldChange` table
   (regressions use direct indicators).
 - **API**: A full REST API with OpenAPI 3.x, cursor-based pagination, bearer
-  token auth with scope hierarchy, all JSON responses.
+  token auth with scope hierarchy, JSON responses.
 - **UI**: Single-page application with client-side routing, all data from the
   v5 REST API.
 

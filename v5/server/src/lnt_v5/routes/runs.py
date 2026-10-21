@@ -47,6 +47,7 @@ from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.querying import (
     DEFAULT_LIMIT,
+    TIMESTAMP_HINT,
     Cursor,
     Keyset,
     Limit,
@@ -87,12 +88,6 @@ RunSort = Literal["submitted_at", "-submitted_at", "measured_at", "-measured_at"
 
 # How many machines or commits a run search looks up the ids of (see `Runs.search`).
 _MAX_RESOLVED = 10_000
-
-# What every time bound tells a client about the timestamp it takes.
-_TIMESTAMP = (
-    "An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone "
-    "as `%2B`, otherwise it is read as a space."
-)
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
@@ -528,19 +523,27 @@ def list_runs(
     ] = None,
     submitted_after: Annotated[
         DatetimeValue | None,
-        Query(description=f"Only return runs submitted after this time (exclusive). {_TIMESTAMP}"),
+        Query(
+            description=f"Only return runs submitted after this time (exclusive). {TIMESTAMP_HINT}"
+        ),
     ] = None,
     submitted_before: Annotated[
         DatetimeValue | None,
-        Query(description=f"Only return runs submitted before this time (exclusive). {_TIMESTAMP}"),
+        Query(
+            description=f"Only return runs submitted before this time (exclusive). {TIMESTAMP_HINT}"
+        ),
     ] = None,
     measured_after: Annotated[
         DatetimeValue | None,
-        Query(description=f"Only return runs measured after this time (exclusive). {_TIMESTAMP}"),
+        Query(
+            description=f"Only return runs measured after this time (exclusive). {TIMESTAMP_HINT}"
+        ),
     ] = None,
     measured_before: Annotated[
         DatetimeValue | None,
-        Query(description=f"Only return runs measured before this time (exclusive). {_TIMESTAMP}"),
+        Query(
+            description=f"Only return runs measured before this time (exclusive). {TIMESTAMP_HINT}"
+        ),
     ] = None,
     has_profiles: Annotated[
         bool | None,

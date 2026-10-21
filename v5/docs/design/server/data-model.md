@@ -86,6 +86,8 @@ reader's version check and its next query, another worker may remove a field,
 so a request can reach a column that no longer exists. Closing that window is
 not required, but a request that hits it must return the same retryable 409
 (`retry`) rather than a 500.
+A response that is streamed (E9's series) cannot change its status once
+started, so one already under way is aborted instead.
 
 **Schema evolution.** A suite's `metrics`, `commit_fields` and
 `machine_fields` lists can be changed after creation with
@@ -569,8 +571,10 @@ as `{suite}.commit`, and the tables below are named that way.
 - The primary key leads with the run. It serves
   `GET /api/suites/{testsuite}/runs/{uuid}/samples`, with or without `test=`;
   the deletion of a run's samples; `POST /api/suites/{testsuite}/query` without
-  a sort, whose cursor follows the key; and `POST /api/suites/{testsuite}/query`
-  when it reaches the samples through their runs, as it does for a machine's.
+  a sort, whose cursor follows the key; `POST /api/suites/{testsuite}/query`
+  when it reaches the samples through their runs, as it does for a machine's;
+  and `GET /api/suites/{testsuite}/series`, which always does, so that it reads
+  only the machine's samples.
 - Compound index on `(test_id, run_id)`: serves the `test` filter of
   `POST /api/suites/{testsuite}/query`.
 - Dynamic columns are created from the schema's metrics (see D3 for the
@@ -587,9 +591,10 @@ as `{suite}.commit`, and the tables below are named that way.
 | _(dynamic)_ | BOOLEAN, one per metric | not null, default `false` |
 
 - One row per machine and test that has had samples, so that the `machine=`
-  and `metric=` filters of `GET /api/suites/{testsuite}/tests` are a lookup
-  rather than a scan of `{suite}.sample`. Each metric's column records whether
-  any of those samples had a value for that metric.
+  and `metric=` filters of `GET /api/suites/{testsuite}/tests`, and the tests
+  `GET /api/suites/{testsuite}/series` reads, are a lookup rather than a scan of
+  `{suite}.sample`. Each metric's column records whether any of those samples
+  had a value for that metric.
 - It only grows: rows are added and flags only turn true. Run submission adds
   rows and sets flags in the same transaction as its samples (see O8).
   Deleting a run or a commit leaves the table unchanged, so those filters can
