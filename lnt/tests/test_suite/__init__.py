@@ -241,15 +241,12 @@ class TestSuiteTest(object):
             if opts.test_suite_root is None:
                 fatal('--test-suite is required')
             if not os.path.exists(opts.test_suite_root):
-                fatal("invalid --test-suite argument, does not exist: %r" % (
-                    opts.test_suite_root))
+                fatal("invalid --test-suite argument, does not exist: %r" % opts.test_suite_root)
             opts.test_suite_root = os.path.abspath(opts.test_suite_root)
 
         if opts.test_suite_externals:
             if not os.path.exists(opts.test_suite_externals):
-                fatal(
-                    "invalid --test-externals argument, does not exist: %r" % (
-                        opts.test_suite_externals,))
+                fatal("invalid --test-externals argument, does not exist: %r" % opts.test_suite_externals)
             opts.test_suite_externals = os.path.abspath(
                 opts.test_suite_externals)
 
@@ -386,9 +383,7 @@ class TestSuiteTest(object):
         cmake_vars = self._extract_cmake_vars_from_cache()
         if "CMAKE_C_COMPILER" not in cmake_vars or \
                 not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
-            fatal(
-                "Couldn't find C compiler (%s). Maybe you should specify --cc?"
-                % cmake_vars.get("CMAKE_C_COMPILER"))
+            fatal("Couldn't find C compiler (%s). Maybe you should specify --cc?" % cmake_vars.get("CMAKE_C_COMPILER"))
 
         # We don't support compiling without testing as we can't get compile-
         # time numbers from LIT without running the tests.
@@ -512,9 +507,7 @@ class TestSuiteTest(object):
             cmake_vars = self._extract_cmake_vars_from_cache()
             if "CMAKE_C_COMPILER" not in cmake_vars or \
                     not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
-                fatal(
-                    "Couldn't find C compiler in build %s (%s)." %
-                    (build_dir, cmake_vars.get("CMAKE_C_COMPILER")))
+                fatal("Couldn't find C compiler in build %s (%s)." % (build_dir, cmake_vars.get("CMAKE_C_COMPILER")))
 
             cc_info = self._get_cc_info(cmake_vars)
             logger.info("  Compiler: %s %s" % (cc_info['cc_name'], cc_info['cc_build']))
