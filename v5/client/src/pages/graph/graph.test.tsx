@@ -164,6 +164,33 @@ describe('the Graph page (GR1)', () => {
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
   })
 
+  it('says the highlight is not on the x-axis only once the x-axis is complete', async () => {
+    const machines = gate()
+    const commits = gate()
+    mockWorld()
+    mockMachines(async () => {
+      await machines.promise
+      return cursorPage([machine('m1'), machine('m2')])
+    })
+    mockCommits(async (query) => {
+      await commits.promise
+      return cursorPage(COMMITS[query.get('machine') as 'm1' | 'm2'].map(commitAt))
+    })
+    renderPage(`${GRAPHED}&highlight=c99`)
+    const chip = () => main().getByRole('list', { name: 'Highlighted commit' })
+
+    // The commit string, while nothing says whether the commit is on the x-axis.
+    await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: c99×$/))
+    act(() => machines.open())
+    await waitFor(() => expect(listed()).toEqual(['a', 'b', 'c', 'd']))
+    expect(chip()).toHaveTextContent(/^Highlighted: c99×$/)
+
+    act(() => commits.open())
+    await waitFor(() => expect(chip()).toHaveTextContent('Highlighted: c99 · not on the x-axis'))
+    // Kept all the same (GR16).
+    expect(query().highlight).toEqual(['c99'])
+  })
+
   it('says there is nothing to plot once the tests selected have no data', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test=c`)
@@ -552,9 +579,9 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
   })
 
-  it('clears the machines, the metric and the tests on a new suite, keeping the rest', async () => {
+  it('clears the machines, metric, tests and highlight on a new suite, not the rest', async () => {
     mockWorld()
-    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max`)
+    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max&highlight=c20`)
     await waitFor(() => expect(box('a')).toBeChecked())
 
     await pickOption('Suite', 'text_only')
@@ -860,7 +887,7 @@ describe('loading (GR2, GR4, GR8)', () => {
 describe('the URL (GR14, AR2)', () => {
   it('drops a suite that does not exist, and what was chosen in it', async () => {
     mockWorld()
-    renderPage('/graph?suite=nope&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?suite=nope&machine=m1&metric=execution_time&test=a&highlight=c10')
     await waitFor(() => expect(currentUrl()).toBe('/graph'))
   })
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AGGREGATION_OPTIONS,
@@ -12,6 +12,7 @@ import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
+import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { useRangeSelection } from '../../components/range-selection'
@@ -20,7 +21,7 @@ import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
 import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
-import { isNumeric, labelOf, type Metric } from '../../schema'
+import { commitDisplayValue, isNumeric, labelOf, type Metric } from '../../schema'
 import {
   booleanParam,
   enumParam,
@@ -79,14 +80,18 @@ const PARAMS = {
   run_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
   regressions: enumParam(ANNOTATIONS.map((option) => option.value), 'off'),
   baseline: baselineParam(),
+  highlight: stringParam(),
 }
+
+/** What a suite change clears, since it does not apply to another suite (GR1). */
+const IN_SUITE = { machine: [] as string[], metric: '', test: [] as string[], highlight: '' }
 
 const NO_NAMES: string[] = []
 const NO_SUITES: SuiteSchema[] = []
 const nameOf = (name: string) => name
 
 /**
- * The Graph page (GR1-GR14), started afresh whenever the user navigates to it -- a link to another
+ * The Graph page (GR1-GR16), started afresh whenever the user navigates to it -- a link to another
  * graph while on this one, say -- so that its selection is the one the new URL names.
  */
 export default function Graph() {
@@ -157,7 +162,7 @@ function GraphPage() {
     (list) => settings.suite === '' || list.some((entry) => entry.name === settings.suite),
     () => {
       rows.replace([])
-      update({ suite: '', machine: [], metric: '', test: [] })
+      update({ suite: '', ...IN_SUITE })
     },
   )
 
@@ -212,14 +217,36 @@ function GraphPage() {
   const listing =
     metric !== undefined && machines.length > 0 && !tests.complete && tests.error === null
   const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
+  // Whether the x-axis holds every commit it is to hold (GR3).
+  const axisComplete =
+    !checking && machines.length > 0 && !scaffold.pending && scaffold.failures.length === 0
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
 
   const chooseSuite = (name: string) => {
     rows.replace([])
-    update({ suite: name, machine: [], metric: '', test: [] })
+    update({ suite: name, ...IN_SUITE })
   }
+
+  // The highlighted commit (GR16), once on the x-axis, which gives its display value. It is said
+  // not to be on it only once the x-axis is complete.
+  const { highlight } = settings
+  const highlighted = useMemo(
+    () => scaffold.commits.find((commit) => commit.value === highlight),
+    [scaffold.commits, highlight],
+  )
+  const shownHighlight = highlighted && schema ? commitDisplayValue(highlighted, schema) : highlight
+  const highlightChip =
+    highlight !== '' && schema !== undefined
+      ? {
+          key: highlight,
+          text: `Highlighted: ${shownHighlight}`,
+          detail: highlighted || !axisComplete ? undefined : 'not on the x-axis',
+        }
+      : undefined
+  // What takes the focus once the highlight is removed: the control before it.
+  const addBaselineButton = useRef<HTMLButtonElement>(null)
 
   const disabled = schema === undefined
   return (
@@ -306,6 +333,14 @@ function GraphPage() {
               update({ baseline: settings.baseline.filter((entry) => entry !== value) })
             }
             isDisabled={disabled}
+            toggle={addBaselineButton}
+          />
+          <ChipList
+            label="Highlighted commit"
+            chips={highlightChip ? [highlightChip] : []}
+            removeLabel={() => `Remove the highlight of ${shownHighlight}`}
+            onRemove={() => update({ highlight: '' })}
+            focusWhenEmpty={() => addBaselineButton.current}
           />
         </div>
       </ControlsPanel>
@@ -366,6 +401,7 @@ function GraphPage() {
         }
         baselines={baselines.states}
         regressions={regressions.regressions}
+        highlight={highlighted?.value}
         emphasis={emphasis}
         hovered={hovered}
         closeOn={[
@@ -376,6 +412,7 @@ function GraphPage() {
           settings.run_agg,
           settings.baseline,
           mode,
+          highlight,
         ]}
       />
       <TestTable

@@ -5,7 +5,10 @@ import { metric } from '../../test/fixtures'
 import { hoverText } from '../../test/hover-text'
 import {
   baselineTraces,
+  circlesAt,
   graphLayout,
+  highlightCircles,
+  highlightShape,
   plotlyTraces,
   regressionMarkers,
   regressionShapes,
@@ -219,5 +222,53 @@ describe('the regression annotations (GR15)', () => {
     expect(layout.shapes).toHaveLength(1)
     expect(layout.xaxis2).toMatchObject({ overlaying: 'x', range: [0, 1], fixedrange: true })
     expect(layout.yaxis2).toMatchObject({ overlaying: 'y', range: [0, 1], visible: false })
+  })
+})
+
+describe('the highlighted commit (GR16)', () => {
+  const traceOf = (test: string, commits: string[]): Trace => ({
+    test,
+    machine: 'm1',
+    machineIndex: 0,
+    color: `#${test.repeat(6)}`,
+    points: commits.map((commit, position) => ({ commit, position, value: position, runs: 1 })),
+  })
+
+  it('draws a band a few pixels wide at the commit, across the plot, under the traces', () => {
+    expect(highlightShape('c2')).toMatchObject({
+      type: 'rect',
+      xref: 'x',
+      xsizemode: 'pixel',
+      xanchor: 'c2',
+      x0: -6,
+      x1: 6,
+      yref: 'paper',
+      y0: 0,
+      y1: 1,
+      layer: 'below',
+    })
+  })
+
+  it('circles the point of each trace that has one at the commit', () => {
+    const a = traceOf('a', ['c1', 'c2'])
+    const b = traceOf('b', ['c1'])
+    const c = traceOf('c', ['c2', 'c3'])
+
+    const circles = circlesAt([a, b, c], 'c2')
+    expect(circles.map(({ trace, point }) => [trace.test, point.value])).toEqual([
+      ['a', 1],
+      ['c', 0],
+    ])
+    expect(circlesAt([a, b, c], 'c9')).toEqual([])
+
+    const [drawn] = highlightCircles(circles) as PlotData[]
+    expect(drawn).toMatchObject({
+      mode: 'markers',
+      x: ['c2'],
+      y: [1],
+      // Neither hovered nor clicked: the point under it keeps its own tooltip and details.
+      hoverinfo: 'skip',
+      marker: { color: '#aaaaaa', symbol: 'circle-open', line: { width: 2 } },
+    })
   })
 })

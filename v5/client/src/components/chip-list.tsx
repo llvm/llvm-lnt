@@ -22,8 +22,8 @@ interface Props {
 }
 
 /**
- * Chips, one per line, each removed with its button: the Graph page's machines plotted (GR1) and
- * baselines (GR9), the Compare page's shadows (CP8). Once a chip is removed, the focus goes to the
+ * Chips, one per line, each removed with its button: the Graph page's machines plotted (GR1),
+ * baselines (GR9) and highlighted commit (GR16), the Compare page's shadows (CP8). Once a chip is removed, the focus goes to the
  * button of the chip after it, or else before it, or to `focusWhenEmpty` once none is left, rather
  * than to the page.
  */

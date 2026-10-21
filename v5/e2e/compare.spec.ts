@@ -147,6 +147,7 @@ test("shows a bar's details, linking to the test's history on the Graph page (CP
     ['machine', LINUX],
     ['metric', 'execution_time'],
     ['test', test],
+    ['highlight', newer.value],
   ])
   await expect(table(page, 'Tests').getByRole('checkbox', { name: test, exact: true })).toBeChecked()
   const pointAtB = () =>

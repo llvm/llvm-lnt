@@ -341,9 +341,9 @@ Interactivity:
     Reference") come from, as GR11 lists a point's runs, in a list of their own
     whose accessible name says the side;
   - "View on graph": a link to the Graph page with side B's suite and machine,
-    the selected metric, the test selected, and Compare's run and sample
-    aggregations, so that its point at side B's commit, when drawn (GR3), is
-    Value B when side B selects every run;
+    the selected metric, the test selected, side B's commit highlighted (GR16),
+    and Compare's run and sample aggregations, so that its point at side B's
+    commit, when drawn (GR3), is Value B when side B selects every run;
   - the test's Profile link, when its row has one (CP2).
 
   It closes on Escape, on its close button, on a click anywhere but on it, on

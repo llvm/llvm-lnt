@@ -46,6 +46,8 @@ interface GraphView {
   /** How each run's samples, then the runs, are combined: the Graph's defaults when not given. */
   sampleAgg?: string
   runAgg?: string
+  /** The commit highlighted on the chart (GR16). */
+  highlight?: string
 }
 
 /** The Graph page (GR14), showing `view`. */
@@ -57,6 +59,7 @@ export function graphPath({
   regressions,
   sampleAgg,
   runAgg,
+  highlight,
 }: GraphView = {}): string {
   return withQuery('/graph', [
     ['suite', suite],
@@ -67,6 +70,7 @@ export function graphPath({
     ['run_agg', runAgg],
     ['sample_agg', sampleAgg],
     ['regressions', regressions],
+    ['highlight', highlight],
   ])
 }
 

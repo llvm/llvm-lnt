@@ -1,4 +1,4 @@
-/* The Graph page (GR1-GR14). */
+/* The Graph page (GR1-GR16). */
 
 .chart {
   height: 520px;
@@ -66,10 +66,12 @@
   font-size: 0.85em;
 }
 
-/* The row of what is drawn over the traces: the baselines. */
+/* The row of what is drawn over the traces: the baselines, then the highlighted commit. */
 .overlays {
   display: flex;
   flex-basis: 100%;
+  align-items: flex-start;
+  gap: var(--lnt-space-4);
 }
 
 /* The chart, and what is placed over it: the hovered point's runs, the point details. */

@@ -26,7 +26,9 @@ import { server } from '../../test/server'
 import {
   GRAPHED,
   GRAPH_SUITE,
+  addMachine,
   chart,
+  drawn,
   layout,
   listed,
   mockWorld,
@@ -1084,5 +1086,163 @@ describe('the baselines (GR9)', () => {
     failing = false
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r10: 1']))
+  })
+})
+
+/** The traces of the circles around the points at the highlighted commit (GR16). */
+function circleTraces() {
+  return (chart().data as PlotData[]).filter((trace) => trace.name.endsWith(' - highlighted'))
+}
+
+/** The circles around the points at the highlighted commit, as `name: commit=value`. */
+function highlightCircles() {
+  return circleTraces().map(
+    (trace) => `${trace.name}: ${(trace.x as string[])[0]}=${(trace.y as number[])[0]}`,
+  )
+}
+
+/** The commit of the highlighted commit's band (GR16), if it is drawn. */
+function band() {
+  return layout().shapes?.find((shape) => shape.type === 'rect')?.xanchor
+}
+
+function highlightChip() {
+  return main().getByRole('list', { name: 'Highlighted commit' })
+}
+
+describe('the highlighted commit (GR16)', () => {
+  const HIGHLIGHTED: Record<string, Sample[]> = {
+    'm1/a': [
+      ['c10', 'r1', 1],
+      ['c20', 'r2', 2],
+    ],
+    'm1/b': [['c10', 'r1', 3]],
+    'm2/b': [
+      ['c20', 'r3', 4],
+      ['c40', 'r4', 5],
+    ],
+  }
+
+  it("draws a band at the commit, under its regressions, circling each trace's point", async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    mockRegressionWorld()
+    renderPage(`${GRAPHED}&test=a&test=b&regressions=all&highlight=c20`)
+
+    await waitFor(() =>
+      expect(highlightCircles()).toEqual([
+        'a - m1 - highlighted: c20=2',
+        'b - m2 - highlighted: c20=4',
+      ]),
+    )
+    // Over the traces, which keep their own points, tooltips and details.
+    expect(drawn().slice(0, 5)).toEqual([
+      'a - m1',
+      'b - m1',
+      'b - m2',
+      'a - m1 - highlighted',
+      'b - m2 - highlighted',
+    ])
+    await waitFor(() => expect(markers()).toHaveLength(2))
+    // The band first, which the regressions' lines at its commit are drawn over.
+    expect(layout().shapes?.map((shape) => [shape.type, shape.xanchor ?? shape.x0])).toEqual([
+      ['rect', 'c20'],
+      ['line', 'c20'],
+      ['line', 'c20'],
+    ])
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: r20×$/)
+
+    draw()
+    click('a - m1', 1)
+    expect(details().getByText('r20')).toBeInTheDocument()
+  })
+
+  it('fades the circles with their trace when a test row is hovered', async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    renderPage(`${GRAPHED}&test=a&test=b&highlight=c20`)
+    await waitFor(() => expect(highlightCircles()).toHaveLength(2))
+
+    fireEvent.mouseEnter(testTable().getByText('b').closest('tr')!)
+
+    expect(circleTraces().map((trace) => [trace.name, trace.opacity])).toEqual([
+      ['a - m1 - highlighted', 0.2],
+      ['b - m2 - highlighted', undefined],
+    ])
+  })
+
+  it('is no point: the chart still has nothing to plot', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&highlight=c20`)
+
+    await waitFor(() => expect(layout().annotations?.[0]?.text).toBe('No data to plot'))
+    expect(band()).toBe('c20')
+    expect(highlightCircles()).toEqual([])
+  })
+
+  it('is drawn only while on the x-axis, kept as the machines and the rest change', async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    renderPage(`${GRAPHED}&test=b&highlight=c40`)
+    await waitFor(() => expect(highlightCircles()).toEqual(['b - m2 - highlighted: c40=5']))
+    expect(band()).toBe('c40')
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: r40×$/)
+    const user = userEvent.setup()
+
+    // Only m2 has runs at c40.
+    await user.click(screen.getByRole('button', { name: 'Remove m2' }))
+    await waitFor(() => expect(band()).toBeUndefined())
+    expect(highlightCircles()).toEqual([])
+    expect(highlightChip()).toHaveTextContent('Highlighted: c40 · not on the x-axis')
+
+    await pickOption('Metric', 'Compile Time')
+    await pickOption('Run aggregation', 'max')
+    await addMachine('m2')
+    await waitFor(() => expect(band()).toBe('c40'))
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: r40×$/)
+    expect(query()).toMatchObject({
+      machine: ['m1', 'm2'],
+      metric: ['compile_time'],
+      run_agg: ['max'],
+      highlight: ['c40'],
+    })
+  })
+
+  it('is removed with its chip, which gives the focus to the control before it', async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    renderPage(`${ONE_MACHINE}&test=a&highlight=c20`)
+    await waitFor(() => expect(highlightCircles()).toHaveLength(1))
+
+    const remove = screen.getByRole('button', { name: 'Remove the highlight of r20' })
+    await userEvent.setup().click(remove)
+
+    expect(query().highlight).toBeUndefined()
+    expect(band()).toBeUndefined()
+    expect(highlightCircles()).toEqual([])
+    expect(main().queryByRole('list', { name: 'Highlighted commit' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add a baseline' })).toHaveFocus()
+  })
+
+  it("closes a point's details once removed, even from the keyboard", async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    renderPage(`${ONE_MACHINE}&test=a&highlight=c20`)
+    await waitFor(() => expect(highlightCircles()).toHaveLength(1))
+    draw()
+
+    click('a - m1', 0)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // A click without a press, as from the keyboard, which leaves the details open by itself.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove the highlight of r20' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('shows no chip until a suite is selected, which then clears it', async () => {
+    mockWorld()
+    renderPage('/graph?highlight=c20')
+    await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
+    expect(main().queryByRole('list', { name: 'Highlighted commit' })).toBeNull()
+    expect(query().highlight).toEqual(['c20'])
+
+    await pickOption('Suite', 'libcxx')
+
+    await waitFor(() => expect(query()).toEqual({ suite: ['libcxx'] }))
   })
 })

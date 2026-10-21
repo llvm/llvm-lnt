@@ -54,7 +54,7 @@ interface Props {
 /**
  * What the details of a test whose bar was clicked on the chart show (CP3): its values, as the table
  * shows them, each side's runs with their samples, and links to the test's history on the Graph
- * page, in side B's context, and to its profiles.
+ * page, in side B's context with side B's commit highlighted, and to its profiles.
  */
 export function BarDetails({ row, a, b, states, metric, settings, profile }: Props) {
   const { test } = row
@@ -67,6 +67,7 @@ export function BarDetails({ row, a, b, states, metric, settings, profile }: Pro
     test,
     sampleAgg: linkedAggregation(settings.sample_agg),
     runAgg: linkedAggregation(settings.run_agg),
+    highlight: b.settings.commit,
   })
 
   return (

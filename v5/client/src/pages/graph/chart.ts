@@ -1,6 +1,6 @@
 /**
- * What the Graph page's chart draws (GR1, GR3, GR5, GR7, GR9, GR10, GR12, GR15), computed apart
- * from the chart that draws it.
+ * What the Graph page's chart draws (GR1, GR3, GR5, GR7, GR9, GR10, GR12, GR15, GR16), computed
+ * apart from the chart that draws it.
  */
 
 import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape } from 'plotly.js'
@@ -198,6 +198,67 @@ export function regressionMarkers(marks: RegressionMark[]): Data[] {
   })
 }
 
+/** The highlighted commit's band (GR16): a light blue, unlike any regression's colour (GR15). */
+const BAND_COLOR = 'rgba(37, 99, 235, 0.18)'
+
+/** How wide the band is, in pixels, whatever the zoom. */
+const BAND_WIDTH = 12
+
+/**
+ * The band at the highlighted commit (GR16): a see-through rectangle across the plot, a fixed
+ * number of pixels wide around the commit, under the traces.
+ */
+export function highlightShape(commit: string): Partial<Shape> {
+  return {
+    type: 'rect',
+    xref: 'x',
+    xsizemode: 'pixel',
+    xanchor: commit,
+    x0: -BAND_WIDTH / 2,
+    x1: BAND_WIDTH / 2,
+    yref: 'paper',
+    y0: 0,
+    y1: 1,
+    layer: 'below',
+    fillcolor: BAND_COLOR,
+    line: { width: 0 },
+  }
+}
+
+/** A trace's point at the highlighted commit (GR16). */
+export interface Circled {
+  trace: Trace
+  point: Point
+}
+
+/** The point of each of `traces` at `commit`, for those that have one (GR16). */
+export function circlesAt(traces: Trace[], commit: string): Circled[] {
+  return traces.flatMap((trace) => {
+    const point = trace.points.find((candidate) => candidate.commit === commit)
+    return point === undefined ? [] : [{ trace, point }]
+  })
+}
+
+/**
+ * An open circle around each point at the highlighted commit (GR16), in its trace's colour, which
+ * is not hovered, nor therefore clicked, so that the point under it keeps its tooltip and details.
+ * Its markers are not clipped to the plot, so that a circle at either end of the x-axis shows
+ * whole: Plotly still leaves out a point outside the range.
+ */
+export function highlightCircles(circles: Circled[]): Data[] {
+  return circles.map(({ trace, point }) => ({
+    type: 'scatter',
+    mode: 'markers',
+    name: `${escapeHtml(trace.test)} - ${escapeHtml(trace.machine)} - highlighted`,
+    x: [point.commit],
+    y: [point.value],
+    hoverinfo: 'skip',
+    cliponaxis: false,
+    // An open symbol is drawn in the marker's colour, with the width of its line.
+    marker: { color: trace.color, size: 14, symbol: 'circle-open', line: { width: 2 } },
+  }))
+}
+
 interface LayoutOptions {
   /** The commit values of the x-axis, in ordinal order (GR3). */
   commits: string[]
@@ -211,7 +272,7 @@ interface LayoutOptions {
   metric: string | undefined
   /** Whether to say that there is nothing to plot (GR12). */
   empty: boolean
-  /** The lines of the regressions shown (GR15). */
+  /** The lines of the highlighted commit and the regressions shown (GR15, GR16). */
   shapes?: Partial<Shape>[]
 }
 

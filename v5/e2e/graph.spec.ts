@@ -1,5 +1,5 @@
 /**
- * The Graph page (GR1-GR14), against the seeded libcxx history: the real machines measured its
+ * The Graph page (GR1-GR16), against the seeded libcxx history: the real machines measured its
  * tests at every commit.
  */
 
@@ -319,3 +319,61 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
   await expect(tracesOf(page)).toHaveCount(2)
 })
 
+
+test('highlights a commit with a band of fixed width, circling its point (GR16)', async ({
+  page,
+  request,
+}) => {
+  const { items } = await json<ListPage<{ value: string }>>(
+    request,
+    `/api/suites/libcxx/commits?machine=${LINUX}&has_ordinal=true&sort=ordinal&limit=10000`,
+  )
+  const { value: commit } = items[Math.floor(items.length / 2)]
+  await page.goto(`${LINUX_TEST}&highlight=${commit}`)
+  // Named as the trace is, its test name escaped (see chart.tsx).
+  const circle = `BM_num_get&lt;void*&gt; - ${LINUX} - highlighted`
+  await expect.poll(() => draws(page, circle)).toBe(true)
+
+  const index = await plotOf(page).evaluate(
+    (element, commit) => (element as PlotDiv)._fullData[0].x.indexOf(commit),
+    commit,
+  )
+  const band = plotOf(page).locator('.shapelayer path')
+  // Centred on the point, relative to the plot as pointOf places it, and 12 pixels wide.
+  const expectAround = async () => {
+    const { x } = await pointOf(page, 0, index)
+    const plot = (await plotOf(page).boundingBox())!
+    const box = (await band.boundingBox())!
+    expect(Math.abs(box.x - plot.x + box.width / 2 - x)).toBeLessThan(1)
+    expect(Math.round(box.width)).toBe(12)
+  }
+  await expectAround()
+
+  // The point keeps its tooltip and details.
+  const position = await pointOf(page, 0, index)
+  await plotOf(page).hover({ position })
+  await expect(page.locator('.hoverlayer')).toContainText('Click for details')
+  await plotOf(page).click({ position })
+  const details = page.getByRole('dialog')
+  await expect(details).toBeFocused()
+  const display = (await details.getAttribute('aria-label'))!.split(' at ').at(-1)!
+  await page.keyboard.press('Escape')
+
+  // Zoomed in around it, it keeps its width.
+  const before = await xRange(page)
+  const { x, y } = await pointOf(page, 0, index)
+  const plot = (await plotOf(page).boundingBox())!
+  await page.mouse.move(plot.x + x - 60, plot.y + y)
+  await page.mouse.down()
+  await page.mouse.move(plot.x + x + 60, plot.y + y, { steps: 5 })
+  await page.mouse.up()
+  await expect.poll(() => xRange(page)).not.toEqual(before)
+  await expectAround()
+
+  const chip = page.getByRole('list', { name: 'Highlighted commit' })
+  await expect(chip).toContainText(`Highlighted: ${display}`)
+  await chip.getByRole('button', { name: `Remove the highlight of ${display}` }).click()
+  await expect(band).toHaveCount(0)
+  await expect.poll(() => draws(page, circle)).toBe(false)
+  expect(new URL(page.url()).searchParams.has('highlight')).toBe(false)
+})

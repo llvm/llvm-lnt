@@ -295,7 +295,7 @@ describe('the details of a bar (CP3)', () => {
     expect(runsOf('B').map(([, , samples]) => samples)).toEqual(['3'])
   })
 
-  it("links to the test's history on the Graph page, in side B's context", async () => {
+  it("links to the test's history on the Graph, in side B's context, at its commit", async () => {
     mockWorld(WORLD)
     await shown(
       `${COMPARED.replace('machine_b=m1&commit_b=c2', 'machine_b=m2&commit_b=c2')}` +
@@ -306,7 +306,8 @@ describe('the details of a bar (CP3)', () => {
 
     expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
       'href',
-      '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max',
+      '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
+        '&highlight=c2',
     )
   })
 
@@ -318,7 +319,7 @@ describe('the details of a bar (CP3)', () => {
 
     expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
       'href',
-      '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a',
+      '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a&highlight=c2',
     )
   })
 
