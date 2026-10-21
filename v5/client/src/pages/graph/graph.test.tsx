@@ -164,6 +164,22 @@ describe('the Graph page (GR1)', () => {
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
   })
 
+  it('shows the highlighted commit by its display value once it is on the x-axis', async () => {
+    const commits = gate()
+    mockWorld()
+    mockCommits(async (query) => {
+      await commits.promise
+      return cursorPage(COMMITS[query.get('machine') as 'm1' | 'm2'].map(commitAt))
+    })
+    renderPage(`${GRAPHED}&highlight=c20`)
+    const chip = () => main().getByRole('list', { name: 'Highlighted commits' })
+
+    // The commit string, until the x-axis gives its display value.
+    await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: c20×$/))
+    act(() => commits.open())
+    await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: r20×$/))
+  })
+
   it('says there is nothing to plot once the tests selected have no data', async () => {
     mockWorld()
     renderPage(`${GRAPHED}&test=c`)
@@ -552,9 +568,9 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(query()).toMatchObject({ metric: ['compile_time'], test: ['b'] }))
   })
 
-  it('clears the machines, the metric and the tests on a new suite, keeping the rest', async () => {
+  it('clears the machines, metric, tests and highlight on a new suite, not the rest', async () => {
     mockWorld()
-    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max`)
+    renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max&highlight=c20`)
     await waitFor(() => expect(box('a')).toBeChecked())
 
     await pickOption('Suite', 'text_only')
@@ -860,7 +876,7 @@ describe('loading (GR2, GR4, GR8)', () => {
 describe('the URL (GR14, AR2)', () => {
   it('drops a suite that does not exist, and what was chosen in it', async () => {
     mockWorld()
-    renderPage('/graph?suite=nope&machine=m1&metric=execution_time&test=a')
+    renderPage('/graph?suite=nope&machine=m1&metric=execution_time&test=a&highlight=c10')
     await waitFor(() => expect(currentUrl()).toBe('/graph'))
   })
 

@@ -15,13 +15,17 @@ import { useStoreValue, type ValueStore } from '../../value-store'
 import type { BaselineState } from './baselines'
 import {
   baselineTraces,
+  circlesAt,
   graphLayout,
+  highlightCircles,
+  highlightShape,
   markerHeight,
   plotlyTraces,
   regressionMarkers,
   regressionShapes,
   withEmphasis,
   type BaselineLine,
+  type Circled,
   type PlacedRegression,
   type RegressionMark,
   type Trace,
@@ -48,6 +52,12 @@ interface Props {
   baselines: BaselineState[]
   /** The regressions to mark (GR15). */
   regressions: MarkedRegression[]
+  /** The highlighted commits on the x-axis (GR16). */
+  highlights: readonly string[]
+  /** Why no other commit can be highlighted, if as many are as can be (GR16). */
+  highlightsFull: string | undefined
+  /** Highlight `commit`, or remove its highlight if it is highlighted already (GR16). */
+  onHighlight(commit: string): void
   /** The test whose row is hovered in the test table, which the chart emphasizes (GR7). */
   emphasis: ValueStore<string | null>
   /** Where the chart says which test's line is hovered, for the table to highlight it (GR7). */
@@ -122,13 +132,14 @@ function pointsFor(
 /** What a curve of the chart is, for an event on it to be understood. */
 type Curve =
   | { kind: 'trace'; trace: Trace }
+  | { kind: 'circle'; test: string }
   | { kind: 'baseline'; test: string }
   | { kind: 'regression'; uuid: string }
 
-/** The test a curve draws, if it draws one. */
+/** The test a curve draws, or marks, if any: a circle fades with its trace (GR7, GR16). */
 function testOf(curve: Curve): string | null {
   if (curve.kind === 'trace') return curve.trace.test
-  return curve.kind === 'baseline' ? curve.test : null
+  return curve.kind === 'circle' || curve.kind === 'baseline' ? curve.test : null
 }
 
 /** A point of a trace, by the trace's machine and test and the point's commit. */
@@ -171,8 +182,8 @@ function runsOf(samples: readonly Measurement[]) {
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
  * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
- * (GR9) and the regressions' (GR15) over them. Hovering a point shows its samples (GR10), and
- * clicking it its details (GR11).
+ * (GR9), the regressions' (GR15) and the highlighted commits' circles (GR16) over them, and their
+ * bands under them. Hovering a point shows its samples (GR10), and clicking it its details (GR11).
  */
 export function GraphChart({
   schema,
@@ -186,6 +197,9 @@ export function GraphChart({
   settled,
   baselines,
   regressions,
+  highlights,
+  highlightsFull,
+  onHighlight,
   emphasis,
   hovered,
   closeOn,
@@ -265,6 +279,12 @@ export function GraphChart({
     [placed, selected],
   )
 
+  // The points at the highlighted commits (GR16).
+  const circles = useMemo(
+    () => (highlights.length === 0 ? NO_CIRCLES : circlesAt(traces, highlights)),
+    [traces, highlights],
+  )
+
   // Everything drawn, and what each curve is. Each kind is built apart, so that what changes one
   // does not build the others again: the traces' points are many.
   const traceData = useMemo(
@@ -275,17 +295,20 @@ export function GraphChart({
     () => (metric === undefined ? NO_DATA : baselineTraces(lines, metric)),
     [lines, metric],
   )
+  const circleData = useMemo(() => highlightCircles(circles), [circles])
   const markerData = useMemo(() => regressionMarkers(marks), [marks])
   const drawn = useMemo(
     () => ({
-      data: [...traceData, ...lineData, ...markerData],
+      // The circles over every trace, so that no trace's line crosses them.
+      data: [...traceData, ...circleData, ...lineData, ...markerData],
       curves: [
         ...traces.map((trace): Curve => ({ kind: 'trace', trace })),
+        ...circles.map(({ trace }): Curve => ({ kind: 'circle', test: trace.test })),
         ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
         ...marks.map(({ uuid }): Curve => ({ kind: 'regression', uuid })),
       ],
     }),
-    [traceData, lineData, markerData, traces, lines, marks],
+    [traceData, circleData, lineData, markerData, traces, circles, lines, marks],
   )
 
   // The test hovered in the table, emphasized over the others, as long as it is drawn (GR7). Its
@@ -309,7 +332,7 @@ export function GraphChart({
 
   // What the x-axis is made of: a change resets the zoom (GR5).
   const revision = machines.filter((machine) => listed.has(machine)).join('\0')
-  // Baselines and regressions are no points of their own (GR12).
+  // Baselines, regressions and the highlighted commits are no points of their own (GR12).
   const empty = traces.length === 0 && settled
   const layout = useMemo(() => {
     const values = commits.map((commit) => commit.value)
@@ -319,9 +342,10 @@ export function GraphChart({
       revision,
       metric: metric?.name,
       empty,
-      shapes: regressionShapes(placed),
+      // The bands first, so that a regression's line at their commit is drawn over them (GR16).
+      shapes: [...highlights.map(highlightShape), ...regressionShapes(placed)],
     })
-  }, [commits, displayValue, revision, metric, empty, placed])
+  }, [commits, displayValue, revision, metric, empty, placed, highlights])
 
   // Where the plot draws, to place the points' samples and the details over it. Nothing drawn
   // depends on it, so that a draw does not ask for another.
@@ -426,6 +450,9 @@ export function GraphChart({
             state={series.stateOf(trace.machine, trace.test)}
             sampleAgg={sampleAgg}
             runAgg={runAgg}
+            highlighted={highlights.includes(point.commit)}
+            highlightsFull={highlightsFull}
+            onHighlight={() => onHighlight(point.commit)}
             at={{ x, y: geometry.y(point.value), side }}
             companion={pinnedCloud}
             onClose={close}
@@ -473,3 +500,4 @@ export function GraphChart({
 }
 
 const NO_DATA: Data[] = []
+const NO_CIRCLES: Circled[] = []

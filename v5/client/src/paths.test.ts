@@ -55,6 +55,12 @@ describe('graphPath', () => {
     )
   })
 
+  it('repeats the highlighted commits (GR16), each once, encoded', () => {
+    expect(graphPath({ suite: 'nts', test: 't', highlight: ['abc#1', 'def', 'def'] })).toBe(
+      '/graph?suite=nts&test=t&highlight=abc%231&highlight=def',
+    )
+  })
+
   it('repeats the machine parameter once per machine, in order', () => {
     expect(graphPath({ suite: 'nts', machines: ['m2', 'm&1'], metric: 'score' })).toBe(
       '/graph?suite=nts&machine=m2&machine=m%261&metric=score',

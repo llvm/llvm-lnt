@@ -21,7 +21,15 @@ import {
 } from '../../test/fixtures'
 import { uuidPrefix } from '../../format'
 import { errorResponse, mockApi } from '../../test/mock-api'
-import { mockCommits, mockMachines, mockRuns, mockSuites, rowsOf, table } from '../../test/page'
+import {
+  mockCommits,
+  mockMachines,
+  mockResolve,
+  mockRuns,
+  mockSuites,
+  rowsOf,
+  table,
+} from '../../test/page'
 import { server } from '../../test/server'
 import { chartProps } from '../../test/chart-props'
 
@@ -75,6 +83,8 @@ interface World {
   profiles?: Record<string, string[]>
   /** How `GET runs/{uuid}/profiles` answers a run, by its UUID's hex, if not with its profiles. */
   profilesAnswer?: (hex: string) => Response | undefined
+  /** The commits without an ordinal: the others have their number, `c2` the ordinal 2. */
+  adHoc?: string[]
 }
 
 /** The hex a run's UUID is made of (see `uuidOf`). */
@@ -92,10 +102,14 @@ export function mockWorld({
   runsAnswer,
   profiles = {},
   profilesAnswer,
+  adHoc = [],
 }: World = {}) {
   const sampled: string[] = []
   mockSuites(suites)
   mockMachines(() => ({ items: MACHINES.map((name) => machine(name)) }))
+  const commitOf = (value: string) =>
+    commit(value, { ordinal: adHoc.includes(value) ? null : Number(value.slice(1)) })
+  mockResolve([...new Set(Object.keys(runs).map((key) => key.split('/')[1]))].map(commitOf))
   // The commits a machine has runs at, as a commit picker lists or looks them up (AR15).
   mockCommits((query) => {
     const machineName = query.get('machine')
@@ -106,7 +120,7 @@ export function mockWorld({
     return cursorPage(
       [...new Set(held)]
         .filter((value) => only === null || value === only)
-        .map((value) => commit(value)),
+        .map(commitOf),
     )
   })
   mockRuns((query) => {

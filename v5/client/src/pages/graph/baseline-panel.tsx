@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { SuiteSchema } from '../../api/suites'
 import { ChipList } from '../../components/chip-list'
 import { Combobox } from '../../components/combobox'
@@ -16,6 +16,8 @@ interface Props {
   onAdd(baseline: Baseline): void
   onRemove(baseline: string): void
   isDisabled: boolean
+  /** The "+" button, held by the page so that a control after the panel can give it the focus. */
+  toggle: RefObject<HTMLButtonElement | null>
 }
 
 /**
@@ -23,9 +25,8 @@ interface Props {
  * suite, then one of the suite's machines, then a commit at which the machine has runs, and a chip
  * per baseline, which removes it. Picking the commit adds the baseline and closes the form.
  */
-export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled }: Props) {
+export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled, toggle }: Props) {
   const [adding, setAdding] = useState(false)
-  const toggle = useRef<HTMLButtonElement>(null)
   const chips = baselines.map(({ baseline, display }) => ({
     key: formatBaseline(baseline),
     text: `${baseline.suite}/${baseline.machine}/${display}`,
@@ -39,7 +40,7 @@ export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled }
     if (adding || !added.current) return
     added.current = false
     toggle.current?.focus()
-  }, [adding])
+  }, [adding, toggle])
   const add = (baseline: Baseline) => {
     onAdd(baseline)
     added.current = true

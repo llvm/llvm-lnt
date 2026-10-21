@@ -6,7 +6,7 @@ import type { PlotHoverEvent, PlotMouseEvent, PlotRelayoutEvent } from 'plotly.j
 import { describe, expect, it, vi } from 'vitest'
 import { formatTimestamp, shortUuid } from '../../format'
 import { cursorPage, sample, uuidOf } from '../../test/fixtures'
-import { mockApi } from '../../test/mock-api'
+import { errorResponse, mockApi } from '../../test/mock-api'
 import { gate, main, query, renderPage, search } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { server } from '../../test/server'
@@ -295,7 +295,7 @@ describe('the details of a bar (CP3)', () => {
     expect(runsOf('B').map(([, , samples]) => samples)).toEqual(['3'])
   })
 
-  it("links to the test's history on the Graph page, in side B's context", async () => {
+  it("links to the test's history on the Graph, in side B's context, at its commit", async () => {
     mockWorld(WORLD)
     await shown(
       `${COMPARED.replace('machine_b=m1&commit_b=c2', 'machine_b=m2&commit_b=c2')}` +
@@ -304,22 +304,84 @@ describe('the details of a bar (CP3)', () => {
 
     click(0)
 
-    expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
-      'href',
-      '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max',
+    // Once side B's commit is known to have an ordinal (see below).
+    await waitFor(() =>
+      expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
+        'href',
+        '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
+          '&highlight=c2',
+      ),
     )
   })
 
-  it('leaves out the aggregations at their default from the link to the Graph page', async () => {
+  /** The link to the Graph page, and its state: where it leads, or why it leads nowhere. */
+  const graphLink = () => {
+    const link = details().getByRole('link', { name: 'View on graph' })
+    return link.getAttribute('href') ?? `disabled: ${link.getAttribute('title')}`
+  }
+  const GRAPH = '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a'
+
+  it("highlights side A's commit too on side B's machine, each once it has an ordinal", async () => {
+    const looked = gate()
     mockWorld(WORLD)
+    server.use(
+      // Held, then answered by the world.
+      mockApi('post', '/api/suites/{testsuite}/commits/resolve', async () => {
+        await looked.promise
+        return undefined
+      }),
+    )
     await shown()
 
     click(0)
 
-    expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
-      'href',
-      '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a',
+    expect(graphLink()).toBe("disabled: Side B's commit is still being looked up.")
+    act(() => looked.open())
+    // The aggregations at their default left out.
+    await waitFor(() => expect(graphLink()).toBe(`${GRAPH}&highlight=c1&highlight=c2`))
+  })
+
+  it("highlights only side B's commit when side A's has no ordinal", async () => {
+    mockWorld({ ...WORLD, adHoc: ['c1'] })
+    await shown()
+
+    click(0)
+
+    await waitFor(() => expect(graphLink()).toBe(`${GRAPH}&highlight=c2`))
+  })
+
+  it("highlights only side B's commit when side A is in another suite", async () => {
+    mockWorld(WORLD)
+    await shown(COMPARED.replace('suite_a=libcxx', 'suite_a=other'))
+
+    click(0)
+
+    await waitFor(() => expect(graphLink()).toBe(`${GRAPH}&highlight=c2`))
+  })
+
+  it("leads nowhere when side B's commit has no ordinal, saying why", async () => {
+    mockWorld({ ...WORLD, adHoc: ['c2'] })
+    await shown()
+
+    click(0)
+
+    // Not on the Graph's x-axis (GR3).
+    const why = "Side B's commit has no ordinal: it is not on the Graph's x-axis."
+    await waitFor(() => expect(graphLink()).toBe(`disabled: ${why}`))
+  })
+
+  it('leads to the Graph without highlights once looking the commits up failed', async () => {
+    mockWorld(WORLD)
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+        errorResponse(500, 'internal_error', 'The lookup broke.'),
+      ),
     )
+    await shown()
+
+    click(0)
+
+    await waitFor(() => expect(graphLink()).toBe(GRAPH))
   })
 
   it("links to the test's profiles when its row does, as soon as they are listed", async () => {

@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from 'react'
 import { linkedAggregation } from '../../aggregation'
+import { useResolvedCommit } from '../../api/commits'
 import { runRefKey, type SampleState } from '../../api/runs'
 import { ButtonLink } from '../../components/button-link'
 import dialog from '../../components/chart-dialog.module.css'
@@ -38,6 +39,44 @@ function useTestRuns(
   }, [runs, selected, states, suite, metric, test])
 }
 
+/**
+ * "View on graph" (CP3): the Graph of `test` in side B's context, with side B's commit highlighted,
+ * and side A's too when it has the same suite and machine, each once known to have an ordinal, without
+ * which a commit is not on the Graph's x-axis (GR3, GR16). It leads nowhere while side B's commit
+ * is looked up, or once it has none. A failed lookup leaves its commit out rather than block it.
+ */
+function useGraphLink(
+  a: Side,
+  b: Side,
+  metric: Metric,
+  test: string,
+  settings: Pick<Settings, 'sample_agg' | 'run_agg'>,
+): { to: string | null; why?: string } {
+  const { suite, machine, commit } = b.settings
+  const besideB = a.settings.suite === suite && a.settings.machine === machine
+  const resolvedB = useResolvedCommit(suite, commit)
+  const ordinalA = useResolvedCommit(suite, a.settings.commit, besideB).data?.ordinal
+  const ordinalB = resolvedB.data?.ordinal
+  if (resolvedB.isPending) return { to: null, why: "Side B's commit is still being looked up." }
+  if (ordinalB === null) {
+    return { to: null, why: "Side B's commit has no ordinal: it is not on the Graph's x-axis." }
+  }
+  const highlight = [
+    ...(besideB && ordinalA != null ? [a.settings.commit] : []),
+    ...(ordinalB !== undefined ? [commit] : []),
+  ]
+  const to = graphPath({
+    suite,
+    machines: [machine],
+    metric: metric.name,
+    test,
+    sampleAgg: linkedAggregation(settings.sample_agg),
+    runAgg: linkedAggregation(settings.run_agg),
+    highlight,
+  })
+  return { to }
+}
+
 interface Props {
   /** The row of the test whose bar was clicked. */
   row: ComparisonRow
@@ -60,14 +99,7 @@ export function BarDetails({ row, a, b, states, metric, settings, profile }: Pro
   const { test } = row
   const runsA = useTestRuns(a, states, metric.name, test)
   const runsB = useTestRuns(b, states, metric.name, test)
-  const graph = graphPath({
-    suite: b.settings.suite,
-    machines: [b.settings.machine],
-    metric: metric.name,
-    test,
-    sampleAgg: linkedAggregation(settings.sample_agg),
-    runAgg: linkedAggregation(settings.run_agg),
-  })
+  const graph = useGraphLink(a, b, metric, test, settings)
 
   return (
     <>
@@ -94,7 +126,9 @@ export function BarDetails({ row, a, b, states, metric, settings, profile }: Pro
         </div>
       ))}
       <div className={dialog.actions}>
-        <ButtonLink to={graph}>View on graph</ButtonLink>
+        <ButtonLink to={graph.to} title={graph.why}>
+          View on graph
+        </ButtonLink>
         {profile !== undefined && <ButtonLink to={profile}>Profile</ButtonLink>}
       </div>
     </>

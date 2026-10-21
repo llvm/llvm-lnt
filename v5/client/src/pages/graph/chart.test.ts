@@ -5,7 +5,10 @@ import { metric } from '../../test/fixtures'
 import { hoverText } from '../../test/hover-text'
 import {
   baselineTraces,
+  circlesAt,
   graphLayout,
+  highlightCircles,
+  highlightShape,
   plotlyTraces,
   regressionMarkers,
   regressionShapes,
@@ -219,5 +222,55 @@ describe('the regression annotations (GR15)', () => {
     expect(layout.shapes).toHaveLength(1)
     expect(layout.xaxis2).toMatchObject({ overlaying: 'x', range: [0, 1], fixedrange: true })
     expect(layout.yaxis2).toMatchObject({ overlaying: 'y', range: [0, 1], visible: false })
+  })
+})
+
+describe('the highlighted commits (GR16)', () => {
+  const traceOf = (test: string, commits: string[]): Trace => ({
+    test,
+    machine: 'm1',
+    machineIndex: 0,
+    color: `#${test.repeat(6)}`,
+    points: commits.map((commit, position) => ({ commit, position, value: position, runs: 1 })),
+  })
+
+  it('draws a band a few pixels wide at the commit, across the plot, under the traces', () => {
+    expect(highlightShape('c2')).toMatchObject({
+      type: 'rect',
+      xref: 'x',
+      xsizemode: 'pixel',
+      xanchor: 'c2',
+      x0: -6,
+      x1: 6,
+      yref: 'paper',
+      y0: 0,
+      y1: 1,
+      layer: 'below',
+    })
+  })
+
+  it('circles the points of each trace that has any at the commits', () => {
+    const a = traceOf('a', ['c1', 'c2', 'c3'])
+    const b = traceOf('b', ['c1'])
+    const c = traceOf('c', ['c2', 'c4'])
+
+    const circles = circlesAt([a, b, c], ['c2', 'c3'])
+    expect(circles.map(({ trace, points }) => [trace.test, points.map((p) => p.value)])).toEqual([
+      ['a', [1, 2]],
+      ['c', [0]],
+    ])
+    expect(circlesAt([a, b, c], ['c9'])).toEqual([])
+
+    const [drawn] = highlightCircles(circles) as PlotData[]
+    expect(drawn).toMatchObject({
+      mode: 'markers',
+      x: ['c2', 'c3'],
+      y: [1, 2],
+      // Neither hovered nor clicked: the point under it keeps its own tooltip and details.
+      hoverinfo: 'skip',
+      // Whole at either end of the x-axis.
+      cliponaxis: false,
+      marker: { color: '#aaaaaa', symbol: 'circle-open', line: { width: 2 } },
+    })
   })
 })

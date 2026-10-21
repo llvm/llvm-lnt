@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AGGREGATION_OPTIONS,
@@ -12,6 +12,7 @@ import { useScaffold } from '../../api/scaffold'
 import { forgetGraphData, useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
+import { ChipList } from '../../components/chip-list'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { useRangeSelection } from '../../components/range-selection'
@@ -20,12 +21,13 @@ import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
 import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
-import { isNumeric, labelOf, type Metric } from '../../schema'
+import { displayValueOf, isNumeric, labelOf, type Metric } from '../../schema'
 import {
   booleanParam,
   enumParam,
   listParam,
   stringParam,
+  type Param,
   trimmedStringParam,
   useDropUnusable,
   useUrlState,
@@ -51,6 +53,15 @@ const SELECTION_LIMIT = { count: 100, why: 'At most 100 tests can be selected at
 
 /** At most how many selected tests the URL holds (GR14). */
 const TESTS_IN_URL = 10
+
+/** At most how many commits can be highlighted at once (GR16). */
+const HIGHLIGHT_LIMIT = { count: 10, why: 'At most 10 commits can be highlighted at once.' }
+
+/** The highlighted commits (GR16): each once, and only the first 10 of a URL naming more. */
+function highlightParam(): Param<string[]> {
+  const list = listParam()
+  return { ...list, parse: (values) => list.parse(values)?.slice(0, HIGHLIGHT_LIMIT.count) }
+}
 
 /** Which regressions are marked on the chart (GR15). */
 const ANNOTATIONS = [
@@ -79,6 +90,15 @@ const PARAMS = {
   run_agg: enumParam(AGGREGATIONS, DEFAULT_AGGREGATION),
   regressions: enumParam(ANNOTATIONS.map((option) => option.value), 'off'),
   baseline: baselineParam(),
+  highlight: highlightParam(),
+}
+
+/** What a suite change clears, since it does not apply to another suite (GR1). */
+const IN_SUITE = {
+  machine: [] as string[],
+  metric: '',
+  test: [] as string[],
+  highlight: [] as string[],
 }
 
 const NO_NAMES: string[] = []
@@ -86,7 +106,7 @@ const NO_SUITES: SuiteSchema[] = []
 const nameOf = (name: string) => name
 
 /**
- * The Graph page (GR1-GR14), started afresh whenever the user navigates to it -- a link to another
+ * The Graph page (GR1-GR16), started afresh whenever the user navigates to it -- a link to another
  * graph while on this one, say -- so that its selection is the one the new URL names.
  */
 export default function Graph() {
@@ -157,7 +177,7 @@ function GraphPage() {
     (list) => settings.suite === '' || list.some((entry) => entry.name === settings.suite),
     () => {
       rows.replace([])
-      update({ suite: '', machine: [], metric: '', test: [] })
+      update({ suite: '', ...IN_SUITE })
     },
   )
 
@@ -218,8 +238,34 @@ function GraphPage() {
 
   const chooseSuite = (name: string) => {
     rows.replace([])
-    update({ suite: name, machine: [], metric: '', test: [] })
+    update({ suite: name, ...IN_SUITE })
   }
+
+  // The highlighted commits (GR16), each shown by its display value once on the x-axis, which
+  // gives it.
+  const { highlight } = settings
+  const onAxis = useMemo(
+    () => new Map(scaffold.commits.map((commit) => [commit.value, commit])),
+    [scaffold.commits],
+  )
+  const drawnHighlights = useMemo(
+    () => highlight.filter((value) => onAxis.has(value)),
+    [highlight, onAxis],
+  )
+  const shownHighlight = (value: string) =>
+    schema === undefined ? value : displayValueOf(value, onAxis, schema)
+  const highlightChips =
+    schema === undefined
+      ? []
+      : highlight.map((value) => ({ key: value, text: `Highlighted: ${shownHighlight(value)}` }))
+  const toggleHighlight = (commit: string) =>
+    update({
+      highlight: highlight.includes(commit)
+        ? highlight.filter((value) => value !== commit)
+        : [...highlight, commit],
+    })
+  // What takes the focus once the last highlight is removed: the control before them.
+  const addBaselineButton = useRef<HTMLButtonElement>(null)
 
   const disabled = schema === undefined
   return (
@@ -296,7 +342,7 @@ function GraphPage() {
             isDisabled={disabled}
           />
         </div>
-        {/* What is drawn over the traces. */}
+        {/* What is drawn on the chart besides the data. */}
         <div className={styles.overlays}>
           <BaselinePanel
             suites={suites.data ?? NO_SUITES}
@@ -306,7 +352,17 @@ function GraphPage() {
               update({ baseline: settings.baseline.filter((entry) => entry !== value) })
             }
             isDisabled={disabled}
+            toggle={addBaselineButton}
           />
+          <div className={styles.highlights}>
+            <ChipList
+              label="Highlighted commits"
+              chips={highlightChips}
+              removeLabel={(chip) => `Remove the highlight of ${shownHighlight(chip.key)}`}
+              onRemove={toggleHighlight}
+              focusWhenEmpty={() => addBaselineButton.current}
+            />
+          </div>
         </div>
       </ControlsPanel>
       {machineList.isError && (
@@ -366,6 +422,9 @@ function GraphPage() {
         }
         baselines={baselines.states}
         regressions={regressions.regressions}
+        highlights={drawnHighlights}
+        highlightsFull={highlight.length < HIGHLIGHT_LIMIT.count ? undefined : HIGHLIGHT_LIMIT.why}
+        onHighlight={toggleHighlight}
         emphasis={emphasis}
         hovered={hovered}
         closeOn={[
