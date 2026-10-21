@@ -25,10 +25,6 @@ from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
                    resolve_command_path, timestamp)
 import lnt.testing.profile
 
-# This is the list of architectures in
-# test-suite/cmake/modules/DetectArchitecture.cmake. If you update this list,
-# make sure that cmake file is updated too.
-TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
 XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
