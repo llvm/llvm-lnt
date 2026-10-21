@@ -331,8 +331,9 @@ Interactivity:
   Delta %, and a last line saying that clicking the bar shows its details. It
   also highlights the bar's table row (see CP5).
 - **Details**: clicking a bar opens a popover beside it, which behaves as a
-  Graph point's does (GR11), and whose accessible name is the test name. It
-  shows:
+  Graph point's does (GR11), and whose accessible name is the test name. Where
+  the bar is too wide to leave room beside it, as when it is the only one, the
+  popover may cover part of it. It shows:
   - the test name;
   - Value A, Value B, Delta, Delta %, Ratio and Status, as the table's row
     shows them (CP2), with their tooltips;
@@ -421,9 +422,9 @@ page or the table.
   samples are kept for as long as the run belongs to one of the sides' or the
   shadows' commits. This way, changing the metric, an aggregation, the noise
   settings, the run selection or the hidden tests, swapping the sides,
-  pinning a shadow, or opening a bar's details (CP3) never fetches them again. If a run stops belonging to any of
-  those commits while its samples are loading, its loading stops, without
-  affecting the other runs.
+  pinning a shadow, or opening a bar's details (CP3) never fetches them again.
+  If a run stops belonging to any of those commits while its samples are
+  loading, its loading stops, without affecting the other runs.
 - The Profile column needs to know which tests of each side have a profile. For
   each side, `GET runs?machine={name}&commit={value}&has_profiles=true` lists
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the

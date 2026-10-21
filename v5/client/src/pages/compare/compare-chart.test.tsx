@@ -227,6 +227,9 @@ describe('the details of a bar (CP3)', () => {
   }
 
   const dialog = () => screen.queryByRole('dialog')
+  /** The side of its anchor that `opened` is on, from where it is moved to (see ChartDialog). */
+  const sideOf = (opened: HTMLElement) =>
+    opened.style.transform.startsWith('translate(12px') ? 'right' : 'left'
   const details = () => within(screen.getByRole('dialog'))
   /** The rows of the runs table of `side`, without its header, as the text of their cells. */
   const runsOf = (side: 'A' | 'B') =>
@@ -246,6 +249,7 @@ describe('the details of a bar (CP3)', () => {
     expect(opened).toHaveFocus()
     // Right of a's bar, which ends at 95, in the left half of the plot, from the top of the plot.
     expect(opened).toHaveStyle({ left: '95px', top: '10px' })
+    expect(sideOf(opened)).toBe('right')
     const values = details()
       .getAllByRole('definition')
       .map((value) => value.textContent)
@@ -438,9 +442,38 @@ describe('the details of a bar (CP3)', () => {
 
     const opened = screen.getByRole('dialog', { name: 'd' })
     expect(opened).toHaveFocus()
-    // Left of d's bar, which starts at 105, in the right half of the plot, but from no further
-    // than the middle of the plot.
+    // Left of d's bar, which starts at 105, in the right half of the plot.
     expect(opened).toHaveStyle({ left: '105px' })
+    expect(sideOf(opened)).toBe('left')
+  })
+
+  it("starts from no further than the middle of the plot, beside a wide bar", async () => {
+    mockWorld(WORLD)
+    await shown(`${COMPARED}&hidden_test=d`)
+    // a's bar alone, 180 pixels wide, centred left of the plot's middle, at 100.
+    act(() => chart().onDraw?.({ ...GEOMETRY, x: (value) => 90 + 200 * value }))
+
+    click(0)
+
+    const opened = screen.getByRole('dialog', { name: 'a' })
+    expect(opened).toHaveStyle({ left: '100px' })
+    expect(sideOf(opened)).toBe('right')
+
+    // Centred right of the middle, it opens on the left, from the middle again.
+    act(() => chart().onDraw?.({ ...GEOMETRY, x: (value) => 110 + 200 * value }))
+    expect(opened).toHaveStyle({ left: '100px' })
+    expect(sideOf(opened)).toBe('left')
+  })
+
+  it("lists only the runs a side selects, though it keeps the others' samples", async () => {
+    mockWorld(WORLD)
+    await shown()
+
+    await userEvent.setup().click(runBox('2', 'A'))
+    await waitFor(() => expect(query().runs_a).toEqual([uuidOf('1')]))
+    click(0)
+
+    expect(runsOf('A').map(([, run]) => run)).toEqual([shortUuid(uuidOf('1'))])
   })
 
   it('opens nothing on a click of another button than the main one', async () => {

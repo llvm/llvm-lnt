@@ -285,12 +285,14 @@
  * The table, in a box of its own that scrolls horizontally when its columns do not fit, with the
  * checkboxes and the tests' names in view (CP2 "Width"). Positioned, so that it clips what is
  * absolutely positioned in it too: the Profile column's visually hidden header would otherwise
- * widen the page.
+ * widen the page. Isolated, so that its sticky cells stack within it, below a bar's details (CP3),
+ * which reach over it.
  */
 .tableBox {
   --show-width: 2.5rem;
   --test-width: 16rem;
   position: relative;
+  isolation: isolate;
   overflow-x: auto;
   /* A header focused from the keyboard scrolls into view beside the sticky columns. */
   scroll-padding-left: calc(var(--show-width) + var(--test-width));
