@@ -73,4 +73,4 @@
 # RUN: filecheck --check-prefix CHECK-NO-LNT < %t.no-lnt.err %s
 # RUN: not test -e %t.SANDBOX
 #
-# CHECK-NO-LNT: error: LNT tool not found (looked for {{.*}}.no-lnt); use --use-lnt to name it
+# CHECK-NO-LNT: CRITICAL: LNT tool not found (looked for {{.*}}.no-lnt); use --use-lnt to name it

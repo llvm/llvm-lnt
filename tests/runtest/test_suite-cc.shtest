@@ -9,4 +9,4 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     > %t.log 2> %t.err || true
 # RUN: filecheck  --check-prefix CHECK-MISSING-CC < %t.err %s
-# CHECK-MISSING-CC: error: Couldn't find C compiler (). Maybe you should specify --cc?
+# CHECK-MISSING-CC: CRITICAL: Couldn't find C compiler (). Maybe you should specify --cc?

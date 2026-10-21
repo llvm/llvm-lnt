@@ -175,21 +175,15 @@ class TestSuiteTest(object):
         self.trained = False
         self.remote_run = False
 
-    def _fatal(self, msg):
-        """Exit with an error, as OptionParser.error does."""
-        prog_name = os.path.basename(sys.argv[0])
-        sys.stderr.write("%s error: %s\n" % (prog_name, msg))
-        sys.exit(2)
-
     def run_test(self):
         opts = self.opts
 
         # Validate build/exec mode options
         if opts.build and opts.exec_mode:
-            self._fatal("--build and --exec are mutually exclusive")
+            fatal("--build and --exec are mutually exclusive")
 
         if opts.exec_mode and opts.build_dir is None and not opts.exec_interleaved_builds:
-            self._fatal("--exec requires --build-dir (or use --exec-interleaved-builds)")
+            fatal("--exec requires --build-dir (or use --exec-interleaved-builds)")
 
         if opts.exec_interleaved_builds:
             # --exec-interleaved-builds implies --exec
@@ -201,14 +195,10 @@ class TestSuiteTest(object):
             ]
             for build_dir in opts.exec_interleaved_builds_list:
                 if not os.path.exists(build_dir):
-                    self._fatal(
-                        "--exec-interleaved-builds directory does not exist: %r" %
-                        build_dir)
+                    fatal("--exec-interleaved-builds directory does not exist: %r" % build_dir)
                 cmakecache = os.path.join(build_dir, 'CMakeCache.txt')
                 if not os.path.exists(cmakecache):
-                    self._fatal(
-                        "--exec-interleaved-builds directory is not a configured build: %r" %
-                        build_dir)
+                    fatal("--exec-interleaved-builds directory is not a configured build: %r" % build_dir)
 
         if opts.build_dir:
             opts.build_dir = os.path.abspath(opts.build_dir)
@@ -216,16 +206,16 @@ class TestSuiteTest(object):
             # In --build mode, we'll create the directory if needed
             if opts.exec_mode:
                 if not os.path.exists(opts.build_dir):
-                    self._fatal("--build-dir does not exist: %r" % opts.build_dir)
+                    fatal("--build-dir does not exist: %r" % opts.build_dir)
                 cmakecache = os.path.join(opts.build_dir, 'CMakeCache.txt')
                 if not os.path.exists(cmakecache):
-                    self._fatal("--build-dir is not a configured build: %r" % opts.build_dir)
+                    fatal("--build-dir is not a configured build: %r" % opts.build_dir)
 
         if opts.cc is not None:
             opts.cc = resolve_command_path(opts.cc)
 
             if not isexecfile(opts.cc):
-                self._fatal('--cc does not point to a valid executable.')
+                fatal('--cc does not point to a valid executable.')
 
             # If there was no --cxx given, attempt to infer it from the --cc.
             if opts.cxx is None:
@@ -234,13 +224,12 @@ class TestSuiteTest(object):
                     logger.info("Inferred C++ compiler under test as: %r"
                                 % (opts.cxx,))
                 else:
-                    self._fatal("unable to infer --cxx - set it manually.")
+                    fatal("unable to infer --cxx - set it manually.")
             else:
                 opts.cxx = resolve_command_path(opts.cxx)
 
             if not os.path.exists(opts.cxx):
-                self._fatal("invalid --cxx argument %r, does not exist"
-                            % (opts.cxx))
+                fatal("invalid --cxx argument %r, does not exist" % opts.cxx)
         else:
             # If --cc not specified, CMake will use its default compiler discovery
             # We'll validate that a compiler was found after configuration
@@ -250,15 +239,15 @@ class TestSuiteTest(object):
         if not opts.exec_mode:
             # These are only required when building
             if opts.test_suite_root is None:
-                self._fatal('--test-suite is required')
+                fatal('--test-suite is required')
             if not os.path.exists(opts.test_suite_root):
-                self._fatal("invalid --test-suite argument, does not exist: %r" % (
+                fatal("invalid --test-suite argument, does not exist: %r" % (
                     opts.test_suite_root))
             opts.test_suite_root = os.path.abspath(opts.test_suite_root)
 
         if opts.test_suite_externals:
             if not os.path.exists(opts.test_suite_externals):
-                self._fatal(
+                fatal(
                     "invalid --test-externals argument, does not exist: %r" % (
                         opts.test_suite_externals,))
             opts.test_suite_externals = os.path.abspath(
@@ -266,10 +255,10 @@ class TestSuiteTest(object):
 
         opts.cmake = resolve_command_path(opts.cmake)
         if not isexecfile(opts.cmake):
-            self._fatal("CMake tool not found (looked for %s)" % opts.cmake)
+            fatal("CMake tool not found (looked for %s)" % opts.cmake)
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
-            self._fatal("LIT tool not found (looked for %s)" % opts.lit)
+            fatal("LIT tool not found (looked for %s)" % opts.lit)
         if opts.submit_url is not None:
             if opts.lnt is None:
                 # The `lnt` installed along with the Python running us, if
@@ -279,14 +268,12 @@ class TestSuiteTest(object):
                     opts.lnt = 'lnt'
             opts.lnt = resolve_command_path(opts.lnt)
             if not isexecfile(opts.lnt):
-                self._fatal("LNT tool not found (looked for %s); use "
-                            "--use-lnt to name it" % opts.lnt)
+                fatal("LNT tool not found (looked for %s); use --use-lnt to name it" % opts.lnt)
         if opts.run_under:
             split = shlex.split(opts.run_under)
             split[0] = resolve_command_path(split[0])
             if not isexecfile(split[0]):
-                self._fatal("Run under wrapper not found (looked for %s)" %
-                            opts.run_under)
+                fatal("Run under wrapper not found (looked for %s)" % opts.run_under)
 
         if opts.single_result:
             # --single-result implies --only-test
@@ -309,8 +296,7 @@ class TestSuiteTest(object):
                                       os.path.basename(opts.only_test))
                 elif not opts.exec_mode:
                     # In normal mode, path must exist
-                    self._fatal("--only-test argument not understood (must be a " +
-                                "test or directory name)")
+                    fatal("--only-test argument not understood (must be a test or directory name)")
                 else:
                     # In exec mode, path may not exist yet, assume it's a directory
                     opts.only_test = (opts.only_test, None)
@@ -319,25 +305,24 @@ class TestSuiteTest(object):
                 opts.only_test = (opts.only_test, None)
 
         if opts.single_result and not opts.only_test[1]:
-            self._fatal("--single-result must be given a single test name, "
-                        "not a directory name")
+            fatal("--single-result must be given a single test name, not a directory name")
 
         # Parse and validate --drop-exec option
         if opts.drop_exec is not None:
             # Check for incompatible options
             if opts.only_compile:
-                self._fatal("--drop-exec cannot be used with --only-compile")
+                fatal("--drop-exec cannot be used with --only-compile")
             if opts.build:
-                self._fatal("--drop-exec cannot be used with --build")
+                fatal("--drop-exec cannot be used with --build")
             if opts.exec_multisample <= 1:
-                self._fatal("--drop-exec requires --exec-multisample > 1")
+                fatal("--drop-exec requires --exec-multisample > 1")
 
             # opts.drop_exec is already an integer from click
             if opts.drop_exec < 1:
-                self._fatal("--drop-exec must be at least 1")
+                fatal("--drop-exec must be at least 1")
 
             if opts.drop_exec >= opts.exec_multisample:
-                self._fatal("--drop-exec would drop all %d samples" % opts.exec_multisample)
+                fatal("--drop-exec would drop all %d samples" % opts.exec_multisample)
 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -345,7 +330,7 @@ class TestSuiteTest(object):
 
         if opts.diagnose:
             if not opts.only_test:
-                self._fatal("--diagnose requires --only-test")
+                fatal("--diagnose requires --only-test")
 
         self.start_time = timestamp()
 
@@ -401,7 +386,7 @@ class TestSuiteTest(object):
         cmake_vars = self._extract_cmake_vars_from_cache()
         if "CMAKE_C_COMPILER" not in cmake_vars or \
                 not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
-            self._fatal(
+            fatal(
                 "Couldn't find C compiler (%s). Maybe you should specify --cc?"
                 % cmake_vars.get("CMAKE_C_COMPILER"))
 
@@ -527,7 +512,7 @@ class TestSuiteTest(object):
             cmake_vars = self._extract_cmake_vars_from_cache()
             if "CMAKE_C_COMPILER" not in cmake_vars or \
                     not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
-                self._fatal(
+                fatal(
                     "Couldn't find C compiler in build %s (%s)." %
                     (build_dir, cmake_vars.get("CMAKE_C_COMPILER")))
 
@@ -1122,8 +1107,7 @@ class TestSuiteTest(object):
 
         if self.opts.single_result:
             # If we got this far, the result we were looking for didn't exist.
-            raise RuntimeError("Result %s did not exist!" %
-                               self.opts.single_result)
+            fatal("Result %s did not exist!" % self.opts.single_result)
 
         # FIXME: Add more machine info!
         run_info = {
