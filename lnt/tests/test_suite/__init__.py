@@ -1456,7 +1456,7 @@ class TestSuiteTest(object):
               help="String to use to identify and order this run")
 @click.option("--submit", "submit_url", metavar="URLORPATH",
               help="autosubmit the test result to the given server"
-                   " (or local instance), with `lnt submit`",
+                   " (or local instance)",
               type=click.UNPROCESSED, default=None)
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",
