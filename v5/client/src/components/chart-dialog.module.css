@@ -1,0 +1,92 @@
+/*
+ * A dialog beside a place on a chart (see chart-dialog.tsx), over the chart, and the parts of its
+ * content that every such dialog lays out alike, which the pages use for theirs.
+ */
+
+/* The chart's container, which the dialog, and anything else over the chart, is placed in. */
+.host {
+  position: relative;
+}
+
+/* Focused from script only, once the dialog closes, where an outline means nothing. */
+.host:focus {
+  outline: none;
+}
+
+.dialog {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  width: max-content;
+  max-width: 30rem;
+  padding: var(--lnt-space-2) var(--lnt-space-3);
+  border: 1px solid var(--lnt-border-strong);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
+.title {
+  overflow-wrap: anywhere;
+}
+
+.close {
+  padding: 0 0.35rem;
+  border: none;
+  background: none;
+  line-height: 1;
+}
+
+/* What the dialog is about, a label and a value per line. */
+.info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 var(--lnt-space-2);
+  margin: 0;
+}
+
+.info dt {
+  color: var(--lnt-muted);
+}
+
+.info dd {
+  margin: 0;
+}
+
+.heading {
+  margin: 0 0 var(--lnt-space-1);
+  font-size: 0.9rem;
+}
+
+/*
+ * A list in the dialog, such as runs or tests, which scrolls when it is long or wider than the
+ * dialog. It reaches into the dialog's right padding, where its scroll bar goes: one that overlays
+ * the content, as macOS's do, would otherwise hide the end of a run's samples.
+ */
+.list {
+  max-height: 12rem;
+  overflow: auto;
+  margin-right: calc(-1 * var(--lnt-space-3));
+  padding-right: var(--lnt-space-3);
+}
+
+/* The dialog's actions, on a row of their own. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}

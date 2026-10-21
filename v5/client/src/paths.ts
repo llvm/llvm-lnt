@@ -43,6 +43,9 @@ interface GraphView {
   test?: string
   /** Which regressions are marked on the chart (GR15). */
   regressions?: 'active' | 'all'
+  /** How each run's samples, then the runs, are combined: the Graph's defaults when not given. */
+  sampleAgg?: string
+  runAgg?: string
 }
 
 /** The Graph page (GR14), showing `view`. */
@@ -52,6 +55,8 @@ export function graphPath({
   metric,
   test,
   regressions,
+  sampleAgg,
+  runAgg,
 }: GraphView = {}): string {
   return withQuery('/graph', [
     ['suite', suite],
@@ -59,6 +64,8 @@ export function graphPath({
     ...machines.map((machine): Param => ['machine', machine]),
     ['metric', metric],
     ['test', test],
+    ['run_agg', runAgg],
+    ['sample_agg', sampleAgg],
     ['regressions', regressions],
   ])
 }

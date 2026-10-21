@@ -143,15 +143,23 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   const position = await pointOf(page, 0, index)
   const plotLabel = page.locator('.hoverlayer')
   const circles = page.locator('svg[class*="scatter"] circle')
+  // The background of the test's row, which hovering its line highlights (GR7).
+  const box = page.getByRole('checkbox', { name: TEST, exact: true })
+  const row = table(page, 'Tests').getByRole('row').filter({ has: box })
+  const background = () => row.evaluate((element) => getComputedStyle(element).backgroundColor)
+  const usual = await background()
   await plotOf(page).hover({ position })
   await expect(plotLabel).toContainText('Click for details')
   await expect(circles).toHaveCount(samples)
+  await expect.poll(background).not.toBe(usual)
 
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog')
   await expect(details).toBeFocused()
-  // The details take the place of Plotly's label, which would linger over the samples.
+  // The details take the place of Plotly's label, which would linger over the samples, and the
+  // hover ends with it.
   await expect(plotLabel).not.toContainText('Click for details')
+  await expect.poll(background).toBe(usual)
   expect(await details.getAttribute('aria-label')).toMatch(`${TEST} on ${LINUX} at `)
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare with previous commit' })

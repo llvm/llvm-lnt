@@ -23,6 +23,30 @@ function sideOf(page: Page, side: 'A' | 'B') {
 const positionOf = (cell: Locator) =>
   cell.evaluate((element) => getComputedStyle(element).position)
 
+/**
+ * The tests of the rows of `comparison` highlighted (CP5): those whose background differs from the
+ * geomean's, which is never highlighted.
+ */
+function highlightedRows(comparison: Locator) {
+  return rows(comparison).evaluateAll((all) => {
+    const background = (row: Element) => getComputedStyle(row).backgroundColor
+    const usual = background(all[0])
+    return all.filter((row) => background(row) !== usual).map((row) => row.children[1].textContent)
+  })
+}
+
+/** Whether what is drawn at each of `points`, in the page's viewport, is part of `element`. */
+function drawsAt(element: Locator, points: { x: number; y: number }[]) {
+  return element.evaluate(
+    (root, points) =>
+      points.map(({ x, y }) => {
+        const hit = document.elementFromPoint(x, y)
+        return hit !== null && root.contains(hit)
+      }),
+    points,
+  )
+}
+
 /** The two newest commits LINUX has runs at, by ordinal: the older first. */
 async function newestCommits(request: APIRequestContext) {
   const path = `/api/suites/libcxx/commits?machine=${LINUX}&sort=-ordinal&limit=2`
@@ -70,15 +94,69 @@ test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, 
   await plotOf(page).hover({ position: await pointOf(page, 0, 0) })
   const label = page.locator('.hoverlayer .hovertext')
   await expect(label).toBeVisible()
-  // The rows whose background differs from the geomean's, which is never highlighted, by test.
-  const highlighted = () =>
-    rows(comparison).evaluateAll((all) => {
-      const background = (row: Element) => getComputedStyle(row).backgroundColor
-      const usual = background(all[0])
-      return all.filter((row) => background(row) !== usual).map((row) => row.children[1].textContent)
-    })
+  const highlighted = () => highlightedRows(comparison)
   await expect.poll(highlighted).toHaveLength(1)
   await expect(label).toContainText((await highlighted())[0]!)
+})
+
+test("shows a bar's details, linking to the test's history on the Graph page (CP3)", async ({
+  page,
+  request,
+}) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+  )
+  await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+
+  const position = await pointOf(page, 0, 0)
+  const label = page.locator('.hoverlayer .hovertext')
+  const comparison = table(page, 'Comparison')
+  await plotOf(page).hover({ position })
+  await expect(label).toContainText('Click for details')
+  await expect.poll(() => highlightedRows(comparison)).toHaveLength(1)
+  await plotOf(page).click({ position })
+  const details = page.getByRole('dialog')
+  await expect(details).toBeFocused()
+  // The details take the place of Plotly's label, and its row is no longer highlighted (CP5).
+  await expect(label).toHaveCount(0)
+  await expect.poll(() => highlightedRows(comparison)).toEqual([])
+  const test = (await details.getAttribute('aria-label'))!
+
+  // Each side's run, three samples of the test on one line.
+  for (const side of ['A', 'B']) {
+    const runs = details.getByRole('table', { name: `Side ${side} runs` })
+    await expect(runs.getByRole('link')).toHaveCount(1)
+    const samples = runs.getByRole('cell').last()
+    await expect(samples).toHaveText(/^[^·]+ · [^·]+ · [^·]+$/)
+    const lines = await samples.evaluate((cell) => {
+      const range = document.createRange()
+      range.selectNodeContents(cell)
+      return range.getClientRects().length
+    })
+    expect(lines).toBe(1)
+  }
+  const valueB = await details.getByRole('definition').nth(1).textContent()
+
+  // Side B selects its commit's every run: the Graph's point at its commit is Value B.
+  await details.getByRole('link', { name: 'View on graph' }).click()
+  await expect(page).toHaveURL(/\/graph\?/)
+  expect([...new URL(page.url()).searchParams]).toEqual([
+    ['suite', 'libcxx'],
+    ['machine', LINUX],
+    ['metric', 'execution_time'],
+    ['test', test],
+  ])
+  await expect(table(page, 'Tests').getByRole('checkbox', { name: test, exact: true })).toBeChecked()
+  const pointAtB = () =>
+    plotOf(page).evaluate((element, commit) => {
+      type Drawn = PlotDiv & { _fullData: { customdata: string[][] }[] }
+      const trace = (element as Drawn)._fullData?.[0]
+      const index = trace?.x.indexOf(commit) ?? -1
+      return index < 0 ? null : trace!.customdata[index][1]
+    }, newer.value)
+  await expect.poll(pointAtB).toBe(valueB)
 })
 
 test('scrolls the table rather than the page when its columns do not fit', async ({
@@ -136,6 +214,47 @@ test('scrolls the table rather than the page when its columns do not fit', async
   // With no gap between them, which the columns scrolled under them would show through.
   const [checkBox, nameBox] = [(await check.boundingBox())!, (await name.boundingBox())!]
   expect(nameBox.x - (checkBox.x + checkBox.width)).toBeCloseTo(0, 0)
+})
+
+test("shows a bar's details over the table's sticky columns (CP2, CP3)", async ({
+  page,
+  request,
+}) => {
+  // Side B's two runs make the details tall enough to reach the table.
+  const [, newest] = await newestCommits(request)
+  const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newest.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${EXPERIMENT}&metric=execution_time` +
+      statistics.map((key) => `&columns=${key}`).join(''),
+  )
+  const comparison = table(page, 'Comparison')
+  await expect(rows(comparison).first()).toContainText('Geomean')
+  const name = comparison.getByRole('columnheader', { name: 'Test', exact: true })
+  await expect.poll(() => positionOf(name)).toBe('sticky')
+
+  // The first bar's details, on its right, reach down over the table's header.
+  await plotOf(page).click({ position: await pointOf(page, 0, 0) })
+  const details = page.getByRole('dialog')
+  const link = details.getByRole('link', { name: 'View on graph' })
+  await link.scrollIntoViewIfNeeded()
+  const [box, header, linkBox] = [
+    (await details.boundingBox())!,
+    (await name.boundingBox())!,
+    (await link.boundingBox())!,
+  ]
+  expect(box.x < header.x + header.width && header.x < box.x + box.width).toBe(true)
+  expect(box.y < header.y + header.height && header.y < box.y + box.height).toBe(true)
+
+  // Nothing of the table is drawn over them.
+  const inset = 4
+  const points = [
+    { x: box.x + inset, y: box.y + box.height - inset },
+    { x: box.x + box.width - inset, y: box.y + box.height - inset },
+    { x: Math.max(box.x, header.x) + inset, y: header.y + header.height / 2 },
+    { x: linkBox.x + linkBox.width / 2, y: linkBox.y + linkBox.height / 2 },
+  ]
+  expect(await drawsAt(details, points)).toEqual(points.map(() => true))
 })
 
 test('compares two commits chosen from scratch', async ({ page, request }) => {

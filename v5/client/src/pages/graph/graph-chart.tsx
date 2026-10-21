@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Data, PlotData, PlotMouseEvent } from 'plotly.js'
+import clsx from 'clsx'
 import type { Aggregation } from '../../aggregation'
 import type { MarkedRegression } from '../../api/regressions'
 import type { Scaffold } from '../../api/scaffold'
@@ -7,6 +8,7 @@ import type { Measurement, Series } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
 import { Chart, type PlotGeometry } from '../../components/chart'
+import dialog from '../../components/chart-dialog.module.css'
 import { sameElements } from '../../same-elements'
 import { commitDisplayValue, labelOf, type Metric } from '../../schema'
 import { useStoreValue, type ValueStore } from '../../value-store'
@@ -326,15 +328,9 @@ export function GraphChart({
   const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<Opened | null>(null)
-  const container = useRef<HTMLDivElement>(null)
   // The samples of the point whose details are open, a press on which leaves them open (GR11).
   const pinnedCloud = useRef<SVGSVGElement>(null)
-  // Closed from the keyboard or its button, the details give the focus back to the chart, rather
-  // than to the page; closed by a press elsewhere, they leave it where the press put it.
-  const close = useCallback((returnFocus = false) => {
-    setOpen(null)
-    if (returnFocus) container.current?.focus({ preventScroll: true })
-  }, [])
+  const close = useCallback(() => setOpen(null), [])
   // Any change to what the chart is drawn from, besides data arriving, closes the details (GR11).
   const [drawnFrom, setDrawnFrom] = useState(closeOn)
   if (!sameElements(drawnFrom, closeOn)) {
@@ -458,7 +454,7 @@ export function GraphChart({
 
   const label = metric ? `${labelOf(metric)} over time` : 'Graph'
   return (
-    <div className={styles.chartArea} ref={container} tabIndex={-1}>
+    <div className={clsx(styles.chartArea, dialog.host)} tabIndex={-1}>
       <Chart
         label={empty ? `${label}: no data to plot` : label}
         className={styles.chart}
@@ -468,7 +464,7 @@ export function GraphChart({
         onUnhover={onUnhover}
         onClick={onClick}
         onDraw={setGeometry}
-        onRelayout={() => close()}
+        onRelayout={close}
       />
       {clouds}
       {details}

@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { PlotMouseEvent, PlotRelayoutEvent } from 'plotly.js'
 import { Chart, type PlotGeometry } from '../../components/chart'
+import { ChartDialog } from '../../components/chart-dialog'
+import dialog from '../../components/chart-dialog.module.css'
 import { useStoreValue, type ValueStore } from '../../value-store'
 import {
   BAR_GAP,
@@ -30,6 +32,8 @@ interface Props {
   emphasis: ValueStore<string | null>
   /** Where the chart says which test's bar is hovered, for the table to highlight its row. */
   hovered: ValueStore<string | null>
+  /** What the details of the test of `row`, whose bar was clicked, show (CP3). */
+  details(row: ComparisonRow): ReactNode
 }
 
 /** The y-axis range a relayout zoomed to, null for a reset, undefined for neither. */
@@ -73,9 +77,18 @@ function Outline({ geometry, bar, index }: { geometry: PlotGeometry; bar: Bar; i
  * The comparison's chart (CP3): a bar per compared test, by ratio, on a log2 axis labelled with the
  * percentage changes, the Delta % knob's noise band, and the lines of the shadows pinned (CP8).
  * Its ticks follow a zoom of the y-axis.
- * Hovering a bar highlights its test's row, and hovering a row outlines its bar (CP5).
+ * Hovering a bar highlights its test's row, and hovering a row outlines its bar (CP5). Clicking a
+ * bar shows its test's details (CP3).
  */
-export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hovered }: Props) {
+export function CompareChart({
+  rows,
+  shadows,
+  noisePct,
+  revision,
+  emphasis,
+  hovered,
+  details,
+}: Props) {
   const bars = useMemo(() => chartBars(rows), [rows])
   // The traces, and the bars the first draws: Plotly reports an event with the trace it drew, which
   // may be one drawn before the latest render, while it is drawing again.
@@ -124,19 +137,69 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
     test === null ? undefined : indexOf.get(test),
   )
 
+  // The bar of an event on the chart, if it is on one rather than on a shadow's point.
+  const barAt = (event: PlotMouseEvent) => {
+    const point = event.points[0]
+    return point && drawn.barsOf.get(point.data)?.[point.pointNumber]
+  }
+  const onHover = (event: PlotMouseEvent) => {
+    // A point of a shadow highlights no row, and leaves none highlighted from a bar before it.
+    hovered.set(barAt(event)?.test ?? null)
+  }
+
+  // The test whose details are open, which any change to the compared rows closes (CP3).
+  const [open, setOpen] = useState<string | null>(null)
+  const [openOn, setOpenOn] = useState(rows)
+  if (openOn !== rows) {
+    setOpenOn(rows)
+    setOpen(null)
+  }
+  const close = useCallback(() => setOpen(null), [])
+  // A zoom or a pan closes the details too.
   const onRelayout = (event: PlotRelayoutEvent) => {
     const range = zoomOf(event)
     if (range !== undefined) setZoom(range)
+    close()
   }
-  const onHover = (event: PlotMouseEvent) => {
-    const point = event.points[0]
-    // A point of a shadow highlights no row, and leaves none highlighted from a bar before it.
-    const bar = point && drawn.barsOf.get(point.data)?.[point.pointNumber]
-    hovered.set(bar?.test ?? null)
+  // Whether the click opened details, which take the place of the hover label.
+  const onClick = (event: PlotMouseEvent) => {
+    const bar = barAt(event)
+    // Plotly reports a click of any button: only the main one opens details.
+    if (bar === undefined || event.event.button !== 0) return false
+    setOpen(bar.test)
+    return true
+  }
+  const openAt = open === null ? undefined : indexOf.get(open)
+  let opened = null
+  if (geometry !== null && open !== null && openAt !== undefined) {
+    const { area } = geometry
+    // Beside the bar, on the side of the plot with the more room, from the bar's edge, so as not
+    // to cover it, but from no further than the middle of the plot, where a wide bar's edge may
+    // leave too little room. From the top of the plot, rather than centred on the bar's end, since
+    // the details are taller than the chart: they cover what is below it, rather than the
+    // controls and the shadows' chips above it.
+    const middle = area.left + area.width / 2
+    const half = (1 - BAR_GAP) / 2
+    const right = geometry.x(openAt) < middle
+    const x = right
+      ? Math.min(geometry.x(openAt + half), middle)
+      : Math.max(geometry.x(openAt - half), middle)
+    const row = rows.find((entry) => entry.test === open)!
+    opened = (
+      <ChartDialog
+        key={open}
+        label={open}
+        title={open}
+        at={{ x, y: area.top, side: right ? 'right' : 'left', align: 'start' }}
+        onClose={close}
+      >
+        {details(row)}
+      </ChartDialog>
+    )
   }
 
   return (
-    <div className={styles.chartArea}>
+    <div className={dialog.host} tabIndex={-1}>
       <Chart
         label={empty ? 'Ratio of B to A by test: no data to plot' : 'Ratio of B to A by test'}
         className={styles.chart}
@@ -144,12 +207,14 @@ export function CompareChart({ rows, shadows, noisePct, revision, emphasis, hove
         layout={layout}
         onHover={onHover}
         onUnhover={() => hovered.set(null)}
+        onClick={onClick}
         onRelayout={onRelayout}
         onDraw={setGeometry}
       />
       {geometry !== null && emphasized !== undefined && (
         <Outline geometry={geometry} bar={bars[emphasized]} index={emphasized} />
       )}
+      {opened}
     </div>
   )
 }

@@ -5,6 +5,7 @@
 
 import { aggregate, type Aggregation } from '../../aggregation'
 import type { Measurement } from '../../api/series'
+import type { RunSamples } from '../../components/run-samples-table'
 
 /** A trace's value at one commit. */
 export interface Point {
@@ -16,15 +17,6 @@ export interface Point {
   runs: number
 }
 
-/** One run's samples (GR1). */
-export interface RunSamples {
-  /** The run's UUID. */
-  run: string
-  /** When the run was measured. */
-  measured: string
-  samples: number[]
-}
-
 /** One run's value: its samples, combined by the sample aggregation (GR1). */
 export interface RunValue {
   /** The run's UUID. */
@@ -34,7 +26,7 @@ export interface RunValue {
   value: number
 }
 
-/** The samples of each run among `measurements`. */
+/** The samples of each run among `measurements` (GR1). */
 export function runSamples(measurements: Iterable<Measurement>): RunSamples[] {
   const runs = new Map<string, RunSamples>()
   for (const { run, measured, value } of measurements) {

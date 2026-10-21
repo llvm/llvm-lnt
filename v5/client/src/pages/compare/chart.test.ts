@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hoverText } from '../../test/hover-text'
 import {
   barTrace,
   chartBars,
@@ -134,6 +135,13 @@ describe('barTrace', () => {
       '-50.00%',
     ])
   })
+
+  it('says last that a bar can be clicked for its details (CP3)', () => {
+    expect(hoverText(barTrace(bars), 1)).toBe(
+      '<b>same</b><br>Ratio: 1.0010<br>A: 1<br>B: 1.001<br>Delta %: +0.10%<br>' +
+        '<i>Click for details</i><extra></extra>',
+    )
+  })
 })
 
 describe('shadowTrace', () => {
@@ -146,6 +154,8 @@ describe('shadowTrace', () => {
       /^<b>%\{customdata\[0\]\}<\/b><br>%\{customdata\[5\]\}<br>Ratio/,
     )
     expect((trace.customdata as unknown as string[][])[0][5]).toBe('Shadow: s/m/c')
+    // A point of a shadow has no details (CP8).
+    expect(trace.hovertemplate).not.toContain('Click')
   })
 
   it('escapes the label, and keeps it out of the template', () => {

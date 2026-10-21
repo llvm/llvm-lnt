@@ -8,9 +8,11 @@ import {
   sideValues,
   statisticsOf,
   summaryCounts,
+  testRuns,
   welchTTest,
   type ComparedTest,
   type NoiseSettings,
+  type SampledRun,
   type Values,
 } from './comparison'
 
@@ -64,6 +66,39 @@ describe('sideSamples', () => {
       'time',
     )
     expect(side).toEqual(new Map([['a', [[4]]]]))
+  })
+})
+
+describe('testRuns', () => {
+  const measured_at = '2026-08-20T10:00:00Z'
+
+  it("gives each run's values of the metric for the test, ascending, in the runs' order", () => {
+    const runs: SampledRun[] = [
+      {
+        uuid: 'r2',
+        measured_at,
+        samples: [
+          { test: 'a', metrics: { time: 3 } },
+          { test: 'b', metrics: { time: 9 } },
+          { test: 'a', metrics: { time: 1, size: 10 } },
+          { test: 'a', metrics: { time: 2 } },
+        ],
+      },
+      { uuid: 'r1', measured_at, samples: [{ test: 'a', metrics: { time: 4 } }] },
+    ]
+    expect(testRuns(runs, 'time', 'a')).toEqual([
+      { run: 'r2', measured: measured_at, samples: [1, 2, 3] },
+      { run: 'r1', measured: measured_at, samples: [4] },
+    ])
+  })
+
+  it('leaves out the runs without a value of the metric for the test, as sideSamples does', () => {
+    const runs: SampledRun[] = [
+      { uuid: 'r1', measured_at, samples: [{ test: 'a', metrics: { size: 10 } }] },
+      { uuid: 'r2', measured_at, samples: [{ test: 'b', metrics: { time: 1 } }] },
+      { uuid: 'r3', measured_at, samples: [{ test: 'a', metrics: { time: 'x' } }] },
+    ]
+    expect(testRuns(runs, 'time', 'a')).toEqual([])
   })
 })
 
