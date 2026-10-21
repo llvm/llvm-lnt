@@ -354,13 +354,15 @@ function GraphPage() {
             isDisabled={disabled}
             toggle={addBaselineButton}
           />
-          <ChipList
-            label="Highlighted commits"
-            chips={highlightChips}
-            removeLabel={(chip) => `Remove the highlight of ${shownHighlight(chip.key)}`}
-            onRemove={toggleHighlight}
-            focusWhenEmpty={() => addBaselineButton.current}
-          />
+          <div className={styles.highlights}>
+            <ChipList
+              label="Highlighted commits"
+              chips={highlightChips}
+              removeLabel={(chip) => `Remove the highlight of ${shownHighlight(chip.key)}`}
+              onRemove={toggleHighlight}
+              focusWhenEmpty={() => addBaselineButton.current}
+            />
+          </div>
         </div>
       </ControlsPanel>
       {machineList.isError && (

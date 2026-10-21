@@ -70,8 +70,14 @@
 .overlays {
   display: flex;
   flex-basis: 100%;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--lnt-space-4);
+}
+
+/* The highlighted commits' chips (GR16), at the end of the row, whatever the baselines take. */
+.highlights {
+  margin-left: auto;
 }
 
 /* The chart, and what is placed over it: the hovered point's runs, the point details. */
@@ -123,11 +129,11 @@
   font-size: 0.9rem;
 }
 
-/* The form creating a regression from a point (GR11), on a row of its own below its actions. */
+/* The form creating a regression from a point (GR11), as wide as the details. */
 .detailsCreate {
   display: flex;
-  flex-basis: 100%;
   flex-direction: column;
+  align-self: stretch;
   gap: var(--lnt-space-2);
 }
 

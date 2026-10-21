@@ -20,7 +20,8 @@
   flex-direction: column;
   gap: var(--lnt-space-2);
   width: max-content;
-  max-width: 30rem;
+  /* Room for a run of three samples, as most have, without scrolling its list (see .list). */
+  max-width: 32rem;
   padding: var(--lnt-space-2) var(--lnt-space-3);
   border: 1px solid var(--lnt-border-strong);
   border-radius: var(--lnt-radius);
@@ -83,10 +84,10 @@
   padding-right: var(--lnt-space-3);
 }
 
-/* The dialog's actions, on a row of their own. */
+/* The dialog's actions, one per line. */
 .actions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--lnt-space-2);
 }
