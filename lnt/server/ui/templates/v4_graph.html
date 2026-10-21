@@ -30,6 +30,7 @@ function init_graph() {
 
   var graph_layout = {
     // title: 'Graph',
+    shapes: {{highlight_shapes|tojson|safe}},
     hovermode: 'closest',
     showlegend: true,
     legend: { x: 0, y: -1.0,
@@ -43,6 +44,10 @@ function init_graph() {
     graph_layout['xaxis'] = {title: 'Date', type: 'date'};
   } else {
     graph_layout['xaxis'] = {title: 'Order', type: 'category'};
+    {% if highlight_categories %}
+    graph_layout['xaxis']['categoryorder'] = 'array';
+    graph_layout['xaxis']['categoryarray'] = {{highlight_categories|tojson|safe}};
+    {% endif %}
   }
 
   var xaxis_left = 0.0;
@@ -237,7 +242,7 @@ function init_page() {
           {% if name.startswith('baseline.') %}
           <input type="hidden" name="{{name}}" value="{{value}}"/>
           {% endif %}
-          {% if name == 'mean' %}
+          {% if name in ('mean', 'highlight_run') %}
           <input type="hidden" name="{{name}}" value="{{value}}"/>
           {% endif %}
           {% endfor %}

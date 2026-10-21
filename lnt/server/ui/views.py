@@ -1497,8 +1497,40 @@ def v4_graph():
                              download_name='Graph.json',
                              as_attachment=True)
 
+    highlight_shapes = []
+    highlight_categories = []
+    if revision_range:
+        if xaxis_date:
+            highlight_start = prev_runs[0].start_time
+            highlight_end = highlight_run.start_time
+        else:
+            highlight_start = revision_range["start"]
+            highlight_end = revision_range["end"]
+
+        # Missing samples or a limited view must not introduce new categories
+        # or extend the date axis. Check the union of the displayed traces.
+        plotted_x = list(dict.fromkeys(x for plot in graph_plots for x in plot["x"]))
+        if highlight_start in plotted_x and highlight_end in plotted_x:
+            if not xaxis_date:
+                # Plotly 2.6.3 interprets numeric-looking shape coordinates as
+                # category indices. Use trace order, not revision numbers, and
+                # keep these positions stable when legend entries are hidden.
+                highlight_categories = plotted_x
+                highlight_start = plotted_x.index(highlight_start)
+                highlight_end = plotted_x.index(highlight_end)
+            highlight_shapes.append({
+                "type": "rect",
+                "xref": "x", "x0": highlight_start, "x1": highlight_end,
+                "yref": "paper", "y0": 0, "y1": 1,
+                "fillcolor": "rgba(0, 0, 255, 0.15)",
+                "line": {"width": 0},
+                "layer": "below",
+            })
+
     return render_template("v4_graph.html", options=options,
                            graph_plots=graph_plots,
+                           highlight_shapes=highlight_shapes,
+                           highlight_categories=highlight_categories,
                            metrics=metrics,
                            legend=legend,
                            **ts_data(ts))

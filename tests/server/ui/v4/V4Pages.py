@@ -19,6 +19,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from html.entities import name2codepoint
+from html.parser import HTMLParser
+from urllib.parse import urlencode
 from flask import session
 import lnt.server.db.migrate
 import lnt.server.ui.app
@@ -84,6 +86,111 @@ def check_json(client, url, expected_code=HTTP_OK, data_to_send=None):
     and grab reply data from the json payload."""
     return json.loads(check_code(client, url, expected_code,
                       data_to_send=data_to_send).data)
+
+
+def check_graph_highlight(client, url, endpoints=None, categories=None):
+    """Check the shapes actually passed to Plotly, not only the JSON API."""
+    resp = check_html(client, url)
+    html = resp.get_data(as_text=True)
+    layout = re.search(r'var graph_layout = \{(.*?)\n  \};', html, re.S)
+    assert layout, "Missing Plotly layout"
+    shapes_start = re.search(r'\bshapes\s*:\s*', layout.group(1))
+    assert shapes_start, "Missing shapes in Plotly layout"
+    shapes, _ = json.JSONDecoder().raw_decode(
+        layout.group(1)[shapes_start.end():])
+    category_array = re.search(r"graph_layout\['xaxis'\]\['categoryarray'\] = (.*);", html)
+    if categories is None:
+        assert category_array is None
+    else:
+        assert "graph_layout['xaxis']['categoryorder'] = 'array';" in html
+        assert category_array, "Missing stable category order"
+        assert json.loads(category_array.group(1)) == list(categories)
+    if endpoints is None:
+        assert shapes == [], shapes
+    else:
+        assert len(shapes) == 1, shapes
+        shape = shapes[0]
+        assert (shape['x0'], shape['x1']) == endpoints, shape
+        assert shape['type'] == 'rect'
+        assert shape['xref'] == 'x'
+        assert shape['yref'] == 'paper'
+        assert (shape['y0'], shape['y1']) == (0, 1)
+        assert shape['layer'] == 'below'
+        assert shape['line']['width'] == 0
+        assert shape['fillcolor']
+    return resp
+
+
+def graph_settings_fields(resp):
+    """Collect successful Settings controls as a browser's GET would."""
+    html = resp.get_data(as_text=True)
+    form = next(form for form in re.findall(r'<form\b.*?</form>', html, re.S)
+                if 'type="checkbox" name="hide_highlight"' in form)
+
+    class SettingsParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.fields = []
+            self.select = None
+            self.choices = {}
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            name = attrs.get('name')
+            if tag == 'input' and name:
+                if attrs.get('type') == 'checkbox' and 'checked' not in attrs:
+                    return
+                self.fields.append((name, attrs.get('value', '')))
+            elif tag == 'select':
+                self.select = name
+            elif tag == 'option' and self.select:
+                if self.select not in self.choices or 'selected' in attrs:
+                    self.choices[self.select] = attrs.get('value', '')
+
+        def handle_endtag(self, tag):
+            if tag == 'select':
+                self.select = None
+
+    parser = SettingsParser()
+    parser.feed(form)
+    return parser.fields + list(parser.choices.items())
+
+
+def check_hash_revision_highlight(client):
+    # A small synthetic pair also checks the union of multiple traces: each
+    # metric has a sample at only one of the two highlighted endpoints.
+    revisions = ('aaaa1111', 'bbbb2222')
+    run_ids = []
+    for i, (revision, metric) in enumerate(zip(
+            revisions, ('execution_time', 'compile_time')), start=1):
+        report = {
+            'format_version': '2',
+            'machine': {'name': 'highlight-categories'},
+            'run': {'llvm_project_revision': revision,
+                    'start_time': f'2013-01-0{i}T00:00:00',
+                    'end_time': f'2013-01-0{i}T00:00:01'},
+            'tests': [{'name': 'highlight-test', metric: 1.0}],
+        }
+        resp = client.post('/db_default/v4/nts/submitRun', data={
+            'commit': '1', 'input_data': json.dumps(report)})
+        assert resp.status_code == HTTP_OK, resp.get_data(as_text=True)
+        run_ids.append(json.loads(resp.data)['result_url'].split('/')[-1])
+
+    detail = check_json(client, f'/api/db_default/v4/nts/runs/{run_ids[1]}')
+    machine_id = detail['machine']['id']
+    tests = check_json(client, '/api/db_default/v4/nts/tests')['tests']
+    test_id = next(test['id'] for test in tests
+                   if test['name'] == 'highlight-test')
+    base = f'/v4/nts/graph?highlight_run={run_ids[1]}'
+    compile_plot = f'plot.0={machine_id}.{test_id}.0'
+    execution_plot = f'plot.1={machine_id}.{test_id}.2'
+    check_graph_highlight(client, base + '&' + compile_plot)
+    check_graph_highlight(client, base + '&' + execution_plot)
+    # Categories follow first appearance across traces, not revision order.
+    # The compile trace contains the later revision, so the band runs from
+    # category 1 to category 0 in this graph.
+    check_graph_highlight(client, base + '&' + compile_plot + '&' + execution_plot,
+                          (1, 0), revisions[::-1])
 
 
 def check_redirect(client, url, expected_redirect_regex):
@@ -511,6 +618,60 @@ def main():
     #  Check baselines work.
     check_html(client, f'/v4/nts/graph?plot.0={m1_id}.{fv_id}.2&baseline.60={m1_run1_id}')
 
+    # A highlight must reach the HTML Plotly layout. Shape coordinates are
+    # category indices; the trace labels and JSON revision range stay strings.
+    highlight_graph = f'/v4/nts/graph?plot.0={m2_id}.{test1_id}.2'
+    highlighted = highlight_graph + f'&highlight_run={reg_run2_id}'
+    revisions = ('152292', '152293')
+    endpoints = (0, 1)
+    page = check_graph_highlight(client, highlighted, endpoints, revisions)
+    check_graph_highlight(client, highlight_graph)
+    check_graph_highlight(client, highlighted + '&hide_highlight=yes')
+    for invalid_id in ('invalid', '-1'):
+        check_graph_highlight(client, highlight_graph +
+                              f'&highlight_run={invalid_id}')
+    check_code(client, highlight_graph + '&highlight_run=999999',
+               expected_code=HTTP_NOT_FOUND)
+    check_graph_highlight(client, highlight_graph +
+                          '&highlight_run=999999&hide_highlight=yes')
+    first_run_id = m2_rbr['152290']['id']
+    check_graph_highlight(client, f'/v4/nts/graph?plot.0={m2_id}.{fv_id}.2'
+                          f'&highlight_run={first_run_id}')
+
+    date_graph = highlighted + '&xaxis_date=yes'
+    dates = tuple(m2_rbr[revision]['start_time'] for revision in revisions)
+    check_graph_highlight(client, date_graph, dates)
+    for graph in (highlighted, date_graph):
+        data = check_json(client, graph + '&json=true')
+        hidden_data = check_json(client, graph + '&hide_highlight=yes&json=true')
+        assert data['revision_range'] == {'start': revisions[0],
+                                          'end': revisions[1]}
+        assert hidden_data['revision_range'] is None
+        assert data['data'] == hidden_data['data']
+        assert data['data'][0]['x'] == list(dates if graph == date_graph else revisions)
+
+    # Full plot-height coordinates remain independent of metric axes and units.
+    check_graph_highlight(client, highlighted +
+                          f'&plot.1={m2_id}.{test1_id}.0'
+                          '&normalize_by_median=yes&logarithmic_scale=yes',
+                          endpoints, revisions)
+    # Neither a missing sample nor a limited view may create phantom categories.
+    check_graph_highlight(client, f'/v4/nts/graph?plot.0={m2_id}.{test2_id}.2'
+                          f'&highlight_run={reg_run2_id}')
+    check_graph_highlight(client, highlighted + '&limit=1')
+
+    # Submit the real Settings controls, hiding and then showing the region.
+    fields = graph_settings_fields(page)
+    assert [v for k, v in fields if k == 'highlight_run'] == [str(reg_run2_id)]
+    assert not any(k == 'hide_highlight' for k, v in fields)
+    fields.append(('hide_highlight', 'yes'))
+    hidden_page = check_graph_highlight(client, '/v4/nts/graph?' + urlencode(fields))
+    fields = graph_settings_fields(hidden_page)
+    assert [v for k, v in fields if k == 'highlight_run'] == [str(reg_run2_id)]
+    assert [v for k, v in fields if k == 'hide_highlight'] == ['yes']
+    fields = [(k, v) for k, v in fields if k != 'hide_highlight']
+    check_graph_highlight(client, '/v4/nts/graph?' + urlencode(fields), endpoints, revisions)
+
     # Check some variations of the daily report work.
     check_html(client, '/v4/nts/daily_report/2012/4/12')
     check_html(client, '/v4/nts/daily_report/2012/4/11')
@@ -802,6 +963,9 @@ def main():
     failed_run = failed_data['runs'][0]
     check_html(client, f'/v4/nts/{profile_last_run["id"]}')
     check_html(client, f'/v4/nts/{failed_run["id"]}')
+
+    # Keep additional synthetic runs after the existing fixture-based checks.
+    check_hash_revision_highlight(client)
 
 
 if __name__ == '__main__':
