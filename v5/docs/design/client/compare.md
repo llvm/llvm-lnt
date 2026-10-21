@@ -340,15 +340,16 @@ Interactivity:
   - for each side, the runs its samples for the test (see CP2 "Computation
     Reference") come from, as GR11 lists a point's runs, in a list of their own
     whose accessible name says the side;
-  - "View on graph": a link to the Graph page with side B's suite and machine,
-    the selected metric, the test selected, highlighted commits (GR16), and
-    Compare's run and sample aggregations. The Graph's point at side B's commit
-    is thus Value B when side B selects every run. Side B's commit is
-    highlighted, and so is side A's when side A has the same suite and machine,
-    each once it is known to have an ordinal, without which it is not on the
-    Graph's x-axis (GR3). The link is disabled (see AR8) while side B's commit
-    is being looked up (CP6), and when it has no ordinal. A commit whose lookup
-    fails is not highlighted, but does not disable the link;
+  - "View on graph": a link to the Graph page in side B's context: side B's
+    suite and machine, the selected metric, this test selected, and Compare's
+    run and sample aggregations. When side B selects all its runs, the Graph's
+    point at side B's commit is therefore Value B. The link also highlights commits
+    (GR16): side B's commit, and side A's commit if side A has the same suite
+    and machine. A commit is highlighted only once it is known to have an
+    ordinal: without one, it is not on the Graph's x-axis (GR3). The link is
+    disabled (see AR8) while side B's commit is being looked up (CP6), and when
+    that commit has no ordinal. If a lookup fails, that commit is not
+    highlighted, but the link stays enabled;
   - the test's Profile link, when its row has one (CP2).
 
   It closes on Escape, on its close button, on a click anywhere but on it, on
@@ -435,9 +436,10 @@ page or the table.
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
   profiles of each of them that is selected. This never delays the
   comparison.
-- A bar's details resolve side B's commit, and side A's when side A has the
-  same suite and machine, through `POST commits/resolve`, for their ordinals
-  (see CP3). This never delays the details: only their link to the Graph waits.
+- A bar's details look up the ordinal of side B's commit, and of side A's when
+  side A has the same suite and machine, through `POST commits/resolve` (see
+  CP3). The details don't wait for these lookups; only their link to the Graph
+  does.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   There are exceptions: the page waits for the list of suites before it
