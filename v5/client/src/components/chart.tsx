@@ -90,7 +90,10 @@ export interface ChartProps {
   className: string
   /** The pointer is over a point, which Plotly also shows the hover label of. */
   onHover?(event: PlotHoverEvent): void
-  /** The pointer has left the point it was over. */
+  /**
+   * The pointer has left the point it was over, or a click on the point opened something that takes
+   * the place of its hover label (see `onClick`), `event` being the click then.
+   */
   onUnhover?(event: PlotMouseEvent): void
   /**
    * A point was clicked: the one whose hover label shows. Returns `true` when the click opened
@@ -193,7 +196,11 @@ export function Chart({
         plot.on('plotly_hover', (event) => onHover(event))
         plot.on('plotly_unhover', (event) => onUnhover(event))
         plot.on('plotly_click', (event) => {
-          if (onClick(event) === true) library.Fx.unhover(div)
+          if (onClick(event) !== true) return
+          // Plotly drops the hover label without reporting the end of the hover, which the page
+          // follows, to highlight what is hovered elsewhere.
+          library.Fx.unhover(div)
+          onUnhover(event)
         })
         // A draw under way when the plot is freed ends after it, with nothing left to report.
         plot.on('plotly_afterplot', () => {
