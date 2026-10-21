@@ -290,6 +290,10 @@ hidden until the pointer moves again. It shows:
   Run Detail's "Compare with previous commit" (DT2), it always has data for the
   test. The link is disabled (see AR8) at the first point of a trace, and while
   the trace's data is still loading or could not all be loaded.
+- "Highlight this commit": a button highlighting the point's commit (GR16), in
+  place of any commit highlighted before. While the point's commit is the
+  highlighted one, it is "Remove the highlight" instead, which removes it.
+  Either way, the popover stays open and the button keeps the focus.
 - "Create regression": a button opening a form below it that creates a
   regression in this suite, attributed to the point's commit, with a single
   indicator naming the point's machine and test and the plotted metric. The
@@ -316,8 +320,9 @@ arrives. It closes on Escape, unless pressed in its "Create regression" form,
 on its close button, on a click anywhere but on it or a marker of its point's
 scatter, and on any change to the chart other than
 data arriving, such as a zoom or pan, or a change to the selected tests,
-machines, metric, aggregation, baselines, regression annotation mode or
-highlighted commit (GR16), and once its point is no longer drawn. Moving the
+machines, metric, aggregation, baselines or regression annotation mode, and once
+its point is no longer drawn. A change to the highlighted commit (GR16) does not
+close it, since its band and circles neither move nor hide a point. Moving the
 focus out of it does not close it. A click on another point opens that point's
 popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or
@@ -399,9 +404,10 @@ list (`GET /regressions`), joined on the UUID.
 
 ### GR16: Highlighted Commit
 
-The commit given in the URL as `highlight={commit}` is marked on the chart, so
-that a link from another page, such as Compare's "View on graph" (CP3), can show
-where that commit is in the history:
+A commit can be highlighted on the chart: from a point's details (GR11), or by
+a link from another page, such as Compare's "View on graph" (CP3), to show where
+that commit is in the history. It is kept in the URL as `highlight={commit}`,
+and marked by:
 
 - A see-through vertical band at the commit, spanning the plot under the
   traces, in a color that no regression annotation uses (GR15). Its width is a
@@ -420,13 +426,10 @@ commit is not a point: it does not change the empty state (GR12), and adds no
 value to the y-axis range.
 
 While a suite is selected, the controls show a removable chip
-"Highlighted: {display value}", or the commit string until the commit is on
-the x-axis, which gives its display value. Once the x-axis is complete -- every
-plotted machine's scaffold loaded, and at least one machine plotted -- the chip
-also says when the commit is not on it.
+"Highlighted: {display value}", or the commit string while the commit is not on
+the x-axis, which gives its display value.
 
 The commit is kept as given, without being looked up, even when the suite has
 no such commit (an exception to AR2 "State"): whether it is drawn depends on the
-x-axis, which changes with the machines, and the chip says when it is not on
-it. Besides its chip, only a suite change clears it (GR1). It can only be set
-through the URL.
+x-axis, which changes with the machines. It is removed with its chip or from the
+details of a point at it (GR11), and cleared when the suite changes (GR1).

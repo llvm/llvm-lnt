@@ -54,6 +54,8 @@ interface Props {
   regressions: MarkedRegression[]
   /** The highlighted commit, if it is on the x-axis (GR16). */
   highlight: string | undefined
+  /** Highlight `commit`, or nothing when empty (GR16). */
+  onHighlight(commit: string): void
   /** The test whose row is hovered in the test table, which the chart emphasizes (GR7). */
   emphasis: ValueStore<string | null>
   /** Where the chart says which test's line is hovered, for the table to highlight it (GR7). */
@@ -194,6 +196,7 @@ export function GraphChart({
   baselines,
   regressions,
   highlight,
+  onHighlight,
   emphasis,
   hovered,
   closeOn,
@@ -447,6 +450,8 @@ export function GraphChart({
             state={series.stateOf(trace.machine, trace.test)}
             sampleAgg={sampleAgg}
             runAgg={runAgg}
+            highlighted={point.commit === highlight}
+            onHighlight={() => onHighlight(point.commit === highlight ? '' : point.commit)}
             at={{ x, y: geometry.y(point.value), side }}
             companion={pinnedCloud}
             onClose={close}

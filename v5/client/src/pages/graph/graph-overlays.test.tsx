@@ -1190,7 +1190,8 @@ describe('the highlighted commit (GR16)', () => {
     await user.click(screen.getByRole('button', { name: 'Remove m2' }))
     await waitFor(() => expect(band()).toBeUndefined())
     expect(highlightCircles()).toEqual([])
-    expect(highlightChip()).toHaveTextContent('Highlighted: c40 · not on the x-axis')
+    // Kept, by its commit string, which the x-axis no longer gives the display value of.
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: c40×$/)
 
     await pickOption('Metric', 'Compile Time')
     await pickOption('Run aggregation', 'max')
@@ -1220,18 +1221,48 @@ describe('the highlighted commit (GR16)', () => {
     expect(screen.getByRole('button', { name: 'Add a baseline' })).toHaveFocus()
   })
 
-  it("closes a point's details once removed, even from the keyboard", async () => {
+  it("leaves a point's details open once removed from the keyboard", async () => {
     mockWorld({ samples: HIGHLIGHTED })
     renderPage(`${ONE_MACHINE}&test=a&highlight=c20`)
     await waitFor(() => expect(highlightCircles()).toHaveLength(1))
     draw()
 
-    click('a - m1', 0)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    // A click without a press, as from the keyboard, which leaves the details open by itself.
+    click('a - m1', 1)
+    // A click without a press, as from the keyboard, unlike a press outside the details.
     fireEvent.click(screen.getByRole('button', { name: 'Remove the highlight of r20' }))
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(band()).toBeUndefined())
+    // Its band and circles neither move nor hide a point (GR11).
+    expect(details().getByRole('button', { name: 'Highlight this commit' })).toBeInTheDocument()
+  })
+
+  it("is set from a point's details, which stay open, the button keeping the focus", async () => {
+    mockWorld({ samples: HIGHLIGHTED })
+    renderPage(`${GRAPHED}&test=a&test=b&highlight=c40`)
+    await waitFor(() => expect(highlightCircles()).toEqual(['b - m2 - highlighted: c40=5']))
+    draw()
+    const user = userEvent.setup()
+
+    click('a - m1', 1)
+    // In place of the commit highlighted before.
+    await user.click(details().getByRole('button', { name: 'Highlight this commit' }))
+
+    expect(query().highlight).toEqual(['c20'])
+    expect(band()).toBe('c20')
+    expect(highlightCircles()).toEqual([
+      'a - m1 - highlighted: c20=2',
+      'b - m2 - highlighted: c20=4',
+    ])
+    expect(highlightChip()).toHaveTextContent(/^Highlighted: r20×$/)
+    const remove = details().getByRole('button', { name: 'Remove the highlight' })
+    expect(remove).toHaveFocus()
+
+    await user.click(remove)
+
+    expect(query().highlight).toBeUndefined()
+    expect(band()).toBeUndefined()
+    expect(highlightCircles()).toEqual([])
+    expect(details().getByRole('button', { name: 'Highlight this commit' })).toHaveFocus()
   })
 
   it('shows no chip until a suite is selected, which then clears it', async () => {

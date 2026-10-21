@@ -356,6 +356,14 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   const details = page.getByRole('dialog')
   await expect(details).toBeFocused()
   const display = (await details.getAttribute('aria-label'))!.split(' at ').at(-1)!
+  // Its details remove the highlight, and put it back, staying open (GR11).
+  await details.getByRole('button', { name: 'Remove the highlight' }).click()
+  await expect(band).toHaveCount(0)
+  expect(new URL(page.url()).searchParams.has('highlight')).toBe(false)
+  await details.getByRole('button', { name: 'Highlight this commit' }).click()
+  await expect(band).toHaveCount(1)
+  expect(new URL(page.url()).searchParams.get('highlight')).toBe(commit)
+  await expect(details.getByRole('button', { name: 'Remove the highlight' })).toBeFocused()
   await page.keyboard.press('Escape')
 
   // Zoomed in around it, it keeps its width.

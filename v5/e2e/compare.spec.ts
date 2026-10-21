@@ -139,8 +139,11 @@ test("shows a bar's details, linking to the test's history on the Graph page (CP
   }
   const valueB = await details.getByRole('definition').nth(1).textContent()
 
-  // Side B selects its commit's every run: the Graph's point at its commit is Value B.
-  await details.getByRole('link', { name: 'View on graph' }).click()
+  // Side B selects its commit's every run: the Graph's point at its commit is Value B. The link
+  // highlights it once it is known to have an ordinal (CP3).
+  const graphLink = details.getByRole('link', { name: 'View on graph' })
+  await expect(graphLink).toHaveAttribute('href', /&highlight=/)
+  await graphLink.click()
   await expect(page).toHaveURL(/\/graph\?/)
   expect([...new URL(page.url()).searchParams]).toEqual([
     ['suite', 'libcxx'],

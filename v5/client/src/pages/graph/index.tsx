@@ -217,9 +217,6 @@ function GraphPage() {
   const listing =
     metric !== undefined && machines.length > 0 && !tests.complete && tests.error === null
   const failed = tests.error !== null || scaffold.failures.length > 0 || series.error !== null
-  // Whether the x-axis holds every commit it is to hold (GR3): the machines are known, and each
-  // one's commits listed.
-  const axisComplete = machines.length > 0 && !scaffold.pending && scaffold.failures.length === 0
 
   // Nothing chosen in a suite applies to another (GR1). The selection is cleared at once, so that
   // writing it to the URL does not put back the tests of the suite left.
@@ -229,8 +226,7 @@ function GraphPage() {
     update({ suite: name, ...IN_SUITE })
   }
 
-  // The highlighted commit (GR16), once on the x-axis, which gives its display value. It is said
-  // not to be on it only once the x-axis is complete.
+  // The highlighted commit (GR16), shown by its display value once on the x-axis, which gives it.
   const { highlight } = settings
   const highlighted = useMemo(
     () => scaffold.commits.find((commit) => commit.value === highlight),
@@ -239,11 +235,7 @@ function GraphPage() {
   const shownHighlight = highlighted && schema ? commitDisplayValue(highlighted, schema) : highlight
   const highlightChip =
     highlight !== '' && schema !== undefined
-      ? {
-          key: highlight,
-          text: `Highlighted: ${shownHighlight}`,
-          detail: highlighted || !axisComplete ? undefined : 'not on the x-axis',
-        }
+      ? { key: highlight, text: `Highlighted: ${shownHighlight}` }
       : undefined
   // What takes the focus once the highlight is removed: the control before it.
   const addBaselineButton = useRef<HTMLButtonElement>(null)
@@ -402,6 +394,7 @@ function GraphPage() {
         baselines={baselines.states}
         regressions={regressions.regressions}
         highlight={highlighted?.value}
+        onHighlight={(commit) => update({ highlight: commit })}
         emphasis={emphasis}
         hovered={hovered}
         closeOn={[
@@ -412,7 +405,6 @@ function GraphPage() {
           settings.run_agg,
           settings.baseline,
           mode,
-          highlight,
         ]}
       />
       <TestTable

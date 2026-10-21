@@ -164,59 +164,20 @@ describe('the Graph page (GR1)', () => {
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
   })
 
-  it('says the highlight is not on the x-axis only once the x-axis is complete', async () => {
-    const machines = gate()
+  it('shows the highlighted commit by its display value once it is on the x-axis', async () => {
     const commits = gate()
     mockWorld()
-    mockMachines(async () => {
-      await machines.promise
-      return cursorPage([machine('m1'), machine('m2')])
-    })
     mockCommits(async (query) => {
       await commits.promise
       return cursorPage(COMMITS[query.get('machine') as 'm1' | 'm2'].map(commitAt))
     })
-    renderPage(`${GRAPHED}&highlight=c99`)
+    renderPage(`${GRAPHED}&highlight=c20`)
     const chip = () => main().getByRole('list', { name: 'Highlighted commit' })
 
-    // The commit string, while nothing says whether the commit is on the x-axis.
-    await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: c99×$/))
-    act(() => machines.open())
-    await waitFor(() => expect(listed()).toEqual(['a', 'b', 'c', 'd']))
-    expect(chip()).toHaveTextContent(/^Highlighted: c99×$/)
-
+    // The commit string, until the x-axis gives its display value.
+    await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: c20×$/))
     act(() => commits.open())
-    await waitFor(() => expect(chip()).toHaveTextContent('Highlighted: c99 · not on the x-axis'))
-    // Kept all the same (GR16).
-    expect(query().highlight).toEqual(['c99'])
-  })
-
-  it('does not say the highlight is off the x-axis while no machine is plotted', async () => {
-    mockWorld()
-    renderPage('/graph?suite=libcxx&highlight=c20')
-
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Machines' })).toBeEnabled())
-    const chip = main().getByRole('list', { name: 'Highlighted commit' })
-    expect(chip).toHaveTextContent(/^Highlighted: c20×$/)
-    expect(query().highlight).toEqual(['c20'])
-  })
-
-  it("does not say the highlight is off the x-axis while a machine's commits failed", async () => {
-    mockWorld()
-    server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
-        const machineName = new URL(request.url).searchParams.get('machine') as 'm1' | 'm2'
-        if (machineName === 'm2') return errorResponse(500, 'internal_error', 'The commits broke.')
-        return HttpResponse.json(cursorPage(COMMITS[machineName].map(commitAt)))
-      }),
-    )
-    // Only m2 has runs at c40.
-    renderPage(`${GRAPHED}&highlight=c40`)
-
-    expect(await main().findByText(/The commits of m2 could not be listed/)).toBeInTheDocument()
-    await waitFor(() => expect(layout().xaxis?.categoryarray).toEqual(['c10', 'c20', 'c30']))
-    const chip = main().getByRole('list', { name: 'Highlighted commit' })
-    expect(chip).toHaveTextContent(/^Highlighted: c40×$/)
+    await waitFor(() => expect(chip()).toHaveTextContent(/^Highlighted: r20×$/))
   })
 
   it('says there is nothing to plot once the tests selected have no data', async () => {

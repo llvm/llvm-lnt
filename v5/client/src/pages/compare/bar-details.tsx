@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from 'react'
 import { linkedAggregation } from '../../aggregation'
+import { useResolvedCommit } from '../../api/commits'
 import { runRefKey, type SampleState } from '../../api/runs'
 import { ButtonLink } from '../../components/button-link'
 import dialog from '../../components/chart-dialog.module.css'
@@ -54,20 +55,24 @@ interface Props {
 /**
  * What the details of a test whose bar was clicked on the chart show (CP3): its values, as the table
  * shows them, each side's runs with their samples, and links to the test's history on the Graph
- * page, in side B's context with side B's commit highlighted, and to its profiles.
+ * page, in side B's context, and to its profiles.
  */
 export function BarDetails({ row, a, b, states, metric, settings, profile }: Props) {
   const { test } = row
   const runsA = useTestRuns(a, states, metric.name, test)
   const runsB = useTestRuns(b, states, metric.name, test)
+  const { suite, machine, commit } = b.settings
+  // Side B's commit, highlighted on the Graph once known to have an ordinal, without which it is
+  // not on the x-axis (GR3, GR16).
+  const resolved = useResolvedCommit(suite, commit)
   const graph = graphPath({
-    suite: b.settings.suite,
-    machines: [b.settings.machine],
+    suite,
+    machines: [machine],
     metric: metric.name,
     test,
     sampleAgg: linkedAggregation(settings.sample_agg),
     runAgg: linkedAggregation(settings.run_agg),
-    highlight: b.settings.commit,
+    highlight: resolved.data?.ordinal == null ? undefined : commit,
   })
 
   return (

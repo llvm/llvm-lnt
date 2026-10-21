@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { formatTimestamp, shortUuid } from '../../format'
 import { cursorPage, sample, uuidOf } from '../../test/fixtures'
 import { mockApi } from '../../test/mock-api'
-import { gate, main, query, renderPage, search } from '../../test/page'
+import { gate, main, query, renderPage, search, settle } from '../../test/page'
 import { pickOption } from '../../test/select'
 import { server } from '../../test/server'
 import type { PlotGeometry } from '../../components/chart'
@@ -304,11 +304,49 @@ describe('the details of a bar (CP3)', () => {
 
     click(0)
 
+    // Once side B's commit is known to have an ordinal (see below).
+    await waitFor(() =>
+      expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
+        'href',
+        '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
+          '&highlight=c2',
+      ),
+    )
+  })
+
+  it("highlights no commit on the Graph for side B's commit without an ordinal", async () => {
+    mockWorld({ ...WORLD, adHoc: ['c2'] })
+    await shown()
+
+    click(0)
+    await settle()
+
+    // Not on the Graph's x-axis (GR3).
     expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
       'href',
-      '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
-        '&highlight=c2',
+      '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a',
     )
+  })
+
+  it("highlights side B's commit on the Graph once it is known to have an ordinal", async () => {
+    const looked = gate()
+    mockWorld(WORLD)
+    server.use(
+      // Held, then answered by the world.
+      mockApi('post', '/api/suites/{testsuite}/commits/resolve', async () => {
+        await looked.promise
+        return undefined
+      }),
+    )
+    await shown()
+
+    click(0)
+
+    const link = details().getByRole('link', { name: 'View on graph' })
+    const graph = '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a'
+    expect(link).toHaveAttribute('href', graph)
+    act(() => looked.open())
+    await waitFor(() => expect(link).toHaveAttribute('href', `${graph}&highlight=c2`))
   })
 
   it('leaves out the aggregations at their default from the link to the Graph page', async () => {
@@ -317,9 +355,11 @@ describe('the details of a bar (CP3)', () => {
 
     click(0)
 
-    expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
-      'href',
-      '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a&highlight=c2',
+    await waitFor(() =>
+      expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
+        'href',
+        '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a&highlight=c2',
+      ),
     )
   })
 

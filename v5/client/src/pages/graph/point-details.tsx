@@ -39,6 +39,10 @@ interface Props {
   state: TraceState
   sampleAgg: Aggregation
   runAgg: Aggregation
+  /** Whether the point's commit is the highlighted one (GR16). */
+  highlighted: boolean
+  /** Highlight the point's commit, or remove the highlight if it is highlighted already. */
+  onHighlight(): void
   /** Where the point is. */
   at: Anchor
   /** The markers of the point's samples (GR10), a press on which does not close the details. */
@@ -48,8 +52,8 @@ interface Props {
 
 /**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
- * value, its runs with their samples, a comparison with the point before it, and a way to create a
- * regression from it.
+ * value, its runs with their samples, a comparison with the point before it, a way to highlight
+ * its commit, and a way to create a regression from it.
  */
 export function PointDetails({
   schema,
@@ -63,6 +67,8 @@ export function PointDetails({
   state,
   sampleAgg,
   runAgg,
+  highlighted,
+  onHighlight,
   at,
   companion,
   onClose,
@@ -117,6 +123,10 @@ export function PointDetails({
         <ButtonLink to={compare} title={why}>
           Compare with previous commit
         </ButtonLink>
+        {/* The same button either way, so that it keeps the focus (GR11). */}
+        <button type="button" onClick={onHighlight}>
+          {highlighted ? 'Remove the highlight' : 'Highlight this commit'}
+        </button>
         <CreateRegression
           suite={suite}
           machine={machine}

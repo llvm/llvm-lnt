@@ -341,9 +341,10 @@ Interactivity:
     Reference") come from, as GR11 lists a point's runs, in a list of their own
     whose accessible name says the side;
   - "View on graph": a link to the Graph page with side B's suite and machine,
-    the selected metric, the test selected, side B's commit highlighted (GR16),
-    and Compare's run and sample aggregations, so that its point at side B's
-    commit, when drawn (GR3), is Value B when side B selects every run;
+    the selected metric, the test selected, side B's commit highlighted (GR16)
+    once it is known to have an ordinal, without which it is not on the Graph's
+    x-axis (GR3), and Compare's run and sample aggregations, so that its point
+    at side B's commit, when drawn, is Value B when side B selects every run;
   - the test's Profile link, when its row has one (CP2).
 
   It closes on Escape, on its close button, on a click anywhere but on it, on
@@ -430,6 +431,8 @@ page or the table.
   the runs that have profiles, and `GET runs/{uuid}/profiles` lists the
   profiles of each of them that is selected. This never delays the
   comparison.
+- A bar's details (CP3) resolve side B's commit through
+  `POST commits/resolve`, for its ordinal. This never delays the details.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   There are exceptions: the page waits for the list of suites before it
