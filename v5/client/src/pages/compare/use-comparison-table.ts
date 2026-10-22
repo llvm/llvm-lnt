@@ -111,7 +111,7 @@ export function useComparisonTable(
     tests: sortedTests,
     hidden,
     summary: filter.active
-      ? `${compared.length} of ${shown.length} matching tests shown (${total} total)`
+      ? `${compared.length} of ${shown.length} matching tests shown · ${total} tests in total`
       : `${compared.length} of ${total} tests shown`,
     notInUrl: shared ? undefined : `The URL holds at most ${HIDDEN_IN_URL} hidden tests.`,
     geomean,

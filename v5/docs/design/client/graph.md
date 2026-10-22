@@ -154,15 +154,18 @@ alphabetically by test name. One row per test name (not per test x machine
 combination -- selecting a test plots it on all active machines). The table is
 part of the normal page flow (no scrollable container). A message line above the
 rows says how many of the table's rows are selected, e.g. "3 of 1200 tests
-selected", followed by ", loading..." while selected tests' data is loading.
-When the test filter is set, it counts the rows the filter keeps and also gives
-the unfiltered total: "3 of 42 matching tests selected (1200 total)". When some
-selected tests do not match the filter, it also says how many, as DT4's lists
-do: "2 of 42 matching tests selected (1200 total), 5 more hidden by the
-filter". The message follows the filter as it changes. Each row has: a checkbox
-cell (checked = selected/plotted), a color cell (a swatch of the test's color,
-only when selected, empty otherwise; it has no shape, since shapes stand for
-machines), and the test name.
+selected". When the test filter is set, it counts the rows the filter keeps and
+also gives the unfiltered total: "3 of 42 matching tests selected · 1200 tests
+in total". When some selected tests do not match the filter, it also says how
+many: "2 of 42 matching tests selected · 1200 tests in total · 5 more hidden by
+the filter". When the URL does not reflect the selection (see GR14), it then
+says so, and why on hover and to assistive technology: "11 of 11 tests
+selected · too many to reflect in the URL". Last, while selected tests' data is
+loading, it says so: "3 of 1200 tests selected · loading...". The message
+follows the filter as it changes. Each row has: a checkbox cell (checked =
+selected/plotted), a color cell (a swatch of the test's color, only when
+selected, empty otherwise; it has no shape, since shapes stand for machines),
+and the test name.
 
 
 ### GR7: Selection Interactions

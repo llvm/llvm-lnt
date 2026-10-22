@@ -130,8 +130,8 @@ export function TestTable({
     return listing ? <Loading label="Loading tests..." /> : <p className={styles.note}>{empty}</p>
   }
 
-  // The selected tests shown, and those the filter hides, as DT4's lists count them. Only the tests
-  // listed are counted: until every machine's tests are listed, some of the URL's may not be.
+  // The selected tests shown, and those the filter hides besides. Only the tests listed are
+  // counted: until every machine's tests are listed, some of the URL's may not be.
   const count = shown.filter((test) => selected.has(test)).length
   const hidden = [...selected].filter((test) => listed.has(test)).length - count
   return (
@@ -139,11 +139,16 @@ export function TestTable({
       {listing && <Loading label="Loading tests..." />}
       <p className={styles.count} role="status">
         {filtered
-          ? `${count} of ${shown.length} matching tests selected (${all.length} total)`
+          ? `${count} of ${shown.length} matching tests selected · ${all.length} tests in total`
           : `${count} of ${all.length} tests selected`}
-        {notInUrl !== undefined && <span title={notInUrl}> (too many to reflect in the URL)</span>}
-        {hidden > 0 && `, ${hidden} more hidden by the filter`}
-        {loading.size > 0 && ', loading...'}
+        {hidden > 0 && ` · ${hidden} more hidden by the filter`}
+        {notInUrl !== undefined && (
+          <>
+            {' · '}
+            <span title={notInUrl}>too many to reflect in the URL</span>
+          </>
+        )}
+        {loading.size > 0 && ' · loading...'}
       </p>
       {/* Leaving a row for another emphasizes the other at once, without drawing none between. */}
       <div

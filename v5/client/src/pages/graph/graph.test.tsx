@@ -290,7 +290,7 @@ describe('the aggregation (GR1)', () => {
 })
 
 /** How the selection's count goes on with GRAPHED's tests, filtered. */
-const MATCHING = 'matching tests selected (4 total)'
+const MATCHING = 'matching tests selected · 4 tests in total'
 
 describe('the selection (GR6, GR7, GR14)', () => {
   it('toggles a test with a click on its row, once with its checkbox', async () => {
@@ -339,9 +339,11 @@ describe('the selection (GR6, GR7, GR14)', () => {
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
     expect(currentUrl()).toBe('/graph?suite=libcxx&machine=m1&metric=execution_time')
-    // Followed by ", loading..." while the tests' data loads.
+    // "loading..." comes last, after the URL note, while the tests' data loads.
     const count = main().getByText(/^11 of 11 tests selected/)
-    expect(count).toHaveTextContent(/^11 of 11 tests selected \(too many to reflect in the URL\)/)
+    expect(count).toHaveTextContent(
+      /^11 of 11 tests selected · too many to reflect in the URL · loading\.\.\.$/,
+    )
     expect(within(count).getByText(/too many/)).toHaveAccessibleDescription(
       'The URL reflects a selection of at most 10 tests.',
     )
@@ -357,9 +359,9 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(`/graph?suite=libcxx&machine=m1&metric=execution_time&test_filter=t0&${tests}`)
     await waitFor(() => expect(listed()).toHaveLength(10))
 
-    expect(main().getByText(/^10 of 10 matching tests selected/)).toHaveTextContent(
-      '10 of 10 matching tests selected (11 total) (too many to reflect in the URL), ' +
-        '1 more hidden by the filter',
+    expect(main().getByText(/^10 of 10 matching tests selected/).textContent).toBe(
+      '10 of 10 matching tests selected · 11 tests in total · 1 more hidden by the filter · ' +
+        'too many to reflect in the URL',
     )
   })
 
@@ -396,8 +398,9 @@ describe('the selection (GR6, GR7, GR14)', () => {
       await waitFor(() => expect(listed()).toEqual(['t100']))
 
       const count = main().getByText(/^0 of 1 matching tests selected/)
-      expect(count).toHaveTextContent(
-        /^0 of 1 matching tests selected \(101 total\) .*, 100 more hidden by the filter/,
+      expect(count.textContent).toBe(
+        '0 of 1 matching tests selected · 101 tests in total · 100 more hidden by the filter · ' +
+          'too many to reflect in the URL',
       )
       expect(box('t100')).toBeDisabled()
       expect(box('t100')).toHaveAccessibleDescription(WHY)
@@ -436,7 +439,9 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await waitFor(() => expect(drawn()).toEqual(['a - m1', 'b - m1', 'b - m2']))
     expect(listed()).toEqual(['b'])
     expect(query()).toMatchObject({ test: ['a', 'b'] })
-    expect(await main().findByText(`1 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
+    expect(
+      await main().findByText(`1 of 1 ${MATCHING} · 1 more hidden by the filter`),
+    ).toBeVisible()
   })
 
   it('keeps a long selection of the URL there until what it names is known', async () => {
@@ -466,11 +471,14 @@ describe('the selection (GR6, GR7, GR14)', () => {
     })
     renderPage(`${GRAPHED}&test_filter=b&test=a&test=zzz`)
 
-    const counted = '0 of 1 matching tests selected (3 total), 1 more hidden by the filter'
+    const counted =
+      '0 of 1 matching tests selected · 3 tests in total · 1 more hidden by the filter'
     expect(await main().findByText(counted)).toBeVisible()
     expect(query().test).toEqual(['a', 'zzz'])
     act(() => lists.open())
-    expect(await main().findByText(`0 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
+    expect(
+      await main().findByText(`0 of 1 ${MATCHING} · 1 more hidden by the filter`),
+    ).toBeVisible()
     await waitFor(() => expect(query().test).toEqual(['a']))
   })
 
@@ -481,7 +489,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
     search('Filter tests', 'b')
     await waitFor(() => expect(listed()).toEqual(['b']))
-    expect(main().getByText(`1 of 1 ${MATCHING}, 1 more hidden by the filter`)).toBeVisible()
+    expect(main().getByText(`1 of 1 ${MATCHING} · 1 more hidden by the filter`)).toBeVisible()
     await waitFor(() => expect(query()).toMatchObject({ test_filter: ['b'], test: ['a', 'b'] }))
     expect(drawn()).toEqual(['a - m1', 'b - m1', 'b - m2'])
 
@@ -597,7 +605,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     mockAnswers(() => ndjsonResponse([[OF_A[0]], [OF_A[1]]], { wait: () => rest.promise }))
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
 
-    expect(await main().findByText('1 of 3 tests selected, loading...')).toBeInTheDocument()
+    expect(await main().findByText('1 of 3 tests selected · loading...')).toBeInTheDocument()
     expect(testTable().getByText('(loading...)')).toBeInTheDocument()
     expect(traces()).toEqual([])
 
