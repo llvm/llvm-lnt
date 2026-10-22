@@ -629,9 +629,10 @@ though the request names exactly one, so that each point is self-describing.
 GET    /api/suites/{testsuite}/series
 ```
 
-Returns every value of one metric on one machine, for tools that analyse whole
-time series. It is a streaming endpoint (see I2): the whole series comes in
-one response.
+Returns the values of one metric on one machine: its whole time series, for
+tools that analyse it, or the part of it the filters below select, such as one
+test's values to chart. It is a streaming endpoint (see I2): the whole result
+comes in one response.
 
 **Auth scope:** `read`.
 

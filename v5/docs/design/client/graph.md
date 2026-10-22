@@ -93,10 +93,10 @@ the suite is a query parameter, not a path segment.
 
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
 Each selected test's data on each machine is fetched on its own via
-`POST /query`, and the chart progressively fills in each trace as its pages
-arrive via cursor-based pagination. This avoids blocking the UI on large
-datasets. So that a large selection does not flood the server, only a few
-requests are in flight at once; the others wait for their turn.
+`GET /series`, and each trace is drawn as soon as its data has arrived, so that
+the chart fills in trace by trace rather than waiting for the whole selection.
+So that a large selection does not flood the server, only a few requests are in
+flight at once; the others wait for their turn.
 
 Deselecting a test stops loading its data, and removing a machine stops loading
 that machine's, without disturbing the rest. Leaving the page stops all
@@ -105,7 +105,7 @@ loading.
 
 ### GR3: X-axis Scaffolding
 
-To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the
+To prevent the x-axis from resizing/shifting as the traces' data arrives, the
 graph page pre-fetches the complete list of commit values for each selected
 machine via paginated calls to
 `GET commits?machine={name}&has_ordinal=true&sort=ordinal`. This returns
@@ -135,7 +135,7 @@ unaffected.
 
 ### GR5: Zoom Preservation During Progressive Loading
 
-The chart is updated in place as new pages of data arrive. If the user zooms
+The chart is updated in place as the traces' data arrives. If the user zooms
 into the chart while data is still loading, the zoom is preserved across
 incremental updates. The x-axis range is always preserved (it was established by
 the scaffold or by user zoom), until the scaffold itself changes, because a
@@ -224,17 +224,19 @@ dropped (see AR2 "State"). A baseline can also be added from a point's details
 (GR11): the point's suite, machine and commit. Like a commit picked in the
 panel, it is not looked up (AR15): its point shows that the machine has runs at
 the commit.
-Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
-with `{machine, metric, commit}` in the JSON body: every test's data at that
-commit, so that selecting tests needs no request, and a test that the
-baseline's suite does not have is simply absent. Each baseline renders
+Baseline data is fetched from the baseline's suite via
+`GET /api/suites/{suite}/series?machine={machine}&metric={metric}&commit={commit}`:
+every test's data at that commit, so that selecting tests needs no request, and
+a test that the baseline's suite does not have is simply absent. These requests
+do not wait for the traces' turns (GR2), so that a large selection does not hold
+back a baseline. Each baseline renders
 as a horizontal dashed line per selected test, spanning the full chart width,
 colored to match that test's traces. The baseline's Y value for each test is
 computed with the same sample and run aggregation as the traces (GR1), so that
 when the baseline's suite and machine are plotted and its commit is on the
-x-axis, the dashed line meets that machine's trace at the baseline commit. Since
-a test's samples may span several pages, a baseline draws nothing until all its
-data has arrived. The y-axis range includes the baseline's lines. A
+x-axis, the dashed line meets that machine's trace at the baseline commit. A
+baseline draws nothing until all its data has arrived. The y-axis range includes
+the baseline's lines. A
 baseline draws no line for a test it has no data for, and draws nothing at all
 when its suite does not declare the plotted metric as a numeric metric with the
 same `unit` (an unset unit matching only an unset one), as CP1 requires of a
@@ -292,8 +294,7 @@ hidden until the pointer moves again. It shows:
   points' values. The previous point is the one at the nearest lower commit on
   the x-axis where this trace has a value, so that unlike the previous commit of
   Run Detail's "Compare with previous commit" (DT2), it always has data for the
-  test. The link is disabled (see AR8) at the first point of a trace, and while
-  the trace's data is still loading or could not all be loaded.
+  test. The link is disabled (see AR8) at the first point of a trace.
 - "Highlight this commit": a button that adds the point's commit to the
   highlighted commits (GR16). It is disabled, with the reason, when the maximum
   number of commits is already highlighted. When the point's commit is already
@@ -352,9 +353,9 @@ the highlighted commits (GR16) are not points.
 
 ### GR13: API Calls
 
-- `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}`
-  (one per selected test and machine, `test` naming that test)
-- `POST query` in a baseline's suite, with JSON body `{machine, metric, commit}`
+- `GET series?machine={name}&metric=...&test={test}&has_ordinal=true` (one per
+  selected test and machine)
+- `GET series?machine={name}&metric=...&commit={value}` in a baseline's suite
   (baseline data; see GR9)
 - `GET tests?machine=...&metric=...` (test name discovery)
 - `GET commits?machine={name}&has_ordinal=true&sort=ordinal` (x-axis scaffold,

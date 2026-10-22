@@ -1,34 +1,26 @@
 /**
- * The measurements the Graph page plots (GR2), loaded from `POST /query` (E9) as they are needed:
- * one query per selected test and machine, whose pages are added to its measurements as they
- * arrive, so that the chart fills in as they do. Tests are not batched into one request: a page
- * costs the server about the same however few tests it names, and the pages of a batch would have
- * to be fetched one after the other, whereas the tests' requests run side by side.
+ * The measurements the Graph page plots (GR2), loaded from `GET /series` (E9) as they are needed:
+ * one request per selected test and machine, whose measurements are drawn once they have all
+ * arrived. Tests are not batched into one request, so that each is drawn as soon as its own data
+ * has arrived, and the tests' requests run side by side.
  *
- * A test's query stays fresh for good once every page has arrived, and is never fetched again while
- * the page shows it. Until then, it is stale: one cancelled because its test was deselected or its
- * machine removed keeps the pages that had arrived, since TanStack Query keeps what a query
- * function writes as it goes, and is fetched again once its test is shown again. A query fetched
- * again, after a failure or a cancellation, starts from its first page, so that no sample is
- * counted twice.
+ * A test's measurements never change once loaded, so they are never fetched again while the page
+ * shows them. A request cancelled because its test was deselected or its machine removed keeps
+ * none of what had arrived, and is sent again once its test is shown again.
  *
  * What a page has fetched is kept for as long as it shows the suite, even what it no longer shows
  * (GR8), and forgotten once it leaves it (see `forgetGraphData`).
  */
 
 import { useCallback, useMemo } from 'react'
-import {
-  experimental_streamedQuery as streamedQuery,
-  useQueries,
-  type Query,
-  type QueryClient,
-} from '@tanstack/react-query'
-import { api, MAX_PAGE_SIZE, unwrap, type Schemas } from './client'
+import { useQueries, type QueryClient } from '@tanstack/react-query'
+import { api, unwrap, type Schemas } from './client'
 import { failuresOf } from './failures'
 import { queryKeys } from './keys'
+import { readNdjson } from './ndjson'
 import { RequestSlots } from './request-slots'
+import type { operations } from './schema'
 import { scaffoldKey } from './scaffold'
-import { rejectsCursor } from './use-cursor-pages'
 
 /** One sample of a test, as the Graph page keeps it. */
 export interface Measurement {
@@ -40,24 +32,34 @@ export interface Measurement {
   value: number
 }
 
-/** A point `POST /query` returned (E9), as the Graph page keeps it. */
+/** A line of `GET /series` (E9), as the Graph page keeps it. */
 export function measurementOf(point: Schemas['DataPoint']): Measurement {
   // The Graph page plots numeric metrics only (GR1).
   const { commit, run_uuid: run, measured_at: measured, value } = point
   return { commit, run, measured, value: value as number }
 }
 
-/** How far a trace's measurements are loaded. */
-export type TraceState = 'loading' | 'failed' | 'complete'
+type SeriesQuery = operations['get_series']['parameters']['query']
+
+/** Every line of `GET /series` in `suite` for `query`, once the whole response has arrived. */
+export async function fetchSeries(
+  suite: string,
+  query: SeriesQuery,
+  signal: AbortSignal,
+): Promise<Schemas['DataPoint'][]> {
+  const body = await unwrap(
+    api.GET('/api/suites/{testsuite}/series', {
+      params: { path: { testsuite: suite }, query },
+      parseAs: 'stream',
+      signal,
+    }),
+  )
+  return readNdjson(body, signal)
+}
 
 export interface Series {
-  /**
-   * The measurements of `test` on `machine` loaded so far, in no particular order: the same array
-   * until more of them arrive.
-   */
+  /** The measurements of `test` on `machine`, in no particular order, once they have arrived. */
   measurementsOf(machine: string, test: string): readonly Measurement[]
-  /** How far the measurements of `test` on `machine` are loaded, while the test is selected. */
-  stateOf(machine: string, test: string): TraceState
   /** The selected tests whose measurements are still loading on some machine. */
   loading: ReadonlySet<string>
   /** Why some test's measurements could not be loaded, if they could not. */
@@ -67,8 +69,9 @@ export interface Series {
 }
 
 /**
- * At most how many pages of measurements are fetched at once, for every test and machine together,
- * so that a large selection queues its requests rather than sending them to the server all at once.
+ * At most how many tests' measurements are fetched at once, for every machine together, so that a
+ * large selection queues its requests rather than sending them to the server all at once. A
+ * request holds its slot until its whole response has arrived.
  */
 const slots = new RequestSlots(6)
 
@@ -78,92 +81,22 @@ interface Trace {
   test: string
 }
 
-/** A page of a trace's measurements, whether it starts them over (see `pagesOf`), and the last. */
-interface Chunk {
-  measurements: Measurement[]
-  restart: boolean
-  last: boolean
-}
-
-/** A trace's measurements, as far as they are loaded. */
-interface Measured {
-  measurements: Measurement[]
-  /** Whether every page has arrived. */
-  complete: boolean
-}
-
-async function fetchPage(
+/**
+ * The measurements of a trace. Only those of commits with an ordinal, the only ones the x-axis
+ * places (GR3).
+ */
+async function fetchTrace(
   suite: string,
   metric: string,
   { machine, test }: Trace,
-  cursor: string | null,
   signal: AbortSignal,
-) {
-  const page = await slots.run(signal, () =>
-    unwrap(
-      api.POST('/api/suites/{testsuite}/query', {
-        params: { path: { testsuite: suite } },
-        // By commit: the order the server serves fastest for a machine and a test.
-        body: { metric, machine, test: [test], sort: 'commit', limit: MAX_PAGE_SIZE, cursor },
-        signal,
-      }),
-    ),
-  )
-  return {
-    measurements: page.items.map(measurementOf),
-    next: page.cursor.next,
-  }
-}
-
-/**
- * The pages of a trace's measurements, one after the other. If the server rejects the cursor of a
- * later page (see `rejectsCursor`), the pages are fetched again from the first, once, which
- * replaces those fetched before it.
- */
-async function* pagesOf(
-  suite: string,
-  metric: string,
-  trace: Trace,
-  signal: AbortSignal,
-): AsyncGenerator<Chunk> {
-  let cursor: string | null = null
-  let restarted = false
-  for (;;) {
-    let page
-    try {
-      page = await fetchPage(suite, metric, trace, cursor, signal)
-    } catch (error) {
-      if (cursor === null || restarted || !rejectsCursor(error)) throw error
-      restarted = true
-      cursor = null
-      continue
-    }
-    const last = page.next === null
-    yield { measurements: page.measurements, restart: restarted && cursor === null, last }
-    if (last) return
-    cursor = page.next
-  }
+): Promise<Measurement[]> {
+  const query = { metric, machine, test: [test], has_ordinal: true }
+  const points = await slots.run(signal, () => fetchSeries(suite, query, signal))
+  return points.map(measurementOf)
 }
 
 const NO_MEASUREMENTS: Measurement[] = []
-
-const NOTHING_MEASURED: Measured = { measurements: NO_MEASUREMENTS, complete: false }
-
-/**
- * A trace's measurements once `chunk` has arrived: a new array, so that its points are computed
- * again (see graph-chart.tsx), complete once the last page has.
- */
-function addChunk({ measurements }: Measured, chunk: Chunk): Measured {
-  return {
-    measurements: chunk.restart ? chunk.measurements : measurements.concat(chunk.measurements),
-    complete: chunk.last,
-  }
-}
-
-/** How long a trace's measurements stay fresh: for good once complete, not at all until then. */
-function freshness(query: Query<Measured>): number {
-  return query.state.data?.complete ? Infinity : 0
-}
 
 /**
  * The measurements of the `selected` tests for `metric`, on each machine of `testsOf`, which gives
@@ -187,14 +120,8 @@ export function useSeries(
   return useQueries({
     queries: traces.map((trace) => ({
       queryKey: [...queryKeys.series(suite), { metric, ...trace }],
-      queryFn: streamedQuery<Chunk, Measured>({
-        streamFn: ({ signal }) => pagesOf(suite, metric, trace, signal),
-        reducer: addChunk,
-        initialValue: NOTHING_MEASURED,
-        // Fetched again from the first page, dropping the pages it had.
-        refetchMode: 'reset',
-      }),
-      staleTime: freshness,
+      queryFn: ({ signal }) => fetchTrace(suite, metric, trace, signal),
+      staleTime: Infinity,
       // Kept for as long as the page shows the suite, whose leaving forgets them (GR8; see
       // `forgetGraphData`).
       gcTime: Infinity,
@@ -207,7 +134,7 @@ export function useSeries(
 
 /** The parts of a trace's query result the series is made of. */
 interface TraceResult {
-  data?: Measured
+  data?: Measurement[]
   error: Error | null
   isFetching: boolean
   refetch: () => unknown
@@ -218,23 +145,16 @@ const traceKey = (machine: string, test: string) => `${machine}\0${test}`
 /** The series of `traces`, from the results of their queries, in order. */
 function combineTraces(traces: Trace[], results: TraceResult[]): Series {
   const measurements = new Map<string, readonly Measurement[]>()
-  const states = new Map<string, TraceState>()
   const loading = new Set<string>()
   results.forEach(({ data, error, isFetching }, i) => {
     const { machine, test } = traces[i]
-    const key = traceKey(machine, test)
-    if (data !== undefined) measurements.set(key, data.measurements)
-    // Until its every page has arrived, or one has failed and is not being fetched again.
+    if (data !== undefined) measurements.set(traceKey(machine, test), data)
+    // Until its measurements have arrived, or it has failed and is not being fetched again.
     if (isFetching || (data === undefined && error === null)) loading.add(test)
-    states.set(
-      key,
-      isFetching ? 'loading' : error !== null ? 'failed' : data?.complete ? 'complete' : 'loading',
-    )
   })
   return {
     measurementsOf: (machine, test) =>
       measurements.get(traceKey(machine, test)) ?? NO_MEASUREMENTS,
-    stateOf: (machine, test) => states.get(traceKey(machine, test)) ?? 'loading',
     loading,
     ...failuresOf(results),
   }

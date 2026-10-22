@@ -1,6 +1,6 @@
 /**
  * The points of a trace (GR1): one test on one machine, a point per commit, computed from the
- * measurements `POST /query` returns, apart from the chart that draws them.
+ * measurements `GET /series` returns, apart from the chart that draws them.
  */
 
 import { aggregate, type Aggregation } from '../../aggregation'

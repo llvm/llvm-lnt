@@ -5,11 +5,9 @@
 
 import { useMemo } from 'react'
 import { skipToken, useQueries, type QueryClient } from '@tanstack/react-query'
-import { api, MAX_PAGE_SIZE, unwrap } from '../../api/client'
 import { combineResults, type Failures } from '../../api/failures'
-import { fetchEveryPage } from '../../api/fetch-every-page'
 import { forgetEverySuiteLater, queryKeys } from '../../api/keys'
-import { measurementOf, type Measurement } from '../../api/series'
+import { fetchSeries, measurementOf, type Measurement } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import {
   formatCommitOfMachine,
@@ -73,22 +71,19 @@ function declares(schema: SuiteSchema, metric: Metric): boolean {
   )
 }
 
-/** Every sample of the baseline's commit for `metric`, of every test, by test (GR9). */
+/**
+ * Every sample of the baseline's commit for `metric`, of every test, by test (GR9). Not queued
+ * behind the traces' requests (see api/series.ts), so that a large selection does not hold back a
+ * baseline.
+ */
 async function fetchSamples(
   { suite, machine, commit }: Baseline,
   metric: string,
   signal: AbortSignal,
 ): Promise<Map<string, Measurement[]>> {
-  // Unsorted, which leaves in a commit without an ordinal (E9), as a commit picker offers (AR15).
-  const points = await fetchEveryPage((cursor) =>
-    unwrap(
-      api.POST('/api/suites/{testsuite}/query', {
-        params: { path: { testsuite: suite } },
-        body: { metric, machine, commit, limit: MAX_PAGE_SIZE, cursor },
-        signal,
-      }),
-    ),
-  )
+  // Without `has_ordinal`, which leaves in a commit without an ordinal (E9), as a commit picker
+  // offers (AR15).
+  const points = await fetchSeries(suite, { metric, machine, commit }, signal)
   const samples = new Map<string, Measurement[]>()
   for (const point of points) {
     const known = samples.get(point.test)

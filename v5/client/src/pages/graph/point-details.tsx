@@ -8,7 +8,6 @@ import {
   regressionCreated,
   TEXT_LENGTH,
 } from '../../api/regressions'
-import type { TraceState } from '../../api/series'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
@@ -35,8 +34,6 @@ interface Props {
   runs: RunSamples[]
   /** The point before it on its trace, if there is one. */
   previous: Point | null
-  /** How far the trace's data is loaded. */
-  state: TraceState
   sampleAgg: Aggregation
   runAgg: Aggregation
   /** Whether the point's commit is highlighted (GR16). */
@@ -70,7 +67,6 @@ export function PointDetails({
   display,
   runs,
   previous,
-  state,
   sampleAgg,
   runAgg,
   highlighted,
@@ -85,22 +81,14 @@ export function PointDetails({
   const suite = schema.name
 
   const side = (commit: string) => ({ suite, machine, commit })
-  let compare: string | null = null
-  let why: string | undefined
-  if (state === 'loading') why = "The test's data is still loading."
-  else if (state === 'failed') why = "The test's data could not all be loaded."
-  else if (previous === null) why = 'This is the first point of its trace.'
-  else {
-    compare = comparePath(
-      side(previous.commit),
-      side(point.commit),
-      {
-        metric: metric.name,
-        sampleAgg: linkedAggregation(sampleAgg),
-        runAgg: linkedAggregation(runAgg),
-      },
-    )
-  }
+  const compare =
+    previous === null
+      ? null
+      : comparePath(side(previous.commit), side(point.commit), {
+          metric: metric.name,
+          sampleAgg: linkedAggregation(sampleAgg),
+          runAgg: linkedAggregation(runAgg),
+        })
 
   return (
     <ChartDialog
@@ -129,7 +117,10 @@ export function PointDetails({
         <RunSamplesTable label="Runs" suite={suite} metric={metric} runs={runs} />
       </div>
       <div className={dialog.actions}>
-        <ButtonLink to={compare} title={why}>
+        <ButtonLink
+          to={compare}
+          title={compare === null ? 'This is the first point of its trace.' : undefined}
+        >
           Compare with previous commit
         </ButtonLink>
         {/* Each toggle is the same button either way, so that it keeps the focus (GR11). */}

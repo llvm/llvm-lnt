@@ -10,7 +10,7 @@ import { formatTimestamp, shortUuid } from '../../format'
 import { signIn } from '../../test/auth'
 import { cursorPage, metric, regression, regressionDetail, uuidOf } from '../../test/fixtures'
 import { hoverText } from '../../test/hover-text'
-import { errorResponse, mockApi } from '../../test/mock-api'
+import { errorResponse, mockApi, ndjsonResponse } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
@@ -29,6 +29,7 @@ import {
   GRAPHED,
   GRAPH_SUITE,
   addMachine,
+  answerSeries,
   chart,
   commitAt,
   drawn,
@@ -334,31 +335,6 @@ describe('the point details (GR11)', () => {
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare).toHaveAttribute('aria-disabled', 'true')
     expect(compare).toHaveAccessibleDescription('This is the first point of its trace.')
-  })
-
-  it("cannot compare while the trace's data is loading, and can once it has arrived", async () => {
-    const second = gate()
-    mockWorld()
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        const { cursor } = await request.json()
-        if (cursor) await second.promise
-        const samples: Sample[] = cursor ? [['c30', 'r3', 3]] : [['c10', 'r1', 1], ['c20', 'r2', 2]]
-        const points = samples.map((sample) => pointOf('m1', 'a', sample))
-        return HttpResponse.json(cursorPage(points, cursor ? null : '1'))
-      }),
-    )
-    renderPage(`${ONE_MACHINE}&test=a`)
-    await waitFor(() => expect((dataTraces()[0]?.x as string[]) ?? []).toHaveLength(2))
-    draw()
-
-    click('a - m1', 1)
-    const compare = () => details().getByRole('link', { name: 'Compare with previous commit' })
-    expect(compare()).toHaveAccessibleDescription("The test's data is still loading.")
-
-    act(() => second.open())
-    await waitFor(() => expect(compare()).toHaveAttribute('href'))
-    expect(screen.getByRole('dialog')).toHaveAccessibleName('a on m1 at r20')
   })
 
   it('follows its point as the chart is drawn again', async () => {
@@ -980,14 +956,10 @@ describe('the baselines (GR9)', () => {
     expect(a.line.dash).toBe('dash')
     expect(a.line.color).toBe(line.line.color)
     expect(hoverText(a, 0)).toContain('Suite: libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
-    // Every test's data at the commit, in no order, which leaves in commits without an ordinal.
-    expect(recorded.queries.find(({ body }) => body.commit)?.body).toEqual({
-      metric: 'execution_time',
-      machine: 'm1',
-      commit: 'c10',
-      limit: 10000,
-      cursor: null,
-    })
+    // Every test's data at the commit, without `has_ordinal`, which leaves in commits without an
+    // ordinal.
+    const baseline = recorded.series.find(({ query }) => query.has('commit'))
+    expect(baseline?.query.toString()).toBe('metric=execution_time&machine=m1&commit=c10')
     const chips = within(baselineChips())
     expect(chips.getByRole('listitem')).toHaveTextContent('libcxx/m1/r10')
   })
@@ -1024,8 +996,8 @@ describe('the baselines (GR9)', () => {
     renderPage(`${ONE_MACHINE}&test=a&baseline=other/m1/c10&baseline=libcxx/m1/c20`)
 
     await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r20: 2']))
-    const baselines = recorded.queries.filter(({ body }) => body.commit)
-    expect(baselines.map(({ body }) => body.commit)).toEqual(['c20'])
+    const baselines = recorded.series.filter(({ query }) => query.has('commit'))
+    expect(baselines.map(({ query }) => query.get('commit'))).toEqual(['c20'])
     expect(query().baseline).toEqual(['other/m1/c10', 'libcxx/m1/c20'])
   })
 
@@ -1088,8 +1060,8 @@ describe('the baselines (GR9)', () => {
     // Its point shows that the machine has runs at the commit, which is not looked up (GR9): only
     // its data is asked for.
     expect(recorded.lookups).not.toContain('m1/c20')
-    const asked = recorded.queries.filter(({ body }) => body.commit === 'c20')
-    expect(asked.map(({ body }) => body.machine)).toEqual(['m1'])
+    const asked = recorded.series.filter(({ query }) => query.get('commit') === 'c20')
+    expect(asked.map(({ query }) => query.get('machine'))).toEqual(['m1'])
 
     await user.click(remove)
 
@@ -1148,15 +1120,10 @@ describe('the baselines (GR9)', () => {
   it('says why a baseline could not be loaded, and tries again', async () => {
     const recorded = mockWorld()
     let failing = true
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        const body = await request.json()
-        recorded.queries.push({ body, signal: request.signal })
-        if (body.commit && failing) {
-          return errorResponse(500, 'internal_error', 'The baseline broke.')
-        }
-        return HttpResponse.json(cursorPage([pointOf('m1', 'a', ['c10', 'r1', 1])]))
-      }),
+    answerSeries(recorded, (asked) =>
+      asked.has('commit') && failing
+        ? errorResponse(500, 'internal_error', 'The baseline broke.')
+        : ndjsonResponse([[pointOf('m1', 'a', ['c10', 'r1', 1])]]),
     )
     renderPage(`${ONE_MACHINE}&test=a&baseline=libcxx/m1/c10`)
 
