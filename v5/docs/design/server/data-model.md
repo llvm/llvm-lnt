@@ -241,8 +241,7 @@ Notes:
   is created or changed.
 - `dashboard: true` on a metric is a hint for the UI: the Dashboard shows a
   card for each metric that sets it (see DA1). A card charts a geomean, so it is
-  only valid on a numeric metric (see D3), and some numeric metrics are not
-  worth one: `compile_status` above holds status codes rather than quantities. Like `display`, it is purely a UI
+  only valid on a numeric metric (see D3). Like `display`, it is purely a UI
   concern: the API treats metrics alike whether or not they set it, in trends,
   series and everywhere else.
 - There is no `format_version` in the schema: v5 has only one format.
