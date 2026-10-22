@@ -6,35 +6,40 @@
       "type": "real",
       "display_name": "Execution Time",
       "unit": "seconds",
-      "unit_abbrev": "s"
+      "unit_abbrev": "s",
+      "dashboard": true
     },
     {
       "name": "instructions",
       "type": "real",
       "display_name": "Instructions Retired",
       "unit": "instructions",
-      "unit_abbrev": "instr"
+      "unit_abbrev": "instr",
+      "dashboard": true
     },
     {
       "name": "max_rss",
       "type": "real",
       "display_name": "Maximum Resident Set Size",
       "unit": "megabytes",
-      "unit_abbrev": "mb"
+      "unit_abbrev": "mb",
+      "dashboard": true
     },
     {
       "name": "cycles",
       "type": "real",
       "display_name": "Cycles Elapsed",
       "unit": "cycles",
-      "unit_abbrev": "cycles"
+      "unit_abbrev": "cycles",
+      "dashboard": true
     },
     {
       "name": "peak_memory",
       "type": "real",
       "display_name": "Peak Memory Footprint",
       "unit": "megabytes",
-      "unit_abbrev": "mb"
+      "unit_abbrev": "mb",
+      "dashboard": true
     }
   ],
   "machine_fields": [

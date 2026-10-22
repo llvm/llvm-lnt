@@ -30,6 +30,11 @@ const METRIC_COLUMNS: Column<Metric>[] = [
     header: KEY_HEADERS.bigger_is_better.header,
     cell: (metric) => yesNo(metric.bigger_is_better),
   },
+  {
+    id: 'dashboard',
+    header: KEY_HEADERS.dashboard.header,
+    cell: (metric) => yesNo(metric.dashboard),
+  },
 ]
 
 const SEARCHABLE_COLUMN: Column<CommitField | MachineField> = {

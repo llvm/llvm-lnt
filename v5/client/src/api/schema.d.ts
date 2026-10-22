@@ -1787,6 +1787,7 @@ export interface components {
          *     The name can't be `run_id`, `test_id`, `repetition` or `machine_id`.
          * @example {
          *       "bigger_is_better": false,
+         *       "dashboard": true,
          *       "display_name": "Execution Time",
          *       "name": "execution_time",
          *       "type": "real",
@@ -1822,6 +1823,12 @@ export interface components {
              * @default false
              */
             bigger_is_better: boolean;
+            /**
+             * Dashboard
+             * @description Whether the web UI's Dashboard shows a card for this metric. Only `real` and `integer` metrics can be shown.
+             * @default false
+             */
+            dashboard: boolean;
         };
         /**
          * MetricChanges
@@ -1852,6 +1859,7 @@ export interface components {
          *     The name can't be `run_id`, `test_id`, `repetition` or `machine_id`.
          * @example {
          *       "bigger_is_better": false,
+         *       "dashboard": true,
          *       "display_name": "Execution Time",
          *       "name": "execution_time",
          *       "type": "real",
@@ -1887,6 +1895,12 @@ export interface components {
              * @default false
              */
             bigger_is_better?: boolean;
+            /**
+             * Dashboard
+             * @description Whether the web UI's Dashboard shows a card for this metric. Only `real` and `integer` metrics can be shown.
+             * @default false
+             */
+            dashboard?: boolean;
         };
         /**
          * MetricUpdate
@@ -1919,6 +1933,11 @@ export interface components {
              * @description Whether higher values are better. Can't be null.
              */
             bigger_is_better?: boolean;
+            /**
+             * Dashboard
+             * @description Whether the web UI's Dashboard shows this metric. Can't be null.
+             */
+            dashboard?: boolean;
         };
         /**
          * PageCursor
@@ -2641,6 +2660,7 @@ export interface components {
          *       "metrics": [
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Execution Time",
          *           "name": "execution_time",
          *           "type": "real",
@@ -2649,6 +2669,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Instructions Retired",
          *           "name": "instructions",
          *           "type": "real",
@@ -2657,6 +2678,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Maximum Resident Set Size",
          *           "name": "max_rss",
          *           "type": "real",
@@ -2665,6 +2687,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Cycles Elapsed",
          *           "name": "cycles",
          *           "type": "real",
@@ -2673,6 +2696,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Peak Memory Footprint",
          *           "name": "peak_memory",
          *           "type": "real",
@@ -2764,6 +2788,7 @@ export interface components {
          *       "metrics": [
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Execution Time",
          *           "name": "execution_time",
          *           "type": "real",
@@ -2772,6 +2797,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Instructions Retired",
          *           "name": "instructions",
          *           "type": "real",
@@ -2780,6 +2806,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Maximum Resident Set Size",
          *           "name": "max_rss",
          *           "type": "real",
@@ -2788,6 +2815,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Cycles Elapsed",
          *           "name": "cycles",
          *           "type": "real",
@@ -2796,6 +2824,7 @@ export interface components {
          *         },
          *         {
          *           "bigger_is_better": false,
+         *           "dashboard": true,
          *           "display_name": "Peak Memory Footprint",
          *           "name": "peak_memory",
          *           "type": "real",

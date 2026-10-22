@@ -146,6 +146,7 @@ test.describe('the Test Suites tab', () => {
       'Execution Time',
       'seconds (s)',
       'No',
+      'Yes',
     ])
     await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeDisabled()
   })
@@ -247,6 +248,7 @@ test.describe('the Test Suites tab', () => {
         '--',
         '--',
         'No',
+        'No',
       ])
     })
   })
@@ -282,6 +284,9 @@ test.describe('the Test Suites tab', () => {
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')
+      await editor
+        .getByRole('checkbox', { name: 'On the Dashboard of metric execution_time' })
+        .check()
       // The display field moves from one commit field to another.
       await editor.getByRole('checkbox', { name: 'Display of commit field short_sha' }).check()
       await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
@@ -301,12 +306,15 @@ test.describe('the Test Suites tab', () => {
         'Execution Time',
         '--',
         'No',
+        'Yes',
       ])
       const schema = await json<components['schemas']['SuiteSchema']>(
         request,
         `/api/suites/${suite}`,
       )
-      expect(schema.metrics.map((metric) => metric.name)).toEqual(['execution_time'])
+      expect(schema.metrics.map((metric) => [metric.name, metric.dashboard])).toEqual([
+        ['execution_time', true],
+      ])
       expect(schema.commit_fields.map((field) => [field.name, field.display])).toEqual([
         ['sha', false],
         ['short_sha', true],

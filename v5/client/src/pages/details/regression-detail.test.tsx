@@ -968,6 +968,7 @@ const WITH_TEXT: SuiteSchema = {
       unit: null,
       unit_abbrev: null,
       bigger_is_better: false,
+      dashboard: false,
     },
   ],
 }

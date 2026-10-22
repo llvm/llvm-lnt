@@ -55,6 +55,14 @@ def upgrade_by_hand(engine: Engine, revision: str) -> None:
         command.upgrade(config, revision)
 
 
+def downgrade_by_hand(engine: Engine, revision: str) -> None:
+    """Migrate the global tables back to `revision`."""
+    with engine.begin() as connection:
+        config = alembic_config()
+        config.attributes["connection"] = connection
+        command.downgrade(config, revision)
+
+
 class TestUpgrade:
     def test_creates_every_table_defined_in_code(self, empty_engine: Engine) -> None:
         upgrade_to_head(empty_engine)
@@ -197,6 +205,11 @@ def stored_schema_json(engine: Engine) -> dict[str, str]:
     return {row.name: row.schema_json for row in rows}
 
 
+def compact(document: Any) -> str:
+    """`document` as the server writes it: compact, with non-ASCII characters unescaped."""
+    return json.dumps(document, ensure_ascii=False, separators=(",", ":"))
+
+
 # A schema stored by an earlier build, which accepted empty labels and labels holding a NUL. Stored
 # as the standard library writes it rather than in the server's own form, so that a rewrite shows.
 _DIRTY: dict[str, Any] = {
@@ -232,7 +245,7 @@ class TestSchemaLabels:
         upgrade_by_hand(empty_engine, "0002")
         store_schema_json(empty_engine, {"dirty": json.dumps(_DIRTY)})
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0003")
 
         expected = copy.deepcopy(_DIRTY)
         expected["metrics"][0].update(display_name=None, unit=None)
@@ -240,7 +253,7 @@ class TestSchemaLabels:
         # Only what D4 rejects: a label made only of spaces is a label like any other. Compact,
         # with non-ASCII characters unescaped, like what the server writes.
         stored = stored_schema_json(empty_engine)["dirty"]
-        assert stored == json.dumps(expected, ensure_ascii=False, separators=(",", ":"))
+        assert stored == compact(expected)
         SuiteSchema.model_validate_json(stored)
 
     def test_bumps_the_schema_version_once_and_leaves_other_rows_alone(
@@ -254,7 +267,7 @@ class TestSchemaLabels:
             {"dirty": json.dumps(_DIRTY), "second": json.dumps(second), "clean": clean},
         )
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0003")
 
         # D2: like any other change to a stored schema, however many rows it rewrites.
         assert schema_version_of(empty_engine) == 1
@@ -273,7 +286,7 @@ class TestSchemaLabels:
         upgrade_by_hand(empty_engine, "0002")
         store_schema_json(empty_engine, rows)
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0003")
 
         assert stored_schema_json(empty_engine) == rows
         assert schema_version_of(empty_engine) == 0
@@ -306,6 +319,110 @@ class TestSchemaLabels:
 
         assert result.suites_migrated == ("clean",)
         assert seen == [None]
+
+
+def metric_0003(name: str, type: str) -> dict[str, Any]:
+    """A metric as builds up to 0003 stored it, in the server's key order, with no `dashboard`."""
+    return {
+        "name": name,
+        "type": type,
+        "display_name": None,
+        "unit": None,
+        "unit_abbrev": None,
+        "bigger_is_better": False,
+    }
+
+
+# A schema stored by a build that showed a card for every numeric metric on the Dashboard, with a
+# metric of each type.
+_BEFORE_DASHBOARD: dict[str, Any] = {
+    "name": "before",
+    "metrics": [
+        metric_0003("execution_time", "real"),
+        metric_0003("code_size", "integer"),
+        metric_0003("hash", "text"),
+        metric_0003("finished_at", "datetime"),
+    ],
+    "commit_fields": [
+        {"name": "sha", "type": "text", "display_name": "Shà", "searchable": True, "display": True}
+    ],
+    "machine_fields": [{"name": "os", "type": "text", "display_name": None, "searchable": False}],
+}
+
+
+class TestMetricDashboard:
+    """0004 sets `dashboard` on every stored metric, so the Dashboard keeps showing its cards."""
+
+    def test_sets_it_on_every_metric_and_nothing_else(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0003")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_DASHBOARD)})
+
+        upgrade_to_head(empty_engine)
+
+        expected = copy.deepcopy(_BEFORE_DASHBOARD)
+        for metric, shown in zip(expected["metrics"], [True, True, False, False], strict=True):
+            metric["dashboard"] = shown
+        stored = stored_schema_json(empty_engine)["before"]
+        assert stored == compact(expected)
+        # Byte for byte what the server itself writes for that schema.
+        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+
+    def test_bumps_the_schema_version_once_and_leaves_set_keys_alone(
+        self, empty_engine: Engine
+    ) -> None:
+        second = {**_BEFORE_DASHBOARD, "name": "second"}
+        # Never overwritten, even where it is not what this revision would have set.
+        already = compact(
+            {"name": "already", "metrics": [{**metric_0003("t", "real"), "dashboard": False}]}
+        )
+        upgrade_by_hand(empty_engine, "0003")
+        store_schema_json(
+            empty_engine,
+            {
+                "before": compact(_BEFORE_DASHBOARD),
+                "second": compact(second),
+                "already": already,
+                "no_metrics": compact({"name": "no_metrics", "metrics": []}),
+            },
+        )
+
+        upgrade_to_head(empty_engine)
+
+        # D2: like any other change to a stored schema, however many rows it rewrites.
+        assert schema_version_of(empty_engine) == 1
+        stored = stored_schema_json(empty_engine)
+        assert stored["already"] == already
+        assert stored["no_metrics"] == compact({"name": "no_metrics", "metrics": []})
+
+    def test_leaves_a_row_it_cannot_make_sense_of_untouched(self, empty_engine: Engine) -> None:
+        rows = {
+            "not_json": "{",
+            "not_an_object": "[]",
+            "no_lists": '{"name": "no_lists"}',
+            "not_a_list": '{"name": "not_a_list", "metrics": {"type": "real"}}',
+            "not_an_entry": '{"name": "not_an_entry", "metrics": ["real"]}',
+            "no_type": '{"name": "no_type", "metrics": [{"name": "m"}]}',
+            "unknown_type": '{"name": "unknown_type", "metrics": [{"name": "m", "type": "float"}]}',
+            "not_a_type": '{"name": "not_a_type", "metrics": [{"name": "m", "type": ["real"]}]}',
+        }
+        upgrade_by_hand(empty_engine, "0003")
+        store_schema_json(empty_engine, rows)
+
+        upgrade_to_head(empty_engine)
+
+        assert stored_schema_json(empty_engine) == rows
+        assert schema_version_of(empty_engine) == 0
+
+    def test_downgrading_removes_it_and_nothing_else(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0003")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_DASHBOARD)})
+        upgrade_to_head(empty_engine)
+
+        downgrade_by_hand(empty_engine, "0003")
+
+        assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_DASHBOARD)}
+        # Once on the way up, and once on the way down.
+        assert schema_version_of(empty_engine) == 2
 
 
 class TestConcurrentUpgrade:

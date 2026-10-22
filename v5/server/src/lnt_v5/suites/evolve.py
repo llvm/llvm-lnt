@@ -89,6 +89,10 @@ class MetricUpdate(_EntryUpdate):
     bigger_is_better: bool = Field(
         default=False, description="Whether higher values are better. Can't be null."
     )
+    dashboard: bool = Field(
+        default=False,
+        description="Whether the web UI's Dashboard shows this metric. Can't be null.",
+    )
 
 
 class CommitFieldUpdate(_EntryUpdate):

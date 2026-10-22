@@ -13,9 +13,13 @@ performance trends across all test suites.
 - One section per test suite (ordered alphabetically). When there are no suites,
   the page says so.
 - Each suite section contains a responsive grid of sparkline cards -- one card
-  per numeric metric defined in the suite schema (see D3). Non-numeric metric
-  fields have no meaningful geomean and are skipped. A suite with no numeric
-  metric still has its section, which says so in place of its cards.
+  per metric the suite schema marks `dashboard: true` (see D4), in schema order.
+  Only a numeric metric (see D3) can be marked, since the others have no
+  meaningful geomean. A suite with no card still has its section, which says
+  why in place of its cards: that the suite has no numeric metric, or, when it
+  has some but marks none of them, that none of its metrics is shown on the
+  Dashboard, with a link to the suite's schema in the Admin page's Test Suites
+  tab (AD2), from which they can be chosen (AD3).
 
 ## DA2: Sparkline cards
 

@@ -1,7 +1,9 @@
 import { useId } from 'react'
+import { Link } from 'react-router'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useRecentlyActiveMachines } from '../../api/machines'
 import { Loaded } from '../../components/feedback'
+import { adminSuitePath } from '../../paths'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, useUrlState } from '../../url-state'
 import { SparklineCard } from './sparkline-card'
@@ -13,7 +15,7 @@ const RANGES = ['100', '500', '1000'] as const
 
 const PARAMS = { range: enumParam(RANGES, '500') }
 
-/** The Dashboard (DA1): the trend of every numeric metric of every suite. */
+/** The Dashboard (DA1): the trend of every metric each suite chooses to show. */
 export default function Dashboard() {
   const [{ range }, update] = useUrlState(PARAMS)
   const suites = useSuites()
@@ -54,9 +56,12 @@ export default function Dashboard() {
   )
 }
 
-/** A suite's section (DA1): a card per numeric metric, all over the same machines (DA2). */
+/**
+ * A suite's section (DA1): a card per metric the schema marks for the Dashboard, all over the same
+ * machines (DA2).
+ */
 function SuiteSection({ schema, range }: { schema: SuiteSchema; range: number }) {
-  const metrics = schema.metrics.filter(isNumeric)
+  const metrics = schema.metrics.filter((metric) => metric.dashboard)
   const machines = useRecentlyActiveMachines(schema.name, MACHINES_SHOWN, metrics.length > 0)
   const headingId = useId()
 
@@ -66,7 +71,7 @@ function SuiteSection({ schema, range }: { schema: SuiteSchema; range: number })
         {schema.name}
       </h2>
       {metrics.length === 0 ? (
-        <p className={styles.note}>This suite has no numeric metrics.</p>
+        <NoCards schema={schema} />
       ) : (
         <Loaded
           isPending={machines.isPending}
@@ -83,9 +88,22 @@ function SuiteSection({ schema, range }: { schema: SuiteSchema; range: number })
   )
 }
 
+/** Why a suite has no card (DA1): it has nothing to chart, or charts nothing it has. */
+function NoCards({ schema }: { schema: SuiteSchema }) {
+  if (!schema.metrics.some(isNumeric)) {
+    return <p className={styles.note}>This suite has no numeric metrics.</p>
+  }
+  return (
+    <p className={styles.note}>
+      No metric of this suite is shown on the Dashboard. Choose which ones are in{' '}
+      <Link to={adminSuitePath(schema.name)}>its schema</Link>.
+    </p>
+  )
+}
+
 interface SuiteCardsProps {
   schema: SuiteSchema
-  /** The suite's numeric metrics. */
+  /** The metrics the suite shows on the Dashboard. */
   metrics: Metric[]
   machines: string[]
   range: number

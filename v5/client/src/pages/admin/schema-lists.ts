@@ -4,6 +4,7 @@
  */
 
 import type { Schemas } from '../../api/client'
+import { NUMERIC_TYPES } from '../../schema'
 
 export type ListName = 'metrics' | 'commit_fields' | 'machine_fields'
 export type AttributeType = Schemas['AttributeType']
@@ -15,11 +16,35 @@ export const TYPES: readonly AttributeType[] = ['real', 'integer', 'text', 'date
 
 const TEXT_KEYS = ['display_name', 'unit', 'unit_abbrev'] as const
 type TextKey = (typeof TEXT_KEYS)[number]
-type FlagKey = 'bigger_is_better' | 'searchable' | 'display'
+export type FlagKey = 'bigger_is_better' | 'dashboard' | 'searchable' | 'display'
 export type PresentationKey = TextKey | FlagKey
 
 export function isTextKey(key: PresentationKey): key is TextKey {
   return (TEXT_KEYS as readonly string[]).includes(key)
+}
+
+/**
+ * The flags that only some types can set (D3): those types, what they are called, and what the
+ * flag makes an entry, as the editor says why it is disabled for the others.
+ */
+const FLAG_TYPES: Partial<
+  Record<FlagKey, { types: readonly AttributeType[]; kind: string; role: string }>
+> = {
+  dashboard: { types: NUMERIC_TYPES, kind: 'numeric', role: 'on the Dashboard' },
+  searchable: { types: ['text'], kind: 'text', role: 'searchable' },
+  display: { types: ['text'], kind: 'text', role: 'the display field' },
+}
+
+/** Whether an entry of type `type` can set the flag `key`. */
+export function flagAllowed(key: FlagKey, type: AttributeType): boolean {
+  return FLAG_TYPES[key]?.types.includes(type) ?? true
+}
+
+/** Why an entry of `list` of type `type` cannot set the flag `key`, if it cannot. */
+export function flagProblem(list: ListName, key: FlagKey, type: AttributeType): string | undefined {
+  const rule = FLAG_TYPES[key]
+  if (rule === undefined || flagAllowed(key, type)) return undefined
+  return `Only a ${rule.kind} ${LIST_INFO[list].noun} can be ${rule.role}.`
 }
 
 /**
@@ -31,6 +56,7 @@ export const KEY_HEADERS: Record<PresentationKey, { header: string; label: strin
   unit: { header: 'Unit', label: 'Unit' },
   unit_abbrev: { header: 'Abbrev', label: 'Unit abbreviation' },
   bigger_is_better: { header: 'Bigger is Better', label: 'Bigger is better' },
+  dashboard: { header: 'Dashboard', label: 'On the Dashboard' },
   searchable: { header: 'Searchable', label: 'Searchable' },
   display: { header: 'Display', label: 'Display' },
 }
@@ -58,7 +84,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     heading: 'Metrics',
     label: 'Metrics',
     noun: 'metric',
-    keys: ['display_name', 'unit', 'unit_abbrev', 'bigger_is_better'],
+    keys: ['display_name', 'unit', 'unit_abbrev', 'bigger_is_better', 'dashboard'],
     type: 'real',
     reserved: ['machine_id', 'repetition', 'run_id', 'test_id'],
   },
