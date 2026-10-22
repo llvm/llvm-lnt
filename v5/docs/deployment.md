@@ -102,9 +102,8 @@ Configure the backend as follows:
   can take longer than Fastly's default of 10 seconds.
 
 The service must also stream misses, which Fastly calls streaming miss. Without it, Fastly holds
-each response until it has all of it: a series that takes longer to read than the first byte
-timeout then reaches the client as a 503 without any of its data. Turn it on for the whole service
-with a "Regular" VCL snippet placed within subroutine `fetch`:
+each response until it has all of it, which can time out. Turn it on for the whole service with a
+"Regular" VCL snippet placed within subroutine `fetch`:
 
 ```vcl
 set beresp.do_stream = true;
@@ -233,14 +232,6 @@ instance in accordance with the expected usage.
 The server sets `Cache-Control` on every response (see I9 and AR2 "Caching" in the design docs).
 Whatever sits in front of it must respect those headers rather than impose its own lifetimes: a
 cache that overrides `max-age=0` can serve stale data, or serve one caller's response to another.
-
-## Streaming
-
-A series (`GET .../series`) is streamed, over minutes for a machine's whole history (I2 in the
-design docs), so whatever sits in front of the server has to pass responses on as they come rather
-than hold them. The Nginx configuration turns off Nginx's proxy buffering for this, and Fastly needs
-streaming miss (see "The CDN" above). Whether Cloudflare streams has not been checked: make sure it
-does before relying on it for long series.
 
 ## Operating the instance
 
