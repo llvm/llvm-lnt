@@ -4,11 +4,12 @@ The whole series in one response, as NDJSON, rather than a page at a time: the o
 analysed in -- by test, then by commit -- is one no page cursor can follow cheaply, and a tool that
 wants all of it has no use for pages anyway.
 
-The response is read a batch of tests at a time, each batch in its own short statement driven from
-the machine's runs: through the sample table's primary key, which leads with the run, rather than
-through `(test_id, run_id)`, which would read the batch's samples on every machine only to discard
-those of the others. No connection, transaction or lock is held between batches, so a slow client
-holds nothing in the database, and a client that goes away leaves nothing to clean up.
+The response is read a batch of tests at a time, each batch in its own short statement over the
+machine's runs, which the planner can join to their samples through the sample table's primary key
+(it leads with the run) rather than read the batch's samples on every machine through
+`(test_id, run_id)` only to discard those of the others. No connection, transaction or lock is held
+between batches, so a slow client holds nothing in the database, and a client that goes away leaves
+nothing to clean up.
 
 Once the response has started, a failure is an exception out of the body, which makes the server
 abort the response rather than end it (E9).
@@ -67,9 +68,9 @@ BATCH_ROWS = 20_000
 # How many rows of a batch are fetched at a time.
 FETCH_ROWS = 5000
 
-# When the buffered lines are sent. Large enough that compressing a chunk leaves the event loop for
-# a thread (Starlette's GZipMiddleware does from 128 KiB), and soon enough that a proxy waiting
-# between two bytes of a slow export does not time out.
+# When the buffered lines are sent, which is checked after each batch. Large enough that compressing
+# a chunk leaves the event loop for a thread (Starlette's GZipMiddleware does from 128 KiB), and
+# soon enough that a proxy waiting between two bytes of a long series does not time out.
 CHUNK_BYTES = 128 * 1024
 CHUNK_SECONDS = 1.0
 
@@ -172,7 +173,7 @@ class Series:
         whole in the database driver's memory, which the process then keeps.
         """
         machine, metric = self._machine_name, self._metric.name
-        rows = connection.execution_options(yield_per=FETCH_ROWS).execute(query)
+        rows = connection.execute(query.execution_options(yield_per=FETCH_ROWS))
         return b"".join(
             to_json(dict(zip(_KEYS, (test, machine, metric, *rest), strict=True))) + b"\n"
             for test, *rest in rows
@@ -361,7 +362,7 @@ def get_series(
     which HTTP clients report as an error (`curl` exits with a non-zero status). Download again in
     that case. A response that ends normally is complete.
 
-    Requires no API key. Try it out from this page only on a small series.
+    Try it out from this page only on a small series.
     """
     bounded = after_commit is not None or before_commit is not None
     if commit is not None and bounded:

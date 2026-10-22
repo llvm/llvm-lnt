@@ -188,6 +188,8 @@ class TestSeriesOrder:
     def test_is_by_test_name_by_code_point_then_by_ordinal(
         self, api_client: TestClient, history: list[dict[str, Any]]
     ) -> None:
+        # "B" before "b" is what a linguistic collation would not give. The test database may sort
+        # by code point by default anyway (musl's locales do), in which case this cannot tell.
         assert keys(lines(api_client)) == [
             ("B", "c1", 10.0),
             ("B", "c1", 10.0),
@@ -231,15 +233,35 @@ class TestSeriesOrder:
     def test_does_not_depend_on_the_batch_or_chunk_size(
         self,
         api_client: TestClient,
-        history: list[dict[str, Any]],
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[[str, int], None],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        whole = get(api_client, include_unordered="true").content
+        # One submission per test, against the order of their names, so that the tests' ids do not
+        # follow their names: a submission creates its own tests in name order.
+        for name in ("z", "m", "a"):
+            submit("linux", "c1", entry(name, {"execution_time": 1.0}))
+            submit("linux", "c2", entry(name, {"execution_time": 2.0}))
+        place("c1", 1)
+        place("c2", 2)
+        whole = get(api_client).content
         # One test per batch, and every batch sent in a chunk of its own.
         monkeypatch.setattr(series_module, "BATCH_ROWS", 1)
         monkeypatch.setattr(series_module, "CHUNK_BYTES", 1)
 
-        assert get(api_client, include_unordered="true").content == whole
+        batched = get(api_client).content
+
+        assert batched == whole
+        assert [
+            (line["test"], line["commit"]) for line in map(json.loads, batched.splitlines())
+        ] == [
+            ("a", "c1"),
+            ("a", "c2"),
+            ("m", "c1"),
+            ("m", "c2"),
+            ("z", "c1"),
+            ("z", "c2"),
+        ]
 
 
 class TestSeriesFilters:
@@ -386,6 +408,45 @@ class TestSeriesStreaming:
         get(api_client)
 
         assert next(captured[0]) == b""
+
+    def test_sends_what_it_has_once_enough_time_has_passed(
+        self,
+        api_client: TestClient,
+        history: list[dict[str, Any]],
+        captured: list[Generator[bytes]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Far from enough bytes for a chunk, but always enough time: each test's batch is sent.
+        monkeypatch.setattr(series_module, "CHUNK_BYTES", 1 << 30)
+        monkeypatch.setattr(series_module, "CHUNK_SECONDS", 0)
+        get(api_client)
+
+        chunks = list(captured[0])
+
+        assert chunks[0] == b""
+        assert [
+            {json.loads(line)["test"] for line in chunk.splitlines()} for chunk in chunks[1:]
+        ] == [
+            {"B"},
+            {"b"},
+        ]
+
+    def test_waits_for_enough_bytes_or_time(
+        self,
+        api_client: TestClient,
+        history: list[dict[str, Any]],
+        captured: list[Generator[bytes]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(series_module, "CHUNK_BYTES", 1 << 30)
+        monkeypatch.setattr(series_module, "CHUNK_SECONDS", 3600)
+        get(api_client)
+
+        chunks = list(captured[0])
+
+        # The headers, then everything at the end.
+        assert len(chunks) == 2
+        assert {json.loads(line)["test"] for line in chunks[1].splitlines()} == {"B", "b"}
 
     def test_holds_no_connection_between_chunks(
         self,

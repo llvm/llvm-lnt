@@ -655,6 +655,11 @@ Query), on a line of its own and followed by a newline. There is no envelope,
 and the body is empty when nothing matches. The errors above are detected
 before the response starts, and use I4's envelope.
 
+**Promptness:** the status and headers are sent before anything is read, and
+the data follows a batch of tests at a time, so that the time between two
+bytes is bounded by what it takes to read one batch rather than by the size of
+the series.
+
 **Order:** by test name, by code point; then by ordinal, with the commits that
 have none, if included, after the others; then by commit value and by run UUID.
 The repetitions of a test within a run are adjacent, in an unspecified order.
@@ -673,7 +678,7 @@ status, so one that cannot be completed is aborted rather than ended normally
 clients report as an error. A response that ends normally is complete. This
 covers any failure (a database error, the server shutting down), and also the
 changes that would otherwise leave the rest of the response silently empty:
-the machine being deleted, or the suite's schema changing.
+the machine being deleted, or a schema change (possibly of another suite).
 
 ### Trends (Aggregated)
 

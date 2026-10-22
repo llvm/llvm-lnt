@@ -801,7 +801,7 @@ export interface paths {
          *     which HTTP clients report as an error (`curl` exits with a non-zero status). Download again in
          *     that case. A response that ends normally is complete.
          *
-         *     Requires no API key. Try it out from this page only on a small series.
+         *     Try it out from this page only on a small series.
          *
          *     **Authorization:** no API key needed.
          */

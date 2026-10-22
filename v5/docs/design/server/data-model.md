@@ -573,8 +573,8 @@ as `{suite}.commit`, and the tables below are named that way.
   the deletion of a run's samples; `POST /api/suites/{testsuite}/query` without
   a sort, whose cursor follows the key; `POST /api/suites/{testsuite}/query`
   when it reaches the samples through their runs, as it does for a machine's;
-  and `GET /api/suites/{testsuite}/series`, which always does, so that it reads
-  only the machine's samples.
+  and `GET /api/suites/{testsuite}/series`, which reaches the samples through
+  the machine's runs.
 - Compound index on `(test_id, run_id)`: serves the `test` filter of
   `POST /api/suites/{testsuite}/query`.
 - Dynamic columns are created from the schema's metrics (see D3 for the
