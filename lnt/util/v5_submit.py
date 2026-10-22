@@ -15,7 +15,7 @@ import time
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote
 
 import requests
@@ -138,17 +138,21 @@ def _create_suite(client: Client, suite: str, schema: Any) -> None:
                           % (suite, _message(response)))
 
 
-def _existing_uuids(client: Client, suite: str, path: str) -> set[str]:
-    """The UUIDs of the runs the suite has, in lowercase.
-
-    `path` is the suite's path in the API.
-    """
+def _check_suite(client: Client, suite: str, path: str) -> None:
+    """Check that the suite exists. `path` is the suite's path in the API."""
     response = client.request('GET', path)
     if response.status_code == 404:
         raise SubmitError("there is no suite '%s'" % suite)
     if response.status_code != 200:
         raise SubmitError("suite '%s' cannot be read: %s"
                           % (suite, _message(response)))
+
+
+def _existing_uuids(client: Client, suite: str, path: str) -> set[str]:
+    """The UUIDs of the runs the suite has, in lowercase.
+
+    `path` is the suite's path in the API.
+    """
     uuids: set[str] = set()
     params: dict[str, Any] = {'limit': PAGE_SIZE}
     while True:
@@ -162,6 +166,12 @@ def _existing_uuids(client: Client, suite: str, path: str) -> set[str]:
         if cursor is None:
             return uuids
         params['cursor'] = cursor
+
+
+# What became of a run; 'had' means that the suite had it already.
+_Count = Literal['submitted', 'had', 'failed']
+# What became of a run, and why it failed.
+_Outcome = tuple[_Count, str | None]
 
 
 @dataclass
@@ -196,7 +206,8 @@ def _lines(lines: Iterable[bytes]) -> Iterable[_Line]:
 
 def submit(url: str, suite: str, lines: Iterable[bytes],
            token: str | None = None, create_suite: Any = None,
-           workers: int = 4, echo: Echo = print) -> int:
+           workers: int = 4, echo: Echo = print, *,
+           skip_existing: bool = False) -> int:
     """Submit the runs in `lines`, one JSON object per line, to `suite`.
 
     `create_suite` is the schema given with --create-suite, if any. Returns
@@ -205,21 +216,24 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
     """
     client = Client(url, token)
     path = '/suites/%s' % quote(suite, safe='')
+    existing: set[str] = set()
     try:
         _check_token(client, 'manage' if create_suite is not None
                      else 'submit')
         if create_suite is not None:
             _create_suite(client, suite, create_suite)
             echo("Created suite '%s'" % suite)
-            existing: set[str] = set()
         else:
-            existing = _existing_uuids(client, suite, path)
-            echo("Suite '%s' has %d run(s) already" % (suite, len(existing)))
+            _check_suite(client, suite, path)
+            if skip_existing:
+                existing = _existing_uuids(client, suite, path)
+                echo("Suite '%s' has %d run(s) already"
+                     % (suite, len(existing)))
     except requests.RequestException as e:
         raise SubmitError('%s cannot be reached: %s' % (url, e))
 
-    def post(line: _Line) -> str | None:
-        """Submit a run; returns why it failed, or None."""
+    def post(line: _Line) -> _Outcome:
+        """Submit a run."""
         # Compressed, as v5 encourages: runs compress several times over. At
         # zlib's default level, since the highest costs far more for little.
         data = gzip.compress(line.data, compresslevel=6)
@@ -229,23 +243,23 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
                 headers={'Content-Type': 'application/json',
                          'Content-Encoding': 'gzip'})
         except requests.RequestException as e:
-            return str(e)
-        if response.status_code == 201 or (response.status_code == 409 and
-                                           _error_code(response) ==
-                                           'duplicate'):
-            return None
-        return _message(response)
+            return 'failed', str(e)
+        if response.status_code == 201:
+            return 'submitted', None
+        if response.status_code == 409 and \
+                _error_code(response) == 'duplicate':
+            return 'had', None
+        return 'failed', _message(response)
 
-    counts: collections.Counter[str] = collections.Counter()
+    counts: collections.Counter[_Count] = collections.Counter()
 
-    def settle(line: _Line, failure: str | None) -> None:
-        if failure is None:
-            counts['submitted'] += 1
-        else:
-            counts['failed'] += 1
+    def settle(line: _Line, outcome: _Outcome) -> None:
+        count, failure = outcome
+        counts[count] += 1
+        if failure is not None:
             echo('  %s: %s' % (line.describe(), failure))
 
-    in_flight: collections.deque[tuple[_Line, Future[str | None]]] = \
+    in_flight: collections.deque[tuple[_Line, Future[_Outcome]]] = \
         collections.deque()
     with ThreadPoolExecutor(max_workers=workers) as pool:
         try:
@@ -255,12 +269,12 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
                 if isinstance(line.submission, dict):
                     uuid = line.submission.get('uuid')
                     if isinstance(uuid, str) and uuid.lower() in existing:
-                        counts['skipped'] += 1
+                        settle(line, ('had', None))
                         continue
                     future = pool.submit(post, line)
                 else:
                     future = Future()
-                    future.set_result('not a JSON object')
+                    future.set_result(('failed', 'not a JSON object'))
                 in_flight.append((line, future))
                 # Results are settled in input order, which keeps the report
                 # in that order and bounds how far ahead the input is read.
@@ -273,7 +287,6 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
         except BaseException:
             pool.shutdown(wait=True, cancel_futures=True)
             raise
-    echo('Submitted %d run(s), skipped %d the suite already had; %d '
-         'failure(s).' % (counts['submitted'], counts['skipped'],
-                          counts['failed']))
+    echo('Submitted %d run(s), %d the suite already had; %d failure(s).'
+         % (counts['submitted'], counts['had'], counts['failed']))
     return counts['failed']

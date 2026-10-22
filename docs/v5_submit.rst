@@ -30,10 +30,13 @@ or in the ``LNT_V5_TOKEN`` environment variable.
    schema's ``name`` must be the suite's. It is an error if the suite already
    exists, and nothing is submitted. Without ``--create-suite``, the suite must
    already exist.
-2. The command lists the runs the suite already has, and skips the submissions
-   whose ``uuid`` is among them. Submitting the same runs again therefore only
-   submits those that are missing, e.g. after an interrupted submission, or
-   once more runs have been added to the input.
+2. With ``--skip-existing``, the command lists the runs the suite already has,
+   and skips the submissions whose ``uuid`` is among them. Submitting the same
+   runs again therefore only submits those that are missing, e.g. after an
+   interrupted submission, or once more runs have been added to the input.
+   Listing takes time proportional to the size of the suite, so it is not done
+   by default. Without it, the runs the suite already has are submitted again,
+   and can fail, e.g. if their machine has changed since.
 3. The other runs are submitted in the order they are read, by ``--workers``
    concurrent requests. A ``409 duplicate`` response means that the run was
    submitted already, and counts as a success. Network errors, 5xx responses
