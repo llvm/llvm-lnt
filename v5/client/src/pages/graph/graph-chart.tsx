@@ -16,16 +16,20 @@ import type { BaselineState } from './baselines'
 import {
   baselineTraces,
   circlesAt,
+  commitsInView,
   graphLayout,
   highlightCircles,
   highlightShape,
   markerHeight,
-  plotlyTraces,
+  MARKED_COMMITS,
+  plotlyTrace,
   regressionMarkers,
   regressionShapes,
+  traceMode,
   withEmphasis,
   type BaselineLine,
   type Circled,
+  type DisplayValue,
   type PlacedRegression,
   type RegressionMark,
   type Trace,
@@ -131,6 +135,46 @@ function pointsFor(
   const points = pointsOf(measurements, positions, sampleAgg, runAgg)
   computed.set(measurements, { positions, sampleAgg, runAgg, points })
   return points
+}
+
+/** A trace's data for Plotly, but for its mode, and what it was built from besides the store's. */
+interface BuiltTrace {
+  points: Point[]
+  machineIndex: number
+  data: Partial<PlotData>
+}
+
+/**
+ * The traces' data for Plotly, but for their mode, which changes with the zoom: each trace's is
+ * built again only when what it is built from changes, since building every trace's tooltips each
+ * time the chart is drawn again, as data arrives, costs as much as drawing them. Only the traces last
+ * built are kept.
+ */
+class TraceStore {
+  private built = new Map<string, BuiltTrace>()
+  private displayValue: DisplayValue | null = null
+  private metric: Metric | null = null
+
+  build(traces: Trace[], displayValue: DisplayValue, metric: Metric): Partial<PlotData>[] {
+    if (displayValue !== this.displayValue || metric !== this.metric) this.built.clear()
+    this.displayValue = displayValue
+    this.metric = metric
+    const kept = new Map<string, BuiltTrace>()
+    const data = traces.map((trace) => {
+      // By test, which gives the trace's colour too (GR1).
+      const key = `${trace.machine}\0${trace.test}`
+      const known = this.built.get(key)
+      const { points, machineIndex } = trace
+      const entry =
+        known?.points === points && known.machineIndex === machineIndex
+          ? known
+          : { points, machineIndex, data: plotlyTrace(trace, displayValue, metric) }
+      kept.set(key, entry)
+      return entry.data
+    })
+    this.built = kept
+    return data
+  }
 }
 
 /** What a curve of the chart is, for an event on it to be understood. */
@@ -291,11 +335,33 @@ export function GraphChart({
     [traces, highlights],
   )
 
+  // What the x-axis is made of: a change resets the zoom (GR5).
+  const revision = machines.filter((machine) => listed.has(machine)).join('\0')
+  // Where the plot draws, to place the points' samples and the details over it, and the x-axis it
+  // was drawn with.
+  const [drawnAt, setDrawnAt] = useState<{ geometry: PlotGeometry; revision: string } | null>(
+    null,
+  )
+  const geometry = drawnAt?.geometry ?? null
+  // The points have markers while few enough commits are in view (GR1): all of them, until the plot
+  // is drawn with this x-axis. A draw changes how many only with the zoom, so that drawing the
+  // markers or not asks for no other draw.
+  const inView =
+    drawnAt?.revision === revision
+      ? commitsInView(drawnAt.geometry, commits.length)
+      : commits.length
+  const markers = inView <= MARKED_COMMITS
+  const [traceStore] = useState(() => new TraceStore())
+
   // Everything drawn, and what each curve is. Each kind is built apart, so that what changes one
   // does not build the others again: the traces' points are many.
+  const built = useMemo(
+    () => (metric === undefined ? NO_DATA : traceStore.build(traces, displayValue, metric)),
+    [traceStore, traces, displayValue, metric],
+  )
   const traceData = useMemo(
-    () => (metric === undefined ? NO_DATA : plotlyTraces(traces, displayValue, metric)),
-    [traces, displayValue, metric],
+    () => built.map((data, i) => ({ ...data, mode: traceMode(traces[i].points.length, markers) })),
+    [built, traces, markers],
   )
   const lineData = useMemo(
     () => (metric === undefined ? NO_DATA : baselineTraces(lines, metric)),
@@ -307,8 +373,9 @@ export function GraphChart({
     () => ({
       // The baselines' lines before the traces, though drawn over them on their own x-axis: of the
       // curves as close to the pointer, Plotly hovers the last, and a point is as close as can be
-      // anywhere over its marker, so a point on a line keeps its tooltip and details (GR9). The
-      // circles over every trace, so that no trace's line crosses them.
+      // with the pointer on it, anywhere over its marker when it has one, so a point on a line keeps
+      // its tooltip and details (GR9). The circles over every trace, so that no trace's line crosses
+      // them.
       data: [...lineData, ...traceData, ...circleData, ...markerData],
       curves: [
         ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
@@ -339,8 +406,6 @@ export function GraphChart({
     return { data: styled, curveOf }
   }, [drawn, emphasized])
 
-  // What the x-axis is made of: a change resets the zoom (GR5).
-  const revision = machines.filter((machine) => listed.has(machine)).join('\0')
   // Baselines, regressions and the highlighted commits are no points of their own (GR12).
   const empty = traces.length === 0 && settled
   const layout = useMemo(() => {
@@ -356,9 +421,6 @@ export function GraphChart({
     })
   }, [commits, displayValue, revision, metric, empty, placed, highlights])
 
-  // Where the plot draws, to place the points' samples and the details over it. Nothing drawn
-  // depends on it, so that a draw does not ask for another.
-  const [geometry, setGeometry] = useState<PlotGeometry | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<PointKey | null>(null)
   const [open, setOpen] = useState<Opened | null>(null)
   // The samples of the point whose details are open, a press on which leaves them open (GR11).
@@ -499,7 +561,7 @@ export function GraphChart({
         onHover={onHover}
         onUnhover={onUnhover}
         onClick={onClick}
-        onDraw={setGeometry}
+        onDraw={(drawn) => setDrawnAt({ geometry: drawn, revision })}
         onRelayout={close}
       />
       {clouds}

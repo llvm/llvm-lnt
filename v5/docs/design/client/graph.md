@@ -60,7 +60,9 @@ the suite is a query parameter, not a path segment.
   same whatever the machines, the metric, the selection or the filter, and on
   every visit to the page. Two tests may therefore share a color. The same test
   on different machines shares the same color but has a different marker
-  shape.
+  shape. While the points have no markers (see the line chart below), the
+  traces of a test on different machines therefore look alike: the tooltip
+  (GR10) names the machine, and zooming in brings the markers back.
 
 - **Test filter**: A text filter (like the Compare page) that controls which
   tests appear in the test table. The filter matches on **test name only** (not
@@ -76,7 +78,13 @@ the suite is a query parameter, not a path segment.
   share a display value.
 
 - Line chart: metric value vs commit, one trace per selected test and machine.
-  A trace's line runs straight across the commits where it has no value.
+  A trace's line runs straight across the commits where it has no value. Each
+  point has a marker, as long as at most 200 commits of the x-axis (GR3) are in
+  view: beyond, markers are too close together to tell apart, and the traces
+  are drawn as lines alone, until a zoom brings 200 or fewer into view again. A
+  trace with a single point keeps its marker, without which it would not show.
+  A point without a marker is hovered and clicked as one with a marker is
+  (GR10, GR11).
 
 - **Aggregation controls**: a point is the value of one test on one machine at
   one commit. Its samples are the samples of that test on that machine at that
@@ -94,8 +102,8 @@ the suite is a query parameter, not a path segment.
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
 Each selected test's data on each machine is fetched on its own via
 `GET /series`, and each trace is drawn once all of its data has arrived, never
-in part, so that the chart fills in trace by trace rather than waiting for the
-whole selection.
+in part, so that the chart fills in as the traces arrive rather than waiting
+for the whole selection.
 So that a large selection does not flood the server, only a few requests are in
 flight at once; the others wait for their turn.
 

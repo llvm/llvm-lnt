@@ -6,12 +6,14 @@ import { hoverText } from '../../test/hover-text'
 import {
   baselineTraces,
   circlesAt,
+  commitsInView,
   graphLayout,
   highlightCircles,
   highlightShape,
-  plotlyTraces,
+  plotlyTrace,
   regressionMarkers,
   regressionShapes,
+  traceMode,
   withEmphasis,
   type RegressionMark,
   type Trace,
@@ -58,7 +60,7 @@ describe('graphLayout', () => {
   })
 })
 
-describe('plotlyTraces', () => {
+describe('plotlyTrace', () => {
   const trace: Trace = {
     test: 'BM_vector<int>',
     machine: 'm&1',
@@ -70,11 +72,10 @@ describe('plotlyTraces', () => {
     ],
   }
 
-  it('draws a line with markers, named after the test and the machine, escaped', () => {
-    const [drawn] = plotlyTraces([trace], display, metric('execution_time')) as PlotData[]
+  it("draws a line, with its machine's markers, named after the test and the machine, escaped", () => {
+    const drawn = plotlyTrace(trace, display, metric('execution_time'))
 
     expect(drawn).toMatchObject({
-      mode: 'lines+markers',
       name: 'BM_vector&lt;int&gt; - m&amp;1',
       x: ['c1', 'c2'],
       y: [1.234567891, 2],
@@ -83,7 +84,7 @@ describe('plotlyTraces', () => {
   })
 
   it("tells in its tooltip the commit's display value, the value as shown, and the runs", () => {
-    const [drawn] = plotlyTraces([trace], display, metric('execution_time')) as PlotData[]
+    const drawn = plotlyTrace(trace, display, metric('execution_time'))
 
     expect(hoverText(drawn, 0)).toBe(
       '<b>BM_vector&lt;int&gt;</b><br>Machine: m&amp;1<br>Commit: &lt;c1&gt;<br>Value: 1.235<br>' +
@@ -95,11 +96,34 @@ describe('plotlyTraces', () => {
 
   it('shows the test and the display value as they are, even with template fields in them', () => {
     const named = { ...trace, test: 'fmt/%{x}', machine: '<&>' }
-    const [drawn] = plotlyTraces([named], (c) => `${c} %{y}`, metric('execution_time'))
+    const drawn = plotlyTrace(named, (c) => `${c} %{y}`, metric('execution_time'))
 
     expect(hoverText(drawn, 0)).toContain(
       '<b>fmt/%{x}</b><br>Machine: &lt;&amp;&gt;<br>Commit: c1 %{y}<br>',
     )
+  })
+})
+
+describe('markers (GR1)', () => {
+  it('draws a line alone without markers, but keeps the marker of a single point', () => {
+    expect(traceMode(2, true)).toBe('lines+markers')
+    expect(traceMode(2, false)).toBe('lines')
+    expect(traceMode(1, false)).toBe('lines+markers')
+  })
+
+  it('counts the commits of the x-axis between the edges of the plot', () => {
+    // Commit i at 100 + 10 * i pixels, in a plot from 100 to 300 pixels.
+    const geometry = {
+      area: { left: 100, top: 0, width: 200, height: 100 },
+      x: (value: number) => 100 + 10 * value,
+      y: (value: number) => value,
+    }
+    expect(commitsInView(geometry, 50)).toBe(21)
+    // Fewer commits than room for them.
+    expect(commitsInView(geometry, 5)).toBe(5)
+    // Zoomed in between commits 4.5 and 6.5, then panned past the last commit.
+    expect(commitsInView({ ...geometry, x: (value) => 100 + 100 * (value - 4.5) }, 50)).toBe(2)
+    expect(commitsInView({ ...geometry, x: (value) => 100 + 10 * (value - 48) }, 50)).toBe(2)
   })
 })
 
