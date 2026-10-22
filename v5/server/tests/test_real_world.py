@@ -30,13 +30,14 @@ from urllib.parse import urlencode
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, walk_cursor, walk_pages
+from conftest import code_of, ndjson_lines, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
+from lnt_v5.routes.series import SERIES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
-from lnt_v5.routes.timeseries import QUERY_PATH, TRENDS_PATH
+from lnt_v5.routes.timeseries import TRENDS_PATH
 from lnt_v5.suites.tables import SuiteTables
 
 DATA = Path(__file__).parent / "data"
@@ -172,13 +173,9 @@ def submit(api_client: TestClient, submitter: dict[str, str], dataset: Dataset, 
     return api_client.post(dataset.url(RUNS_PATH), content=path.read_bytes(), headers=headers)
 
 
-def query(api_client: TestClient, dataset: Dataset, body: dict[str, Any]) -> list[Any]:
-    """Every point `POST /query` serves for the body, following the cursor to the end."""
-    return walk_cursor(
-        lambda cursor: api_client.post(
-            dataset.url(QUERY_PATH), json=body if cursor is None else body | {"cursor": cursor}
-        )
-    )
+def series(api_client: TestClient, dataset: Dataset, params: dict[str, Any]) -> list[Any]:
+    """Every line `GET /series` serves for the parameters."""
+    return ndjson_lines(api_client.get(dataset.url(SERIES_PATH), params=params))
 
 
 @pytest.fixture
@@ -329,15 +326,13 @@ class TestReadBack:
 
 @EVERY_SUITE
 class TestTimeSeries:
-    def test_a_query_reads_back_across_commits_in_ordinal_order(
+    def test_a_series_reads_back_across_commits_in_ordinal_order(
         self, api_client: TestClient, dataset: Dataset, submitted: list[Any]
     ) -> None:
         test = dataset.series_test
         for machine in dataset.machine_names:
-            served = query(
-                api_client,
-                dataset,
-                {"metric": "execution_time", "machine": machine, "test": [test], "sort": "commit"},
+            served = series(
+                api_client, dataset, {"metric": "execution_time", "machine": machine, "test": test}
             )
 
             assert [point["ordinal"] for point in served] == sorted(p["ordinal"] for p in served)

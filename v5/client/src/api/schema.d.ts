@@ -718,32 +718,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get a metric's values over time
-         * @description The values of one metric, one page at a time, with the test, machine, commit and run of
-         *     each. Use this to chart a metric over time.
-         *
-         *     This is a POST only because the list of tests can be too long for a URL; it doesn't change
-         *     anything. `limit` and `cursor` go in the body too.
-         *
-         *     **Authorization:** no API key needed.
-         */
-        post: operations["query_points"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/suites/{testsuite}/trends": {
         parameters: {
             query?: never;
@@ -992,7 +966,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal: number | null;
@@ -1045,7 +1019,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal: number | null;
@@ -1213,7 +1187,7 @@ export interface components {
             value: string;
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal?: number | null;
@@ -1246,7 +1220,7 @@ export interface components {
             };
             /**
              * Ordinal
-             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal, and are left out of time series sorted by commit and of ranges of commits.
+             * @description The commit's position in the suite's history, used to order time series. Each commit must have a different ordinal, and it is never derived from the commit's value. Null if the commit has none; such commits come last when listing commits by ordinal and in a machine's series, and are left out of ranges of commits.
              * @example 554973
              */
             ordinal?: number | null;
@@ -1300,7 +1274,7 @@ export interface components {
             commit: string;
             /**
              * Ordinal
-             * @description The commit's ordinal. Null if it has none, which can't happen when sorting by commit or filtering on a range of commits, or with `has_ordinal=true`.
+             * @description The commit's ordinal. Null if it has none, which can't happen when filtering on a range of commits, or with `has_ordinal=true`.
              * @example 554973
              */
             ordinal: number | null;
@@ -1329,18 +1303,6 @@ export interface components {
              * @example llvmorg-22.1.0
              */
             tag: string | null;
-        };
-        /**
-         * DataPointCursorPage
-         * @description One page of results. To get the next page, repeat the request with `cursor` set to `cursor.next`.
-         */
-        DataPointCursorPage: {
-            /**
-             * Items
-             * @description The results on this page.
-             */
-            items: components["schemas"]["DataPoint"][];
-            cursor: components["schemas"]["PageCursor"];
         };
         /**
          * DocumentFunction
@@ -2086,79 +2048,6 @@ export interface components {
              * @example llvm-objdump
              */
             disassembly_format: string;
-        };
-        /**
-         * QueryRequest
-         * @description Which data points to return. Only `metric` is required; the other keys narrow down the
-         *     results.
-         */
-        QueryRequest: {
-            /**
-             * Metric
-             * @description The metric to return values for. Returns 400 if the suite's schema doesn't define it.
-             */
-            metric: string;
-            /**
-             * Machine
-             * @description Only return values from this machine. Returns 404 if the machine doesn't exist.
-             */
-            machine?: string | null;
-            /**
-             * Test
-             * @description Only return values for these tests (at most 10000). Returns 404 if any of them doesn't exist. An empty list returns nothing; leave the key out to include all tests.
-             */
-            test?: string[] | null;
-            /**
-             * Commit
-             * @description Only return values from runs of this commit. If the commit doesn't exist, the result is empty. Can't be combined with `after_commit` or `before_commit`.
-             */
-            commit?: string | null;
-            /**
-             * After Commit
-             * @description Only return values from commits after this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal.
-             */
-            after_commit?: string | null;
-            /**
-             * Before Commit
-             * @description Only return values from commits before this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal.
-             */
-            before_commit?: string | null;
-            /**
-             * Submitted After
-             * @description Only return values from runs submitted after this time (exclusive).
-             */
-            submitted_after?: string | null;
-            /**
-             * Submitted Before
-             * @description Only return values from runs submitted before this time (exclusive).
-             */
-            submitted_before?: string | null;
-            /**
-             * Measured After
-             * @description Only return values from runs measured after this time (exclusive).
-             */
-            measured_after?: string | null;
-            /**
-             * Measured Before
-             * @description Only return values from runs measured before this time (exclusive).
-             */
-            measured_before?: string | null;
-            /**
-             * Sort
-             * @description Sort by test name, by commit (that is, by ordinal), or by the run's submission or measurement time. Sorting by commit leaves out commits without an ordinal. Without it, the order is unspecified but stable, which is the fastest way to page through all values.
-             */
-            sort?: ("test" | "-test" | "commit" | "-commit" | "submitted_at" | "-submitted_at" | "measured_at" | "-measured_at") | null;
-            /**
-             * Limit
-             * @description The maximum number of results to return.
-             * @default 25
-             */
-            limit?: number;
-            /**
-             * Cursor
-             * @description To get the next page, set this to `cursor.next` from the previous response, and keep the other parameters the same (except `limit`). Omit it to get the first page. If it is rejected with `invalid_cursor`, start again from the first page.
-             */
-            cursor?: string | null;
         };
         /**
          * Regression
@@ -5625,69 +5514,6 @@ export interface operations {
                 };
             };
             /** @description The test suite, or a machine or test given as a filter, doesn't exist. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description `retry`: the suite's schema changed while the request was being handled. Send it again. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    query_points: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The name of the test suite. */
-                testsuite: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QueryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataPointCursorPage"];
-                };
-            };
-            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The test suite doesn't exist, or the body names a machine, a test, or an `after_commit` or `before_commit` that doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -7,8 +7,8 @@ a 400 too, refused by `reject_unknown_query_parameters`, which every scoped endp
 
 Cursor pagination (I2, O5) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
 private to any endpoint family: the commit, run, test, sample and regression list endpoints and
-`POST /query` all page this way, and a second implementation of a keyset predicate would be a second
-chance to get the boundary conditions wrong.
+the indicator lookup all page this way, and a second implementation of a keyset predicate would be
+a second chance to get the boundary conditions wrong.
 """
 
 from __future__ import annotations
@@ -50,8 +50,8 @@ DEFAULT_LIMIT = 25
 MAX_LIMIT = 10_000
 
 # The wording of I2's two paging parameters, stated once because they travel by two carriers: as
-# query parameters on the GET lists, and as keys of the request body on `POST /query`, which is
-# asked for with a body because its test list does not fit a query string. I2 is explicit that
+# query parameters on the GET lists, and as keys of the request body on the indicator lookup, which
+# is asked for with a body because its test list does not fit a query string. I2 is explicit that
 # nothing else about the contract differs between the two. Published in I8's document, so written
 # for API users.
 _LIMIT = "The maximum number of results to return."
@@ -96,7 +96,7 @@ def exclusive_range(
 
     I3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
     run list's pairs over `submitted_at` and `measured_at`, the commit list's pair over the
-    ordinal, and `POST /query`'s pairs over the commit ordinal and the two run timestamps. One
+    ordinal, and `GET /series`'s pairs over the commit ordinal and the two run timestamps. One
     spelling, so that a bound cannot become inclusive in one place and stay exclusive in another.
     """
     conditions: list[ColumnElement[bool]] = []
@@ -171,7 +171,7 @@ def reject_unknown_query_parameters(request: Request) -> None:
             else "This endpoint takes no query parameters."
         )
         # On an endpoint that takes a body, a stray parameter is most likely one of its keys sent in
-        # the wrong place -- `limit` given to `POST /query` in the query string, say (I2).
+        # the wrong place -- `limit` given to the indicator lookup in the query string, say (I2).
         if takes_body:
             takes += " Its other inputs go in the request body."
         raise ApiError(
@@ -298,9 +298,11 @@ class Keyset:
 
         A null sort value compares as unknown against a cursor's, so a row carrying one would fall
         on neither side of the boundary and vanish from every page after the first. Unless the
-        keyset serves them last (`nulls_last`), O5 answers this by excluding those rows outright --
-        as `POST /query` does for unordered commits under `sort=commit`. Derived from the columns
-        rather than left to each endpoint, so the lists that page this way cannot each forget it.
+        keyset serves them last (`nulls_last`), O5 answers this by excluding those rows outright.
+        Derived from the columns rather than left to each endpoint, so the lists that page this way
+        cannot each forget it. No endpoint relies on it today: the one sort key that can be null,
+        the commit list's ordinal, is either `nulls_last` or filtered to non-null values by the
+        list itself (`has_ordinal=true`), so this is a safety net.
         """
         return [key.column.is_not(None) for key in self._keys if key.column.nullable]
 

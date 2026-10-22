@@ -266,9 +266,9 @@ class TestUnknownQueryParameters:
         assert "body" not in message
 
     def test_points_an_endpoint_taking_a_body_at_it(self, client: TestClient) -> None:
-        # `POST /query` takes its filters in its body (I2), so a `limit` in the query string was
-        # almost certainly meant to be a key of it.
-        response = client.post("/api/suites/nts/query?limit=5", json={})
+        # The indicator lookup takes its filters in its body (I2), so a `limit` in the query string
+        # was almost certainly meant to be a key of it.
+        response = client.post("/api/suites/nts/regressions/indicators/query?limit=5", json={})
 
         assert response.status_code == 400
         assert "request body" in response.json()["error"]["message"]

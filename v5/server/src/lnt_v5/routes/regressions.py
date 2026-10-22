@@ -449,9 +449,10 @@ class RegressionIndicator(Indicator):
     )
 
 
-# A body rather than query parameters for the reason `POST /query` takes one. The lists are bounded
-# at I2's page ceiling for that endpoint's reason too: each expands into one statement, and an
-# unbounded one would carry more bind parameters than the protocol does.
+# A body rather than query parameters, because a list of test names, which may be long and whose
+# names may contain any character, does not fit a query string. The lists are bounded at I2's page
+# ceiling: each expands into one statement, and an unbounded one would carry more bind parameters
+# than the protocol does.
 class IndicatorQuery(BaseModel):
     """Which indicators to return. All keys are optional, and only indicators that match every
     key given are returned."""
@@ -1239,7 +1240,7 @@ def remove_indicators(
 
 
 # The metric is resolved first, so an undeclared one is a 400 even if the body also names an absent
-# machine or test -- the same order `POST /query` takes, which the spec leaves open.
+# machine or test, an order the spec leaves open.
 @router.post(
     "/indicators/query",
     dependencies=[require_scope(Scope.READ)],

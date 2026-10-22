@@ -145,11 +145,11 @@ RealValue = Annotated[float, Strict(), Field(allow_inf_nan=False)]
 # leaves it a float and the strict validator rejects it for not being an integer.
 
 # The identity of an entity a request names but does not create -- an indicator's machine and test,
-# a `test=` or `commit=` in a time-series body. Deliberately unconstrained in length and shape: a
-# value no machine, test or commit could possibly have still names none, which endpoints.md answers
-# with a 404 (or, for a commit filter, an empty result) rather than a 400. `Storable` is the one
-# exception, because a NUL cannot even be compared against a stored value -- PostgreSQL refuses it
-# as a parameter (D3).
+# a `test` or `commit` in the indicator lookup's body. Deliberately unconstrained in length and
+# shape: a value no machine, test or commit could possibly have still names none, which
+# endpoints.md answers with a 404 (or, for a commit filter, an empty result) rather than a 400.
+# `Storable` is the one exception, because a NUL cannot even be compared against a stored value --
+# PostgreSQL refuses it as a parameter (D3).
 Named = Annotated[str, Storable]
 
 # D3's `datetime`, as a reusable annotation: an ISO 8601 string and nothing else, normalized to
@@ -320,8 +320,8 @@ Ordinal = Annotated[
         description=(
             "The commit's position in the suite's history, used to order time series. Each commit "
             "must have a different ordinal, and it is never derived from the commit's value. Null "
-            "if the commit has none; such commits come last when listing commits by ordinal, and "
-            "are left out of time series sorted by commit and of ranges of commits."
+            "if the commit has none; such commits come last when listing commits by ordinal and in "
+            "a machine's series, and are left out of ranges of commits."
         ),
         examples=[examples.ORDINAL],
     ),

@@ -143,7 +143,7 @@ Common filters include:
 - `state=` (for regressions; takes several values)
 - `commit=`
 - `has_commit=` (for regressions), `has_profiles=` (for commits and runs),
-  `has_ordinal=` (for commits)
+  `has_ordinal=` (for commits and series)
 - `tracked=` (boolean, for machines; omitting it returns both)
 
 **Sorting.** `sort=<name>` selects one ordering. Prefix the name with `-` for

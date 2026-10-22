@@ -488,7 +488,7 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
 def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
     """The ordinal of a commit a request names as a range boundary (O6).
 
-    The `after_commit`/`before_commit` of `POST /query` and of the commit list name a commit and
+    The `after_commit`/`before_commit` of `GET /series` and of the commit list name a commit and
     mean its *position*, so both ways of failing to have one are the caller's mistake and neither
     is an empty page. A value no commit has is the 404 I4 gives an entity a request names --
     deliberately unlike the `commit=` filter, which I3 answers with an empty result, because that

@@ -1621,7 +1621,7 @@ class TestIndicatorLookup:
 
     @pytest.mark.parametrize("key", ["machine", "test", "state"])
     def test_an_empty_list_keeps_nothing(self, api_client: TestClient, key: str) -> None:
-        # As with `POST /query`'s `test`: an empty list is not the same as an omitted key.
+        # An empty list is not the same as an omitted key.
         response = lookup(api_client, **{key: []})
 
         assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}

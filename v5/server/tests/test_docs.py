@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -25,9 +26,10 @@ from lnt_v5.routes.regressions import (
 )
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
+from lnt_v5.routes.series import NDJSON, SERIES_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
-from lnt_v5.routes.timeseries import DEFAULT_LAST_N, QUERY_PATH, TRENDS_PATH
+from lnt_v5.routes.timeseries import DEFAULT_LAST_N, TRENDS_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import CommitField, MachineField, Metric
 
@@ -181,6 +183,22 @@ class TestOpenApiDocument:
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
         assert [name for name in schemas if not re.fullmatch(r"[A-Za-z0-9]+", name)] == []
+
+    def test_every_reference_leads_to_a_component(self, client: TestClient) -> None:
+        # Including the references an operation writes by hand, which FastAPI does not follow.
+        document = client.get("/api/openapi.json").json()
+        references = set(re.findall(r'"\$ref": "([^"]*)"', json.dumps(document)))
+        schemas = document["components"]["schemas"]
+
+        assert references
+        assert (
+            sorted(
+                reference
+                for reference in references
+                if reference.removeprefix("#/components/schemas/") not in schemas
+            )
+            == []
+        )
 
     def test_describes_the_error_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
@@ -1169,8 +1187,8 @@ class TestRegressionOperations:
     def test_the_lookup_takes_its_filters_in_the_body_rather_than_the_query_string(
         self, client: TestClient
     ) -> None:
-        # The reason it is a POST, as for `POST /query`: a list of test names does not fit a query
-        # string. The suite is the only thing left in the path.
+        # The reason it is a POST: a list of test names does not fit a query string. The suite is
+        # the only thing left in the path.
         operation = client.get("/api/openapi.json").json()["paths"][LOOKUP]["post"]
 
         assert "requestBody" in operation
@@ -1249,88 +1267,31 @@ class TestRegressionOperations:
 class TestTimeSeriesOperations:
     """I8: the two operations E9 specifies."""
 
-    @pytest.mark.parametrize(("path", "method"), [(QUERY_PATH, "post"), (TRENDS_PATH, "get")])
-    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
+    @pytest.mark.parametrize("path", [SERIES_PATH, TRENDS_PATH])
+    def test_is_documented(self, client: TestClient, path: str) -> None:
         paths = client.get("/api/openapi.json").json()["paths"]
 
-        assert set(paths[path]) == {method}
+        assert set(paths[path]) == {"get"}
 
-    @pytest.mark.parametrize(("path", "method"), [(QUERY_PATH, "post"), (TRENDS_PATH, "get")])
+    @pytest.mark.parametrize("path", [SERIES_PATH, TRENDS_PATH])
     @pytest.mark.parametrize("status", ["404", "409"])
     def test_documents_the_failures_endpoints_md_specifies(
-        self, client: TestClient, path: str, method: str, status: str
+        self, client: TestClient, path: str, status: str
     ) -> None:
         # An unknown suite on both (I1), plus an unknown machine, test or bounding commit the
         # request names; D2's stale reader accounts for the 409.
-        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
 
         assert status in operation["responses"]
 
-    def test_the_query_takes_its_filters_in_the_body_rather_than_the_query_string(
-        self, client: TestClient
-    ) -> None:
-        # The whole reason it is a POST: a list of test names and four bounds do not fit a query
-        # string. The suite is the only thing left in the path.
-        operation = client.get("/api/openapi.json").json()["paths"][QUERY_PATH]["post"]
+    def test_the_series_is_documented_as_lines_of_data_points(self, client: TestClient) -> None:
+        # OpenAPI cannot say "one per line", so the 200 names the schema of a line, which the
+        # document must carry although no operation returns one as JSON.
+        document = client.get("/api/openapi.json").json()
+        content = document["paths"][SERIES_PATH]["get"]["responses"]["200"]["content"]
 
-        assert "requestBody" in operation
-        assert {p["name"] for p in operation.get("parameters", [])} == {"testsuite"}
-
-    def test_the_query_body_carries_exactly_the_keys_endpoints_md_gives_it(
-        self, client: TestClient
-    ) -> None:
-        # Exactly, not merely at least: I2's `limit` and `cursor` are keys here rather than query
-        # parameters, and a filter the spec does not give this endpoint is as wrong as a missing
-        # one.
-        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
-
-        assert set(schemas["QueryRequest"]["properties"]) == {
-            "metric",
-            "machine",
-            "test",
-            "commit",
-            "after_commit",
-            "before_commit",
-            "submitted_after",
-            "submitted_before",
-            "measured_after",
-            "measured_before",
-            "sort",
-            "limit",
-            "cursor",
-        }
-        assert schemas["QueryRequest"]["required"] == ["metric"]
-
-    def test_the_query_body_documents_the_page_size(self, client: TestClient) -> None:
-        limit = client.get("/api/openapi.json").json()["components"]["schemas"]["QueryRequest"][
-            "properties"
-        ]["limit"]
-
-        assert limit["default"] == DEFAULT_LIMIT == 25
-        assert limit["maximum"] == MAX_LIMIT == 10000
-
-    def test_the_query_enumerates_its_sort_fields_rather_than_taking_any_string(
-        self, client: TestClient
-    ) -> None:
-        # endpoints.md names three fields, and I3's `-` prefix spells each of them backwards; a
-        # generated client should not be able to ask for a fourth.
-        sort = client.get("/api/openapi.json").json()["components"]["schemas"]["QueryRequest"][
-            "properties"
-        ]["sort"]
-        allowed = [option for option in sort["anyOf"] if "enum" in option]
-
-        assert [set(option["enum"]) for option in allowed] == [
-            {
-                "test",
-                "-test",
-                "commit",
-                "-commit",
-                "submitted_at",
-                "-submitted_at",
-                "measured_at",
-                "-measured_at",
-            }
-        ]
+        assert content == {NDJSON: {"schema": {"$ref": "#/components/schemas/DataPoint"}}}
+        assert "DataPoint" in document["components"]["schemas"]
 
     def trends_parameters(self, client: TestClient) -> dict[str, Any]:
         operation = client.get("/api/openapi.json").json()["paths"][TRENDS_PATH]["get"]
@@ -1362,35 +1323,13 @@ class TestTimeSeriesOperations:
         assert enum == ["median", "mean", "min", "max"]
         assert schema["default"] == "median"
 
-    def test_the_trends_machine_is_a_list_where_the_querys_is_one_name(
-        self, client: TestClient
-    ) -> None:
-        # endpoints.md draws the difference deliberately: the Dashboard needs several machines in
-        # one call, and the Graph page plots one at a time.
-        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
-        query = schemas["QueryRequest"]["properties"]["machine"]["anyOf"]
-        trends = self.trends_parameters(client)["machine"]["schema"]
-
-        assert {"type": "string"} in query
-        assert trends["type"] == "array"
-
-    def test_the_query_pages_with_a_cursor_and_trends_does_not_page_at_all(
-        self, client: TestClient
-    ) -> None:
-        # I2: one is unbounded and carries a cursor, the other is bounded by (machines x last_n)
-        # and carries `items` alone.
+    def test_trends_does_not_page(self, client: TestClient) -> None:
+        # I2: bounded by (machines x last_n), so it carries `items` alone.
         document = client.get("/api/openapi.json").json()
-        envelopes = {
-            path: document["components"]["schemas"][
-                document["paths"][path][method]["responses"]["200"]["content"]["application/json"][
-                    "schema"
-                ]["$ref"].rsplit("/", 1)[-1]
-            ]
-            for path, method in ((QUERY_PATH, "post"), (TRENDS_PATH, "get"))
-        }
+        content = document["paths"][TRENDS_PATH]["get"]["responses"]["200"]["content"]
+        envelope = content["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
 
-        assert set(envelopes[QUERY_PATH]["properties"]) == {"items", "cursor"}
-        assert set(envelopes[TRENDS_PATH]["properties"]) == {"items"}
+        assert set(document["components"]["schemas"][envelope]["properties"]) == {"items"}
 
     def test_a_data_point_carries_exactly_what_endpoints_md_gives_it(
         self, client: TestClient
@@ -1651,7 +1590,6 @@ EXAMPLE_SEQUENCE = [
     (COMMITS_PATH, "post"),
     (f"{COMMITS_PATH}/{{value}}", "patch"),
     (f"{COMMITS_PATH}/resolve", "post"),
-    (QUERY_PATH, "post"),
     (REGRESSIONS_PATH, "post"),
     (f"{REGRESSIONS_PATH}/{{uuid}}", "patch"),
     (INDICATORS_PATH, "post"),

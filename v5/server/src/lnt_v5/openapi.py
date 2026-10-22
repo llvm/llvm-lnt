@@ -46,8 +46,6 @@ from .auth import SECURITY_SCHEME, iter_routes, required_scope
 from .errors import ErrorEnvelope
 from .scopes import Scope
 
-ERROR_SCHEMA_REF = "#/components/schemas/ErrorEnvelope"
-
 # Read once, at import, like `llms.txt`: a packaging mistake that lost it should fail the process.
 OVERVIEW = Path(__file__).with_name("openapi.md").read_text(encoding="utf-8")
 
@@ -136,10 +134,26 @@ def operation_id(route: APIRoute) -> str:
     return route.name
 
 
+# The models an operation refers to by hand (see `schema_ref`).
+_REFERENCED: set[type[BaseModel]] = set()
+
+
+def schema_ref(model: type[BaseModel]) -> dict[str, str]:
+    """A reference to `model`'s component schema, for a response FastAPI derives no schema for: an
+    error added to every operation below, or the lines of a streamed response (I2), which no
+    response model describes.
+
+    FastAPI emits only the models a route declares, so the document would otherwise carry a
+    reference to nothing. Recording the model here is what makes `_correct` add its schema.
+    """
+    _REFERENCED.add(model)
+    return {"$ref": f"#/components/schemas/{model.__name__}"}
+
+
 def _error(description: str) -> dict[str, Any]:
     return {
         "description": description,
-        "content": {"application/json": {"schema": {"$ref": ERROR_SCHEMA_REF}}},
+        "content": {"application/json": {"schema": schema_ref(ErrorEnvelope)}},
     }
 
 
@@ -162,15 +176,14 @@ def _authorization(scope: Scope) -> str:
     return f"**Authorization:** requires an API key with the `{scope.value}` scope."
 
 
-def _error_schemas() -> dict[str, Any]:
-    """`ErrorEnvelope` and what it references, as component schemas.
-
-    Injected rather than left to FastAPI, which only emits a model some route declares. The
-    responses added below reference it on operations that may declare nothing of their own.
-    """
-    schema = ErrorEnvelope.model_json_schema(ref_template="#/components/schemas/{model}")
-    nested = schema.pop("$defs", {})
-    return {"ErrorEnvelope": schema, **nested}
+def _referenced_schemas() -> dict[str, Any]:
+    """The models referred to by hand (see `schema_ref`), and what they reference, as component
+    schemas."""
+    _, generated = models_json_schema(
+        [(model, "serialization") for model in _REFERENCED],
+        ref_template="#/components/schemas/{model}",
+    )
+    return dict(generated.get("$defs", {}))
 
 
 def _scopes_by_operation(app: FastAPI) -> dict[tuple[str, str], Scope]:
@@ -312,7 +325,7 @@ def _restore_examples(app: FastAPI, document: dict[str, Any]) -> None:
     nothing at all, and a sample response would lack keys the API always sends. Pydantic's own
     schemas of the same models still carry the nulls, under the same component names.
     """
-    models: set[type[BaseModel]] = set()
+    models = set(_REFERENCED)
     for route in iter_routes(app.routes):
         body = getattr(route, "body_field", None)
         for model in (getattr(route, "response_model", None), getattr(body, "type_", None)):
@@ -378,7 +391,7 @@ def _hoist_descriptions(node: Any) -> None:
 def _correct(app: FastAPI, document: dict[str, Any]) -> None:
     scopes = _scopes_by_operation(app)
     schemas = document.setdefault("components", {}).setdefault("schemas", {})
-    for name, schema in _error_schemas().items():
+    for name, schema in _referenced_schemas().items():
         schemas.setdefault(name, schema)
 
     for path, operations in document.get("paths", {}).items():

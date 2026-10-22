@@ -30,6 +30,7 @@ from conftest import (
     code_of,
     encoded_profile,
     entry,
+    ndjson_lines,
     recent,
     run_payload,
     uuids_in,
@@ -1134,7 +1135,8 @@ class TestMetricsNamedLikeTheKeysOfATestEntry:
             key=repr,
         )
         for metric, values in (("name", [1.5, 3.5]), ("profile", [2.5])):
-            points = api_client.post(f"{base}/query", json={"metric": metric}).json()["items"]
+            series = api_client.get(f"{base}/series", params={"machine": "linux", "metric": metric})
+            points = ndjson_lines(series)
             assert sorted((point["test"], point["value"]) for point in points) == [
                 ("bench", value) for value in values
             ]

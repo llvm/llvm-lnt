@@ -154,11 +154,21 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
     return { index, commit: String(trace.x[index]) }
   })
   expect(index).toBeGreaterThan(0)
-  const response = await request.post('/api/suites/libcxx/query', {
-    data: { metric: 'execution_time', machine: LINUX, test: [TEST], commit },
-  })
-  expect(response.status(), await response.text()).toBe(200)
-  const { items } = (await response.json()) as ListPage<{ run_uuid: string }>
+  // Retried, since a series is cut short when any suite's schema changes (E9), as the suites other
+  // tests create do.
+  let body = ''
+  await expect(async () => {
+    const response = await request.get('/api/suites/libcxx/series', {
+      params: { metric: 'execution_time', machine: LINUX, test: TEST, commit },
+    })
+    body = await response.text()
+    expect(response.status(), body).toBe(200)
+  }).toPass()
+  // One sample per line (NDJSON).
+  const items = body
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => JSON.parse(line) as { run_uuid: string })
   const samples = items.length
   expect(samples).toBeGreaterThan(1)
 

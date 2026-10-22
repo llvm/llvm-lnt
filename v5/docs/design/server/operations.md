@@ -1,9 +1,9 @@
 # v5 Database Layer: Operations
 
 This document covers how data flows through the v5 database: run submission,
-machine and commit metadata, search, time-series queries, ordinal management,
-profiles, concurrent submission, run summaries, and the deletion of machines and
-commits after inactivity.
+machine and commit metadata, search, cursor pagination, ordinal management,
+profiles, concurrent submission, run summaries, and the deletion of machines
+and commits after inactivity.
 
 
 ## O1: Submission Format
@@ -244,18 +244,9 @@ instead. An empty term matches every row.
 The term is plain text: `%`, `_` and regex syntax have no special meaning.
 
 
-## O5: Time-Series Queries
+## O5: Cursor Pagination
 
-The primary query pattern is: "give me metric values for (machine, test,
-metric), ordered by commit ordinal." This is `Sample JOIN Run JOIN Commit`,
-filtered by `machine_id` and `test_id`, and ordered by `Commit.ordinal`.
-
-When a time series is sorted by commit ordinal, the commits without an ordinal
-have no position in that order. Each endpoint says what it does with them:
-leave them out, or serve them after the others (see E9). When it is not sorted
-by ordinal, all runs are included, whatever their commit's ordinal.
-
-**Cursor pagination** requires a deterministic row order with no repeats. The
+Cursor pagination (I2) requires a deterministic row order with no repeats. The
 server appends an internal unique tiebreaker to the caller's sort to guarantee
 this. The tiebreaker is opaque to clients, and cursors are treated as opaque
 tokens. When no sort is requested, results come in an arbitrary but
@@ -275,10 +266,9 @@ then sees it twice. No cursor scheme prevents that.
 A null sort value compares as unknown against a cursor's value, so a row with
 one would fall on neither side of the position and vanish from every page. A
 sort key is therefore either never null, or the endpoint handles the rows where
-it is null in one of two ways: it excludes them, as a time series sorted by
-commit does, or it serves them after every row that has a value, ordered among
-themselves by the rest of the sort, as the commit list sorted by ordinal does
-(see E3).
+it is null in one of two ways: it excludes them, or it serves them after every
+row that has a value, ordered among themselves by the rest of the sort. The
+commit list sorted by ordinal does either, depending on `has_ordinal` (see E3).
 
 
 ## O6: Ordinal Management
