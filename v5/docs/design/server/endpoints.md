@@ -623,6 +623,80 @@ body. Each point contains `test`, `machine`, `metric`, `value`, `commit`,
 (the commit's tag, or null if unset). `metric` is repeated on every point even
 though the request names exactly one, so that each point is self-describing.
 
+### Series
+
+```
+GET    /api/suites/{testsuite}/series
+```
+
+Returns every value of one metric on one machine, for tools that analyse whole
+time series. It is a streaming endpoint (see I2): the whole series comes in
+one response.
+
+**Auth scope:** `read`.
+
+**Query parameters:**
+
+- `metric` (required): the metric to return values for. Only the samples that
+  have a value for it are returned. 400 if the suite's schema does not declare
+  it.
+- `machine` (required): the name of the machine. 404 if it does not exist.
+- `test`: only the samples of these tests, repeated for several (see I3). 404
+  if one of them does not exist. Each name lengthens the URL, which proxies
+  limit to a few kilobytes, so only a few dozen fit; a client that needs more
+  reads the machine's whole series.
+- `commit`: only the samples of runs at this commit. An unknown commit gives
+  an empty result. It cannot be combined with `after_commit` or
+  `before_commit` (400).
+- `after_commit`, `before_commit`: only the samples at commits strictly after,
+  or strictly before, the named commit, by ordinal. Commits without an ordinal
+  are left out. An unknown commit is 404, and one that has no ordinal is 400.
+- `submitted_after`, `submitted_before`, `measured_after`, `measured_before`:
+  exclusive bounds on the `submitted_at` and `measured_at` of the run a sample
+  belongs to. Each is an ISO 8601 timestamp (see D3), read as UTC if it has no
+  offset.
+- `has_ordinal`: boolean. `true` returns only the samples at commits with an
+  ordinal, and `false` only those at commits without one. Without it, both are
+  returned. As on the commit list (see E3), a commit bound leaves out the
+  commits without an ordinal by itself, so combining one with
+  `has_ordinal=false` returns nothing.
+
+**Response:** 200, with one line per sample (see I2). Each line is a JSON
+object with these keys:
+
+- `test`, `machine`: the names of the sample's test and machine.
+- `metric`: the name of the metric, the one the request names, so that each
+  line stands on its own.
+- `value`: the sample's value for the metric, never null, in the JSON
+  representation of the metric's type (see D3).
+- `commit`: the commit of the sample's run, by value.
+- `ordinal`, `tag`: that commit's ordinal and tag, or null where it has none.
+- `run_uuid`: the UUID of the sample's run.
+- `submitted_at`, `measured_at`: the run's timestamps (see D5).
+
+The errors above are all found before the response starts.
+
+**Order:** by test name, by code point; then by commit ordinal, with the
+commits that have none after the others, by commit value; then by run UUID.
+The repetitions of a test within a run are adjacent, in an unspecified order.
+The same data is always served in the same order.
+
+**Promptness:** the samples are read and sent a batch of tests at a time, so
+the time between two bytes depends on how long one batch takes to read, not on
+the size of the series.
+
+**Consistency:** each test's samples are read at a single point in time, but
+different tests may be read at different times: a run submitted or deleted
+while the response is sent, or an ordinal changed, may show up for some tests
+and not for others. `submitted_before` bounds what can appear. Since a run's
+`submitted_at` is taken when it starts being stored (D5), a request meant to
+be repeatable uses a time a few minutes in the past.
+
+**Interrupted responses:** besides any failure, the server aborts the response
+(see I2) when a change would otherwise leave the rest of it silently empty: the
+machine being deleted, or a schema change (possibly of another suite). The
+client then requests it again.
+
 ### Trends (Aggregated)
 
 ```

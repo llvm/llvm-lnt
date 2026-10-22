@@ -251,7 +251,8 @@ metric), ordered by commit ordinal." This is `Sample JOIN Run JOIN Commit`,
 filtered by `machine_id` and `test_id`, and ordered by `Commit.ordinal`.
 
 When a time series is sorted by commit ordinal, the commits without an ordinal
-are excluded, since they have no position in that order. When it is not sorted
+have no position in that order. Each endpoint says what it does with them:
+leave them out, or serve them after the others (see E9). When it is not sorted
 by ordinal, all runs are included, whatever their commit's ordinal.
 
 **Cursor pagination** requires a deterministic row order with no repeats. The

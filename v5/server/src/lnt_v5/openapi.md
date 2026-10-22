@@ -32,6 +32,11 @@ shapes:
 On a cursor-paginated list, use `limit` to set the page size. It defaults to 25, and can be
 at most 10000.
 
+**Streaming.** A few operations (`GET .../series`) stream their results instead, unpaginated, as
+newline-delimited JSON: one object per line, with no `items`. Errors found before the response
+starts are returned as usual. A failure after that closes the connection before the end of the
+response, which HTTP clients report as an error: a response that ends normally is complete.
+
 **Cursor pagination.** To get the next page, repeat the same request with `cursor` set to the
 `cursor.next` value from the previous response. Keep the same filters and sort; only `limit` may
 change. When `cursor.next` is null, there are no more pages. Treat cursors as opaque strings. If a

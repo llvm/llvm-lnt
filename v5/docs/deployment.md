@@ -97,6 +97,9 @@ Configure the backend as follows:
   certificate hostname and the SNI hostname.
 - First byte timeout: 60 seconds, the time Nginx waits for the app by default. Fastly's default of 15
   seconds is too short for large submissions.
+- Between bytes timeout: 60 seconds too. A streamed series (`GET .../series`) sends data after every
+  batch of tests it reads, typically well under a second apart, but a batch read from a cold cache
+  can take longer than Fastly's default of 10 seconds.
 
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the

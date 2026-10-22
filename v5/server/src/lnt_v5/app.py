@@ -33,6 +33,7 @@ from .routes.regressions import router as regressions_router
 from .routes.robots import router as robots_router
 from .routes.runs import router as runs_router
 from .routes.samples import router as samples_router
+from .routes.series import router as series_router
 from .routes.suites import router as suites_router
 from .routes.tests import router as tests_router
 from .routes.timeseries import router as timeseries_router
@@ -162,6 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tests_router)
     app.include_router(regressions_router)
     app.include_router(timeseries_router)
+    app.include_router(series_router)
 
     app.mount("/", SpaStaticFiles(directory=directory), name="spa")
 

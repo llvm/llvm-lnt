@@ -777,6 +777,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/suites/{testsuite}/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a machine's values of a metric
+         * @description All of one machine's values of a metric, in a single response of newline-delimited JSON
+         *     (one object per line), for tools that analyse a whole series. Values come grouped by test, in
+         *     order of test name (by code point), then by commit ordinal, with the commits that have none
+         *     last; then by commit and run, so that the same data always comes in the same order.
+         *
+         *     The response is streamed as it is read, so it can be large and long: ask for it compressed
+         *     (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's values are read at one point in
+         *     time, but different tests may be read at different times, so a run submitted or deleted during
+         *     the download can appear for some tests and not others.
+         *
+         *     If the download can't be completed -- the machine is deleted or a suite's schema changes
+         *     meanwhile, or the server restarts -- the connection is closed before the end of the response,
+         *     which HTTP clients report as an error (`curl` exits with a non-zero status). Download again in
+         *     that case. A response that ends normally is complete.
+         *
+         *     Try it out from this page only on a small series.
+         *
+         *     **Authorization:** no API key needed.
+         */
+        get: operations["get_series"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1262,7 +1299,7 @@ export interface components {
             commit: string;
             /**
              * Ordinal
-             * @description The commit's ordinal. Null if it has none, which can't happen when sorting by commit or filtering on a range of commits.
+             * @description The commit's ordinal. Null if it has none, which can't happen when sorting by commit or filtering on a range of commits, or with `has_ordinal=true`.
              * @example 554973
              */
             ordinal: number | null;
@@ -5718,6 +5755,88 @@ export interface operations {
                 };
             };
             /** @description The test suite, or one of the machines, doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `retry`: the suite's schema changed while the request was being handled. Send it again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_series: {
+        parameters: {
+            query: {
+                /** @description The metric to return values for. Returns 400 if the suite's schema doesn't define it. */
+                metric: string;
+                /** @description The machine to return values for. Returns 404 if it doesn't exist. */
+                machine: string;
+                /** @description Only return values for these tests. Repeat the parameter for several tests. Returns 404 if any of them doesn't exist. Every name lengthens the URL, which proxies limit to a few kilobytes: to read more than a few dozen tests, leave this out and read the machine's whole series instead. */
+                test?: string[] | null;
+                /** @description Only return values from runs of this commit. If the commit doesn't exist, the result is empty. Can't be combined with `after_commit` or `before_commit`. */
+                commit?: string | null;
+                /** @description Only return values from commits after this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                after_commit?: string | null;
+                /** @description Only return values from commits before this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                before_commit?: string | null;
+                /** @description Only return values from runs submitted after this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
+                submitted_after?: string | null;
+                /** @description Only return values from runs submitted before this time (exclusive). To read the same data again later, pick a time a few minutes in the past: a run is stamped when it starts being stored, a little before it can be read. An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
+                submitted_before?: string | null;
+                /** @description Only return values from runs measured after this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
+                measured_after?: string | null;
+                /** @description Only return values from runs measured before this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
+                measured_before?: string | null;
+                /** @description Only return values from commits that have (`true`) or don't have (`false`) an ordinal. Leave out to return both. `after_commit` and `before_commit` imply `true`. */
+                has_ordinal?: boolean | null;
+            };
+            header?: never;
+            path: {
+                /** @description The name of the test suite. */
+                testsuite: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One value per line, each a JSON object of this schema (newline-delimited JSON). An empty body if nothing matches. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": components["schemas"]["DataPoint"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The test suite, the machine, one of the tests, or the `after_commit` or `before_commit` doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
