@@ -83,7 +83,7 @@ describe('the comparison table (CP2)', () => {
         'b | 2 | N/A | N/A | N/A | N/A | N/A',
       ]),
     )
-    expect(screen.getByText('1 of 1 matching tests shown (3 total)')).toBeInTheDocument()
+    expect(screen.getByText('1 of 1 matching tests shown · 3 tests in total')).toBeInTheDocument()
     await waitFor(() => expect(query().test_filter).toEqual(['b']))
   })
 
@@ -172,7 +172,7 @@ describe('hidden tests (CP2)', () => {
 
     await user.click(header)
     await waitFor(() => expect(query().hidden_test).toEqual(['a']))
-    expect(screen.getByText('0 of 1 matching tests shown (4 total)')).toBeInTheDocument()
+    expect(screen.getByText('0 of 1 matching tests shown · 4 tests in total')).toBeInTheDocument()
     await user.click(header)
     await waitFor(() => expect(query().hidden_test).toBeUndefined())
   })
@@ -248,7 +248,11 @@ describe('hidden tests (CP2)', () => {
 
     await userEvent.setup().click(screen.getByRole('checkbox', { name: 'Show all tests shown' }))
 
-    expect(await screen.findByText('(too many hidden to reflect in the URL)')).toBeInTheDocument()
+    const why = await screen.findByText('too many hidden to reflect in the URL')
+    expect(why.parentElement).toHaveTextContent(
+      '0 of 12 tests shown · too many hidden to reflect in the URL',
+    )
+    expect(why).toHaveAccessibleDescription('The URL holds at most 10 hidden tests.')
     expect(query().hidden_test).toBeUndefined()
   })
 })

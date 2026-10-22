@@ -178,9 +178,11 @@ all use these rows.
   and the geomean summary row, have no tooltip.
 - **Summary message**: above the rows, a message says how many of the table's
   rows are shown, as the Graph's test table does (see GR6): "120 of 150 tests
-  shown", or with the test filter set, "30 of 42 matching tests shown (150
-  total)". Rows removed by "Hide noise" are not counted. When too many tests
-  are hidden for the URL to record them (see CP7), the message says so.
+  shown", or with the test filter set, "30 of 42 matching tests shown · 150
+  tests in total". Rows removed by "Hide noise" are not counted. When too many
+  tests are hidden for the URL to record them (see CP7), the message then says
+  so, and why on hover and to assistive technology: "30 of 42 matching tests
+  shown · 150 tests in total · too many hidden to reflect in the URL".
 - **Copy as CSV**: a clipboard button at the end of the summary message row
   copies the compared rows as CSV, in the current sort order, with the geomean
   summary row first. The columns are the table's: Test, Value A, Value B,
