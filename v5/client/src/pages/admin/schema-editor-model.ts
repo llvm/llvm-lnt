@@ -10,6 +10,7 @@
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import {
+  flagAllowed,
   isTextKey,
   LIST_INFO,
   LISTS,
@@ -35,6 +36,7 @@ export interface DraftEntry {
   unit: string
   unit_abbrev: string
   bigger_is_better: boolean
+  dashboard: boolean
   searchable: boolean
   display: boolean
 }
@@ -64,6 +66,7 @@ function draftEntry(entry: AnyEntry, original: AnyEntry | null): DraftEntry {
     unit: entry.unit ?? '',
     unit_abbrev: entry.unit_abbrev ?? '',
     bigger_is_better: entry.bigger_is_better ?? false,
+    dashboard: entry.dashboard ?? false,
     searchable: entry.searchable ?? false,
     display: entry.display ?? false,
   }
@@ -98,9 +101,9 @@ export function addEntry(draft: Draft, list: ListName, entry: DraftEntry): Draft
 }
 
 /**
- * `draft` with the entry `id` of `list` changed. Only a `text` entry can be searchable or the
- * display field (D3), so changing the type away from `text` clears both. At most one commit field
- * is the display field (D4), so making one the display field makes the others not.
+ * `draft` with the entry `id` of `list` changed. Some flags only suit some types (D3), so changing
+ * the type to another clears them. At most one commit field is the display field (D4), so making
+ * one the display field makes the others not.
  */
 export function changeEntry(
   draft: Draft,
@@ -113,7 +116,10 @@ export function changeEntry(
     [list]: draft[list].map((entry) => {
       if (entry.id !== id) return changes.display === true ? { ...entry, display: false } : entry
       const changed = { ...entry, ...changes }
-      return changed.type === 'text' ? changed : { ...changed, searchable: false, display: false }
+      for (const key of LIST_INFO[list].keys) {
+        if (!isTextKey(key) && !flagAllowed(key, changed.type)) changed[key] = false
+      }
+      return changed
     }),
   }
 }

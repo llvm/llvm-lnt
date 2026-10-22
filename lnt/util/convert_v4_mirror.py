@@ -317,6 +317,9 @@ def _derive_schema(mirrored: MirroredSuite, target_suite: str,
             'unit': metric.get('unit') or None,
             'unit_abbrev': metric.get('unit_abbrev') or None,
             'bigger_is_better': bool(metric.get('bigger_is_better')),
+            # A Status metric holds codes rather than quantities, so only a
+            # Real metric is worth a trend on v5's Dashboard.
+            'dashboard': v5_type == 'real',
         })
 
     declared = [f.get('name')

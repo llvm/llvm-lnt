@@ -9,7 +9,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { HARDENED, LINUX, MACOS, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
-import { withOwnSuiteName } from './own-suite.ts'
+import { ownSuite, withOwnSuiteName, type OwnRun } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf } from './plot.ts'
 
 const LIBCXX_METRICS = [
@@ -163,5 +163,40 @@ test('says that a suite has no numeric metrics', async ({
 
     await expect(section(page, suite)).toContainText('This suite has no numeric metrics.')
     await expect(section(page, suite).getByRole('article')).toHaveCount(0)
+  })
+})
+
+test('leads from a suite that shows no metric to its schema, where one is chosen', async ({
+  page,
+  request,
+  signIn,
+  tokenFor,
+}, testInfo) => {
+  // Its metrics are numeric, but none is on the Dashboard; its runs give each a trend.
+  const run = (commit: string, ordinal: number): OwnRun => ({
+    machine: 'm1',
+    commit,
+    ordinal,
+    tests: [{ name: 'bench', samples: [{ execution_time: ordinal, compile_time: 0.5 }] }],
+  })
+  await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto('/')
+    const own = section(page, suite)
+    await expect(own).toContainText('This suite shows no metrics on the Dashboard.')
+    await expect(own.getByRole('article')).toHaveCount(0)
+
+    await own.getByRole('link', { name: 'its schema', exact: true }).click()
+    await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+    await page.getByRole('button', { name: 'Edit schema' }).click()
+    const editor = page.getByRole('region', { name: `Editing ${suite}` })
+    await editor.getByRole('checkbox', { name: 'On the Dashboard of metric compile_time' }).check()
+    await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
+    await expect(editor).toBeHidden()
+
+    await page.goBack()
+    await expect(page).toHaveURL('/')
+    await expect(own.getByRole('article')).toHaveText([/^compile_time/])
+    await expect(tracesOf(own.getByRole('article'))).toHaveCount(1)
   })
 })

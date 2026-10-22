@@ -24,15 +24,22 @@ import { machineColor } from './sparkline'
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
 /**
- * libcxx, with metrics of each kind: one with a unit and its abbreviation, one whose unit is its
- * abbreviation, a numeric one with neither, and one that is not numeric.
+ * libcxx, with metrics of each kind on the Dashboard: one with a unit and its abbreviation, one
+ * whose unit is its abbreviation, and a numeric one with neither; and off it, a numeric one and
+ * one that is not numeric.
  */
 const DASH_SUITE: SuiteSchema = {
   ...SUITE,
   metrics: [
     SUITE.metrics[0],
-    metric('cycles', { display_name: 'Cycles', unit: 'cycles', unit_abbrev: 'cycles' }),
-    metric('compile_status', { type: 'integer' }),
+    metric('cycles', {
+      display_name: 'Cycles',
+      unit: 'cycles',
+      unit_abbrev: 'cycles',
+      dashboard: true,
+    }),
+    metric('exit_status', { type: 'integer' }),
+    metric('compile_status', { type: 'integer', dashboard: true }),
     metric('hash', { type: 'text' }),
   ],
 }
@@ -42,6 +49,13 @@ const TEXT_SUITE: SuiteSchema = {
   ...BARE_SUITE,
   name: 'text_only',
   metrics: [metric('hash', { type: 'text' })],
+}
+
+/** A suite with numeric metrics, none of them on the Dashboard. */
+const UNCHOSEN_SUITE: SuiteSchema = {
+  ...BARE_SUITE,
+  name: 'unchosen',
+  metrics: [metric('size', { type: 'integer' }), metric('hash', { type: 'text' })],
 }
 
 const RAN = { last_run_at: '2026-08-25T14:22:41Z' }
@@ -96,7 +110,7 @@ function hoverEvent(curveNumber: number) {
 }
 
 describe('the Dashboard', () => {
-  it('shows a section per suite, and a card per numeric metric, in schema order', async () => {
+  it('shows a section per suite, and a card per metric on the Dashboard, in schema order', async () => {
     mockSuites([DASH_SUITE, TEXT_SUITE])
     mockMachineNames(['m1'])
     mockTrends(() => POINTS)
@@ -127,6 +141,23 @@ describe('the Dashboard', () => {
 
     expect(await main().findByText('This suite has no numeric metrics.')).toBeInTheDocument()
     expect(section('text_only').queryByRole('article')).not.toBeInTheDocument()
+    expect(section('text_only').queryByRole('link')).not.toBeInTheDocument()
+    expect(asked).toEqual([])
+  })
+
+  it('leads to the schema of a suite that shows none of its metrics, and asks nothing', async () => {
+    mockSuites([UNCHOSEN_SUITE])
+    const asked = mockMachines(() => ({ items: [] }))
+    renderPage('/')
+
+    expect(
+      await main().findByText(/^This suite shows no metrics on the Dashboard\./),
+    ).toBeInTheDocument()
+    expect(section('unchosen').queryByRole('article')).not.toBeInTheDocument()
+    expect(section('unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(
+      'href',
+      '/admin?tab=suites&suite=unchosen',
+    )
     expect(asked).toEqual([])
   })
 

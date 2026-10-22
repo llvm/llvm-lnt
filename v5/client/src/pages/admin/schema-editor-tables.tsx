@@ -23,6 +23,7 @@ import {
   type DraftEntry,
 } from './schema-editor-model'
 import {
+  flagProblem,
   isTextKey,
   KEY_HEADERS,
   LIST_INFO,
@@ -121,18 +122,16 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
         />
       )
     }
-    // Only a `text` entry can be searchable, or the display field (D3).
-    const textOnly = key !== 'bigger_is_better' && entry.type !== 'text'
-    const role = key === 'display' ? 'the display field' : 'searchable'
+    const problem = flagProblem(list, key, entry.type)
     return (
       <input
         type="checkbox"
         className={styles.checkbox}
         aria-label={label}
         checked={entry[key]}
-        disabled={textOnly}
+        disabled={problem !== undefined}
         aria-disabled={busy || undefined}
-        title={textOnly ? `Only a text ${noun} can be ${role}.` : undefined}
+        title={problem}
         onChange={(event) => update(entry, { [key]: event.target.checked })}
       />
     )

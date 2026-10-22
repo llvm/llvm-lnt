@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { comparePath, graphPath, profilesPath } from './paths'
+import { adminSuitePath, comparePath, graphPath, profilesPath } from './paths'
 
 describe('comparePath', () => {
   it('sets what is given of side A only', () => {
@@ -79,5 +79,11 @@ describe('profilesPath', () => {
     expect(profilesPath({ suite: 'nts', run: 'u1', test: 't' }, { suite: 'x', commit: 'c2' })).toBe(
       '/profiles?suite_a=nts&run_a=u1&test_a=t&suite_b=x&commit_b=c2',
     )
+  })
+})
+
+describe('adminSuitePath', () => {
+  it("selects the suite in the Admin page's Test Suites tab (AD2)", () => {
+    expect(adminSuitePath('nts')).toBe('/admin?tab=suites&suite=nts')
   })
 })

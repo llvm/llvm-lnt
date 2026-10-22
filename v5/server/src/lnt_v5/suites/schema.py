@@ -189,6 +189,25 @@ class Metric(Entry):
             "better, as for a time."
         ),
     )
+    # Last, so that the key global revision 0004 appends to stored metrics is where the server
+    # writes it too.
+    dashboard: bool = Field(
+        default=False,
+        description=(
+            "Whether the web UI's Dashboard shows a card for this metric. Only `real` and "
+            "`integer` metrics can be shown."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _dashboard_is_numeric_only(self) -> Self:
+        # D3: a card charts a geomean, which only a numeric metric has.
+        if self.dashboard and self.type not in NUMERIC_TYPES:
+            raise ValueError(
+                f"'{self.name}' is '{self.type.value}', and only a 'real' or 'integer' metric can "
+                f"be shown on the dashboard"
+            )
+        return self
 
 
 # Optional metadata on `{suite}.commit` (D5).

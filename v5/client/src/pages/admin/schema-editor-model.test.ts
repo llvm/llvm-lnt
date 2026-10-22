@@ -151,6 +151,15 @@ describe('changeEntry', () => {
     })
   })
 
+  it('clears dashboard when the type changes to one that is not numeric, and only then', () => {
+    const { draft, entry } = withEntry(EMPTY_DRAFT, 'metrics', 'size')
+    const flagged = changeEntry(draft, 'metrics', entry.id, { dashboard: true })
+    const integer = changeEntry(flagged, 'metrics', entry.id, { type: 'integer' })
+    expect(integer.metrics[0]).toMatchObject({ type: 'integer', dashboard: true })
+    const text = changeEntry(integer, 'metrics', entry.id, { type: 'text' })
+    expect(text.metrics[0]).toMatchObject({ type: 'text', dashboard: false })
+  })
+
   it('makes one commit field at most the display field', () => {
     const first = withEntry(EMPTY_DRAFT, 'commit_fields', 'a')
     const second = withEntry(first.draft, 'commit_fields', 'b')
@@ -225,6 +234,7 @@ describe('copyOf and schemaOf', () => {
           unit: null,
           unit_abbrev: null,
           bigger_is_better: false,
+          dashboard: false,
         },
       ],
       commit_fields: [
@@ -314,6 +324,9 @@ describe('patchOf', () => {
       patchOf(changed('metrics', 'execution_time', { display_name: ' Time ', unit: '' })),
     ).toEqual({
       metrics: { update: [{ name: 'execution_time', display_name: 'Time', unit: null }] },
+    })
+    expect(patchOf(changed('metrics', 'execution_time', { dashboard: false }))).toEqual({
+      metrics: { update: [{ name: 'execution_time', dashboard: false }] },
     })
     expect(
       patchOf(changed('machine_fields', 'os', { display_name: 'OS', searchable: false })),

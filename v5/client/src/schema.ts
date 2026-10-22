@@ -33,9 +33,12 @@ export function formatFieldValue(value: FieldValue, type: Schemas['AttributeType
   return String(value)
 }
 
+/** The numeric types (D3). */
+export const NUMERIC_TYPES: readonly Schemas['AttributeType'][] = ['real', 'integer']
+
 /** Whether `metric` is numeric (D3): what a value axis, or a number's formatting, needs. */
 export function isNumeric(metric: Metric): boolean {
-  return metric.type === 'real' || metric.type === 'integer'
+  return NUMERIC_TYPES.includes(metric.type)
 }
 
 /** The metric a page shows unless told otherwise: the first numeric one, else the first (DT2). */

@@ -161,6 +161,7 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:  "metrics": [
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "bigger_is_better": false,
+# CHECK-NEXT:    "dashboard": true,
 # CHECK-NEXT:    "display_name": "Compile Time",
 # CHECK-NEXT:    "name": "compile_time",
 # CHECK-NEXT:    "type": "real",
@@ -169,6 +170,7 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:   },
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "bigger_is_better": true,
+# CHECK-NEXT:    "dashboard": false,
 # CHECK-NEXT:    "display_name": null,
 # CHECK-NEXT:    "name": "exec_status",
 # CHECK-NEXT:    "type": "integer",
@@ -177,6 +179,7 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:   },
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "bigger_is_better": false,
+# CHECK-NEXT:    "dashboard": false,
 # CHECK-NEXT:    "display_name": null,
 # CHECK-NEXT:    "name": "hash",
 # CHECK-NEXT:    "type": "text",
