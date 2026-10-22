@@ -25,10 +25,10 @@ from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import (
     CommitField,
     Entry,
+    EntryName,
     Label,
     MachineField,
     Metric,
-    Name,
     SuiteSchema,
 )
 from lnt_v5.suites.store import bump, normalized_json
@@ -47,7 +47,7 @@ class _EntryUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
-    name: Name = Field(description="The name of the metric or field to change.")
+    name: EntryName = Field(description="The name of the metric or field to change.")
     display_name: Label | None = Field(
         default=None,
         description="A friendlier name for the UI to show instead of `name`. Null removes it.",
@@ -141,7 +141,7 @@ class _Changes[E: Entry, U: _EntryUpdate](BaseModel):
     update: list[U] = Field(
         default_factory=list, description="Changes to the settings of existing entries."
     )
-    remove: list[Name] = Field(
+    remove: list[EntryName] = Field(
         default_factory=list,
         description=(
             "Names of the entries to remove. This permanently deletes their data, so the request "

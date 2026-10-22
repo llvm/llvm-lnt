@@ -38,14 +38,17 @@ function problemOf(list: ListName, name: string) {
 
 describe('nameProblems', () => {
   it("accepts every name D4's rule allows", () => {
-    for (const name of ['a', 'execution_time', 'x86_64', 'order', 'user', 'a'.repeat(63)]) {
+    const names = ['a', 'execution_time', 'x86_64', 'order', 'user', 'IPC', 'Exec_Time']
+    for (const name of [...names, 'a'.repeat(63)]) {
       expect(problemOf('metrics', name)).toBeUndefined()
     }
   })
 
   it("refuses a name D4's rule does not allow", () => {
-    for (const name of ['Execution', '1st', '_x', 'with space', 'dash-ed', ' a', 'é']) {
-      expect(problemOf('metrics', name)).toMatch(/lowercase letters, digits and underscores/)
+    for (const name of ['1st', '_x', 'with space', 'dash-ed', ' a', 'é']) {
+      expect(problemOf('metrics', name)).toBe(
+        'A name has only letters, digits and underscores, and starts with a letter.',
+      )
     }
     expect(problemOf('metrics', 'a'.repeat(64))).toBe('A name is at most 63 characters long.')
   })
@@ -63,6 +66,9 @@ describe('nameProblems', () => {
     for (const name of ['id', 'name', 'tracked']) {
       expect(problemOf('machine_fields', name)).toBeDefined()
     }
+    // Compared exactly: D4 makes names case-sensitive.
+    expect(problemOf('metrics', 'Run_ID')).toBeUndefined()
+    expect(problemOf('machine_fields', 'ID')).toBeUndefined()
     expect(problemOf('metrics', 'id')).toBeUndefined()
     expect(problemOf('metrics', 'tag')).toBeUndefined()
     expect(problemOf('metrics', 'name')).toBeUndefined()
@@ -82,6 +88,10 @@ describe('nameProblems', () => {
     expect(entryNameProblem(second.draft, 'metrics', second.entry)).toBe(
       "Another metric is named 'os'.",
     )
+
+    // Names that differ only by case are different names (D4).
+    const twin = withEntry(first.draft, 'metrics', 'OS')
+    expect(entryNameProblem(twin.draft, 'metrics', twin.entry)).toBeUndefined()
 
     const field = withEntry(first.draft, 'machine_fields', 'os')
     expect(entryNameProblem(field.draft, 'machine_fields', field.entry)).toBeUndefined()
@@ -125,6 +135,8 @@ describe('suiteNameProblem', () => {
 
   it("refuses a name D4's rule does not allow, or a suite has", () => {
     expect(suiteNameProblem('My Suite', [])).toMatch(/lowercase letters/)
+    // Unlike an entry's name (D4).
+    expect(suiteNameProblem('NTS', [])).toMatch(/lowercase letters/)
     expect(suiteNameProblem('a'.repeat(64), [])).toMatch(/at most 63/)
     expect(suiteNameProblem('libcxx', ['libcxx'])).toBe("There is already a suite named 'libcxx'.")
   })

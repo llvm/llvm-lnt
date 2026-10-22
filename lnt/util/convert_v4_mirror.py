@@ -40,8 +40,10 @@ METRIC_TYPES = {'Real': 'real', 'Status': 'integer', 'Hash': 'text'}
 # Suffix given to a machine whose name an older machine already has.
 DUPLICATE_SUFFIX = '-import-%s'
 
-# v5's rules for names of suites and of schema entries.
-_NAME_RE = re.compile(r'[a-z][a-z0-9_]*')
+# v5's rules for names of suites and of schema entries. An entry's name may
+# have capitals, and its case is significant; a suite's is lowercase only.
+_SUITE_NAME_RE = re.compile(r'[a-z][a-z0-9_]*')
+_ENTRY_NAME_RE = re.compile(r'[A-Za-z][A-Za-z0-9_]*')
 _NAME_MAX = 63
 _RESERVED_SUITE_NAMES = {'public', 'information_schema'}
 _V5_TYPES = {'real', 'integer', 'text', 'datetime'}
@@ -229,8 +231,9 @@ class Plan:
     ordinals: dict[str, int | None]  # commit value -> ordinal
 
 
-def _check_name(name: Any, what: str, problems: list[str]) -> None:
-    if not isinstance(name, str) or not _NAME_RE.fullmatch(name) or \
+def _check_name(name: Any, rule: re.Pattern[str], what: str,
+                problems: list[str]) -> None:
+    if not isinstance(name, str) or not rule.fullmatch(name) or \
             len(name) > _NAME_MAX:
         problems.append('%s: %r is not a valid v5 name' % (what, name))
 
@@ -260,7 +263,7 @@ def check_schema(schema: JSONObject, problems: list[str]) -> None:
     """
     found: list[str] = []
     name = schema.get('name')
-    _check_name(name, 'suite name', found)
+    _check_name(name, _SUITE_NAME_RE, 'suite name', found)
     if isinstance(name, str) and \
             (name in _RESERVED_SUITE_NAMES or name.startswith('pg_')):
         found.append('suite name: %r is reserved by v5' % name)
@@ -277,7 +280,7 @@ def check_schema(schema: JSONObject, problems: list[str]) -> None:
         for entry in entries:
             entry_name, entry_type = entry.get('name'), entry.get('type')
             what = '%s entry %r' % (key, entry_name)
-            _check_name(entry_name, what, found)
+            _check_name(entry_name, _ENTRY_NAME_RE, what, found)
             if isinstance(entry_name, str):
                 if entry_name in builtins:
                     found.append('%s: the name is reserved by v5' % what)

@@ -95,12 +95,36 @@ class TestSuiteName:
 
 class TestEntryNames:
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
-    @pytest.mark.parametrize("name", ["Compile Time", "CompileTime", "_internal", "2nd_run", ""])
-    def test_follow_the_same_rule_as_a_suite_name(self, list_name: str, name: str) -> None:
-        # An entry name becomes a column name, so it is an identifier for the same reason a suite
-        # name is (D4).
+    @pytest.mark.parametrize(
+        "name", ["Compile Time", "_internal", "2nd_run", "dash-ed", "é", "ipc\n", "", "a" * 64]
+    )
+    def test_must_be_an_identifier(self, list_name: str, name: str) -> None:
+        # An entry name becomes a column name, so it is an identifier (D4).
         with pytest.raises(ValidationError):
             SuiteSchema.model_validate(schema(**{list_name: [{"name": name, "type": "text"}]}))
+
+    @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
+    @pytest.mark.parametrize("name", ["CompileTime", "A" * 63])
+    def test_may_have_capitals_unlike_a_suite_name(self, list_name: str, name: str) -> None:
+        parsed = SuiteSchema.model_validate(schema(**{list_name: [{"name": name, "type": "text"}]}))
+        assert [entry.name for entry in getattr(parsed, list_name)] == [name]
+
+    @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
+    def test_are_case_sensitive(self, list_name: str) -> None:
+        # D4: names that differ only by case are different names, and so different columns.
+        entries = [{"name": "IPC", "type": "real"}, {"name": "ipc", "type": "real"}]
+        parsed = SuiteSchema.model_validate(schema(**{list_name: entries}))
+        assert [entry.name for entry in getattr(parsed, list_name)] == ["IPC", "ipc"]
+
+    @pytest.mark.parametrize(
+        ("list_name", "name"),
+        [("metrics", "Run_ID"), ("commit_fields", "ID"), ("machine_fields", "Name")],
+    )
+    def test_may_differ_from_a_built_in_column_by_case_alone(
+        self, list_name: str, name: str
+    ) -> None:
+        # D4: the collision with a built-in column is checked exactly, like uniqueness.
+        SuiteSchema.model_validate(schema(**{list_name: [{"name": name, "type": "text"}]}))
 
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
     def test_may_be_a_postgresql_reserved_word(self, list_name: str) -> None:

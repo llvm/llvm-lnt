@@ -274,11 +274,10 @@ describe('the entries', () => {
 describe('the name checks', () => {
   it("refuse an entry's name, saying why, with the red halo", async () => {
     await openEditor()
-    addEntry('metric', 'Size')
+    addEntry('metric', '2nd_size')
 
     const name = screen.getByRole('textbox', { name: 'Name of metric 1' })
-    const why =
-      'A name has only lowercase letters, digits and underscores, and starts with a letter.'
+    const why = 'A name has only letters, digits and underscores, and starts with a letter.'
     expect(name).toHaveAttribute('aria-invalid', 'true')
     expect(name).toHaveAttribute('title', why)
     expect(name).toHaveAccessibleDescription(why)
