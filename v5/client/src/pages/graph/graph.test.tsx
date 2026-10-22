@@ -339,9 +339,11 @@ describe('the selection (GR6, GR7, GR14)', () => {
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
     expect(currentUrl()).toBe('/graph?suite=libcxx&machine=m1&metric=execution_time')
-    // Followed by " · loading..." while the tests' data loads.
+    // "loading..." comes last, after the URL note, while the tests' data loads.
     const count = main().getByText(/^11 of 11 tests selected/)
-    expect(count).toHaveTextContent(/^11 of 11 tests selected · too many to reflect in the URL/)
+    expect(count).toHaveTextContent(
+      /^11 of 11 tests selected · too many to reflect in the URL · loading\.\.\.$/,
+    )
     expect(within(count).getByText(/too many/)).toHaveAccessibleDescription(
       'The URL reflects a selection of at most 10 tests.',
     )
@@ -357,7 +359,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(`/graph?suite=libcxx&machine=m1&metric=execution_time&test_filter=t0&${tests}`)
     await waitFor(() => expect(listed()).toHaveLength(10))
 
-    expect(main().getByText(/^10 of 10 matching tests selected/)).toHaveTextContent(
+    expect(main().getByText(/^10 of 10 matching tests selected/).textContent).toBe(
       '10 of 10 matching tests selected · 11 tests in total · 1 more hidden by the filter · ' +
         'too many to reflect in the URL',
     )
@@ -396,7 +398,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
       await waitFor(() => expect(listed()).toEqual(['t100']))
 
       const count = main().getByText(/^0 of 1 matching tests selected/)
-      expect(count).toHaveTextContent(
+      expect(count.textContent).toBe(
         '0 of 1 matching tests selected · 101 tests in total · 100 more hidden by the filter · ' +
           'too many to reflect in the URL',
       )
