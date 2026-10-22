@@ -786,8 +786,9 @@ export interface paths {
         };
         /**
          * Download a machine's values of a metric
-         * @description All of one machine's values of a metric, in a single response of newline-delimited JSON
-         *     (one object per line), for tools that analyse a whole series. Values come grouped by test, in
+         * @description One machine's values of a metric, in a single response of newline-delimited JSON (one
+         *     object per line): all of them, for tools that analyse a whole series, or those of the tests
+         *     and commits the filters select, such as one test's to chart it. Values come grouped by test, in
          *     order of test name (by code point), then by commit ordinal, with the commits that have none
          *     last; then by commit and run, so that the same data always comes in the same order.
          *

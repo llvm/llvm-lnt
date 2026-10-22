@@ -1,8 +1,9 @@
 """A machine's time series, streamed (E9's `GET /series`).
 
-The whole series in one response, as NDJSON, rather than a page at a time: the order a series is
-analysed in -- by test, then by commit -- is one no page cursor can follow cheaply, and a tool that
-wants all of it has no use for pages anyway.
+The whole series, or the tests or commits the request selects, in one response, as NDJSON, rather
+than a page at a time: the order a series is analysed in -- by test, then by commit -- is one no
+page cursor can follow cheaply, and neither a tool that wants all of it nor a chart of one test has
+any use for pages.
 
 The response is read a batch of tests at a time, each batch in its own short statement over the
 machine's runs, which the planner can join to their samples through the sample table's primary key
@@ -348,8 +349,9 @@ def get_series(
         ),
     ] = None,
 ) -> StreamingResponse:
-    """All of one machine's values of a metric, in a single response of newline-delimited JSON
-    (one object per line), for tools that analyse a whole series. Values come grouped by test, in
+    """One machine's values of a metric, in a single response of newline-delimited JSON (one
+    object per line): all of them, for tools that analyse a whole series, or those of the tests
+    and commits the filters select, such as one test's to chart it. Values come grouped by test, in
     order of test name (by code point), then by commit ordinal, with the commits that have none
     last; then by commit and run, so that the same data always comes in the same order.
 

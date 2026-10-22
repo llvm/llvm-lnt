@@ -5,7 +5,7 @@ import type { PlotData } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { colorOfName } from '../../chart-colors'
 import { cursorPage, machine } from '../../test/fixtures'
-import { errorResponse, mockApi } from '../../test/mock-api'
+import { errorResponse, mockApi, mockSeries, ndjsonResponse } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
@@ -34,32 +34,36 @@ import {
   pointOf,
   testPage,
   testTable,
+  answerSeries,
   traces,
+  type Recorded,
   type Sample,
 } from './graph-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
+/** The samples of test a on m1, c10's then c20's, as `GET /series` serves them. */
+const OF_A = [pointOf('m1', 'a', ['c10', 'r1', 1]), pointOf('m1', 'a', ['c20', 'r2', 2])]
+
 /**
- * Answer `POST /query` for test a on m1 with two pages, c10 then c20, the second once `second`
- * says how, and record the cursor of each request.
+ * Answer each request to `GET /series` with `answer`, given how many were sent before it, and
+ * record its signal.
  */
-function mockTwoPages(second: () => Promise<Response | null> = async () => null) {
-  const cursors: (string | null | undefined)[] = []
+function mockAnswers(answer: (sent: number) => Response) {
+  const signals: AbortSignal[] = []
   server.use(
-    mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-      const { cursor } = await request.json()
-      cursors.push(cursor)
-      if (cursor) {
-        const answer = await second()
-        if (answer !== null) return answer
-      }
-      const sample: Sample = cursor ? ['c20', 'r2', 2] : ['c10', 'r1', 1]
-      return HttpResponse.json(cursorPage([pointOf('m1', 'a', sample)], cursor ? null : '1'))
+    mockSeries(({ request }) => {
+      signals.push(request.signal)
+      return answer(signals.length - 1)
     }),
   )
-  return cursors
+  return signals
+}
+
+/** Answer `GET /series` with no line, the body of each response held until `held` opens. */
+function mockHeld(recorded: Recorded, held: { promise: Promise<void> }) {
+  answerSeries(recorded, () => ndjsonResponse([], { wait: () => held.promise }))
 }
 
 describe('the Graph page (GR1)', () => {
@@ -195,7 +199,7 @@ describe('the Graph page (GR1)', () => {
 
     await waitFor(() => expect(listed()).toEqual(['a', 'b', 'c', 'd']))
     expect(main().getByText('0 of 4 tests selected')).toHaveAttribute('role', 'status')
-    expect(recorded.queries).toEqual([])
+    expect(recorded.series).toEqual([])
     expect(traces()).toEqual([])
   })
 
@@ -207,9 +211,10 @@ describe('the Graph page (GR1)', () => {
     fireEvent.click(box('a'))
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
-    // m2 has no test a: it is not asked about it, which the API would refuse (E9).
-    expect(recorded.queries.map(({ body }) => [body.machine, body.test, body.sort])).toEqual([
-      ['m1', ['a'], 'commit'],
+    // m2 has no test a: it is not asked about it, which the API would refuse (E9). Only the
+    // commits with an ordinal, the only ones the x-axis places (GR3).
+    expect(recorded.series.map(({ query }) => query.toString())).toEqual([
+      'metric=execution_time&machine=m1&test=a&has_ordinal=true',
     ])
     expect(currentUrl()).toBe(`${GRAPHED}&test=a`)
   })
@@ -280,17 +285,7 @@ describe('the aggregation (GR1)', () => {
 
     expect(traces()).toEqual(['a - m1: c10=5'])
     expect(currentUrl()).toContain('sample_agg=max&run_agg=min')
-    expect(recorded.queries).toHaveLength(1)
-  })
-
-  it('combines the samples of a commit that spans two pages as one', async () => {
-    mockWorld({ samples: SPREAD, pageSize: 2 })
-    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a&run_agg=max')
-
-    // Run r1 spans both pages: its median is still 3, not one value per page.
-    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=10']))
-    await pickOption('Run aggregation', 'min')
-    expect(traces()).toEqual(['a - m1: c10=3'])
+    expect(recorded.series).toHaveLength(1)
   })
 })
 
@@ -547,7 +542,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(`${GRAPHED}&test=b&test=zzz`)
 
     await waitFor(() => expect(currentUrl()).toBe(`${GRAPHED}&test=b`))
-    expect(recorded.queries.flatMap(({ body }) => body.test)).not.toContain('zzz')
+    expect(recorded.series.flatMap(({ query }) => query.getAll('test'))).not.toContain('zzz')
   })
 
   it('keeps the selection as the metric changes, then drops what the new lists lack', async () => {
@@ -596,20 +591,17 @@ describe('the selection (GR6, GR7, GR14)', () => {
 })
 
 describe('loading (GR2, GR4, GR8)', () => {
-  it('draws the pages of a test as they arrive, saying that it is loading meanwhile', async () => {
-    const second = gate()
+  it('draws a test once all its data has arrived, saying it is loading meanwhile', async () => {
+    const rest = gate()
     mockWorld()
-    mockTwoPages(async () => {
-      await second.promise
-      return null
-    })
+    mockAnswers(() => ndjsonResponse([[OF_A[0]], [OF_A[1]]], { wait: () => rest.promise }))
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
 
-    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1']))
-    expect(main().getByText('1 of 3 tests selected, loading...')).toBeInTheDocument()
+    expect(await main().findByText('1 of 3 tests selected, loading...')).toBeInTheDocument()
     expect(testTable().getByText('(loading...)')).toBeInTheDocument()
+    expect(traces()).toEqual([])
 
-    act(() => second.open())
+    act(() => rest.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
     expect(main().getByText('1 of 3 tests selected')).toBeInTheDocument()
   })
@@ -621,31 +613,44 @@ describe('loading (GR2, GR4, GR8)', () => {
 
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
-    await waitFor(() => expect(recorded.queries).toHaveLength(6))
-    const asked = recorded.queries.map(({ body }) => `${body.machine}/${body.test!.join()}`)
+    await waitFor(() => expect(recorded.series).toHaveLength(6))
+    const asked = recorded.series.map(({ query }) => `${query.get('machine')}/${query.get('test')}`)
     expect(asked.sort()).toEqual(['m1/a', 'm1/b', 'm1/c', 'm2/b', 'm2/c', 'm2/d'])
   })
 
-  it('sends at most 6 requests at once, and the others as those are answered', async () => {
+  it('sends at most 6 requests at once, and the others once those have all arrived', async () => {
     const held = gate()
     const names = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8']
     const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        recorded.queries.push({ body: await request.json(), signal: request.signal })
-        await held.promise
-        return HttpResponse.json(cursorPage([]))
-      }),
-    )
+    // The responses start at once, and only their bodies are held.
+    mockHeld(recorded, held)
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
     await waitFor(() => expect(listed()).toHaveLength(8))
 
     fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
 
-    await waitFor(() => expect(recorded.queries).toHaveLength(6))
+    await waitFor(() => expect(recorded.series).toHaveLength(6))
     act(() => held.open())
-    await waitFor(() => expect(recorded.queries).toHaveLength(8))
+    await waitFor(() => expect(recorded.series).toHaveLength(8))
     await waitFor(() => expect(main().getByText('8 of 8 tests selected')).toBeInTheDocument())
+  })
+
+  it('sends the next request once a test whose data is arriving is deselected', async () => {
+    const held = gate()
+    const names = ['t1', 't2', 't3', 't4', 't5', 't6', 't7']
+    const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
+    mockHeld(recorded, held)
+    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time')
+    await waitFor(() => expect(listed()).toHaveLength(7))
+    fireEvent.click(testTable().getByRole('checkbox', { name: 'Select all tests shown' }))
+    await waitFor(() => expect(recorded.series).toHaveLength(6))
+
+    // Its response's body never ends by itself, so only stopping reading it frees its slot.
+    fireEvent.click(box('t1'))
+
+    await waitFor(() => expect(recorded.series).toHaveLength(7))
+    expect(recorded.series[6].query.getAll('test')).toEqual(['t7'])
+    act(() => held.open())
   })
 
   it('asks for nothing again when a test is selected again', async () => {
@@ -657,27 +662,22 @@ describe('loading (GR2, GR4, GR8)', () => {
     fireEvent.click(box('a'))
 
     await waitFor(() => expect(traces()).toHaveLength(1))
-    expect(recorded.queries).toHaveLength(1)
+    expect(recorded.series).toHaveLength(1)
   })
 
   it("stops loading a machine's data once the machine is removed", async () => {
     const held = gate()
     const recorded = mockWorld()
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        recorded.queries.push({ body: await request.json(), signal: request.signal })
-        await held.promise
-        return HttpResponse.json(cursorPage([]))
-      }),
-    )
+    mockHeld(recorded, held)
     renderPage(`${GRAPHED}&test=b`)
-    await waitFor(() => expect(recorded.queries).toHaveLength(2))
+    await waitFor(() => expect(recorded.series).toHaveLength(2))
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m2' }))
 
-    const m2 = recorded.queries.find(({ body }) => body.machine === 'm2')!
+    const m2 = recorded.series.find(({ query }) => query.get('machine') === 'm2')!
     await waitFor(() => expect(m2.signal.aborted).toBe(true))
-    expect(recorded.queries.find(({ body }) => body.machine === 'm1')!.signal.aborted).toBe(false)
+    const m1 = recorded.series.find(({ query }) => query.get('machine') === 'm1')!
+    expect(m1.signal.aborted).toBe(false)
     act(() => held.open())
   })
 
@@ -726,70 +726,38 @@ describe('loading (GR2, GR4, GR8)', () => {
     await waitFor(() => expect(traces()).toEqual(['b - m1: c10=3', 'b - m2: c40=4']))
   })
 
-  it('starts a test over from its first page on Retry, adding no point twice', async () => {
+  it('says a response cut short failed, and loads the test again, whole, on Retry', async () => {
     mockWorld()
-    let failing = true
-    const sent = mockTwoPages(async () =>
-      failing ? errorResponse(500, 'internal_error', 'The page broke.') : null,
+    const sent = mockAnswers((before) =>
+      before === 0 ? ndjsonResponse([[OF_A[0]]], { cut: true }) : ndjsonResponse([OF_A]),
     )
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
 
     expect(await main().findByText(/data of some tests could not be loaded/)).toBeInTheDocument()
-    expect(traces()).toEqual(['a - m1: c10=1'])
-    failing = false
+    expect(traces()).toEqual([])
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
 
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
-    expect(sent).toEqual([null, '1', null, '1'])
+    expect(sent).toHaveLength(2)
   })
 
-  it('starts a test over by itself after a refused cursor, showing what it had', async () => {
+  it('loads a test deselected while loading again, whole, once reselected', async () => {
     mockWorld()
-    const restart = gate()
-    const sent: (string | null | undefined)[] = []
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        const { cursor } = await request.json()
-        sent.push(cursor)
-        // The first cursor is refused, as after a change to the suite's schema (I2).
-        if (cursor && sent.length === 2) {
-          return errorResponse(400, 'invalid_cursor', 'This cursor was not issued here.')
-        }
-        if (!cursor && sent.length > 1) await restart.promise
-        const sample: Sample = cursor ? ['c20', 'r2', 2] : ['c10', 'r1', 1]
-        return HttpResponse.json(cursorPage([pointOf('m1', 'a', sample)], cursor ? null : '1'))
-      }),
+    const first = gate()
+    const sent = mockAnswers((before) =>
+      before === 0
+        ? ndjsonResponse([[OF_A[0]], [OF_A[1]]], { wait: () => first.promise })
+        : ndjsonResponse([OF_A]),
     )
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
-
-    await waitFor(() => expect(sent).toEqual([null, '1', null]))
-    // Drawn once the chart catches up with the data, which it redraws at most every so often.
-    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1']))
-    expect(main().queryByRole('alert')).not.toBeInTheDocument()
-
-    act(() => restart.open())
-    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
-    expect(sent).toEqual([null, '1', null, '1'])
-  })
-
-  it('loads a test deselected while loading again from its first page once reselected', async () => {
-    mockWorld()
-    const [first, again] = [gate(), gate()]
-    let seconds = 0
-    const sent = mockTwoPages(async () => {
-      await (++seconds === 1 ? first : again).promise
-      return null
-    })
-    renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a')
-    await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1']))
+    await waitFor(() => expect(sent).toHaveLength(1))
 
     fireEvent.click(box('a'))
+    await waitFor(() => expect(sent[0].aborted).toBe(true))
     fireEvent.click(box('a'))
 
-    await waitFor(() => expect(sent).toEqual([null, '1', null, '1']))
-    expect(main().getByText('1 of 3 tests selected, loading...')).toBeInTheDocument()
-    act(() => again.open())
     await waitFor(() => expect(traces()).toEqual(['a - m1: c10=1 c20=2']))
+    expect(sent).toHaveLength(2)
     expect(main().getByText('1 of 3 tests selected')).toBeInTheDocument()
     act(() => first.open())
   })
@@ -797,38 +765,26 @@ describe('loading (GR2, GR4, GR8)', () => {
   it('stops loading a test once it is deselected', async () => {
     const held = gate()
     const recorded = mockWorld()
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        recorded.queries.push({ body: await request.json(), signal: request.signal })
-        await held.promise
-        return HttpResponse.json(cursorPage([]))
-      }),
-    )
+    mockHeld(recorded, held)
     renderPage(`${GRAPHED}&test=a`)
-    await waitFor(() => expect(recorded.queries).toHaveLength(1))
+    await waitFor(() => expect(recorded.series).toHaveLength(1))
 
     fireEvent.click(box('a'))
 
-    await waitFor(() => expect(recorded.queries[0].signal.aborted).toBe(true))
+    await waitFor(() => expect(recorded.series[0].signal.aborted).toBe(true))
     act(() => held.open())
   })
 
   it('stops loading only the test deselected, not the others', async () => {
     const held = gate()
     const recorded = mockWorld()
-    server.use(
-      mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-        recorded.queries.push({ body: await request.json(), signal: request.signal })
-        await held.promise
-        return HttpResponse.json(cursorPage([]))
-      }),
-    )
+    mockHeld(recorded, held)
     renderPage('/graph?suite=libcxx&machine=m1&metric=execution_time&test=a&test=b')
-    await waitFor(() => expect(recorded.queries).toHaveLength(2))
+    await waitFor(() => expect(recorded.series).toHaveLength(2))
 
     fireEvent.click(box('a'))
 
-    const of = (test: string) => recorded.queries.find(({ body }) => body.test![0] === test)!
+    const of = (test: string) => recorded.series.find(({ query }) => query.get('test') === test)!
     await waitFor(() => expect(of('a').signal.aborted).toBe(true))
     expect(of('b').signal.aborted).toBe(false)
     act(() => held.open())

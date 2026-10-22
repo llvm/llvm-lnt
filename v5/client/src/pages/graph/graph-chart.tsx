@@ -111,7 +111,7 @@ const computed = new WeakMap<readonly Measurement[], Computed>()
 
 /**
  * The points of a trace measured by `measurements`, computed again only when they, the x-axis or
- * the aggregation change: a page that arrives changes the measurements of its own trace only.
+ * the aggregation change: a trace whose data arrives changes its own measurements only.
  */
 function pointsFor(
   measurements: readonly Measurement[],
@@ -245,8 +245,7 @@ export function GraphChart({
     return drawn
   }, [metric, machines, listed, series, selected, positions, sampleAgg, runAgg])
 
-  // A line per baseline and selected test it has a value for, once all its data has arrived, since
-  // a test's samples may span its pages.
+  // A line per baseline and selected test it has a value for, once all its data has arrived.
   const lines = useMemo(
     () =>
       baselines.flatMap(({ baseline, display, samples }): BaselineLine[] =>
@@ -456,7 +455,6 @@ export function GraphChart({
             display={displayValue(point.commit)}
             runs={runsOf(samples)}
             previous={trace.points[index - 1] ?? null}
-            state={series.stateOf(trace.machine, trace.test)}
             sampleAgg={sampleAgg}
             runAgg={runAgg}
             highlighted={highlights.includes(point.commit)}

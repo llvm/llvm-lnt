@@ -5,14 +5,13 @@
 
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { HttpResponse } from 'msw'
 import type { Layout, PlotData } from 'plotly.js'
 import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
 import { chartProps } from '../../test/chart-props'
 import { BARE_SUITE, SUITE, commit, cursorPage, machine, metric } from '../../test/fixtures'
-import { mockApi } from '../../test/mock-api'
+import { mockSeries, ndjsonResponse } from '../../test/mock-api'
 import { main, mockCommits, mockMachines, mockSuites, mockTests } from '../../test/page'
 import { server } from '../../test/server'
 
@@ -44,8 +43,6 @@ export interface World {
   commits?: Record<string, number[]>
   /** The samples of each test on each machine, under `machine/test`. */
   samples?: Record<string, Sample[]>
-  /** How many points a page of `POST /query` holds. */
-  pageSize?: number
   /** What the list of suites waits for before it is answered. */
   suitesWait?: () => Promise<void>
   /** The suites besides GRAPH_SUITE and TEXT_SUITE, which hold the same machines and data. */
@@ -87,27 +84,26 @@ export const pointOf = (
 
 /** What the page asked of the API. */
 export interface Recorded {
-  /** The bodies `POST /query` was sent, in order, and the signal of each request. */
-  queries: { body: Schemas['QueryRequest']; signal: AbortSignal }[]
+  /** What `GET /series` was asked for, in order, and the signal of each request. */
+  series: { query: URLSearchParams; signal: AbortSignal }[]
   /** The commits looked up with `GET commits?commit=`, in order, as `{machine}/{commit}`. */
   lookups: string[]
 }
 
 /**
  * Mock the API for the Graph page: GRAPH_SUITE and TEXT_SUITE, and the world described, in every
- * suite. `POST /query` answers a test's data, or, without `test`, every test's, as for a baseline,
- * at `commit` if given.
+ * suite. `GET /series` answers a test's data, or, without `test`, every test's, as for a baseline,
+ * at `commit` if given, in one chunk.
  */
 export function mockWorld({
   machines = MACHINES,
   tests = TESTS,
   commits = COMMITS,
   samples = SAMPLES,
-  pageSize = 10_000,
   suitesWait,
   suites = [],
 }: World = {}): Recorded {
-  const recorded: Recorded = { queries: [], lookups: [] }
+  const recorded: Recorded = { series: [], lookups: [] }
   mockSuites([GRAPH_SUITE, TEXT_SUITE, ...suites], { wait: suitesWait })
   mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
   mockTests((query) => testPage(tests[query.get('machine')!] ?? []))
@@ -117,23 +113,29 @@ export function mockWorld({
     if (only !== null) recorded.lookups.push(`${query.get('machine')}/${only}`)
     return cursorPage(only === null ? listed : listed.filter((entry) => entry.value === only))
   })
+  answerSeries(recorded, (query) => {
+    const machineName = query.get('machine')!
+    const commit = query.get('commit')
+    const named = query.has('test') ? query.getAll('test') : (tests[machineName] ?? [])
+    const points = named.flatMap((test) =>
+      (samples[`${machineName}/${test}`] ?? [])
+        .filter(([at]) => commit === null || at === commit)
+        .map((s) => pointOf(machineName, test, s)),
+    )
+    return ndjsonResponse([points])
+  })
+  return recorded
+}
+
+/** Answer `GET /series` with `respond`, given the request's query, recording it in `recorded`. */
+export function answerSeries(recorded: Recorded, respond: (query: URLSearchParams) => Response) {
   server.use(
-    mockApi('post', '/api/suites/{testsuite}/query', async ({ request }) => {
-      const body = await request.json()
-      recorded.queries.push({ body, signal: request.signal })
-      const named = body.test ?? (tests[body.machine!] ?? [])
-      const all = named.flatMap((test) =>
-        (samples[`${body.machine}/${test}`] ?? [])
-          .filter(([at]) => !body.commit || at === body.commit)
-          .map((s) => pointOf(body.machine!, test, s)),
-      )
-      const start = Number(body.cursor ?? 0)
-      const end = start + pageSize
-      const next = end < all.length ? String(end) : null
-      return HttpResponse.json(cursorPage(all.slice(start, end), next))
+    mockSeries(({ request }) => {
+      const query = new URL(request.url).searchParams
+      recorded.series.push({ query, signal: request.signal })
+      return respond(query)
     }),
   )
-  return recorded
 }
 
 /** A page of `GET /tests` listing `names`. */
