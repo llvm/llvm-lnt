@@ -1,6 +1,6 @@
-# What run.sh adds to production's Compose stack (deployment/templates/docker-compose.prod.yml.tftpl)
-# for the integration tests: what the production host provides otherwise, and nothing more, so that
-# the checks exercise as much of the production file as they can.
+# What run.sh adds to production's Compose stack (docker-compose.prod.yml.tftpl in
+# deployment/templates) for the integration tests: what the production host provides otherwise, and
+# nothing more, so that the checks exercise as much of the production file as they can.
 services:
   # Production's database is on RDS.
   postgres:

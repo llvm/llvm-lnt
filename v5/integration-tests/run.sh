@@ -7,11 +7,11 @@
 # Runs IMAGE in the Compose stack that production runs (deployment/templates): the app behind
 # Nginx, each with production's configuration. compose.override.yml adds what the production host
 # provides otherwise, a database (here a throwaway Postgres) and ports of its own, and the stack is
-# given a throwaway certificate, an empty RDS CA bundle, and the settings the checks expect. Every numbered check in this
-# directory then runs against it, in order. Everything is created here and torn down on exit, so
-# this behaves the same on a laptop as on a CI runner and needs neither `npm run db:up` nor a
-# Postgres service container. It needs Docker Compose 2.24.4 or later, for the override's `!reset`
-# and `!override`.
+# given a throwaway certificate, an empty RDS CA bundle, and the settings the checks expect. Every
+# numbered check in this directory then runs against it, in order. Everything is created here and
+# torn down on exit, so this behaves the same on a laptop as on a CI runner and needs neither
+# `npm run db:up` nor a Postgres service container. It needs Docker Compose 2.24.4 or later, for
+# the override's `!override`.
 #
 # The stack's files are written to a temporary directory, which the Docker daemon has to be able to
 # mount files from: with a runtime that does not share the default one (Colima, or Docker Desktop
@@ -116,7 +116,7 @@ ENV
 docker compose version
 merged="$(compose config)"
 if grep -Eq '^ *published: "?(80|443)"?$' <<< "$merged"; then
-    echo "The stack publishes the host's port 80 or 443: Docker Compose 2.24.4 or later is needed" >&2
+    echo "The stack publishes the host's port 80 or 443: Docker Compose 2.24.4+ is needed" >&2
     exit 1
 fi
 if [ -n "$BUILT" ]; then
@@ -155,6 +155,12 @@ export CONTAINER DB_CONTAINER
 wait_until_reachable "http://$(compose port app 3000)" app
 PROXY_URL="https://$(compose port nginx 443)"
 wait_until_reachable "$PROXY_URL" nginx
+# The restart policy would hide a crash on startup (see `restarts` below).
+if [ "$(docker inspect -f '{{.RestartCount}}' "$CONTAINER")" != 0 ]; then
+    echo "The app restarted on its own while starting" >&2
+    compose logs --tail 50 app >&2
+    exit 1
+fi
 export PROXY_URL
 
 # restarts -- how many times Docker has restarted the stack's containers on its own.
