@@ -103,16 +103,17 @@ Configure the backend as follows:
 
 The service must also stream misses, which Fastly calls streaming miss. Without it, Fastly holds
 each response until it has all of it: a series that takes longer to read than the first byte
-timeout then reaches the client as a 503 without any of its data, and a large one exceeds the
-largest object Fastly accepts without streaming, whatever the timeouts. Turn it on for the whole
-service with a VCL snippet of type `fetch`:
+timeout then reaches the client as a 503 without any of its data. Turn it on for the whole service
+with a "Regular" VCL snippet placed within subroutine `fetch`:
 
 ```vcl
 set beresp.do_stream = true;
 ```
 
 With shielding, the same VCL runs on the shield and on the edge, which both have to stream. Leave
-compression to the app rather than having Fastly compress responses itself.
+compression to the app: Fastly's own (`beresp.gzip`, `beresp.brotli`) turns streaming miss off.
+Fastly also limits the size of the objects it fetches, possibly to less than a machine's whole
+series even with streaming miss; check the account's limit.
 
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the

@@ -181,8 +181,9 @@ if [ ${#failed[@]} -gt 0 ]; then
     group_start "container log (last 20 lines)"
     docker logs --tail 20 "$APP" 2>&1 | sed 's/^/  /'
     group_end
+    # Without the line Nginx logs for each worker it starts, one per CPU.
     group_start "proxy log (last 20 lines)"
-    docker logs --tail 20 "$PROXY" 2>&1 | sed 's/^/  /'
+    docker logs "$PROXY" 2>&1 | { grep -v 'start worker process' || true; } | tail -n 20 | sed 's/^/  /'
     group_end
 fi
 

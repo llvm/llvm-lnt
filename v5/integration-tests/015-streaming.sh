@@ -110,6 +110,8 @@ for i in "${!VARIANTS[@]}"; do
     variant="${VARIANTS[$i]}"
     status=0
     wait "${requests[$i]}" || status=$?
+    # Done with, so that the cleanup does not signal its PID, which may have been reused.
+    unset 'requests[i]'
     STATUS="$(cat "${scratch}/${variant}.status")"
     HEADERS="$(cat "${scratch}/${variant}.headers")"
     BODY="$(cat "${scratch}/${variant}")"
