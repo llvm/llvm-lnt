@@ -128,10 +128,10 @@ matched.
 
 ## I3: Filtering and Sorting
 
-Filters and sorting are named query parameters, or keys of the request body for
-an endpoint that takes its filters in the body. The endpoints spec is
-authoritative for which ones each endpoint accepts, and the OpenAPI document
-describes them (see I8).
+Filters and sorting are named query parameters. An endpoint that takes its
+filters in the request body takes them as keys of the body instead. The
+endpoints spec is authoritative for which ones each endpoint accepts, and the
+OpenAPI document describes them (see I8).
 
 Common filters include:
 - `machine=`, `test=`, `metric=`

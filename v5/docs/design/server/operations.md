@@ -250,7 +250,7 @@ Cursor pagination (I2) requires a deterministic row order with no repeats. The
 server appends an internal unique tiebreaker to the caller's sort to guarantee
 this. The tiebreaker is opaque to clients, and cursors are treated as opaque
 tokens. When no sort is requested, results come in an arbitrary but
-deterministic order suitable for pagination, and no data is excluded.
+deterministic order suitable for pagination.
 
 A cursor names a *position* in that order -- the sort key values of the last
 row served -- rather than the row itself, so that resuming still works after

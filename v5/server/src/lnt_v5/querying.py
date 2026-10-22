@@ -40,7 +40,6 @@ from sqlalchemy import (
 
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.responses import CursorPage
-from lnt_v5.strings import storable
 from lnt_v5.suites.schema import CommitField, MachineField
 from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
@@ -474,36 +473,19 @@ def _integer(value: Any) -> int:
     return value
 
 
-def _real(value: Any) -> float:
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        raise ValueError("expected a number")
-    # JSON's integers are unbounded, and one past a float's range raises `OverflowError` here,
-    # which would otherwise escape `Keyset.position` as a 500.
-    try:
-        return float(value)
-    except OverflowError:
-        raise ValueError("out of range for a floating-point column") from None
-
-
-def _text(value: Any) -> str:
+def _timestamp(value: Any) -> datetime:
+    # A string that is not one, a NUL included, raises `ValueError`.
     if not isinstance(value, str):
         raise ValueError("expected a string")
-    # A cursor is opaque to clients but need not be unforgeable (I2), so what comes out of one is
-    # caller-supplied: D5's rule applies to it like any other string, and without this a hand-made
-    # cursor carrying a NUL would reach a text sort key as a bind parameter and be a 500.
-    return storable(value)
-
-
-def _timestamp(value: Any) -> datetime:
-    return datetime.fromisoformat(_text(value))
+    return datetime.fromisoformat(value)
 
 
 # Keyed by the Python type the column's SQL type maps to, so that a new column type used as a sort
-# key fails loudly here rather than comparing a string against a timestamp in the database.
+# key fails loudly here rather than comparing a string against a timestamp in the database. Every
+# sort key so far is an integer or a timestamp; a text or real one needs a reader of its own,
+# which checks what a hand-made cursor could carry (a NUL, a number past a float's range).
 _READERS: dict[type, Callable[[Any], Any]] = {
     int: _integer,
-    float: _real,
-    str: _text,
     datetime: _timestamp,
 }
 
