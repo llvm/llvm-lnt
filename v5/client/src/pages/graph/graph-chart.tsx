@@ -185,10 +185,10 @@ function runsOf(samples: readonly Measurement[]) {
 
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
- * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
- * (GR9) and the highlighted commits' bands (GR16) under them, and the highlighted commits' circles
- * and the regressions' lines (GR15) over them. Hovering a point shows its samples (GR10), and
- * clicking it its details (GR11).
+ * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the highlighted commits'
+ * bands (GR16) and the regressions' lines (GR15) under them, and the baselines' lines (GR9), the
+ * highlighted commits' circles and the regressions' markers over them. Hovering a point shows its
+ * samples (GR10), and clicking it its details (GR11).
  */
 export function GraphChart({
   schema,
@@ -306,10 +306,10 @@ export function GraphChart({
   const markerData = useMemo(() => regressionMarkers(marks), [marks])
   const drawn = useMemo(
     () => ({
-      // The baselines' lines under the traces: of the curves as close to the pointer, Plotly hovers
-      // the last, and a point is as close as can be anywhere over its marker, so a point on a line
-      // keeps its tooltip and details (GR9). The circles over every trace, so that no trace's line
-      // crosses them.
+      // The baselines' lines before the traces, though drawn over them on their own x-axis: of the
+      // curves as close to the pointer, Plotly hovers the last, and a point is as close as can be
+      // anywhere over its marker, so a point on a line keeps its tooltip and details (GR9). The
+      // circles over every trace, so that no trace's line crosses them.
       data: [...lineData, ...traceData, ...circleData, ...markerData],
       curves: [
         ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),

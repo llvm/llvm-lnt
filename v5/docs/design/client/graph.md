@@ -240,8 +240,8 @@ when its suite does not declare the plotted metric as a numeric metric with the
 same `unit` (an unset unit matching only an unset one), as CP1 requires of a
 metric compared across suites.
 Hovering a dashed line shows a tooltip with: the baseline suite, machine,
-commit, test name, and metric value. The dashed lines are drawn under the
-traces, and a point on one keeps its tooltip and details (GR10, GR11).
+commit, test name, and metric value. A point on a dashed line keeps its tooltip
+and details (GR10, GR11).
 Baselines are encoded in the URL query string for shareability as
 `{suite}/{machine}/{commit}` (e.g.
 `&baseline=nts/machine1/abc123&baseline=other_suite/machine2/def456`). None of
@@ -331,8 +331,8 @@ anywhere but on it or a marker of its point's scatter, and on any change to the
 chart other than data arriving, such as a zoom or pan, or a change to the
 selected tests, machines, metric, aggregation or regression annotation mode, and
 once its point is no longer drawn. A change to the baselines (GR9) or the
-highlighted commits (GR16) does not close it: neither changes its point or what
-it shows.
+highlighted commits (GR16) does not close it: neither changes which point it is
+about.
 Moving the focus out of it does not close it. A click on another point opens
 that point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or

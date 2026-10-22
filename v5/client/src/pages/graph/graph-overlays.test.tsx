@@ -967,7 +967,7 @@ describe('the baselines (GR9)', () => {
         'b - baseline libcxx/m1/r10: 3',
       ]),
     )
-    // Under the traces, so that the points on a line keep their tooltips and details (GR9).
+    // Before the traces, so that the points on a line keep their tooltips and details (GR9).
     expect(drawn()).toEqual([
       'a - baseline libcxx/m1/r10',
       'b - baseline libcxx/m1/r10',
