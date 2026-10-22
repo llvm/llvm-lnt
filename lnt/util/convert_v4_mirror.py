@@ -47,10 +47,13 @@ _RESERVED_SUITE_NAMES = {'public', 'information_schema'}
 _V5_TYPES = {'real', 'integer', 'text', 'datetime'}
 # The built-in columns of the v5 tables that schema entries add columns to:
 # a metric is a column of the sample and test coverage tables, a machine field
-# one of the machine table, and a commit field one of the commit table.
-_METRIC_BUILTINS = {'id', 'run_id', 'test_id', 'machine_id'}
-_MACHINE_FIELD_BUILTINS = {'id', 'name', 'tracked'}
-_COMMIT_FIELD_BUILTINS = {'id', 'commit', 'ordinal', 'tag'}
+# one of the machine table, and a commit field one of the commit table. Keep
+# in sync with v5/server/src/lnt_v5/suites/schema.py.
+_METRIC_BUILTINS = {'run_id', 'test_id', 'repetition', 'machine_id'}
+_MACHINE_FIELD_BUILTINS = {'id', 'name', 'tracked', 'first_seen_at',
+                           'delete_after_inactive_days'}
+_COMMIT_FIELD_BUILTINS = {'id', 'commit', 'ordinal', 'tag', 'first_seen_at',
+                          'delete_after_inactive_days'}
 
 # The length v5 allows for machine names, commit values and test names.
 _IDENTIFIER_MAX = 256
