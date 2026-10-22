@@ -91,10 +91,13 @@ Individual halves are available as `:client` / `:server` variants, e.g. `npm run
 Note that the server tests need the Postgres from `npm run db:up`: they create throwaway databases
 of their own and drop them afterwards, so they don't touch the one used by `npm run dev`.
 
-The integration tests are what CI runs against the image, directly and behind production's Nginx
-configuration; they need Docker and `openssl`, but create and remove their own database. A run
-killed outright (with SIGKILL, say) cannot clean up after itself: `integration-tests/run.sh` says
-how to remove what it leaves behind.
+The integration tests are what CI runs against the image. They run it in production's Compose stack
+(`deployment/templates`), behind its Nginx, with a throwaway Postgres in place of RDS
+(`integration-tests/compose.override.yml`). They need Docker with Compose 2.24.4 or later, and
+`openssl`, but create and remove their own database. With a Docker runtime that does not share the
+default temporary directory with its containers (Colima, say), point `TMPDIR` at one it shares. A
+run killed outright (with SIGKILL, say) cannot clean up after itself: `integration-tests/run.sh`
+says how to remove what it leaves behind.
 
 Stop the local database with `npm run db:down` when you're done.
 

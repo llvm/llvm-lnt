@@ -8,6 +8,9 @@
 
 source "$(dirname "$0")/lib.sh"
 
+# Production's restart policy would bring it back up, unless Docker deems the signal a manual stop.
+docker update --restart=no "$CONTAINER" >/dev/null
+
 start="$(date +%s)"
 docker kill --signal=SIGINT "$CONTAINER" >/dev/null
 
