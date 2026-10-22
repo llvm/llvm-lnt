@@ -8,7 +8,7 @@ import type { components } from '../client/src/api/schema.d.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
-import { plotOf, pointOf, tracesOf, type PlotDiv } from './plot.ts'
+import { plotOf, pointOf, tracesOf, zoomAround, type PlotDiv } from './plot.ts'
 import { pickOption } from './select.ts'
 import { table } from './tables.ts'
 
@@ -403,6 +403,52 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
   await expect(details.getByRole('button', { name: 'Add as baseline' })).toBeFocused()
 })
 
+test("draws a long history's points without markers until zoomed in, and they keep their tooltip and details (GR1, GR9, GR11)", async ({
+  page,
+  request,
+  tokenFor,
+}, testInfo) => {
+  // One more commit than are marked in view (MARKED_COMMITS in chart.ts).
+  const runs = Array.from({ length: 201 }, (_, i) => ({
+    machine: 'm1',
+    commit: `c${i}`,
+    ordinal: i + 1,
+    tests: [{ name: 'bench', samples: [{ execution_time: 1 + (i % 10) / 10 }] }],
+  }))
+  await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
+    // With a baseline at the commit of the point, whose line runs through it.
+    const query = new URLSearchParams({
+      suite,
+      machine: 'm1',
+      metric: 'execution_time',
+      test: 'bench',
+      baseline: `${suite}/m1/c100`,
+    })
+    await page.goto(`/graph?${query}`)
+    await expect(tracesOf(page)).toHaveCount(2)
+    const markers = page.locator('.scatterlayer .points path')
+    await expect(markers).toHaveCount(0)
+
+    const position = await pointOf(page, 'bench - m1', 100)
+    await plotOf(page).hover({ position })
+    // The point's tooltip, rather than the baseline's, which has no such line.
+    await expect(page.locator('.hoverlayer')).toContainText('Click for details')
+    await plotOf(page).click({ position })
+    const details = page.getByRole('dialog', { name: 'bench on m1 at c100' })
+    await expect(details).toBeFocused()
+    await page.keyboard.press('Escape')
+
+    // Zoomed in around it, the points have their markers, those in view only, until the zoom is
+    // reset.
+    await zoomAround(page, position)
+    await expect.poll(() => markers.count()).toBeGreaterThan(0)
+    expect(await markers.count()).toBeLessThan(runs.length / 2)
+    // Away from any point, whose details the first click would open.
+    await plotOf(page).dblclick({ position: { x: position.x, y: 20 } })
+    await expect(markers).toHaveCount(0)
+  })
+})
+
 test('highlights a commit with a band of fixed width, circling its point (GR16)', async ({
   page,
   request,
@@ -445,12 +491,7 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
 
   // Zoomed in around it, it keeps its width.
   const before = await xRange(page)
-  const { x, y } = await pointOf(page, 0, index)
-  const plot = (await plotOf(page).boundingBox())!
-  await page.mouse.move(plot.x + x - 60, plot.y + y)
-  await page.mouse.down()
-  await page.mouse.move(plot.x + x + 60, plot.y + y, { steps: 5 })
-  await page.mouse.up()
+  await zoomAround(page, await pointOf(page, 0, index))
   await expect.poll(() => xRange(page)).not.toEqual(before)
   await expectAround()
 

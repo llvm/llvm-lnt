@@ -55,3 +55,17 @@ export function plotOf(scope: Page | Locator): Locator {
 export function tracesOf(scope: Page | Locator): Locator {
   return scope.locator('.scatterlayer .trace')
 }
+
+/**
+ * Zoom the x-axis of the chart on `page` in around `position` of its plot (as `pointOf` gives it),
+ * by dragging across 120 pixels.
+ */
+export async function zoomAround(page: Page, { x, y }: { x: number; y: number }) {
+  // The mouse acts where the page shows the plot, which must be on screen.
+  await plotOf(page).scrollIntoViewIfNeeded()
+  const plot = (await plotOf(page).boundingBox())!
+  await page.mouse.move(plot.x + x - 60, plot.y + y)
+  await page.mouse.down()
+  await page.mouse.move(plot.x + x + 60, plot.y + y, { steps: 5 })
+  await page.mouse.up()
+}

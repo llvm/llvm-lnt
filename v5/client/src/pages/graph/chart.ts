@@ -5,6 +5,7 @@
 
 import type { Data, DTickValue, Layout, LayoutAxis, PlotData, Shape } from 'plotly.js'
 import { markerOf } from '../../chart-markers'
+import type { PlotGeometry } from '../../components/chart'
 import { noDataAnnotations } from '../../components/plot-annotations'
 import { escapeHtml, plural, regressionTitle } from '../../format'
 import type { RegressionState } from '../../regression-states'
@@ -30,36 +31,78 @@ export interface Trace {
 export type DisplayValue = (commit: string) => string
 
 /**
- * The traces as Plotly draws them: lines with a marker at each point, placed on the x-axis by
- * commit, with a tooltip naming the test, the machine and the commit, giving the value and how many
- * runs it combines, and saying that a click shows the point's details (GR10). Text from the API is
- * escaped and passed as data rather than written into the template (see chart.tsx).
+ * At most how many commits of the x-axis can be in view for the traces' points to have markers
+ * (GR1). Beyond, the markers are too close together to tell apart, and drawing one per point is
+ * what makes a large selection slow to draw.
  */
-export function plotlyTraces(traces: Trace[], displayValue: DisplayValue, metric: Metric): Data[] {
-  return traces.map(({ test, machine, machineIndex, color, points }) => {
-    const escapedTest = escapeHtml(test)
-    const escapedMachine = escapeHtml(machine)
-    return {
-      type: 'scatter',
-      mode: 'lines+markers',
-      name: `${escapedTest} - ${escapedMachine}`,
-      x: points.map((point) => point.commit),
-      y: points.map((point) => point.value),
-      customdata: points.map((point) => [
-        escapeHtml(displayValue(point.commit)),
-        formatMetricValue(point.value, metric),
-        plural(point.runs, 'run'),
-        escapedTest,
-        escapedMachine,
-      ]),
-      hovertemplate:
-        '<b>%{customdata[3]}</b><br>Machine: %{customdata[4]}<br>' +
-        'Commit: %{customdata[0]}<br>Value: %{customdata[1]}<br>%{customdata[2]}<br>' +
-        '<i>Click for details</i><extra></extra>',
-      line: { color, width: 1.5 },
-      marker: { color, size: 6, symbol: markerOf(machineIndex).symbol },
-    }
-  })
+export const MARKED_COMMITS = 200
+
+/**
+ * How many of the `count` commits of the x-axis are in view in a plot drawn as `geometry` says: the
+ * positions from 0 to `count - 1` between the left and right edges of the plot. Plotly rounds the
+ * pixels of a position, so the step between two is taken across the whole axis, lest its error add
+ * up far from position 0. Rounding can still make the count one off at an edge.
+ */
+export function commitsInView({ area, x }: PlotGeometry, count: number): number {
+  const span = Math.max(count - 1, 1)
+  const step = (x(span) - x(0)) / span
+  const first = Math.max(0, Math.ceil((area.left - x(0)) / step))
+  const last = Math.min(count - 1, Math.floor((area.left + area.width - x(0)) / step))
+  return Math.max(0, last - first + 1)
+}
+
+/**
+ * How a trace of `points` points is drawn: a line with a marker at each point, or the line alone
+ * when the points have no `markers` (see `MARKED_COMMITS`). A single point keeps its marker, without
+ * which it would draw nothing.
+ */
+export function traceMode(points: number, markers: boolean): 'lines' | 'lines+markers' {
+  return markers || points === 1 ? 'lines+markers' : 'lines'
+}
+
+/**
+ * A trace as Plotly draws it, but for its `mode` (see `traceMode`), which changes with the zoom: a
+ * line through its points, placed on the x-axis by commit, its markers in the symbol of its machine,
+ * and a tooltip naming the test, the machine and the commit, giving the value and how many runs it
+ * combines, and saying that a click shows the point's details (GR10). Text from the API is escaped
+ * and passed as data rather than written into the template (see chart.tsx).
+ */
+export function plotlyTrace(
+  { test, machine, machineIndex, color, points }: Trace,
+  displayValue: DisplayValue,
+  metric: Metric,
+): Partial<PlotData> {
+  const escapedTest = escapeHtml(test)
+  const escapedMachine = escapeHtml(machine)
+  return {
+    type: 'scatter',
+    name: `${escapedTest} - ${escapedMachine}`,
+    x: points.map((point) => point.commit),
+    y: points.map((point) => point.value),
+    customdata: points.map((point) => [
+      escapeHtml(displayValue(point.commit)),
+      formatMetricValue(point.value, metric),
+      plural(point.runs, 'run'),
+      escapedTest,
+      escapedMachine,
+    ]),
+    hovertemplate:
+      '<b>%{customdata[3]}</b><br>Machine: %{customdata[4]}<br>' +
+      'Commit: %{customdata[0]}<br>Value: %{customdata[1]}<br>%{customdata[2]}<br>' +
+      '<i>Click for details</i><extra></extra>',
+    line: { color, width: 1.5 },
+    // With `maxdisplayed`, Plotly draws only the markers of the points in view (x and y in range),
+    // rather than every point's, and only that many of them, evenly spaced, when more are in view.
+    // While the points have markers, about MARKED_COMMITS are in view at most, give or take one (see
+    // `commitsInView`): with room to spare, Plotly leaves out the points out of view, but never
+    // thins out those in view.
+    marker: {
+      color,
+      size: 6,
+      symbol: markerOf(machineIndex).symbol,
+      maxdisplayed: 2 * MARKED_COMMITS,
+    },
+  }
 }
 
 /**
@@ -305,7 +348,14 @@ export function graphLayout({
       tickangle: -45,
       automargin: true,
     },
-    yaxis: { automargin: true, zeroline: false, uirevision: `${revision}\0${metric ?? ''}` },
+    yaxis: {
+      // Not at the top, where a label at the top of the range overflows by less than the margin:
+      // a margin that comes and goes with the range draws the whole chart twice. The types for
+      // Plotly 3 allow only a boolean.
+      automargin: 'left' as unknown as boolean,
+      zeroline: false,
+      uirevision: `${revision}\0${metric ?? ''}`,
+    },
     // The axes of the lines drawn across the plot -- the baselines' and the regressions' markers --
     // which span the plot whatever its zoom, and are not shown.
     xaxis2: overlayAxis('x'),

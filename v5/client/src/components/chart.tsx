@@ -101,9 +101,10 @@ export interface ChartProps {
    */
   onClick?(event: PlotMouseEvent): boolean | void
   /**
-   * The plot was drawn, after a change to what it draws, a zoom, or a resize: where it draws now.
-   * Something placed over the plot with it is placed again here. What the chart draws must not
-   * depend on it, or each draw would ask for another.
+   * The plot was drawn, after a change to what it draws, a zoom, or a resize: where it draws now,
+   * reported only when that changed. Something placed over the plot with it is placed again here.
+   * What the chart draws may depend on it only through something that drawing it leaves as it is,
+   * such as the range of an axis the user zoomed to, or each draw would ask for another.
    */
   onDraw?(geometry: PlotGeometry): void
   /** The user zoomed or panned the plot, or reset its zoom. */
