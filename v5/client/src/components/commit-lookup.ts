@@ -1,6 +1,6 @@
 /** What a commit picker knows of a commit (AR15), apart from the picker, for others to share. */
 
-import { queryOptions, type QueryKey } from '@tanstack/react-query'
+import { queryOptions, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { lookUpCommit, type CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
 import type { SuiteSchema } from '../api/suites'
@@ -20,8 +20,9 @@ export function commitLookupKey(suite: string, filters: CommitFilters, commit: s
 
 /**
  * Whether the suite's commits under `filters` hold `commit`: as a suggestion, with its display
- * value, if they do, and null if not (AR15). A picker stores the answer for a commit picked, which
- * stays fresh for the default `staleTime`, so that the commit is not looked up again meanwhile.
+ * value, if they do, and null if not (AR15). A commit known to be held, such as one picked, has its
+ * answer stored (see `storeCommitLookup`), which stays fresh for the default `staleTime`, so that
+ * the commit is not looked up meanwhile.
  */
 export function commitLookupQuery(schema: SuiteSchema, filters: CommitFilters, commit: string) {
   return queryOptions({
@@ -31,4 +32,14 @@ export function commitLookupQuery(schema: SuiteSchema, filters: CommitFilters, c
       return found && suggestionOf(found, schema)
     },
   })
+}
+
+/** Store that the suite's commits under `filters` hold `commit`, as its lookup would answer. */
+export function storeCommitLookup(
+  queryClient: QueryClient,
+  suite: string,
+  filters: CommitFilters,
+  commit: Suggestion,
+) {
+  queryClient.setQueryData(commitLookupKey(suite, filters, commit.key), commit)
 }

@@ -58,13 +58,17 @@ interface Props {
   highlightsFull: string | undefined
   /** Highlight `commit`, or remove its highlight if it is highlighted already (GR16). */
   onHighlight(commit: string): void
+  /** Whether `commit` of `machine`, in the suite plotted, is a baseline (GR9). */
+  isBaseline(machine: string, commit: string): boolean
+  /** Add `commit` of `machine`, in the suite plotted, as a baseline, or remove it if it is one. */
+  onBaseline(machine: string, commit: string): void
   /** The test whose row is hovered in the test table, which the chart emphasizes (GR7). */
   emphasis: ValueStore<string | null>
   /** Where the chart says which test's line is hovered, for the table to highlight it (GR7). */
   hovered: ValueStore<string | null>
   /**
-   * What the chart is drawn from, besides the data: when any of it changes, the point details
-   * close (GR11).
+   * What the chart is drawn from, besides the data, the baselines and the highlighted commits: when
+   * any of it changes, the details close (GR11).
    */
   closeOn: readonly unknown[]
 }
@@ -181,9 +185,10 @@ function runsOf(samples: readonly Measurement[]) {
 
 /**
  * The chart of the Graph page (GR1): a trace per selected test and machine, on the commits of the
- * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the baselines' lines
- * (GR9), the regressions' (GR15) and the highlighted commits' circles (GR16) over them, and their
- * bands under them. Hovering a point shows its samples (GR10), and clicking it its details (GR11).
+ * machines' scaffolds (GR3), drawn once a machine's scaffold has arrived; the highlighted commits'
+ * bands (GR16) and the regressions' lines (GR15) under them, and the baselines' lines (GR9), the
+ * highlighted commits' circles and the regressions' markers over them. Hovering a point shows its
+ * samples (GR10), and clicking it its details (GR11).
  */
 export function GraphChart({
   schema,
@@ -200,6 +205,8 @@ export function GraphChart({
   highlights,
   highlightsFull,
   onHighlight,
+  isBaseline,
+  onBaseline,
   emphasis,
   hovered,
   closeOn,
@@ -299,12 +306,15 @@ export function GraphChart({
   const markerData = useMemo(() => regressionMarkers(marks), [marks])
   const drawn = useMemo(
     () => ({
-      // The circles over every trace, so that no trace's line crosses them.
-      data: [...traceData, ...circleData, ...lineData, ...markerData],
+      // The baselines' lines before the traces, though drawn over them on their own x-axis: of the
+      // curves as close to the pointer, Plotly hovers the last, and a point is as close as can be
+      // anywhere over its marker, so a point on a line keeps its tooltip and details (GR9). The
+      // circles over every trace, so that no trace's line crosses them.
+      data: [...lineData, ...traceData, ...circleData, ...markerData],
       curves: [
+        ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
         ...traces.map((trace): Curve => ({ kind: 'trace', trace })),
         ...circles.map(({ trace }): Curve => ({ kind: 'circle', test: trace.test })),
-        ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
         ...marks.map(({ uuid }): Curve => ({ kind: 'regression', uuid })),
       ],
     }),
@@ -355,7 +365,6 @@ export function GraphChart({
   // The samples of the point whose details are open, a press on which leaves them open (GR11).
   const pinnedCloud = useRef<SVGSVGElement>(null)
   const close = useCallback(() => setOpen(null), [])
-  // Any change to what the chart is drawn from, besides data arriving, closes the details (GR11).
   const [drawnFrom, setDrawnFrom] = useState(closeOn)
   if (!sameElements(drawnFrom, closeOn)) {
     setDrawnFrom(closeOn)
@@ -453,6 +462,8 @@ export function GraphChart({
             highlighted={highlights.includes(point.commit)}
             highlightsFull={highlightsFull}
             onHighlight={() => onHighlight(point.commit)}
+            baselined={isBaseline(trace.machine, point.commit)}
+            onBaseline={() => onBaseline(trace.machine, point.commit)}
             at={{ x, y: geometry.y(point.value), side }}
             companion={pinnedCloud}
             onClose={close}

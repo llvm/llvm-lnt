@@ -85,9 +85,12 @@ export const pointOf = (
     tag: null,
   }) satisfies Schemas['DataPoint']
 
-/** The bodies `POST /query` was sent, in order, and the signal of each request. */
+/** What the page asked of the API. */
 export interface Recorded {
+  /** The bodies `POST /query` was sent, in order, and the signal of each request. */
   queries: { body: Schemas['QueryRequest']; signal: AbortSignal }[]
+  /** The commits looked up with `GET commits?commit=`, in order, as `{machine}/{commit}`. */
+  lookups: string[]
 }
 
 /**
@@ -104,13 +107,14 @@ export function mockWorld({
   suitesWait,
   suites = [],
 }: World = {}): Recorded {
-  const recorded: Recorded = { queries: [] }
+  const recorded: Recorded = { queries: [], lookups: [] }
   mockSuites([GRAPH_SUITE, TEXT_SUITE, ...suites], { wait: suitesWait })
   mockMachines(() => ({ items: machines.map((name) => machine(name)) }))
   mockTests((query) => testPage(tests[query.get('machine')!] ?? []))
   mockCommits((query) => {
     const listed = (commits[query.get('machine')!] ?? []).map(commitAt)
     const only = query.get('commit')
+    if (only !== null) recorded.lookups.push(`${query.get('machine')}/${only}`)
     return cursorPage(only === null ? listed : listed.filter((entry) => entry.value === only))
   })
   server.use(

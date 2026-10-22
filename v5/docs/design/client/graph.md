@@ -215,12 +215,15 @@ commits via `GET commits?machine={name}&sort=-ordinal`; see AR15). Picking
 a commit adds the baseline and closes the panel; "+" closes it too. Added
 baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
 where `display_value` is the commit's display value (see AR6), or the commit
-string until the display value is known. A baseline
-loaded from the URL is looked up like a commit given to the commit picker:
-through `GET commits?machine={machine}&commit={commit}` in the baseline's
-suite, which returns the commit, with its display value, only if the machine
-has runs at it. If that lookup succeeds without returning it, the baseline is
-unusable, and is dropped (see AR2 "State").
+string until the display value is known. A baseline loaded from the URL is
+looked up like a commit given to the commit picker: through
+`GET commits?machine={machine}&commit={commit}` in the baseline's suite, which
+returns the commit, with its display value, only if the machine has runs at it.
+If that lookup succeeds without returning it, the baseline is unusable, and is
+dropped (see AR2 "State"). A baseline can also be added from a point's details
+(GR11): the point's suite, machine and commit. Like a commit picked in the
+panel, it is not looked up (AR15): its point shows that the machine has runs at
+the commit.
 Baseline data is fetched from the baseline's suite via `POST /api/suites/{suite}/query`
 with `{machine, metric, commit}` in the JSON body: every test's data at that
 commit, so that selecting tests needs no request, and a test that the
@@ -237,12 +240,13 @@ when its suite does not declare the plotted metric as a numeric metric with the
 same `unit` (an unset unit matching only an unset one), as CP1 requires of a
 metric compared across suites.
 Hovering a dashed line shows a tooltip with: the baseline suite, machine,
-commit, test name, and metric value.
+commit, test name, and metric value. A point on a dashed line keeps its tooltip
+and details (GR10, GR11).
 Baselines are encoded in the URL query string for shareability as
 `{suite}/{machine}/{commit}` (e.g.
 `&baseline=nts/machine1/abc123&baseline=other_suite/machine2/def456`). None of
-the three can contain a `/` (see D4 and I1). Loading a baseline never delays
-drawing the traces.
+the three can contain a `/` (see D4 and I1). If the URL names a baseline twice,
+it is added once. Loading a baseline never delays drawing the traces.
 
 
 ### GR10: Hover Behavior
@@ -295,6 +299,10 @@ hidden until the pointer moves again. It shows:
   number of commits is already highlighted. When the point's commit is already
   highlighted, the button is "Remove the highlight" instead, and removes it. In
   both cases, the popover stays open and the button keeps the focus.
+- "Add as baseline": a button that adds the point's suite, machine and commit
+  as a baseline (GR9). When it is already a baseline, the button is "Remove the
+  baseline" instead, and removes it. In both cases, the popover stays open and
+  the button keeps the focus.
 - "Create regression": a button opening a form below it that creates a
   regression in this suite, attributed to the point's commit, with a single
   indicator naming the point's machine and test and the plotted metric. The
@@ -315,15 +323,16 @@ hidden until the pointer moves again. It shows:
   creating it fails, the form says why and keeps the title typed, and the
   focus stays where it was.
 
-While it is open, the popover follows its point -- as more data arrives, the
-chart is resized or the page scrolls -- and updates its contents as the data
-arrives. It closes on Escape, unless pressed in its "Create regression" form,
-on its close button, on a click anywhere but on it or a marker of its point's
-scatter, and on any change to the chart other than
-data arriving, such as a zoom or pan, or a change to the selected tests,
-machines, metric, aggregation, baselines or regression annotation mode, and once
-its point is no longer drawn. A change to the highlighted commits (GR16) does
-not close it: their bands and circles don't move or hide any point.
+While it is open, the popover follows its point -- as more data arrives or a
+baseline changes the y-axis range, the chart is resized or the page scrolls --
+and updates its contents as the data arrives. It closes on Escape, unless
+pressed in its "Create regression" form, on its close button, on a click
+anywhere but on it or a marker of its point's scatter, and on any change to the
+chart other than data arriving, such as a zoom or pan, or a change to the
+selected tests, machines, metric, aggregation or regression annotation mode, and
+once its point is no longer drawn. A change to the baselines (GR9) or the
+highlighted commits (GR16) does not close it: neither changes which point it is
+about.
 Moving the focus out of it does not close it. A click on another point opens
 that point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or

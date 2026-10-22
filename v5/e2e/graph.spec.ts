@@ -3,7 +3,7 @@
  * tests at every commit.
  */
 
-import type { Page } from '@playwright/test'
+import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -34,6 +34,28 @@ function draws(page: Page, name: string) {
     (element, name) => (element as PlotDiv)._fullData?.some((d) => d.name === name) ?? false,
     name,
   )
+}
+
+/** A commit in the middle of LINUX's history: on the x-axis, away from its ends. */
+async function middleCommit(request: APIRequestContext) {
+  const { items } = await json<ListPage<{ value: string }>>(
+    request,
+    `/api/suites/libcxx/commits?machine=${LINUX}&has_ordinal=true&sort=ordinal&limit=10000`,
+  )
+  return items[Math.floor(items.length / 2)].value
+}
+
+/** The index of `commit` among the points of the chart's first trace. */
+function indexOf(page: Page, commit: string) {
+  return plotOf(page).evaluate(
+    (element, commit) => (element as PlotDiv)._fullData[0].x.indexOf(commit),
+    commit,
+  )
+}
+
+/** The display value of the commit of the point whose `details` are open, from their name. */
+async function displayOf(details: Locator) {
+  return (await details.getAttribute('aria-label'))!.split(' at ').at(-1)!
 }
 
 /** The Graph of TEST on LINUX. */
@@ -319,24 +341,67 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
   await expect(tracesOf(page)).toHaveCount(2)
 })
 
+test("adds a baseline from a point's details, which stay open (GR9, GR11)", async ({
+  page,
+  request,
+}) => {
+  const commit = await middleCommit(request)
+  await page.goto(LINUX_TEST)
+  await expect(page.getByText(/^1 of \d+ tests selected$/)).toBeVisible()
+  const index = await indexOf(page, commit)
+  const yRange = () =>
+    plotOf(page).evaluate((element) => (element as PlotDiv)._fullLayout.yaxis.range)
+  const before = await yRange()
+  const position = await pointOf(page, 0, index)
+  await plotOf(page).click({ position })
+  const details = page.getByRole('dialog')
+  await expect(details).toBeFocused()
+  const display = await displayOf(details)
+  // Where the details are on the plot, which the chip added moves down the page.
+  const placement = async () => {
+    const [box, plot] = [(await details.boundingBox())!, (await plotOf(page).boundingBox())!]
+    return { x: box.x - plot.x, y: box.y - plot.y }
+  }
+  const placed = await placement()
+
+  await details.getByRole('button', { name: 'Add as baseline' }).click()
+
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('baseline'))
+    .toBe(`libcxx/${LINUX}/${commit}`)
+  const chips = page.getByRole('list', { name: 'Baselines added' })
+  await expect(chips).toContainText(`libcxx/${LINUX}/${display}`)
+  await expect(tracesOf(page)).toHaveCount(2)
+  // Its line runs through the point, which stays where it was, and so do its details.
+  expect(await yRange()).toEqual(before)
+  expect(await placement()).toEqual(placed)
+  await expect(details.getByRole('button', { name: 'Remove the baseline' })).toBeFocused()
+
+  // Under its line, once loaded from the URL, the point keeps its tooltip and details, which
+  // remove the baseline.
+  await page.reload()
+  await expect(page.getByText(/^1 of \d+ tests selected$/)).toBeVisible()
+  await expect(tracesOf(page)).toHaveCount(2)
+  await plotOf(page).hover({ position })
+  await expect(page.locator('.hoverlayer')).toContainText('Click for details')
+  await plotOf(page).click({ position })
+  await details.getByRole('button', { name: 'Remove the baseline' }).click()
+  await expect(tracesOf(page)).toHaveCount(1)
+  expect(new URL(page.url()).searchParams.has('baseline')).toBe(false)
+  await expect(details.getByRole('button', { name: 'Add as baseline' })).toBeFocused()
+})
+
 test('highlights a commit with a band of fixed width, circling its point (GR16)', async ({
   page,
   request,
 }) => {
-  const { items } = await json<ListPage<{ value: string }>>(
-    request,
-    `/api/suites/libcxx/commits?machine=${LINUX}&has_ordinal=true&sort=ordinal&limit=10000`,
-  )
-  const { value: commit } = items[Math.floor(items.length / 2)]
+  const commit = await middleCommit(request)
   await page.goto(`${LINUX_TEST}&highlight=${commit}`)
   // Named as the trace is, its test name escaped (see client/src/pages/graph/chart.ts).
   const circle = `BM_num_get&lt;void*&gt; - ${LINUX} - highlighted`
   await expect.poll(() => draws(page, circle)).toBe(true)
 
-  const index = await plotOf(page).evaluate(
-    (element, commit) => (element as PlotDiv)._fullData[0].x.indexOf(commit),
-    commit,
-  )
+  const index = await indexOf(page, commit)
   const band = plotOf(page).locator('.shapelayer path')
   // Centred on the point, relative to the plot as pointOf places it, and 12 pixels wide.
   const expectAround = async () => {
@@ -355,7 +420,7 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   await plotOf(page).click({ position })
   const details = page.getByRole('dialog')
   await expect(details).toBeFocused()
-  const display = (await details.getAttribute('aria-label'))!.split(' at ').at(-1)!
+  const display = await displayOf(details)
   // Its details remove the highlight, and put it back, staying open (GR11).
   await details.getByRole('button', { name: 'Remove the highlight' }).click()
   await expect(band).toHaveCount(0)
