@@ -7,7 +7,7 @@ import type { SuiteSchema } from '../api/suites'
 import type { Commit } from '../schema'
 import { useDropUnusable } from '../url-state'
 import { Combobox } from './combobox'
-import { commitLookupKey, commitLookupQuery, suggestionOf } from './commit-lookup'
+import { commitLookupQuery, storeCommitLookup, suggestionOf } from './commit-lookup'
 import { ErrorMessage } from './feedback'
 import { useServerSuggestions, type Suggestion } from './suggestions'
 import styles from './commit-picker.module.css'
@@ -119,7 +119,7 @@ export function CommitPicker({
   // filters change, is looked up.
   const queryClient = useQueryClient()
   const store = (suggestion: Suggestion) =>
-    queryClient.setQueryData(commitLookupKey(suite, filters, suggestion.key), suggestion)
+    storeCommitLookup(queryClient, suite, filters, suggestion)
   const lookup = useQuery({
     ...commitLookupQuery(schema, filters, value ?? ''),
     enabled: value !== null,

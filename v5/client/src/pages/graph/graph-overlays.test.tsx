@@ -15,6 +15,7 @@ import {
   currentUrl,
   gate,
   main,
+  mockCommits,
   mockCreateRegression,
   mockRegressions,
   query,
@@ -24,10 +25,12 @@ import {
 import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
+  COMMITS,
   GRAPHED,
   GRAPH_SUITE,
   addMachine,
   chart,
+  commitAt,
   drawn,
   layout,
   listed,
@@ -119,11 +122,11 @@ describe('hover (GR7, GR10)', () => {
       trace.line.width,
     ])
     expect(looks).toEqual([
+      ['a - baseline libcxx/m1/r10', 0.2, 1.5],
+      ['b - baseline libcxx/m1/r10', undefined, 3],
       ['a - m1', 0.2, 1.5],
       ['b - m1', undefined, 3],
       ['b - m2', undefined, 3],
-      ['a - baseline libcxx/m1/r10', 0.2, 1.5],
-      ['b - baseline libcxx/m1/r10', undefined, 3],
     ])
 
     fireEvent.mouseLeave(main().getByRole('table', { name: 'Tests' }).parentElement!)
@@ -401,7 +404,7 @@ describe('the point details (GR11)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('closes on a change to the regressions, machines or baselines, not the filter', async () => {
+  it('closes on a change to the regressions or machines, not the filter or baselines', async () => {
     mockWorld({ samples: SAMPLES })
     mockRegressionWorld()
     renderPage(`${GRAPHED}&test=a&baseline=libcxx/m1/c10`)
@@ -425,9 +428,12 @@ describe('the point details (GR11)', () => {
     search('Filter tests', '')
     await waitFor(() => expect(listed()).toHaveLength(4))
 
+    // A click without a press, as from the keyboard, unlike a press outside the details.
     reopen()
-    await user.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r10' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove baseline libcxx/m1/r10' }))
+    expect(query().baseline).toBeUndefined()
+    // Its lines change neither the point nor what its details show (GR11).
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     reopen()
     await user.click(screen.getByRole('button', { name: 'Remove m2' }))
@@ -931,6 +937,11 @@ describe('creating a regression from a point (GR11)', () => {
   })
 })
 
+/** The chips of the baselines. */
+function baselineChips() {
+  return main().getByRole('list', { name: 'Baselines added' })
+}
+
 /** The lines of the baselines on the chart, as `name: value`. */
 function baselineLines() {
   return (chart().data as PlotData[])
@@ -956,8 +967,14 @@ describe('the baselines (GR9)', () => {
         'b - baseline libcxx/m1/r10: 3',
       ]),
     )
-    const [line] = chart().data as PlotData[]
-    expect(line.name).toBe('a - m1')
+    // Under the traces, so that the points on a line keep their tooltips and details (GR9).
+    expect(drawn()).toEqual([
+      'a - baseline libcxx/m1/r10',
+      'b - baseline libcxx/m1/r10',
+      'a - m1',
+      'b - m1',
+    ])
+    const line = curve('a - m1') as PlotData
     const a = curve('a - baseline libcxx/m1/r10') as PlotData
     expect(a.x).toHaveLength(101)
     expect(a.line.dash).toBe('dash')
@@ -971,7 +988,7 @@ describe('the baselines (GR9)', () => {
       limit: 10000,
       cursor: null,
     })
-    const chips = within(main().getByRole('list', { name: 'Baselines added' }))
+    const chips = within(baselineChips())
     expect(chips.getByRole('listitem')).toHaveTextContent('libcxx/m1/r10')
   })
 
@@ -1047,11 +1064,74 @@ describe('the baselines (GR9)', () => {
     expect(screen.getByRole('button', { name: 'Add a baseline' })).toHaveFocus()
   })
 
+  it("is added from a point's details, and removed, which stay open with the focus", async () => {
+    const recorded = mockWorld()
+    renderPage(`${GRAPHED}&test=a&test=b&baseline=libcxx/m2/c40`)
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline libcxx/m2/r40: 4']))
+    draw()
+    const user = userEvent.setup()
+
+    click('a - m1', 1)
+    await user.click(details().getByRole('button', { name: 'Add as baseline' }))
+
+    // Besides the baselines added before.
+    expect(query().baseline).toEqual(['libcxx/m2/c40', 'libcxx/m1/c20'])
+    expect(baselineChips()).toHaveTextContent(/^libcxx\/m2\/r40×libcxx\/m1\/r20×$/)
+    const remove = details().getByRole('button', { name: 'Remove the baseline' })
+    expect(remove).toHaveFocus()
+    await waitFor(() =>
+      expect(baselineLines()).toEqual([
+        'b - baseline libcxx/m2/r40: 4',
+        'a - baseline libcxx/m1/r20: 2',
+      ]),
+    )
+    // Its point shows that the machine has runs at the commit, which is not looked up (GR9): only
+    // its data is asked for.
+    expect(recorded.lookups).not.toContain('m1/c20')
+    const asked = recorded.queries.filter(({ body }) => body.commit === 'c20')
+    expect(asked.map(({ body }) => body.machine)).toEqual(['m1'])
+
+    await user.click(remove)
+
+    expect(query().baseline).toEqual(['libcxx/m2/c40'])
+    expect(baselineLines()).toEqual(['b - baseline libcxx/m2/r40: 4'])
+    expect(details().getByRole('button', { name: 'Add as baseline' })).toHaveFocus()
+
+    // The details of a point that is a baseline already remove it.
+    click('b - m2', 0)
+    await user.click(details().getByRole('button', { name: 'Remove the baseline' }))
+    expect(query().baseline).toBeUndefined()
+    expect(details().getByRole('button', { name: 'Add as baseline' })).toHaveFocus()
+  })
+
+  it("removes a baseline from its point's details while it is still being checked", async () => {
+    mockWorld()
+    const checked = gate()
+    mockCommits(async (query) => {
+      const only = query.get('commit')
+      if (only !== null) await checked.promise
+      const listed = COMMITS.m1.map(commitAt)
+      return cursorPage(only === null ? listed : listed.filter((entry) => entry.value === only))
+    })
+    renderPage(`${ONE_MACHINE}&test=a&baseline=libcxx/m1/c20`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    draw()
+
+    click('a - m1', 1)
+    expect(baselineChips()).toHaveTextContent('libcxx/m1/c20')
+    await userEvent
+      .setup()
+      .click(details().getByRole('button', { name: 'Remove the baseline' }))
+
+    expect(query().baseline).toBeUndefined()
+    checked.open()
+  })
+
   it('keeps the baselines and the regression mode on a new suite', async () => {
     mockWorld()
     renderPage(`${ONE_MACHINE}&baseline=libcxx/m1/c10&regressions=active`)
     await waitFor(() =>
-      expect(main().getByRole('list', { name: 'Baselines added' })).toHaveTextContent('r10'),
+      expect(baselineChips()).toHaveTextContent('r10'),
     )
 
     await pickOption('Suite', 'text_only')

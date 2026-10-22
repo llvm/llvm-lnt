@@ -13,6 +13,7 @@ import { forgetGraphData, useSeries } from '../../api/series'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { ChipList } from '../../components/chip-list'
+import { storeCommitLookup, suggestionOf } from '../../components/commit-lookup'
 import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { useRangeSelection } from '../../components/range-selection'
@@ -205,6 +206,8 @@ function GraphPage() {
     const value = formatBaseline(baseline)
     if (!settings.baseline.includes(value)) update({ baseline: [...settings.baseline, value] })
   }
+  const removeBaseline = (value: string) =>
+    update({ baseline: settings.baseline.filter((entry) => entry !== value) })
 
   // The regressions marked (GR15): those of the selected tests that some machine's list holds,
   // since the API refuses a test that does not exist (E8).
@@ -266,6 +269,20 @@ function GraphPage() {
     })
   // What takes the focus once the last highlight is removed: the control before them.
   const addBaselineButton = useRef<HTMLButtonElement>(null)
+
+  // A point's commit of its machine, as a baseline (GR9, GR11).
+  const baselineAt = (machine: string, commit: string) =>
+    formatBaseline({ suite, machine, commit })
+  const isBaseline = (machine: string, commit: string) =>
+    settings.baseline.includes(baselineAt(machine, commit))
+  const toggleBaseline = (machine: string, commit: string) => {
+    const value = baselineAt(machine, commit)
+    if (settings.baseline.includes(value)) return removeBaseline(value)
+    // Its point shows that the machine has runs at the commit, which is not looked up (AR15). The
+    // point is on the x-axis, which holds the commit, and has details only while a suite is chosen.
+    storeCommitLookup(client, suite, { machine }, suggestionOf(onAxis.get(commit)!, schema!))
+    update({ baseline: [...settings.baseline, value] })
+  }
 
   const disabled = schema === undefined
   return (
@@ -348,9 +365,7 @@ function GraphPage() {
             suites={suites.data ?? NO_SUITES}
             baselines={baselines.states}
             onAdd={addBaseline}
-            onRemove={(value) =>
-              update({ baseline: settings.baseline.filter((entry) => entry !== value) })
-            }
+            onRemove={removeBaseline}
             isDisabled={disabled}
             toggle={addBaselineButton}
           />
@@ -425,6 +440,8 @@ function GraphPage() {
         highlights={drawnHighlights}
         highlightsFull={highlight.length < HIGHLIGHT_LIMIT.count ? undefined : HIGHLIGHT_LIMIT.why}
         onHighlight={toggleHighlight}
+        isBaseline={isBaseline}
+        onBaseline={toggleBaseline}
         emphasis={emphasis}
         hovered={hovered}
         closeOn={[
@@ -433,7 +450,6 @@ function GraphPage() {
           metric?.name,
           settings.sample_agg,
           settings.run_agg,
-          settings.baseline,
           mode,
         ]}
       />

@@ -45,6 +45,10 @@ interface Props {
   highlightsFull: string | undefined
   /** Highlight the point's commit, or remove its highlight if it is highlighted already. */
   onHighlight(): void
+  /** Whether the point's suite, machine and commit are a baseline (GR9). */
+  baselined: boolean
+  /** Add the point's suite, machine and commit as a baseline, or remove it if it is one already. */
+  onBaseline(): void
   /** Where the point is. */
   at: Anchor
   /** The markers of the point's samples (GR10), a press on which does not close the details. */
@@ -55,7 +59,7 @@ interface Props {
 /**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
  * value, its runs with their samples, a comparison with the point before it, a way to highlight
- * its commit, and a way to create a regression from it.
+ * its commit, a way to add it as a baseline, and a way to create a regression from it.
  */
 export function PointDetails({
   schema,
@@ -72,6 +76,8 @@ export function PointDetails({
   highlighted,
   highlightsFull,
   onHighlight,
+  baselined,
+  onBaseline,
   at,
   companion,
   onClose,
@@ -126,9 +132,12 @@ export function PointDetails({
         <ButtonLink to={compare} title={why}>
           Compare with previous commit
         </ButtonLink>
-        {/* The same button either way, so that it keeps the focus (GR11). */}
+        {/* Each toggle is the same button either way, so that it keeps the focus (GR11). */}
         <ActionButton reason={highlighted ? undefined : highlightsFull} onClick={onHighlight}>
           {highlighted ? 'Remove the highlight' : 'Highlight this commit'}
+        </ActionButton>
+        <ActionButton onClick={onBaseline}>
+          {baselined ? 'Remove the baseline' : 'Add as baseline'}
         </ActionButton>
         <CreateRegression
           suite={suite}

@@ -3,7 +3,7 @@
 import type { Locator, Page } from '@playwright/test'
 
 /**
- * The parts of a Plotly plot that place its points on the page, and the range of its x-axis. They
+ * The parts of a Plotly plot that place its points on the page, and the ranges of its axes. They
  * are Plotly internals, but the only way to find where a given point is drawn: the SVG holds each
  * trace as one path, without its points, and a hover label only shows once the pointer is within a
  * few pixels of one.
@@ -11,7 +11,7 @@ import type { Locator, Page } from '@playwright/test'
 export interface PlotDiv extends HTMLElement {
   _fullLayout: {
     xaxis: PlotAxis & { range: number[] }
-    yaxis: PlotAxis
+    yaxis: PlotAxis & { range: number[] }
     /** The axis of what a chart draws over its plot, such as the Graph's regressions. */
     yaxis2?: PlotAxis
   }
