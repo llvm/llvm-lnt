@@ -63,7 +63,7 @@ Percent-encoding would not help, since `%2F` is decoded before routing.
 
 An endpoint that returns a list of results -- entities, data points or
 aggregates -- never returns a bare array. It returns them under `items`, in one
-of two envelopes:
+of two envelopes, unless it streams them (see Streaming below):
 
 - Cursor-paginated: `{"items": [...], "cursor": {"next": "...", "previous": null}}`
 - Unpaginated: `{"items": [...]}`
@@ -74,10 +74,6 @@ there are few of them -- is unpaginated, and the others are cursor-paginated.
 `items` is always present, and is an empty list when nothing matches. Even
 unpaginated results are wrapped, so that adding pagination to an endpoint later
 keeps the shape of its responses.
-
-One endpoint is an exception: E9's series streams a machine's whole time
-series, unbounded and unpaginated, as newline-delimited JSON (one result per
-line, with no envelope), in an order no cursor could follow cheaply.
 
 This applies only to the top level of a response body. An array that is a
 field of a larger object keeps its own name (a regression's `indicators`, a
@@ -110,6 +106,24 @@ could have made anyway.
 
 **Page size.** The default page size is 25. Paginated endpoints accept a
 `limit` parameter between 1 and `10 000`.
+
+**Streaming.** An endpoint whose results are meant to be read whole, however
+many there are, may stream them instead; the endpoints spec says which ones
+do. A streaming endpoint returns newline-delimited JSON (`Content-Type:
+application/x-ndjson`): one JSON object per line, each line followed by a
+newline, with no envelope and no pagination. An empty body means that nothing
+matched.
+
+- Errors found before the response starts get their usual status and the
+  error envelope (I4).
+- Once the response has started, its status cannot change. A failure then
+  aborts the response, so that its body is cut short at the transport level
+  (with HTTP/1.1, the last chunk is never sent; with HTTP/2, the stream is
+  reset), which HTTP clients report as an error. A response that ends normally
+  is therefore complete: the HTTP framing says so, not a marker in the body.
+- The status and headers are sent before anything is read, and the data is
+  sent as it is read rather than at the end, so that a proxy waiting for the
+  next bytes does not time out.
 
 
 ## I3: Filtering and Sorting
@@ -173,8 +187,8 @@ that updates or removes an entry is addressing that entry instead, and returns
 
 ## I4: Response Format
 
-All REST API responses are JSON, except a successful response from E9's
-series, which is newline-delimited JSON (see I2). A list of results comes in
+All REST API responses are JSON, except a successful response from a
+streaming endpoint, which is newline-delimited JSON (see I2). A list of results comes in
 one of the envelopes from I2; any other response is the entity object itself,
 unless its endpoint specifies otherwise. Status codes are limited to 200, 201,
 204, 400, 401, 403, 404, 405, 409, 415, and 500.
@@ -218,8 +232,8 @@ spec only needs to list its keys.
 - Unless specified otherwise, every key an endpoint documents is always
   present, and is `null` when it has no value.
 
-**Errors** all use one envelope, except a failure after the series of E9 has
-started streaming, which aborts the response instead (see E9):
+**Errors** all use one envelope, except a failure after a streaming response
+has started, which aborts the response instead (see I2):
 
 `{"error": {"code": "not_found", "message": "Machine 'foo' not found in test suite 'nts'"}}`
 

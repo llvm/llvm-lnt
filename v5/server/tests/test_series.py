@@ -110,7 +110,7 @@ def history(
             )
     for index in (1, 2, 3):
         place(f"c{index}", index * 10)
-    submit("linux", "unordered", entry("b", {"execution_time": 9.0}))
+    runs.append(submit("linux", "unordered", entry("b", {"execution_time": 9.0})))
     return runs
 
 
@@ -118,7 +118,7 @@ class TestSeriesResponse:
     def test_is_ndjson_of_query_points(
         self, api_client: TestClient, history: list[dict[str, Any]]
     ) -> None:
-        response = get(api_client)
+        response = get(api_client, has_ordinal="true")
 
         assert response.status_code == 200
         assert response.headers["content-type"] == NDJSON
@@ -200,6 +200,7 @@ class TestSeriesOrder:
             ("b", "c1", 1.0),
             ("b", "c2", 2.0),
             ("b", "c3", 3.0),
+            ("b", "unordered", 9.0),
         ]
 
     def test_breaks_ties_between_runs_of_one_commit_by_uuid(
@@ -215,20 +216,20 @@ class TestSeriesOrder:
 
         assert [line["run_uuid"] for line in lines(api_client)] == sorted(uuids)
 
-    def test_puts_unordered_commits_last_only_when_asked(
-        self, api_client: TestClient, history: list[dict[str, Any]]
+    def test_puts_the_commits_without_an_ordinal_last_by_value(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[[str, int], None],
     ) -> None:
-        assert "unordered" not in {line["commit"] for line in lines(api_client)}
+        for commit in ("u2", "c1", "u1"):
+            submit("linux", commit, entry("t", {"execution_time": 1.0}))
+        place("c1", 1)
 
-        served = lines(api_client, include_unordered="true")
+        served = lines(api_client)
 
-        assert keys(served)[-4:] == [
-            ("b", "c1", 1.0),
-            ("b", "c2", 2.0),
-            ("b", "c3", 3.0),
-            ("b", "unordered", 9.0),
-        ]
-        assert served[-1]["ordinal"] is None
+        assert [line["commit"] for line in served] == ["c1", "u1", "u2"]
+        assert [line["ordinal"] for line in served] == [1, None, None]
 
     def test_does_not_depend_on_the_batch_or_chunk_size(
         self,
@@ -281,13 +282,28 @@ class TestSeriesFilters:
     ) -> None:
         assert keys(lines(api_client, commit="c2")) == [("B", "c2", 20.0)] * 2 + [("b", "c2", 2.0)]
 
-    def test_returns_an_unordered_commit_only_when_asked(
+    def test_returns_the_commits_with_or_without_an_ordinal(
         self, api_client: TestClient, history: list[dict[str, Any]]
     ) -> None:
-        assert lines(api_client, commit="unordered") == []
-        assert keys(lines(api_client, commit="unordered", include_unordered="true")) == [
-            ("b", "unordered", 9.0)
-        ]
+        assert {line["commit"] for line in lines(api_client, has_ordinal="true")} == {
+            "c1",
+            "c2",
+            "c3",
+        }
+        assert keys(lines(api_client, has_ordinal="false")) == [("b", "unordered", 9.0)]
+
+    def test_returns_a_commit_without_an_ordinal_unless_excluded(
+        self, api_client: TestClient, history: list[dict[str, Any]]
+    ) -> None:
+        assert keys(lines(api_client, commit="unordered")) == [("b", "unordered", 9.0)]
+        assert lines(api_client, commit="unordered", has_ordinal="true") == []
+
+    def test_a_commit_bound_implies_an_ordinal(
+        self, api_client: TestClient, history: list[dict[str, Any]]
+    ) -> None:
+        """As on the commit list: no 400 for `has_ordinal=false`, just nothing."""
+        assert "unordered" not in {line["commit"] for line in lines(api_client, after_commit="c1")}
+        assert lines(api_client, after_commit="c1", has_ordinal="false") == []
 
     def test_an_unknown_commit_is_empty(
         self, api_client: TestClient, history: list[dict[str, Any]]
@@ -316,7 +332,8 @@ class TestSeriesFilters:
 
         served = lines(api_client, measured_after=linux[1]["measured_at"])
 
-        assert {line["run_uuid"] for line in served} == {linux[2]["uuid"]}
+        # The last is the run of the commit without an ordinal.
+        assert {line["run_uuid"] for line in served} == {linux[2]["uuid"], linux[3]["uuid"]}
 
 
 class TestSeriesErrors:
@@ -360,8 +377,7 @@ class TestSeriesErrors:
         [
             {"commit": "c1", "after_commit": "c2"},
             {"commit": "c1", "before_commit": "c2"},
-            {"include_unordered": "true", "after_commit": "c1"},
-            {"include_unordered": "true", "before_commit": "c3"},
+            {"has_ordinal": "maybe"},
             {"after_commit": "unordered"},
             {"machine": ["linux", "mac"]},
             {"limit": "10"},

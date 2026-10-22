@@ -86,8 +86,8 @@ reader's version check and its next query, another worker may remove a field,
 so a request can reach a column that no longer exists. Closing that window is
 not required, but a request that hits it must return the same retryable 409
 (`retry`) rather than a 500.
-A response that is streamed (E9's series) cannot change its status once
-started, so one already under way is aborted instead.
+A streaming response (see I2) that has already started cannot change its
+status, so it is aborted instead.
 
 **Schema evolution.** A suite's `metrics`, `commit_fields` and
 `machine_fields` lists can be changed after creation with

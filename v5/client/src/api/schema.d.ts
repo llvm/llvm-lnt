@@ -788,8 +788,8 @@ export interface paths {
          * Download a machine's values of a metric
          * @description All of one machine's values of a metric, in a single response of newline-delimited JSON
          *     (one object per line), for tools that analyse a whole series. Values come grouped by test, in
-         *     order of test name (by code point), then by commit ordinal; then by commit and run, so that the
-         *     same data always comes in the same order.
+         *     order of test name (by code point), then by commit ordinal, with the commits that have none
+         *     last; then by commit and run, so that the same data always comes in the same order.
          *
          *     The response is streamed as it is read, so it can be large and long: ask for it compressed
          *     (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's values are read at one point in
@@ -1299,7 +1299,7 @@ export interface components {
             commit: string;
             /**
              * Ordinal
-             * @description The commit's ordinal. Null if it has none, which can't happen when sorting by commit or filtering on a range of commits.
+             * @description The commit's ordinal. Null if it has none, which can't happen when sorting by commit or filtering on a range of commits, or with `has_ordinal=true`.
              * @example 554973
              */
             ordinal: number | null;
@@ -5783,11 +5783,11 @@ export interface operations {
                 machine: string;
                 /** @description Only return values for these tests. Repeat the parameter for several tests. Returns 404 if any of them doesn't exist. Every name lengthens the URL, which proxies limit to a few kilobytes: to read more than a few dozen tests, leave this out and read the machine's whole series instead. */
                 test?: string[] | null;
-                /** @description Only return values from runs of this commit. If the commit doesn't exist, or has no ordinal and `include_unordered` is false, the result is empty. Can't be combined with `after_commit` or `before_commit`. */
+                /** @description Only return values from runs of this commit. If the commit doesn't exist, the result is empty. Can't be combined with `after_commit` or `before_commit`. */
                 commit?: string | null;
-                /** @description Only return values from commits after this one (exclusive), by ordinal. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                /** @description Only return values from commits after this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
                 after_commit?: string | null;
-                /** @description Only return values from commits before this one (exclusive), by ordinal. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
+                /** @description Only return values from commits before this one (exclusive), by ordinal. Commits without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 if it has no ordinal. */
                 before_commit?: string | null;
                 /** @description Only return values from runs submitted after this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
                 submitted_after?: string | null;
@@ -5797,8 +5797,8 @@ export interface operations {
                 measured_after?: string | null;
                 /** @description Only return values from runs measured before this time (exclusive). An ISO 8601 timestamp, treated as UTC if it has no time zone. Encode a '+' in the time zone as `%2B`, otherwise it is read as a space. */
                 measured_before?: string | null;
-                /** @description Also return the values of commits without an ordinal, after the others. Can't be combined with `after_commit` or `before_commit`, which only select commits that have one. */
-                include_unordered?: boolean;
+                /** @description Only return values from commits that have (`true`) or don't have (`false`) an ordinal. Leave out to return both. `after_commit` and `before_commit` imply `true`. */
+                has_ordinal?: boolean | null;
             };
             header?: never;
             path: {

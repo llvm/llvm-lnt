@@ -125,7 +125,9 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **List endpoints return objects**: `{"items": [...]}`, plus
   `"cursor": {"next": ..., "previous": null}` on a cursor-paginated endpoint,
   whose `limit` defaults to 25, at most 10000. The others return every result.
-  `GET /series` is the exception: it streams one JSON object per line.
+  Streaming endpoints (`GET /series`) return one JSON object per line instead
+  (NDJSON), unpaginated. A failure after the response has started closes the
+  connection before its end, which HTTP clients report as an error.
 - **Cursors**: send `cursor.next` back unchanged -- as `cursor=`, or as the
   `cursor` key of a request body -- with the same filters and `sort`; only
   `limit` may change. Stop when it is null. Never parse or build one. A cursor
@@ -258,15 +260,25 @@ ordinal), `submitted_at` or `measured_at`. Each point looks like:
 
 **Analyse a machine's whole history** with
 `GET /series?machine=linux-x86_64&metric=execution_time`. It streams every value
-of the metric on that machine as newline-delimited JSON, one point (as above)
-per line, by test name and then by ordinal, unpaginated. It takes `test=`
-(repeated, for a few tests: they lengthen the URL) and the same filters as
-`/query`. Commits without an ordinal are left out unless
-`include_unordered=true`. Ask for it compressed (`curl --compressed`). If the
-download is interrupted -- the machine deleted, a schema change, a server
-restart -- the connection is closed before the end of the response, which HTTP
-clients report as an error (`curl --fail` exits with a non-zero status):
-download again.
+of the metric on that machine as newline-delimited JSON, unpaginated, one
+sample per line:
+
+```json
+{"test": "bench/foo", "machine": "linux-x86_64", "metric": "execution_time",
+ "value": 1.23, "commit": "abc123", "ordinal": 593922, "tag": null,
+ "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4",
+ "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
+```
+
+Lines come by test name, then by ordinal, with the commits without one last.
+Narrow it down with `test=` (repeated, for a few tests: they lengthen the URL),
+`commit`, `after_commit`, `before_commit`, the run's `submitted_after`,
+`submitted_before`, `measured_after` and `measured_before`, and `has_ordinal`
+(`true` for only the commits with an ordinal, `false` for only those without).
+Ask for it compressed (`curl --compressed`). If the download is interrupted --
+the machine deleted, a schema change, a server restart -- the connection is
+closed before the end of the response, which `curl --fail` reports with a
+non-zero status: download again.
 
 **Get an overview across machines** with
 `GET /trends?metric=execution_time&machine=a&machine=b&last_n=100`. It returns

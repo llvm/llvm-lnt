@@ -74,7 +74,7 @@ FETCH_ROWS = 5000
 CHUNK_BYTES = 128 * 1024
 CHUNK_SECONDS = 1.0
 
-# The keys of a line, in `DataPoint`'s order, which is the order `POST /query` writes them in.
+# The keys of a line, in `DataPoint`'s order.
 _KEYS = tuple(DataPoint.model_fields)
 
 _NO_ENTITY = (
@@ -281,9 +281,8 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return values from runs of this commit. If the commit doesn't exist, or has "
-                "no ordinal and `include_unordered` is false, the result is empty. Can't be "
-                "combined with `after_commit` or `before_commit`."
+                "Only return values from runs of this commit. If the commit doesn't exist, the "
+                "result is empty. Can't be combined with `after_commit` or `before_commit`."
             )
         ),
     ] = None,
@@ -291,8 +290,9 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return values from commits after this one (exclusive), by ordinal. Returns "
-                "404 if the commit doesn't exist, and 400 if it has no ordinal."
+                "Only return values from commits after this one (exclusive), by ordinal. Commits "
+                "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 "
+                "if it has no ordinal."
             )
         ),
     ] = None,
@@ -300,8 +300,9 @@ def get_series(
         str | None,
         Query(
             description=(
-                "Only return values from commits before this one (exclusive), by ordinal. Returns "
-                "404 if the commit doesn't exist, and 400 if it has no ordinal."
+                "Only return values from commits before this one (exclusive), by ordinal. Commits "
+                "without an ordinal are left out. Returns 404 if the commit doesn't exist, and 400 "
+                "if it has no ordinal."
             )
         ),
     ] = None,
@@ -336,21 +337,21 @@ def get_series(
             f"{TIMESTAMP_HINT}"
         ),
     ] = None,
-    include_unordered: Annotated[
-        bool,
+    has_ordinal: Annotated[
+        bool | None,
         Query(
             description=(
-                "Also return the values of commits without an ordinal, after the others. Can't be "
-                "combined with `after_commit` or `before_commit`, which only select commits that "
-                "have one."
+                "Only return values from commits that have (`true`) or don't have (`false`) an "
+                "ordinal. Leave out to return both. `after_commit` and `before_commit` imply "
+                "`true`."
             )
         ),
-    ] = False,
+    ] = None,
 ) -> StreamingResponse:
     """All of one machine's values of a metric, in a single response of newline-delimited JSON
     (one object per line), for tools that analyse a whole series. Values come grouped by test, in
-    order of test name (by code point), then by commit ordinal; then by commit and run, so that the
-    same data always comes in the same order.
+    order of test name (by code point), then by commit ordinal, with the commits that have none
+    last; then by commit and run, so that the same data always comes in the same order.
 
     The response is streamed as it is read, so it can be large and long: ask for it compressed
     (`Accept-Encoding: gzip`, or `curl --compressed`). Each test's values are read at one point in
@@ -364,15 +365,8 @@ def get_series(
 
     Try it out from this page only on a small series.
     """
-    bounded = after_commit is not None or before_commit is not None
-    if commit is not None and bounded:
+    if commit is not None and (after_commit is not None or before_commit is not None):
         raise ApiError(ErrorCode.INVALID_REQUEST, ONE_KIND_OF_COMMIT_FILTER)
-    if include_unordered and bounded:
-        raise ApiError(
-            ErrorCode.INVALID_REQUEST,
-            "'after_commit' and 'before_commit' only select commits that have an ordinal, so "
-            "they can't be combined with 'include_unordered'",
-        )
     # Bounded for the lookup below, which binds a parameter per name. Not advertised: a URL holding
     # this many names is far longer than any proxy accepts.
     if test is not None and len(test) > MAX_LIMIT:
@@ -401,8 +395,11 @@ def get_series(
                 measured_after=measured_after,
                 measured_before=measured_before,
             )
-            if not include_unordered:
-                conditions.append(suite.tables.commit.c.ordinal.is_not(None))
+            # As on the commit list (E3): a commit bound leaves out the commits without an
+            # ordinal by itself, so with `has_ordinal=false` nothing matches.
+            if has_ordinal is not None:
+                ordinal = suite.tables.commit.c.ordinal
+                conditions.append(ordinal.is_not(None) if has_ordinal else ordinal.is_(None))
             runs = connection.execute(series.runs(conditions)).scalar_one()
             tests = [] if runs == 0 else list(connection.execute(series.tests(among)).scalars())
 

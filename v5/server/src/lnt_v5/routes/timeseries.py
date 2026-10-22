@@ -138,7 +138,7 @@ class DataPoint(BaseModel):
     ordinal: int | None = Field(
         description=(
             "The commit's ordinal. Null if it has none, which can't happen when sorting by commit "
-            "or filtering on a range of commits."
+            "or filtering on a range of commits, or with `has_ordinal=true`."
         ),
         examples=[examples.ORDINAL],
     )
