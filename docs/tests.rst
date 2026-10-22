@@ -167,10 +167,6 @@ code looks something like the following::
        --exec-multisample=5               \
        --run-under 'taskset -c 1'
 
-The profiles are imported into the report with ``lnt profile upgrade``, so
-``lnt`` must be installed along with the Python running ``lnt runtest``, be on
-your ``PATH``, or be given with ``--use-lnt``.
-
 
 Bisecting: ``--single-result`` and ``--single-result-predicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
