@@ -84,7 +84,9 @@ test('plots a test chosen from scratch', async ({ page }) => {
   await filter.fill('no test is named so')
   await expect(page.getByText('No tests match the filter.')).toBeVisible()
   await expect(
-    page.getByText(/^0 of 0 matching tests selected \(\d+ total\), 1 more hidden by the filter$/),
+    page.getByText(
+      /^0 of 0 matching tests selected · \d+ tests in total · 1 more hidden by the filter$/,
+    ),
   ).toBeVisible()
   await expect(tracesOf(page)).toHaveCount(1)
   await filter.fill('')

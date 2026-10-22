@@ -334,12 +334,12 @@ libcxx › Regressions
 
 ## Add indicators
 
-Metric              Machines (1 of 2 selected)     Tests (2 of 1200 selected)
-[Execution Time v]  [Filter machines...]           [Filter tests...]
-                    [-] Machine                    [-] Test
-                    [x] linux-x86_64               [x] BM_find_if/1024
-                    [ ] macos-26.5-arm64           [x] BM_find_if/4096
-                                                   etc...
+Metric              Machines (1 of 2 machines selected)     Tests (2 of 1200 tests selected)
+[Execution Time v]  [Filter machines...]                    [Filter tests...]
+                    [-] Machine                             [-] Test
+                    [x] linux-x86_64                        [x] BM_find_if/1024
+                    [ ] macos-26.5-arm64                    [x] BM_find_if/4096
+                                                            etc...
 
 This will add 2 indicators.  [Add]
 

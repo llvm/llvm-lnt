@@ -136,6 +136,7 @@ class TestCreate:
             "unit": None,
             "unit_abbrev": None,
             "bigger_is_better": False,
+            "dashboard": False,
         }
 
     def test_stores_the_normalized_schema_rather_than_the_request_body(
@@ -386,16 +387,53 @@ class TestEvolve:
         assert f"update.0.{key}" in response.json()["error"]["message"]
         assert stored_schema(db_engine, "nts") == before
 
+    @pytest.mark.parametrize(
+        ("list_name", "entry", "key"),
+        [("machine_fields", "hardware", "searchable"), ("metrics", "compile_time", "dashboard")],
+    )
     def test_refuses_a_boolean_key_sent_as_null(
-        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        list_name: str,
+        entry: str,
+        key: str,
     ) -> None:
         # D4 defaults these to false, so there is no unset state for a null to mean.
         create()
 
         response = patch_request(
-            api_client,
-            manage,
-            {"machine_fields": {"update": [{"name": "hardware", "searchable": None}]}},
+            api_client, manage, {list_name: {"update": [{"name": entry, key: None}]}}
+        )
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_shows_a_metric_on_the_dashboard_and_hides_it_again(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create()
+
+        def dashboard(value: bool) -> list[bool]:
+            body = patch_request(
+                api_client,
+                manage,
+                {"metrics": {"update": [{"name": "compile_time", "dashboard": value}]}},
+            ).json()
+            return [m["dashboard"] for m in body["metrics"]]
+
+        assert dashboard(True) == [True, False]
+        assert dashboard(False) == [False, False]
+
+    def test_refuses_to_show_a_non_numeric_metric_on_the_dashboard(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        # As for `searchable`, only full revalidation sees the entry's type (D3).
+        create(metrics=[{"name": "hash", "type": "text"}])
+
+        response = patch_request(
+            api_client, manage, {"metrics": {"update": [{"name": "hash", "dashboard": True}]}}
         )
 
         assert response.status_code == 400

@@ -26,6 +26,7 @@ METRICS: list[dict[str, Any]] = [
         "unit": "seconds",
         "unit_abbrev": "s",
         "bigger_is_better": False,
+        "dashboard": True,
     },
     {
         "name": "instructions",
@@ -34,6 +35,7 @@ METRICS: list[dict[str, Any]] = [
         "unit": "instructions",
         "unit_abbrev": "instr",
         "bigger_is_better": False,
+        "dashboard": True,
     },
     {
         "name": "max_rss",
@@ -42,6 +44,7 @@ METRICS: list[dict[str, Any]] = [
         "unit": "megabytes",
         "unit_abbrev": "mb",
         "bigger_is_better": False,
+        "dashboard": True,
     },
     {
         "name": "cycles",
@@ -50,6 +53,7 @@ METRICS: list[dict[str, Any]] = [
         "unit": "cycles",
         "unit_abbrev": "cycles",
         "bigger_is_better": False,
+        "dashboard": True,
     },
     {
         "name": "peak_memory",
@@ -58,6 +62,7 @@ METRICS: list[dict[str, Any]] = [
         "unit": "megabytes",
         "unit_abbrev": "mb",
         "bigger_is_better": False,
+        "dashboard": True,
     },
 ]
 MACHINE_FIELDS: list[dict[str, Any]] = [

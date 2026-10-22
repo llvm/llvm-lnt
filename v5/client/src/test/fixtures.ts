@@ -18,6 +18,7 @@ export const SUITE: SuiteSchema = {
       unit: 'seconds',
       unit_abbrev: 's',
       bigger_is_better: false,
+      dashboard: true,
     },
   ],
   machine_fields: [
@@ -39,7 +40,7 @@ export const BARE_SUITE: SuiteSchema = {
   commit_fields: [],
 }
 
-/** A metric (D4), `real` and without a label or a unit unless given. */
+/** A metric (D4), `real`, without a label or a unit, and not on the Dashboard unless given. */
 export function metric(name: string, overrides: Partial<Metric> = {}): Metric {
   return {
     name,
@@ -48,6 +49,7 @@ export function metric(name: string, overrides: Partial<Metric> = {}): Metric {
     unit: null,
     unit_abbrev: null,
     bigger_is_better: false,
+    dashboard: false,
     ...overrides,
   }
 }

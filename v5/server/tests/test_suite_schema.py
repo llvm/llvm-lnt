@@ -20,8 +20,9 @@ EXAMPLE: dict[str, Any] = {
             "unit": "seconds",
             "unit_abbrev": "s",
             "bigger_is_better": False,
+            "dashboard": True,
         },
-        {"name": "execution_time", "type": "real"},
+        {"name": "execution_time", "type": "real", "dashboard": True},
         {"name": "compile_status", "type": "integer"},
     ],
     "machine_fields": [
@@ -198,6 +199,9 @@ class TestPresentationKeys:
             ("metrics", "searchable", True),
             ("metrics", "display", True),
             ("machine_fields", "display", True),
+            # Only a metric is charted on the Dashboard.
+            ("commit_fields", "dashboard", False),
+            ("machine_fields", "dashboard", False),
         ],
     )
     def test_a_key_that_means_nothing_for_a_list_is_refused(
@@ -303,6 +307,29 @@ class TestDisplayField:
         SuiteSchema.model_validate(schema(commit_fields=[entry]))
 
 
+class TestDashboard:
+    @pytest.mark.parametrize("attribute", ["real", "integer"])
+    def test_a_numeric_metric_can_be_shown(self, attribute: str) -> None:
+        parsed = SuiteSchema.model_validate(
+            schema(metrics=[{"name": "m", "type": attribute, "dashboard": True}])
+        )
+        assert parsed.metrics[0].dashboard
+
+    @pytest.mark.parametrize("attribute", ["text", "datetime"])
+    def test_nothing_else_can_be(self, attribute: str) -> None:
+        # D3: a card charts a geomean, which only a numeric metric has.
+        entry = {"name": "m", "type": attribute, "dashboard": True}
+        with pytest.raises(ValidationError, match="dashboard"):
+            SuiteSchema.model_validate(schema(metrics=[entry]))
+
+    @pytest.mark.parametrize("attribute", ["text", "datetime"])
+    def test_a_non_numeric_metric_may_still_say_it_is_not(self, attribute: str) -> None:
+        # The normalized form carries `dashboard: false` on every metric (D4).
+        SuiteSchema.model_validate(
+            schema(metrics=[{"name": "m", "type": attribute, "dashboard": False}])
+        )
+
+
 class TestNormalization:
     """D4's stored and returned form: every optional key present and explicit.
 
@@ -322,6 +349,7 @@ class TestNormalization:
                 "unit": None,
                 "unit_abbrev": None,
                 "bigger_is_better": False,
+                "dashboard": False,
             }
         ]
 

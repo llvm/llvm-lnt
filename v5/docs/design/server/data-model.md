@@ -98,10 +98,10 @@ both machines and commits (see O2).
 
 - **Adding** an entry leaves existing rows with no value for it.
 - Only presentation metadata can be **updated**: whichever of `display_name`,
-  `unit`, `unit_abbrev`, `bigger_is_better`, `searchable` and `display` the
-  entry accepts (see D4). A `type` cannot be changed in place, because the
-  conversion is not always defined (`text` to `integer` can fail for some rows,
-  and `real` to `integer` truncates).
+  `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard`, `searchable` and
+  `display` the entry accepts (see D4). A `type` cannot be changed in place,
+  because the conversion is not always defined (`text` to `integer` can fail
+  for some rows, and `real` to `integer` truncates).
 - **Removing** an entry permanently destroys every value stored for it. Since
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry used. Removing a metric also removes every regression
@@ -111,9 +111,9 @@ both machines and commits (see O2).
 In an `update` entry, an omitted key leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`,
 `unit_abbrev`); an empty string does not, and is rejected with 400 (see D4).
-The boolean keys (`bigger_is_better`, `searchable`, `display`) are not
-nullable, because D4 normalizes them to `false` rather than to null, so `null`
-for one of them is rejected with 400.
+The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`) are
+not nullable, because D4 normalizes them to `false` rather than to null, so
+`null` for one of them is rejected with 400.
 
 Notes:
 - Renaming is not supported: it is semantically a remove plus an add.
@@ -143,7 +143,7 @@ below.
 `searchable: true` (D4, O4) is only valid on `text` entries: setting it on a
 `real`, `integer` or `datetime` field is rejected with 400 when the schema is
 created or changed. Likewise, `display: true` (D4) is only valid on a `text`
-commit field.
+commit field, and `dashboard: true` (D4) only on a numeric metric (see below).
 
 **Only the JSON representation is accepted.** A submitted value whose JSON type
 is not the one its declared type calls for is rejected with 400, not
@@ -173,9 +173,9 @@ with a `Z` suffix (see D5).
 
 **Numeric types.** `real` and `integer` together are the *numeric* types.
 Wherever the design needs a metric to be quantitative (e.g. geomean
-aggregation), the metric must be numeric. Arithmetic is well-defined over both
-`real` and `integer` metrics, and both are useful for different kinds of
-quantities (e.g. code size, execution time).
+aggregation, or a card on the Dashboard), the metric must be numeric.
+Arithmetic is well-defined over both `real` and `integer` metrics, and both are
+useful for different kinds of quantities (e.g. code size, execution time).
 
 Being numeric does not guarantee that a metric is a meaningful *quantity*,
 however. An `integer` metric may encode an enum (a status code, say), and a
@@ -203,9 +203,10 @@ through the API. The two formats still share much of their vocabulary.
       "display_name": "Compile Time",
       "unit": "seconds",
       "unit_abbrev": "s",
-      "bigger_is_better": false
+      "bigger_is_better": false,
+      "dashboard": true
     },
-    {"name": "execution_time", "type": "real"},
+    {"name": "execution_time", "type": "real", "dashboard": true},
     {"name": "compile_status", "type": "integer"}
   ],
   "machine_fields": [
@@ -238,6 +239,11 @@ Notes:
   specially. A schema with more than one `commit_field` marked
   `display: true`, or with one that is not `text`, is rejected with 400 when it
   is created or changed.
+- `dashboard: true` on a metric is a hint for the UI: the Dashboard shows a
+  card for each metric that sets it (see DA1). A card charts a geomean, so it is
+  only valid on a numeric metric (see D3). Like `display`, it is purely a UI
+  concern: the API treats metrics alike whether or not they set it, in trends,
+  series and everywhere else.
 - There is no `format_version` in the schema: v5 has only one format.
 
 **Presentation keys.** Besides `name` and `type`, each list accepts only the
@@ -246,12 +252,12 @@ rejected with 400.
 
 | List | Accepts, in addition to `name` and `type` |
 |------|-------------------------------------------|
-| `metrics` | `display_name`, `unit`, `unit_abbrev`, `bigger_is_better` |
+| `metrics` | `display_name`, `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard` |
 | `commit_fields` | `display_name`, `searchable`, `display` |
 | `machine_fields` | `display_name`, `searchable` |
 
-Only metrics accept `bigger_is_better`, only commit and machine fields can be
-searchable, and only a commit field can be the UI's display value.
+Only metrics accept `bigger_is_better` and `dashboard`, only commit and machine
+fields can be searchable, and only a commit field can be the UI's display value.
 
 **Normalization.** The stored and returned form of a schema contains every
 optional key, filled in with the default below when the submitted document
@@ -263,6 +269,7 @@ another, so these defaults are part of the wire contract.
 | `display_name` | `null` |
 | `unit`, `unit_abbrev` | `null` |
 | `bigger_is_better` | `false` |
+| `dashboard` | `false` |
 | `searchable` | `false` |
 | `display` | `false` |
 
@@ -809,9 +816,12 @@ that applies them must meet these requirements:
   reader can address it without handling its absence.
 
 Stored schemas are data in a global table. If the schema format (D4) changes
-in a way that existing `schema_json` values no longer satisfy, rewriting them
-is a global migration, which bumps `schema_version` like any other change to a
-stored schema (see D2 and D5).
+in a way that existing `schema_json` values no longer satisfy, or that would
+change what they mean (such as a new key whose default does not preserve how
+existing suites behave), rewriting them is a global migration. The rewrite
+preserves each schema's meaning, keeps the stored form normalized (D5) by
+writing out every key it adds, and bumps `schema_version` like any other change
+to a stored schema (see D2 and D5).
 
 A build that adds a built-in column to a table with dynamic columns reserves
 that column's name (see D4). A suite whose schema already declares an entry

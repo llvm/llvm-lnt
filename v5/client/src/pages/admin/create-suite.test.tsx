@@ -133,7 +133,7 @@ describe('opening the editor', () => {
 
     expect(editor()).not.toBeInTheDocument()
     expect(rowsOf(await table('Metrics'))).toEqual([
-      'execution_time | real | Execution Time | seconds (s) | No',
+      'execution_time | real | Execution Time | seconds (s) | No | Yes',
     ])
     expect(newSuiteButton()).toHaveFocus()
     expect(currentUrl()).toBe('/admin?tab=suites&suite=libcxx')
@@ -253,6 +253,22 @@ describe('the entries', () => {
       }),
     ).toHaveAttribute('title', 'Only a text commit field can be searchable.')
   })
+
+  it('can be on the Dashboard only while it is numeric', async () => {
+    await openEditor()
+    addEntry('metric', 'size')
+    const dashboard = screen.getByRole('checkbox', { name: 'On the Dashboard of metric size' })
+    expect(dashboard).not.toBeChecked()
+    fireEvent.click(dashboard)
+
+    await pickOption('Type of metric size', 'integer')
+    expect(dashboard).toBeChecked()
+
+    await pickOption('Type of metric size', 'datetime')
+    expect(dashboard).not.toBeChecked()
+    expect(dashboard).toBeDisabled()
+    expect(dashboard).toHaveAttribute('title', 'Only a numeric metric can be on the Dashboard.')
+  })
 })
 
 describe('the name checks', () => {
@@ -337,6 +353,7 @@ describe('creating the suite', () => {
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric size' }), ' Size  ')
     typeInto(screen.getByRole('textbox', { name: 'Unit abbreviation of metric size' }), '   ')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Bigger is better of metric size' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'On the Dashboard of metric size' }))
     addEntry('machine field', 'kernel')
 
     fireEvent.click(createButton())
@@ -352,6 +369,7 @@ describe('creating the suite', () => {
           unit: null,
           unit_abbrev: null,
           bigger_is_better: true,
+          dashboard: true,
         },
       ],
       commit_fields: [],
@@ -361,7 +379,7 @@ describe('creating the suite', () => {
     expect(editor()).not.toBeInTheDocument()
     expect(selectButton('Test suite')).toHaveTextContent('fresh')
     expect(selectButton('Test suite')).toHaveFocus()
-    expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes'])
+    expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No'])
   })
 
@@ -618,7 +636,7 @@ describe('Import JSON', () => {
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=imported'))
     expect(sent[0].text).toBe(DOCUMENT)
     expect(editor()).not.toBeInTheDocument()
-    expect(rowsOf(await table('Metrics'))).toEqual(['size | real | -- | -- | No'])
+    expect(rowsOf(await table('Metrics'))).toEqual(['size | real | -- | -- | No | No'])
   })
 
   it('loads the document from a file', async () => {

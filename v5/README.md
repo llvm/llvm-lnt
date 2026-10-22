@@ -149,6 +149,9 @@ docker run --init --rm -p 3000:3000 --network v5_default \
 
 The container always listens on 3000; map it elsewhere with `-p`, e.g. `-p 8080:3000`.
 
+The base images come from Docker Hub. To build from a mirror of its official images instead, pass
+the mirror with `--build-arg DOCKER_HUB=<mirror>`, which takes the place of `docker.io/library`.
+
 `DATABASE_URL` is overridden because `.env.example` points at `localhost` (for running the server
 directly on the host), whereas this container reaches Postgres over the `v5_default` Docker network,
 where it is addressable as `postgres`.

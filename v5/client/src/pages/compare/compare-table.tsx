@@ -244,7 +244,10 @@ export function CompareTable({
         <p className={styles.count} role="status">
           {summary}
           {notInUrl !== undefined && (
-            <span title={notInUrl}> (too many hidden to reflect in the URL)</span>
+            <>
+              {' · '}
+              <span title={notInUrl}>too many hidden to reflect in the URL</span>
+            </>
           )}
         </p>
         <div className={styles.tableActions}>

@@ -36,6 +36,7 @@ const UNITLESS: SuiteSchema = {
       unit: null,
       unit_abbrev: null,
       bigger_is_better: false,
+      dashboard: false,
     },
   ],
   commit_fields: [],
@@ -136,8 +137,17 @@ describe('the Test Suites tab', () => {
 
     const metrics = await table('Metrics')
     expect(suiteSelect()).toHaveTextContent('libcxx')
-    expect(headersOf(metrics)).toEqual(['Name', 'Type', 'Display Name', 'Unit', 'Bigger is Better'])
-    expect(rowsOf(metrics)).toEqual(['execution_time | real | Execution Time | seconds (s) | No'])
+    expect(headersOf(metrics)).toEqual([
+      'Name',
+      'Type',
+      'Display Name',
+      'Unit',
+      'Bigger is Better',
+      'Dashboard',
+    ])
+    expect(rowsOf(metrics)).toEqual([
+      'execution_time | real | Execution Time | seconds (s) | No | Yes',
+    ])
 
     const commitFields = await table('Commit fields')
     expect(headersOf(commitFields)).toEqual([
@@ -171,7 +181,7 @@ describe('the Test Suites tab', () => {
     mockSuites(SUITES)
     renderPage('/admin?tab=suites&suite=units')
 
-    expect(rowsOf(await table('Metrics'))).toEqual(['neither | datetime | -- | -- | No'])
+    expect(rowsOf(await table('Metrics'))).toEqual(['neither | datetime | -- | -- | No | No'])
   })
 
   it('says when a list of the schema is empty', async () => {

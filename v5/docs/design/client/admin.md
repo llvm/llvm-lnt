@@ -88,10 +88,10 @@ one, which the dropdown prompts for. When the instance has no suites, the tab sa
 ```
 Metrics (subtitle font)
 
-Name              Type        Display Name              Unit                    Bigger is Better
-------------------------------------------------------------------------------------------------
-execution_time    real        Execution Time            seconds (s)             No
-instructions      real        Instructions Retired      instructions (instr)    No
+Name              Type        Display Name              Unit                    Bigger is Better    Dashboard
+-----------------------------------------------------------------------------------------------------------
+execution_time    real        Execution Time            seconds (s)             No                  Yes
+instructions      real        Instructions Retired      instructions (instr)    No                  Yes
 etc...
 
 
@@ -146,11 +146,11 @@ too, without asking.
 New suite    Suite name [________]    Start from [suite v]    [Import JSON]
 
 Metrics
-Name              Type        Display Name        Unit          Abbrev    Bigger is Better
--------------------------------------------------------------------------------------------
-execution_time    real        [Execution Time]    [seconds]     [s]       [ ]             ×
-code_size         integer     (removed)                                                [undo]
-[instructions]    [real v]    [              ]    [       ]     [   ]     [ ]             ×
+Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
+-------------------------------------------------------------------------------------------------------
+execution_time    real        [Execution Time]    [seconds]     [s]       [ ]                 [x]         ×
+code_size         integer     (removed)                                                            [undo]
+[instructions]    [real v]    [              ]    [       ]     [   ]     [ ]                 [ ]         ×
 [+ Add metric]
 
 Commit Fields
@@ -179,9 +179,10 @@ goes at the end of its list, and entries cannot be reordered. The display name, 
 abbreviation are sent without whitespace at either end, and an input that is empty, or holds only
 whitespace, sets its key to `null` (see D2).
 
-`searchable` and `display` are only valid on a `text` entry (see D3): they are disabled for
-other types, and changing an entry's type away from `text` clears them. Checking `display` on
-one commit field unchecks it on the others, since at most one can have it.
+`searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
+metric (see D3): each is disabled for the other types, says why on hover, and is cleared when the
+entry's type changes to one of them. Checking `display` on one commit field unchecks it on the
+others, since at most one can have it.
 
 As the user types a name, the editor checks it against D4's rules for names, including the
 names that D5 reserves, and for uniqueness within its list. A name that fails shows the red
