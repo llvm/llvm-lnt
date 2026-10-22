@@ -4,8 +4,8 @@
  * arrived. Tests are not batched into one request, so that each is drawn as soon as its own data
  * has arrived, and the tests' requests run side by side.
  *
- * A test's measurements never change once loaded, so they are never fetched again while the page
- * shows them. A request cancelled because its test was deselected or its machine removed keeps
+ * Once loaded, a test's measurements are kept as they are, fresh for good (GR8), and never fetched
+ * again while the page shows them. A request cancelled because its test was deselected or its machine removed keeps
  * none of what had arrived, and is sent again once its test is shown again.
  *
  * What a page has fetched is kept for as long as it shows the suite, even what it no longer shows

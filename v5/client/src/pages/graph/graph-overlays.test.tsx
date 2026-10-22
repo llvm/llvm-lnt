@@ -964,6 +964,26 @@ describe('the baselines (GR9)', () => {
     expect(chips.getByRole('listitem')).toHaveTextContent('libcxx/m1/r10')
   })
 
+  it("does not wait for the traces' requests, even when they take every turn (GR2)", async () => {
+    const held = gate()
+    const names = ['a', 't1', 't2', 't3', 't4', 't5']
+    const recorded = mockWorld({ machines: ['m1'], tests: { m1: names } })
+    // Every trace's body held, as a large selection keeps them, and the baseline's answered.
+    answerSeries(recorded, (asked) =>
+      asked.has('commit')
+        ? ndjsonResponse([[pointOf('m1', 'a', ['c10', 'r1', 1])]])
+        : ndjsonResponse([], { wait: () => held.promise }),
+    )
+    const tests = names.map((name) => `&test=${name}`).join('')
+    renderPage(`${ONE_MACHINE}${tests}&baseline=libcxx/m1/c10`)
+
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline libcxx/m1/r10: 1']))
+    const traces = recorded.series.filter(({ query }) => !query.has('commit'))
+    expect(traces).toHaveLength(6)
+    expect(traces.every(({ signal }) => !signal.aborted)).toBe(true)
+    act(() => held.open())
+  })
+
   it('combines the baseline\'s samples as the traces are', async () => {
     const samples: Record<string, Sample[]> = {
       'm1/a': [

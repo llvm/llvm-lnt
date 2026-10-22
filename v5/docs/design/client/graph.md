@@ -93,8 +93,9 @@ the suite is a query parameter, not a path segment.
 
 Data is fetched on-demand when tests are selected (not eagerly on discovery).
 Each selected test's data on each machine is fetched on its own via
-`GET /series`, and each trace is drawn as soon as its data has arrived, so that
-the chart fills in trace by trace rather than waiting for the whole selection.
+`GET /series`, and each trace is drawn once all of its data has arrived, never
+in part, so that the chart fills in trace by trace rather than waiting for the
+whole selection.
 So that a large selection does not flood the server, only a few requests are in
 flight at once; the others wait for their turn.
 

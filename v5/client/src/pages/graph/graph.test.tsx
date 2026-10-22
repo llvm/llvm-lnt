@@ -726,7 +726,7 @@ describe('loading (GR2, GR4, GR8)', () => {
     await waitFor(() => expect(traces()).toEqual(['b - m1: c10=3', 'b - m2: c40=4']))
   })
 
-  it('loads a test again on Retry after a response cut short, adding nothing twice', async () => {
+  it('says a response cut short failed, and loads the test again, whole, on Retry', async () => {
     mockWorld()
     const sent = mockAnswers((before) =>
       before === 0 ? ndjsonResponse([[OF_A[0]]], { cut: true }) : ndjsonResponse([OF_A]),

@@ -12,7 +12,7 @@ const CUT_SHORT = 'The connection to the server was lost before all the data arr
  * request that got none: it may succeed if sent again.
  *
  * Reading stops once `signal` is aborted, with the signal's reason, even if the body itself does
- * not follow the signal. The reader is read in a loop rather than by iterating over the stream,
+ * not follow the signal. Whatever stops it before the end of the body cancels the body. The reader is read in a loop rather than by iterating over the stream,
  * which not every browser supports.
  */
 export async function readNdjson<T>(
@@ -44,6 +44,10 @@ export async function readNdjson<T>(
       partial = text.slice(end + 1)
       if (end >= 0) for (const line of text.slice(0, end).split('\n')) lines.push(JSON.parse(line))
     }
+  } catch (error) {
+    // Which does nothing to a body that has failed, or that the abort has cancelled already.
+    cancel()
+    throw error
   } finally {
     signal.removeEventListener('abort', cancel)
   }

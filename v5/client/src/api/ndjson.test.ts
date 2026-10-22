@@ -52,6 +52,21 @@ describe('readNdjson', () => {
     })
   })
 
+  it('cancels the body when a line is not JSON', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      start(stream) {
+        stream.enqueue(encoder.encode('{"a":1}\nnot json\n'))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+
+    await expect(readNdjson(body, signal())).rejects.toBeInstanceOf(SyntaxError)
+    expect(cancelled).toBe(true)
+  })
+
   it('stops reading once aborted, even if the body never ends, with the reason', async () => {
     const controller = new AbortController()
     let cancelled: unknown
