@@ -308,6 +308,20 @@ run_cli(plan_errors, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-NEXT: error: machine 1 (m): 3 is not a valid value for field 'count'
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
+# v5's built-in columns with no v4 counterpart are reserved too, and a v4
+# metric or machine key can be named after one.
+reserved_schema = copy.deepcopy(SCHEMA)
+reserved_schema['metrics'].append({'name': 'repetition', 'type': 'Real'})
+M = {'id': 1, 'name': 'm', 'first_seen_at': '2026-01-01',
+     'delete_after_inactive_days': '30'}
+reserved = make_mirror('reserved', [(M, [run(1, M, '1', [])])],
+                       schema=reserved_schema)
+run_cli(reserved, '--suite', 'nts', '--target-suite', 'target')
+# CHECK:      error: metrics entry 'repetition': the name is reserved by v5
+# CHECK-NEXT: error: machine_fields entry 'delete_after_inactive_days': the name is reserved by v5
+# CHECK-NEXT: error: machine_fields entry 'first_seen_at': the name is reserved by v5
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
+
 # Two revisions with the same ordinal.
 M = {'id': 1, 'name': 'm'}
 ordinals = make_mirror('ordinals', [
@@ -484,6 +498,33 @@ run_cli(extra_metric, '--suite', 'nts', '--target-suite', 'target',
         '--schema', override('extra', fix_units))
 # CHECK:      Converted 1 run(s) of 1 machine(s); 0 failure(s).
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 0
+
+
+def metric_id(schema):
+    schema['metrics'].append({'name': 'id', 'type': 'real'})
+
+
+# Built-in columns are reserved per table: no table a metric extends has an
+# `id` column, so a metric can be named `id`.
+run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
+        '--schema', override('metric-id', metric_id))
+# CHECK:      Schema: 4 metric(s) and 2 machine field(s), from --schema
+# CHECK-NEXT: Commits: 1, of which 1 have an ordinal
+# CHECK-NEXT: Converted 1 run(s) of 1 machine(s); 0 failure(s).
+# CHECK-NEXT: written: 1, exit: 0
+
+
+def reserved_commit_fields(schema):
+    schema['commit_fields'] = [
+        {'name': 'first_seen_at', 'type': 'datetime'},
+        {'name': 'delete_after_inactive_days', 'type': 'integer'}]
+
+
+run_cli(override_mirror, '--suite', 'nts', '--target-suite', 'target',
+        '--schema', override('reserved-commit-fields', reserved_commit_fields))
+# CHECK:      error: commit_fields entry 'first_seen_at': the name is reserved by v5
+# CHECK-NEXT: error: commit_fields entry 'delete_after_inactive_days': the name is reserved by v5
+# CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 
 # ---------------------------------------------------------------------------
