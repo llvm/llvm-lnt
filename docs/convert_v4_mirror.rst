@@ -24,7 +24,8 @@ Once the mirror has been refreshed, converting it again and submitting the
 result submits the runs that the v5 instance does not have yet::
 
     lnt v5 convert-v4-mirror ./lnt-mirror --suite nts | \
-        lnt v5 submit https://lnt.example.com --suite nts --token <token>
+        lnt v5 submit https://lnt.example.com --suite nts --token <token> \
+            --skip-existing
 
 See ``lnt v5 convert-v4-mirror --help`` for the other options.
 

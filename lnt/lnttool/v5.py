@@ -144,15 +144,19 @@ def action_convert_profile(profile: str, output: Any, encode: bool,
 @click.option("--workers", default=4, show_default=True,
               type=click.IntRange(min=1),
               help="number of runs to submit concurrently")
+@click.option("--skip-existing", is_flag=True,
+              help="list the runs the suite already has, and skip them; "
+                   "worth it when submitting much of an input again")
 def action_submit(url: str, input_file: Any, suite: str, token: str | None,
-                  schema_file: str | None, workers: int) -> None:
+                  schema_file: str | None, workers: int,
+                  skip_existing: bool) -> None:
     """submit runs to a test suite of an LNT v5 instance
 
     URL is the root of the v5 instance, e.g. https://lnt.example.com. The runs
     are read from FILE, or from standard input, as one JSON run submission per
-    line, and submitted in that order. Runs whose UUID already exists in the
-    suite are skipped, so submitting the same runs again only submits the
-    missing ones.
+    line, and submitted in that order. With --skip-existing, runs whose UUID
+    already exists in the suite are skipped, so submitting the same runs again
+    only submits the missing ones.
 
     Requests that fail because of the network, a server error or a concurrent
     change to the suite's schema are retried a few times. Any other failure is
@@ -174,7 +178,7 @@ def action_submit(url: str, input_file: Any, suite: str, token: str | None,
             raise click.BadParameter(str(e), param_hint="--create-suite")
     try:
         failures = submit(url, suite, input_file, token, schema, workers,
-                          echo=click.echo)
+                          echo=click.echo, skip_existing=skip_existing)
     except SubmitError as e:
         click.echo("error: %s" % e, err=True)
         sys.exit(1)

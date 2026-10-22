@@ -1,6 +1,6 @@
 # Test `lnt v5 submit` against a fake v5 instance whose responses the test
-# scripts: creating suites, skipping runs a suite already has, retries, and
-# failures.
+# scripts: creating suites, submitting runs a suite already has, skipping them
+# with --skip-existing, retries, and failures.
 #
 # RUN: python %s > %t.out
 # RUN: filecheck %s < %t.out
@@ -29,6 +29,8 @@ suites: dict = {}
 # (status, error code).
 scripted: dict = {}
 posts: list = []
+# The pages of runs listed.
+listed: list = []
 lock = threading.Lock()
 
 
@@ -69,6 +71,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(*error(404, 'not_found', 'no such suite'))
             if len(parts) == 3:
                 return self.reply(200, {'name': parts[2]})
+            listed.append(url.query)
             # Two runs per page, whatever the limit, to exercise paging.
             uuids = sorted(suites[parts[2]])
             start = int(parse_qs(url.query).get('cursor', ['0'])[0])
@@ -97,6 +100,7 @@ class Handler(BaseHTTPRequestHandler):
             runs = suites[parts[2]]
             uuid = body.get('uuid')
             posts.append(uuid)
+            uuid = uuid.lower()  # as v5 does
             if scripted.get(uuid):
                 status, code = scripted[uuid].pop(0)
                 return self.reply(*error(status, code, 'scripted %d %s'
@@ -128,10 +132,12 @@ def write(name, content):
 
 def submit(*args, input=None):
     del posts[:]
+    del listed[:]
     result = CliRunner().invoke(action_submit, [URL] + list(args),
                                 input=input)
     print(result.output, end='')
-    print('exit: %d, posted: %d' % (result.exit_code, len(posts)))
+    print('exit: %d, posted: %d, listed: %d'
+          % (result.exit_code, len(posts), len(listed)))
 
 
 SCHEMA = write('schema.json', json.dumps({'name': 'nts', 'metrics': []}))
@@ -143,25 +149,33 @@ submit('--suite', 'nts', '--create-suite', SCHEMA, '--token', 'admin-token',
        RUNS)
 # CHECK-LABEL: # CREATE
 # CHECK-NEXT: Created suite 'nts'
-# CHECK-NEXT: Submitted 3 run(s), skipped 0 the suite already had; 0 failure(s).
-# CHECK-NEXT: exit: 0, posted: 3
+# CHECK-NEXT: Submitted 3 run(s), 0 the suite already had; 0 failure(s).
+# CHECK-NEXT: exit: 0, posted: 3, listed: 0
+
+# A suite just created has no runs to list.
+FRESH = write('fresh.json', json.dumps({'name': 'fresh', 'metrics': []}))
+submit('--suite', 'fresh', '--create-suite', FRESH, '--token', 'admin-token',
+       '--skip-existing', RUNS)
+# CHECK-NEXT: Created suite 'fresh'
+# CHECK-NEXT: Submitted 3 run(s), 0 the suite already had; 0 failure(s).
+# CHECK-NEXT: exit: 0, posted: 3, listed: 0
 
 # A suite that exists already is not created again, and nothing is submitted.
 submit('--suite', 'nts', '--create-suite', SCHEMA, '--token', 'admin-token',
        RUNS)
 # CHECK-NEXT: error: suite 'nts' already exists; submit to it without --create-suite
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 
 # The schema must be the suite's.
 submit('--suite', 'other', '--create-suite', SCHEMA, '--token', 'admin-token',
        RUNS)
 # CHECK-NEXT: error: --create-suite: the schema's name is not 'other'
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 
-# Without --create-suite, the suite must exist.
+# Without --create-suite, the suite must exist, even without --skip-existing.
 submit('--suite', 'missing', '--token', 'submit-token', RUNS)
 # CHECK-NEXT: error: there is no suite 'missing'
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 
 # ---------------------------------------------------------------------------
 print('# TOKENS')
@@ -172,32 +186,42 @@ submit('--suite', 'new', '--create-suite', SCHEMA, '--token', 'submit-token',
        RUNS)
 # CHECK-LABEL: # TOKENS
 # CHECK-NEXT: error: a token with submit scope is needed
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 # CHECK-NEXT: error: a token with submit scope is needed, not read
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 # CHECK-NEXT: error: the token cannot be used: 401 bad token
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 # CHECK-NEXT: error: a token with manage scope is needed, not submit
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
 
 # The token can also come from the environment.
 del posts[:]
 result = CliRunner(env={'LNT_V5_TOKEN': 'submit-token'}).invoke(
     action_submit, [URL, '--suite', 'nts', RUNS])
 print(result.output, end='')
-# CHECK-NEXT: Suite 'nts' has 3 run(s) already
-# CHECK-NEXT: Submitted 0 run(s), skipped 3 the suite already had; 0 failure(s).
+# CHECK-NEXT: Submitted 0 run(s), 3 the suite already had; 0 failure(s).
 
 # ---------------------------------------------------------------------------
-print('# RESUME')
-# The runs the suite has are listed over several pages, and skipped whatever
-# the case of their UUID. The input is read from stdin.
+print('# DUPLICATES')
+# By default, the runs the suite already has are submitted, and the instance
+# answers `409 duplicate`. The input is read from stdin.
 more = '\n'.join([run('U1'), run('u4'), run('u2'), run('u5'), run('u3')])
 submit('--suite', 'nts', '--token', 'submit-token', input=more)
-# CHECK-LABEL: # RESUME
-# CHECK-NEXT: Suite 'nts' has 3 run(s) already
-# CHECK-NEXT: Submitted 2 run(s), skipped 3 the suite already had; 0 failure(s).
-# CHECK-NEXT: exit: 0, posted: 2
+# CHECK-LABEL: # DUPLICATES
+# CHECK-NEXT: Submitted 2 run(s), 3 the suite already had; 0 failure(s).
+# CHECK-NEXT: exit: 0, posted: 5, listed: 0
+
+print('# SKIP EXISTING')
+# With --skip-existing, the runs the suite has are listed over several pages,
+# and skipped whatever the case of their UUID. A run that is in the input
+# twice is answered `409 duplicate` the second time.
+more = '\n'.join(run(u) for u in ('u1', 'U2', 'u6', 'u3', 'u6', 'u4', 'u5'))
+submit('--suite', 'nts', '--token', 'submit-token', '--skip-existing',
+       write('more.jsonl', more))
+# CHECK-LABEL: # SKIP EXISTING
+# CHECK-NEXT: Suite 'nts' has 5 run(s) already
+# CHECK-NEXT: Submitted 1 run(s), 6 the suite already had; 0 failure(s).
+# CHECK-NEXT: exit: 0, posted: 2, listed: 3
 
 # ---------------------------------------------------------------------------
 print('# FAILURES')
@@ -215,14 +239,13 @@ submit('--suite', 'nts', '--token', 'submit-token', '--workers', '2',
        write('failures.jsonl', '\n'.join(lines)))
 print('r3 posted %d times' % posts.count('r3'))
 # CHECK-LABEL: # FAILURES
-# CHECK-NEXT: Suite 'nts' has 5 run(s) already
 # CHECK-NEXT:   line 3 (run r3 of machine m3 at commit c3): 500 scripted 500 internal_error
 # CHECK-NEXT:   line 4 (run r4 of machine m at commit c1): 400 scripted 400 invalid_request
 # CHECK-NEXT:   line 7 (run None of machine None at commit None): not a JSON object
 # CHECK-NEXT:   line 8 (run None of machine None at commit None): not a JSON object
 # CHECK-NEXT:   line 9 (run r6 of machine m at commit c1): 409 scripted 409 conflict
-# CHECK-NEXT: Submitted 3 run(s), skipped 0 the suite already had; 5 failure(s).
-# CHECK-NEXT: exit: 1, posted: 10
+# CHECK-NEXT: Submitted 2 run(s), 1 the suite already had; 5 failure(s).
+# CHECK-NEXT: exit: 1, posted: 10, listed: 0
 # CHECK-NEXT: r3 posted 3 times
 
 # ---------------------------------------------------------------------------
@@ -232,4 +255,4 @@ server.server_close()
 submit('--suite', 'nts', '--token', 'submit-token', RUNS)
 # CHECK-LABEL: # UNREACHABLE
 # CHECK-NEXT: error: http://127.0.0.1:{{[0-9]+}} cannot be reached: {{.*}}
-# CHECK-NEXT: exit: 1, posted: 0
+# CHECK-NEXT: exit: 1, posted: 0, listed: 0
