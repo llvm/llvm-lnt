@@ -1,4 +1,5 @@
 """LLVM test-suite"""
+import base64
 import subprocess
 import tempfile
 import json
@@ -23,7 +24,6 @@ from .compilers import get_cc_info, infer_cxx_compiler
 from .report import FAIL, PASS, XFAIL, Machine, Report, Run, TestSamples
 from .util import (fatal, init_logging, isexecfile, logger, mkdir_p,
                    resolve_command_path, timestamp)
-import lnt.testing.profile
 
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
@@ -85,9 +85,10 @@ Program;CC;CC_Time;Code_Size;CC_Hash;Exec;Exec_Time;Score
 """
 
 
-def _importProfile(objdump, name_filename):
-    """_importProfile imports a single profile. It must be at the top level
-    (and not within TestSuiteTest) so that multiprocessing can import it
+def _importProfile(lnt, objdump, name_filename):
+    """_importProfile imports a single profile, converted to the latest version
+    of LNT's profile format by `lnt profile upgrade`. It must be at the top
+    level (and not within TestSuiteTest) so that multiprocessing can import it
     correctly."""
     name, filename = name_filename
 
@@ -95,12 +96,19 @@ def _importProfile(objdump, name_filename):
         logger.warning('Profile %s does not exist' % filename)
         return None
 
-    pf = lnt.testing.profile.profile.Profile.fromFile(filename, objdump)
-    if not pf:
-        return None
-
-    pf.upgrade()
-    profilefile = pf.render()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        upgraded = os.path.join(tmpdir, 'profile')
+        # `lnt profile upgrade` reads perf profiles with $CMAKE_OBJDUMP.
+        env = dict(os.environ, CMAKE_OBJDUMP=objdump)
+        cmd = [lnt, 'profile', 'upgrade', filename, upgraded]
+        result = subprocess.run(cmd, env=env, capture_output=True,
+                                encoding='utf-8', errors='replace')
+        if result.returncode != 0:
+            logger.warning('Profile %s could not be imported:\n%s' %
+                           (filename, result.stderr))
+            return None
+        with open(upgraded, 'rb') as f:
+            profilefile = base64.b64encode(f.read()).decode('ascii')
     return TestSamples(name + '.profile', [profilefile], str)
 
 
@@ -266,7 +274,10 @@ class TestSuiteTest(object):
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
             self._fatal("LIT tool not found (looked for %s)" % opts.lit)
-        if opts.submit_url is not None:
+        # `lnt` submits the report, and imports the profiles gathered with
+        # perf.
+        if opts.submit_url is not None or \
+                opts.use_perf in ('profile', 'all'):
             if opts.lnt is None:
                 # The `lnt` installed along with the Python running us, if
                 # any, so that a virtualenv works without being activated.
@@ -1105,7 +1116,8 @@ class TestSuiteTest(object):
             TIMEOUT = 800
             try:
                 pool = multiprocessing.Pool()
-                func = partial(_importProfile, cmake_vars["CMAKE_OBJDUMP"])
+                func = partial(_importProfile, self.opts.lnt,
+                               cmake_vars["CMAKE_OBJDUMP"])
                 waiter = pool.map_async(func, profiles_to_import)
                 samples = waiter.get(TIMEOUT)
                 test_samples.extend([sample
