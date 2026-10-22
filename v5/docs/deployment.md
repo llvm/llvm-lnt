@@ -101,6 +101,19 @@ Configure the backend as follows:
   batch of tests it reads, typically well under a second apart, but a batch read from a cold cache
   can take longer than Fastly's default of 10 seconds.
 
+The service must also stream misses, which Fastly calls streaming miss. Without it, Fastly holds
+each response until it has all of it: a series that takes longer to read than the first byte
+timeout then reaches the client as a 503 without any of its data, and a large one exceeds the
+largest object Fastly accepts without streaming, whatever the timeouts. Turn it on for the whole
+service with a VCL snippet of type `fetch`:
+
+```vcl
+set beresp.do_stream = true;
+```
+
+With shielding, the same VCL runs on the shield and on the edge, which both have to stream. Leave
+compression to the app rather than having Fastly compress responses itself.
+
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
 deploy workflow's final `/healthz` check fails, since it goes through the domain.
@@ -219,6 +232,14 @@ instance in accordance with the expected usage.
 The server sets `Cache-Control` on every response (see I9 and AR2 "Caching" in the design docs).
 Whatever sits in front of it must respect those headers rather than impose its own lifetimes: a
 cache that overrides `max-age=0` can serve stale data, or serve one caller's response to another.
+
+## Streaming
+
+A series (`GET .../series`) is streamed, over minutes for a machine's whole history (I2 in the
+design docs), so whatever sits in front of the server has to pass responses on as they come rather
+than hold them. The Nginx configuration turns off Nginx's proxy buffering for this, and Fastly needs
+streaming miss (see "The CDN" above). Whether Cloudflare streams has not been checked: make sure it
+does before relying on it for long series.
 
 ## Operating the instance
 

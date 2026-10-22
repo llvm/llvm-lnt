@@ -22,6 +22,12 @@ server {
     # that failed. Proxying to a variable is what makes Nginx use the resolver.
     resolver 127.0.0.11 valid=10s;
 
+    # Pass responses on as they come, rather than holding them until a buffer fills: a streamed
+    # response (I2 in the design docs) sends its status and headers before reading anything, and
+    # then its data as it reads it, sometimes slowly. Request bodies are buffered by a separate
+    # directive (proxy_request_buffering), which this leaves alone.
+    proxy_buffering off;
+
     location / {
         set $app http://app:3000;
         proxy_pass $app;
