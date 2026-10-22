@@ -557,7 +557,8 @@ across every regression of the suite. A client holding many (machine, test,
 metric) combinations can learn which regressions cover which of them without
 one request per combination -- for the Graph page's regression annotations
 (GR15), or for a detector checking whether what it found is already tracked
-(O3). It is a `read`-scoped POST for the same reason as `POST /query` (E9).
+(O3). It is a `read`-scoped POST because its lists of names, which may be long
+and whose names may contain any character, do not fit in a query string.
 
 - The body is `{machine, test, metric, state, commit, limit, cursor}`, and
   every key is optional. `machine`, `test` and `state` are lists of names, each
@@ -566,7 +567,7 @@ one request per combination -- for the Graph page's regression annotations
 - An indicator is returned when its machine, test and metric are each among
   those named, its regression is in one of the named states, and its regression
   is attributed to the named commit. An omitted key does not filter at all,
-  whereas an empty list matches nothing, as with `POST /query`'s `test`.
+  whereas an empty list matches nothing.
 - An unknown machine or test is 404, an unknown metric is 400, and an unknown
   commit gives an empty result (see I3). An unknown state name is 400, as for
   the list.
@@ -578,50 +579,6 @@ one request per combination -- for the Graph page's regression annotations
 
 
 ## E9: Time Series
-
-### Query
-
-```
-POST   /api/suites/{testsuite}/query
-```
-
-Returns time-series data for graphing. It is a `read`-scoped POST because its
-list of test names, which may be long and whose names may contain any
-character, does not fit in a query string.
-
-**Auth scope:** `read`.
-
-**Body** (JSON): `{metric, machine, test, commit, after_commit, before_commit,
-submitted_after, submitted_before, measured_after, measured_before, sort,
-limit, cursor}`.
-
-- `metric` is required, and every other key is optional. Only samples with a
-  value for that metric are returned, so every point has a non-null `value`.
-- `test` is a list of names, no longer than I2's maximum page size, and a point
-  matches if its test is any of them. An empty list matches nothing, unlike an
-  omitted one.
-- `commit` keeps only the samples of that commit. It cannot be combined with
-  `after_commit` or `before_commit` (400 if both are supplied).
-- The time and commit bounds are exclusive (strictly after, strictly before).
-  `submitted_after` and `submitted_before` bound the `submitted_at` of the run a
-  sample belongs to, and `measured_after` and `measured_before` its
-  `measured_at`. When either commit bound is given, samples on commits with
-  no ordinal are excluded, whatever the `sort`.
-- `sort` names one ordering, optionally prefixed with `-` for descending (see
-  I3): `test`, `commit` (by ordinal), `submitted_at` or `measured_at` (the
-  run's). Sorting by `commit` excludes the samples on commits with no ordinal,
-  since they have no position
-  in that order. Without `sort`, results come in an arbitrary but stable order
-  suitable for cursor pagination, and no data is excluded.
-- An unknown machine or test is 404 and an unknown metric is 400. An unknown
-  `commit` gives an empty result. An unknown `after_commit` or `before_commit`
-  is 404, and one that has no ordinal is 400 (see I3).
-
-**Response:** I2's cursor envelope, whose `limit` and `cursor` are keys of the
-body. Each point contains `test`, `machine`, `metric`, `value`, `commit`,
-`ordinal`, `run_uuid`, `submitted_at` and `measured_at` (the run's), and `tag`
-(the commit's tag, or null if unset). `metric` is repeated on every point even
-though the request names exactly one, so that each point is self-describing.
 
 ### Series
 
@@ -713,9 +670,9 @@ Returns one aggregated value per machine and commit.
 - `metric` (required): must be numeric (see D3). A non-numeric metric is
   rejected with 400.
 - `machine` (required): one or more machine names, repeated (see I3), so that
-  several machines' data can be fetched in one call -- unlike the query
-  endpoint, which takes a single machine. It is required so that no request
-  aggregates the whole suite at once. An unknown name is 404. A machine named
+  several machines' data can be fetched in one call -- unlike the series,
+  which takes a single machine. It is required so that no request aggregates
+  the whole suite at once. An unknown name is 404. A machine named
   here is returned whether or not it is tracked.
 - `sample_agg`: `median` (the default), `mean`, `min` or `max`.
 - `last_n`: an integer from 1 to 10000, 500 by default. It limits the result to
@@ -738,7 +695,7 @@ machine name, then by ordinal. Each item contains:
   `integer` metric.
 
 A (machine, commit) with no run geomean is absent from the response. Unlike a
-query point, an item does not repeat `metric`.
+line of the series, an item does not repeat `metric`.
 
 
 ## E10: Test Suites

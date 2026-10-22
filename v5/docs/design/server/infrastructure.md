@@ -128,10 +128,10 @@ matched.
 
 ## I3: Filtering and Sorting
 
-Filters and sorting are named query parameters, or keys of the request body for
-an endpoint that takes its filters in the body. The endpoints spec is
-authoritative for which ones each endpoint accepts, and the OpenAPI document
-describes them (see I8).
+Filters and sorting are named query parameters. An endpoint that takes its
+filters in the request body takes them as keys of the body instead. The
+endpoints spec is authoritative for which ones each endpoint accepts, and the
+OpenAPI document describes them (see I8).
 
 Common filters include:
 - `machine=`, `test=`, `metric=`
@@ -143,7 +143,7 @@ Common filters include:
 - `state=` (for regressions; takes several values)
 - `commit=`
 - `has_commit=` (for regressions), `has_profiles=` (for commits and runs),
-  `has_ordinal=` (for commits)
+  `has_ordinal=` (for commits and series)
 - `tracked=` (boolean, for machines; omitting it returns both)
 
 **Sorting.** `sort=<name>` selects one ordering. Prefix the name with `-` for

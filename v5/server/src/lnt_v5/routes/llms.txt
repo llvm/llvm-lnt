@@ -31,8 +31,8 @@
   Carries the declared `commit_fields` under `fields`, plus two optional
   built-ins: `ordinal`, an integer placing the commit in the suite's total order,
   and `tag`, a label such as `release-18.1`. An ordinal is never inferred, not
-  even from a numeric commit string. A commit without one has no position in a
-  time series, so it is absent from time series sorted by commit. Listing
+  even from a numeric commit string. A series serves a commit without one after
+  the commits that have one, and leaves it out of a range of commits. Listing
   commits orders them by when the server first saw each one by default
   (`sort=first_seen`); `sort=-first_seen` puts the most recently seen first.
   `sort=ordinal` (`-ordinal`) orders them by ordinal, followed by the commits
@@ -94,8 +94,7 @@ GET    /api/suites/{testsuite}/runs/{uuid}/profiles           read    A run's pr
 
 GET    /api/suites/{testsuite}/tests                          read    List tests (search=, machine=, metric=)
 
-POST   /api/suites/{testsuite}/query                          read    Time-series data points for one metric
-GET    /api/suites/{testsuite}/series                         read    A machine's whole series for one metric, as NDJSON
+GET    /api/suites/{testsuite}/series                         read    A machine's series for one metric, as NDJSON
 GET    /api/suites/{testsuite}/trends                         read    Per-commit geomeans, per machine
 
 GET    /api/suites/{testsuite}/profiles/{uuid}                read    A profile's top-level counters
@@ -154,11 +153,11 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
 - **Names that match nothing**: a run submission creates the machine, commit
   and tests it names. Everywhere else, an unknown machine or test is 404, an
   unknown metric or regression state is 400, and an unknown commit used as a
-  filter (`commit=`, or the `commit` of `/query` or of the indicator lookup) is
-  an empty result. A commit used as a range bound (`after_commit`,
-  `before_commit`) is 404 if unknown and 400 if it has no ordinal. A commit a
-  regression refers to is 404. A schema `PATCH` that updates or removes an
-  entry the schema does not have is 404, metrics included.
+  filter (`commit=`, or the `commit` of the indicator lookup) is an empty
+  result. A commit used as a range bound (`after_commit`, `before_commit`) is
+  404 if unknown and 400 if it has no ordinal. A commit a regression refers to
+  is 404. A schema `PATCH` that updates or removes an entry the schema does not
+  have is 404, metrics included.
 - **Values**: timestamps are ISO 8601 in UTC with a `Z` suffix. Values in
   `fields` and `metrics` use the JSON type their declared type calls for: a
   number for `real` and `integer`, never a string, so `"5"` is not accepted for
@@ -240,25 +239,7 @@ the commit; `PATCH` changes or clears it afterwards. Submit such a machine with
 lists it after the machines LNT monitors wherever a machine is picked, so that
 experiments don't crowd them.
 
-**Chart a metric over time** with `POST /query`:
-
-```json
-{"metric": "execution_time", "machine": "linux-x86_64", "test": ["bench/foo"], "sort": "commit"}
-```
-
-Only `metric` is required. Other filters are `commit`, `after_commit`,
-`before_commit`, and the run's `submitted_after`, `submitted_before`,
-`measured_after` and `measured_before`, and `sort` takes `test`, `commit` (by
-ordinal), `submitted_at` or `measured_at`. Each point looks like:
-
-```json
-{"test": "bench/foo", "machine": "linux-x86_64", "metric": "execution_time",
- "value": 1.23, "commit": "abc123", "ordinal": 593922, "tag": null,
- "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4",
- "submitted_at": "2026-08-25T14:22:41Z", "measured_at": "2026-08-25T14:02:17Z"}
-```
-
-**Analyse a machine's whole history** with
+**Read a machine's history** with
 `GET /series?machine=linux-x86_64&metric=execution_time`. It streams every value
 of the metric on that machine as newline-delimited JSON, unpaginated, one
 sample per line:
@@ -271,10 +252,11 @@ sample per line:
 ```
 
 Lines come by test name, then by ordinal, with the commits without one last.
-Narrow it down with `test=` (repeated, for a few tests: they lengthen the URL),
-`commit`, `after_commit`, `before_commit`, the run's `submitted_after`,
-`submitted_before`, `measured_after` and `measured_before`, and `has_ordinal`
-(`true` for only the commits with an ordinal, `false` for only those without).
+Narrow it down with `test=` (`&test=bench/foo` to chart one test; repeat it for
+a few tests, which lengthen the URL), `commit`, `after_commit`, `before_commit`,
+the run's `submitted_after`, `submitted_before`, `measured_after` and
+`measured_before`, and `has_ordinal` (`true` for only the commits with an
+ordinal, `false` for only those without).
 Ask for it compressed (`curl --compressed`). If the download is interrupted --
 the machine deleted, a schema change, a server restart -- the connection is
 closed before the end of the response, which `curl --fail` reports with a
@@ -312,9 +294,9 @@ machine, test and metric. Check many at once with
 
 Every key is optional; `machine`, `test` and `state` are lists. It returns the
 matching indicators across all regressions, each as `{uuid, regression_uuid,
-machine, test, metric}`, cursor-paginated like `/query`: a (machine, test,
-metric) it returns is already tracked at that commit. Read a regression itself
-with `GET /regressions/{uuid}`.
+machine, test, metric}`, cursor-paginated with `cursor` and `limit` in the body:
+a (machine, test, metric) it returns is already tracked at that commit. Read a
+regression itself with `GET /regressions/{uuid}`.
 
 **Record a regression** with `POST /regressions`:
 

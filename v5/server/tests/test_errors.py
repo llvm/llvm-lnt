@@ -212,7 +212,7 @@ class TestApplicationWiring:
 
     def test_head_on_a_path_without_get_is_a_method_mismatch(self, client: TestClient) -> None:
         # HEAD is served wherever GET is, and nowhere else.
-        response = client.head("/api/suites/nts/query")
+        response = client.head("/api/suites/nts/regressions/indicators/query")
 
         assert response.status_code == 405
         assert response.headers["allow"] == "POST"

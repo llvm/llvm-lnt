@@ -1,12 +1,11 @@
 """I3's shared list conventions, and I2's cursor pagination (`querying.py`).
 
 The mechanism is shared by every cursor-paginated list -- commits, runs, tests, samples, regressions
-and the time series -- so it is covered here, against a table of its own, rather than only through
-the endpoints that use it. That table deliberately has a
-*non-unique* sort column, which no suite table offers: O5's tiebreaker only does anything when two
-rows share a sort value, and a test over unique values could not tell whether it was there at all.
-It also has a nullable one, for the rows O5 excludes from an order they have no position in, or
-serves after all the others.
+and the indicator lookup -- so it is covered here, against a table of its own, rather than only
+through the endpoints that use it. That table deliberately has a *non-unique* sort column, which
+no suite table offers: O5's tiebreaker only does anything when two rows share a sort value, and a
+test over unique values could not tell whether it was there at all. It also has a nullable one, for
+the rows O5 excludes from an order they have no position in, or serves after all the others.
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ from sqlalchemy import (
     String,
     Table,
     insert,
-    update,
 )
 from sqlalchemy import select as sql_select
 
@@ -52,8 +50,9 @@ events = Table(
     # Nullable on purpose: O5 excludes rows with no value for a sort key, and only a nullable
     # column can show that.
     Column("rank", Integer, nullable=True),
-    # A real, for the cursor reader that reads one back. Only the tests that sort by it fill it.
-    Column("score", Double, nullable=True),
+    # A second nullable key, for the orders that may have only one. Only the tests that sort by it
+    # fill it.
+    Column("score", Integer, nullable=True),
 )
 
 
@@ -514,15 +513,14 @@ class TestCursorOpacity:
 
         assert len(one_page(db_engine, by_time(), 3, cursor, events.c.label != "a")[0]) == 3
 
-    def test_refuses_a_text_value_carrying_a_nul(self, db_engine: Engine) -> None:
+    def test_refuses_a_timestamp_carrying_a_nul(self, db_engine: Engine) -> None:
         # D5 reaches what comes out of a cursor too, because a cursor need not be unforgeable (I2):
         # a hand-made one is a way to hand the database a string no column can hold.
-        keyset = Keyset(SortKey(events.c.label), tiebreaker=events.c.id)
-        _, cursor = one_page(db_engine, keyset, 3)
+        _, cursor = one_page(db_engine, by_time(), 3)
         assert cursor is not None
 
         with pytest.raises(ApiError) as failure:
-            one_page(db_engine, keyset, 3, forged(cursor, "a\x00b", 1))
+            one_page(db_engine, by_time(), 3, forged(cursor, "2026-01-01\x00T00:00:00+00:00", 1))
 
         assert failure.value.code.value == "invalid_cursor"
 
@@ -541,19 +539,6 @@ class TestCursorOpacity:
 
         assert failure.value.code.value == "invalid_cursor"
 
-    def test_refuses_a_real_too_large_to_read_as_one(self, db_engine: Engine) -> None:
-        # JSON's integers are unbounded, and one past what a float holds does not convert at all.
-        keyset = Keyset(SortKey(events.c.score), tiebreaker=events.c.id)
-        with db_engine.begin() as connection:
-            connection.execute(update(events).values(score=1.5))
-        _, cursor = one_page(db_engine, keyset, 3)
-        assert cursor is not None
-
-        with pytest.raises(ApiError) as failure:
-            one_page(db_engine, keyset, 3, forged(cursor, 10**400, 1))
-
-        assert failure.value.code.value == "invalid_cursor"
-
     def test_accepts_a_value_at_either_end_of_its_column_s_range(self, db_engine: Engine) -> None:
         # The bounds are the column's own, not one short of them.
         keyset = Keyset(tiebreaker=events.c.id)
@@ -567,10 +552,12 @@ class TestCursorOpacity:
         assert len(lowest) == 9
 
 
-def test_refuses_to_page_on_an_integer_type_it_has_no_range_for() -> None:
-    # Without a range, a hand-made cursor could once again carry a value the column cannot hold, so
-    # the keyset refuses at construction rather than when a caller first sends one.
-    wide = Table("querying_wide", MetaData(), Column("id", BigInteger, primary_key=True))
+@pytest.mark.parametrize("kind", [BigInteger, String, Double])
+def test_refuses_to_page_on_a_type_it_cannot_read_back(kind: type[Any]) -> None:
+    # An integer type without INTEGER's range, or a type no reader checks: a hand-made cursor could
+    # carry a value the column cannot hold, so the keyset refuses at construction rather than when
+    # a caller first sends one.
+    other = Table("querying_other", MetaData(), Column("id", kind, primary_key=True))
 
     with pytest.raises(TypeError):
-        Keyset(tiebreaker=wide.c.id)
+        Keyset(tiebreaker=other.c.id)

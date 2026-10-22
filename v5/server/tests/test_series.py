@@ -11,18 +11,16 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from conftest import code_of, entry, run_payload, vary
+from conftest import code_of, entry, ndjson_lines, run_payload, vary
 from lnt_v5.routes import series as series_module
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.series import NDJSON, SERIES_PATH, SeriesInterruptedError
 from lnt_v5.routes.suites import SUITES_PATH
-from lnt_v5.routes.timeseries import QUERY_PATH
 from lnt_v5.suites.tables import SuiteTables
 
 SERIES = SERIES_PATH.format(testsuite="nts")
-QUERY = QUERY_PATH.format(testsuite="nts")
 RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 MACHINES = MACHINES_PATH.format(testsuite="nts")
@@ -30,11 +28,15 @@ MACHINES = MACHINES_PATH.format(testsuite="nts")
 # What every request below sends, unless it says otherwise.
 PARAMS = {"metric": "execution_time", "machine": "linux"}
 
+# One metric of each type, each rendered as its own JSON type (D3).
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
         {"name": "execution_time", "type": "real"},
         {"name": "compile_time", "type": "real"},
+        {"name": "compile_status", "type": "integer"},
+        {"name": "toolchain", "type": "text"},
+        {"name": "built_at", "type": "datetime"},
     ],
 }
 
@@ -62,13 +64,12 @@ def submit(
 
 
 @pytest.fixture
-def place(api_client: TestClient, manage: dict[str, str]) -> Callable[[str, int], None]:
-    """Give a commit an ordinal (O6)."""
+def place(api_client: TestClient, manage: dict[str, str]) -> Callable[..., None]:
+    """Give a commit an ordinal (O6), and optionally a tag."""
 
-    def patch(commit: str, ordinal: int) -> None:
-        response = api_client.patch(
-            f"{COMMITS}/{commit}", json={"ordinal": ordinal}, headers=manage
-        )
+    def patch(commit: str, ordinal: int, tag: str | None = None) -> None:
+        body: dict[str, Any] = {"ordinal": ordinal} | ({} if tag is None else {"tag": tag})
+        response = api_client.patch(f"{COMMITS}/{commit}", json=body, headers=manage)
         assert response.status_code == 200, response.text
 
     return patch
@@ -79,10 +80,7 @@ def get(api_client: TestClient, **params: Any) -> Any:
 
 
 def lines(api_client: TestClient, **params: Any) -> list[dict[str, Any]]:
-    response = get(api_client, **params)
-    assert response.status_code == 200, response.text
-    assert response.text == "" or response.text.endswith("\n")
-    return [json.loads(line) for line in response.text.splitlines()]
+    return ndjson_lines(get(api_client, **params))
 
 
 def keys(served: list[dict[str, Any]]) -> list[tuple[str, str, Any]]:
@@ -91,7 +89,7 @@ def keys(served: list[dict[str, Any]]) -> list[tuple[str, str, Any]]:
 
 @pytest.fixture
 def history(
-    submit: Callable[..., dict[str, Any]], place: Callable[[str, int], None]
+    submit: Callable[..., dict[str, Any]], place: Callable[..., None]
 ) -> list[dict[str, Any]]:
     """Two machines, two tests, three ordered commits submitted out of order, and an unordered one.
 
@@ -115,21 +113,83 @@ def history(
 
 
 class TestSeriesResponse:
-    def test_is_ndjson_of_query_points(
-        self, api_client: TestClient, history: list[dict[str, Any]]
+    def test_is_one_point_per_line_with_exactly_the_keys_endpoints_md_gives_it(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
     ) -> None:
-        response = get(api_client, has_ordinal="true")
+        run = submit("linux", "abc", entry("suite/one", {"execution_time": 1.25}))
+        place("abc", 42, tag="release-18.1")
+
+        response = get(api_client)
 
         assert response.status_code == 200
         assert response.headers["content-type"] == NDJSON
-        queried = api_client.post(
-            QUERY,
-            json={"metric": "execution_time", "machine": "linux", "sort": "commit", "limit": 100},
-        ).json()["items"]
-        # The same objects, key for key and in the same key order, as `POST /query` returns.
-        assert sorted(response.text.splitlines()) == sorted(
-            json.dumps(point, separators=(",", ":")) for point in queried
+        point = {
+            "test": "suite/one",
+            "machine": "linux",
+            "metric": "execution_time",
+            "value": 1.25,
+            "commit": "abc",
+            "ordinal": 42,
+            "run_uuid": run["uuid"],
+            "submitted_at": run["submitted_at"],
+            "measured_at": run["measured_at"],
+            "tag": "release-18.1",
+        }
+        # Key for key, in the order of `DataPoint`'s schema.
+        assert response.text == json.dumps(point, separators=(",", ":")) + "\n"
+
+    def test_has_a_null_ordinal_and_tag_where_the_commit_has_none(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        # I4: a documented key is present, and null when it has no value.
+        submit("linux", "abc", entry("t", {"execution_time": 1.0}))
+
+        (point,) = lines(api_client)
+
+        assert point["ordinal"] is None
+        assert point["tag"] is None
+
+    @pytest.mark.parametrize(
+        ("metric", "value"),
+        [
+            ("execution_time", 1.5),
+            ("compile_status", 3),
+            ("toolchain", "clang-21"),
+            # In UTC with a `Z` suffix, whatever offset it was submitted with.
+            ("built_at", "2026-01-02T03:04:05Z"),
+        ],
+    )
+    def test_the_value_has_the_json_type_of_the_metric(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]], metric: str, value: Any
+    ) -> None:
+        # D3 and I4: never stringified. A metric need not be numeric to be read, only to be
+        # averaged.
+        submitted = "2026-01-02T05:04:05+02:00" if metric == "built_at" else value
+        submit("linux", "abc", entry("t", {metric: submitted}))
+
+        assert [point["value"] for point in lines(api_client, metric=metric)] == [value]
+
+    def test_skips_the_samples_with_no_value_for_the_metric(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        submit("linux", "abc", entry("measured", {"execution_time": 1.0}), entry("not"))
+
+        assert [point["test"] for point in lines(api_client)] == ["measured"]
+
+    def test_serves_one_line_per_repetition(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        # O1: each of a test's samples is its own point.
+        submit(
+            "linux",
+            "abc",
+            entry("t", {"execution_time": 1.0}, {"execution_time": 2.0}, {"execution_time": 3.0}),
         )
+
+        assert sorted(point["value"] for point in lines(api_client)) == [1.0, 2.0, 3.0]
 
     def test_is_empty_when_nothing_matches(
         self, api_client: TestClient, history: list[dict[str, Any]]
@@ -207,7 +267,7 @@ class TestSeriesOrder:
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
-        place: Callable[[str, int], None],
+        place: Callable[..., None],
     ) -> None:
         uuids = ["ffffffff-0000-4000-8000-000000000000", "00000000-0000-4000-8000-000000000000"]
         for uuid in uuids:
@@ -220,7 +280,7 @@ class TestSeriesOrder:
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
-        place: Callable[[str, int], None],
+        place: Callable[..., None],
     ) -> None:
         for commit in ("u2", "c1", "u1"):
             submit("linux", commit, entry("t", {"execution_time": 1.0}))
@@ -235,7 +295,7 @@ class TestSeriesOrder:
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
-        place: Callable[[str, int], None],
+        place: Callable[..., None],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # One submission per test, against the order of their names, so that the tests' ids do not
@@ -334,6 +394,23 @@ class TestSeriesFilters:
 
         # The last is the run of the commit without an ordinal.
         assert {line["run_uuid"] for line in served} == {linux[2]["uuid"], linux[3]["uuid"]}
+
+    def test_each_time_bound_bounds_its_own_timestamp(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        # Measured long before it was submitted, so that a bound between the two tells them apart.
+        submit(
+            "linux", "abc", entry("t", {"execution_time": 1.0}), measured_at="2020-06-01T00:00:00Z"
+        )
+        bound = "2021-01-01T00:00:00Z"
+
+        def commits(**bounds: str) -> list[str]:
+            return [line["commit"] for line in lines(api_client, **bounds)]
+
+        assert commits(measured_before=bound) == ["abc"]
+        assert commits(submitted_before=bound) == []
+        assert commits(submitted_after=bound) == ["abc"]
+        assert commits(measured_after=bound) == []
 
 
 class TestSeriesErrors:

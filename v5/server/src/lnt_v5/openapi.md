@@ -43,9 +43,9 @@ change. When `cursor.next` is null, there are no more pages. Treat cursors as op
 cursor is rejected with `invalid_cursor` (for example because the suite's schema changed in the
 meantime), start over from the first page.
 
-Most cursor-paginated operations take `cursor` as a query parameter. The few that take their
-filters in a JSON body (`POST .../query` and `POST .../regressions/indicators/query`) expect
-`cursor` and `limit` in the body too.
+Most cursor-paginated operations take `cursor` as a query parameter. The one that takes its
+filters in a JSON body (`POST .../regressions/indicators/query`) expects `cursor` and `limit` in
+the body too.
 
 ## Filtering and sorting
 

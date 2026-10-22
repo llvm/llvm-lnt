@@ -332,6 +332,14 @@ def triage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
     return bearer(make_key(Scope.TRIAGE))
 
 
+def ndjson_lines(response: Any) -> list[Any]:
+    """The lines of a successful streamed response (I2), parsed. Each line, the last included, ends
+    with a newline."""
+    assert response.status_code == 200, response.text
+    assert response.text == "" or response.text.endswith("\n")
+    return [json.loads(line) for line in response.text.splitlines()]
+
+
 def walk_cursor(fetch: Callable[[str | None], Any]) -> list[Any]:
     """Every item a cursor-paginated list serves, following `cursor.next` to the end (I2).
 
@@ -342,8 +350,8 @@ def walk_cursor(fetch: Callable[[str | None], Any]) -> list[Any]:
     than a hung suite.
 
     Takes a callable rather than a path, because I2 gives the token two carriers: five of these
-    lists are GETs that take it as `cursor=`, and `POST /query` takes it as a key of its body. The
-    loop is the contract and does not differ between them; only the request does.
+    lists are GETs that take it as `cursor=`, and the indicator lookup takes it as a key of its
+    body. The loop is the contract and does not differ between them; only the request does.
     """
     items: list[Any] = []
     cursor: str | None = None

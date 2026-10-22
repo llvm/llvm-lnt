@@ -6,11 +6,12 @@ page cursor can follow cheaply, and neither a tool that wants all of it nor a ch
 any use for pages.
 
 The response is read a batch of tests at a time, each batch in its own short statement over the
-machine's runs, which the planner can join to their samples through the sample table's primary key
-(it leads with the run) rather than read the batch's samples on every machine through
-`(test_id, run_id)` only to discard those of the others. No connection, transaction or lock is held
-between batches, so a slow client holds nothing in the database, and a client that goes away leaves
-nothing to clean up.
+machine's runs. How a statement reaches the samples is the planner's choice: one test (a Graph
+trace) is typically a probe of `(test_id, run_id)` per run, a few runs (one commit) go through the
+sample table's primary key, which leads with the run, and a large batch may be a scan of
+`(test_id, run_id)` that reads the batch's samples on every machine and discards those of the
+others. No connection, transaction or lock is held between batches, so a slow client holds nothing
+in the database, and a client that goes away leaves nothing to clean up.
 
 Once the response has started, a failure is an exception out of the body, which makes the server
 abort the response rather than end it (E9).
@@ -42,6 +43,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.openapi import schema_ref
 from lnt_v5.querying import MAX_LIMIT, TIMESTAMP_HINT
 from lnt_v5.routes.machines import machine_id
 from lnt_v5.routes.suites import SUITES_PATH
@@ -135,10 +137,10 @@ class Series:
     def batch(self, tests: Sequence[int], conditions: Sequence[ColumnElement[bool]]) -> Select[Any]:
         """The samples of some tests on the machine, in the series' order.
 
-        From the machine's runs, each joined to its samples through the primary key. The tests are
-        one array rather than a bind parameter apiece, since a batch can hold every test the suite
-        has. The order ends with the repetition, so that the same data is served byte for byte the
-        same.
+        From the machine's runs, joined to their samples (see the module's docstring for how). The
+        tests are one array rather than a bind parameter apiece, since a batch can hold every test
+        the suite has. The order ends with the repetition, so that the same data is served byte for
+        byte the same.
         """
         columns = select(
             self._test.c.name,
@@ -245,7 +247,7 @@ def stream(
                 "One value per line, each a JSON object of this schema (newline-delimited JSON). "
                 "An empty body if nothing matches."
             ),
-            "content": {NDJSON: {"schema": {"$ref": "#/components/schemas/DataPoint"}}},
+            "content": {NDJSON: {"schema": schema_ref(DataPoint)}},
         },
         **suite_responses(not_found=_NO_ENTITY),
     },

@@ -7,8 +7,8 @@ a 400 too, refused by `reject_unknown_query_parameters`, which every scoped endp
 
 Cursor pagination (I2, O5) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
 private to any endpoint family: the commit, run, test, sample and regression list endpoints and
-`POST /query` all page this way, and a second implementation of a keyset predicate would be a second
-chance to get the boundary conditions wrong.
+the indicator lookup all page this way, and a second implementation of a keyset predicate would be
+a second chance to get the boundary conditions wrong.
 """
 
 from __future__ import annotations
@@ -40,7 +40,6 @@ from sqlalchemy import (
 
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.responses import CursorPage
-from lnt_v5.strings import storable
 from lnt_v5.suites.schema import CommitField, MachineField
 from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
@@ -50,8 +49,8 @@ DEFAULT_LIMIT = 25
 MAX_LIMIT = 10_000
 
 # The wording of I2's two paging parameters, stated once because they travel by two carriers: as
-# query parameters on the GET lists, and as keys of the request body on `POST /query`, which is
-# asked for with a body because its test list does not fit a query string. I2 is explicit that
+# query parameters on the GET lists, and as keys of the request body on the indicator lookup, which
+# is asked for with a body because its test list does not fit a query string. I2 is explicit that
 # nothing else about the contract differs between the two. Published in I8's document, so written
 # for API users.
 _LIMIT = "The maximum number of results to return."
@@ -96,7 +95,7 @@ def exclusive_range(
 
     I3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
     run list's pairs over `submitted_at` and `measured_at`, the commit list's pair over the
-    ordinal, and `POST /query`'s pairs over the commit ordinal and the two run timestamps. One
+    ordinal, and `GET /series`'s pairs over the commit ordinal and the two run timestamps. One
     spelling, so that a bound cannot become inclusive in one place and stay exclusive in another.
     """
     conditions: list[ColumnElement[bool]] = []
@@ -171,7 +170,7 @@ def reject_unknown_query_parameters(request: Request) -> None:
             else "This endpoint takes no query parameters."
         )
         # On an endpoint that takes a body, a stray parameter is most likely one of its keys sent in
-        # the wrong place -- `limit` given to `POST /query` in the query string, say (I2).
+        # the wrong place -- `limit` given to the indicator lookup in the query string, say (I2).
         if takes_body:
             takes += " Its other inputs go in the request body."
         raise ApiError(
@@ -298,9 +297,11 @@ class Keyset:
 
         A null sort value compares as unknown against a cursor's, so a row carrying one would fall
         on neither side of the boundary and vanish from every page after the first. Unless the
-        keyset serves them last (`nulls_last`), O5 answers this by excluding those rows outright --
-        as `POST /query` does for unordered commits under `sort=commit`. Derived from the columns
-        rather than left to each endpoint, so the lists that page this way cannot each forget it.
+        keyset serves them last (`nulls_last`), O5 answers this by excluding those rows outright.
+        Derived from the columns rather than left to each endpoint, so the lists that page this way
+        cannot each forget it. No endpoint relies on it today: the one sort key that can be null,
+        the commit list's ordinal, is either `nulls_last` or filtered to non-null values by the
+        list itself (`has_ordinal=true`), so this is a safety net.
         """
         return [key.column.is_not(None) for key in self._keys if key.column.nullable]
 
@@ -472,36 +473,19 @@ def _integer(value: Any) -> int:
     return value
 
 
-def _real(value: Any) -> float:
-    if not isinstance(value, int | float) or isinstance(value, bool):
-        raise ValueError("expected a number")
-    # JSON's integers are unbounded, and one past a float's range raises `OverflowError` here,
-    # which would otherwise escape `Keyset.position` as a 500.
-    try:
-        return float(value)
-    except OverflowError:
-        raise ValueError("out of range for a floating-point column") from None
-
-
-def _text(value: Any) -> str:
+def _timestamp(value: Any) -> datetime:
+    # A string that is not one, a NUL included, raises `ValueError`.
     if not isinstance(value, str):
         raise ValueError("expected a string")
-    # A cursor is opaque to clients but need not be unforgeable (I2), so what comes out of one is
-    # caller-supplied: D5's rule applies to it like any other string, and without this a hand-made
-    # cursor carrying a NUL would reach a text sort key as a bind parameter and be a 500.
-    return storable(value)
-
-
-def _timestamp(value: Any) -> datetime:
-    return datetime.fromisoformat(_text(value))
+    return datetime.fromisoformat(value)
 
 
 # Keyed by the Python type the column's SQL type maps to, so that a new column type used as a sort
-# key fails loudly here rather than comparing a string against a timestamp in the database.
+# key fails loudly here rather than comparing a string against a timestamp in the database. Every
+# sort key so far is an integer or a timestamp; a text or real one needs a reader of its own,
+# which checks what a hand-made cursor could carry (a NUL, a number past a float's range).
 _READERS: dict[type, Callable[[Any], Any]] = {
     int: _integer,
-    float: _real,
-    str: _text,
     datetime: _timestamp,
 }
 
