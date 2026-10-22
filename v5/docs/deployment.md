@@ -101,6 +101,19 @@ Configure the backend as follows:
   batch of tests it reads, typically well under a second apart, but a batch read from a cold cache
   can take longer than Fastly's default of 10 seconds.
 
+The service must also stream misses, which Fastly calls streaming miss. Without it, Fastly holds
+each response until it has all of it, which can time out. Turn it on for the whole service with a
+"Regular" VCL snippet placed within subroutine `fetch`:
+
+```vcl
+set beresp.do_stream = true;
+```
+
+With shielding, the same VCL runs on the shield and on the edge, which both have to stream. Leave
+compression to the app: Fastly's own (`beresp.gzip`, `beresp.brotli`) turns streaming miss off.
+Fastly also limits the size of the objects it fetches, possibly to less than a machine's whole
+series even with streaming miss; check the account's limit.
+
 Deploying keeps both the Elastic IP and the CA, so the backend only needs updating if the environment
 is torn down and recreated, or if its domain changes. Until the backend points at the instance, the
 deploy workflow's final `/healthz` check fails, since it goes through the domain.

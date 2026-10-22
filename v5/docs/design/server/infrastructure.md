@@ -123,7 +123,10 @@ matched.
   is therefore complete: the HTTP framing says so, not a marker in the body.
 - The status and headers are sent before anything is read, and the data is
   sent as it is read rather than at the end, so that a proxy waiting for the
-  next bytes does not time out.
+  next bytes does not time out. A compressed response (I4) is compressed as
+  it is sent. Like the limit on request bodies (I4), this is a property of
+  the deployment: anything it puts in front of the server passes the status,
+  headers and data on as they arrive.
 
 
 ## I3: Filtering and Sorting

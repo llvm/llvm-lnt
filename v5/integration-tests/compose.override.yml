@@ -1,0 +1,30 @@
+# What run.sh adds to production's Compose stack (docker-compose.prod.yml.tftpl in
+# deployment/templates) for the integration tests: what the production host provides otherwise, and
+# nothing more, so that the checks exercise as much of the production file as they can.
+services:
+  # Production's database is on RDS.
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: lnt
+      POSTGRES_PASSWORD: lnt
+      POSTGRES_DB: lnt
+    # Over TCP: the unix socket answers during the entrypoint's temporary initialization server.
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, lnt]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    # For the checks that reach the app directly, on a port of Docker's choosing.
+    ports:
+      - 127.0.0.1::3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nginx:
+    # Rather than the host's 80 and 443, which another run may already hold.
+    ports: !override
+      - 127.0.0.1::443

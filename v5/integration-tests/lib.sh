@@ -47,14 +47,15 @@ mint_key() {
     printf '%s' "$token"
 }
 
-# wait_for_health [seconds] -- block until the server answers /healthz, or fail saying so.
+# wait_for_health [base URL] -- block until the server answers /healthz there (by default at
+# BASE_URL), or fail saying so within a minute.
 wait_for_health() {
-    local limit="${1:-60}"
-    for _ in $(seq 1 "$limit"); do
-        curl --silent --fail --output /dev/null "${BASE_URL}/healthz" && return 0
+    local url="${1:-$BASE_URL}/healthz"
+    for _ in $(seq 1 60); do
+        curl --silent --fail --insecure --output /dev/null "$url" && return 0
         sleep 1
     done
-    echo "  server never became reachable at ${BASE_URL}/healthz within ${limit}s" >&2
+    echo "  server never became reachable at ${url} within 60s" >&2
     exit 1
 }
 
