@@ -95,7 +95,7 @@ function NoCards({ schema }: { schema: SuiteSchema }) {
   }
   return (
     <p className={styles.note}>
-      No metric of this suite is shown on the Dashboard. Choose which ones are in{' '}
+      This suite shows no metrics on the Dashboard. Choose which ones to show in{' '}
       <Link to={adminSuitePath(schema.name)}>its schema</Link>.
     </p>
   )

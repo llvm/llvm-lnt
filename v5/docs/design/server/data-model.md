@@ -99,9 +99,9 @@ both machines and commits (see O2).
 - **Adding** an entry leaves existing rows with no value for it.
 - Only presentation metadata can be **updated**: whichever of `display_name`,
   `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard`, `searchable` and
-  `display` the entry accepts (see D4). A `type` cannot be changed in place, because the
-  conversion is not always defined (`text` to `integer` can fail for some rows,
-  and `real` to `integer` truncates).
+  `display` the entry accepts (see D4). A `type` cannot be changed in place,
+  because the conversion is not always defined (`text` to `integer` can fail
+  for some rows, and `real` to `integer` truncates).
 - **Removing** an entry permanently destroys every value stored for it. Since
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry used. Removing a metric also removes every regression
@@ -112,8 +112,8 @@ In an `update` entry, an omitted key leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`,
 `unit_abbrev`); an empty string does not, and is rejected with 400 (see D4).
 The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`) are
-not nullable, because D4 normalizes them to `false` rather than to null, so `null`
-for one of them is rejected with 400.
+not nullable, because D4 normalizes them to `false` rather than to null, so
+`null` for one of them is rejected with 400.
 
 Notes:
 - Renaming is not supported: it is semantically a remove plus an add.
@@ -173,9 +173,9 @@ with a `Z` suffix (see D5).
 
 **Numeric types.** `real` and `integer` together are the *numeric* types.
 Wherever the design needs a metric to be quantitative (e.g. geomean
-aggregation, or a card on the Dashboard), the metric must be numeric. Arithmetic is well-defined over both
-`real` and `integer` metrics, and both are useful for different kinds of
-quantities (e.g. code size, execution time).
+aggregation, or a card on the Dashboard), the metric must be numeric.
+Arithmetic is well-defined over both `real` and `integer` metrics, and both are
+useful for different kinds of quantities (e.g. code size, execution time).
 
 Being numeric does not guarantee that a metric is a meaningful *quantity*,
 however. An `integer` metric may encode an enum (a status code, say), and a
@@ -206,7 +206,7 @@ through the API. The two formats still share much of their vocabulary.
       "bigger_is_better": false,
       "dashboard": true
     },
-    {"name": "execution_time", "type": "real"},
+    {"name": "execution_time", "type": "real", "dashboard": true},
     {"name": "compile_status", "type": "integer"}
   ],
   "machine_fields": [
@@ -241,7 +241,8 @@ Notes:
   is created or changed.
 - `dashboard: true` on a metric is a hint for the UI: the Dashboard shows a
   card for each metric that sets it (see DA1). A card charts a geomean, so it is
-  only valid on a numeric metric (see D3). Like `display`, it is purely a UI
+  only valid on a numeric metric (see D3), and some numeric metrics are not
+  worth one: `compile_status` above holds status codes rather than quantities. Like `display`, it is purely a UI
   concern: the API treats metrics alike whether or not they set it, in trends,
   series and everywhere else.
 - There is no `format_version` in the schema: v5 has only one format.

@@ -413,6 +413,26 @@ class TestMetricDashboard:
         assert stored_schema_json(empty_engine) == rows
         assert schema_version_of(empty_engine) == 0
 
+    def test_sets_it_on_each_metric_it_can_make_sense_of(self, empty_engine: Engine) -> None:
+        # Entry by entry, as 0003 does: a malformed metric does not keep the others from being
+        # rewritten, and is itself left as it is.
+        metrics: list[Any] = [
+            metric_0003("t", "real"),
+            {"name": "m"},
+            {"name": "f", "type": "float"},
+            "x",
+        ]
+        upgrade_by_hand(empty_engine, "0003")
+        store_schema_json(empty_engine, {"mixed": compact({"name": "mixed", "metrics": metrics})})
+
+        upgrade_to_head(empty_engine)
+
+        expected = [{**metrics[0], "dashboard": True}, *metrics[1:]]
+        assert stored_schema_json(empty_engine)["mixed"] == compact(
+            {"name": "mixed", "metrics": expected}
+        )
+        assert schema_version_of(empty_engine) == 1
+
     def test_downgrading_removes_it_and_nothing_else(self, empty_engine: Engine) -> None:
         upgrade_by_hand(empty_engine, "0003")
         store_schema_json(empty_engine, {"before": compact(_BEFORE_DASHBOARD)})

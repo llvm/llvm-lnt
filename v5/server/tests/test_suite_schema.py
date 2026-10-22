@@ -20,8 +20,9 @@ EXAMPLE: dict[str, Any] = {
             "unit": "seconds",
             "unit_abbrev": "s",
             "bigger_is_better": False,
+            "dashboard": True,
         },
-        {"name": "execution_time", "type": "real"},
+        {"name": "execution_time", "type": "real", "dashboard": True},
         {"name": "compile_status", "type": "integer"},
     ],
     "machine_fields": [

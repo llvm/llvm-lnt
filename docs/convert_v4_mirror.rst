@@ -55,7 +55,9 @@ machines:
   is an error. ``bigger_is_better``, ``unit`` and ``unit_abbrev`` are kept,
   except that an empty ``unit`` or ``unit_abbrev`` becomes null. So does a
   ``display_name`` equal to the metric's name, which is how v4 reports a metric
-  without one. Other keys are dropped.
+  without one. Other keys are dropped. Only the ``real`` metrics are shown on
+  the Dashboard (``dashboard``): a ``Status`` metric holds codes rather than
+  quantities, and a ``text`` one cannot be shown.
 - **Machine fields**: one ``text`` field per v4 machine field, followed by one
   ``text`` field per other key found on any of the suite's machines, other than
   ``id`` and ``name``, in alphabetical order. v4 machines can hold keys that

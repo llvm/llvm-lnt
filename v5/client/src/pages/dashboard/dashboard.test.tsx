@@ -151,7 +151,7 @@ describe('the Dashboard', () => {
     renderPage('/')
 
     expect(
-      await main().findByText(/^No metric of this suite is shown on the Dashboard\./),
+      await main().findByText(/^This suite shows no metrics on the Dashboard\./),
     ).toBeInTheDocument()
     expect(section('unchosen').queryByRole('article')).not.toBeInTheDocument()
     expect(section('unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(

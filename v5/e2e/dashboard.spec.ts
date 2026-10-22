@@ -183,7 +183,7 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
     await signIn(page, 'manage')
     await page.goto('/')
     const own = section(page, suite)
-    await expect(own).toContainText('No metric of this suite is shown on the Dashboard.')
+    await expect(own).toContainText('This suite shows no metrics on the Dashboard.')
     await expect(own.getByRole('article')).toHaveCount(0)
 
     await own.getByRole('link', { name: 'its schema', exact: true }).click()
