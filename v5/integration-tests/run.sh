@@ -7,7 +7,7 @@
 # Runs IMAGE in the Compose stack that production runs (deployment/templates): the app behind
 # Nginx, each with production's configuration. compose.override.yml adds what the production host
 # provides otherwise, a database (here a throwaway Postgres) and ports of its own, and the stack is
-# given a throwaway certificate and the settings the checks expect. Every numbered check in this
+# given a throwaway certificate, an empty RDS CA bundle, and the settings the checks expect. Every numbered check in this
 # directory then runs against it, in order. Everything is created here and torn down on exit, so
 # this behaves the same on a laptop as on a CI runner and needs neither `npm run db:up` nor a
 # Postgres service container. It needs Docker Compose 2.24.4 or later, for the override's `!reset`
@@ -29,8 +29,9 @@
 #
 # Several runs can go on at once, from different checkouts say: a run is a Compose project named
 # after a random identifier, and removes only that. A run killed outright (SIGKILL), or terminated
-# while it builds the image, leaves its containers, network or image behind. This removes them,
-# along with those of any run in progress, so only use it when none is:
+# while it builds the image, leaves its containers, network or image behind, and its directory in
+# TMPDIR (`tmp.*`, holding a throwaway key). This removes all but the directory, along with those of
+# any run in progress, so only use it when none is:
 #
 #   for project in $(docker compose ls --all --quiet --filter 'name=^lnt-v5-integration-'); do
 #       docker compose -p "$project" down --volumes --remove-orphans
@@ -99,6 +100,9 @@ render 's|\${domain}|localhost|g' nginx.conf nginx.conf
 mkdir "${SCRATCH}/certs"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
     -keyout "${SCRATCH}/certs/origin.key" -out "${SCRATCH}/certs/origin.pem" 2>/dev/null
+# Mounted as in production, but never read: there is no TLS to the test Postgres, so .env sets no
+# DATABASE_SSL_CA.
+touch "${SCRATCH}/certs/rds-global-bundle.pem"
 # BODY_LIMIT is lowered from its 128 MiB default so that body-size checks can be done without
 # having to send huge payloads. WEB_CONCURRENCY exercises several workers at once.
 cat > "${SCRATCH}/.env" <<ENV
@@ -107,9 +111,14 @@ BODY_LIMIT=1048576
 WEB_CONCURRENCY=4
 ENV
 
-# For the log, and to fail before the build on a Compose too old for the override.
+# A Compose older than 2.24.4 ignores the override's `!override`, and so would publish Nginx on the
+# host's 80 and 443 as well, on every interface. Checked on the merged stack, before the build.
 docker compose version
-compose config --quiet
+merged="$(compose config)"
+if grep -Eq '^ *published: "?(80|443)"?$' <<< "$merged"; then
+    echo "The stack publishes the host's port 80 or 443: Docker Compose 2.24.4 or later is needed" >&2
+    exit 1
+fi
 if [ -n "$BUILT" ]; then
     echo "Building ${IMAGE}..."
     docker build --tag "$IMAGE" "${HERE}/.."
@@ -135,6 +144,11 @@ wait_until_reachable() {
 
 CONTAINER="$(compose ps --quiet app)"
 DB_CONTAINER="$(compose ps --quiet postgres)"
+if [ -z "$CONTAINER" ] || [ -z "$DB_CONTAINER" ]; then
+    echo "The app or Postgres is not running" >&2
+    compose logs --tail 50 >&2
+    exit 1
+fi
 export CONTAINER DB_CONTAINER
 # The app's port changes when a check restarts it, so lib.sh looks it up in each check. The
 # proxy's stays the same for the whole run, so the checks are given it.
@@ -142,6 +156,18 @@ wait_until_reachable "http://$(compose port app 3000)" app
 PROXY_URL="https://$(compose port nginx 443)"
 wait_until_reachable "$PROXY_URL" nginx
 export PROXY_URL
+
+# restarts -- how many times Docker has restarted the stack's containers on its own.
+#
+# Production's restart policy would otherwise hide a crash of the app or Nginx behind a restart.
+# Checked after each check, since restarting a container by hand (`docker restart`) resets it.
+restarts() {
+    local total=0 container
+    for container in $(compose ps --all --quiet); do
+        total=$((total + $(docker inspect -f '{{.RestartCount}}' "$container")))
+    done
+    echo "$total"
+}
 
 group_start() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::group::$1" || echo "--- $1"; }
 group_end() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::endgroup::" || true; }
@@ -151,9 +177,16 @@ failed=()
 for check in "$HERE"/[0-9]*.sh; do
     name="$(basename "$check")"
     group_start "$name"
+    before="$(restarts)"
     # Checks report their own diagnostics on stderr; fold it into stdout so it stays next to
     # the check it belongs to rather than surfacing wherever the two streams happen to meet.
-    if bash "$check" 2>&1; then
+    status=0
+    bash "$check" 2>&1 || status=$?
+    if [ "$status" -eq 0 ] && [ "$(restarts)" -gt "$before" ]; then
+        echo "  a container restarted on its own during the check"
+        status=1
+    fi
+    if [ "$status" -eq 0 ]; then
         group_end
         echo "PASS  $name"
         passed=$((passed + 1))

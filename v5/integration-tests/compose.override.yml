@@ -17,8 +17,6 @@ services:
       retries: 30
 
   app:
-    # The RDS CA bundle: there is no TLS to the test Postgres.
-    volumes: !reset []
     # For the checks that reach the app directly, on a port of Docker's choosing.
     ports:
       - 127.0.0.1::3000

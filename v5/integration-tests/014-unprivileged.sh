@@ -5,7 +5,8 @@
 source "$(dirname "$0")/lib.sh"
 
 # The real, effective, saved and filesystem IDs of every process in the container: the server's,
-# its workers' and the init's, and this command's own, which `docker exec` runs as the image's user.
+# which is PID 1 as in production, its workers', and this command's own, which `docker exec` runs as
+# the image's user.
 ids="$(docker exec "$CONTAINER" sh -c \
     'for status in /proc/[0-9]*/status; do grep -E "^(Uid|Gid):" "$status"; done 2>/dev/null')"
 printf '%s\n' "$ids" | sort | uniq -c | sed 's/^/  /'
