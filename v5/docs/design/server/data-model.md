@@ -288,18 +288,20 @@ them: `public` and `information_schema` already exist in every database, and
 PostgreSQL reserves the `pg_` prefix for itself, so every name starting with
 `pg_` is rejected.
 
-**Entry names.** Every `name` in `metrics`, `commit_fields` and
-`machine_fields` follows the same rule as the suite name (it must match
-`^[a-z][a-z0-9_]*$` and be at most 63 characters), for the same reason: each
-entry becomes a column, so its name is an identifier too. The rule
-deliberately does not exclude SQL reserved words (`order`, `user`, `table` are
-all valid entry names): an implementation quotes identifiers rather than
-restricting metric names.
+**Entry names.** Each entry becomes a column, so every `name` in `metrics`,
+`commit_fields` and `machine_fields` is an identifier too: it must match
+`^[A-Za-z][A-Za-z0-9_]*$` and be at most 63 characters. Unlike a suite name,
+which names a namespace and appears in every URL of the suite, an entry name
+may contain capitals, and is case-sensitive. The rule deliberately does not
+exclude SQL reserved words (`order`, `user`, `table` are all valid entry
+names): an implementation quotes identifiers rather than restricting metric
+names, which also preserves their case.
 
 A name must be unique within its list, but the three lists are independent: a
 metric and a machine field may have the same name, because they are columns of
 different tables. A name that collides with a built-in column of a table the
-entry extends is rejected (see D5 for each table's built-in columns).
+entry extends is rejected (see D5 for each table's built-in columns). Both
+checks compare names exactly, so names that differ only by case do not collide.
 
 
 ## D5: Data Model

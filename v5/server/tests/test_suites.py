@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, inspect, select, text
 from sqlalchemy.exc import ProgrammingError
 
-from conftest import code_of
+from conftest import code_of, entry, ndjson_lines, run_payload
 from introspection import column_names, schema_version_of
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import SUITES_PATH, delete_suite, patch_schema
@@ -852,6 +852,109 @@ class TestEvolveAgainstStoredData:
 
         with db_engine.connect() as connection, pytest.raises(ProgrammingError):
             connection.execute(select(populated.sample.c.run_id)).all()
+
+
+# D4: entry names are case-sensitive, so each of these is a column of its own, `ID` beside the
+# machine's built-in `id`. Unquoted, PostgreSQL would fold `IPC` into `ipc`.
+CASE_TWINS: dict[str, Any] = {
+    "name": "nts",
+    "metrics": [{"name": "IPC", "type": "real"}, {"name": "ipc", "type": "real"}],
+    "machine_fields": [
+        {"name": "OS", "type": "text"},
+        {"name": "os", "type": "text"},
+        {"name": "ID", "type": "text"},
+    ],
+    "commit_fields": [{"name": "SHA", "type": "text"}, {"name": "sha", "type": "text"}],
+}
+
+
+class TestCaseSensitiveNames:
+    """Case twins through every write that builds SQL from entry names: the machine and commit
+    upserts, sample insert and coverage upsert of a submission, field updates, and schema changes.
+    The API-level counterpart of `test_a_name_that_is_a_reserved_word_works_end_to_end` in
+    test_suite_tables.py."""
+
+    @pytest.fixture
+    def run(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        submitter: dict[str, str],
+    ) -> str:
+        """The UUID of a run of the twins' suite, with a different value for each twin."""
+        assert create(CASE_TWINS).status_code == 201
+        response = api_client.post(
+            f"{SUITES}/nts/runs",
+            json=run_payload(
+                machine={"name": "m", "fields": {"OS": "Linux", "os": "debian", "ID": "rack-7"}},
+                commit={"value": "c1", "ordinal": 1, "fields": {"SHA": "ABC", "sha": "abc"}},
+                tests=[entry("t", {"IPC": 1.5, "ipc": 2.5}, {"IPC": 3.5})],
+            ),
+            headers=submitter,
+        )
+        assert response.status_code == 201, response.text
+        return str(response.json()["uuid"])
+
+    def test_each_twin_reads_back_its_own_values(self, api_client: TestClient, run: str) -> None:
+        samples = api_client.get(f"{SUITES}/nts/runs/{run}/samples").json()["items"]
+        assert [sample["metrics"] for sample in samples] == [{"IPC": 1.5, "ipc": 2.5}, {"IPC": 3.5}]
+
+        for metric, values in (("IPC", [1.5, 3.5]), ("ipc", [2.5])):
+            series = api_client.get(
+                f"{SUITES}/nts/series", params={"machine": "m", "metric": metric}
+            )
+            assert [point["value"] for point in ndjson_lines(series)] == values
+
+    def test_a_field_is_updated_without_its_twin(
+        self, api_client: TestClient, manage: dict[str, str], run: str
+    ) -> None:
+        machine = api_client.patch(
+            f"{SUITES}/nts/machines/m", json={"fields": {"OS": "Ubuntu"}}, headers=manage
+        )
+        commit = api_client.patch(
+            f"{SUITES}/nts/commits/c1", json={"fields": {"sha": "def"}}, headers=manage
+        )
+
+        assert machine.status_code == 200, machine.text
+        assert machine.json()["fields"] == {"OS": "Ubuntu", "os": "debian", "ID": "rack-7"}
+        assert commit.status_code == 200, commit.text
+        assert commit.json()["fields"] == {"SHA": "ABC", "sha": "def"}
+
+    def test_a_twin_can_be_added_updated_and_removed(
+        self, api_client: TestClient, db_engine: Engine, manage: dict[str, str], run: str
+    ) -> None:
+        added = patch_request(
+            api_client,
+            manage,
+            {
+                "metrics": {
+                    "add": [{"name": "Ipc", "type": "real"}],
+                    "update": [{"name": "IPC", "display_name": "Instructions per cycle"}],
+                }
+            },
+        )
+        assert added.status_code == 200, added.text
+        assert added.json()["metrics"][0]["display_name"] == "Instructions per cycle"
+
+        removed = patch_request(api_client, manage, {"metrics": {"remove": ["IPC"]}}, confirm=True)
+
+        assert removed.status_code == 200, removed.text
+        metrics = ["ipc", "Ipc"]
+        assert column_names(db_engine, "nts", "sample") == [
+            "run_id",
+            "test_id",
+            "repetition",
+            *metrics,
+        ]
+        assert column_names(db_engine, "nts", "test_coverage") == [
+            "machine_id",
+            "test_id",
+            *metrics,
+        ]
+        # A set: the database's collation decides how `ipc` and `Ipc` sort.
+        assert set(metric_rows(db_engine)) == set(metrics)
+        samples = api_client.get(f"{SUITES}/nts/runs/{run}/samples").json()["items"]
+        assert [sample["metrics"] for sample in samples] == [{"ipc": 2.5}, {}]
 
 
 class TestNoOpEvolve:

@@ -25,14 +25,19 @@ from lnt_v5.strings import Storable
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 
 # D4: a suite name is also the name of the namespace holding its tables, and an entry name is also
-# the name of a column. Both are therefore identifiers, and both follow one rule -- lowercase,
-# starting with a letter, and no longer than Postgres allows an identifier to be. Characters and
-# bytes are interchangeable because the pattern admits only ASCII.
+# the name of a column. Both are therefore identifiers: starting with a letter, and no longer than
+# Postgres allows an identifier to be. Characters and bytes are interchangeable because the
+# patterns admit only ASCII.
 #
-# The rule deliberately does not exclude Postgres' reserved words: `order`, `user` and `table` are
-# all legal metric names. Nothing in the schema needs them reserved, and forbidding them would be a
-# surprising restriction to explain. It does mean every identifier built from one of these has to
-# be quoted -- see tables.py.
+# An entry name may have capitals, and its case is significant: `IPC` and `ipc` are two entries,
+# and a machine field `ID` does not collide with the built-in `id`. A suite name is lowercase only,
+# as a namespace that every URL of the suite names.
+#
+# Neither rule excludes Postgres' reserved words: `order`, `user` and `table` are all legal metric
+# names. Nothing in the schema needs them reserved, and forbidding them would be a surprising
+# restriction to explain. It does mean every identifier built from one of these has to be quoted --
+# see tables.py -- which is also what keeps an entry name's case: Postgres folds an unquoted
+# identifier to lowercase.
 #
 # Anchored because pydantic's pattern is a *search* rather than a full match, so an unanchored
 # pattern would accept anything merely containing a legal name.
@@ -41,7 +46,8 @@ from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 # reserved names below and on each entry model: see schema-lists.ts and schema-editor-model.ts in
 # client/src/pages/admin. So does `lnt v5 convert-v4-mirror`, in lnt/util/convert_v4_mirror.py at
 # the root of the repository.
-NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
+SUITE_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
+ENTRY_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_]*$"
 
 # D4: names that satisfy the pattern but still cannot be a suite, because a namespace cannot be
 # created under them. The first two already exist in every database; the prefix is reserved by
@@ -49,7 +55,9 @@ NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 RESERVED_SUITE_NAMES = frozenset({"public", "information_schema"})
 RESERVED_SUITE_PREFIX = "pg_"
 
-Name = Annotated[str, StringConstraints(pattern=NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)]
+EntryName = Annotated[
+    str, StringConstraints(pattern=ENTRY_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
+]
 
 # D4: the free text an entry carries for the UI -- `display_name`, `unit` and `unit_abbrev` -- which
 # is either absent (null) or a non-empty string. An empty one would only be a second spelling of
@@ -111,10 +119,11 @@ class Entry(BaseModel):
     # other.
     LIST: ClassVar[str] = ""
 
-    name: Name = Field(
+    name: EntryName = Field(
         description=(
-            "The name, used as the key for its values. Lowercase letters, digits and underscores, "
-            "starting with a letter. Must be unique within its list."
+            "The name, used as the key for its values. Letters, digits and underscores, starting "
+            "with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique "
+            "within its list."
         )
     )
     type: AttributeType
@@ -294,7 +303,9 @@ class SuiteSchema(BaseModel):
         json_schema_extra={"examples": [examples.SUITE_SCHEMA]},
     )
 
-    name: Name = Field(
+    name: Annotated[
+        str, StringConstraints(pattern=SUITE_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
+    ] = Field(
         description=(
             "The suite's name. Lowercase letters, digits and underscores, starting with a letter. "
             "It can't be "

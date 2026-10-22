@@ -145,15 +145,24 @@ export function restoreEntry(draft: Draft, list: ListName, id: number): Draft {
   }
 }
 
-// D4's rule for every name in a schema, each of which becomes a namespace or a column.
-const NAME_PATTERN = /^[a-z][a-z0-9_]*$/
+// D4's rules for names, each of which becomes a namespace or a column. An entry's name may have
+// capitals, and its case is significant; a suite's is lowercase only.
+const NAME_RULES = {
+  suite: {
+    pattern: /^[a-z][a-z0-9_]*$/,
+    problem: 'A name has only lowercase letters, digits and underscores, and starts with a letter.',
+  },
+  entry: {
+    pattern: /^[A-Za-z][A-Za-z0-9_]*$/,
+    problem: 'A name has only letters, digits and underscores, and starts with a letter.',
+  },
+}
 const NAME_MAX_LENGTH = 63
 
-/** Why `name` breaks D4's rule for names, if it does. */
-function ruleProblem(name: string): string | undefined {
-  if (!NAME_PATTERN.test(name)) {
-    return 'A name has only lowercase letters, digits and underscores, and starts with a letter.'
-  }
+/** Why `name` breaks D4's rule for the names of suites, or of entries, if it does. */
+function ruleProblem(name: string, of: keyof typeof NAME_RULES): string | undefined {
+  const { pattern, problem } = NAME_RULES[of]
+  if (!pattern.test(name)) return problem
   if (name.length > NAME_MAX_LENGTH) return `A name is at most ${NAME_MAX_LENGTH} characters long.`
   return undefined
 }
@@ -180,7 +189,7 @@ export function nameProblems(list: ListName, entries: readonly DraftEntry[]): Ma
     if (entry.original !== null || name === '') continue
     const others = entries.filter((other) => other !== entry && other.name === name)
     const problem =
-      ruleProblem(name) ??
+      ruleProblem(name, 'entry') ??
       (reserved.includes(name)
         ? `A ${noun} cannot be named ${quotedList(reserved)}.`
         : undefined) ??
@@ -201,7 +210,7 @@ const RESERVED_SUITE_PREFIX = 'pg_'
 /** Why `name` cannot name a new suite, if it cannot. An empty name is not refused here. */
 export function suiteNameProblem(name: string, existing: readonly string[]): string | undefined {
   if (name === '') return undefined
-  const problem = ruleProblem(name)
+  const problem = ruleProblem(name, 'suite')
   if (problem !== undefined) return problem
   if (RESERVED_SUITE_NAMES.includes(name) || name.startsWith(RESERVED_SUITE_PREFIX)) {
     return (

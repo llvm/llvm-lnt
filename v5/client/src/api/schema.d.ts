@@ -1057,7 +1057,7 @@ export interface components {
         CommitField: {
             /**
              * Name
-             * @description The name, used as the key for its values. Lowercase letters, digits and underscores, starting with a letter. Must be unique within its list.
+             * @description The name, used as the key for its values. Letters, digits and underscores, starting with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique within its list.
              */
             name: string;
             type: components["schemas"]["AttributeType"];
@@ -1117,7 +1117,7 @@ export interface components {
         CommitFieldInput: {
             /**
              * Name
-             * @description The name, used as the key for its values. Lowercase letters, digits and underscores, starting with a letter. Must be unique within its list.
+             * @description The name, used as the key for its values. Letters, digits and underscores, starting with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique within its list.
              */
             name: string;
             type: components["schemas"]["AttributeType"];
@@ -1615,7 +1615,7 @@ export interface components {
         MachineField: {
             /**
              * Name
-             * @description The name, used as the key for its values. Lowercase letters, digits and underscores, starting with a letter. Must be unique within its list.
+             * @description The name, used as the key for its values. Letters, digits and underscores, starting with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique within its list.
              */
             name: string;
             type: components["schemas"]["AttributeType"];
@@ -1667,7 +1667,7 @@ export interface components {
         MachineFieldInput: {
             /**
              * Name
-             * @description The name, used as the key for its values. Lowercase letters, digits and underscores, starting with a letter. Must be unique within its list.
+             * @description The name, used as the key for its values. Letters, digits and underscores, starting with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique within its list.
              */
             name: string;
             type: components["schemas"]["AttributeType"];
@@ -1798,7 +1798,7 @@ export interface components {
         Metric: {
             /**
              * Name
-             * @description The name, used as the key for its values. Lowercase letters, digits and underscores, starting with a letter. Must be unique within its list.
+             * @description The name, used as the key for its values. Letters, digits and underscores, starting with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique within its list.
              */
             name: string;
             type: components["schemas"]["AttributeType"];
@@ -1870,7 +1870,7 @@ export interface components {
         MetricInput: {
             /**
              * Name
-             * @description The name, used as the key for its values. Lowercase letters, digits and underscores, starting with a letter. Must be unique within its list.
+             * @description The name, used as the key for its values. Letters, digits and underscores, starting with a letter. Case-sensitive: `IPC` and `ipc` are different names. Must be unique within its list.
              */
             name: string;
             type: components["schemas"]["AttributeType"];

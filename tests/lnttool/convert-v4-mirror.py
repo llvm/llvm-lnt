@@ -335,6 +335,22 @@ run_cli(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts')
 # CHECK:      error: suite name: 'pg_nts' is reserved by v5
 run_cli(ordinals, '--suite', 'nts', '--target-suite', 'nts\n')
 # CHECK:      error: suite name: 'nts\n' is not a valid v5 name
+run_cli(ordinals, '--suite', 'nts', '--target-suite', 'Target')
+# CHECK:      error: suite name: 'Target' is not a valid v5 name
+
+# Unlike suite names, entry names may have capitals, and keep their case.
+capitals_schema = copy.deepcopy(SCHEMA)
+capitals_schema['metrics'].append({'name': 'Exec_Time', 'type': 'Real'})
+M = {'id': 1, 'name': 'm', 'CPU': 'x86', 'cpu': 'arm'}
+capitals = make_mirror('capitals', [
+    (M, [run(1, M, '1', [sample('t', Exec_Time=1.5)])])],
+    schema=capitals_schema)
+plan = make_plan(read_mirror(capitals, 'nts'), 'target')
+print([m['name'] for m in plan.schema['metrics']],
+      [f['name'] for f in plan.schema['machine_fields']])
+# CHECK:      ['compile_time', 'exec_status', 'hash', 'Exec_Time'] ['os', 'CPU', 'cpu']
+run_cli(capitals, '--suite', 'nts', '--target-suite', 'target')
+# CHECK:      Converted 1 run(s) of 1 machine(s); 0 failure(s).
 
 # A revision followed by anything else has no ordinal.
 M = {'id': 1, 'name': 'm'}
