@@ -372,10 +372,10 @@ export function GraphChart({
   const drawn = useMemo(
     () => ({
       // The baselines' lines before the traces, though drawn over them on their own x-axis: of the
-      // curves as close to the pointer, Plotly hovers the last, and a point is as close as can be
-      // with the pointer on it, anywhere over its marker when it has one, so a point on a line keeps
-      // its tooltip and details (GR9). The circles over every trace, so that no trace's line crosses
-      // them.
+      // curves as close to the pointer, Plotly hovers the last, so a point on a line keeps its
+      // tooltip and details (GR9). It is as close as can be anywhere over its marker; without one,
+      // wherever the pointer is no closer to the line's nearest point, which are a few pixels
+      // apart. The circles over every trace, so that no trace's line crosses them.
       data: [...lineData, ...traceData, ...circleData, ...markerData],
       curves: [
         ...lines.map(({ test }): Curve => ({ kind: 'baseline', test })),
@@ -561,7 +561,7 @@ export function GraphChart({
         onHover={onHover}
         onUnhover={onUnhover}
         onClick={onClick}
-        onDraw={(drawn) => setDrawnAt({ geometry: drawn, revision })}
+        onDraw={(where) => setDrawnAt({ geometry: where, revision })}
         onRelayout={close}
       />
       {clouds}

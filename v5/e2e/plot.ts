@@ -61,6 +61,8 @@ export function tracesOf(scope: Page | Locator): Locator {
  * by dragging across 120 pixels.
  */
 export async function zoomAround(page: Page, { x, y }: { x: number; y: number }) {
+  // The mouse acts where the page shows the plot, which must be on screen.
+  await plotOf(page).scrollIntoViewIfNeeded()
   const plot = (await plotOf(page).boundingBox())!
   await page.mouse.move(plot.x + x - 60, plot.y + y)
   await page.mouse.down()

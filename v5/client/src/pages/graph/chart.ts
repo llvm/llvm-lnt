@@ -88,7 +88,15 @@ export function plotlyTrace(
       'Commit: %{customdata[0]}<br>Value: %{customdata[1]}<br>%{customdata[2]}<br>' +
       '<i>Click for details</i><extra></extra>',
     line: { color, width: 1.5 },
-    marker: { color, size: 6, symbol: markerOf(machineIndex).symbol },
+    // Plotly draws only the markers of the points in view (both x and y in range) with
+    // `maxdisplayed`, rather than every point's: those of all the points in view, since there are
+    // at most MARKED_COMMITS while the points have markers.
+    marker: {
+      color,
+      size: 6,
+      symbol: markerOf(machineIndex).symbol,
+      maxdisplayed: MARKED_COMMITS,
+    },
   }
 }
 

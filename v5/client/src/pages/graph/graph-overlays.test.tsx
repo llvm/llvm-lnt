@@ -1384,3 +1384,99 @@ describe('the highlighted commits (GR16)', () => {
     await waitFor(() => expect(query()).toEqual({ suite: ['libcxx'] }))
   })
 })
+
+describe('the markers of the points (GR1)', () => {
+  /** 201 commits on each machine: one more than are marked in view (MARKED_COMMITS). */
+  const ORDINALS = Array.from({ length: 201 }, (_, i) => i + 1)
+  const LONG = {
+    commits: { m1: ORDINALS, m2: ORDINALS },
+    tests: { m1: ['a', 'b'], m2: ['a', 'b'] },
+    samples: {
+      'm1/a': ORDINALS.map((i): Sample => [`c${i}`, `r${i}`, i]),
+      'm2/a': ORDINALS.map((i): Sample => [`c${i}`, `s${i}`, i]),
+      // A single point, which keeps its marker.
+      'm1/b': [['c5', 'r5', 1]] satisfies Sample[],
+    },
+  }
+
+  /** The whole x-axis in the plot, as GEOMETRY's area is: 2.5 pixels per commit. */
+  const FULL: PlotGeometry = { ...GEOMETRY, x: (value) => 50 + 2.5 * value }
+  /** Zoomed in on positions 10 to 15. */
+  const ZOOMED: PlotGeometry = { ...GEOMETRY, x: (value) => 50 + 100 * (value - 10) }
+
+  /** How each trace is drawn, by name. */
+  function modes() {
+    return Object.fromEntries(
+      (chart().data as PlotData[]).map((trace) => [trace.name, trace.mode]),
+    )
+  }
+
+  it("draws lines alone while more than 200 commits are in view, but a single point's marker", async () => {
+    mockWorld(LONG)
+    renderPage(`${ONE_MACHINE}&test=a&test=b`)
+    await waitFor(() => expect(drawn()).toEqual(['a - m1', 'b - m1']))
+
+    expect(modes()).toEqual({ 'a - m1': 'lines', 'b - m1': 'lines+markers' })
+    draw(FULL)
+    expect(modes()).toEqual({ 'a - m1': 'lines', 'b - m1': 'lines+markers' })
+
+    // Drawn again with markers, from the data built already.
+    const { x, customdata } = curve('a - m1') as PlotData
+    draw(ZOOMED)
+    expect(modes()).toEqual({ 'a - m1': 'lines+markers', 'b - m1': 'lines+markers' })
+    expect((curve('a - m1') as PlotData).x).toBe(x)
+    expect((curve('a - m1') as PlotData).customdata).toBe(customdata)
+
+    draw(FULL)
+    expect(modes()).toEqual({ 'a - m1': 'lines', 'b - m1': 'lines+markers' })
+  })
+
+  it('counts the commits in view on the x-axis drawn last, not on one drawn before', async () => {
+    mockWorld(LONG)
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(drawn()).toEqual(['a - m1']))
+    draw(ZOOMED)
+    expect(modes()).toEqual({ 'a - m1': 'lines+markers' })
+
+    // Another machine's scaffold resets the zoom: every commit is in view until the chart is drawn.
+    await addMachine('m2')
+    await waitFor(() => expect(drawn()).toEqual(['a - m1', 'a - m2']))
+    expect(modes()).toEqual({ 'a - m1': 'lines', 'a - m2': 'lines' })
+    draw(ZOOMED)
+    expect(modes()).toEqual({ 'a - m1': 'lines+markers', 'a - m2': 'lines+markers' })
+  })
+
+  it("builds a trace's data again when its machine's symbol or the metric change", async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test=b`)
+    await waitFor(() => expect(drawn()).toEqual(['b - m1', 'b - m2']))
+    const symbols = () => (chart().data as PlotData[]).map((trace) => trace.marker.symbol)
+    expect(symbols()).toEqual(['circle', 'triangle-up'])
+
+    // Once m1 is removed, m2 is the first machine: its trace takes the first symbol.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
+    await waitFor(() => expect(drawn()).toEqual(['b - m2']))
+    expect(symbols()).toEqual(['circle'])
+
+    const { customdata } = curve('b - m2') as PlotData
+    await pickOption('Metric', 'Compile Time')
+    await waitFor(() => expect((curve('b - m2') as PlotData).customdata).not.toBe(customdata))
+  })
+
+  it('keeps the data of the traces drawn only', async () => {
+    mockWorld()
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(drawn()).toEqual(['a - m1']))
+    const { customdata } = curve('a - m1') as PlotData
+    const user = userEvent.setup()
+
+    // Selected again, the test's points are those computed already, but its data is built again,
+    // since nothing kept it once it was no longer drawn.
+    await user.click(testTable().getByRole('checkbox', { name: 'a' }))
+    await waitFor(() => expect(drawn()).toEqual([]))
+    await user.click(testTable().getByRole('checkbox', { name: 'a' }))
+    await waitFor(() => expect(drawn()).toEqual(['a - m1']))
+    expect((curve('a - m1') as PlotData).customdata).not.toBe(customdata)
+    expect((curve('a - m1') as PlotData).customdata).toEqual(customdata)
+  })
+})

@@ -10,6 +10,7 @@ import {
   graphLayout,
   highlightCircles,
   highlightShape,
+  MARKED_COMMITS,
   plotlyTrace,
   regressionMarkers,
   regressionShapes,
@@ -79,7 +80,7 @@ describe('plotlyTrace', () => {
       name: 'BM_vector&lt;int&gt; - m&amp;1',
       x: ['c1', 'c2'],
       y: [1.234567891, 2],
-      marker: { color: '#123456', symbol: markerOf(1).symbol },
+      marker: { color: '#123456', symbol: markerOf(1).symbol, maxdisplayed: MARKED_COMMITS },
     })
   })
 

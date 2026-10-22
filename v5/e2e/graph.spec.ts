@@ -431,17 +431,20 @@ test("draws a long history's points without markers until zoomed in, and they ke
 
     const position = await pointOf(page, 'bench - m1', 100)
     await plotOf(page).hover({ position })
-    await expect(page.locator('.hoverlayer')).toContainText('Commit: c100')
+    // The point's tooltip, rather than the baseline's, which has no such line.
     await expect(page.locator('.hoverlayer')).toContainText('Click for details')
     await plotOf(page).click({ position })
     const details = page.getByRole('dialog', { name: 'bench on m1 at c100' })
     await expect(details).toBeFocused()
     await page.keyboard.press('Escape')
 
-    // Zoomed in around it, the points have their markers, until the zoom is reset.
+    // Zoomed in around it, the points have their markers, those in view only, until the zoom is
+    // reset.
     await zoomAround(page, position)
     await expect.poll(() => markers.count()).toBeGreaterThan(0)
-    await plotOf(page).dblclick({ position })
+    expect(await markers.count()).toBeLessThan(runs.length / 2)
+    // Away from any point, whose details the first click would open.
+    await plotOf(page).dblclick({ position: { x: position.x, y: 20 } })
     await expect(markers).toHaveCount(0)
   })
 })

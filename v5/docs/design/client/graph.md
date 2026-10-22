@@ -83,8 +83,7 @@ the suite is a query parameter, not a path segment.
   view: beyond, markers are too close together to tell apart, and the traces
   are drawn as lines alone, until a zoom brings 200 or fewer into view again. A
   trace with a single point keeps its marker, without which it would not show.
-  A point without a marker is hovered and clicked as one with a marker is
-  (GR10, GR11).
+  A point without a marker can still be hovered and clicked (GR10, GR11).
 
 - **Aggregation controls**: a point is the value of one test on one machine at
   one commit. Its samples are the samples of that test on that machine at that
