@@ -80,7 +80,7 @@ describe('plotlyTrace', () => {
       name: 'BM_vector&lt;int&gt; - m&amp;1',
       x: ['c1', 'c2'],
       y: [1.234567891, 2],
-      marker: { color: '#123456', symbol: markerOf(1).symbol, maxdisplayed: MARKED_COMMITS },
+      marker: { color: '#123456', symbol: markerOf(1).symbol },
     })
   })
 
@@ -125,6 +125,29 @@ describe('markers (GR1)', () => {
     // Zoomed in between commits 4.5 and 6.5, then panned past the last commit.
     expect(commitsInView({ ...geometry, x: (value) => 100 + 100 * (value - 4.5) }, 50)).toBe(2)
     expect(commitsInView({ ...geometry, x: (value) => 100 + 10 * (value - 48) }, 50)).toBe(2)
+  })
+
+  it('counts them right far from the first commit, though Plotly rounds pixels', () => {
+    // Positions 325.95 to 526.25 of 600 in view, in a plot 1014 pixels wide, each position placed
+    // to a hundredth of a pixel, as Plotly does: 326 to 526 are in view.
+    const [from, to] = [325.9483905287492, 526.2466917324643]
+    const pixels = 1014 / (to - from)
+    const geometry = {
+      area: { left: 70, top: 0, width: 1014, height: 100 },
+      x: (value: number) => 70 + Math.round(pixels * (value - from) * 100) / 100,
+      y: (value: number) => value,
+    }
+    expect(commitsInView(geometry, 600)).toBe(201)
+  })
+
+  it('leaves Plotly room to draw the marker of every point in view', () => {
+    const { marker } = plotlyTrace(
+      { test: 't', machine: 'm', machineIndex: 0, color: '#123456', points: [] },
+      display,
+      metric('execution_time'),
+    )
+    // One more than are marked in view, which a count one off at an edge may still mark.
+    expect((marker as { maxdisplayed: number }).maxdisplayed).toBeGreaterThan(MARKED_COMMITS + 1)
   })
 })
 

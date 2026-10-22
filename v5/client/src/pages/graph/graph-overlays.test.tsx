@@ -1446,21 +1446,36 @@ describe('the markers of the points (GR1)', () => {
     expect(modes()).toEqual({ 'a - m1': 'lines+markers', 'a - m2': 'lines+markers' })
   })
 
-  it("builds a trace's data again when its machine's symbol or the metric change", async () => {
+  it("builds a trace's data once, whatever other traces arrive", async () => {
     mockWorld()
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(drawn()).toEqual(['a - m1']))
+    const { customdata } = curve('a - m1') as PlotData
+
+    await userEvent.setup().click(testTable().getByRole('checkbox', { name: 'b' }))
+    await waitFor(() => expect(drawn()).toEqual(['a - m1', 'b - m1']))
+    expect((curve('a - m1') as PlotData).customdata).toBe(customdata)
+  })
+
+  it("builds a trace's data again when its machine's symbol changes", async () => {
+    // m1's commits, held: only m2's traces are drawn, on m2's commits alone.
+    const held = gate()
+    mockWorld()
+    mockCommits(async (query) => {
+      const name = query.get('machine') as 'm1' | 'm2'
+      if (name === 'm1') await held.promise
+      return cursorPage(COMMITS[name].map(commitAt))
+    })
     renderPage(`${GRAPHED}&test=b`)
-    await waitFor(() => expect(drawn()).toEqual(['b - m1', 'b - m2']))
-    const symbols = () => (chart().data as PlotData[]).map((trace) => trace.marker.symbol)
-    expect(symbols()).toEqual(['circle', 'triangle-up'])
-
-    // Once m1 is removed, m2 is the first machine: its trace takes the first symbol.
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
     await waitFor(() => expect(drawn()).toEqual(['b - m2']))
-    expect(symbols()).toEqual(['circle'])
+    const symbols = () => (chart().data as PlotData[]).map((trace) => trace.marker.symbol)
+    expect(symbols()).toEqual(['triangle-up'])
 
-    const { customdata } = curve('b - m2') as PlotData
-    await pickOption('Metric', 'Compile Time')
-    await waitFor(() => expect((curve('b - m2') as PlotData).customdata).not.toBe(customdata))
+    // Once m1 is removed, m2 is the first machine, on the same x-axis: its trace, whose points stay
+    // the same, takes the first symbol.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
+    await waitFor(() => expect(symbols()).toEqual(['circle']))
+    act(() => held.open())
   })
 
   it('keeps the data of the traces drawn only', async () => {

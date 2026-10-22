@@ -374,7 +374,7 @@ export function GraphChart({
       // The baselines' lines before the traces, though drawn over them on their own x-axis: of the
       // curves as close to the pointer, Plotly hovers the last, so a point on a line keeps its
       // tooltip and details (GR9). It is as close as can be anywhere over its marker; without one,
-      // wherever the pointer is no closer to the line's nearest point, which are a few pixels
+      // wherever the pointer is no closer to the line's nearest point, which are about 10 pixels
       // apart. The circles over every trace, so that no trace's line crosses them.
       data: [...lineData, ...traceData, ...circleData, ...markerData],
       curves: [

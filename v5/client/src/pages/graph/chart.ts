@@ -39,10 +39,13 @@ export const MARKED_COMMITS = 200
 
 /**
  * How many of the `count` commits of the x-axis are in view in a plot drawn as `geometry` says: the
- * positions from 0 to `count - 1` between the left and right edges of the plot.
+ * positions from 0 to `count - 1` between the left and right edges of the plot. Plotly rounds the
+ * pixels of a position, so the step between two is taken across the whole axis, lest its error add
+ * up far from position 0. Rounding can still make the count one off at an edge.
  */
 export function commitsInView({ area, x }: PlotGeometry, count: number): number {
-  const step = x(1) - x(0)
+  const span = Math.max(count - 1, 1)
+  const step = (x(span) - x(0)) / span
   const first = Math.max(0, Math.ceil((area.left - x(0)) / step))
   const last = Math.min(count - 1, Math.floor((area.left + area.width - x(0)) / step))
   return Math.max(0, last - first + 1)
@@ -88,14 +91,16 @@ export function plotlyTrace(
       'Commit: %{customdata[0]}<br>Value: %{customdata[1]}<br>%{customdata[2]}<br>' +
       '<i>Click for details</i><extra></extra>',
     line: { color, width: 1.5 },
-    // Plotly draws only the markers of the points in view (both x and y in range) with
-    // `maxdisplayed`, rather than every point's: those of all the points in view, since there are
-    // at most MARKED_COMMITS while the points have markers.
+    // With `maxdisplayed`, Plotly draws only the markers of the points in view (x and y in range),
+    // rather than every point's, and only that many of them, evenly spaced, when more are in view.
+    // While the points have markers, about MARKED_COMMITS are in view at most, give or take one (see
+    // `commitsInView`): with room to spare, Plotly leaves out the points out of view, but never
+    // thins out those in view.
     marker: {
       color,
       size: 6,
       symbol: markerOf(machineIndex).symbol,
-      maxdisplayed: MARKED_COMMITS,
+      maxdisplayed: 2 * MARKED_COMMITS,
     },
   }
 }
