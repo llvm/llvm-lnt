@@ -1,19 +1,17 @@
-This directory contains configuration files to deploy lnt.llvm.org.
+This directory contains configuration files to deploy a LNT v4 instance. They were
+used to deploy lnt.llvm.org until it moved to LNT v5 (see `v5/deployment`), at which
+point the v4 deployment was torn down.
 
 In order to perform a deployment, the following requirements must be satisfied:
-1. The Github repository should have secrets named `AWS_ACCESS_KEY_ID` and
-   `AWS_SECRET_ACCESS_KEY` to allow Github action to connect to an AWS account.
-2. The active AWS account must contain a S3 bucket named `lnt.llvm.org-terraform-state-prod`
+1. The active AWS account must contain a S3 bucket named `lnt.llvm.org-terraform-state-prod`
    which will be used to store the Terraform state. Versioning should be enabled on
    that bucket.
-3. The active AWS account should have `lnt.llvm.org-secrets` in the AWS secret manager
+2. The active AWS account should have `lnt.llvm.org-secrets` in the AWS secret manager
    with entries `lnt-db-password` and `lnt-auth-token`. Those will be used for the
    database password used by LNT and the authentication token for destructive actions,
    respectively.
 
-Once the above is satisfied, an instance can be re-deployed automatically by running
-the `deploy-lnt.llvm.org.yaml` Github Action. Manually deploying the instance is also
-possible by directly using Terraform:
+Once the above is satisfied, an instance can be deployed by using Terraform:
 
 ```bash
 aws configure # provide appropriate access keys
