@@ -66,6 +66,10 @@ Each side has its own controls:
   a time, a range at a time with Shift, or all at once from the header (see
   AR10). Before a commit is selected, the list says "Select a commit first".
 
+Each side's controls span its box, and the two sides share the width equally,
+so that nothing moves as a side's selections change, such as when its runs are
+listed.
+
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to
 be fetched again. The shadows are kept (see CP8).

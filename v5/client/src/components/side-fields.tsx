@@ -1,18 +1,20 @@
 /**
- * The first controls of a side of a suite-agnostic comparison page: its suite, machine and commit
- * (CP1, PF2).
+ * A side of a suite-agnostic comparison page (CP1, PF2): the box holding its controls, and the first
+ * of them, its suite, machine and commit.
  */
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { CommitFilters } from '../api/commits'
 import type { SuiteSchema } from '../api/suites'
 import { Combobox } from './combobox'
 import { CommitPicker } from './commit-picker'
+import { ControlsPanel } from './controls-panel'
 import { ErrorMessage } from './feedback'
 import type { Machines } from './machine-suggestions'
 import { Select } from './select'
 import { machineFailuresReportable } from './side-selection'
 import { NO_SUGGESTIONS } from './suggestions'
+import styles from './side-fields.module.css'
 
 function noop() {}
 
@@ -48,7 +50,8 @@ interface Props {
 
 /**
  * A side's suite dropdown, machine combobox and commit picker. Each one stays disabled, and says
- * why, until the control it depends on has a value.
+ * why, until the control it depends on has a value. Below the machine combobox, says if the suite's
+ * machines could not be listed.
  */
 export function SideFields({
   suites,
@@ -86,6 +89,8 @@ export function SideFields({
         }
         isDisabled={schema === undefined}
       />
+      {/* The machines are only fetched once the suite is known to exist. */}
+      {schema !== undefined && <MachinesError suite={schema.name} machines={machines} />}
       {/* Without a machine, a commit picker would look its commit up among no machine's. */}
       {schema === undefined || machine === '' ? (
         <Combobox
@@ -112,8 +117,35 @@ export function SideFields({
   )
 }
 
+interface SideControlsProps {
+  /** The side's heading, which also names its controls for assistive technology. */
+  title: string
+  /** What the heading offers to do with the side, if anything, beside it. */
+  action?: ReactNode
+  /** The side's controls, `SideFields` first. */
+  children: ReactNode
+}
+
+/**
+ * The box holding a side's controls, under its heading. They take the side's width, whatever they
+ * hold, so that a long machine name has room, and nothing moves as they change.
+ */
+export function SideControls({ title, action, children }: SideControlsProps) {
+  return (
+    <ControlsPanel>
+      <section className={styles.side} aria-label={title}>
+        <div className={styles.header}>
+          <h2 className={styles.title}>{title}</h2>
+          {action}
+        </div>
+        {children}
+      </section>
+    </ControlsPanel>
+  )
+}
+
 /** Says that the machines of `suite` could not be listed, with a way to try again, if so. */
-export function MachinesError({ suite, machines }: { suite: string; machines: Machines }) {
+function MachinesError({ suite, machines }: { suite: string; machines: Machines }) {
   if (!machines.machines.isError) return null
   return (
     <ErrorMessage

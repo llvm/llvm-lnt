@@ -275,7 +275,8 @@ color goes from yellow to red, and a share of 10% or more is red.
 
 The two sides' controls are side by side, A on the left and B on the right,
 with the counter comparison below them across the full width, followed by the
-Counter and the Values.
+Counter and the Values. Each side's controls span its box, and the two sides
+share the width equally, so that nothing moves as a side's selections change.
 
 When both sides show a profile, the function selectors and the disassembly
 views are in two columns below: side A's on the left and side B's on the

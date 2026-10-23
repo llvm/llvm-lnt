@@ -5,7 +5,7 @@
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { EXPERIMENT, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.ts'
+import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { pickOption, pickSuggestion } from './select.ts'
@@ -47,9 +47,9 @@ function drawsAt(element: Locator, points: { x: number; y: number }[]) {
   )
 }
 
-/** The two newest commits LINUX has runs at, by ordinal: the older first. */
-async function newestCommits(request: APIRequestContext) {
-  const path = `/api/suites/libcxx/commits?machine=${LINUX}&sort=-ordinal&limit=2`
+/** The two newest commits `machine` has runs at, by ordinal: the older first. */
+async function newestCommits(request: APIRequestContext, machine = LINUX) {
+  const path = `/api/suites/libcxx/commits?machine=${machine}&sort=-ordinal&limit=2`
   const { items } = await json<Schemas['CommitCursorPage']>(request, path)
   return [items[1], items[0]]
 }
@@ -280,6 +280,29 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
 
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
   await expect(page).toHaveURL(new RegExp(`commit_a=${older.value}.*commit_b=${newer.value}`))
+})
+
+test("gives a long machine name its side's width, runs listed or not (CP1)", async ({
+  page,
+  request,
+}) => {
+  const [, commit] = await newestCommits(request, HARDENED)
+  await page.goto(`/compare?suite_a=libcxx&machine_a=${HARDENED}`)
+  const controls = sideOf(page, 'A')
+  const machine = controls.getByRole('combobox', { name: 'Machine' })
+  // Measured once the side shows what the URL names, and no longer its placeholders.
+  await expect(controls.getByRole('button', { name: 'libcxx Suite' })).toBeVisible()
+  await expect(machine).toHaveValue(HARDENED)
+  const width = () => machine.evaluate((element) => element.clientWidth)
+  const before = await width()
+
+  // The whole name shows: the combobox takes the side's width, rather than that of its text.
+  expect(await machine.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(before)
+
+  // Nor does it widen with the runs once they are listed.
+  await pickSuggestion(controls, 'Commit', commit.value, String(commit.fields.svn_revision))
+  await expect(controls.getByRole('checkbox', { name: 'Select all runs' })).toBeVisible()
+  expect(await width()).toBe(before)
 })
 
 test('offers the untracked machines last, under their heading (AR18)', async ({ page }) => {
