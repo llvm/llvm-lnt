@@ -26,8 +26,7 @@ resource "aws_eip_association" "app" {
   allocation_id = aws_eip.app.id
 }
 
-# A t4g.small, for its 2 GiB: with 1 GiB (t4g.micro), two whole-machine series streamed by one
-# worker ran the instance out of memory.
+# A t4g.small for its 2 GiB of memory -- 1 GiB on t4g.micro is borderline.
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = "t4g.small"
