@@ -26,9 +26,10 @@ resource "aws_eip_association" "app" {
   allocation_id = aws_eip.app.id
 }
 
+# A t4g.small for its 2 GiB of memory -- 1 GiB on t4g.micro is borderline.
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = "t4g.micro"
+  instance_type          = "t4g.small"
   subnet_id              = data.aws_subnets.default.ids[0]
   vpc_security_group_ids = [aws_security_group.ec2.id]
   iam_instance_profile   = data.aws_iam_instance_profile.app.name
