@@ -5,13 +5,13 @@ than a page at a time: the order a series is analysed in -- by test, then by com
 page cursor can follow cheaply, and neither a tool that wants all of it nor a chart of one test has
 any use for pages.
 
-The response is read a batch of tests at a time, each batch in its own short statement over the
-machine's runs. How a statement reaches the samples is the planner's choice: one test (a Graph
-trace) is typically a probe of `(test_id, run_id)` per run, a few runs (one commit) go through the
-sample table's primary key, which leads with the run, and a large batch may be a scan of
-`(test_id, run_id)` that reads the batch's samples on every machine and discards those of the
-others. No connection, transaction or lock is held between batches, so a slow client holds nothing
-in the database, and a client that goes away leaves nothing to clean up.
+The response is read a batch of tests at a time, each batch in its own short statement that joins
+the machine's runs to their samples, typically through the sample table's primary key, which leads
+with the run: one probe per run, whether the batch is one test (a Graph trace), every test at one
+commit, or part of a whole series. On a small suite the planner may instead scan
+`(test_id, run_id)` for a large batch, which reads the batch's samples on every machine and
+discards the others'. No connection, transaction or lock is held between batches, so a slow client
+holds nothing in the database, and a client that goes away leaves nothing to clean up.
 
 Once the response has started, a failure is an exception out of the body, which makes the server
 abort the response rather than end it (E9).
@@ -23,9 +23,9 @@ import time
 from collections.abc import Generator, Sequence
 from typing import Annotated, Any
 
+import msgspec
 from fastapi import APIRouter, Query
 from fastapi.responses import Response, StreamingResponse
-from pydantic_core import to_json
 from sqlalchemy import (
     ColumnElement,
     Connection,
@@ -79,6 +79,13 @@ CHUNK_SECONDS = 1.0
 
 # The keys of a line, in `DataPoint`'s order.
 _KEYS = tuple(DataPoint.model_fields)
+
+# A line, encoded by msgspec rather than pydantic, which takes twice as long: encoding is a large
+# part of the time a whole series takes. A struct rather than a dict, since its keys are encoded
+# once. The JSON is pydantic's for every value a line carries, except that a real of magnitude 1e16
+# or more has no `+` in its exponent.
+_Line = msgspec.defstruct("Line", _KEYS)
+_ENCODER = msgspec.json.Encoder()
 
 _NO_ENTITY = (
     "The test suite, the machine, one of the tests, or the `after_commit` or `before_commit` "
@@ -169,18 +176,16 @@ class Series:
             )
         )
 
-    def lines(self, connection: Connection, query: Select[Any]) -> bytes:
-        """The batch's rows as NDJSON, serialized as they are fetched.
+    def lines(self, connection: Connection, query: Select[Any], out: bytearray) -> None:
+        """Append the batch's rows to `out` as NDJSON, serialized as they are fetched.
 
         Fetched a few at a time through a server-side cursor: fetched all at once, the result sits
         whole in the database driver's memory, which the process then keeps.
         """
         machine, metric = self._machine_name, self._metric.name
-        rows = connection.execute(query.execution_options(yield_per=FETCH_ROWS))
-        return b"".join(
-            to_json(dict(zip(_KEYS, (test, machine, metric, *rest), strict=True))) + b"\n"
-            for test, *rest in rows
-        )
+        for test, *rest in connection.execute(query.execution_options(yield_per=FETCH_ROWS)):
+            _ENCODER.encode_into(_Line(test, machine, metric, *rest), out, -1)
+            out += b"\n"
 
     def check(self, connection: Connection, version: int) -> None:
         """Abort if a batch just read may have come back incomplete without failing.
@@ -223,7 +228,7 @@ def stream(
     sent = time.monotonic()
     for tests in batches:
         with engine.connect() as connection:
-            buffer += series.lines(connection, series.batch(tests, conditions))
+            series.lines(connection, series.batch(tests, conditions), buffer)
             series.check(connection, version)
         if len(buffer) >= CHUNK_BYTES or (buffer and time.monotonic() - sent >= CHUNK_SECONDS):
             yield bytes(buffer)

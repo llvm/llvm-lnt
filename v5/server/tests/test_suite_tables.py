@@ -627,7 +627,7 @@ class TestIndexes:
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # D5: the key leads with the run, which is how a run's samples are reached, and the index
-        # leads with the test, for E9's `test` filter. No other index.
+        # leads with the test. No other index.
         make_suite("nts")
 
         inspector = inspect(db_engine)

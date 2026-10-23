@@ -579,12 +579,11 @@ as `{suite}.commit`, and the tables below are named that way.
   storage, and is not exposed by the API (see E6).
 - The primary key leads with the run. It serves
   `GET /api/suites/{testsuite}/runs/{uuid}/samples`, with or without `test=`;
-  the deletion of a run's samples; and `GET /api/suites/{testsuite}/series`
-  when it reads the samples of a few runs, such as those of one commit.
-- Compound index on `(test_id, run_id)`: serves
-  `GET /api/suites/{testsuite}/series` when it reads tests across the
-  machine's runs, whether one test or a batch of them: faster than one probe of
-  the primary key per run, especially when the samples are not in memory.
+  the deletion of a run's samples; and `GET /api/suites/{testsuite}/series`,
+  which reaches one machine's samples through its runs, whatever tests and
+  commits it reads.
+- Compound index on `(test_id, run_id)`: reaches a test's samples on every
+  machine without going through the runs. No endpoint relies on it.
 - Dynamic columns are created from the schema's metrics (see D3 for the
   type-to-column mapping).
 - Metric names must not collide with the built-in column names (`run_id`,
