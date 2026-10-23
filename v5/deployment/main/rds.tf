@@ -22,7 +22,6 @@ resource "random_password" "db" {
 }
 
 resource "aws_db_instance" "main" {
-  # deployment/bootstrap relies on this name to grant the instance access to the password secret.
   identifier     = local.stack_name
   engine         = "postgres"
   engine_version = "18" # keep in sync with the version pinned for development

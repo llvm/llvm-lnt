@@ -13,10 +13,6 @@ data "aws_kms_alias" "rds" {
   name = "alias/aws/rds"
 }
 
-data "aws_kms_alias" "secretsmanager" {
-  name = "alias/aws/secretsmanager"
-}
-
 # The OIDC provider is account-wide: IAM allows only one per URL per account, so don't create one
 # if it already exists and reuse the existing one instead.
 locals {
@@ -78,16 +74,13 @@ resource "aws_iam_role_policy" "deploy_scoped" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "Secrets"
-        Effect = "Allow"
-        Action = "secretsmanager:*"
-        Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.resource_prefix}/*",
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*",
-        ]
+        Sid      = "Secrets"
+        Effect   = "Allow"
+        Action   = "secretsmanager:*"
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.resource_prefix}/*"
       },
       # Only deployment/main's state: its default workspace and the other workspaces, along with their
-      # lock files. The bucket also holds the bootstrap state, which is has no business touching.
+      # lock files. The bucket also holds the bootstrap state, which it has no business touching.
       {
         Sid      = "TerraformStateList"
         Effect   = "Allow"
@@ -156,8 +149,9 @@ resource "aws_iam_role_policy" "deploy_scoped" {
           }
         }
       },
-      # Needed for RDS storage encryption (aws/rds) and the auto-generated master
-      # password secret (aws/secretsmanager).
+      # Needed for RDS storage encryption (aws/rds). The app's secret needs no grant for its key
+      # (aws/secretsmanager), whose key policy allows anyone in the account to use it via Secrets
+      # Manager.
       {
         Sid    = "Kms"
         Effect = "Allow"
@@ -168,10 +162,7 @@ resource "aws_iam_role_policy" "deploy_scoped" {
           "kms:Encrypt",
           "kms:GenerateDataKey*",
         ]
-        Resource = [
-          data.aws_kms_alias.rds.target_key_arn,
-          data.aws_kms_alias.secretsmanager.target_key_arn,
-        ]
+        Resource = data.aws_kms_alias.rds.target_key_arn
       },
     ]
   })
