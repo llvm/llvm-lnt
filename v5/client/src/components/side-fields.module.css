@@ -1,0 +1,22 @@
+/* A side's controls (CP1, PF2), which fill the controls panel around them, one below the other. */
+.side {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--lnt-space-2);
+  min-width: 0;
+}
+
+/* The side's heading, and what it offers beside it, below it when there is no room. */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+}

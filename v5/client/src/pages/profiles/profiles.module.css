@@ -1,24 +1,14 @@
 /* The Profiles page (PF1-PF9). */
 
-/* The two sides' controls, A on the left and B on the right (PF7). */
+/*
+ * The two sides' controls, A on the left and B on the right (PF7), sharing the width equally,
+ * whatever they hold.
+ */
 .sides {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
   gap: var(--lnt-space-3);
-}
-
-.side {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--lnt-space-2);
-  min-width: 0;
-}
-
-.sideTitle {
-  margin: 0;
-  font-size: 1.1rem;
 }
 
 /* The run dropdown, and the link to the run selected beside it. */

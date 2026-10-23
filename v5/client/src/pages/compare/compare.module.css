@@ -12,30 +12,12 @@
   pointer-events: none;
 }
 
-/* The two sides, the swap button between them. */
+/* The two sides, sharing the width equally whatever they hold, and the swap button between them. */
 .sides {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: start;
   gap: var(--lnt-space-3);
-}
-
-.side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lnt-space-2);
-}
-
-.sideHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--lnt-space-2);
-}
-
-.sideTitle {
-  margin: 0;
-  font-size: 1.1rem;
 }
 
 .swap {
@@ -49,8 +31,9 @@
   cursor: pointer;
 }
 
-/* A side's runs, each with its checkbox. */
+/* A side's runs, each with its checkbox, kept within the side, which a fieldset is not by default. */
 .runs {
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: none;
@@ -77,8 +60,10 @@
   background: var(--lnt-bg);
 }
 
+/* A run, its UUID on a line of its own when the side is too narrow. */
 .run {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lnt-space-2);
 }

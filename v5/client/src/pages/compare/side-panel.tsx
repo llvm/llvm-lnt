@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 import type { SuiteSchema } from '../../api/suites'
-import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
-import { MachinesError, SideFields } from '../../components/side-fields'
+import { SideControls, SideFields } from '../../components/side-fields'
 import { runsListFailed } from '../../components/side-selection'
 import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
@@ -27,36 +26,29 @@ interface Props {
  */
 export function SidePanel({ side, title, suites, action }: Props) {
   const { settings, schema, machines, update: onChange } = side
-  const { suite, machine, commit } = settings
+  const { machine, commit } = settings
 
   return (
-    <ControlsPanel>
-      <section className={styles.side} aria-label={title}>
-        <div className={styles.sideHeader}>
-          <h2 className={styles.sideTitle}>{title}</h2>
-          {action}
-        </div>
-        <SideFields
-          suites={suites}
-          schema={schema}
-          machines={machines}
-          machine={machine}
-          commit={commit}
-          onSuite={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
-          onMachine={(picked) =>
-            // Another machine keeps the commit if it has runs at it, as the commit picker checks.
-            onChange(
-              picked === null
-                ? { machine: '', ...CLEARED_WITH.machine }
-                : { machine: picked, runs: [] },
-            )
-          }
-          onCommit={(value) => onChange({ commit: value ?? '', ...CLEARED_WITH.commit })}
-        />
-        <RunList side={side} />
-      </section>
-      <MachinesError suite={suite} machines={machines} />
-    </ControlsPanel>
+    <SideControls title={title} action={action}>
+      <SideFields
+        suites={suites}
+        schema={schema}
+        machines={machines}
+        machine={machine}
+        commit={commit}
+        onSuite={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
+        onMachine={(picked) =>
+          // Another machine keeps the commit if it has runs at it, as the commit picker checks.
+          onChange(
+            picked === null
+              ? { machine: '', ...CLEARED_WITH.machine }
+              : { machine: picked, runs: [] },
+          )
+        }
+        onCommit={(value) => onChange({ commit: value ?? '', ...CLEARED_WITH.commit })}
+      />
+      <RunList side={side} />
+    </SideControls>
   )
 }
 

@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 import type { SuiteSchema } from '../../api/suites'
 import { Combobox } from '../../components/combobox'
-import { ControlsPanel } from '../../components/controls-panel'
 import { ErrorMessage } from '../../components/feedback'
 import { Select } from '../../components/select'
-import { MachinesError, SideFields } from '../../components/side-fields'
+import { SideControls, SideFields } from '../../components/side-fields'
 import { useLocalSuggestions } from '../../components/suggestions'
 import { UuidLink } from '../../components/uuid-link'
 import { formatTimestamp, uuidPrefix } from '../../format'
@@ -30,26 +29,22 @@ interface Props {
 export function SidePanel({ side, title, suites }: Props) {
   const { settings, schema, machines } = side
   return (
-    <ControlsPanel>
-      <section className={styles.side} aria-label={title}>
-        <h2 className={styles.sideTitle}>{title}</h2>
-        <SideFields
-          suites={suites}
-          schema={schema}
-          machines={machines}
-          machine={settings.machine}
-          commit={settings.commit}
-          commitFilters={HAS_PROFILES}
-          noCommitsMessage="No profiles on this machine"
-          onSuite={side.pickSuite}
-          onMachine={side.pickMachine}
-          onCommit={side.pickCommit}
-        />
-        <RunField side={side} />
-        <TestField side={side} />
-      </section>
-      <MachinesError suite={settings.suite} machines={machines} />
-    </ControlsPanel>
+    <SideControls title={title}>
+      <SideFields
+        suites={suites}
+        schema={schema}
+        machines={machines}
+        machine={settings.machine}
+        commit={settings.commit}
+        commitFilters={HAS_PROFILES}
+        noCommitsMessage="No profiles on this machine"
+        onSuite={side.pickSuite}
+        onMachine={side.pickMachine}
+        onCommit={side.pickCommit}
+      />
+      <RunField side={side} />
+      <TestField side={side} />
+    </SideControls>
   )
 }
 
