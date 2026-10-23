@@ -75,9 +75,11 @@
   box-sizing: content-box;
 }
 
+/* Stops scrolling at its ends, as `.popover` in dropdown.module.css does, for the same reason. */
 .virtualList {
   max-height: inherit;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 /* A virtualized list is not sized by its suggestions: a long name breaks anywhere rather than overflow. */

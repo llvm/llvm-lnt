@@ -47,6 +47,22 @@ function drawsAt(element: Locator, points: { x: number; y: number }[]) {
   )
 }
 
+/**
+ * How far the page has scrolled, and for the open list of suggestions, how far it can scroll and
+ * how far it is from its end, or null while none is open. What scrolls the list is the listbox or a
+ * box holding it, the nearest of them whose overflow is `auto` or `scroll`. Self-contained, to run
+ * in the page.
+ */
+function scrollState() {
+  let box = document.querySelector('[role="listbox"]')
+  while (box && !['auto', 'scroll'].includes(getComputedStyle(box).overflowY)) {
+    box = box.parentElement
+  }
+  if (!box) return { page: window.scrollY, list: null }
+  const max = box.scrollHeight - box.clientHeight
+  return { page: window.scrollY, list: { max, toEnd: max - box.scrollTop } }
+}
+
 /** The two newest commits `machine` has runs at, by ordinal: the older first. */
 async function newestCommits(request: APIRequestContext, machine = LINUX) {
   const path = `/api/suites/libcxx/commits?machine=${machine}&sort=-ordinal&limit=2`
@@ -316,6 +332,54 @@ test('offers the untracked machines last, under their heading (AR18)', async ({ 
   // After every tracked machine matching the text.
   await expect(page.getByRole('option').last()).toHaveText(UNTRACKED)
   await expect(page.getByRole('option').first()).not.toHaveText(UNTRACKED)
+})
+
+test("stops scrolling a combobox's list at its end, leaving it open (AR14)", async ({
+  page,
+  request,
+}) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+  )
+  await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
+  // The page could scroll, which would close the list.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight)).toBe(true)
+
+  // Every machine of the suite, more than the list shows at once.
+  await sideOf(page, 'B').getByRole('button', { name: 'Show suggestions Machine' }).click()
+  await page.getByRole('listbox').hover()
+  await page.mouse.wheel(0, 10_000)
+  await expect
+    .poll(async () => {
+      const { list } = await page.evaluate(scrollState)
+      return list !== null && list.max > 0 && list.toEnd < 1
+    })
+    .toBe(true)
+
+  // Past its end, then back up a little. Wheel events are handled in order, so once the list has
+  // scrolled up, the wheel past its end has been handled. Only that it scrolled up is checked, as
+  // on macOS the list then bounces back to its end.
+  const seen = await page.evaluateHandle(() => {
+    const state = { scrolledUp: false }
+    const onScroll = ({ target: box }: Event) => {
+      const list = document.querySelector('[role="listbox"]')
+      if (!(box instanceof Element) || !box.contains(list)) return
+      const toEnd = box.scrollHeight - box.clientHeight - box.scrollTop
+      if (toEnd >= 1) state.scrolledUp = true
+    }
+    addEventListener('scroll', onScroll, { capture: true })
+    return state
+  })
+  await page.mouse.wheel(0, 1000)
+  await page.mouse.wheel(0, -100)
+  await expect
+    .poll(async () => {
+      const { page: scrollY, list } = await page.evaluate(scrollState)
+      return { open: list !== null, scrollY, scrolledUp: await seen.evaluate((s) => s.scrolledUp) }
+    })
+    .toEqual({ open: true, scrollY: 0, scrolledUp: true })
 })
 
 test('suggests the commits highest ordinal first (AR15)', async ({ page, request }) => {
