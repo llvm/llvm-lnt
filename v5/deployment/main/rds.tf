@@ -6,9 +6,19 @@
 # In production, the database can't be deleted without first turning off deletion protection, and
 # deleting it takes a final snapshot and keeps the automated backups. Other environments are deleted
 # outright, so that they can be torn down without any manual step.
+#
+# The master password is generated here and stored in the app's secret (see secrets.tf). It is
+# deliberately static rather than managed by RDS, which rotates it automatically, because the app
+# instance only reads it when it boots.
 resource "aws_db_subnet_group" "main" {
   name       = local.stack_name
   subnet_ids = data.aws_subnets.default.ids
+}
+
+# RDS rejects some special characters in passwords, so stick to letters and digits.
+resource "random_password" "db" {
+  length  = 32
+  special = false
 }
 
 resource "aws_db_instance" "main" {
@@ -24,8 +34,7 @@ resource "aws_db_instance" "main" {
   db_name  = "lnt"
   username = "lnt"
 
-  # AWS generates and stores the master password itself.
-  manage_master_user_password = true
+  password = random_password.db.result
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
