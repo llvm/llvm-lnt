@@ -27,13 +27,13 @@ cat > /opt/app/nginx.conf <<'NGINX_EOF'
 ${nginx_conf}
 NGINX_EOF
 
-DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${db_secret_arn}" --region ${aws_region} \
-  --query SecretString --output text | jq -r '.password')
-# URL-encode the password since generated passwords may contain special characters.
-DB_PASSWORD_URLENC=$(printf '%s' "$DB_PASSWORD" | jq -sRr @uri)
-
 SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${secret_arn}" --region ${aws_region} \
   --query SecretString --output text)
+
+# `jq -e` makes a missing key fail the boot, instead of writing out the string "null".
+DB_PASSWORD=$(echo "$SECRET_JSON" | jq -er '.db_password')
+# URL-encode the password, in case its character set is ever widened (see rds.tf).
+DB_PASSWORD_URLENC=$(printf '%s' "$DB_PASSWORD" | jq -sRr @uri)
 
 cat > /opt/app/.env <<EOF
 DATABASE_URL=postgres://${db_username}:$DB_PASSWORD_URLENC@${db_endpoint}/${db_name}
@@ -42,8 +42,8 @@ WEB_CONCURRENCY=${web_concurrency}
 EOF
 chmod 600 /opt/app/.env
 
-echo "$SECRET_JSON" | jq -r '.certificate' > /opt/app/certs/origin.pem
-echo "$SECRET_JSON" | jq -r '.private_key' > /opt/app/certs/origin.key
+echo "$SECRET_JSON" | jq -er '.certificate' > /opt/app/certs/origin.pem
+echo "$SECRET_JSON" | jq -er '.private_key' > /opt/app/certs/origin.key
 chmod 600 /opt/app/certs/origin.key
 
 cd /opt/app

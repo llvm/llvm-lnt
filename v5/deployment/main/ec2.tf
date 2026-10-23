@@ -39,12 +39,11 @@ resource "aws_instance" "app" {
   }
 
   user_data = templatefile("${path.module}/../templates/user_data.sh.tftpl", {
-    aws_region    = data.aws_region.current.region
-    db_secret_arn = aws_db_instance.main.master_user_secret[0].secret_arn
-    db_username   = aws_db_instance.main.username
-    db_endpoint   = aws_db_instance.main.endpoint
-    db_name       = aws_db_instance.main.db_name
-    secret_arn    = aws_secretsmanager_secret.app.arn
+    aws_region  = data.aws_region.current.region
+    db_username = aws_db_instance.main.username
+    db_endpoint = aws_db_instance.main.endpoint
+    db_name     = aws_db_instance.main.db_name
+    secret_arn  = aws_secretsmanager_secret.app.arn
 
     # One uvicorn worker per vCPU of the instance_type above; keep the two in step. Each worker
     # holds its own database connection pool, so this also multiplies how many connections the
@@ -72,6 +71,12 @@ resource "aws_instance" "app" {
   # failure to obtain it, the EC2 instance would be brought up and it would fail at boot time when
   # failing to retrieve it from Secrets Manager.
   depends_on = [aws_secretsmanager_secret_version.app]
+
+  lifecycle {
+    # The instance only reads the secret when it boots, so replace it whenever the secret changes.
+    # Otherwise it would keep using the old values, and an old database password takes the site down.
+    replace_triggered_by = [aws_secretsmanager_secret_version.app]
+  }
 
   tags = {
     Name = local.stack_name
