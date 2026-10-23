@@ -321,8 +321,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("repetition", Integer, primary_key=True),
         *_dynamic(schema.metrics),
     )
-    # D5: `GET /series` reading a few tests' samples across a machine's runs, faster than a probe
-    # of the key per run.
+    # D5: a test's samples across every machine's runs. No endpoint relies on it.
     Index(None, sample.c.test_id, sample.c.run_id)
 
     # D5: which tests have had samples on which machine, and for which metrics, so that

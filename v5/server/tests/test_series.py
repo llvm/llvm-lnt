@@ -156,8 +156,12 @@ class TestSeriesResponse:
         ("metric", "value"),
         [
             ("execution_time", 1.5),
+            ("execution_time", 1e300),
             ("compile_status", 3),
+            ("compile_status", 2**62),
             ("toolchain", "clang-21"),
+            # Characters JSON has to escape, and others it does not, a line separator among them.
+            ("toolchain", 'a"b\\c\x01\n\u2028é\U0001f600'),
             # In UTC with a `Z` suffix, whatever offset it was submitted with.
             ("built_at", "2026-01-02T03:04:05Z"),
         ],

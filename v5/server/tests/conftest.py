@@ -337,7 +337,8 @@ def ndjson_lines(response: Any) -> list[Any]:
     with a newline."""
     assert response.status_code == 200, response.text
     assert response.text == "" or response.text.endswith("\n")
-    return [json.loads(line) for line in response.text.splitlines()]
+    # On newlines alone: `splitlines` also splits on characters a JSON string may hold, U+2028 say.
+    return [json.loads(line) for line in response.text.split("\n")[:-1]]
 
 
 def walk_cursor(fetch: Callable[[str | None], Any]) -> list[Any]:
