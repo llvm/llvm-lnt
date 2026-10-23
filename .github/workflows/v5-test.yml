@@ -1,7 +1,9 @@
 #
-# Build and test the v5 app, then build the Docker image and push it (only on pushes to main).
+# Test the v5 app, build its Docker image and test the image, then push the image (only on pushes
+# to main, once every test has passed).
 #
-# v4 lives in the same repository, so this is scoped to v5/ to keep it off unrelated PRs.
+# The image is built once, and handed to the jobs that test it and push it as an artifact rather
+# than through the registry, which PRs from forks cannot push to.
 #
 
 name: v5 Test
@@ -90,27 +92,56 @@ jobs:
       - run: npm run typecheck:server
       - run: npm run test:server
 
+  build-docker:
+    # The app runs on arm64 in EC2, so the image is built, and tested, on native arm64 runners.
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: tag
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        run: |
+          docker build --tag "$IMAGE:${{ steps.tag.outputs.tag }}" \
+                       --tag "$IMAGE:latest" v5
+          docker save --output "$RUNNER_TEMP/image.tar" \
+                      "$IMAGE:${{ steps.tag.outputs.tag }}" "$IMAGE:latest"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docker-image
+          path: ${{ runner.temp }}/image.tar
+          # Long enough to re-run failed jobs for a few days.
+          retention-days: 3
+
+  test-integration:
+    needs: build-docker
+    runs-on: ubuntu-24.04-arm
+    env:
+      TAG: ${{ needs.build-docker.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docker-image
+          path: ${{ runner.temp }}
+      - run: docker load --input "$RUNNER_TEMP/image.tar"
+
+      - run: LNT_V5_IMAGE="$IMAGE:$TAG" npm run test:integration
+        working-directory: v5
+
   test-e2e:
-    runs-on: ubuntu-24.04
+    needs: build-docker
+    runs-on: ubuntu-24.04-arm
+    env:
+      TAG: ${{ needs.build-docker.outputs.tag }}
     defaults:
       run:
         working-directory: v5
-    # The end-to-end tests start the server themselves, against a throwaway database they create on
-    # this PostgreSQL and drop afterwards.
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: lnt
-          POSTGRES_PASSWORD: lnt
-          POSTGRES_DB: lnt
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U lnt"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -120,18 +151,18 @@ jobs:
           cache: npm
           cache-dependency-path: v5/package-lock.json
 
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: v5/server/uv.lock
-
-      - run: uv sync --frozen
-        working-directory: v5/server
       - run: npm ci
       # The browser is not cached: restoring it takes about as long as downloading it, and its
       # system dependencies have to be installed either way.
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docker-image
+          path: ${{ runner.temp }}
+      - run: docker load --input "$RUNNER_TEMP/image.tar"
+
+      - run: LNT_V5_IMAGE="$IMAGE:$TAG" npm run test:e2e
 
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -143,29 +174,24 @@ jobs:
             v5/e2e/server.log
           retention-days: 14
 
-  build-docker:
-    needs: [test-client, test-server, test-e2e]
-    # The app runs on arm64 in EC2, so we use native arm64 GitHub runners since that simplifies
-    # building and testing the Docker image.
+  # Runs on PRs too, up to the push, so that they exercise handing the image over.
+  push-docker:
+    needs: [build-docker, test-client, test-server, test-integration, test-e2e]
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
+    env:
+      TAG: ${{ needs.build-docker.outputs.tag }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docker-image
+          path: ${{ runner.temp }}
+      - run: |
+          docker load --input "$RUNNER_TEMP/image.tar"
+          docker image inspect "$IMAGE:$TAG" "$IMAGE:latest" > /dev/null
 
-      - id: tag
-        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Build Docker image
-        run: |
-          docker build --tag "$IMAGE:${{ steps.tag.outputs.tag }}" \
-                       --tag "$IMAGE:latest" v5
-
-      - name: Integration tests
-        run: v5/integration-tests/run.sh "$IMAGE:${{ steps.tag.outputs.tag }}"
-
-      # Only done when pushing to main
       - name: Login to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -177,5 +203,5 @@ jobs:
       - name: Push Docker image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          docker push "$IMAGE:${{ steps.tag.outputs.tag }}"
+          docker push "$IMAGE:$TAG"
           docker push "$IMAGE:latest"

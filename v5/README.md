@@ -24,7 +24,8 @@ reverse proxy on top of that container, and the database is hosted on Amazon RDS
 - Node.js, matching the version in `.nvmrc` (use `nvm use` if you have nvm installed)
 - [uv](https://docs.astral.sh/uv/), which manages the Python toolchain and dependencies. It
   installs the interpreter named in `server/.python-version` for you.
-- Docker, for running Postgres locally
+- Docker, for running Postgres locally, and for the integration and end-to-end tests, which run the
+  Docker image
 
 ### Setup
 
@@ -84,32 +85,34 @@ npm run typecheck
 npm run format            # autoformat the Python sources
 npm run build             # build the client bundle the server serves
 npm run test:integration  # builds the Docker image and exercises it end to end
-npm run test:e2e          # builds the client and drives it in a browser against the real server
+npm run test:e2e          # builds the Docker image and drives its web UI in a browser
 ```
 
 Individual halves are available as `:client` / `:server` variants, e.g. `npm run test:server`.
 Note that the server tests need the Postgres from `npm run db:up`: they create throwaway databases
 of their own and drop them afterwards, so they don't touch the one used by `npm run dev`.
 
-The integration tests are what CI runs against the image. They run it in production's Compose stack
-(`deployment/templates`), behind its Nginx, with a throwaway Postgres. They need Docker with Compose
-2.24.4 or later, and `openssl`, but create and remove their own database. A run killed outright
-(with SIGKILL, say) cannot clean up after itself: `integration-tests/run.sh` says how to remove what
-it leaves behind.
+The integration and end-to-end tests run the image in production's Compose stack
+(`deployment/templates`), behind its Nginx, with a throwaway Postgres. Both build the image from the
+tree first, unless `LNT_V5_IMAGE` names one to test instead, as CI does with the image it builds.
+They need Docker with Compose 2.24.4 or later, and `openssl`, but create and remove their own
+database. A run killed outright (with SIGKILL, say) cannot clean up after itself: `tools/stack.sh`
+says how to remove what it leaves behind, and what to do if Docker cannot mount files from the
+temporary directory.
 
 Stop the local database with `npm run db:down` when you're done.
 
 #### End-to-end tests
 
 `npm run test:e2e` tests the whole stack in a browser, with [Playwright](https://playwright.dev).
-It builds the client, then creates a throwaway database on the Postgres from `npm run db:up`,
-migrates it, starts the server, creates an admin key, and seeds the database as `npm run seed`
-does. It drops the database and stops the server when the tests are done. Install the browser
-they use once, with `npx playwright install chromium`; `npm run screenshot` (below) needs it too.
+It starts the image in production's stack (see above), creates an admin key, and seeds the database
+as `npm run seed` does; the browser then goes through Nginx. Install the browser they use once, with
+`npx playwright install chromium`; `npm run screenshot` (below) needs it too. Arguments are passed
+on to Playwright, e.g. `npm run test:e2e -- e2e/smoke.spec.ts`.
 
-A failing test keeps a trace, a screenshot, and the server's log while it ran, in `e2e/test-results`;
-open the report with `npx playwright show-report e2e/playwright-report`. The whole server log is in
-`e2e/server.log`.
+A failing test keeps a trace, a screenshot, and the log of the app and of Nginx while it ran, in
+`e2e/test-results`; open the report with `npx playwright show-report e2e/playwright-report`. Their
+whole log is in `e2e/server.log`.
 
 #### Screenshots
 

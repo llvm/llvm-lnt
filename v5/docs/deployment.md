@@ -120,9 +120,10 @@ deploy workflow's final `/healthz` check fails, since it goes through the domain
 
 ## Building and pushing the app image
 
-The `v5 Test` workflow builds the image on all PRs and branch pushes that touch `v5/`, after running
-the test suites. On pushes to `main` (exclusively), the image is pushed to `ghcr.io/llvm/llvm-lnt-v5`
-and tagged with the commit's short SHA as well as `latest`.
+The `v5 Test` workflow builds the image on every PR and push to `main`, and runs the integration and
+end-to-end tests against it. On pushes to `main` (exclusively), and only once those and the other
+test suites have passed, the image is pushed to `ghcr.io/llvm/llvm-lnt-v5` and tagged with the
+commit's short SHA as well as `latest`.
 
 ## Deploying the web app
 

@@ -1,22 +1,20 @@
 /**
  * What every end-to-end test imports instead of `@playwright/test`:
  *
- * - `baseURL`: the URL of the server global-setup.ts started, for `page` and `request`.
  * - `tokenFor(scope)`: a token for a new key of that scope, to act as a user who holds it.
  * - `signIn(page, scope)`: store such a token in `page`'s browser, as the Settings panel does, so
  *   that the pages it loads from then on use it. Returns the token.
- * - The server's output while a test ran, attached to it when it fails.
+ * - The log of the app and of Nginx while a test ran, attached to it when it fails.
  *
  * Every test runs against the same seeded database, and locally several run at once. So a test
  * that writes creates entities of its own, named uniquely (with `testInfo.testId`, say), and never
  * modifies or deletes seeded ones; and no test assumes that the seeded entities are all there is.
  */
 
-import { readFileSync, statSync } from 'node:fs'
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { TOKEN_STORAGE_KEY } from '../client/src/auth/storage-key.ts'
-import { SERVER_LOG } from './global-setup.ts'
+import { stackLog } from './global-setup.ts'
 
 export { expect }
 
@@ -28,7 +26,9 @@ export const REAL_RUN = '5f85edeb-a65b-4b2f-ab83-9152007dc703'
 /** The token of the admin key the stack was seeded with (see global-setup.ts). */
 export function adminToken(): string {
   const token = process.env.E2E_ADMIN_TOKEN
-  if (!token) throw new Error('E2E_ADMIN_TOKEN is not set: run the tests with playwright.config.ts')
+  if (!token) {
+    throw new Error('E2E_ADMIN_TOKEN is not set: run the end-to-end tests with `npm run test:e2e`')
+  }
   return token
 }
 
@@ -61,16 +61,6 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
-  // Overridden rather than set in playwright.config.ts: the server's port is only known once
-  // global-setup.ts has started it, after the config is loaded.
-  // Playwright requires the fixtures argument to be destructured, even when none is used.
-  // eslint-disable-next-line no-empty-pattern
-  baseURL: async ({}, use) => {
-    const url = process.env.E2E_BASE_URL
-    if (!url) throw new Error('E2E_BASE_URL is not set: run the tests with playwright.config.ts')
-    await use(url)
-  },
-
   tokenFor: async ({ request }, use) => {
     await use(async (scope) => {
       const response = await request.post('/api/admin/api-keys', {
@@ -95,16 +85,16 @@ export const test = base.extend<Fixtures>({
     })
   },
 
-  // With several workers, the excerpt also holds whatever the others' tests logged meanwhile.
+  // With several workers, the excerpt also holds whatever the others' tests logged meanwhile. It
+  // starts a little before the test, since the containers' clock may be slightly off the host's.
   serverLog: [
     // Playwright requires the fixtures argument to be destructured, even when none is used.
     // eslint-disable-next-line no-empty-pattern
     async ({}, use, testInfo) => {
-      const start = statSync(SERVER_LOG).size
+      const since = new Date(Date.now() - 2000)
       await use()
       if (testInfo.status !== testInfo.expectedStatus) {
-        const body = readFileSync(SERVER_LOG).subarray(start)
-        await testInfo.attach('server.log', { body, contentType: 'text/plain' })
+        await testInfo.attach('server.log', { body: stackLog(since), contentType: 'text/plain' })
       }
     },
     { auto: true },

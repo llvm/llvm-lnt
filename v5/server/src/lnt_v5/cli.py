@@ -30,9 +30,8 @@ APP = "lnt_v5.app:create_app"
 
 # The port `server run` listens on by default, which the Dockerfile's EXPOSE and HEALTHCHECK expect.
 # Map the container elsewhere at its boundary (`docker run -p 8080:3000`) rather than changing it;
-# `--port` is for running several servers on one host, as the end-to-end tests and several
-# checkouts' dev servers do. Port 0 picks any free port, which uvicorn's "Uvicorn running on" line
-# reports.
+# `--port` is for running several servers on one host, as several checkouts' dev servers do. Port 0
+# picks any free port, which uvicorn's "Uvicorn running on" line reports.
 PORT = 3000
 
 # How long uvicorn lets in-flight requests finish before dropping them. Generous because a run
