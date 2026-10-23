@@ -261,9 +261,12 @@ test.describe('the commit picker', () => {
     const form = page.getByRole('form', { name: 'New regression' })
     const picker = form.getByRole('combobox', { name: 'Commit' })
 
-    // A substring of many commits, which the picker lists, but not a commit itself.
+    // A substring of many commits, which the picker lists, but not a commit itself. By name, since
+    // the list's only option is its "Loading..." message until they arrive.
     await picker.fill('r55')
-    await expect(page.getByRole('listbox').getByRole('option').first()).toBeVisible()
+    await expect(
+      page.getByRole('listbox').getByRole('option', { name: /^r55/ }).first(),
+    ).toBeVisible()
     await picker.press('Enter')
     await expect(picker).toHaveValue('r55')
     await expect(page.getByRole('listbox')).toBeVisible()
