@@ -44,20 +44,6 @@ resource "aws_iam_role_policy" "app_secrets" {
         Action   = "secretsmanager:GetSecretValue"
         Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.resource_prefix}/${each.key}/*"
       },
-      # The database password is in a secret that RDS creates and names itself, so it can't be
-      # matched by name. Instead, match on the tag RDS puts on it, naming the DB instance that owns
-      # it; deployment/main names that instance after the environment.
-      {
-        Sid      = "DatabaseSecret"
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*"
-        Condition = {
-          StringEquals = {
-            "secretsmanager:ResourceTag/aws:rds:primaryDBInstanceArn" = "arn:aws:rds:${var.aws_region}:${data.aws_caller_identity.current.account_id}:db:${var.resource_prefix}-${each.key}"
-          }
-        }
-      },
     ]
   })
 }
