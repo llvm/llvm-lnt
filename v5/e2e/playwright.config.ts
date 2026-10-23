@@ -10,6 +10,10 @@ export default defineConfig({
   outputDir: 'test-results',
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: {
+    // The Nginx of the stack `npm run test:e2e` runs the tests against (see global-setup.ts),
+    // whose certificate is a throwaway one.
+    baseURL: process.env.PROXY_URL,
+    ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

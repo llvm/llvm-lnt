@@ -1,6 +1,6 @@
-# What run.sh adds to production's Compose stack (docker-compose.prod.yml.tftpl in
-# deployment/templates) for the integration tests: what the production host provides otherwise, and
-# nothing more, so that the checks exercise as much of the production file as they can.
+# What stack.sh adds to production's Compose stack (docker-compose.prod.yml.tftpl in
+# deployment/templates) for the tests: what the production host provides otherwise, and nothing
+# more, so that the tests exercise as much of the production file as they can.
 services:
   # Production's database is on RDS.
   postgres:
@@ -17,7 +17,7 @@ services:
       retries: 30
 
   app:
-    # For the checks that reach the app directly, on a port of Docker's choosing.
+    # For reaching the app directly, bypassing Nginx, on a port of Docker's choosing.
     ports:
       - 127.0.0.1::3000
     depends_on:
