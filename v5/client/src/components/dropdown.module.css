@@ -13,10 +13,15 @@
   min-width: 0;
 }
 
-/* React Aria sizes the popover to fit the screen, and gives it the field's width to use. */
+/*
+ * React Aria sizes the popover to fit the screen, and gives it the field's width to use. Scrolling
+ * stops at the list's ends rather than going on to scroll the page, which would close a combobox's
+ * list (AR14).
+ */
 .popover {
   min-width: var(--trigger-width);
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .list {
