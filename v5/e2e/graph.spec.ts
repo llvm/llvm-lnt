@@ -5,6 +5,7 @@
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { escapeHtml } from '../client/src/format.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
@@ -251,6 +252,10 @@ test("marks a regression at its commit, and shows its details from its marker (G
 
   const marker = `regression ${uuid}`
   await expect.poll(() => draws(page, marker)).toBe(true)
+  // Wait for the test's line too: its data may arrive after the marker's, and drawing it drops the
+  // hover label of a pointer that does not move. Named as the trace is, its test name escaped (see
+  // client/src/pages/graph/chart.ts).
+  await expect.poll(() => draws(page, `${escapeHtml(name)} - ${LINUX}`)).toBe(true)
   const position = await pointOf(page, marker, 0)
   await plotOf(page).hover({ position })
   await expect(page.locator('.hoverlayer')).toContainText('std::format slowdown')
@@ -333,7 +338,11 @@ test("shows a test's name as it is in the tooltip, even with Plotly's template s
   })
 })
 
-test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ page }) => {
+test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ page, request }) => {
+  // The commit the picker suggests first (AR15).
+  const path = `/api/suites/libcxx/commits?machine=${MACOS}&sort=-ordinal&limit=1`
+  const [newest] = (await json<components['schemas']['CommitCursorPage']>(request, path)).items
+  const revision = String(newest.fields.svn_revision)
   await page.goto(LINUX_TEST)
   await expect(tracesOf(page)).toHaveCount(1)
 
@@ -345,11 +354,14 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
   const commit = page.getByRole('combobox', { name: 'Baseline commit' })
   await commit.click()
   await commit.press('ArrowDown')
-  await page.getByRole('option').first().click()
+  // By name: until the suggestions arrive, the list's only option is its "Loading..." message.
+  await page.getByRole('option', { name: revision, exact: true }).click()
 
-  await expect(page).toHaveURL(new RegExp(`&baseline=libcxx%2F${MACOS}%2F`))
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('baseline'))
+    .toBe(`libcxx/${MACOS}/${newest.value}`)
   const chips = page.getByRole('list', { name: 'Baselines added' })
-  await expect(chips).toContainText(`libcxx/${MACOS}/`)
+  await expect(chips).toContainText(`libcxx/${MACOS}/${revision}`)
   await expect(tracesOf(page)).toHaveCount(2)
 })
 
@@ -360,6 +372,8 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
   const commit = await middleCommit(request)
   await page.goto(LINUX_TEST)
   await expect(page.getByText(/^1 of \d+ tests selected$/)).toBeVisible()
+  // Drawn, which comes after the status says that the data has arrived.
+  await expect(tracesOf(page)).toHaveCount(1)
   const index = await indexOf(page, commit)
   const yRange = () =>
     plotOf(page).evaluate((element) => (element as PlotDiv)._fullLayout.yaxis.range)
