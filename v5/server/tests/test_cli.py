@@ -157,7 +157,7 @@ class TestServerRun:
 
         assert uvicorn_run[0]["port"] == 3200
 
-    # 0 asks for any free port, which is how the end-to-end tests avoid colliding with each other.
+    # 0 asks for any free port, for running a server that cannot collide with any other.
     @pytest.mark.parametrize("port", [0, 1, 65535])
     def test_accepts_every_port_in_range(
         self, port: int, configured: None, uvicorn_run: list[dict[str, Any]]

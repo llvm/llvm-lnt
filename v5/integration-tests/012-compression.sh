@@ -50,7 +50,8 @@ expect_body '"code":"unsupported_encoding"'
 expect_header Accept-Encoding 'gzip'
 
 echo "  a body that decompresses past BODY_LIMIT is 413, however small it is compressed"
-# run.sh lowers BODY_LIMIT to 1 MiB; 4 MB of spaces compress to a few kilobytes.
+# `npm run test:integration` lowers BODY_LIMIT to 1 MiB (see run.sh); 4 MB of spaces compress to a
+# few kilobytes.
 { printf '{"format_version": "5", "run_parameters": {"x": "'
   head -c 4000000 /dev/zero | tr '\0' ' '
   printf '"}}'; } | gzip -c > "${scratch}/bomb.gz"

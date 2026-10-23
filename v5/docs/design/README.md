@@ -38,8 +38,8 @@ v5/
     client/             # NEW: v5 SPA (client-side code)
     server/             # NEW: v5 server-side code
     integration-tests/  # NEW: end-to-end tests of the v5 Docker image
-    e2e/                # NEW: browser tests of the v5 web UI against a real server
-    tools/              # NEW: v5 development tools (seed data, screenshots)
+    e2e/                # NEW: browser tests of the v5 web UI against the v5 Docker image
+    tools/              # NEW: v5 development tools (seed data, screenshots, the tests' stack)
     Dockerfile          # NEW: v5 Dockerfile
     deployment/         # NEW: Terraform infra to deploy the v5 instance
 .github/
