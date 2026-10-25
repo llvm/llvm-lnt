@@ -1,8 +1,12 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
+import { HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './app'
+import { queryKeys } from './api/keys'
+import { errorResponse, mockApi } from './test/mock-api'
 import { mockSuites } from './test/page'
 import { renderWithProviders } from './test/render'
+import { INDEX, server } from './test/server'
 
 // Every page so far starts from the list of suites, and asks for nothing else without one.
 beforeEach(() => mockSuites([]))
@@ -68,6 +72,51 @@ describe('navbar', () => {
     expect(api).toHaveAttribute('href', '/api/docs')
     expect(api).toHaveAttribute('target', '_blank')
     expect(api).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+})
+
+describe('footer', () => {
+  function mockRevision(revision: string | null) {
+    server.use(mockApi('get', '/api', () => HttpResponse.json({ ...INDEX, revision })))
+  }
+
+  it("names the server's revision, linking to its commit in a new tab (AR4)", async () => {
+    mockRevision('0dd267f1')
+    renderAt('/')
+
+    const link = await screen.findByRole('link', { name: '0dd267f1' })
+    expect(link).toHaveAttribute('href', 'https://github.com/llvm/llvm-lnt/commit/0dd267f1')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('contentinfo')).toHaveTextContent(/^LNT v5 · 0dd267f1$/)
+  })
+
+  it.each<[string, () => Response]>([
+    ['the server does not know its revision', () => HttpResponse.json(INDEX)],
+    ['the index cannot be fetched', () => errorResponse(500, 'internal', 'Boom.')],
+  ])('shows LNT v5 alone, reporting nothing, when %s', async (_, respond) => {
+    server.use(mockApi('get', '/api', respond))
+    const { queryClient } = renderAt('/')
+
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryState(queryKeys.index)?.status).not.toBe('pending'),
+    )
+    expect(screen.getByRole('contentinfo')).toHaveTextContent(/^LNT v5$/)
+    expect(screen.queryByText('Boom.')).not.toBeInTheDocument()
+  })
+
+  // AR4's behaviour, whatever keeps the footer from asking again: the footer staying mounted, or
+  // the query never going stale.
+  it('keeps the revision the page was loaded with as it navigates', async () => {
+    mockRevision('0dd267f1')
+    renderAt('/')
+    await screen.findByRole('link', { name: '0dd267f1' })
+
+    // A deploy since: the page still runs the client it was loaded with.
+    mockRevision('5b5dae40')
+    fireEvent.click(screen.getByRole('link', { name: 'Admin' }))
+
+    await screen.findByRole('heading', { level: 1, name: 'Admin' })
+    expect(screen.getByRole('contentinfo')).toHaveTextContent(/^LNT v5 · 0dd267f1$/)
   })
 })
 

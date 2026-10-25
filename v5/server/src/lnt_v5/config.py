@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 
 from pydantic import Field, field_validator
@@ -11,6 +12,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # front of the app has to agree with this setting: keep both in sync. It also limits a compressed
 # body once decoded (I4).
 DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
+
+# E1's `revision`: a commit hash, abbreviated as `git rev-parse --short` does (to at least 7 digits)
+# or not (up to SHA-256's 64). Strict, since the client puts it in a URL and the page.
+_REVISION_PATTERN = re.compile(r"[0-9a-f]{7,64}")
 
 
 class Settings(BaseSettings):
@@ -40,11 +45,27 @@ class Settings(BaseSettings):
     # deleting rows would race the tests' own setup. `lnt-v5 server sweep` still works.
     inactivity_sweep_interval: int = Field(default=3600, ge=0)
 
+    # The commit of LNT this server was built from, which the API index reports (E1). Empty means
+    # unknown, which is what the Docker image sets when built without it.
+    lnt_revision: str | None = None
+
     @field_validator("database_url")
     @classmethod
     def _require_database_url(cls, value: str) -> str:
         if not value:
             raise ValueError("Missing required environment variable: DATABASE_URL")
+        return value
+
+    @field_validator("lnt_revision")
+    @classmethod
+    def _check_lnt_revision(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        if not _REVISION_PATTERN.fullmatch(value):
+            raise ValueError(
+                "LNT_REVISION must be a lowercase hexadecimal commit hash (7 to 64 digits), "
+                f"got {value!r}"
+            )
         return value
 
     @property

@@ -98,6 +98,14 @@ navigated from a suite-scoped page, pre-filling the current suite. The Test
 Suites link targets `/suites/{ts}` to preserve the suite context, and `/suites`
 otherwise (see TS1).
 
+Every page ends with a footer in small, muted text, `LNT v5 · {revision}`, where
+the revision is the API index's `revision` (E1), linking to
+`https://github.com/llvm/llvm-lnt/commit/{revision}` in a new tab. It shows the
+revision as of when the page was loaded, the one whose UI is running, and is not
+refreshed by navigating. The footer never reports a failure: while the index
+loads, if it cannot be fetched, or if `revision` is null, it shows `LNT v5`
+alone (unlike AR7).
+
 
 ## AR5: Design Consistency
 

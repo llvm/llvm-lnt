@@ -37,9 +37,12 @@ GET    /api/docs                  -- Interactive API documentation viewer
 **Auth scope:** `read` for the index. The two documentation routes are outside
 the scope system and never authenticate (see I5 and I8).
 
-`GET /api` returns `{"links": {...}}`, where `links` holds `suites` (the path
-of the test suite list endpoint), `openapi` (the path of the OpenAPI
-specification) and `docs` (the path of the interactive documentation viewer).
+`GET /api` returns `{"links": {...}, "revision": ...}`, where `links` holds
+`suites` (the path of the test suite list endpoint), `openapi` (the path of the
+OpenAPI specification) and `docs` (the path of the interactive documentation
+viewer), and `revision` is the commit of LNT the server was built from, as a
+lowercase hexadecimal commit hash, possibly abbreviated, or `null` when the
+server does not know it.
 The index does not list the suites itself: `GET /api/suites` is the way to do
 that.
 

@@ -93,3 +93,23 @@ class TestInactivitySweepInterval:
     def test_rejects_a_negative_interval(self) -> None:
         with pytest.raises(ValidationError):
             Settings(database_url="postgres://x/y", inactivity_sweep_interval=-1)
+
+
+class TestLntRevision:
+    def test_defaults_to_none(self) -> None:
+        assert Settings(database_url="postgres://x/y").lnt_revision is None
+
+    def test_reads_the_environment_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DATABASE_URL", "postgres://x/y")
+        monkeypatch.setenv("LNT_REVISION", "0dd267f1")
+        assert get_settings().lnt_revision == "0dd267f1"
+
+    def test_treats_an_empty_value_as_unset(self) -> None:
+        # What the Docker image sets when built without the build argument.
+        assert Settings(database_url="postgres://x/y", lnt_revision="").lnt_revision is None
+
+    @pytest.mark.parametrize("revision", ["0dd267", "0DD267F1", "0dd267f1-dirty", "a" * 65])
+    def test_rejects_anything_but_a_commit_hash(self, revision: str) -> None:
+        # Operator-facing, like DATABASE_URL's: the CLI prints the message alone.
+        with pytest.raises(ValidationError, match="LNT_REVISION must be a lowercase hexadecimal"):
+            Settings(database_url="postgres://x/y", lnt_revision=revision)

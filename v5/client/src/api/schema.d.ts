@@ -13,7 +13,8 @@ export interface paths {
         };
         /**
          * API index
-         * @description The starting point of the API, with links to the test suites and to this page.
+         * @description The starting point of the API, with links to the test suites and to this page, and the
+         *     commit of LNT the server was built from.
          *
          *     **Authorization:** no API key needed.
          */
@@ -798,10 +799,16 @@ export interface components {
     schemas: {
         /**
          * ApiIndex
-         * @description Links to the test suite list and to the API documentation.
+         * @description Links to the test suite list and to the API documentation, and the server's revision.
          */
         ApiIndex: {
             links: components["schemas"]["ApiLinks"];
+            /**
+             * Revision
+             * @description The commit of LNT this server was built from, as a lowercase hexadecimal commit hash, possibly abbreviated. Null when the server does not know it.
+             * @example 0dd267f1
+             */
+            revision: string | null;
         };
         /**
          * ApiKey

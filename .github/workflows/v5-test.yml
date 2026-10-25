@@ -106,7 +106,8 @@ jobs:
       - name: Build Docker image
         run: |
           docker build --tag "$IMAGE:${{ steps.tag.outputs.tag }}" \
-                       --tag "$IMAGE:latest" v5
+                       --tag "$IMAGE:latest" \
+                       --build-arg LNT_REVISION="${{ steps.tag.outputs.tag }}" v5
           docker save --output "$RUNNER_TEMP/image.tar" \
                       "$IMAGE:${{ steps.tag.outputs.tag }}" "$IMAGE:latest"
 
