@@ -197,11 +197,12 @@ well before that, the chart is unreadable, and the data of thousands of tests is
 more than the page can load. Once 100 tests are selected, the rows not selected
 cannot be selected, and the header checkbox cannot select every visible test
 when that would select more than 100. Each says why on hover. A click on a row,
-a shift-click range or a double-click that would select more than 100 tests
+a Shift-click range or a double-click that would select more than 100 tests
 does nothing, not even moving the anchor (AR10). Instead, it says why beside
 the row clicked, where the user is looking, and to assistive technology: how
-many tests it would select, and that at most 100 can be. This stays shown until
-the next click anywhere or Escape, or until the selection or the rows shown
+many tests would then be selected, and that at most 100 can be. This takes
+neither the focus nor the clicks on what it covers, and stays shown until the
+next click anywhere or Escape, or until the selection or the rows shown
 change.
 
 

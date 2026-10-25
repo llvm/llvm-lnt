@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useSameElements } from '../same-elements'
 import { ValueStore } from '../value-store'
 
 /**
@@ -139,9 +140,9 @@ export interface RowSelection {
   setRows(keys: Iterable<string>, select: boolean): void
   /**
    * Select exactly `keys`, whether shown or not (see `replaceRows`), unless they are more than the
-   * limit allows, as for GR7's double-click selecting every test shown (see `isolateRow`), whose
-   * row is `at`. A caller restoring a selection, from a URL say, keeps the first ones that fit
-   * itself, as `initial` does.
+   * limit allows, as for GR7's double-click selecting every test shown (see `isolateRow`). `at` is
+   * the row whose click asked for the change, if one did (see `RangeSelection.refusal`). A caller
+   * restoring a selection, from a URL say, keeps the first ones that fit itself, as `initial` does.
    */
   replace(keys: Iterable<string>, at?: string): void
 }
@@ -251,8 +252,10 @@ export function useRangeSelection(
     if (offered !== undefined) store.set(keepOnly(store.get(), new Set(offered)))
   }, [offered, store])
 
+  // The rows shown, compared by what they hold: a list derived anew from the same rows changes none.
   const [refusal] = useState(() => new ValueStore<Refusal | null>(null))
-  useLayoutEffect(() => refusal.set(null), [shown, selected, refusal])
+  const sameShown = useSameElements(shown)
+  useLayoutEffect(() => refusal.set(null), [sameShown, selected, refusal])
 
   const [rows] = useState<RowSelection>(() => {
     let refused = 0

@@ -245,7 +245,8 @@ describe('useRangeSelection', () => {
 
     it('until the rows shown change', () => {
       const { rerender, refusal } = refused()
-      rerender({ shown: ROWS })
+      // The same rows, derived anew.
+      rerender({ shown: [...ROWS] })
       expect(refusal.get()).not.toBeNull()
       rerender({ shown: ['a', 'd'] })
       expect(refusal.get()).toBeNull()

@@ -374,7 +374,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     const NAMES = Array.from({ length: 101 }, (_, i) => `t${String(i).padStart(3, '0')}`)
     const ONE_MACHINE = '/graph?suite=libcxx&machine=m1&metric=execution_time'
     const WHY = 'At most 100 tests can be selected at once.'
-    const REFUSED = `This would select 101 tests. ${WHY}`
+    const REFUSED = `101 tests would be selected. ${WHY}`
     const FIRST_100 = NAMES.slice(0, 100).map((name) => `test=${name}`)
 
     /** What the row of `test` says of a click on it that selected nothing. */
@@ -455,6 +455,20 @@ describe('the selection (GR6, GR7, GR14)', () => {
       expect(box('t099')).toBeChecked()
       expect(box('t100')).not.toBeChecked()
       expect(refusalAt('t100')).toBeNull()
+    })
+
+    it('and says so again, as a new note, for a range refused again from the keyboard', async () => {
+      await refuseRange()
+      const user = userEvent.setup()
+      const first = refusalAt('t100')
+      box('t100').focus()
+
+      await user.keyboard('{Shift>}[Space]{/Shift}')
+
+      expect(box('t100')).not.toBeChecked()
+      expect(box('t100')).toHaveFocus()
+      expect(refusalAt('t100')).toHaveTextContent(REFUSED)
+      expect(refusalAt('t100')).not.toBe(first)
     })
 
     it('and says why a click on a row selects nothing once 100 tests are', async () => {

@@ -66,14 +66,15 @@
   font-size: 0.85em;
 }
 
-/* A test's cell, which holds the note saying why a click on its row selected nothing (GR7). */
+/* The test column, whose cells hold the note saying why a click on their row did nothing (GR7). */
 .testCell {
   position: relative;
 }
 
 /*
- * Over the end of the row, letting clicks through to it. Above the test cells of the other rows,
- * which are positioned too, should it be taller than its row.
+ * Over the end of the row, letting clicks through to it, and wrapping within the cell rather than
+ * leave the page when the cell is narrow. Above the test cells of the other rows, which are
+ * positioned too, should it then be taller than its row.
  */
 .refusal {
   position: absolute;
@@ -85,9 +86,8 @@
   border: 1px solid var(--lnt-danger-border);
   border-radius: var(--lnt-radius);
   background: var(--lnt-danger-bg);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
   color: var(--lnt-danger);
-  white-space: nowrap;
   pointer-events: none;
 }
 

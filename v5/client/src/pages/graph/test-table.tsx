@@ -49,7 +49,7 @@ interface Props {
  * not with its checkbox or a click on its row, a range at a time with Shift (AR10). A double-click
  * isolates a test among those shown, or selects every test shown again once it is the only one
  * shown that is selected. The filter changes none of the selection, and none of these touches a
- * test it hides. Any of them that would select more tests than the limit selects none, and says
+ * test it hides. Any of them that would select more tests than the limit changes nothing, and says
  * why at the row clicked (GR7). A selected test shows its colour on the chart, and whether its data
  * is still loading. The table is the chart's legend, with the machines' chips: hovering a row
  * emphasizes the test's lines on the chart, and hovering one of them highlights its row, if it is
@@ -224,17 +224,18 @@ function RefusalNote({ store, test, why }: RefusalNoteProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismiss()
     }
+    // Before anything else on the page can handle the press or the key, and stop it.
     document.addEventListener('pointerdown', dismiss, true)
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
     return () => {
       document.removeEventListener('pointerdown', dismiss, true)
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown, true)
     }
   }, [refusal, store])
   if (refusal === null) return null
   return (
     <span key={refusal.id} className={styles.refusal} role="alert">
-      This would select {refusal.count} tests. {why}
+      {refusal.count} tests would be selected. {why}
     </span>
   )
 }
