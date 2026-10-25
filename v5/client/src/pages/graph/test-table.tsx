@@ -164,18 +164,25 @@ export function TestTable({
         </p>
         {/*
           Every selected test, those the filter hides included, whatever the limit (GR7). The focus
-          then goes to the table, since the button becomes disabled.
+          then goes to the table, since the button is gone.
         */}
-        <button
-          type="button"
-          disabled={total === 0}
-          onClick={() => {
-            rows.replace([])
-            table.current?.focus({ preventScroll: true })
-          }}
-        >
-          Deselect all
-        </button>
+        {total > 0 && (
+          <>
+            <span className={styles.count} aria-hidden="true">
+              ·
+            </span>
+            <button
+              type="button"
+              className={styles.textButton}
+              onClick={() => {
+                rows.replace([])
+                table.current?.focus({ preventScroll: true })
+              }}
+            >
+              Deselect all
+            </button>
+          </>
+        )}
       </div>
       {/* Leaving a row for another emphasizes the other at once, without drawing none between. */}
       <div

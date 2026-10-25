@@ -51,9 +51,9 @@
 /* The message line above the test table (GR6), with Deselect all at its end (GR7). */
 .countRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--lnt-space-3);
+  column-gap: 0.35em;
   margin: 1em 0;
 }
 
@@ -61,9 +61,19 @@
   margin: 0;
 }
 
-/* The message wraps rather than the button's label. */
-.countRow > button {
+/* A button that reads as a link, as part of the message it follows. */
+.textButton {
   flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--lnt-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.textButton:hover {
+  text-decoration: underline;
 }
 
 .testRow {

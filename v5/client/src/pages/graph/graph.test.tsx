@@ -483,7 +483,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
       await waitFor(() => expect(currentUrl()).toBe(ONE_MACHINE))
       expect(box('t000')).not.toBeChecked()
       expect(box('t050')).not.toBeChecked()
-      expect(deselect).toBeDisabled()
+      expect(deselect).not.toBeInTheDocument()
       expect(main().getByRole('table', { name: 'Tests' })).toHaveFocus()
     })
 
@@ -526,6 +526,17 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
 
     await waitFor(() => expect(currentUrl()).toBe('/graph?suite=libcxx&metric=execution_time'))
+  })
+
+  it('offers Deselect all only while some test is selected (GR7)', async () => {
+    mockWorld()
+    renderPage(GRAPHED)
+    await waitFor(() => expect(listed()).toHaveLength(4))
+    expect(main().queryByRole('button', { name: 'Deselect all' })).toBeNull()
+
+    await userEvent.setup().click(testTable().getByText('a'))
+
+    expect(main().getByRole('button', { name: 'Deselect all' })).toBeInTheDocument()
   })
 
   it('deselects every test with Deselect all, those the filter hides included (GR7)', async () => {
