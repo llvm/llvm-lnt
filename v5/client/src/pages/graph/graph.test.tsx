@@ -471,6 +471,32 @@ describe('the selection (GR6, GR7, GR14)', () => {
       expect(refusalAt('t100')).not.toBe(first)
     })
 
+    it('but deselects them all, whatever the number of tests listed', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(`${ONE_MACHINE}&test=t000&test=t050`)
+      await waitFor(() => expect(box('t050')).toBeChecked())
+      expect(testTable().getByRole('checkbox', { name: 'Select all tests shown' })).toBeDisabled()
+      const deselect = main().getByRole('button', { name: 'Deselect all' })
+
+      await userEvent.setup().click(deselect)
+
+      await waitFor(() => expect(currentUrl()).toBe(ONE_MACHINE))
+      expect(box('t000')).not.toBeChecked()
+      expect(box('t050')).not.toBeChecked()
+      expect(deselect).toBeDisabled()
+      expect(main().getByRole('table', { name: 'Tests' })).toHaveFocus()
+    })
+
+    it('deselecting those the filter hides too', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(`${ONE_MACHINE}&test_filter=t09&test=t000`)
+      await waitFor(() => expect(listed()).toHaveLength(10))
+
+      await userEvent.setup().click(main().getByRole('button', { name: 'Deselect all' }))
+
+      await waitFor(() => expect(currentUrl()).toBe(`${ONE_MACHINE}&test_filter=t09`))
+    })
+
     it('and says why a click on a row selects nothing once 100 tests are', async () => {
       mockWorld({ tests: { m1: NAMES } })
       renderPage(`${ONE_MACHINE}&${FIRST_100.join('&')}`)

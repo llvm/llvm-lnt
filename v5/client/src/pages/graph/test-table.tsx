@@ -3,6 +3,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type MouseEvent,
@@ -79,6 +80,7 @@ export function TestTable({
   }, [shown, emphasis])
   useEffect(() => () => emphasis.set(null), [emphasis])
   const listed = useMemo(() => new Set(all), [all])
+  const table = useRef<HTMLTableElement>(null)
 
   const columns = useMemo(
     (): Column<string>[] => [
@@ -140,23 +142,40 @@ export function TestTable({
   // The selected tests shown, and those the filter hides besides. Only the tests listed are
   // counted: until every machine's tests are listed, some of the URL's may not be.
   const count = shown.filter((test) => selected.has(test)).length
-  const hidden = [...selected].filter((test) => listed.has(test)).length - count
+  const total = [...selected].filter((test) => listed.has(test)).length
+  const hidden = total - count
   return (
     <>
       {listing && <Loading label="Loading tests..." />}
-      <p className={styles.count} role="status">
-        {filtered
-          ? `${count} of ${shown.length} matching tests selected · ${all.length} tests in total`
-          : `${count} of ${all.length} tests selected`}
-        {hidden > 0 && ` · ${hidden} more hidden by the filter`}
-        {notInUrl !== undefined && (
-          <>
-            {' · '}
-            <span title={notInUrl}>too many to reflect in the URL</span>
-          </>
-        )}
-        {loading.size > 0 && ' · loading...'}
-      </p>
+      <div className={styles.countRow}>
+        <p className={styles.count} role="status">
+          {filtered
+            ? `${count} of ${shown.length} matching tests selected · ${all.length} tests in total`
+            : `${count} of ${all.length} tests selected`}
+          {hidden > 0 && ` · ${hidden} more hidden by the filter`}
+          {notInUrl !== undefined && (
+            <>
+              {' · '}
+              <span title={notInUrl}>too many to reflect in the URL</span>
+            </>
+          )}
+          {loading.size > 0 && ' · loading...'}
+        </p>
+        {/*
+          Every selected test, those the filter hides included, whatever the limit (GR7). The focus
+          then goes to the table, since the button is disabled.
+        */}
+        <button
+          type="button"
+          disabled={total === 0}
+          onClick={() => {
+            rows.replace([])
+            table.current?.focus()
+          }}
+        >
+          Deselect all
+        </button>
+      </div>
       {/* Leaving a row for another emphasizes the other at once, without drawing none between. */}
       <div
         onMouseLeave={() => emphasis.set(null)}
@@ -165,6 +184,7 @@ export function TestTable({
         }}
       >
         <DataTable
+          ref={table}
           label="Tests"
           columns={columns}
           rows={shown}

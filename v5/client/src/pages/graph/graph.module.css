@@ -48,6 +48,19 @@
   color: var(--lnt-muted);
 }
 
+/* The message line above the test table (GR6), with Deselect all at its end (GR7). */
+.countRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lnt-space-3);
+  margin: 1em 0;
+}
+
+.countRow .count {
+  margin: 0;
+}
+
 .testRow {
   cursor: pointer;
   user-select: none;
