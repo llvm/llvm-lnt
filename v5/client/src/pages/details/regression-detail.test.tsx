@@ -1202,7 +1202,8 @@ describe('the Indicators table', () => {
     await user.keyboard('{/Shift}')
     const removeSelected = screen.getByRole('button', { name: 'Remove 3 selected' })
     await waitFor(() => expect(removeSelected).toBeEnabled())
-    fireEvent.click(removeSelected)
+    // Clicked as a user does, so that the button has the focus, which it keeps once disabled.
+    await user.click(removeSelected)
 
     await waitFor(() => expect(rowsOf(indicators)).toHaveLength(1))
     expect(sent.map(({ body }) => body)).toEqual([

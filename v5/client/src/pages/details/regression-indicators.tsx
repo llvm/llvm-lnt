@@ -101,10 +101,13 @@ export function RegressionIndicators({
       ),
     withIndicators,
   )
+  const removeSelected = useRef<HTMLButtonElement>(null)
   // Where the focus goes once a removal shows (DT4), since the button it was on may be gone: to the
   // first of `focusNext` still shown, or else to the table. Only once the removed rows are gone,
-  // once per removal, and only if the focus was lost, or is still in the table: the user may have
-  // moved on, to the filter say, where a key meant for it must not press a remove button.
+  // once per removal, and only if the focus is where the removal left it: lost, still in the table,
+  // or on "Remove selected", which a browser keeps focused once the click disables it. Otherwise
+  // the user has moved on, to the filter say, where a key meant for it must not press a remove
+  // button.
   const refocused = useRef<unknown>(null)
   const { data: removed, variables: removal } = remove
   // In the commit, before the page is painted, so that the removal never shows without the focus
@@ -116,10 +119,12 @@ export function RegressionIndicators({
     refocused.current = removed
     const focused = document.activeElement
     const lost = focused === null || focused === document.body
-    if (!lost && !table.current?.contains(focused)) return
+    if (!lost && focused !== removeSelected.current && !table.current?.contains(focused)) return
     const next = removal.focusNext.find((uuid) => shownKeys.has(uuid))
     const button = next && table.current?.querySelector<HTMLElement>(`[data-remove="${next}"]`)
-    ;(button || table.current)?.focus()
+    // A table taller than the window would otherwise scroll the controls just used out of view.
+    if (button) button.focus()
+    else table.current?.focus({ preventScroll: true })
   }, [removed, removal, keys])
   const { mutate } = remove
   const removeOne = useCallback(
@@ -173,6 +178,7 @@ export function RegressionIndicators({
             placeholder="Filter by machine, test or metric..."
           />
           <button
+            ref={removeSelected}
             type="button"
             disabled={triage.disabled || remove.isPending || selected === 0 || tooMany}
             title={

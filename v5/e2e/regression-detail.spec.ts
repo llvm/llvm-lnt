@@ -198,6 +198,7 @@ test('indicators are added across machines, filtered and removed', async ({
     await page.getByRole('checkbox', { name: 'Select all indicators shown' }).click()
     await page.getByRole('button', { name: 'Remove 4 selected' }).click()
     await expect(indicators).toContainText('No indicators match the filter.')
+    await expect(indicators).toBeFocused()
 
     await page.getByRole('searchbox', { name: 'Filter indicators' }).fill('')
     await expect(rows(indicators)).toHaveCount(4)

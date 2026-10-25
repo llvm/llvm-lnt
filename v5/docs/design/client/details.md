@@ -440,8 +440,9 @@ tests side by side, in the order they are picked. It is a form (see AR2
 - Removing indicators, one or many, is not confirmed (see AR16). Once one is
   removed with its ×, the focus moves to the × of the nearest row after it still
   shown, or else before it, or to the table if no row is left.
-  After "Remove selected", it moves to the table. If the user has moved the
-  focus out of the table meanwhile, it stays where it is.
+  After "Remove selected", it moves to the table. When the table takes the
+  focus, the page does not scroll. If the user has meanwhile moved the focus
+  elsewhere, outside the table, it stays there.
 - "View on graph" opens the Graph page with the regression's suite and the
   indicator's machine, metric and test selected, and regression annotations
   showing every state (`regressions=all`; see GR15), which marks this
