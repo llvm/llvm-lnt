@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from introspection import assert_names_survived, stored_names
 from lnt_v5.keys import PREFIX_CONSTRAINT
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
 from lnt_v5.tables import api_key, metadata, schema, schema_version
 
 
@@ -24,6 +24,7 @@ class TestNamingConvention:
             "uq_api_key_prefix",
             "uq_api_key_key_hash",
             "ck_api_key_scope",
+            "ck_api_key_suites",
         } <= stored_names(inspect(db_engine))["api_key"]
 
     def test_gives_the_prefix_constraint_the_name_keys_py_retries_on(
@@ -85,6 +86,34 @@ class TestApiKey:
         # intended; the scope is validated before we get here, so this only ever fires on one.
         with pytest.raises(IntegrityError), db.begin_nested():
             insert_key(scope=scope)
+
+    @pytest.mark.parametrize("scope", sorted(set(Scope) - set(UNRESTRICTABLE_SCOPES)))
+    def test_accepts_suites_on_a_restrictable_scope(
+        self, insert_key: Callable[..., None], scope: Scope
+    ) -> None:
+        insert_key(scope=scope.value, suites=["nts"])
+
+    @pytest.mark.parametrize(
+        ("scope", "suites", "why"),
+        [
+            (Scope.SUBMIT, [], "an empty list"),
+            (Scope.SUBMIT, ["nts", None], "a null name"),
+            (Scope.READ, ["nts"], "a read key"),
+            (Scope.ADMIN, ["nts"], "an admin key"),
+        ],
+    )
+    def test_rejects_suites_that_d5_rules_out(
+        self,
+        db: Connection,
+        insert_key: Callable[..., None],
+        scope: Scope,
+        suites: list[str | None],
+        why: str,
+    ) -> None:
+        # Alembic does not compare check constraints, so this is what shows that the migration
+        # created this one. `create_key` checks all of these first.
+        with pytest.raises(IntegrityError), db.begin_nested():
+            insert_key(scope=scope.value, suites=suites)
 
     def test_starts_active_and_never_used(
         self, db: Connection, insert_key: Callable[..., None]

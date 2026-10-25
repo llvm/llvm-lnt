@@ -14,9 +14,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import TOKEN_PATTERN
+from conftest import TOKEN_PATTERN, code_of
 from lnt_v5.scopes import Scope
-from lnt_v5.tables import KEY_NAME_MAX_LENGTH
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, KEY_NAME_MAX_LENGTH
 
 KEYS = "/api/admin/api-keys"
 
@@ -79,6 +79,7 @@ class TestList:
             "prefix",
             "name",
             "scope",
+            "suites",
             "created_at",
             "last_used_at",
             "is_active",
@@ -180,6 +181,80 @@ class TestCreate:
 
         assert response.status_code == 201
         assert response.json()["name"] == name
+
+
+class TestCreateRestricted:
+    """A key restricted to some suites (E11, I5)."""
+
+    @pytest.fixture(autouse=True)
+    def suites(self, make_api_suite: Callable[[dict[str, Any]], Any]) -> None:
+        for name in ("nts", "libcxx"):
+            make_api_suite({"name": name})
+
+    def test_lists_its_suites_sorted(self, api_client: TestClient, admin: dict[str, str]) -> None:
+        body = {"name": "bot", "scope": "submit", "suites": ["nts", "libcxx"]}
+
+        created = api_client.post(KEYS, headers=admin, json=body)
+
+        assert created.status_code == 201
+        assert created.json()["suites"] == ["libcxx", "nts"]
+        (listed,) = [
+            key
+            for key in api_client.get(KEYS, headers=admin).json()["items"]
+            if key["prefix"] == created.json()["prefix"]
+        ]
+        assert listed["suites"] == ["libcxx", "nts"]
+
+    @pytest.mark.parametrize("body", [{}, {"suites": None}])
+    def test_is_not_restricted_without_suites(
+        self, api_client: TestClient, admin: dict[str, str], body: dict[str, Any]
+    ) -> None:
+        response = api_client.post(
+            KEYS, headers=admin, json={"name": "bot", "scope": "submit", **body}
+        )
+
+        assert response.status_code == 201
+        assert response.json()["suites"] is None
+
+    @pytest.mark.parametrize(
+        ("scope", "suites", "why"),
+        [
+            ("submit", [], "an empty list, which would grant nothing anywhere"),
+            ("read", ["nts"], "a read key, which a restriction would leave as anonymous"),
+            ("admin", ["nts"], "an admin key, whose endpoints address no suite"),
+            ("submit", ["nts", "nts"], "a suite named twice"),
+            ("submit", [None], "a null name"),
+            ("submit", [1], "a name that is not a string"),
+            ("submit", "nts", "a string rather than a list"),
+            ("submit", ["x" * (IDENTIFIER_MAX_LENGTH + 1)], "a name longer than any suite's"),
+            ("submit", ["NTS"], "a name D4 does not accept for a suite"),
+            ("submit", ["a\x00b"], "a name PostgreSQL cannot store (D5)"),
+        ],
+    )
+    def test_rejects_a_bad_restriction(
+        self, api_client: TestClient, admin: dict[str, str], scope: str, suites: Any, why: str
+    ) -> None:
+        body = {"name": "bot", "scope": scope, "suites": suites}
+
+        response = api_client.post(KEYS, headers=admin, json=body)
+
+        assert response.status_code == 400, why
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_suite_that_does_not_exist(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        # I3: a body naming an entity that does not exist is a 404 -- which also catches a typo
+        # that would otherwise mint a key granting nothing.
+        body = {"name": "bot", "scope": "submit", "suites": ["nts", "libcx"]}
+
+        response = api_client.post(KEYS, headers=admin, json=body)
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+        assert "'libcx'" in response.json()["error"]["message"]
+        listed = api_client.get(KEYS, headers=admin).json()["items"]
+        assert "bot" not in [key["name"] for key in listed]
 
 
 class TestRevoke:

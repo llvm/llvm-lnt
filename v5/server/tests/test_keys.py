@@ -5,16 +5,17 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy import Connection, Engine, create_engine, func, select
+from sqlalchemy import Connection, Engine, create_engine, func, insert, select
 
 from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from lnt_v5 import keys
-from lnt_v5.keys import CreatedKey, create_key
+from lnt_v5.keys import ApiKeyInfo, CreatedKey, UnknownSuitesError, create_key
 from lnt_v5.scopes import Scope
-from lnt_v5.tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key
+from lnt_v5.tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key, schema
 
 
 def stub_tokens(monkeypatch: pytest.MonkeyPatch, *tokens: str) -> None:
@@ -122,6 +123,98 @@ class TestCreateKey:
         create_key(db, "bot", Scope.READ)
 
         assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 2
+
+
+class TestCreateRestrictedKey:
+    @pytest.fixture(autouse=True)
+    def suites(self, db: Connection) -> None:
+        # Rows alone: `create_key` only checks that the suites exist.
+        for name in ("nts", "libcxx"):
+            db.execute(insert(schema).values(name=name, schema_json="{}", migration_version=0))
+
+    def test_stores_and_describes_its_suites_sorted(self, db: Connection) -> None:
+        created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
+
+        assert created.suites == ("libcxx", "nts")
+        assert db.execute(select(api_key.c.suites)).scalar_one() == ["libcxx", "nts"]
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.suites == ("libcxx", "nts")
+
+    def test_is_not_restricted_by_default(self, db: Connection) -> None:
+        created = create_key(db, "bot", Scope.SUBMIT)
+
+        assert created.suites is None
+        assert db.execute(select(api_key.c.suites)).scalar_one() is None
+
+    @pytest.mark.parametrize(
+        ("scope", "suites", "why"),
+        [
+            (Scope.READ, ["nts"], "a read key"),
+            (Scope.ADMIN, ["nts"], "an admin key"),
+            (Scope.SUBMIT, [], "no suite at all"),
+            (Scope.SUBMIT, ["nts", "nts"], "a suite named twice"),
+        ],
+    )
+    def test_rejects_a_restriction_that_cannot_be_valid(
+        self, db: Connection, scope: Scope, suites: list[str], why: str
+    ) -> None:
+        # The API answers 400 for these; rejecting here means the CLI does too.
+        with pytest.raises(ValueError):
+            create_key(db, "bot", scope, suites)
+
+    def test_names_the_suites_that_do_not_exist(self, db: Connection) -> None:
+        with pytest.raises(UnknownSuitesError) as raised:
+            create_key(db, "bot", Scope.SUBMIT, ["nts", "libcx", "ntss"])
+
+        assert raised.value.names == ("libcx", "ntss")
+        assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
+
+
+def key_with(scope: Scope, suites: tuple[str, ...] | None) -> ApiKeyInfo:
+    return ApiKeyInfo(
+        prefix="0123abcd",
+        name="a key",
+        scope=scope,
+        suites=suites,
+        created_at=datetime.now(UTC),
+        last_used_at=None,
+        is_active=True,
+    )
+
+
+class TestSuiteRestriction:
+    """`ApiKeyInfo.grants`: I5's scope hierarchy, narrowed to `read` outside a key's suites."""
+
+    @pytest.mark.parametrize(
+        ("suites", "suite", "granted"),
+        [
+            (None, "nts", True),
+            (None, None, True),
+            (("libcxx", "nts"), "nts", True),
+            (("libcxx",), "nts", False),
+            (("libcxx",), None, False),
+            # Only None is "valid across the instance". An empty list cannot be stored, but would
+            # not be mistaken for it if it were.
+            ((), "nts", False),
+            ((), None, False),
+        ],
+    )
+    def test_grants_its_scope_only_in_its_suites(
+        self, suites: tuple[str, ...] | None, suite: str | None, granted: bool
+    ) -> None:
+        assert key_with(Scope.MANAGE, suites).grants(Scope.MANAGE, suite) is granted
+
+    @pytest.mark.parametrize("suite", ["nts", None])
+    def test_grants_read_everywhere(self, suite: str | None) -> None:
+        assert key_with(Scope.MANAGE, ("libcxx",)).grants(Scope.READ, suite)
+        assert key_with(Scope.MANAGE, ()).grants(Scope.READ, suite)
+
+    def test_keeps_the_hierarchy_within_its_suites(self) -> None:
+        key = key_with(Scope.TRIAGE, ("nts",))
+
+        assert key.grants(Scope.SUBMIT, "nts")
+        assert not key.grants(Scope.MANAGE, "nts")
 
 
 class TestLastUseRecorder:

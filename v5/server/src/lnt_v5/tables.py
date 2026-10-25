@@ -10,6 +10,7 @@ naming convention below.
 from __future__ import annotations
 
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     CheckConstraint,
     Column,
@@ -24,7 +25,7 @@ from sqlalchemy import (
     true,
 )
 
-from .scopes import Scope
+from .scopes import UNRESTRICTABLE_SCOPES, Scope
 
 # Deterministic names for every constraint and index, rather than whatever Postgres would invent.
 # Two things rest on this. Alembic needs stable names to emit migrations that can be reversed.
@@ -121,6 +122,9 @@ api_key = Table(
     Column("key_hash", String(TOKEN_HASH_LENGTH), nullable=False, unique=True),
     Column("name", String(KEY_NAME_MAX_LENGTH), nullable=False),
     Column("scope", String(32), nullable=False),
+    # Null for a key valid across the instance, or the suites it is restricted to (I5). Names
+    # rather than foreign keys to `schema`: deleting a suite leaves its name on its keys.
+    Column("suites", ARRAY(String(IDENTIFIER_MAX_LENGTH)), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("last_used_at", DateTime(timezone=True), nullable=True),
     Column("is_active", Boolean, nullable=False, server_default=true()),
@@ -131,6 +135,15 @@ api_key = Table(
     CheckConstraint(
         "scope IN ({})".format(", ".join(f"'{scope.value}'" for scope in Scope)),
         name="scope",
+    ),
+    # D5's rules for `suites`, as I5 states them: never an empty list (which would grant nothing
+    # anywhere), never a null name, and never on the scopes that cannot be restricted.
+    CheckConstraint(
+        "suites IS NULL OR (cardinality(suites) > 0 AND array_position(suites, NULL) IS NULL "
+        "AND scope NOT IN ({}))".format(
+            ", ".join(f"'{scope.value}'" for scope in UNRESTRICTABLE_SCOPES)
+        ),
+        name="suites",
     ),
 )
 """One row per API key (D5). The token itself is never stored; see I5 and keys.py."""

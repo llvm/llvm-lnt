@@ -178,8 +178,11 @@ Send `Authorization: Bearer <token>`. Scopes form a hierarchy -- `read` <
 every lower one. `read` endpoints allow anonymous access, so send no header if
 you only read. A header that carries no usable Bearer token, or an unknown or
 revoked one, is 401 even on a `read` endpoint, and too little scope is 403.
-To check a token before relying on it, `GET /api/auth` returns the key it
-belongs to, including the scope it grants.
+A `submit`, `triage` or `manage` key may be restricted to some suites (its
+`suites` list): it then has its scope only on paths under those suites, and
+only `read` elsewhere, so a write to another suite is 403, and so is creating a
+suite. To check a token before relying on it, `GET /api/auth` returns the key
+it belongs to, including the scope it grants and its `suites`.
 
 ## Workflows
 

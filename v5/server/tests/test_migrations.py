@@ -14,7 +14,7 @@ from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from conftest import store_suite
-from introspection import schema_version_of
+from introspection import column_names, schema_version_of
 from lnt_v5.migrate import (
     MIGRATION_LOCK_KEY,
     MigrationError,
@@ -443,6 +443,51 @@ class TestMetricDashboard:
         assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_DASHBOARD)}
         # Once on the way up, and once on the way down.
         assert schema_version_of(empty_engine) == 2
+
+
+def insert_key_row(
+    engine: Engine, prefix: str, scope: str, suites: list[str] | None = None
+) -> None:
+    columns = "prefix, key_hash, name, scope" + (", suites" if suites is not None else "")
+    values = ":prefix, :hash, 'k', :scope" + (", :suites" if suites is not None else "")
+    with engine.begin() as connection:
+        connection.execute(
+            text(f"INSERT INTO api_key ({columns}) VALUES ({values})"),
+            {"prefix": prefix, "hash": prefix * 8, "scope": scope, "suites": suites},
+        )
+
+
+class TestApiKeySuites:
+    """0005 adds `api_key.suites`, which restricts a key to some suites (I5)."""
+
+    def test_leaves_every_existing_key_valid_across_the_instance(
+        self, empty_engine: Engine
+    ) -> None:
+        upgrade_by_hand(empty_engine, "0004")
+        insert_key_row(empty_engine, "aaaaaaaa", "submit")
+
+        upgrade_by_hand(empty_engine, "0005")
+
+        with empty_engine.connect() as connection:
+            assert connection.execute(text("SELECT suites FROM api_key")).scalar_one() is None
+
+    def test_downgrading_revokes_restricted_keys_rather_than_widening_them(
+        self, empty_engine: Engine
+    ) -> None:
+        # An earlier build would read a restricted key as valid in every suite.
+        upgrade_by_hand(empty_engine, "0005")
+        insert_key_row(empty_engine, "aaaaaaaa", "submit", ["nts"])
+        insert_key_row(empty_engine, "bbbbbbbb", "submit")
+
+        downgrade_by_hand(empty_engine, "0004")
+
+        with empty_engine.connect() as connection:
+            rows = connection.execute(text("SELECT prefix, is_active FROM api_key")).all()
+        assert {row.prefix: row.is_active for row in rows} == {
+            "aaaaaaaa": False,
+            "bbbbbbbb": True,
+        }
+        assert "suites" not in column_names(empty_engine, "public", "api_key")
 
 
 class TestConcurrentUpgrade:

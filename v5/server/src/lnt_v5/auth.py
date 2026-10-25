@@ -11,11 +11,17 @@ learn which resources exist by reading a 404. FastAPI runs a route's dependencie
 so an endpoint that resolves what it addresses *in its body* gets that order for free. An endpoint
 that instead resolves through a dependency of its own must make that dependency depend on this
 one, or it will resolve first and answer 404 where I5 requires 403.
+
+A key restricted to some suites is checked against the suite the request addresses, which is read
+off the route's path (see `suite_parameter`). That is only sound because of an invariant no test can
+check: a route under `/api/suites/{testsuite}/` reads and writes that suite only (I5). An endpoint
+that reached into another suite would let a restricted key write where it has only `read`.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterator, Sequence
 from typing import Annotated, Any
 
@@ -40,6 +46,33 @@ UNAUTHENTICATED_HEADERS = {"WWW-Authenticate": "Bearer"}
 
 # What I8's document calls the scheme, and so what every operation's security requirement names.
 SECURITY_SCHEME = "ApiKey"
+
+# A path template whose first segment below the suite collection is a parameter: `{testsuite}` on
+# every suite-scoped route, and `{name}` on E10's routes for one suite.
+_SUITE_PATH = re.compile(r"\A/api/suites/\{(\w+)\}(/|\Z)")
+
+
+def suite_parameter(path_format: str) -> str | None:
+    """The path parameter naming the suite a route addresses (I5), or None if it addresses none.
+
+    Rests on I1's layout: everything below `/api/suites/` starts with a suite name, so no route has
+    a literal segment directly under it. A route that did (`/api/suites/import`, say) would not be
+    seen as addressing a suite, and a restricted key would get only `read` on it.
+    """
+    match = _SUITE_PATH.match(path_format)
+    return match.group(1) if match else None
+
+
+def _addressed_suite(request: Request) -> str | None:
+    """The suite a request addresses, read off the route it matched.
+
+    `path_format` is the route's whole path only because no router is included with a prefix of
+    its own (see `create_app`). The test that drives every scoped operation with a restricted key
+    is what notices if that changes.
+    """
+    route = request.scope.get("route")
+    parameter = suite_parameter(getattr(route, "path_format", ""))
+    return None if parameter is None else request.path_params[parameter]
 
 
 class BearerToken(SecurityBase):
@@ -108,6 +141,7 @@ class RequireScope:
     # query parameter come before authentication, and the header may itself be a 401.
     def __call__(
         self,
+        request: Request,
         _query: Annotated[None, Depends(reject_unknown_query_parameters)],
         engine: EngineDep,
         last_use: Annotated[LastUseRecorder, Depends(_last_use)],
@@ -149,14 +183,33 @@ class RequireScope:
         # a key turned away by authorization was still presented and still resolved.
         last_use.record(engine, key.id)
 
-        if not key.scope.grants(self.scope):
-            raise ApiError(
-                ErrorCode.FORBIDDEN,
-                f"This endpoint requires the '{self.scope.value}' scope, "
-                f"and this API key grants '{key.scope.value}'.",
-            )
+        # Only a restricted key depends on the suite.
+        suite = None if key.suites is None else _addressed_suite(request)
+        if not key.grants(self.scope, suite):
+            raise ApiError(ErrorCode.FORBIDDEN, self._refusal(key, suite))
 
         return key
+
+    def _refusal(self, key: ResolvedKey, suite: str | None) -> str:
+        """Why `key` is refused, on a request addressing `suite`."""
+        required = self.scope.value
+        if not key.scope.grants(self.scope):
+            return (
+                f"This endpoint requires the '{required}' scope, and this API key grants "
+                f"'{key.scope.value}'."
+            )
+        # Refused although its scope suffices, so the key is restricted to suites other than this
+        # request's.
+        assert key.suites is not None
+        if suite is None:
+            return (
+                f"This endpoint requires the '{required}' scope from an API key that is not "
+                "restricted to some test suites."
+            )
+        return (
+            f"This endpoint requires the '{required}' scope in test suite '{suite}', and this API "
+            f"key grants it only in: {', '.join(key.suites)}."
+        )
 
 
 def require_scope(scope: Scope) -> Any:

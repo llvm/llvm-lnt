@@ -30,14 +30,15 @@ _show_body() {
     printf '%s\n' "$BODY" | head -10 | cut -c1-200 | sed 's/^/    /' >&2
 }
 
-# mint_key <name> <scope> -- create an API key through the CLI and echo its token.
+# mint_key <name> <scope> [create-key options...] -- create an API key through the CLI and echo its
+# token. Any further arguments go to `create-key`, e.g. `--suite nts` to restrict the key.
 #
 # I5 requires an out-of-band way to create a key, and this is it. `create-key` prints the token
 # alone on stdout and everything a human reads on stderr, which is what makes this capture yield
 # just the token. Checks are independent, so each one that needs a key mints its own.
 mint_key() {
     local token
-    token="$(docker exec "$CONTAINER" lnt-v5 server create-key --name "$1" --scope "$2" 2>/dev/null)"
+    token="$(docker exec "$CONTAINER" lnt-v5 server create-key --name "$1" --scope "$2" "${@:3}" 2>/dev/null)"
     # Narrow on purpose: it matches the 64 hex characters I5 fixes, so a create-key that stopped
     # printing one fails here rather than silently yielding "".
     if ! printf '%s' "$token" | grep -Eq '^[0-9a-f]{64}$'; then

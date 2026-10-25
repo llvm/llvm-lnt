@@ -18,7 +18,9 @@ API documentation (see E1). Instance-level routes live under `/api/`
 suite lives under `/api/suites/{testsuite}/`. Because suite-scoped routes sit
 one level below the suite collection, no suite name can collide with a route: a
 suite may legally be named `admin` or even `suites`. D4 still rejects a few
-suite names at creation, for reasons unrelated to routing.
+suite names at creation, for reasons unrelated to routing. Every path below
+`/api/suites/` therefore starts with a suite name, which is how I5 tells which
+suite a request addresses.
 
 **No trailing slashes.** No path ends with a `/`. A request that adds one gets a
 307 redirect to the canonical form, including for `/healthz`, `/llms.txt` and
@@ -249,7 +251,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `invalid_request` | 400 | The request is malformed or invalid: bad syntax, a failed validation, an unknown query parameter (see I3), a key the request body does not define, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
 | `invalid_cursor` | 400 | The cursor is malformed, was issued for a request for different results, or is no longer accepted (see I2) |
 | `unauthorized` | 401 | A credential was required and no usable one was sent, or the `Authorization` header does not hold a usable one (see I5) |
-| `forbidden` | 403 | The token is valid, but its scope is insufficient (see I5) |
+| `forbidden` | 403 | The token is valid, but its scope is insufficient, or it is restricted to other test suites (see I5) |
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a suite name, a schema entry added to a list that already has one of that name |
@@ -321,21 +323,51 @@ the request's `Accept-Encoding` carries `Vary: Accept-Encoding`.
 **Scopes.** Every endpoint under `/api/` declares the scope it requires. Scopes
 form a strict hierarchy, `read` < `submit` < `triage` < `manage` < `admin`, and
 a key grants its own scope plus every lower one: an `admin` key can do
-everything a `read` key can.
+everything a `read` key can. A key restricted to some test suites grants its
+scope only within them (see Suite restrictions below).
 
 - **read** -- read-only access to test suites and everything in them. Covers
   most GET endpoints, plus read-only POST endpoints such as `commits/resolve`.
 - **submit** -- submit runs (`POST /api/suites/{testsuite}/runs`), create commits (`POST /api/suites/{testsuite}/commits`)
 - **triage** -- create/update/delete regressions, manage regression indicators
 - **manage** -- create/update/delete machines; update/delete commits; delete
-  runs; create/delete test suites and change their schemas
+  runs; create/delete test suites and change their schemas (creating a suite
+  takes a key that is not restricted to some suites)
 - **admin** -- list, create, and revoke API keys
 
 The HTTP method does not determine the scope, in either direction: some POST
 endpoints only require `read`, and the API key endpoints require `admin` even
 for GET. The `Auth scope` line of each endpoint in the endpoints spec is
 authoritative; the list above describes what each scope is for. A client can
-find out which scope a token grants through `GET /api/auth` (see E12).
+find out which scope a token grants, and in which suites, through
+`GET /api/auth` (see E12).
+
+**Suite restrictions.** Every key has a `suites` attribute (see D5): either
+`null`, for a key that is valid across the instance, or a non-empty list of
+suite names. A request *addresses* a suite when its path is
+`/api/suites/{name}` or lies under it (see I1); that is every suite-scoped
+route, plus E10's routes for one suite. A key restricted to a list of suites
+grants its scope on a request that addresses one of them, and only `read` on
+any other request -- exactly what anonymous access gets, so reads are
+unaffected. In particular:
+
+- A request that addresses no suite gets `read` alone from a restricted key.
+  Creating a suite (`POST /api/suites`) therefore requires a `manage` key that
+  is not restricted, even if the new suite's name is in a restricted key's
+  list. Changing the schema of a suite and deleting it address that suite, so
+  a restricted `manage` key may do both for a suite in its list.
+- Only `submit`, `triage` and `manage` keys can be restricted. A restricted
+  `read` key would grant nothing more than no key at all, and `admin` keys are
+  always valid across the instance, since the API key endpoints address no
+  suite.
+- A key names suites, and is not linked to them: suite names are compared
+  exactly, and deleting a suite leaves its name on the keys that list it. A
+  suite created later under the same name is therefore covered by those keys
+  again; an operator who reuses a name for a different purpose should revoke
+  them.
+
+This relies on an invariant of every suite-scoped route: a request under
+`/api/suites/{testsuite}/` reads and writes that suite only, never another one.
 
 **Unauthenticated access.** Endpoints that require `read` can be used without a
 token. Endpoints that require a higher scope require a valid Bearer token.
@@ -364,7 +396,7 @@ The scheme name is matched case-insensitively, per RFC 9110.
 | No `Authorization` header | Allowed on `read` endpoints; 401 on any endpoint requiring a higher scope |
 | Header present, but no usable Bearer credential: unreadable syntax, a scheme other than `Bearer`, or no token after it | 401 on every endpoint under `/api/` |
 | A Bearer token that is malformed, unknown, or belongs to a revoked key | 401 on every endpoint under `/api/`, including `read` endpoints that would allow anonymous access |
-| A valid token whose scope is insufficient for the endpoint | 403 |
+| A valid token whose scope is insufficient for the endpoint, or that grants it only in other suites (see Suite restrictions) | 403 |
 
 A header with no usable Bearer credential is deliberately not treated as an
 absent header: falling back to anonymous access would silently ignore a
@@ -387,7 +419,9 @@ scope therefore gets a 403 whether or not the resource exists: returning 404
 first would let an unauthorized caller find out which resources exist. This
 matters for the API keys, the only resources whose existence is not already
 public, but the rule applies to every endpoint so that there is only one order
-to implement and reason about.
+to implement and reason about. It also means that a key restricted to some
+suites gets a 403 for a write to any other suite, whether that suite exists or
+not.
 
 Some errors may also be returned before authentication: a 400 for a body that
 cannot be read at all (a content coding that does not decode, or JSON that does
@@ -470,7 +504,8 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
   conventions every operation shares -- authentication, pagination, filtering
   and errors -- so that it can be read on its own.
 - Each operation states the scope it requires (I5), and an operation requiring
-  `read` is marked as callable without credentials.
+  `read` is marked as callable without credentials. An operation requiring more
+  also states whether a key restricted to some test suites can call it.
 - `GET /api/docs` serves an interactive documentation viewer for that
   specification, as `text/html`.
 - How the viewer gets its scripts and stylesheets is up to the implementation.

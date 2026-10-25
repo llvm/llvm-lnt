@@ -59,6 +59,11 @@ EntryName = Annotated[
     str, StringConstraints(pattern=ENTRY_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
 ]
 
+# D4's shape for a suite name. Creating a suite also rules out the reserved names above.
+SuiteNameStr = Annotated[
+    str, StringConstraints(pattern=SUITE_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
+]
+
 # D4: the free text an entry carries for the UI -- `display_name`, `unit` and `unit_abbrev` -- which
 # is either absent (null) or a non-empty string. An empty one would only be a second spelling of
 # null. Unlike names, nothing restricts its characters, so it needs D3's NUL check.
@@ -303,9 +308,7 @@ class SuiteSchema(BaseModel):
         json_schema_extra={"examples": [examples.SUITE_SCHEMA]},
     )
 
-    name: Annotated[
-        str, StringConstraints(pattern=SUITE_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
-    ] = Field(
+    name: SuiteNameStr = Field(
         description=(
             "The suite's name. Lowercase letters, digits and underscores, starting with a letter. "
             "It can't be "

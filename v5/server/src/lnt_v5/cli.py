@@ -144,7 +144,7 @@ def _serve_dev(settings: Settings, port: int) -> int:
     return 0
 
 
-def _create_key(settings: Settings, name: str, scope: Scope) -> int:
+def _create_key(settings: Settings, name: str, scope: Scope, suites: Sequence[str] | None) -> int:
     """Create an API key (`server create-key`).
 
     I5 requires an out-of-band way to create a key, because every key-management endpoint needs
@@ -156,7 +156,7 @@ def _create_key(settings: Settings, name: str, scope: Scope) -> int:
     """
     try:
         with _database(settings) as engine, engine.begin() as connection:
-            created = keys.create_key(connection, name, scope)
+            created = keys.create_key(connection, name, scope, suites)
     except ValueError as error:
         return _fail(str(error))
     except DBAPIError as error:
@@ -166,9 +166,14 @@ def _create_key(settings: Settings, name: str, scope: Scope) -> int:
     #     TOKEN=$(lnt-v5 server create-key --name bot --scope submit)
     # Everything a human wants to read goes to stderr, where it stays out of that.
     print(created.token)
+    where = (
+        "in every test suite"
+        if created.suites is None
+        else f"in test suite(s) {', '.join(created.suites)} only"
+    )
     print(
-        f"Created key '{created.name}' with prefix {created.prefix} and scope '{created.scope}'. "
-        "The token above is shown once and cannot be recovered.",
+        f"Created key '{created.name}' with prefix {created.prefix} and scope '{created.scope}' "
+        f"{where}. The token above is shown once and cannot be recovered.",
         file=sys.stderr,
     )
     return 0
@@ -264,6 +269,13 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=[scope.value for scope in Scope],
         help="privilege level the key grants",
     )
+    create_key.add_argument(
+        "--suite",
+        action="append",
+        dest="suites",
+        metavar="NAME",
+        help="restrict the key to this test suite; repeat for several (default: every test suite)",
+    )
 
     return parser
 
@@ -294,5 +306,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "sweep":
         return _sweep(settings)
     if args.command == "create-key":
-        return _create_key(settings, args.name, Scope(args.scope))
+        return _create_key(settings, args.name, Scope(args.scope), args.suites)
     raise AssertionError(f"unhandled command: {args.command}")

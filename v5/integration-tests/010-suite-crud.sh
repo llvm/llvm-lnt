@@ -75,6 +75,18 @@ request -X PATCH -H "$AUTH" -H "$JSON" \
 expect_status 400
 expect_body '"code":"invalid_request"'
 
+echo "  a key restricted to the suite manages it, and no other suite"
+# Minted only now, since the CLI only restricts a key to suites that exist.
+restricted="$(mint_key restricted manage --suite integration)"
+request -X PATCH -H "Authorization: Bearer ${restricted}" -H "$JSON" \
+    --data '{"metrics": {"update": [{"name": "code_size", "display_name": "Code size"}]}}' \
+    "${SUITES}/integration/schema"
+expect_status 200
+request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
+    --data '{"name":"other","metrics":[]}' "$SUITES"
+expect_status 403
+expect_body '"code":"forbidden"'
+
 echo "  writes need a credential of their own"
 request -X POST -H "$JSON" --data '{"name":"denied","metrics":[]}' "$SUITES"
 expect_status 401

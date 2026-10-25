@@ -12,12 +12,15 @@ Reading data doesn't require an API key. Everything else does: send the key's to
 
 Each operation lists the scope it requires, and the `Scope` schema describes what each scope
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
-everything its scope and the scopes below it allow. Keys are created with
+everything its scope and the scopes below it allow. A `submit`, `triage` or `manage` key can be
+restricted to some test suites: it then has its scope only for operations on those suites, and can
+only read everywhere else. Keys are created with
 `POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
 your first key.
 
 If you do send a key, it must be valid: a malformed, unknown or revoked key gets a 401, even on
-operations that don't need a key. A valid key without the required scope gets a 403.
+operations that don't need a key. A valid key without the required scope, or that has it only in
+other test suites, gets a 403.
 
 ## Lists and pagination
 
@@ -73,7 +76,7 @@ Check `code` in your code. `message` is meant for people and may change.
 | `invalid_request` | 400 | The request is malformed or invalid. |
 | `invalid_cursor` | 400 | The `cursor` is malformed, was issued for other filters, sort or path parameters, or is no longer accepted, for example because the suite's schema changed. Start over from the first page. |
 | `unauthorized` | 401 | The operation needs an API key and none was sent, or the key is malformed, unknown or revoked. |
-| `forbidden` | 403 | The API key doesn't have the required scope. |
+| `forbidden` | 403 | The API key doesn't have the required scope, or has it only in other test suites. |
 | `not_found` | 404 | The path doesn't exist, or something the request refers to doesn't exist. |
 | `method_not_allowed` | 405 | The path exists, but not with this HTTP method. The `Allow` header lists the methods it supports. |
 | `duplicate` | 409 | The thing you are creating already exists. If you chose the UUID of a run or a regression yourself, a previous attempt probably succeeded: don't resend it with a new UUID, or you'll store it twice. |
