@@ -709,8 +709,7 @@ DELETE /api/suites/{name}        -- Delete a test suite and all its data
 ```
 
 **Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. POST
-addresses no suite, so it requires a key that is not restricted to some suites
-(see I5).
+addresses no suite, so it requires an instance-wide key (see I5).
 
 **Suite object:** a suite's detail body is its normalized schema: the body
 `POST /api/suites` accepts, with omitted optional keys filled in (see D4 for the
@@ -798,8 +797,8 @@ GET endpoints in the API that require more than `read`, and so the only ones
 that anonymous access never reaches (see I5).
 
 **Key object:** `prefix`, `name`, `scope`, `suites`, `created_at`,
-`last_used_at`, `is_active`. `suites` is null for a key valid across the
-instance, and otherwise the names of the suites the key is restricted to, in
+`last_used_at`, `is_active`. `suites` is null for an instance-wide key, and
+otherwise the names of the suites the key is restricted to, in
 ascending order (see I5). `last_used_at` is null until the key is first used,
 and approximate after that (see D5). Neither the raw token nor its hash ever
 appears, except for the raw token in the create response below.
@@ -814,8 +813,8 @@ nullable, and only approximate (see D5). Revoked keys are included, with
 **Create** (`POST /api/admin/api-keys`): the body has `name` (string, required),
 `scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
 `admin`), and `suites` (optional: a non-empty list of suite names, to restrict
-the key to those suites, or null). An omitted or null `suites` makes a key
-valid across the instance.
+the key to those suites, or null). An omitted or null `suites` makes the key
+instance-wide.
 
 - 201 with the key object plus a `token` field holding the raw token. The token
   is shown only this once and cannot be retrieved afterwards (see I5). No
@@ -823,9 +822,9 @@ valid across the instance.
 - 400 if `name` is missing, empty, or longer than 256 characters (see D5), or
   if `scope` is missing or not one of the five values. `name` is a label rather
   than an identifier, so two keys may share one.
-- 400 if `suites` is an empty list, holds a name that D4 does not accept for a
-  suite, names a suite more than once, or is given with a `read` or `admin`
-  scope, which cannot be restricted (see I5).
+- 400 if `suites` is an empty list, holds a name that does not match D4's
+  pattern or length for a suite name, names a suite more than once, or is a
+  list on a `read` or `admin` key, which cannot be restricted (see I5).
 - 404 if `suites` names a suite that does not exist. This is checked only when
   the key is created: a key is not linked to its suites, so deleting a suite
   later leaves its name on the key (see I5).

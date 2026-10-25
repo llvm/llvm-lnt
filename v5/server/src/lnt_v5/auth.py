@@ -14,8 +14,9 @@ one, or it will resolve first and answer 404 where I5 requires 403.
 
 A key restricted to some suites is checked against the suite the request addresses, which is read
 off the route's path (see `suite_parameter`). That is only sound because of an invariant no test can
-check: a route under `/api/suites/{testsuite}/` reads and writes that suite only (I5). An endpoint
-that reached into another suite would let a restricted key write where it has only `read`.
+check: a request that addresses a suite writes only to that suite, never to another (I5). An
+endpoint that reached into another suite would let a restricted key write where it has only
+`read`.
 """
 
 from __future__ import annotations
@@ -203,8 +204,8 @@ class RequireScope:
         assert key.suites is not None
         if suite is None:
             return (
-                f"This endpoint requires the '{required}' scope from an API key that is not "
-                "restricted to some test suites."
+                f"This endpoint requires the '{required}' scope from an unrestricted API key, and "
+                f"this one is restricted to test suites: {', '.join(key.suites)}."
             )
         return (
             f"This endpoint requires the '{required}' scope in test suite '{suite}', and this API "

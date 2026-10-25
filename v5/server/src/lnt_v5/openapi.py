@@ -175,9 +175,9 @@ _FORBIDDEN = _error(
 def _authorization(scope: Scope, addresses_suite: bool) -> str:
     """The sentence that tells a reader of one operation what it takes to call it.
 
-    Above `read`, it also says whether a key restricted to some suites will do (I8): one is, on an
-    operation addressing one of its suites, and never on one addressing no suite -- unless keys of
-    that scope cannot be restricted at all.
+    For a scope that can be restricted (I5), it also says whether a restricted key will do (I8):
+    one will on an operation that addresses a suite, as long as that suite is one of its own, and
+    never on an operation that addresses no suite.
     """
     if scope is Scope.READ:
         return "**Authorization:** no API key needed."
@@ -186,7 +186,7 @@ def _authorization(scope: Scope, addresses_suite: bool) -> str:
         return f"{sentence}."
     if addresses_suite:
         return f"{sentence}, for all test suites or for this one."
-    return f"{sentence}, not restricted to some test suites."
+    return f"**Authorization:** requires an unrestricted API key with the `{scope.value}` scope."
 
 
 def _referenced_schemas() -> dict[str, Any]:

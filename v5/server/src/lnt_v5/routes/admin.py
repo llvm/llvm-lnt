@@ -93,7 +93,7 @@ class ApiKeyCreate(BaseModel):
             "The test suites to restrict the key to. It then has its scope only in these suites, "
             "and can only read everywhere else, which includes creating a test suite. Only "
             "`submit`, `triage` and `manage` keys can be restricted, and every suite must exist. "
-            "Leave out, or set to null, for a key that isn't restricted."
+            "Leave out, or set to null, for an unrestricted key."
         ),
     )
 

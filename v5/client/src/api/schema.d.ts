@@ -133,7 +133,7 @@ export interface paths {
          *     The response is the schema with all optional keys filled in. Its `Location` header points to
          *     the new suite.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, not restricted to some test suites.
+         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
          */
         post: operations["create_suite"];
         delete?: never;
@@ -859,7 +859,7 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Suites
-             * @description The test suites to restrict the key to. It then has its scope only in these suites, and can only read everywhere else, which includes creating a test suite. Only `submit`, `triage` and `manage` keys can be restricted, and every suite must exist. Leave out, or set to null, for a key that isn't restricted.
+             * @description The test suites to restrict the key to. It then has its scope only in these suites, and can only read everywhere else, which includes creating a test suite. Only `submit`, `triage` and `manage` keys can be restricted, and every suite must exist. Leave out, or set to null, for an unrestricted key.
              */
             suites?: string[] | null;
         };

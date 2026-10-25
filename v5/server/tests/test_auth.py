@@ -251,7 +251,7 @@ class TestSuiteRestriction:
         response = api_client.post("/api/suites", json=NTS, headers=headers)
 
         assert response.status_code == 403
-        assert "not restricted" in response.json()["error"]["message"]
+        assert "unrestricted" in response.json()["error"]["message"]
 
     def test_changes_and_deletes_a_suite_it_names(
         self,

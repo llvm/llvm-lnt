@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from lnt_v5 import examples
-from lnt_v5.auth import iter_routes, required_scope, suite_parameter
+from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.errors import ErrorCode
 from lnt_v5.openapi import OVERVIEW, TAGS, _rename_components
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
@@ -30,7 +30,7 @@ from lnt_v5.routes.series import NDJSON, SERIES_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import DEFAULT_LAST_N, TRENDS_PATH
-from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
+from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import CommitField, MachineField, Metric
 
 
@@ -295,29 +295,38 @@ class TestDocumentedAuthentication:
                 assert operation["security"] == expected, f"{method.upper()} {path}"
 
     def test_every_operation_states_its_scope_in_words(self, client: TestClient) -> None:
-        # Above `read`, along with whether a key restricted to some suites will do (I8), which
-        # depends on whether the operation addresses a suite (I5), for a scope that can be
-        # restricted at all.
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():
             for method, operation in operations.items():
                 (role,) = operation["security"][-1]["ApiKey"]
-                required = f"**Authorization:** requires an API key with the `{role}` scope"
+                last = operation["description"].rsplit("\n\n", 1)[-1]
+                assert last.startswith("**Authorization:** "), f"{method.upper()} {path}"
                 if role == "read":
-                    sentence = "**Authorization:** no API key needed."
-                elif Scope(role) in UNRESTRICTABLE_SCOPES:
-                    sentence = f"{required}."
-                elif suite_parameter(path) is not None:
-                    sentence = f"{required}, for all test suites or for this one."
+                    assert last == "**Authorization:** no API key needed."
                 else:
-                    sentence = f"{required}, not restricted to some test suites."
-                assert operation["description"].endswith(sentence), f"{method.upper()} {path}"
+                    assert f"`{role}` scope" in last, f"{method.upper()} {path}"
 
-    def test_says_creating_a_suite_needs_an_unrestricted_key(self, client: TestClient) -> None:
-        # The one operation above `read` that addresses no suite and that a restrictable scope
-        # reaches -- which the test above would otherwise only cover if it happened to exist.
-        create = client.get("/api/openapi.json").json()["paths"][SUITES_PATH]["post"]
+    @pytest.mark.parametrize(
+        ("path", "method", "sentence"),
+        [
+            # A suite-scoped write, which a key restricted to that suite may make (I5).
+            (
+                RUNS_PATH,
+                "post",
+                "requires an API key with the `submit` scope, for all test suites or for this one.",
+            ),
+            # One that addresses no suite, which no restricted key may make.
+            (SUITES_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
+            # `admin` keys cannot be restricted, so there is nothing to add.
+            ("/api/admin/api-keys", "get", "requires an API key with the `admin` scope."),
+        ],
+    )
+    def test_says_whether_a_restricted_key_will_do(
+        self, client: TestClient, path: str, method: str, sentence: str
+    ) -> None:
+        # I8, for the operations a restrictable scope reaches.
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
 
-        assert create["description"].endswith("not restricted to some test suites.")
+        assert operation["description"].endswith(f"**Authorization:** {sentence}")
 
     def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
         # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.

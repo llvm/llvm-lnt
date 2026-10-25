@@ -14,7 +14,7 @@ Each operation lists the scope it requires, and the `Scope` schema describes wha
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
 everything its scope and the scopes below it allow. A `submit`, `triage` or `manage` key can be
 restricted to some test suites: it then has its scope only for operations on those suites, and can
-only read everywhere else. Keys are created with
+only read everywhere else. Creating a test suite therefore needs an unrestricted key. Keys are created with
 `POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
 your first key.
 

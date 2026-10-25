@@ -397,7 +397,7 @@ namespace of their own named after the suite (see below).
   integer code (unlike `{suite}.regression.state`, below), because it is read
   once per authenticated request and never filtered or sorted on, so
   readability in the database matters more than compactness.
-- `suites` is null for a key valid across the instance, and otherwise the
+- `suites` is null for an instance-wide key, and otherwise the
   non-empty list of suite names the key is restricted to, in ascending order
   and without duplicates (see I5). The database layer rejects an empty list,
   a null element, and a list on a `read` or `admin` key. The names are not

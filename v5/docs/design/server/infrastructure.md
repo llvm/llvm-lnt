@@ -331,8 +331,7 @@ scope only within them (see Suite restrictions below).
 - **submit** -- submit runs (`POST /api/suites/{testsuite}/runs`), create commits (`POST /api/suites/{testsuite}/commits`)
 - **triage** -- create/update/delete regressions, manage regression indicators
 - **manage** -- create/update/delete machines; update/delete commits; delete
-  runs; create/delete test suites and change their schemas (creating a suite
-  takes a key that is not restricted to some suites)
+  runs; create/delete test suites and change their schemas
 - **admin** -- list, create, and revoke API keys
 
 The HTTP method does not determine the scope, in either direction: some POST
@@ -343,31 +342,28 @@ find out which scope a token grants, and in which suites, through
 `GET /api/auth` (see E12).
 
 **Suite restrictions.** Every key has a `suites` attribute (see D5): either
-`null`, for a key that is valid across the instance, or a non-empty list of
-suite names. A request *addresses* a suite when its path is
+`null`, for an *instance-wide* key, or a non-empty list of suite names, for a
+key *restricted* to those suites. A request *addresses* a suite when its path is
 `/api/suites/{name}` or lies under it (see I1); that is every suite-scoped
-route, plus E10's routes for one suite. A key restricted to a list of suites
-grants its scope on a request that addresses one of them, and only `read` on
+route, plus E10's routes for one suite. A restricted key grants its scope on a request that addresses one of them, and only `read` on
 any other request -- exactly what anonymous access gets, so reads are
 unaffected. In particular:
 
 - A request that addresses no suite gets `read` alone from a restricted key.
-  Creating a suite (`POST /api/suites`) therefore requires a `manage` key that
-  is not restricted, even if the new suite's name is in a restricted key's
-  list. Changing the schema of a suite and deleting it address that suite, so
+  Creating a suite (`POST /api/suites`) therefore requires an instance-wide
+  `manage` key, even if the new suite's name is in a restricted key's list. Changing the schema of a suite and deleting it address that suite, so
   a restricted `manage` key may do both for a suite in its list.
 - Only `submit`, `triage` and `manage` keys can be restricted. A restricted
   `read` key would grant nothing more than no key at all, and `admin` keys are
-  always valid across the instance, since the API key endpoints address no
-  suite.
+  always instance-wide, since the API key endpoints address no suite.
 - A key names suites, and is not linked to them: suite names are compared
   exactly, and deleting a suite leaves its name on the keys that list it. A
   suite created later under the same name is therefore covered by those keys
   again; an operator who reuses a name for a different purpose should revoke
   them.
 
-This relies on an invariant of every suite-scoped route: a request under
-`/api/suites/{testsuite}/` reads and writes that suite only, never another one.
+This relies on an invariant of every endpoint: a request that addresses a suite
+writes only to that suite, never to another.
 
 **Unauthenticated access.** Endpoints that require `read` can be used without a
 token. Endpoints that require a higher scope require a valid Bearer token.
@@ -504,8 +500,9 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
   conventions every operation shares -- authentication, pagination, filtering
   and errors -- so that it can be read on its own.
 - Each operation states the scope it requires (I5), and an operation requiring
-  `read` is marked as callable without credentials. An operation requiring more
-  also states whether a key restricted to some test suites can call it.
+  `read` is marked as callable without credentials. An operation requiring
+  `submit`, `triage` or `manage` also states whether a restricted key can call
+  it.
 - `GET /api/docs` serves an interactive documentation viewer for that
   specification, as `text/html`.
 - How the viewer gets its scripts and stylesheets is up to the implementation.
