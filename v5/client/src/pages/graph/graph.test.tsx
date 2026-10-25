@@ -43,6 +43,13 @@ import {
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
 
+/** Click the row of `test` with Shift held (AR10). */
+async function shiftClick(user: ReturnType<typeof userEvent.setup>, test: string) {
+  await user.keyboard('{Shift>}')
+  await user.click(testTable().getByText(test))
+  await user.keyboard('{/Shift}')
+}
+
 /** The samples of test a on m1, c10's then c20's, as `GET /series` serves them. */
 const OF_A = [pointOf('m1', 'a', ['c10', 'r1', 1]), pointOf('m1', 'a', ['c20', 'r2', 2])]
 
@@ -311,9 +318,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
     const user = userEvent.setup()
     await user.click(testTable().getByText('a'))
-    await user.keyboard('{Shift>}')
-    await user.click(testTable().getByText('c'))
-    await user.keyboard('{/Shift}')
+    await shiftClick(user, 'c')
 
     expect(currentUrl()).toBe(`${GRAPHED}&test=a&test=b&test=c`)
   })
@@ -369,6 +374,24 @@ describe('the selection (GR6, GR7, GR14)', () => {
     const NAMES = Array.from({ length: 101 }, (_, i) => `t${String(i).padStart(3, '0')}`)
     const ONE_MACHINE = '/graph?suite=libcxx&machine=m1&metric=execution_time'
     const WHY = 'At most 100 tests can be selected at once.'
+    const REFUSED = `This would select 101 tests. ${WHY}`
+    const FIRST_100 = NAMES.slice(0, 100).map((name) => `test=${name}`)
+
+    /** What the row of `test` says of a click on it that selected nothing. */
+    const refusalAt = (test: string) =>
+      within(testTable().getByText(test).closest('tr')!).queryByRole('alert')
+
+    /** The page, once a range of 101 tests from t001 to t100 has been refused. */
+    async function refuseRange() {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(`${ONE_MACHINE}&test=t000`)
+      await waitFor(() => expect(listed()).toHaveLength(101))
+      const user = userEvent.setup()
+      await user.click(testTable().getByText('t001'))
+      await shiftClick(user, 't100')
+      expect(refusalAt('t100')).toHaveTextContent(REFUSED)
+      return user
+    }
 
     it('and says why it cannot select them all', async () => {
       mockWorld({ tests: { m1: NAMES } })
@@ -393,8 +416,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
 
     it('counting those the filter hides', async () => {
       mockWorld({ tests: { m1: NAMES } })
-      const first = NAMES.slice(0, 100).map((name) => `test=${name}`)
-      renderPage(`${ONE_MACHINE}&test_filter=t100&${first.join('&')}`)
+      renderPage(`${ONE_MACHINE}&test_filter=t100&${FIRST_100.join('&')}`)
       await waitFor(() => expect(listed()).toEqual(['t100']))
 
       const count = main().getByText(/^0 of 1 matching tests selected/)
@@ -419,6 +441,49 @@ describe('the selection (GR6, GR7, GR14)', () => {
       await userEvent.setup().dblClick(testTable().getByText('t005'))
 
       expect(currentUrl()).toBe(`${ONE_MACHINE}&test=t005`)
+      expect(refusalAt('t005')).toHaveTextContent(REFUSED)
+    })
+
+    it('and says why at the row a range it refuses was asked at, keeping the anchor', async () => {
+      const user = await refuseRange()
+
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect(box('t002')).not.toBeChecked()
+
+      // A smaller range from the same anchor is taken, and the note goes.
+      await shiftClick(user, 't099')
+      expect(box('t099')).toBeChecked()
+      expect(box('t100')).not.toBeChecked()
+      expect(refusalAt('t100')).toBeNull()
+    })
+
+    it('and says why a click on a row selects nothing once 100 tests are', async () => {
+      mockWorld({ tests: { m1: NAMES } })
+      renderPage(`${ONE_MACHINE}&${FIRST_100.join('&')}`)
+      await waitFor(() => expect(box('t099')).toBeChecked())
+
+      await userEvent.setup().click(testTable().getByText('t100'))
+
+      expect(box('t100')).not.toBeChecked()
+      expect(refusalAt('t100')).toHaveTextContent(REFUSED)
+    })
+
+    it('until the next click anywhere, Escape, or a change to the rows shown', async () => {
+      const user = await refuseRange()
+      await user.keyboard('{Escape}')
+      expect(refusalAt('t100')).toBeNull()
+
+      await shiftClick(user, 't100')
+      expect(refusalAt('t100')).not.toBeNull()
+      await user.click(main().getByRole('heading', { level: 1 }))
+      expect(refusalAt('t100')).toBeNull()
+      expect(box('t001')).toBeChecked()
+
+      await shiftClick(user, 't100')
+      expect(refusalAt('t100')).not.toBeNull()
+      search('Filter tests', 't1')
+      await waitFor(() => expect(listed()).toEqual(['t100']))
+      expect(refusalAt('t100')).toBeNull()
     })
   })
 

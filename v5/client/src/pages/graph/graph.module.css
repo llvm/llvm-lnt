@@ -66,6 +66,31 @@
   font-size: 0.85em;
 }
 
+/* A test's cell, which holds the note saying why a click on its row selected nothing (GR7). */
+.testCell {
+  position: relative;
+}
+
+/*
+ * Over the end of the row, letting clicks through to it. Above the test cells of the other rows,
+ * which are positioned too, should it be taller than its row.
+ */
+.refusal {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: var(--lnt-space-2);
+  transform: translateY(-50%);
+  padding: var(--lnt-space-1) var(--lnt-space-2);
+  border: 1px solid var(--lnt-danger-border);
+  border-radius: var(--lnt-radius);
+  background: var(--lnt-danger-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
+  color: var(--lnt-danger);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* The row of what is drawn on the chart besides the data: baselines, highlighted commits. */
 .overlays {
   display: flex;

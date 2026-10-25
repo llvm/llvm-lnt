@@ -196,8 +196,13 @@ At most 100 tests can be selected at once, including those the filter hides:
 well before that, the chart is unreadable, and the data of thousands of tests is
 more than the page can load. Once 100 tests are selected, the rows not selected
 cannot be selected, and the header checkbox cannot select every visible test
-when that would select more than 100. Each says why on hover. A shift-click
-range or a double-click that would select more than 100 tests does nothing.
+when that would select more than 100. Each says why on hover. A click on a row,
+a shift-click range or a double-click that would select more than 100 tests
+does nothing, not even moving the anchor (AR10). Instead, it says why beside
+the row clicked, where the user is looking, and to assistive technology: how
+many tests it would select, and that at most 100 can be. This stays shown until
+the next click anywhere or Escape, or until the selection or the rows shown
+change.
 
 
 ### GR8: Client-Side Caching
