@@ -3,6 +3,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type MouseEvent,
@@ -50,7 +51,8 @@ interface Props {
  * isolates a test among those shown, or selects every test shown again once it is the only one
  * shown that is selected. The filter changes none of the selection, and none of these touches a
  * test it hides. Any of them that would select more tests than the limit changes nothing, and says
- * why at the row clicked (GR7). A selected test shows its colour on the chart, and whether its data
+ * why at the row clicked (GR7). "Deselect all", above the table, deselects every test, those the
+ * filter hides included. A selected test shows its colour on the chart, and whether its data
  * is still loading. The table is the chart's legend, with the machines' chips: hovering a row
  * emphasizes the test's lines on the chart, and hovering one of them highlights its row, if it is
  * shown (GR7).
@@ -79,6 +81,7 @@ export function TestTable({
   }, [shown, emphasis])
   useEffect(() => () => emphasis.set(null), [emphasis])
   const listed = useMemo(() => new Set(all), [all])
+  const table = useRef<HTMLTableElement>(null)
 
   const columns = useMemo(
     (): Column<string>[] => [
@@ -140,23 +143,47 @@ export function TestTable({
   // The selected tests shown, and those the filter hides besides. Only the tests listed are
   // counted: until every machine's tests are listed, some of the URL's may not be.
   const count = shown.filter((test) => selected.has(test)).length
-  const hidden = [...selected].filter((test) => listed.has(test)).length - count
+  const total = [...selected].filter((test) => listed.has(test)).length
+  const hidden = total - count
   return (
     <>
       {listing && <Loading label="Loading tests..." />}
-      <p className={styles.count} role="status">
-        {filtered
-          ? `${count} of ${shown.length} matching tests selected · ${all.length} tests in total`
-          : `${count} of ${all.length} tests selected`}
-        {hidden > 0 && ` · ${hidden} more hidden by the filter`}
-        {notInUrl !== undefined && (
+      <div className={styles.countRow}>
+        <p className={styles.count} role="status">
+          {filtered
+            ? `${count} of ${shown.length} matching tests selected · ${all.length} tests in total`
+            : `${count} of ${all.length} tests selected`}
+          {hidden > 0 && ` · ${hidden} more hidden by the filter`}
+          {notInUrl !== undefined && (
+            <>
+              {' · '}
+              <span title={notInUrl}>too many to reflect in the URL</span>
+            </>
+          )}
+          {loading.size > 0 && ' · loading...'}
+        </p>
+        {/*
+          Every selected test, those the filter hides included, whatever the limit (GR7). The focus
+          then goes to the table, since the button is gone.
+        */}
+        {total > 0 && (
           <>
-            {' · '}
-            <span title={notInUrl}>too many to reflect in the URL</span>
+            <span className={styles.count} aria-hidden="true">
+              ·
+            </span>
+            <button
+              type="button"
+              className={styles.textButton}
+              onClick={() => {
+                rows.replace([])
+                table.current?.focus({ preventScroll: true })
+              }}
+            >
+              Deselect all
+            </button>
           </>
         )}
-        {loading.size > 0 && ' · loading...'}
-      </p>
+      </div>
       {/* Leaving a row for another emphasizes the other at once, without drawing none between. */}
       <div
         onMouseLeave={() => emphasis.set(null)}
@@ -165,6 +192,7 @@ export function TestTable({
         }}
       >
         <DataTable
+          ref={table}
           label="Tests"
           columns={columns}
           rows={shown}

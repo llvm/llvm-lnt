@@ -205,6 +205,13 @@ neither the focus nor the clicks on what it covers, and stays shown until the
 next click anywhere or Escape, or until the selection or the rows shown
 change.
 
+Unlike the interactions above, "Deselect all" at the end of the message line
+(GR6) deselects every selected test, those the filter hides included. It reads
+as part of the message, and is shown while the message counts any selected
+test. Unlike the header checkbox, it is available however many tests the table
+lists, since deselecting is never refused. Once it is used, the focus moves to
+the table, without scrolling the page.
+
 
 ### GR8: Client-Side Caching
 

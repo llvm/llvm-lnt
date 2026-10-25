@@ -48,6 +48,34 @@
   color: var(--lnt-muted);
 }
 
+/* The message line above the test table (GR6), with Deselect all at its end (GR7). */
+.countRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.35em;
+  margin: 1em 0;
+}
+
+.countRow .count {
+  margin: 0;
+}
+
+/* A button that reads as a link, as part of the message it follows. */
+.textButton {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--lnt-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.textButton:hover {
+  text-decoration: underline;
+}
+
 .testRow {
   cursor: pointer;
   user-select: none;
