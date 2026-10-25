@@ -86,6 +86,11 @@ request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
     --data '{"name":"other","metrics":[]}' "$SUITES"
 expect_status 403
 expect_body '"code":"forbidden"'
+# A suite outside its list is a 403 before anything looks the suite up, so it need not exist.
+request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
+    --data '{"name":"m"}' "${SUITES}/elsewhere/machines"
+expect_status 403
+expect_body '"code":"forbidden"'
 
 echo "  writes need a credential of their own"
 request -X POST -H "$JSON" --data '{"name":"denied","metrics":[]}' "$SUITES"

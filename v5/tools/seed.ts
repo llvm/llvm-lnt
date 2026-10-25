@@ -4,8 +4,8 @@
  * - the `libcxx` and `nts` suites, with their real runs from server/tests/data;
  * - a synthetic libcxx history, with regressions and profiles, and machines beyond the real ones
  *   (see synthetic.ts);
- * - API keys of every scope, one of them revoked, for the Admin page to list. Their tokens are
- *   thrown away, so that nothing can authenticate with them.
+ * - API keys of every scope, one of them revoked and some restricted to one suite or both, for the
+ *   Admin page to list. Their tokens are thrown away, so that nothing can authenticate with them.
  *
  *     node tools/seed.ts [--url URL] [--token TOKEN]
  *
@@ -60,14 +60,26 @@ const SUITES: Suite[] = [
   { name: 'nts' },
 ]
 
-/** The keys to seed, each never used: the Admin page shows every scope, and a revoked key. */
-export const KEYS: { name: string; scope: components['schemas']['Scope']; revoked?: true }[] = [
+/**
+ * The keys to seed, each never used: the Admin page shows every scope, a revoked key, and keys
+ * restricted to some suites. Those are created after the suites, since a key can only be restricted
+ * to suites that exist.
+ */
+export const KEYS: {
+  name: string
+  scope: components['schemas']['Scope']
+  suites?: string[]
+  revoked?: true
+}[] = [
   { name: 'dashboard-reader', scope: 'read' },
   { name: 'ci-submitter', scope: 'submit' },
   { name: 'triage-bot', scope: 'triage' },
   { name: 'release-manager', scope: 'manage' },
   { name: 'ops-admin', scope: 'admin' },
   { name: 'retired-bot', scope: 'submit', revoked: true },
+  { name: 'libcxx-submitter', scope: 'submit', suites: ['libcxx'] },
+  { name: 'perf-triager', scope: 'triage', suites: ['libcxx', 'nts'] },
+  { name: 'nts-maintainer', scope: 'manage', suites: ['nts'] },
 ]
 
 function readJson(file: string): unknown {
@@ -172,8 +184,8 @@ async function seedKeys(api: Api, log: (message: string) => void): Promise<void>
   const listed = await api.GET('/api/admin/api-keys')
   check(listed)
   const existing = new Set(listed.data!.items.map((key) => key.name))
-  for (const { name, scope, revoked } of KEYS.filter((key) => !existing.has(key.name))) {
-    const created = await api.POST('/api/admin/api-keys', { body: { name, scope } })
+  for (const { name, scope, suites, revoked } of KEYS.filter((key) => !existing.has(key.name))) {
+    const created = await api.POST('/api/admin/api-keys', { body: { name, scope, suites } })
     check(created)
     if (revoked) {
       const params = { path: { prefix: created.data!.prefix } }

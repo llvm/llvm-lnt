@@ -9,10 +9,11 @@ test('the stack is seeded, and seeding it again writes nothing', async ({ reques
   const keys = await json<components['schemas']['ApiKeyList']>(request, '/api/admin/api-keys', {
     Authorization: `Bearer ${adminToken()}`,
   })
-  for (const { name, scope, revoked } of KEYS) {
+  for (const { name, scope, suites, revoked } of KEYS) {
     const seeded = keys.items.filter((key) => key.name === name)
-    expect(seeded.map((key) => [key.scope, key.is_active, key.last_used_at])).toEqual([
-      [scope, !revoked, null],
+    expect(seeded.map((key) => [key.scope, key.suites, key.is_active, key.last_used_at])).toEqual([
+      // The API returns a key's suites sorted, and null for an instance-wide key.
+      [scope, suites ? [...suites].sort() : null, !revoked, null],
     ])
   }
 
