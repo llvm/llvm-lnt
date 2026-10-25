@@ -487,15 +487,6 @@ describe('the selection (GR6, GR7, GR14)', () => {
       expect(main().getByRole('table', { name: 'Tests' })).toHaveFocus()
     })
 
-    it('deselecting those the filter hides too', async () => {
-      mockWorld({ tests: { m1: NAMES } })
-      renderPage(`${ONE_MACHINE}&test_filter=t09&test=t000`)
-      await waitFor(() => expect(listed()).toHaveLength(10))
-
-      await userEvent.setup().click(main().getByRole('button', { name: 'Deselect all' }))
-
-      await waitFor(() => expect(currentUrl()).toBe(`${ONE_MACHINE}&test_filter=t09`))
-    })
 
     it('and says why a click on a row selects nothing once 100 tests are', async () => {
       mockWorld({ tests: { m1: NAMES } })
@@ -535,6 +526,16 @@ describe('the selection (GR6, GR7, GR14)', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove m1' }))
 
     await waitFor(() => expect(currentUrl()).toBe('/graph?suite=libcxx&metric=execution_time'))
+  })
+
+  it('deselects every test with Deselect all, those the filter hides included (GR7)', async () => {
+    mockWorld()
+    renderPage(`${GRAPHED}&test_filter=b&test=a`)
+    await waitFor(() => expect(listed()).toEqual(['b']))
+
+    await userEvent.setup().click(main().getByRole('button', { name: 'Deselect all' }))
+
+    await waitFor(() => expect(currentUrl()).toBe(`${GRAPHED}&test_filter=b`))
   })
 
   it('keeps the tests of the URL that its filter hides, and plots them (GR14)', async () => {

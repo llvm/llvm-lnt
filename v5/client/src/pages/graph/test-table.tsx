@@ -51,7 +51,8 @@ interface Props {
  * isolates a test among those shown, or selects every test shown again once it is the only one
  * shown that is selected. The filter changes none of the selection, and none of these touches a
  * test it hides. Any of them that would select more tests than the limit changes nothing, and says
- * why at the row clicked (GR7). A selected test shows its colour on the chart, and whether its data
+ * why at the row clicked (GR7). "Deselect all", above the table, deselects every test, those the
+ * filter hides included. A selected test shows its colour on the chart, and whether its data
  * is still loading. The table is the chart's legend, with the machines' chips: hovering a row
  * emphasizes the test's lines on the chart, and hovering one of them highlights its row, if it is
  * shown (GR7).
@@ -163,14 +164,14 @@ export function TestTable({
         </p>
         {/*
           Every selected test, those the filter hides included, whatever the limit (GR7). The focus
-          then goes to the table, since the button is disabled.
+          then goes to the table, since the button becomes disabled.
         */}
         <button
           type="button"
           disabled={total === 0}
           onClick={() => {
             rows.replace([])
-            table.current?.focus()
+            table.current?.focus({ preventScroll: true })
           }}
         >
           Deselect all

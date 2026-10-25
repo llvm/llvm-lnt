@@ -61,6 +61,11 @@
   margin: 0;
 }
 
+/* The message wraps rather than the button's label. */
+.countRow > button {
+  flex: none;
+}
+
 .testRow {
   cursor: pointer;
   user-select: none;
