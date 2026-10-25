@@ -11,6 +11,7 @@ import hashlib
 import logging
 import re
 import secrets
+from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from datetime import datetime
 from time import monotonic
@@ -20,8 +21,8 @@ from sqlalchemy import Connection, Engine, Row, func, insert, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .db import unique_violation_constraint
-from .scopes import Scope
-from .tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key
+from .scopes import UNRESTRICTABLE_SCOPES, Scope
+from .tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key, schema
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,22 @@ class ApiKeyInfo:
     prefix: str
     name: str
     scope: Scope
+    # None for a key valid across the instance, or the suites it is restricted to, sorted (I5).
+    suites: tuple[str, ...] | None
     created_at: datetime
     last_used_at: datetime | None
     is_active: bool
+
+    def grants(self, required: Scope, suite: str | None) -> bool:
+        """Whether this key satisfies an endpoint requiring `required`, on a request addressing
+        `suite` (None for one that addresses no suite).
+
+        I5: a restricted key has its scope only on a request addressing one of its suites, and
+        only `read` -- what anonymous access gets -- on any other.
+        """
+        if self.suites is None or suite in self.suites:
+            return self.scope.grants(required)
+        return Scope.READ.grants(required)
 
 
 @dataclass(frozen=True)
@@ -85,7 +99,20 @@ _SHOWN_COLUMNS = tuple(api_key.c[field.name] for field in fields(ApiKeyInfo))
 
 def _shown(row: Row[Any]) -> dict[str, Any]:
     values = {field.name: row._mapping[field.name] for field in fields(ApiKeyInfo)}
-    return values | {"scope": Scope(values["scope"])}
+    suites = values["suites"]
+    return values | {
+        "scope": Scope(values["scope"]),
+        "suites": None if suites is None else tuple(suites),
+    }
+
+
+class UnknownSuitesError(ValueError):
+    """A key was to be restricted to suites that do not exist (a 404, per E11)."""
+
+    def __init__(self, names: Sequence[str]) -> None:
+        self.names = tuple(names)
+        listed = ", ".join(f"'{name}'" for name in self.names)
+        super().__init__(f"No test suite is named {listed}.")
 
 
 def generate_token() -> str:
@@ -102,8 +129,15 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("ascii")).hexdigest()
 
 
-def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
+def create_key(
+    connection: Connection, name: str, scope: Scope, suites: Sequence[str] | None = None
+) -> CreatedKey:
     """Mint a key and store it, returning the raw token to show the operator once.
+
+    `suites` restricts the key to those suites, or None makes it valid across the instance (I5).
+    E11's rules for a key are checked here, so that the API and the CLI share them: a `ValueError`
+    for a key that can never be valid, or its subclass `UnknownSuitesError` for suites that do not
+    exist (yet).
 
     The caller owns the transaction. Runs inside a savepoint so that a prefix collision can be
     retried without discarding work the caller did earlier in the same transaction.
@@ -112,6 +146,8 @@ def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
         raise ValueError("An API key's name must not be empty.")
     if len(name) > KEY_NAME_MAX_LENGTH:
         raise ValueError(f"An API key's name must be at most {KEY_NAME_MAX_LENGTH} characters.")
+    if suites is not None:
+        suites = _checked_suites(connection, scope, suites)
 
     for _ in range(_MAX_ATTEMPTS):
         token = generate_token()
@@ -127,6 +163,7 @@ def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
                         key_hash=hash_token(token),
                         name=name,
                         scope=scope.value,
+                        suites=suites,
                     )
                     .returning(*_SHOWN_COLUMNS)
                 ).one()
@@ -139,6 +176,28 @@ def create_key(connection: Connection, name: str, scope: Scope) -> CreatedKey:
     raise RuntimeError(
         f"Could not generate a token with an unused prefix in {_MAX_ATTEMPTS} attempts."
     )
+
+
+def _checked_suites(connection: Connection, scope: Scope, suites: Sequence[str]) -> list[str]:
+    """The suites a key is to be restricted to, sorted, once E11's rules are checked.
+
+    Existence is checked only here, at creation: a key is not linked to its suites, so one deleted
+    later stays on the key (I5).
+    """
+    if scope in UNRESTRICTABLE_SCOPES:
+        raise ValueError(
+            f"A key with the '{scope.value}' scope cannot be restricted to test suites."
+        )
+    if not suites:
+        raise ValueError("A key restricted to test suites must name at least one.")
+    if len(set(suites)) != len(suites):
+        raise ValueError("A key's test suites must not name a suite more than once.")
+    existing = set(
+        connection.execute(select(schema.c.name).where(schema.c.name.in_(suites))).scalars()
+    )
+    if missing := [name for name in suites if name not in existing]:
+        raise UnknownSuitesError(missing)
+    return sorted(suites)
 
 
 def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:

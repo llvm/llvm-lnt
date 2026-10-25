@@ -17,6 +17,7 @@ export function apiKey(scope: Scope, overrides: Partial<ApiKey> = {}): ApiKey {
     prefix: TOKEN.slice(0, 8),
     name: `${scope}-key`,
     scope,
+    suites: null,
     created_at: '2026-08-11T13:04:23Z',
     last_used_at: null,
     is_active: true,

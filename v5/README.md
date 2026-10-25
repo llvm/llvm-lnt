@@ -54,6 +54,7 @@ suite is unaffected by whatever you have in it. To create a token against your l
 ```sh
 npm run create-key                                # a token named "dev", with admin scope
 npm run create-key -- --name bot --scope submit   # anything else
+npm run create-key -- --name bot --scope submit --suite nts   # a key for the nts suite only
 ```
 
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.

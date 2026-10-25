@@ -45,8 +45,11 @@ export interface paths {
          * Create an API key
          * @description Create an API key. The response is the only time its token is shown.
          *
-         *     Keys can't be changed and don't expire. To change a key's scope, create a new key and revoke
-         *     the old one.
+         *     Keys can't be changed and don't expire. To change a key's scope or test suites, create a new key
+         *     and revoke the old one.
+         *
+         *     The test suites in `suites` must exist when the key is created. A key keeps naming a suite
+         *     that is deleted later, and so also applies to a suite created again with the same name.
          *
          *     **Authorization:** requires an API key with the `admin` scope.
          */
@@ -92,8 +95,8 @@ export interface paths {
         };
         /**
          * Get the API key used for the request
-         * @description Check an API key, and find out which scope it has. Unlike the other API key operations,
-         *     this doesn't require the `admin` scope.
+         * @description Check an API key, and find out which scope it has, and in which test suites. Unlike the
+         *     other API key operations, this doesn't require the `admin` scope.
          *
          *     `last_used_at` doesn't count this request.
          *
@@ -130,7 +133,7 @@ export interface paths {
          *     The response is the schema with all optional keys filled in. Its `Location` header points to
          *     the new suite.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
          */
         post: operations["create_suite"];
         delete?: never;
@@ -161,7 +164,7 @@ export interface paths {
          * @description Delete a test suite and all its data: machines, commits, runs, samples, profiles and
          *     regressions. This can't be undone, so the request must include `confirm=true`.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         delete: operations["delete_suite"];
         options?: never;
@@ -190,7 +193,7 @@ export interface paths {
          *     add it again. Removing a metric or field permanently deletes its data, so the request must
          *     include `confirm=true`.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         patch: operations["patch_schema"];
         trace?: never;
@@ -219,7 +222,7 @@ export interface paths {
          *     You don't need to do this before submitting runs: submitting a run creates its machine if it
          *     doesn't exist yet.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         post: operations["create_machine"];
         delete?: never;
@@ -249,7 +252,7 @@ export interface paths {
          * @description Delete a machine, along with its runs (and their samples and profiles) and the regression
          *     indicators that refer to it. Regressions left without indicators are kept.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         delete: operations["delete_machine"];
         options?: never;
@@ -263,7 +266,7 @@ export interface paths {
          *     still send the old value are rejected with a 409 `conflict` until they are updated. If you
          *     rename a machine, later run submissions that still use the old name create a new machine.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         patch: operations["update_machine"];
         trace?: never;
@@ -295,7 +298,7 @@ export interface paths {
          *     doesn't exist yet. Creating a commit yourself is useful to give it an ordinal or a tag before
          *     any run arrives.
          *
-         *     **Authorization:** requires an API key with the `submit` scope.
+         *     **Authorization:** requires an API key with the `submit` scope, for all test suites or for this one.
          */
         post: operations["create_commit"];
         delete?: never;
@@ -349,7 +352,7 @@ export interface paths {
          * @description Delete a commit, along with its runs and their samples and profiles. The regressions
          *     attributed to the commit are kept, with no commit.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         delete: operations["delete_commit"];
         options?: never;
@@ -362,7 +365,7 @@ export interface paths {
          *     to change. If you change the ordinal, the tag or a field here, later run submissions that still
          *     send the old value are rejected with a 409 `conflict` until they are updated.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         patch: operations["update_commit"];
         trace?: never;
@@ -390,7 +393,7 @@ export interface paths {
          *     The machine, the commit and the tests are created if they don't exist yet. Either the whole
          *     submission is saved or, if it is rejected, none of it is.
          *
-         *     **Authorization:** requires an API key with the `submit` scope.
+         *     **Authorization:** requires an API key with the `submit` scope, for all test suites or for this one.
          */
         post: operations["submit_run"];
         delete?: never;
@@ -419,7 +422,7 @@ export interface paths {
          * Delete a run
          * @description Delete a run, along with its samples and profiles.
          *
-         *     **Authorization:** requires an API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
         delete: operations["delete_run"];
         options?: never;
@@ -614,7 +617,7 @@ export interface paths {
          *
          *     LNT doesn't detect regressions itself: people or external tools record them here.
          *
-         *     **Authorization:** requires an API key with the `triage` scope.
+         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
          */
         post: operations["create_regression"];
         delete?: never;
@@ -644,7 +647,7 @@ export interface paths {
          * @description Delete a regression and its indicators. The machines, tests and commit it refers to are not
          *     affected.
          *
-         *     **Authorization:** requires an API key with the `triage` scope.
+         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
          */
         delete: operations["delete_regression"];
         options?: never;
@@ -655,7 +658,7 @@ export interface paths {
          *
          *     Only include what you want to change. A regression can move from any state to any other.
          *
-         *     **Authorization:** requires an API key with the `triage` scope.
+         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
          */
         patch: operations["update_regression"];
         trace?: never;
@@ -674,7 +677,7 @@ export interface paths {
          * @description Add indicators to a regression. Indicators it already has are ignored. The response lists
          *     all of its indicators afterwards.
          *
-         *     **Authorization:** requires an API key with the `triage` scope.
+         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
          */
         post: operations["add_indicators"];
         /**
@@ -685,7 +688,7 @@ export interface paths {
          *     UUIDs that don't match an indicator of this regression are ignored, so it is safe to retry a
          *     removal. A regression left without indicators is kept.
          *
-         *     **Authorization:** requires an API key with the `triage` scope.
+         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
          */
         delete: operations["remove_indicators"];
         options?: never;
@@ -819,6 +822,14 @@ export interface components {
             name: string;
             scope: components["schemas"]["Scope"];
             /**
+             * Suites
+             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else.
+             * @example [
+             *       "libcxx"
+             *     ]
+             */
+            suites: string[] | null;
+            /**
              * Created At
              * Format: date-time
              * @description When the key was created.
@@ -837,7 +848,7 @@ export interface components {
         };
         /**
          * ApiKeyCreate
-         * @description The name and scope of a new key.
+         * @description The name and scope of a new key, and the test suites it is restricted to.
          */
         ApiKeyCreate: {
             /**
@@ -846,6 +857,11 @@ export interface components {
              */
             name: string;
             scope: components["schemas"]["Scope"];
+            /**
+             * Suites
+             * @description The test suites to restrict the key to. It then has its scope only in these suites, and can only read everywhere else, which includes creating a test suite. Only `submit`, `triage` and `manage` keys can be restricted, and every suite must exist. Leave out, or set to null, for an unrestricted key.
+             */
+            suites?: string[] | null;
         };
         /**
          * ApiKeyCreated
@@ -865,6 +881,14 @@ export interface components {
              */
             name: string;
             scope: components["schemas"]["Scope"];
+            /**
+             * Suites
+             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else.
+             * @example [
+             *       "libcxx"
+             *     ]
+             */
+            suites: string[] | null;
             /**
              * Created At
              * Format: date-time
@@ -2598,6 +2622,10 @@ export interface components {
          *     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
          *       change and delete test suites.
          *     - `admin`: list, create and revoke API keys.
+         *
+         *     A `submit`, `triage` or `manage` key can be restricted to some test suites. It then has its
+         *     scope only in those suites, and only `read` everywhere else -- including for creating a test
+         *     suite.
          * @enum {string}
          */
         Scope: "read" | "submit" | "triage" | "manage" | "admin";
@@ -3059,7 +3087,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3110,8 +3138,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A test suite in `suites` doesn't exist. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3158,7 +3195,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3294,7 +3331,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3404,7 +3441,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3479,7 +3516,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3617,7 +3654,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3746,7 +3783,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3820,7 +3857,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3972,7 +4009,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4164,7 +4201,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4238,7 +4275,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4392,7 +4429,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4521,7 +4558,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5119,7 +5156,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5248,7 +5285,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5322,7 +5359,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5396,7 +5433,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5470,7 +5507,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;

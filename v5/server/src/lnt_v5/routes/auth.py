@@ -1,7 +1,7 @@
 """The key a request authenticated with (E12).
 
-What lets a client check a token, and learn which scope it grants, without the `admin` scope the
-API key endpoints require.
+What lets a client check a token, and learn which scope it grants and in which suites, without the
+`admin` scope the API key endpoints require.
 """
 
 from __future__ import annotations
@@ -39,8 +39,8 @@ class Authentication(BaseModel):
 def authentication(
     key: Annotated[ResolvedKey | None, Depends(RequireScope(Scope.READ))],
 ) -> Authentication:
-    """Check an API key, and find out which scope it has. Unlike the other API key operations,
-    this doesn't require the `admin` scope.
+    """Check an API key, and find out which scope it has, and in which test suites. Unlike the
+    other API key operations, this doesn't require the `admin` scope.
 
     `last_used_at` doesn't count this request.
     """

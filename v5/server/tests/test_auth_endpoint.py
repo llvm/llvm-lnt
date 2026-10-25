@@ -40,6 +40,22 @@ def test_reports_the_scope_of_any_key(
     assert response.json()["key"]["scope"] == scope.value
 
 
+def test_reports_the_suites_a_key_is_restricted_to(
+    api_client: TestClient,
+    make_key: Callable[..., str],
+    restricted_key: Callable[..., str],
+    bearer: Callable[[str], dict[str, str]],
+) -> None:
+    unrestricted = make_key(Scope.MANAGE)
+    restricted = restricted_key(Scope.MANAGE, "libcxx", "nts")
+
+    assert api_client.get(AUTH_PATH, headers=bearer(unrestricted)).json()["key"]["suites"] is None
+    assert api_client.get(AUTH_PATH, headers=bearer(restricted)).json()["key"]["suites"] == [
+        "libcxx",
+        "nts",
+    ]
+
+
 def test_answers_with_the_key_object_the_admin_list_gives(
     api_client: TestClient, make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
 ) -> None:

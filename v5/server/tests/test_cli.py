@@ -385,6 +385,59 @@ class TestCreateKey:
             assert connection.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
 
 
+class TestCreateRestrictedKey:
+    @pytest.fixture(autouse=True)
+    def suites(self, configured_database: Engine) -> None:
+        for name in ("nts", "libcxx"):
+            store_suite(
+                configured_database,
+                SuiteSchema.model_validate({"name": name}),
+                suite_migrations.head(),
+            )
+
+    def test_restricts_the_key_to_every_suite_given(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        argv = ["server", "create-key", "--name", "bot", "--scope", "submit"]
+        assert cli.main([*argv, "--suite", "nts", "--suite", "libcxx"]) == 0
+
+        assert "libcxx, nts only" in capsys.readouterr().err
+        with configured_database.connect() as connection:
+            assert connection.execute(select(api_key.c.suites)).scalar_one() == ["libcxx", "nts"]
+
+    def test_says_a_key_without_suites_is_valid_in_every_one(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert cli.main(["server", "create-key", "--name", "bot", "--scope", "submit"]) == 0
+
+        assert "in every test suite" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("scope", "suite", "says"),
+        [
+            ("admin", "nts", "cannot be restricted"),
+            ("submit", "libcx", "'libcx'"),
+        ],
+    )
+    def test_reports_a_restriction_it_refuses_without_a_traceback(
+        self,
+        configured_database: Engine,
+        capsys: pytest.CaptureFixture[str],
+        scope: str,
+        suite: str,
+        says: str,
+    ) -> None:
+        argv = ["server", "create-key", "--name", "bot", "--scope", scope, "--suite", suite]
+        assert cli.main(argv) == 1
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert says in captured.err
+        assert "Traceback" not in captured.err
+        with configured_database.connect() as connection:
+            assert connection.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
+
+
 class TestSweep:
     def test_deletes_what_is_due_and_says_what_it_deleted(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]

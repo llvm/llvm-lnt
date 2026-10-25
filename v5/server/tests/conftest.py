@@ -25,6 +25,7 @@ from sqlalchemy import Connection, Engine, create_engine, insert, make_url, sele
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
+from lnt_v5 import keys
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
 from lnt_v5.keys import create_key
@@ -34,7 +35,14 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import add_suite
 from lnt_v5.suites.tables import SuiteTables, build
-from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema, schema_version
+from lnt_v5.tables import (
+    SCHEMA_VERSION_ID,
+    TOKEN_PREFIX_LENGTH,
+    api_key,
+    metadata,
+    schema,
+    schema_version,
+)
 
 # Derived rather than hardcoded: a setting added to Settings but forgotten here would silently
 # stop being scrubbed, which is exactly the leak this fixture exists to prevent.
@@ -286,9 +294,33 @@ def api_client(api_app: FastAPI) -> Iterator[TestClient]:
 def make_key(db_engine: Engine) -> Callable[..., str]:
     """Mint a real key and return its token, committed so the server can resolve it."""
 
-    def make(scope: Scope = Scope.ADMIN, name: str = "test key") -> str:
+    def make(
+        scope: Scope = Scope.ADMIN, name: str = "test key", suites: list[str] | None = None
+    ) -> str:
         with db_engine.begin() as connection:
-            return create_key(connection, name, scope).token
+            return create_key(connection, name, scope, suites).token
+
+    return make
+
+
+@pytest.fixture
+def restricted_key(store_key: Callable[..., None]) -> Callable[..., str]:
+    """Store a key restricted to `suites`, whether or not they exist, and return its token.
+
+    `create_key` only accepts existing suites, but a key is not linked to them, so one whose suites
+    were deleted since is a key like any other (I5). That is what this stores, without having to
+    create and delete the suites first.
+    """
+
+    def make(scope: Scope, *suites: str) -> str:
+        token = keys.generate_token()
+        store_key(
+            prefix=token[:TOKEN_PREFIX_LENGTH],
+            key_hash=keys.hash_token(token),
+            scope=scope.value,
+            suites=list(suites),
+        )
+        return token
 
     return make
 

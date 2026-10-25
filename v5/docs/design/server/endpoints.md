@@ -708,7 +708,8 @@ PATCH  /api/suites/{name}/schema -- Add, update, or remove metrics and fields
 DELETE /api/suites/{name}        -- Delete a test suite and all its data
 ```
 
-**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE.
+**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. POST
+addresses no suite, so it requires an instance-wide key (see I5).
 
 **Suite object:** a suite's detail body is its normalized schema: the body
 `POST /api/suites` accepts, with omitted optional keys filled in (see D4 for the
@@ -795,10 +796,12 @@ DELETE /api/admin/api-keys/{prefix}  -- Revoke key
 GET endpoints in the API that require more than `read`, and so the only ones
 that anonymous access never reaches (see I5).
 
-**Key object:** `prefix`, `name`, `scope`, `created_at`, `last_used_at`,
-`is_active`. `last_used_at` is null until the key is first used, and
-approximate after that (see D5). Neither the raw token nor its hash ever
-appears, except for the raw token in the create response below.
+**Key object:** `prefix`, `name`, `scope`, `suites`, `created_at`,
+`last_used_at`, `is_active`. `suites` is null for an instance-wide key, and
+otherwise the names of the suites the key is restricted to, in ascending order
+(see I5). `last_used_at` is null until the key is first used, and approximate
+after that (see D5). Neither the raw token nor its hash ever appears, except for
+the raw token in the create response below.
 
 **List** (`GET /api/admin/api-keys`): key objects in I2's unpaginated envelope,
 newest first (`created_at` descending), with `prefix` as a tiebreaker. Since
@@ -807,9 +810,11 @@ newest first (`created_at` descending), with `prefix` as a tiebreaker. Since
 nullable, and only approximate (see D5). Revoked keys are included, with
 `is_active: false`.
 
-**Create** (`POST /api/admin/api-keys`): the body has `name` (string, required)
-and `scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
-`admin`).
+**Create** (`POST /api/admin/api-keys`): the body has `name` (string, required),
+`scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
+`admin`), and `suites` (optional: a non-empty list of suite names, to restrict
+the key to those suites, or null). An omitted or null `suites` makes the key
+instance-wide.
 
 - 201 with the key object plus a `token` field holding the raw token. The token
   is shown only this once and cannot be retrieved afterwards (see I5). No
@@ -817,6 +822,12 @@ and `scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
 - 400 if `name` is missing, empty, or longer than 256 characters (see D5), or
   if `scope` is missing or not one of the five values. `name` is a label rather
   than an identifier, so two keys may share one.
+- 400 if `suites` is an empty list, holds a name that does not match D4's
+  pattern or length for a suite name, names a suite more than once, or is a
+  list on a `read` or `admin` key, which cannot be restricted (see I5).
+- 404 if `suites` names a suite that does not exist. This is checked only when
+  the key is created: a key is not linked to its suites, so deleting a suite
+  later leaves its name on the key (see I5).
 
 **Revoke** (`DELETE /api/admin/api-keys/{prefix}`): sets `is_active` to false
 rather than deleting the row, so that the revocation stays visible and the
@@ -832,8 +843,8 @@ access means creating a new key. No `?confirm=true` is required, unlike the
 destructive suite operations, because revoking a key destroys no data.
 
 A key is otherwise immutable: there is no PATCH route, and changing a key's
-scope means creating a replacement and revoking the original. Keys do not
-expire.
+scope or suites means creating a replacement and revoking the original. Keys do
+not expire.
 
 Any `admin` key may revoke any key, including the one authenticating the
 request and the last remaining active `admin` key. There is deliberately no
@@ -855,4 +866,5 @@ Returns `{"key": ...}`, where `key` is the API key the request's credential
 belongs to, as an object with E11's key fields, or `null` when the request has
 no `Authorization` header. A credential that does not authenticate is a 401, as
 on every endpoint under `/api/` (see I5). This makes the endpoint a way for a
-client to check a token: whether it is usable, and which scope it grants.
+client to check a token: whether it is usable, which scope it grants, and in
+which suites.

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from typing import Annotated, Any
 
 import pytest
@@ -27,7 +27,7 @@ from sqlalchemy import Engine, update
 from lnt_v5 import keys
 from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.querying import _takes_several
-from lnt_v5.scopes import Scope
+from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
 from lnt_v5.tables import api_key
 
 # A read-scoped endpoint and an admin-scoped one.
@@ -40,6 +40,30 @@ EXEMPT_API_PATHS = {"/api/openapi.json", "/api/docs"}
 
 # Well-formed as a Bearer credential, but not a token this server ever issued.
 UNKNOWN_TOKEN = "f" * 64
+
+# The operations a restrictable scope reaches that address no suite, so that a key restricted to
+# some suites can never call them (I5).
+UNRESTRICTED_ONLY = {("POST", "/api/suites")}
+
+# A suite of the smallest shape, for the tests that need one to exist.
+NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
+
+
+def operations(app: FastAPI, scopes: Collection[Scope]) -> list[tuple[str, str]]:
+    """Every operation requiring one of `scopes`, as (method, path template)."""
+    found = [
+        (method, route.path_format)
+        for route in iter_routes(app.routes)
+        if required_scope(route) in scopes and route.path_format is not None
+        for method in sorted(route.methods or ())
+    ]
+    assert found
+    return found
+
+
+def placeholders_filled(template: str) -> str:
+    """A path for `template`, with every parameter set to `x`."""
+    return re.sub(r"\{[^}]*\}", "x", template)
 
 
 class TestHeaderParsing:
@@ -170,6 +194,121 @@ class TestScopeEnforcement:
         assert response.status_code == 403
 
 
+class TestSuiteRestriction:
+    """I5: a key restricted to some suites has its scope on requests addressing one of them, and
+    only `read` on any other."""
+
+    def test_every_operation_above_read_honours_a_restriction(
+        self,
+        api_client: TestClient,
+        api_app: FastAPI,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        """The guard that keeps a future endpoint from letting a restricted key out of its suites.
+
+        Every operation a restrictable scope reaches is called on suite `x`, which does not exist,
+        with a `manage` key restricted to another suite and with one restricted to `x`. The first
+        is refused everywhere, before the missing suite is noticed (I5's order of checks), and the
+        second only where no suite is addressed. An endpoint whose suite is not where the
+        authorization looks for it fails one or the other.
+        """
+        elsewhere = bearer(restricted_key(Scope.MANAGE, "other"))
+        here = bearer(restricted_key(Scope.MANAGE, "x"))
+        restrictable = set(Scope) - set(UNRESTRICTABLE_SCOPES)
+
+        refused_here = set()
+        for method, template in operations(api_app, restrictable):
+            path = placeholders_filled(template)
+            response = api_client.request(method, path, headers=elsewhere)
+            assert response.status_code == 403, f"{method} {template}"
+            if api_client.request(method, path, headers=here).status_code == 403:
+                refused_here.add((method, template))
+
+        assert refused_here == UNRESTRICTED_ONLY
+
+    def test_reads_every_other_suite(
+        self,
+        api_client: TestClient,
+        make_api_suite: Callable[[dict[str, Any]], Any],
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # Exactly what anonymous access gets, which a restriction never takes away.
+        make_api_suite(NTS)
+        headers = bearer(restricted_key(Scope.MANAGE, "other"))
+
+        assert api_client.get("/api/suites/nts/machines", headers=headers).status_code == 200
+
+    def test_cannot_create_a_suite_even_one_it_names(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, "nts"))
+
+        response = api_client.post("/api/suites", json=NTS, headers=headers)
+
+        assert response.status_code == 403
+        assert "unrestricted" in response.json()["error"]["message"]
+
+    def test_changes_and_deletes_a_suite_it_names(
+        self,
+        api_client: TestClient,
+        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        make_api_suite(NTS)
+        headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
+        patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
+
+        assert api_client.patch("/api/suites/nts/schema", json=patch, headers=headers).is_success
+        assert api_client.delete("/api/suites/nts?confirm=true", headers=headers).status_code == 204
+
+    def test_covers_a_suite_created_again_under_its_name(
+        self,
+        api_client: TestClient,
+        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_key: Callable[..., str],
+        manage: dict[str, str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # A key names its suites and is not linked to them, so deleting one leaves its name on
+        # the key, which then covers whatever suite takes the name next.
+        make_api_suite(NTS)
+        headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
+        assert api_client.delete("/api/suites/nts?confirm=true", headers=manage).status_code == 204
+        make_api_suite(NTS)
+
+        response = api_client.post("/api/suites/nts/machines", json={"name": "m"}, headers=headers)
+
+        assert response.status_code == 201
+
+    @pytest.mark.parametrize(
+        ("scope", "path", "says"),
+        [
+            # Under-scoped wherever it is used: the restriction is beside the point.
+            (Scope.SUBMIT, "/api/suites/x/machines", "this API key grants 'submit'"),
+            (Scope.MANAGE, "/api/suites/y/machines", "grants it only in: x"),
+        ],
+    )
+    def test_a_403_says_why(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+        scope: Scope,
+        path: str,
+        says: str,
+    ) -> None:
+        response = api_client.post(path, json={}, headers=bearer(restricted_key(scope, "x")))
+
+        assert response.status_code == 403
+        assert says in response.json()["error"]["message"]
+
+
 class TestRevocation:
     def test_a_revoked_key_is_refused(
         self,
@@ -237,15 +376,8 @@ class TestUnknownQueryParameters:
         # Every operation rather than a sample, because the point is that no endpoint has to opt
         # in. The Authorization header is one I5 answers with 401 everywhere under /api/, so a 400
         # here also shows the order I5 states.
-        operations = [
-            (method, re.sub(r"\{[^}]*\}", "x", route.path_format))
-            for route in iter_routes(app.routes)
-            if required_scope(route) is not None and route.path_format is not None
-            for method in sorted(route.methods or ())
-        ]
-        assert operations
-
-        for method, path in operations:
+        for method, template in operations(app, set(Scope)):
+            path = placeholders_filled(template)
             response = client.request(
                 method, f"{path}?bogus=1", headers={"Authorization": "Basic zzz"}
             )

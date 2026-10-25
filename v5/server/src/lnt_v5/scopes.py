@@ -20,6 +20,10 @@ class Scope(StrEnum):
     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
       change and delete test suites.
     - `admin`: list, create and revoke API keys.
+
+    A `submit`, `triage` or `manage` key can be restricted to some test suites. It then has its
+    scope only in those suites, and only `read` everywhere else -- including for creating a test
+    suite.
     """
 
     # Lowest privilege first: the declaration order *is* the hierarchy, and `grants` reads it.
@@ -41,3 +45,8 @@ class Scope(StrEnum):
 
 # Built once, since every authenticated request consults it (I5).
 _RANK = {scope: rank for rank, scope in enumerate(Scope)}
+
+
+# I5: the scopes that a key restricted to some suites cannot have. A restricted `read` key would
+# grant nothing beyond anonymous access, and the endpoints `admin` is for address no suite.
+UNRESTRICTABLE_SCOPES = (Scope.READ, Scope.ADMIN)

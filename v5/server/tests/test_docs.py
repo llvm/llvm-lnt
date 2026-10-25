@@ -297,13 +297,36 @@ class TestDocumentedAuthentication:
     def test_every_operation_states_its_scope_in_words(self, client: TestClient) -> None:
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():
             for method, operation in operations.items():
-                roles = operation["security"][-1]["ApiKey"]
-                sentence = (
-                    "**Authorization:** no API key needed."
-                    if roles == ["read"]
-                    else f"**Authorization:** requires an API key with the `{roles[0]}` scope."
-                )
-                assert operation["description"].endswith(sentence), f"{method.upper()} {path}"
+                (role,) = operation["security"][-1]["ApiKey"]
+                last = operation["description"].rsplit("\n\n", 1)[-1]
+                assert last.startswith("**Authorization:** "), f"{method.upper()} {path}"
+                if role == "read":
+                    assert last == "**Authorization:** no API key needed."
+                else:
+                    assert f"`{role}` scope" in last, f"{method.upper()} {path}"
+
+    @pytest.mark.parametrize(
+        ("path", "method", "sentence"),
+        [
+            # A suite-scoped write, which a key restricted to that suite may make (I5).
+            (
+                RUNS_PATH,
+                "post",
+                "requires an API key with the `submit` scope, for all test suites or for this one.",
+            ),
+            # One that addresses no suite, which no restricted key may make.
+            (SUITES_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
+            # `admin` keys cannot be restricted, so there is nothing to add.
+            ("/api/admin/api-keys", "get", "requires an API key with the `admin` scope."),
+        ],
+    )
+    def test_says_whether_a_restricted_key_will_do(
+        self, client: TestClient, path: str, method: str, sentence: str
+    ) -> None:
+        # I8, for the operations a restrictable scope reaches.
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+
+        assert operation["description"].endswith(f"**Authorization:** {sentence}")
 
     def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
         # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.

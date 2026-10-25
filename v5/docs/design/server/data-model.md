@@ -376,6 +376,7 @@ namespace of their own named after the suite (see below).
 | key_hash | VARCHAR(64) | unique, not null |
 | name | VARCHAR(256) | not null |
 | scope | VARCHAR(32) | not null |
+| suites | VARCHAR(63)[] | nullable |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
 | last_used_at | TIMESTAMP WITH TIME ZONE | nullable |
 | is_active | BOOLEAN | not null, default `true` |
@@ -396,6 +397,14 @@ namespace of their own named after the suite (see below).
   integer code (unlike `{suite}.regression.state`, below), because it is read
   once per authenticated request and never filtered or sorted on, so
   readability in the database matters more than compactness.
+- `suites` is null for an instance-wide key, and otherwise the non-empty list of
+  suite names the key is restricted to, in ascending order and without
+  duplicates (see I5). The database layer rejects an empty list, a null element,
+  and a list on a `read` or `admin` key. The names are not foreign keys to
+  `schema`: deleting a suite leaves its name on its keys (see I5). The list is a
+  column of the row rather than a table of its own because it is read with the
+  rest of the row on every authenticated request, which keeps that a single
+  lookup (see I5), and keys are never looked up by suite.
 - `last_used_at` is null until the key is first used. It is recorded on
   successful authentication, on a best-effort basis: an implementation may
   coalesce or drop these writes, so the value may lag actual use. It is not an

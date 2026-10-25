@@ -42,9 +42,9 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 
-from .auth import SECURITY_SCHEME, iter_routes, required_scope
+from .auth import SECURITY_SCHEME, iter_routes, required_scope, suite_parameter
 from .errors import ErrorEnvelope
-from .scopes import Scope
+from .scopes import UNRESTRICTABLE_SCOPES, Scope
 
 # Read once, at import, like `llms.txt`: a packaging mistake that lost it should fail the process.
 OVERVIEW = Path(__file__).with_name("openapi.md").read_text(encoding="utf-8")
@@ -166,14 +166,27 @@ _UNAUTHORIZED = _error(
     "This operation needs an API key and none was sent, or the key is malformed, unknown or "
     "revoked."
 )
-_FORBIDDEN = _error("The API key doesn't have the scope this operation requires.")
+_FORBIDDEN = _error(
+    "The API key doesn't have the scope this operation requires, or has it only in other test "
+    "suites."
+)
 
 
-def _authorization(scope: Scope) -> str:
-    """The sentence that tells a reader of one operation what it takes to call it."""
+def _authorization(scope: Scope, addresses_suite: bool) -> str:
+    """The sentence that tells a reader of one operation what it takes to call it.
+
+    For a scope that can be restricted (I5), it also says whether a restricted key will do (I8):
+    one will on an operation that addresses a suite, as long as that suite is one of its own, and
+    never on an operation that addresses no suite.
+    """
     if scope is Scope.READ:
         return "**Authorization:** no API key needed."
-    return f"**Authorization:** requires an API key with the `{scope.value}` scope."
+    sentence = f"**Authorization:** requires an API key with the `{scope.value}` scope"
+    if scope in UNRESTRICTABLE_SCOPES:
+        return f"{sentence}."
+    if addresses_suite:
+        return f"{sentence}, for all test suites or for this one."
+    return f"**Authorization:** requires an unrestricted API key with the `{scope.value}` scope."
 
 
 def _referenced_schemas() -> dict[str, Any]:
@@ -198,7 +211,7 @@ def _scopes_by_operation(app: FastAPI) -> dict[tuple[str, str], Scope]:
     return scopes
 
 
-def _document_scope(operation: dict[str, Any], scope: Scope) -> None:
+def _document_scope(operation: dict[str, Any], scope: Scope, addresses_suite: bool) -> None:
     """State the scope an operation requires, for people and for tools.
 
     For people, a sentence closing the description. For tools, the security requirement: OpenAPI
@@ -209,7 +222,7 @@ def _document_scope(operation: dict[str, Any], scope: Scope) -> None:
     requirement = {SECURITY_SCHEME: [scope.value]}
     operation["security"] = [{}, requirement] if scope is Scope.READ else [requirement]
 
-    sentence = _authorization(scope)
+    sentence = _authorization(scope, addresses_suite)
     description = operation.get("description")
     operation["description"] = f"{description}\n\n{sentence}" if description else sentence
 
@@ -402,7 +415,7 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
 
             scope = scopes.get((path, method))
             if scope is not None:
-                _document_scope(operation, scope)
+                _document_scope(operation, scope, suite_parameter(path) is not None)
                 responses.setdefault("400", _BAD_REQUEST)
                 responses.setdefault("401", _UNAUTHORIZED)
                 # A read-scoped operation can never answer 403: every valid key grants `read`.

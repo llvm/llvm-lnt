@@ -19,6 +19,7 @@ from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
+from lnt_v5.suites.schema import SuiteNameStr
 from lnt_v5.tables import KEY_NAME_MAX_LENGTH
 
 router = APIRouter(
@@ -45,6 +46,14 @@ class ApiKey(BaseModel):
         examples=[examples.API_KEY_NAME],
     )
     scope: Scope
+    suites: list[str] | None = Field(
+        description=(
+            "The test suites the key is restricted to, sorted by name. Null if it isn't "
+            "restricted. A restricted key has its scope only in these suites, and can only read "
+            "everywhere else."
+        ),
+        examples=[[examples.SUITE]],
+    )
     created_at: datetime = Field(description="When the key was created.")
     last_used_at: datetime | None = Field(
         description="When the key was last used, approximately. Null if it has never been used."
@@ -65,7 +74,7 @@ class ApiKeyCreated(ApiKey):
 
 
 class ApiKeyCreate(BaseModel):
-    """The name and scope of a new key."""
+    """The name and scope of a new key, and the test suites it is restricted to."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -75,13 +84,33 @@ class ApiKeyCreate(BaseModel):
         description="A label for the key. Several keys can have the same name.",
     )
     scope: Scope
+    # Only the shape is checked here. Which keys can be restricted, and to which existing suites,
+    # is checked by `keys.create_key`, which the CLI shares.
+    suites: list[SuiteNameStr] | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "The test suites to restrict the key to. It then has its scope only in these suites, "
+            "and can only read everywhere else, which includes creating a test suite. Only "
+            "`submit`, `triage` and `manage` keys can be restricted, and every suite must exist. "
+            "Leave out, or set to null, for an unrestricted key."
+        ),
+    )
 
 
 _CREATE_EXAMPLES = {
     "submitter": {
         "summary": "A key for a CI job that submits runs",
         "value": {"name": examples.API_KEY_NAME, "scope": "submit"},
-    }
+    },
+    "restricted": {
+        "summary": "A key that submits runs to one test suite only",
+        "value": {
+            "name": examples.API_KEY_NAME,
+            "scope": "submit",
+            "suites": [examples.SUITE],
+        },
+    },
 }
 
 # A whole token is not a prefix, so passing one instead finds no key: a 404.
@@ -99,17 +128,33 @@ def list_api_keys(engine: EngineDep) -> Items[ApiKey]:
 
 
 # No `Location` header: there is deliberately no per-key detail route.
-@router.post("/api-keys", status_code=201, summary="Create an API key")
+@router.post(
+    "/api-keys",
+    status_code=201,
+    summary="Create an API key",
+    responses={
+        404: {"model": ErrorEnvelope, "description": "A test suite in `suites` doesn't exist."}
+    },
+)
 def create_api_key(
     body: Annotated[ApiKeyCreate, Body(openapi_examples=_CREATE_EXAMPLES)], engine: EngineDep
 ) -> ApiKeyCreated:
     """Create an API key. The response is the only time its token is shown.
 
-    Keys can't be changed and don't expire. To change a key's scope, create a new key and revoke
-    the old one.
+    Keys can't be changed and don't expire. To change a key's scope or test suites, create a new key
+    and revoke the old one.
+
+    The test suites in `suites` must exist when the key is created. A key keeps naming a suite
+    that is deleted later, and so also applies to a suite created again with the same name.
     """
-    with engine.begin() as connection:
-        created = keys.create_key(connection, body.name, body.scope)
+    try:
+        with engine.begin() as connection:
+            created = keys.create_key(connection, body.name, body.scope, body.suites)
+    # The subclass first: a suite that does not exist is a 404 (I3), any other refusal a 400.
+    except keys.UnknownSuitesError as error:
+        raise ApiError(ErrorCode.NOT_FOUND, str(error)) from error
+    except ValueError as error:
+        raise ApiError(ErrorCode.INVALID_REQUEST, str(error)) from error
     return ApiKeyCreated.model_validate(created)
 
 
