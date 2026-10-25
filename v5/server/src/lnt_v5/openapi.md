@@ -12,11 +12,9 @@ Reading data doesn't require an API key. Everything else does: send the key's to
 
 Each operation lists the scope it requires, and the `Scope` schema describes what each scope
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
-everything its scope and the scopes below it allow. A `submit`, `triage` or `manage` key can be
-restricted to some test suites: it then has its scope only for operations on those suites, and can
-only read everywhere else. Creating a test suite therefore needs an unrestricted key. Keys are created with
-`POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
-your first key.
+everything its scope and the scopes below it allow. A key can also be restricted to some test
+suites, and then has its scope only in those. Keys are created with `POST /api/admin/api-keys`,
+which requires the `admin` scope; ask the instance's administrator for your first key.
 
 If you do send a key, it must be valid: a malformed, unknown or revoked key gets a 401, even on
 operations that don't need a key. A valid key without the required scope, or that has it only in

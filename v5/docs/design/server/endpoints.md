@@ -798,10 +798,10 @@ that anonymous access never reaches (see I5).
 
 **Key object:** `prefix`, `name`, `scope`, `suites`, `created_at`,
 `last_used_at`, `is_active`. `suites` is null for an instance-wide key, and
-otherwise the names of the suites the key is restricted to, in
-ascending order (see I5). `last_used_at` is null until the key is first used,
-and approximate after that (see D5). Neither the raw token nor its hash ever
-appears, except for the raw token in the create response below.
+otherwise the names of the suites the key is restricted to, in ascending order
+(see I5). `last_used_at` is null until the key is first used, and approximate
+after that (see D5). Neither the raw token nor its hash ever appears, except for
+the raw token in the create response below.
 
 **List** (`GET /api/admin/api-keys`): key objects in I2's unpaginated envelope,
 newest first (`created_at` descending), with `prefix` as a tiebreaker. Since
@@ -843,8 +843,8 @@ access means creating a new key. No `?confirm=true` is required, unlike the
 destructive suite operations, because revoking a key destroys no data.
 
 A key is otherwise immutable: there is no PATCH route, and changing a key's
-scope or suites means creating a replacement and revoking the original. Keys do not
-expire.
+scope or suites means creating a replacement and revoking the original. Keys do
+not expire.
 
 Any `admin` key may revoke any key, including the one authenticating the
 request and the last remaining active `admin` key. There is deliberately no

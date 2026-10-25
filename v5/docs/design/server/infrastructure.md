@@ -345,14 +345,15 @@ find out which scope a token grants, and in which suites, through
 `null`, for an *instance-wide* key, or a non-empty list of suite names, for a
 key *restricted* to those suites. A request *addresses* a suite when its path is
 `/api/suites/{name}` or lies under it (see I1); that is every suite-scoped
-route, plus E10's routes for one suite. A restricted key grants its scope on a request that addresses one of them, and only `read` on
-any other request -- exactly what anonymous access gets, so reads are
-unaffected. In particular:
+route, plus E10's routes for one suite. A restricted key grants its scope on a
+request that addresses one of them, and only `read` on any other request --
+exactly what anonymous access gets, so reads are unaffected. In particular:
 
 - A request that addresses no suite gets `read` alone from a restricted key.
   Creating a suite (`POST /api/suites`) therefore requires an instance-wide
-  `manage` key, even if the new suite's name is in a restricted key's list. Changing the schema of a suite and deleting it address that suite, so
-  a restricted `manage` key may do both for a suite in its list.
+  `manage` key, even if the new suite's name is in a restricted key's list.
+  Changing the schema of a suite and deleting it address that suite, so a
+  restricted `manage` key may do both for a suite in its list.
 - Only `submit`, `triage` and `manage` keys can be restricted. A restricted
   `read` key would grant nothing more than no key at all, and `admin` keys are
   always instance-wide, since the API key endpoints address no suite.
