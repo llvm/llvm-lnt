@@ -212,6 +212,23 @@ test('creating and deleting are disabled without a token', async ({ page }) => {
   await expect(firstRow.getByRole('button', { name: /Delete/ })).toBeDisabled()
 })
 
+test('a token restricted to a suite allows triage there only', async ({ page, signIn }) => {
+  await signIn(page, 'triage', ['libcxx'])
+  await page.goto('/suites/libcxx?tab=regressions')
+  await expect(page.getByRole('button', { name: 'New Regression' })).toBeEnabled()
+  const firstRow = rows(table(page, 'Regressions')).first()
+  await expect(firstRow.getByRole('button', { name: /Delete/ })).toBeEnabled()
+
+  await page.goto('/suites/nts?tab=regressions')
+  const create = page.getByRole('button', { name: 'New Regression' })
+  await expect(create).toHaveAttribute(
+    'title',
+    "Needs an API token with the 'triage' scope in suite 'nts'. The token in Settings has the " +
+      "'triage' scope only in suite 'libcxx'.",
+  )
+  await expect(create).toBeDisabled()
+})
+
 test('creates a regression with a commit picked through the picker', async ({
   page,
   request,

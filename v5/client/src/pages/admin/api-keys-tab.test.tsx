@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { ApiKey } from '../../api/api-keys'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
@@ -20,6 +20,7 @@ import {
   table,
 } from '../../test/page'
 import { pickOption, selectButton } from '../../test/select'
+import { SUITE } from '../../test/fixtures'
 import { server } from '../../test/server'
 
 /** The key of the token `signIn` stores, among the others. */
@@ -40,6 +41,7 @@ const KEYS: ApiKey[] = [
   apiKey('manage', {
     prefix: '135f502b',
     name: 'test-key',
+    suites: ['libcxx', 'nts'],
     created_at: '2026-08-11T13:04:23Z',
     last_used_at: '2026-08-18T03:49:26Z',
   }),
@@ -47,6 +49,7 @@ const KEYS: ApiKey[] = [
   apiKey('submit', {
     prefix: '3f0ac112',
     name: 'old-bot',
+    suites: ['nts'],
     created_at: '2026-07-02T09:12:44Z',
     last_used_at: '2026-08-01T18:20:11Z',
     is_active: false,
@@ -54,10 +57,10 @@ const KEYS: ApiKey[] = [
 ]
 
 const ROWS = [
-  '229d78c5 | test-key2 | read | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
-  '135f502b | test-key | manage | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
-  'aaaaaaaa | my-admin | admin | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | Revoke',
-  '3f0ac112 | old-bot | submit | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
+  '229d78c5 | test-key2 | read | All | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
+  '135f502b | test-key | manage | libcxx, nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
+  'aaaaaaaa | my-admin | admin | All | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | Revoke',
+  '3f0ac112 | old-bot | submit | nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
 ]
 
 /** The keys the mocked API holds, as it lists them, and the `Authorization` of each listing. */
@@ -91,7 +94,8 @@ const CREATED_KEY = apiKey('submit', {
 })
 const CREATED: Schemas['ApiKeyCreated'] = { ...CREATED_KEY, token: '5e5e5e5e' + 'f'.repeat(56) }
 
-const CREATED_ROW = '5e5e5e5e | ci-bot | submit | 2026-08-21, 12:00:00 PM | Never | Yes | Revoke'
+const CREATED_ROW =
+  '5e5e5e5e | ci-bot | submit | All | 2026-08-21, 12:00:00 PM | Never | Yes | Revoke'
 
 type Failure = ReturnType<typeof errorResponse>
 
@@ -188,9 +192,13 @@ async function renderKeys({ url = '/admin', keys }: { url?: string; keys?: ApiKe
   return { ...rendered, list, store, checks }
 }
 
+// The form creating a key lists the suites (AD1).
+beforeEach(() => {
+  mockSuites()
+})
+
 describe('the Admin page', () => {
   it('opens on its API Keys tab, and keeps the other in the URL', async () => {
-    mockSuites()
     renderPage('/admin')
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Admin')
@@ -285,6 +293,7 @@ describe('the API Keys tab', () => {
       'Prefix',
       'Name',
       'Scope',
+      'Suites',
       'Created▼',
       'Last Used',
       'Active',
@@ -358,6 +367,13 @@ describe('sorting the keys', () => {
     fireEvent.click(within(list).getByRole('button', { name: 'Created' }))
     expect(prefixes(list)).toEqual(['3f0ac112', 'aaaaaaaa', '135f502b', '229d78c5'])
 
+    // All first, then by the suites' names in order.
+    fireEvent.click(within(list).getByRole('button', { name: 'Suites' }))
+    expect(prefixes(list)).toEqual(['229d78c5', 'aaaaaaaa', '135f502b', '3f0ac112'])
+    await waitFor(() => expect(currentUrl()).toBe('/admin?sort=suites'))
+    fireEvent.click(within(list).getByRole('button', { name: /Suites/ }))
+    expect(prefixes(list)).toEqual(['3f0ac112', '135f502b', '229d78c5', 'aaaaaaaa'])
+
     // Sorting asks the API for nothing.
     expect(store.requests).toHaveLength(1)
   })
@@ -391,7 +407,6 @@ describe('sorting the keys', () => {
   })
 
   it('drops the sort on leaving the tab', async () => {
-    mockSuites()
     renderPage('/admin?sort=name')
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Test Suites' }))
@@ -399,7 +414,6 @@ describe('sorting the keys', () => {
   })
 
   it('drops the sort from the URL of the Test Suites tab', async () => {
-    mockSuites()
     renderPage('/admin?tab=suites&sort=name')
 
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
@@ -419,7 +433,9 @@ describe('creating a key', () => {
     fireEvent.click(createButton())
 
     const created = await findCreatedKey()
-    expect(sent.map(({ body }) => body)).toEqual([{ name: 'ci-bot', scope: 'submit' }])
+    expect(sent.map(({ body }) => body)).toEqual([
+      { name: 'ci-bot', scope: 'submit', suites: null },
+    ])
     expect(created).toHaveTextContent(
       'Key created. Copy the token now — it will not be shown again:',
     )
@@ -433,6 +449,111 @@ describe('creating a key', () => {
     // The keys are asked for again, and the new one heads them.
     await waitFor(async () => expect(rowsOf(await keysTable())).toEqual([CREATED_ROW, ...ROWS]))
     expect(store.requests).toHaveLength(2)
+  })
+
+  it('restricts a key to the suites checked, once one is', async () => {
+    const { store } = await renderKeys()
+    const sent = mockCreate(store)
+    const form = within(createForm())
+    const all = form.getByRole('radio', { name: 'All suites (instance-wide)' })
+    const only = form.getByRole('radio', { name: 'Only these suites:' })
+    expect(all).toBeChecked()
+    // Not for a read key.
+    expect(only).toBeDisabled()
+    expect(only).toHaveAccessibleDescription(
+      "Only 'submit', 'triage' and 'manage' keys can be restricted to some suites.",
+    )
+
+    fireEvent.change(nameInput(), { target: { value: 'ci-bot' } })
+    await pickOption('Scope', 'triage', createForm())
+    // The suites are a form's checkboxes, usable only once "Only these suites:" is chosen.
+    const nts = await form.findByRole('checkbox', { name: 'nts' })
+    const group = form.getByRole('group', { name: 'Only these suites:' })
+    const boxes = within(group).getAllByRole('checkbox')
+    expect(boxes.map((box) => box.closest('label')?.textContent)).toEqual(['libcxx', 'nts'])
+    expect(nts).toBeDisabled()
+    fireEvent.click(only)
+    expect(nts).toBeEnabled()
+    expect(createButton()).toHaveAccessibleDescription('Pick at least one suite.')
+
+    fireEvent.click(nts)
+    fireEvent.click(createButton())
+
+    await findCreatedKey()
+    expect(sent.map(({ body }) => body)).toEqual([
+      { name: 'ci-bot', scope: 'triage', suites: ['nts'] },
+    ])
+  })
+
+  it('goes back to every suite for a scope that cannot be restricted', async () => {
+    const { store } = await renderKeys()
+    const sent = mockCreate(store)
+    const form = within(createForm())
+    await pickOption('Scope', 'manage', createForm())
+    fireEvent.click(form.getByRole('radio', { name: 'Only these suites:' }))
+    fireEvent.click(await form.findByRole('checkbox', { name: 'libcxx' }))
+
+    await pickOption('Scope', 'admin', createForm())
+
+    expect(form.getByRole('radio', { name: 'All suites (instance-wide)' })).toBeChecked()
+    expect(form.getByRole('radio', { name: 'Only these suites:' })).toBeDisabled()
+    // For good: a scope that can be restricted again finds "All suites" still chosen, and the
+    // suites checked kept for "Only these suites:".
+    await pickOption('Scope', 'triage', createForm())
+    expect(form.getByRole('radio', { name: 'All suites (instance-wide)' })).toBeChecked()
+    expect(form.getByRole('checkbox', { name: 'libcxx' })).toBeChecked()
+    expect(form.getByRole('checkbox', { name: 'libcxx' })).toBeDisabled()
+
+    await pickOption('Scope', 'admin', createForm())
+    createKey('root')
+    await findCreatedKey()
+    expect(sent.map(({ body }) => body)).toEqual([{ name: 'root', scope: 'admin', suites: null }])
+  })
+
+  it('sends only the suites checked that are still listed', async () => {
+    const { store, queryClient } = await renderKeys()
+    const sent = mockCreate(store)
+    const form = within(createForm())
+    await pickOption('Scope', 'submit', createForm())
+    fireEvent.click(form.getByRole('radio', { name: 'Only these suites:' }))
+    fireEvent.click(await form.findByRole('checkbox', { name: 'libcxx' }))
+    fireEvent.click(form.getByRole('checkbox', { name: 'nts' }))
+
+    // nts is deleted meanwhile.
+    const suites = mockSuites([SUITE])
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.suites }))
+    await waitFor(() => expect(form.queryByRole('checkbox', { name: 'nts' })).toBeNull())
+    expect(suites.requests).toBe(1)
+    createKey('ci-bot')
+
+    await findCreatedKey()
+    expect(sent.map(({ body }) => body)).toEqual([
+      { name: 'ci-bot', scope: 'submit', suites: ['libcxx'] },
+    ])
+  })
+
+  it('creates an instance-wide key while the suites cannot be listed', async () => {
+    const failure = () => errorResponse(500, 'internal_error', 'The server failed')
+    server.use(mockApi('get', '/api/suites', failure))
+    const { store } = await renderKeys()
+    const sent = mockCreate(store)
+    const form = within(createForm())
+    await pickOption('Scope', 'submit', createForm())
+
+    expect(await form.findByRole('alert')).toHaveTextContent(
+      'The test suites could not be loaded: The server failed',
+    )
+    expect(form.getByRole('radio', { name: 'Only these suites:' })).toBeDisabled()
+    createKey('ci-bot')
+    await findCreatedKey()
+    expect(sent.map(({ body }) => body)).toEqual([
+      { name: 'ci-bot', scope: 'submit', suites: null },
+    ])
+
+    mockSuites()
+    fireEvent.click(form.getByRole('button', { name: 'Retry' }))
+    expect(await form.findByRole('checkbox', { name: 'nts' })).toBeDisabled()
+    expect(form.getByRole('radio', { name: 'Only these suites:' })).toBeEnabled()
   })
 
   it('copies the token to the clipboard', async () => {
@@ -590,7 +711,7 @@ describe('revoking a key', () => {
     await waitFor(() => expect(prompt()).toBeNull())
     expect(prefixes).toEqual(['135f502b'])
     expect(rowsOf(list)[1]).toBe(
-      '135f502b | test-key | manage | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
+      '135f502b | test-key | manage | libcxx, nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
     )
     expect(list).toHaveFocus()
     // The keys are asked for again, but not the token, whose key is another.

@@ -157,7 +157,7 @@ interface CreateRegressionProps {
  * (AR12): with its Cancel button or Escape, giving the focus back to the button.
  */
 function CreateRegression({ suite, machine, test, metric, commit }: CreateRegressionProps) {
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')

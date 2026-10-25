@@ -38,6 +38,16 @@ test.describe('the Settings panel', () => {
     await expect(settings(page).getByRole('status')).toContainText('with triage scope')
   })
 
+  test('shows the suites of a key restricted to some', async ({ page, signIn }) => {
+    await signIn(page, 'triage', ['libcxx', 'nts'])
+    await page.goto('/')
+    await openSettings(page)
+
+    await expect(settings(page).getByRole('status')).toContainText(
+      'with triage scope in suites libcxx, nts.',
+    )
+  })
+
   test('says that a token the server does not know is not valid', async ({ page }) => {
     await page.goto('/')
     await openSettings(page)

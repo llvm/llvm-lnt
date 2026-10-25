@@ -102,7 +102,7 @@ interface FormProps {
 
 function EditForm({ schema, onClose }: FormProps) {
   const { name } = schema
-  const gate = useScopeGate('manage')
+  const gate = useScopeGate('manage', name)
   const saveRef = useRef<HTMLButtonElement>(null)
   const [draft, setDraft] = useState(() => draftOf(schema))
   // Removing destroys data, which the user confirms first (AR16). Meanwhile, the draft cannot

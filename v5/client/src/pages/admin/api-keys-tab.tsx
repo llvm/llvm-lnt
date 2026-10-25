@@ -2,9 +2,18 @@ import { useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { VisuallyHidden } from 'react-aria-components'
 import { NAME_LENGTH, useApiKeys, type ApiKey, type ApiKeyList } from '../../api/api-keys'
-import { authedApi, PERMISSION_DENIED, unwrap } from '../../api/client'
+import { authedApi, PERMISSION_DENIED, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import { grants, scopeRank, SCOPES, useScopeGate, type Scope, type ScopeGate } from '../../auth/scope'
+import { useSuites } from '../../api/suites'
+import {
+  grants,
+  RESTRICTABLE_SCOPES,
+  scopeRank,
+  SCOPES,
+  useScopeGate,
+  type Scope,
+  type ScopeGate,
+} from '../../auth/scope'
 import { acceptedKey, useAuth } from '../../auth/use-auth'
 import { Confirmation } from '../../components/confirmation'
 import { ActionButton } from '../../components/action-button'
@@ -38,7 +47,7 @@ export function ApiKeysTab(sorting: Sorting) {
   // What the latest settled check said, while another is under way.
   const [settled, setSettled] = useState(key)
   if (key !== undefined && key !== settled) setSettled(key)
-  const isAdmin = (checked: ApiKey | null | undefined) => !!checked && grants(checked.scope, 'admin')
+  const isAdmin = (checked: ApiKey | null | undefined) => grants(checked ?? null, 'admin', null)
 
   if (isAdmin(key === undefined ? settled : key)) {
     return <ApiKeys accepted={isAdmin(key)} ownPrefix={settled?.prefix} {...sorting} />
@@ -76,13 +85,17 @@ function ApiKeys({ accepted, ownPrefix, ...sorting }: KeysProps) {
 /** The form creating a key, and the token of the key it created last, shown once (AD1). */
 function CreateKey() {
   const queryClient = useQueryClient()
-  const gate = useScopeGate('admin')
+  const gate = useScopeGate('admin', null)
   const titleId = useId()
   const warningId = useId()
   const [name, setName] = useState('')
   const [scope, setScope] = useState<Scope>('read')
+  // Whether "Only these suites:" is chosen over "All suites", and the suites checked under it.
+  const [restrict, setRestrict] = useState(false)
+  const [checked, setChecked] = useState<string[]>([])
+  const suites = useSuites()
   const create = useMutation({
-    mutationFn: (body: { name: string; scope: Scope }) =>
+    mutationFn: (body: Schemas['ApiKeyCreate']) =>
       unwrap(authedApi.POST('/api/admin/api-keys', { body })),
     // The token is shown from the mutation's data, which goes as soon as nothing shows it: when
     // the user leaves the tab, or asks for another key, even if that fails.
@@ -99,10 +112,22 @@ function CreateKey() {
   })
 
   const trimmed = name.trim()
-  const reason = gate.title ?? (trimmed === '' ? 'Give the key a name first.' : undefined)
+  const unrestrictable = whyUnrestrictable(scope, suites)
+  // "Only these suites:" gives way to "All suites" while it cannot be chosen: for good once the
+  // scope cannot be restricted (see the Scope dropdown), and until the suites are listed otherwise.
+  const restricting = restrict && unrestrictable === undefined
+  // Only the suites still listed, should one checked have gone since.
+  const listed = new Set(suites.data?.map((suite) => suite.name))
+  const restrictedTo = restricting ? checked.filter((suite) => listed.has(suite)) : null
+  const reason =
+    gate.title ??
+    (trimmed === '' ? 'Give the key a name first.' : undefined) ??
+    (restrictedTo?.length === 0 ? 'Pick at least one suite.' : undefined)
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (reason === undefined && !create.isPending) create.mutate({ name: trimmed, scope })
+    if (reason === undefined && !create.isPending) {
+      create.mutate({ name: trimmed, scope, suites: restrictedTo })
+    }
   }
 
   const token = create.data?.token
@@ -128,7 +153,19 @@ function CreateKey() {
             label="Scope"
             options={SCOPES.map((option) => ({ value: option, label: option }))}
             value={scope}
-            onChange={setScope}
+            onChange={(next) => {
+              setScope(next)
+              // The choice goes back to "All suites" (AD1), keeping the suites checked.
+              if (!RESTRICTABLE_SCOPES.includes(next)) setRestrict(false)
+            }}
+          />
+          <SuitesChoice
+            suites={suites}
+            unrestrictable={unrestrictable}
+            restrict={restricting}
+            onRestrict={setRestrict}
+            checked={checked}
+            onCheck={setChecked}
           />
           <ActionButton type="submit" reason={reason} busy={create.isPending}>
             {create.isPending ? 'Creating...' : 'Create key'}
@@ -155,6 +192,97 @@ function CreateKey() {
   )
 }
 
+/** Why a key of `scope` cannot be restricted to some of `suites` for now, if it cannot. */
+function whyUnrestrictable(scope: Scope, suites: ReturnType<typeof useSuites>) {
+  if (!RESTRICTABLE_SCOPES.includes(scope)) {
+    return "Only 'submit', 'triage' and 'manage' keys can be restricted to some suites."
+  }
+  if (suites.data === undefined) {
+    return suites.isError ? 'The test suites could not be loaded.' : 'Loading test suites...'
+  }
+  if (suites.data.length === 0) return 'There are no test suites yet.'
+}
+
+interface SuitesChoiceProps {
+  suites: ReturnType<typeof useSuites>
+  /** Why "Only these suites:" cannot be chosen, if it cannot. */
+  unrestrictable: string | undefined
+  /** Whether the key is restricted to the suites checked, rather than instance-wide. */
+  restrict: boolean
+  onRestrict(restrict: boolean): void
+  checked: string[]
+  onCheck(checked: string[]): void
+}
+
+/**
+ * The suites a key is for (AD1): all of them, or only those checked, one checkbox per suite of the
+ * instance. These are a form's checkboxes rather than a list's (AR10).
+ */
+function SuitesChoice({
+  suites,
+  unrestrictable,
+  restrict,
+  onRestrict,
+  checked,
+  onCheck,
+}: SuitesChoiceProps) {
+  const group = useId()
+  const onlyId = useId()
+  const whyId = useId()
+
+  return (
+    <fieldset className={styles.suites}>
+      <legend>Suites</legend>
+      <label>
+        <input type="radio" name={group} checked={!restrict} onChange={() => onRestrict(false)} />
+        All suites (instance-wide)
+      </label>
+      <div className={styles.suiteChecks}>
+        <label id={onlyId} title={unrestrictable}>
+          <input
+            type="radio"
+            name={group}
+            checked={restrict}
+            disabled={unrestrictable !== undefined}
+            aria-describedby={unrestrictable === undefined ? undefined : whyId}
+            onChange={() => onRestrict(true)}
+          />
+          Only these suites:
+        </label>
+        {unrestrictable !== undefined && (
+          <VisuallyHidden id={whyId}>{unrestrictable}</VisuallyHidden>
+        )}
+        <span role="group" aria-labelledby={onlyId} className={styles.suiteChecks}>
+          {suites.data?.map(({ name }) => (
+            <label key={name}>
+              <input
+                type="checkbox"
+                checked={checked.includes(name)}
+                disabled={!restrict}
+                onChange={(event) =>
+                  onCheck(
+                    event.target.checked
+                      ? [...checked, name]
+                      : checked.filter((suite) => suite !== name),
+                  )
+                }
+              />
+              {name}
+            </label>
+          ))}
+        </span>
+      </div>
+      {suites.isError && suites.data === undefined && (
+        <ErrorMessage
+          context="The test suites could not be loaded"
+          error={suites.error}
+          onRetry={() => void suites.refetch()}
+        />
+      )}
+    </fieldset>
+  )
+}
+
 type SortColumn = (typeof KEY_SORT_COLUMNS)[number]
 
 /** Every column but the last, which holds each active key's Revoke button. */
@@ -173,6 +301,13 @@ const COLUMNS: (Column<ApiKey> & { id: SortColumn })[] = [
     cell: (key) => key.scope,
     // By the hierarchy, from the lowest scope to the highest (AD1).
     sortKey: (key) => scopeRank(key.scope),
+  },
+  {
+    id: 'suites',
+    header: 'Suites',
+    cell: (key) => (key.suites === null ? 'All' : key.suites.join(', ')),
+    // All first, then by the names in order (AD1): a comma sorts before any character of a name.
+    sortKey: (key) => (key.suites === null ? '' : key.suites.join(',')),
   },
   {
     id: 'created_at',
@@ -227,7 +362,7 @@ function KeysTable({
 }: { keys: ApiKey[] } & Omit<KeysProps, 'accepted'>) {
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
-  const gate = useScopeGate('admin')
+  const gate = useScopeGate('admin', null)
   const tableRef = useRef<HTMLTableElement>(null)
   const rowConfirm = useRowConfirm<ApiKey>(tableRef)
   const revoking = rowConfirm.item

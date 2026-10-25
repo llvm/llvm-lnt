@@ -89,7 +89,7 @@ function useUpdateRegression(suite: string, uuid: string) {
  * can edit, and when it was created (DT4).
  */
 function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regression: Regression }) {
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', schema.name)
   const update = useUpdateRegression(schema.name, regression.uuid).mutateAsync
   return (
     <InfoBox label="Regression">
@@ -158,7 +158,7 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
  * another, saved at once (AR13).
  */
 function StateRow({ suite, regression }: { suite: string; regression: Regression }) {
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
   const update = useUpdateRegression(suite, regression.uuid)
   return (
     <>

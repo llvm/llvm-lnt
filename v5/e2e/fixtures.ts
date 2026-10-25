@@ -1,9 +1,10 @@
 /**
  * What every end-to-end test imports instead of `@playwright/test`:
  *
- * - `tokenFor(scope)`: a token for a new key of that scope, to act as a user who holds it.
- * - `signIn(page, scope)`: store such a token in `page`'s browser, as the Settings panel does, so
- *   that the pages it loads from then on use it. Returns the token.
+ * - `tokenFor(scope, suites?)`: a token for a new key of that scope, restricted to `suites` if
+ *   given, to act as a user who holds it.
+ * - `signIn(page, scope, suites?)`: store such a token in `page`'s browser, as the Settings panel
+ *   does, so that the pages it loads from then on use it. Returns the token.
  * - The log of the app and of Nginx while a test ran, attached to it when it fails.
  *
  * Every test runs against the same seeded database, and locally several run at once. So a test
@@ -55,17 +56,17 @@ export async function profiledRun(request: APIRequestContext, machine: string, c
 }
 
 interface Fixtures {
-  tokenFor: (scope: Scope) => Promise<string>
-  signIn: (page: Page, scope: Scope) => Promise<string>
+  tokenFor: (scope: Scope, suites?: string[]) => Promise<string>
+  signIn: (page: Page, scope: Scope, suites?: string[]) => Promise<string>
   serverLog: void
 }
 
 export const test = base.extend<Fixtures>({
   tokenFor: async ({ request }, use) => {
-    await use(async (scope) => {
+    await use(async (scope, suites) => {
       const response = await request.post('/api/admin/api-keys', {
         headers: { Authorization: `Bearer ${adminToken()}` },
-        data: { name: `e2e-${scope}`, scope },
+        data: { name: `e2e-${scope}`, scope, suites },
       })
       expect(response.status(), await response.text()).toBe(201)
       return ((await response.json()) as components['schemas']['ApiKeyCreated']).token
@@ -73,8 +74,8 @@ export const test = base.extend<Fixtures>({
   },
 
   signIn: async ({ tokenFor }, use) => {
-    await use(async (page, scope) => {
-      const token = await tokenFor(scope)
+    await use(async (page, scope, suites) => {
+      const token = await tokenFor(scope, suites)
       // Storage belongs to an origin, so the page needs one first: the cheapest the server serves.
       await page.goto('/healthz')
       await page.evaluate(([key, value]) => localStorage.setItem(key, value), [

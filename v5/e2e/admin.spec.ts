@@ -14,12 +14,12 @@ import { ownSuite, withOwnSuiteName } from './own-suite.ts'
 import { pickOption } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
-/** The name of the key that `token` belongs to, or null if the API does not accept it. */
-async function keyOf(request: APIRequestContext, token: string): Promise<string | null> {
+/** The key that `token` belongs to, or null if the API does not accept it. */
+async function keyOf(request: APIRequestContext, token: string) {
   const response = await request.get('/api/auth', { headers: { Authorization: `Bearer ${token}` } })
   if (response.status() === 401) return null
   expect(response.status(), await response.text()).toBe(200)
-  return ((await response.json()) as components['schemas']['Authentication']).key?.name ?? null
+  return ((await response.json()) as components['schemas']['Authentication']).key
 }
 
 /** Revoke the key `prefix` from its row of the keys table. */
@@ -68,17 +68,18 @@ test.describe('the API Keys tab', () => {
       prefix,
       name,
       'triage',
+      'All',
       /^\d{4}-\d\d-\d\d, /,
       'Never',
       'Yes',
       'Revoke',
     ])
     // Using the token records its last use, so this must come after checking the row says 'Never'.
-    expect(await keyOf(request, token)).toBe(name)
+    expect((await keyOf(request, token))?.name).toBe(name)
 
     await revoke(page, prefix)
 
-    await expect(row.locator('td').nth(5)).toHaveText('No')
+    await expect(row.locator('td').nth(6)).toHaveText('No')
     await expect(row.getByRole('button')).toHaveCount(0)
     expect(await keyOf(request, token)).toBeNull()
 
@@ -87,6 +88,32 @@ test.describe('the API Keys tab', () => {
     await page.getByRole('tab', { name: 'API Keys' }).click()
     await expect(rows(keys).first()).toBeVisible()
     await expect(created).toBeHidden()
+  })
+
+  test('creates a key restricted to some suites', async ({ page, request, signIn }, testInfo) => {
+    await signIn(page, 'admin')
+    await page.goto('/admin')
+    const keys = table(page, 'API keys')
+    await expect(rows(keys).first()).toBeVisible()
+
+    const name = `e2e-restricted-${testInfo.testId}`
+    const form = page.getByRole('form', { name: 'Create API Key' })
+    await form.getByLabel('Name').fill(name)
+    await pickOption(form, 'Scope', 'submit')
+    await form.getByRole('radio', { name: 'Only these suites:' }).check()
+    await form.getByRole('checkbox', { name: 'nts' }).check()
+    await form.getByRole('checkbox', { name: 'libcxx' }).check()
+    await form.getByRole('button', { name: 'Create key' }).click()
+
+    const created = page.getByRole('region', { name: 'Created key' })
+    const token = (await created.locator('code').textContent()) ?? ''
+    const row = rows(keys).filter({ hasText: token.slice(0, 8) })
+    await expect(row.locator('td').nth(3)).toHaveText('libcxx, nts')
+    expect(await keyOf(request, token)).toMatchObject({
+      name,
+      scope: 'submit',
+      suites: ['libcxx', 'nts'],
+    })
   })
 
   test('sorts the keys by when they were last used', async ({ page, signIn }) => {
@@ -107,7 +134,7 @@ test.describe('the API Keys tab', () => {
       )
       await expect(page).toHaveURL(`/admin?sort=${sort}`)
       // Keys never used come last, whichever the direction.
-      const lastUsed = await column(keys, 4)
+      const lastUsed = await column(keys, 5)
       const firstNever = lastUsed.indexOf('Never')
       expect(firstNever).toBeGreaterThan(0)
       expect(lastUsed.slice(firstNever).every((value) => value === 'Never')).toBe(true)
@@ -149,6 +176,28 @@ test.describe('the Test Suites tab', () => {
       'Yes',
     ])
     await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeDisabled()
+  })
+
+  test('lets a manage token restricted to a suite edit and delete it, but create none', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await ownSuite(request, tokenFor, testInfo, [], async (suite) => {
+      await signIn(page, 'manage', [suite])
+      await page.goto(`/admin?tab=suites&suite=${suite}`)
+      await expect(page.getByRole('button', { name: 'Edit schema' })).toBeEnabled()
+      await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeEnabled()
+      const newSuite = page.getByRole('button', { name: 'New suite' })
+      await expect(newSuite).toBeDisabled()
+      await expect(newSuite).toHaveAttribute('title', /^Needs an instance-wide API token/)
+
+      await pickOption(page.getByRole('main'), 'Test suite', 'libcxx')
+      await expect(table(page, 'Metrics')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Edit schema' })).toBeDisabled()
+      await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeDisabled()
+    })
   })
 
   test('downloads the schema of a suite of its own, and deletes the suite', async ({

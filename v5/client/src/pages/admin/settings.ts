@@ -15,6 +15,7 @@ export const KEY_SORT_COLUMNS = [
   'prefix',
   'name',
   'scope',
+  'suites',
   'created_at',
   'last_used_at',
   'is_active',

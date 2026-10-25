@@ -12,6 +12,8 @@ export interface Deletion {
   label: string
   /** The scope deleting needs. */
   scope: Scope
+  /** The suite the deletion addresses, which the scope is needed in. */
+  suite: string
   /** What to type to confirm (AR16). */
   expected: string
   /** What the deletion destroys. */
@@ -40,8 +42,8 @@ interface Props {
  * the deletion below the row (AR16). Cancelling gives the focus back to the button.
  */
 export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
-  const { label, scope, expected, message, busyMessage, onDelete, onDeleted } = deletion
-  const gate = useScopeGate(scope)
+  const { label, scope, suite, expected, message, busyMessage, onDelete, onDeleted } = deletion
+  const gate = useScopeGate(scope, suite)
   const [confirming, setConfirming] = useState(false)
   const deleteButton = useRef<HTMLButtonElement>(null)
   // Whether the row is still shown once the deletion is done.

@@ -4,28 +4,43 @@ import { TOKEN, mockAuth, signIn, unknownToken } from '../test/auth'
 import { errorResponse } from '../test/mock-api'
 import { providers } from '../test/render'
 import { TOKEN_STORAGE_KEY } from './storage-key'
-import { grants, useGrantedScope, useScopeGate, type Scope } from './scope'
+import { grants, useScopeGate, type Scope } from './scope'
 import { useAuth } from './use-auth'
 
 const SCOPES: Scope[] = ['read', 'submit', 'triage', 'manage', 'admin']
 
 describe('grants', () => {
   it('follows the hierarchy read < submit < triage < manage < admin', () => {
-    for (const [i, granted] of SCOPES.entries()) {
+    for (const [i, scope] of SCOPES.entries()) {
       for (const [j, required] of SCOPES.entries()) {
-        expect(grants(granted, required), `${granted} grants ${required}`).toBe(i >= j)
+        for (const suite of ['nts', null]) {
+          const granted = grants({ scope, suites: null }, required, suite)
+          expect(granted, `${scope} grants ${required}`).toBe(i >= j)
+        }
       }
     }
   })
 
   it('allows only read without a valid token', () => {
-    expect(SCOPES.filter((scope) => grants(null, scope))).toEqual(['read'])
+    expect(SCOPES.filter((scope) => grants(null, scope, 'nts'))).toEqual(['read'])
+  })
+
+  it('grants a restricted key its scope only in its suites, and read elsewhere', () => {
+    const key = { scope: 'triage' as const, suites: ['libcxx', 'nts'] }
+    const granted = (suite: string | null) => SCOPES.filter((scope) => grants(key, scope, suite))
+
+    expect(granted('nts')).toEqual(['read', 'submit', 'triage'])
+    expect(granted('libcxx')).toEqual(['read', 'submit', 'triage'])
+    // Suite names are compared exactly.
+    expect(granted('NTS')).toEqual(['read'])
+    expect(granted('other')).toEqual(['read'])
+    expect(granted(null)).toEqual(['read'])
   })
 })
 
 describe('useScopeGate', () => {
   it('disables a control needing more than read without a token, saying which scope', () => {
-    const { result } = renderHook(() => useScopeGate('triage'), providers())
+    const { result } = renderHook(() => useScopeGate('triage', 'nts'), providers())
 
     expect(result.current).toEqual({
       disabled: true,
@@ -34,15 +49,19 @@ describe('useScopeGate', () => {
   })
 
   it('never disables a control needing only read', () => {
-    const { result } = renderHook(() => useScopeGate('read'), providers())
+    const { result } = renderHook(() => useScopeGate('read', 'nts'), providers())
 
     expect(result.current).toEqual({ disabled: false, title: undefined })
   })
 
   it('enables a control once the token is found to grant its scope', async () => {
-    signIn('manage')
+    const checks = signIn('manage')
     const { result } = renderHook(
-      () => [useScopeGate('submit'), useScopeGate('manage'), useScopeGate('admin')],
+      () => [
+        useScopeGate('submit', 'nts'),
+        useScopeGate('manage', null),
+        useScopeGate('admin', null),
+      ],
       providers(),
     )
 
@@ -56,27 +75,57 @@ describe('useScopeGate', () => {
     expect(result.current[2].title).toBe(
       "Needs an API token with the 'admin' scope. The token in Settings has the 'manage' scope.",
     )
+    expect(checks).toHaveLength(1)
   })
 
-  it('says, while the token is being checked, that its scope is not known yet', async () => {
-    const checks = signIn('admin')
-    const { result } = renderHook(useGrantedScope, providers())
+  it('says that an action on no suite needs an instance-wide token, whatever the token', () => {
+    const { result } = renderHook(() => useScopeGate('manage', null), providers())
 
-    expect(result.current).toBeUndefined()
-    await waitFor(() => expect(result.current).toBe('admin'))
-    expect(checks).toHaveLength(1)
+    expect(result.current.title).toBe(
+      "Needs an instance-wide API token with the 'manage' scope. Set one in Settings.",
+    )
+  })
+
+  it("enables a restricted token's control only in its suites, saying why elsewhere", async () => {
+    signIn('triage', ['libcxx', 'nts'])
+    const { result } = renderHook(
+      () => ({
+        auth: useAuth(),
+        own: useScopeGate('triage', 'nts'),
+        other: useScopeGate('triage', 'other'),
+        higher: useScopeGate('manage', 'nts'),
+        none: useScopeGate('triage', null),
+      }),
+      providers(),
+    )
+
+    await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
+    expect(result.current.own).toEqual({ disabled: false, title: undefined })
+    expect(result.current.other).toEqual({
+      disabled: true,
+      title:
+        "Needs an API token with the 'triage' scope in suite 'other'. The token in Settings has " +
+        "the 'triage' scope only in suites 'libcxx', 'nts'.",
+    })
+    expect(result.current.higher.title).toBe(
+      "Needs an API token with the 'manage' scope in suite 'nts'. The token in Settings has the " +
+        "'triage' scope only in suites 'libcxx', 'nts'.",
+    )
+    expect(result.current.none.title).toBe(
+      "Needs an instance-wide API token with the 'triage' scope. The token in Settings has the " +
+        "'triage' scope only in suites 'libcxx', 'nts'.",
+    )
   })
 
   it('says why a control is disabled when the check failed', async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, TOKEN)
     mockAuth(() => errorResponse(500, 'internal_error', 'The server failed'))
     const { result } = renderHook(
-      () => ({ auth: useAuth(), scope: useGrantedScope(), gate: useScopeGate('submit') }),
+      () => ({ auth: useAuth(), gate: useScopeGate('submit', 'nts') }),
       providers(),
     )
 
     await waitFor(() => expect(result.current.auth.status.state).toBe('failed'))
-    expect(result.current.scope).toBeNull()
     expect(result.current.gate.title).toBe(
       "Needs an API token with the 'submit' scope. The token in Settings could not be checked.",
     )
@@ -86,12 +135,11 @@ describe('useScopeGate', () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, TOKEN)
     mockAuth(unknownToken)
     const { result } = renderHook(
-      () => ({ auth: useAuth(), scope: useGrantedScope(), gate: useScopeGate('submit') }),
+      () => ({ auth: useAuth(), gate: useScopeGate('submit', 'nts') }),
       providers(),
     )
 
     await waitFor(() => expect(result.current.auth.status.state).toBe('invalid'))
-    expect(result.current.scope).toBeNull()
     expect(result.current.gate).toEqual({
       disabled: true,
       title: "Needs an API token with the 'submit' scope. The token in Settings is not valid.",

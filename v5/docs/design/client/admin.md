@@ -9,7 +9,7 @@ This page provides various tabs with different tools.
 
 | Tab | Shows | API Calls |
 |-----|-------|-----------|
-| API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys` |
+| API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys`, `GET suites` |
 | Test Suites | Suite selector, schema viewer and editor, create and delete suites | `GET/POST/DELETE suites`, `PATCH suites/{name}/schema` |
 
 The URL keeps the selected tab as `tab` (`suites` for Test Suites, and nothing for API Keys,
@@ -32,9 +32,22 @@ if no token were set until a check succeeds, whether the check is of a new token
 one again. A check that does not accept a token with `admin` scope replaces the content with the
 banner.
 
-A "Create API Key" form has a text input for the key name, a dropdown to select the
-scope of the key, starting on `read`, the lowest, and a "Create key" button to create
-the new key. On creation, a banner shows:
+A "Create API Key" form has a text input for the key name, a dropdown to select
+the scope of the key, starting on `read`, the lowest, a choice of the suites the
+key is for, and a "Create key" button to create the new key.
+
+The suites are chosen with two radio buttons: "All suites (instance-wide)", the
+default, and "Only these suites:", which restricts the key to the suites checked
+below it, one checkbox per suite of the instance. The checkboxes can be used
+only while it is selected, and are a form's rather than a list's (AR10): there
+is no range selection, and no checkbox selecting them all. "Create key" is
+disabled, saying why on hover, while "Only these suites:" is selected with no
+suite checked. Only `submit`, `triage` and `manage` keys can be restricted (see
+I5): for another scope, "Only these suites:" is disabled, saying why on hover,
+and the choice goes back to "All suites (instance-wide)". While the suites are
+not loaded, or there are none, only "Only these suites:" is unavailable.
+
+On creation, a banner shows:
 
 ```
   Key created. Copy the token now -- it will not be shown again:
@@ -49,26 +62,30 @@ tab stops showing its content: when the user leaves it, say.
 Below the creation widget, a table like this shows the existing API keys:
 
 ```
-Prefix      Name          Scope       Created                     Last Used                   Active
--------------------------------------------------------------------------------------------------------------------------------
-229d78c5    test-key2     read        2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
-135f502b    test-key      manage      2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
-3f0ac112    old-bot       submit      2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
+Prefix      Name          Scope       Suites         Created                     Last Used                   Active
+--------------------------------------------------------------------------------------------------------------------------------------------
+229d78c5    test-key2     read        All            2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
+135f502b    test-key      manage      libcxx, nts    2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
+3f0ac112    old-bot       submit      All            2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
 ```
 
-Keys are listed newest first, so a newly created key appears at the top of the table
-without a reload. Revoked keys remain in the table with `Active` showing
-`No`, since revoking does not delete them, and they carry no Revoke button. `Last Used`
-shows `Never` for a key that has not yet authenticated a request, and is otherwise a
-best-effort value that may lag actual use (see D5).
+Keys are listed newest first, so a newly created key appears at the top of the
+table without a reload. Revoked keys remain in the table with `Active` showing
+`No`, since revoking does not delete them, and they carry no Revoke button.
+`Suites` shows `All` for an instance-wide key, and otherwise the suites the key
+is restricted to. `Last Used` shows `Never` for a key that has not yet
+authenticated a request, and is otherwise a best-effort value that may lag
+actual use (see D5).
 
-Column headers are click-to-sort, applied client-side over the already-loaded keys -- the
-list endpoint is unpaginated, so sorting issues no request. Sorting by `Last Used` is how
-to surface the most- and least-recently-active keys; keys that have never been used sort
-after every key carrying a timestamp, in both directions. `Scope` sorts by I5's
-hierarchy, from `read` to `admin`, rather than alphabetically. Keys with the same value keep
-the default order, which is `Created` descending, also the order the API returns. The URL
-names the sort column after its key in the API, prefixed with `-` for descending order
+Column headers are click-to-sort, applied client-side over the already-loaded
+keys -- the list endpoint is unpaginated, so sorting issues no request. Sorting
+by `Last Used` is how to surface the most- and least-recently-active keys; keys
+that have never been used sort after every key carrying a timestamp, in both
+directions. `Scope` sorts by I5's hierarchy, from `read` to `admin`, rather than
+alphabetically. `Suites` sorts `All` first, then by its suite names, compared in
+turn. Keys with the same value keep the default order, which is `Created`
+descending, also the order the API returns. The URL names the sort column after
+its key in the API, prefixed with `-` for descending order
 (`sort=-last_used_at`).
 
 Clicking Revoke asks for a plain confirmation (see AR16) before the request is sent. On
@@ -131,8 +148,8 @@ suite permanently destroys all its machines, runs, commits, samples, and regress
 the confirmation prompt AR16 describes. On confirmation, the suite is deleted, and so is no
 longer selected.
 
-Anyone can view and export a schema. Creating, editing and deleting a suite require `manage`
-scope.
+Anyone can view and export a schema. Creating a suite requires an instance-wide
+`manage` key (see I5); editing or deleting one requires `manage` in it.
 
 ### AD3: Schema editor
 

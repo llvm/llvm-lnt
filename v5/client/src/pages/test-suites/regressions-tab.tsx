@@ -51,7 +51,7 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   // The regression whose deletion is being confirmed.
   const rowConfirm = useRowConfirm<Regression>(tableRef)
   const deleting = rowConfirm.item
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
 
   // A machine or a metric the suite does not have is dropped (AR2 "State"): a metric as soon as it
   // is read, since the schema lists them, and a machine once the machine list shows it is unknown.

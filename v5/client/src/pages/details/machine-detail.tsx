@@ -157,7 +157,7 @@ function useUpdateMachine(suite: string, name: string) {
  * means for whatever submits its runs (DT1).
  */
 function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
-  const manage = useScopeGate('manage')
+  const manage = useScopeGate('manage', suite)
   const update = useUpdateMachine(suite, machine.name)
   return (
     <InfoRow label="Name">
@@ -186,7 +186,7 @@ function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
 function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
   const labelId = useId()
   const helpId = useId()
-  const manage = useScopeGate('manage')
+  const manage = useScopeGate('manage', suite)
   const update = useUpdateMachine(suite, machine.name)
   return (
     <InfoRow
@@ -218,7 +218,7 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
 /** The days of inactivity after which the machine is deleted, which `manage` can edit (DT1). */
 function InactivityDays({ suite, machine }: { suite: string; machine: Machine }) {
   const update = useUpdateMachine(suite, machine.name)
-  const manage = useScopeGate('manage')
+  const manage = useScopeGate('manage', suite)
   return (
     <InactivityRow
       value={machine.delete_after_inactive_days}

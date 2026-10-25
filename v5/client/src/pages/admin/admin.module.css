@@ -150,3 +150,35 @@
   composes: createForm;
   margin-top: var(--lnt-space-4);
 }
+
+/* The suites a new key is for (AD1). */
+.suites {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lnt-space-1);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.suites label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+}
+
+/* As disabled as the control it labels (AR5). */
+.suites label:has(input:disabled) {
+  color: var(--lnt-muted);
+}
+
+.suites legend {
+  padding: 0;
+  margin-bottom: var(--lnt-space-1);
+}
+
+.suiteChecks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-1) var(--lnt-space-3);
+}

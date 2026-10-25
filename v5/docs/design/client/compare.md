@@ -627,10 +627,11 @@ created for each compared row (see CP2) that has a value on side B. Rows
 without one are skipped: the test was not measured on side B, and side B's
 suite may not even have it. The regression belongs to side B's suite.
 
-The header requires `triage` scope (see AR17). While the box is collapsed, the
-header is disabled, with an explanation, when there would be no indicators, or
-more than one request can carry (I2's maximum page size; see E8). While it is
-expanded, the header collapses it, except while a request is under way.
+The header requires `triage` scope in side B's suite (see AR17). While the box
+is collapsed, the header is disabled, with an explanation, when there would be
+no indicators, or more than one request can carry (I2's maximum page size; see
+E8). While it is expanded, the header collapses it, except while a request is
+under way.
 
 When expanded, the box first lists what the indicators are, a line each: how
 many tests compared they cover (Covers), side B's suite (Test Suite), the

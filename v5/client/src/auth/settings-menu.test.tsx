@@ -114,8 +114,24 @@ describe('Settings panel', () => {
     openPanel()
 
     await waitFor(() => expect(status()).toHaveTextContent('Using key manage-key (aaaaaaaa)'))
-    expect(status()).toHaveTextContent('with manage scope')
+    expect(status()).toHaveTextContent(/with manage scope\.$/)
     expect(checks).toEqual([`Bearer ${TOKEN}`])
+  })
+
+  it('shows the suites of a key restricted to some', async () => {
+    signIn('triage', ['libcxx', 'nts'])
+    renderMenu()
+    openPanel()
+
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        'Using key triage-key (aaaaaaaa), with triage scope in suites libcxx, nts.',
+      ),
+    )
+
+    mockAuth(() => HttpResponse.json({ key: apiKey('submit', { suites: ['nts'] }) }))
+    enterToken(OTHER)
+    await waitFor(() => expect(status()).toHaveTextContent(/with submit scope in suite nts\.$/))
   })
 
   it('checks a token when it is entered, and stores it', async () => {
