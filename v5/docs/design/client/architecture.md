@@ -214,11 +214,11 @@ suggestions loads the next page.
 ## AR10: Range Selection
 
 In a list whose rows are selected with checkboxes, a click toggles a row,
-whether by mouse or from the keyboard, and the anchor is the last row clicked. A
-click with Shift held also gives every row shown from the anchor to the clicked
-one, both included, the clicked row's new state. It never changes a row that a
-filter hides. Without an anchor among the rows shown, a click with Shift held
-acts as a plain click. A checkbox in the list's header selects every row shown,
+whether by mouse or from the keyboard, and the anchor is the last row clicked,
+unless the list refused the click (see GR7). A click with Shift held also gives
+every row shown from the anchor to the clicked one, both included, the clicked
+row's new state. It never changes a row that a filter hides. Without an anchor
+among the rows shown, a click with Shift held acts as a plain click. A checkbox in the list's header selects every row shown,
 or deselects them all if they are all selected already. It, and any other change
 to the selection than a click on a row, leaves the anchor where it is.
 

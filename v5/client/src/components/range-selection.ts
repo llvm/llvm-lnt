@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useSameElements } from '../same-elements'
+import { ValueStore } from '../value-store'
 
 /**
  * A selection among the rows of a list, each with a checkbox, and the anchor that a range selected
@@ -130,23 +132,40 @@ export interface RowSelection {
   inverted(): boolean
   /**
    * The row `key` was clicked, with Shift held or not (see `clickRow`). Like the other changes
-   * below, it does nothing, anchor included, when it would select more rows than the limit.
+   * below, it does nothing, anchor included, when it would select more rows than the limit (see
+   * `RangeSelection.refusal`).
    */
   click(key: string, shift: boolean): void
   /** Select every one of `keys`, or none of them, whether shown or not. */
   setRows(keys: Iterable<string>, select: boolean): void
   /**
    * Select exactly `keys`, whether shown or not (see `replaceRows`), unless they are more than the
-   * limit allows, as for GR7's double-click selecting every test shown (see `isolateRow`). A
-   * caller restoring a selection, from a URL say, keeps the first ones that fit itself, as
-   * `initial` does.
+   * limit allows, as for GR7's double-click selecting every test shown (see `isolateRow`). `at` is
+   * the row whose click asked for the change, if one did (see `RangeSelection.refusal`). A caller
+   * restoring a selection, from a URL say, keeps the first ones that fit itself, as `initial` does.
    */
-  replace(keys: Iterable<string>): void
+  replace(keys: Iterable<string>, at?: string): void
+}
+
+/**
+ * A change that a list refused for selecting more rows than its limit (GR7): the row whose click
+ * asked for it, and how many rows it would have selected. `id` tells it from the refusal before,
+ * which may say the same, so that it can be shown again as a new one.
+ */
+export interface Refusal {
+  key: string
+  count: number
+  id: number
 }
 
 export interface RangeSelection {
   selected: ReadonlySet<string>
   rows: RowSelection
+  /**
+   * The last change refused at a row, until the selection or the rows shown change, or it is
+   * dismissed (set to null). Only a list with a limit refuses a change.
+   */
+  refusal: ValueStore<Refusal | null>
 }
 
 class SelectionStore {
@@ -233,23 +252,30 @@ export function useRangeSelection(
     if (offered !== undefined) store.set(keepOnly(store.get(), new Set(offered)))
   }, [offered, store])
 
+  // The rows shown, compared by what they hold: a list derived anew from the same rows changes none.
+  const [refusal] = useState(() => new ValueStore<Refusal | null>(null))
+  const sameShown = useSameElements(shown)
+  useLayoutEffect(() => refusal.set(null), [sameShown, selected, refusal])
+
   const [rows] = useState<RowSelection>(() => {
+    let refused = 0
     // Every change goes through here, which refuses one that would select more rows than the
     // limit. The selection starts within it, so a change that selects no more rows always fits.
-    const change = (next: Selection) => {
+    const change = (next: Selection, at?: string) => {
       if (limit === null || next.selected.size <= limit.count) store.set(next)
+      else if (at !== undefined) refusal.set({ key: at, count: next.selected.size, id: ++refused })
     }
     return {
       subscribe: store.subscribe,
       selected: () => store.get().selected,
       limit: () => limit,
       inverted: () => hides,
-      click: (key, shift) => change(clickRow(store.get(), shownRef.current, key, shift)),
+      click: (key, shift) => change(clickRow(store.get(), shownRef.current, key, shift), key),
       setRows: (keys, select) => change(setRows(store.get(), keys, select)),
-      replace: (keys) => change(replaceRows(store.get(), keys)),
+      replace: (keys, at) => change(replaceRows(store.get(), keys), at),
     }
   })
-  return { selected, rows }
+  return { selected, rows, refusal }
 }
 
 /**

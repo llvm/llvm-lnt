@@ -204,6 +204,54 @@ describe('useRangeSelection', () => {
     act(() => rows.replace(['e', 'f']))
     expect(result.current.selected).toEqual(new Set(['e', 'f']))
   })
+
+  describe('reports a change refused at a row (GR7)', () => {
+    const limit = { count: 2, why: 'At most 2.' }
+    /** A list of rows `shown` that has refused a range from A to D. */
+    function refused() {
+      const hook = renderHook(({ shown }) => useRangeSelection(undefined, shown, { limit }), {
+        initialProps: { shown: ROWS },
+      })
+      const { rows } = hook.result.current
+      act(() => rows.click('a', false))
+      act(() => rows.click('d', true))
+      return { ...hook, ...hook.result.current }
+    }
+
+    it('with the row, and how many rows it would have selected, each as a new one', () => {
+      const { rows, refusal } = refused()
+      const first = refusal.get()
+      expect(first).toMatchObject({ key: 'd', count: 4 })
+      act(() => rows.click('d', true))
+      expect(refusal.get()).toMatchObject({ key: 'd', count: 4 })
+      expect(refusal.get()?.id).not.toBe(first?.id)
+      act(() => rows.replace(['b', 'c', 'e'], 'e'))
+      expect(refusal.get()).toMatchObject({ key: 'e', count: 3 })
+    })
+
+    it('but not one that no row asked for', () => {
+      const { result } = renderHook(() => useRangeSelection(undefined, ROWS, { limit }))
+      const { rows, refusal } = result.current
+      act(() => rows.setRows(['a', 'b', 'c'], true))
+      act(() => rows.replace(['a', 'b', 'c']))
+      expect(refusal.get()).toBeNull()
+    })
+
+    it('until the selection changes', () => {
+      const { rows, refusal } = refused()
+      act(() => rows.click('b', false))
+      expect(refusal.get()).toBeNull()
+    })
+
+    it('until the rows shown change', () => {
+      const { rerender, refusal } = refused()
+      // The same rows, derived anew.
+      rerender({ shown: [...ROWS] })
+      expect(refusal.get()).not.toBeNull()
+      rerender({ shown: ['a', 'd'] })
+      expect(refusal.get()).toBeNull()
+    })
+  })
 })
 
 describe('useControlledSelection', () => {
