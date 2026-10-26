@@ -13,7 +13,9 @@ suite picker with `{ts}` selected, plus the tabbed content for that suite.
 page goes to `/suites/{first}` with the same query parameters, which takes the
 place of `/suites` in the history rather than adding an entry (an exception to
 AR2 "State"), so that Back does not return to it. When there are no suites, the
-picker says so.
+picker says so. Only a failure to load the list of suites in the first place takes
+the place of the page, with a way to try again; when the list is fetched again and
+that fails, the page keeps showing what it shows (see AR7).
 
 **Suite picker**: A row of prominent card/button elements, one per test suite,
 ordered by name. Clicking a card selects it (highlighted) and shows the tab bar
@@ -33,7 +35,7 @@ path and params to restore state. On changes, updates the URL.
 | Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
-| Schema | The suite's schema, its export, editing and deletion (see TS6) | `GET suites` | -- |
+| Schema | The suite's schema, its export, editing and deletion (see TS6) | `GET /api/suites` (E10); writes in TS6 and TS7 | -- |
 
 ## TS2: Runs tab
 
@@ -202,16 +204,18 @@ tables deliberately differ in their columns. Entries are shown by their `name`, 
 repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR6
 writes it, and `--` when it has neither a unit nor an abbreviation.
 
-"Edit schema" opens the schema editor (see TS7) on the suite. "Copy as JSON" and "Download
+"Edit schema" opens the schema editor (see TS7) on the suite; once the editor closes, the
+focus returns to "Edit schema". "Copy as JSON" and "Download
 JSON" export the schema exactly as the API returns it. Another instance can create the same
 suite from it unchanged (see D4).
 
 Clicking the red "Delete This Suite" button shows an inline panel warning that deleting a
 suite permanently destroys all its machines, runs, commits, samples, and regressions, with
-the confirmation prompt AR16 describes. Once the suite is deleted, the page leaves for
-`/suites`, without query parameters (see AR16), which selects the first suite left, or says
-that there is none (see TS1). It does so whichever tab of the suite the user is on by then:
-only a user who has left the suite's page stays where they are.
+the confirmation prompt AR16 describes. Once the suite is deleted (`DELETE /api/suites/{name}`,
+see E10), the page leaves for `/suites`, without query parameters, in place of itself in the
+history (see AR16), which selects the first suite left, or says that there is none (see TS1).
+It does so even if the user has gone to another of the suite's tabs meanwhile: only a user who
+has left the suite's page since confirming stays where they are.
 
 Anyone can view and export a schema. Editing it or deleting the suite requires `manage` in
 the suite, which a key restricted to it grants (see I5).

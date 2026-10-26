@@ -82,13 +82,7 @@ function Frame({
   return (
     <section aria-labelledby={titleId}>
       {children}
-      <EditorFooter
-        title={
-          <strong id={titleId}>Editing {name}</strong>
-        }
-      >
-        {buttons}
-      </EditorFooter>
+      <EditorFooter title={<strong id={titleId}>Editing {name}</strong>}>{buttons}</EditorFooter>
       {below}
     </section>
   )

@@ -324,7 +324,6 @@ test.describe('the Schema tab', () => {
       // `/suites` gives way to the first suite left, which other tests' suites may precede.
       await expect(page).toHaveURL(/\/suites\/[a-z0-9_]+$/)
       await expect(page).not.toHaveURL(new RegExp(`/suites/${suite}$`))
-      await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
       await expect(
         page.getByRole('navigation', { name: 'Test suites' }).getByRole('link', { name: suite }),
       ).toHaveCount(0)

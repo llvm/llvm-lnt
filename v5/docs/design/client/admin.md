@@ -106,11 +106,10 @@ longer be available, and that a token shown and not copied yet will be lost.
 
 ### AD2: Test Suites tab detail
 
-A "New suite" button opens the schema editor (see TS7) to create a suite, in place of the tab's
-content, the button included. Below the button, the tab lists the instance's suites by name, each
-a link to its Schema tab (see TS6), where its schema is viewed, exported and edited, and the
-suite deleted. When the instance has no suites, the tab says so, and "New suite" is still
-offered.
+A "New suite" button opens the schema editor (see TS7) to create a suite. Below the button, the
+tab lists the instance's suites by name, each a link to its Schema tab (see TS6), where its
+schema is viewed, exported and edited, and the suite deleted. When the instance has no suites,
+the tab says so, and "New suite" is still offered.
 
 ```
 [New suite]

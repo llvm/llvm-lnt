@@ -68,7 +68,7 @@ within the UI causes a full page reload.
 ```
 /                                     Dashboard (landing page -- sparkline trend overview)
 /suites                               Test Suites (selects the first suite; see TS1)
-/suites/{ts}                          Test Suites (browsing tabs for the selected suite)
+/suites/{ts}                          Test Suites (browsing tabs and schema of the selected suite)
 /suites/{ts}/machines/{name}          Machine Detail
 /suites/{ts}/runs/{uuid}              Run Detail
 /suites/{ts}/commits/{value}          Commit Detail

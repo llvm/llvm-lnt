@@ -474,6 +474,29 @@ describe('saving', () => {
     expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
   })
 
+  it('leaves the focus where it is, if elsewhere, once the suite turns out deleted', async () => {
+    const store = await openEditor()
+    const reply = gate()
+    mockPatch(store, (schema) => schema, {
+      wait: () => reply.promise,
+      fail: () => {
+        store.suites = [BARE_SUITE]
+        return errorResponse(404, 'not_found', "No suite 'libcxx'")
+      },
+    })
+    typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Odd')
+    fireEvent.click(saveButton())
+    const card = within(screen.getByRole('navigation', { name: 'Test suites' })).getByRole('link', {
+      name: 'nts',
+    })
+    card.focus()
+
+    await act(async () => reply.open())
+
+    expect(await main().findByText("Test suite 'libcxx' not found.")).not.toHaveFocus()
+    expect(card).toHaveFocus()
+  })
+
   it('has the list of suites fetched again when an entry was added meanwhile', async () => {
     const store = await openEditor()
     mockPatch(store, (schema) => schema, {
