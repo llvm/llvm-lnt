@@ -13,6 +13,16 @@ interface Props<Id extends string> {
 }
 
 /**
+ * A click selects a tab once the pointer is released on it, as on a link, rather than when it is
+ * pressed, React Aria's default. A tab selected on press is selected again if the pointer leaves it
+ * and comes back before it is released: when selecting it asks the user something first (AR19),
+ * the release goes to the browser's dialog, and the pointer coming back onto the tab after it, or
+ * the browser replaying its moves, asks again. React Aria's `Tab` passes this on to `useTab` without
+ * declaring it.
+ */
+const SELECT_ON_RELEASE = { shouldSelectOnPressUp: true }
+
+/**
  * A tab bar and the selected tab's panel, with manual activation: the arrow keys, Home and End move
  * the focus between the tabs, and Enter, Space or a click selects the focused one. Selecting a tab
  * can fetch data and change the URL, which moving through the tabs on the way to another should
@@ -28,7 +38,7 @@ export function Tabs<Id extends string>({ label, tabs, selected, onSelect, child
     >
       <TabList aria-label={label} className={styles.bar}>
         {tabs.map((tab) => (
-          <Tab key={tab.id} id={tab.id} className={styles.tab}>
+          <Tab key={tab.id} id={tab.id} className={styles.tab} {...SELECT_ON_RELEASE}>
             {tab.label}
           </Tab>
         ))}

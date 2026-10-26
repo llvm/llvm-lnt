@@ -6,6 +6,7 @@
  */
 
 import { readFileSync } from 'node:fs'
+import type { Dialog } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, HARDENED, MACOS, TAG, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -426,11 +427,29 @@ test.describe('the Schema tab', () => {
     })
     await displayName.fill('Not saved')
 
-    // Staying keeps the editor, with its changes.
+    // Staying keeps the editor, with its changes. A tab asks once its click is done, and nothing
+    // asks again until the user tries to leave again, wherever the pointer goes meanwhile.
+    const stayed: string[] = []
+    const stay = (dialog: Dialog) => {
+      stayed.push(dialog.message())
+      void dialog.dismiss()
+    }
+    page.on('dialog', stay)
+    const runs = page.getByRole('tab', { name: 'Runs' })
+    const machines = page.getByRole('tab', { name: 'Machines' })
+    await runs.hover()
+    await page.mouse.down()
+    await machines.hover()
+    await runs.hover()
+    await page.mouse.up()
+    await expect.poll(() => stayed).toEqual([CONFIRM.message])
+    await machines.hover()
+    await runs.hover()
+    // A dialog that should not open has nothing to wait for.
+    await page.waitForTimeout(1000)
+    expect(stayed).toEqual([CONFIRM.message])
+    page.off('dialog', stay)
     let asked = answerNext(false)
-    await page.getByRole('tab', { name: 'Runs' }).click()
-    expect(await asked).toEqual(CONFIRM)
-    asked = answerNext(false)
     await page.goBack()
     expect(await asked).toEqual(CONFIRM)
     await expect(page).toHaveURL('/suites/libcxx?tab=schema')

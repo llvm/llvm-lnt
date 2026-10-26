@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../../api/keys'
@@ -16,6 +17,7 @@ import {
   navbarLink,
   renderPage,
   rowsOf,
+  settle,
   table,
   typeInto,
   type SuiteStore,
@@ -230,6 +232,29 @@ describe('leaving the tab', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
 
     await expectViewer()
+  })
+
+  it('asks once per click on a tab, and not again until the user tries to leave again', async () => {
+    await openChanged()
+    const confirm = answerLeaving(false)
+    const user = userEvent.setup()
+    const runs = screen.getByRole('tab', { name: 'Runs' })
+    const machines = screen.getByRole('tab', { name: 'Machines' })
+
+    // The pointer leaving the tab and coming back, pressed or not, or the window getting the
+    // focus back once the user has answered, asks nothing more.
+    await user.pointer({ keys: '[MouseLeft>]', target: runs })
+    await user.pointer({ target: machines })
+    await user.pointer({ target: runs })
+    await user.pointer({ keys: '[/MouseLeft]', target: runs })
+    expect(confirm).toHaveBeenCalledOnce()
+    act(() => void window.dispatchEvent(new FocusEvent('focus')))
+    await user.pointer({ target: machines })
+    await user.pointer({ target: runs })
+    await settle()
+
+    expect(confirm).toHaveBeenCalledOnce()
+    expectEditor()
   })
 
   it('to another suite, or by Back or Forward, asks first', async () => {

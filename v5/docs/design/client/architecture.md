@@ -413,8 +413,8 @@ A form whose spec says so asks before the user loses its unsaved changes, as
 that spec defines them, by going to another URL within the SPA (another tab or
 page, Back or Forward) or by leaving the SPA (reloading, closing the browser
 tab, a link out of it). Within the SPA, the user either confirms or stays, with
-the URL, the page and the form as they were; leaving the SPA, the browser asks
-with its own prompt. Changes still being saved are unsaved: leaving does not
-cancel the save, but its failure could no longer be shown. The form's Cancel,
-and the form closing on its own (once saved, or once what it edits is gone), ask
-nothing.
+the URL, the page and the form as they were, and nothing asks again until they
+try to leave again; leaving the SPA, the browser asks with its own prompt.
+Changes still being saved are unsaved: leaving does not cancel the save, but its
+failure could no longer be shown. The form's Cancel, and the form closing on its
+own (once saved, or once what it edits is gone), ask nothing.

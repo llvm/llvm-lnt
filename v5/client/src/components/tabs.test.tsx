@@ -47,6 +47,24 @@ describe('Tabs', () => {
     expect(screen.getByRole('tabpanel', { name: 'Beta' })).toHaveTextContent('Content of b')
   })
 
+  it('selects a tab once the pointer is released on it, as a click, not when pressed', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    render(<Harness onSelect={onSelect} />)
+    const alpha = screen.getByRole('tab', { name: 'Alpha' })
+    const beta = screen.getByRole('tab', { name: 'Beta' })
+
+    await user.pointer({ keys: '[MouseLeft>]', target: beta })
+    expect(onSelect).not.toHaveBeenCalled()
+    // Leaving the tab and coming back, pressed, selects nothing either.
+    await user.pointer({ target: alpha })
+    await user.pointer({ target: beta })
+    expect(onSelect).not.toHaveBeenCalled()
+
+    await user.pointer({ keys: '[/MouseLeft]', target: beta })
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith('b')
+  })
+
   it('does not select the selected tab again when it is clicked', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
