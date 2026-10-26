@@ -6,6 +6,7 @@
  */
 
 import { readFileSync } from 'node:fs'
+import type { Dialog } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, HARDENED, MACOS, TAG, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -401,21 +402,77 @@ test.describe('the Schema tab', () => {
     })
   })
 
-  test('discards the changes of the editor on leaving the tab', async ({ page, signIn }) => {
+  test('asks before the changes of the editor are lost by leaving it', async ({ page, signIn }) => {
+    /** Accept or dismiss the next dialog; returns its type and message, for the test to check. */
+    function answerNext(accept: boolean) {
+      return new Promise<{ type: string; message: string }>((resolve) => {
+        page.once('dialog', async (dialog) => {
+          await (accept ? dialog.accept() : dialog.dismiss())
+          resolve({ type: dialog.type(), message: dialog.message() })
+        })
+      })
+    }
+    const CONFIRM = { type: 'confirm', message: 'You have unsaved changes. Leave anyway?' }
+
     await signIn(page, 'manage')
-    await page.goto('/suites/libcxx?tab=schema')
+    // From another suite, for Back to have an entry of the SPA to go back to.
+    await page.goto('/suites/nts')
+    const picker = page.getByRole('navigation', { name: 'Test suites' })
+    await picker.getByRole('link', { name: 'libcxx' }).click()
+    await page.getByRole('tab', { name: 'Schema' }).click()
     await page.getByRole('button', { name: 'Edit schema' }).click()
     const editor = page.getByRole('region', { name: 'Editing libcxx' })
-    await editor
-      .getByRole('textbox', { name: 'Display name of metric execution_time' })
-      .fill('Not saved')
+    const displayName = editor.getByRole('textbox', {
+      name: 'Display name of metric execution_time',
+    })
+    await displayName.fill('Not saved')
 
+    // Staying keeps the editor, with its changes. A tab asks once its click is done, and nothing
+    // asks again until the user tries to leave again, wherever the pointer goes meanwhile.
+    const stayed: string[] = []
+    const stay = (dialog: Dialog) => {
+      stayed.push(dialog.message())
+      void dialog.dismiss()
+    }
+    page.on('dialog', stay)
+    const runs = page.getByRole('tab', { name: 'Runs' })
+    const machines = page.getByRole('tab', { name: 'Machines' })
+    await runs.hover()
+    await page.mouse.down()
+    await machines.hover()
+    await runs.hover()
+    await page.mouse.up()
+    await expect.poll(() => stayed).toEqual([CONFIRM.message])
+    await machines.hover()
+    await runs.hover()
+    // A dialog that should not open has nothing to wait for.
+    await page.waitForTimeout(1000)
+    expect(stayed).toEqual([CONFIRM.message])
+    page.off('dialog', stay)
+    let asked = answerNext(false)
+    await page.goBack()
+    expect(await asked).toEqual(CONFIRM)
+    await expect(page).toHaveURL('/suites/libcxx?tab=schema')
+    await expect(displayName).toHaveValue('Not saved')
+
+    // Leaving discards them.
+    asked = answerNext(true)
     await page.getByRole('tab', { name: 'Runs' }).click()
+    expect(await asked).toEqual(CONFIRM)
+    await expect(page).toHaveURL('/suites/libcxx')
     await page.getByRole('tab', { name: 'Schema' }).click()
-
     await expect(editor).toBeHidden()
     await expect(rows(table(page, 'Metrics')).first().locator('td').nth(2)).toHaveText(
       'Execution Time',
     )
+
+    // Reloading discards them too, once the browser has asked. (Not staying, which the unit tests
+    // cover: Playwright loses track of the page once a reload is cancelled.)
+    await page.getByRole('button', { name: 'Edit schema' }).click()
+    await displayName.fill('Not saved')
+    asked = answerNext(true)
+    await page.reload()
+    expect((await asked).type).toBe('beforeunload')
+    await expect(editor).toBeHidden()
   })
 })

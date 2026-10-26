@@ -14,6 +14,7 @@ import {
   mockResolve,
   mockRuns,
   mockSuites,
+  navbarLink,
   renderPage,
   rowsOf,
   search,
@@ -116,8 +117,7 @@ describe('the Test Suites page', () => {
     await table('Runs')
 
     // The navbar's link leads to the suite without the search, as a new history entry.
-    const navbar = screen.getAllByRole('navigation')[0]
-    fireEvent.click(within(navbar).getByRole('link', { name: 'Test Suites' }))
+    fireEvent.click(navbarLink('Test Suites'))
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
     expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
 

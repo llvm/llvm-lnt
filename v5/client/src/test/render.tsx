@@ -1,16 +1,20 @@
-import type { ReactElement, ReactNode } from 'react'
+import { createContext, useContext, type ReactElement, type ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router'
+import { createMemoryRouter, type RouteObject } from 'react-router'
+import { rootRoute } from '../app'
 import { createQueryClient } from '../api/query-client'
 import { AuthProvider } from '../auth/auth-provider'
 import { createTokenStore } from '../auth/credentials'
-import { UrlStateProvider } from '../url-state-provider'
+import { AppRouterProvider } from '../router-provider'
 
 interface Options {
   /** The URL the router starts at. */
   url?: string
 }
+
+/** What the wrapper of `providers` is given to render, for the route rendering it. */
+const Content = createContext<ReactNode>(null)
 
 /**
  * A query client of the test's own, so that no cache carries over from one test to the next. It
@@ -27,18 +31,25 @@ function createTestQueryClient(): QueryClient {
 /**
  * A wrapper providing what the app does, for `renderHook`: a router, a fresh query client, and a
  * token store connected to the API client, which starts with the token in `localStorage` (see
- * `signIn`).
+ * `signIn`). The router has `routes`, or else renders what the wrapper is given at every URL.
  */
-export function providers({ url = '/' }: Options = {}) {
+export function providers({ url = '/', routes }: Options & { routes?: RouteObject[] } = {}) {
   const queryClient = createTestQueryClient()
   const tokens = createTokenStore(queryClient)
+  function ContentRoute() {
+    return useContext(Content)
+  }
+  const router = createMemoryRouter(
+    [rootRoute(routes ?? [{ path: '*', element: <ContentRoute /> }])],
+    { initialEntries: [url] },
+  )
   function Providers({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider tokens={tokens}>
-          <MemoryRouter initialEntries={[url]} useTransitions={false}>
-            <UrlStateProvider>{children}</UrlStateProvider>
-          </MemoryRouter>
+          <Content.Provider value={children}>
+            <AppRouterProvider router={router} />
+          </Content.Provider>
         </AuthProvider>
       </QueryClientProvider>
     )
@@ -50,4 +61,10 @@ export function providers({ url = '/' }: Options = {}) {
 export function renderWithProviders(ui: ReactElement, options: Options = {}) {
   const { wrapper, queryClient } = providers(options)
   return { ...render(ui, { wrapper }), queryClient }
+}
+
+/** Render a router with `routes` under `providers`. */
+export function renderRoutes(routes: RouteObject[], options: Options = {}) {
+  const { wrapper, queryClient } = providers({ ...options, routes })
+  return { ...render(<></>, { wrapper }), queryClient }
 }

@@ -3,28 +3,29 @@
  * the URL it is at, and mocks of the suite-scoped endpoints most pages read.
  */
 
+import type { ReactNode } from 'react'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { useLocation, useNavigate } from 'react-router'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 import { expect } from 'vitest'
-import App from '../app'
+import { routes } from '../app'
 import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
 import { INACTIVITY_HELP } from '../inactivity'
 import type { Commit } from '../schema'
 import { BARE_SUITE, SUITE, cursorPage } from './fixtures'
 import { mockApi, type Operation, type PathWith, type RequestBody } from './mock-api'
-import { renderWithProviders } from './render'
+import { renderRoutes } from './render'
 import { server } from './server'
 
 export type Page<Item> = ReturnType<typeof cursorPage<Item>>
 export type Respond<Body> = (query: URLSearchParams) => Body | Promise<Body>
 
 /**
- * The app at `url`, with the URL it is at shown, as `currentUrl` reads it, and Back and Forward
- * buttons.
+ * The app at `url`, with the URL it is at shown, as `currentUrl` reads it, Back and Forward
+ * buttons, and `extra`.
  */
-export function renderPage(url: string) {
+export function renderPage(url: string, extra?: ReactNode) {
   function ShowUrl() {
     const { pathname, search } = useLocation()
     const navigate = useNavigate()
@@ -36,11 +37,19 @@ export function renderPage(url: string) {
       </>
     )
   }
-  return renderWithProviders(
-    <>
-      <App />
-      <ShowUrl />
-    </>,
+  return renderRoutes(
+    [
+      {
+        element: (
+          <>
+            <Outlet />
+            <ShowUrl />
+            {extra}
+          </>
+        ),
+        children: routes,
+      },
+    ],
     { url },
   )
 }
@@ -48,6 +57,11 @@ export function renderPage(url: string) {
 /** Queries within the page's content, rather than the navbar, which has links of its own. */
 export function main() {
   return within(screen.getByRole('main'))
+}
+
+/** The link named `name` in the navbar, the first navigation landmark of the page. */
+export function navbarLink(name: string) {
+  return within(screen.getAllByRole('navigation')[0]).getByRole('link', { name })
 }
 
 /** Queries within the breadcrumb trail of a detail page (see SuiteTrail). */

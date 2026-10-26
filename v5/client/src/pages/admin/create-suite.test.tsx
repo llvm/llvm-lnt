@@ -9,6 +9,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { compareStrings } from '../../format'
 import { signIn } from '../../test/auth'
 import { BARE_SUITE, SUITE } from '../../test/fixtures'
+import { answerLeaving, unloadAsks } from '../../test/leave'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -238,15 +239,64 @@ describe('opening the editor', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('discards it all on leaving the tab', async () => {
+  it('asks before it is left with anything entered, discarding it all if confirmed', async () => {
     await openEditor()
+    const confirm = answerLeaving(false)
     typeInto(suiteNameInput(), 'draft')
 
     fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(currentUrl()).toBe('/admin?tab=suites')
+    expect(suiteNameInput()).toHaveValue('draft')
+
+    confirm.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
+    await waitFor(() => expect(currentUrl()).toBe('/admin'))
     fireEvent.click(await screen.findByRole('tab', { name: 'Test Suites' }))
 
     await waitFor(() => expect(newSuiteButton()).toBeEnabled())
     expect(editor()).not.toBeInTheDocument()
+  })
+
+  it('is left without asking while nothing is entered', async () => {
+    await openEditor()
+    const confirm = answerLeaving(false)
+    expect(unloadAsks()).toBe(false)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/admin'))
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('has unsaved changes once a name or an entry is entered', async () => {
+    await openEditor()
+
+    typeInto(suiteNameInput(), 'draft')
+    expect(unloadAsks()).toBe(true)
+    typeInto(suiteNameInput(), '')
+    expect(unloadAsks()).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add metric' }))
+    expect(unloadAsks()).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove metric 1' }))
+    expect(unloadAsks()).toBe(false)
+
+    // A suite without entries leaves the editor as it opened.
+    await pickOption('Start from', 'nts')
+    expect(unloadAsks()).toBe(false)
+    await pickOption('Start from', 'libcxx')
+    expect(unloadAsks()).toBe(true)
+  })
+
+  it('has unsaved changes once a document that is not blank is entered', async () => {
+    await openEditor()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import JSON' }))
+    typeInto(screen.getByRole('textbox', { name: /^Schema document/ }), '  \n ')
+    expect(unloadAsks()).toBe(false)
+    typeInto(screen.getByRole('textbox', { name: /^Schema document/ }), '{}')
+    expect(unloadAsks()).toBe(true)
   })
 })
 
@@ -404,6 +454,7 @@ describe('creating the suite', () => {
   it("sends the schema, then goes to the new suite's Schema tab", async () => {
     const store = await openEditor()
     const sent = mockCreate(store)
+    const confirm = answerLeaving(false)
     typeInto(suiteNameInput(), 'fresh')
     addEntry('metric', 'size')
     await pickOption('Type of metric size', 'integer')
@@ -435,6 +486,7 @@ describe('creating the suite', () => {
       ],
     })
     expect(sent[0].auth).toMatch(/^Bearer /)
+    expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
@@ -593,8 +645,11 @@ describe('creating the suite', () => {
     fireEvent.click(createButton())
     await waitFor(() => expect(createButton()).toHaveTextContent('Creating...'))
 
+    // Not created yet: the user is asked first, and leaving does not cancel the creation.
+    const confirm = answerLeaving(true)
     fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
     await waitFor(() => expect(currentUrl()).toBe('/admin'))
+    expect(confirm).toHaveBeenCalledOnce()
     await act(async () => reply.open())
     await waitFor(() => expect(store.queryClient.isMutating()).toBe(0))
     expect(currentUrl()).toBe('/admin')
@@ -686,6 +741,7 @@ describe('Import JSON', () => {
   it("sends the document as it is, then goes to the new suite's Schema tab", async () => {
     const store = await openEditor()
     const sent = mockCreate(store)
+    const confirm = answerLeaving(false)
     fireEvent.click(importToggle())
     const send = screen.getByRole('button', { name: 'Create from JSON' })
     expect(send).toBeDisabled()
@@ -696,6 +752,7 @@ describe('Import JSON', () => {
 
     await waitFor(() => expect(currentUrl()).toBe('/suites/imported?tab=schema'))
     expect(sent[0].text).toBe(DOCUMENT)
+    expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()
     expect(rowsOf(await table('Metrics'))).toEqual(['size | real | -- | -- | No | No'])
   })

@@ -12,7 +12,7 @@
  * server can rule out, such as a machine that does not exist, is dropped by `useDropUnusable` once
  * a response shows it to be unusable.
  *
- * `useUrlState` needs a `UrlStateProvider` inside the router.
+ * `useUrlState` needs a `UrlStateProvider` around the router.
  */
 
 import {
@@ -22,9 +22,8 @@ import {
   useEffect,
   useMemo,
   useState,
-  type RefObject,
 } from 'react'
-import { useLocation, useNavigate, useNavigationType, type Location } from 'react-router'
+import { useLocation, useNavigate, useNavigationType, type DataRouter } from 'react-router'
 import { parseNumber } from './format'
 import { sameElements } from './same-elements'
 
@@ -174,12 +173,12 @@ function read<P extends Params>(
 }
 
 /**
- * The location every `useUrlState` of the app starts its changes from: the router's, or the one a
- * change has just navigated to but the router has not rendered yet. Shared, so that changes made
- * one after the other compose, whichever part of the page makes them. `UrlStateProvider` provides
- * it.
+ * The router whose location every `useUrlState` of the app starts its changes from: the location it
+ * is at, which it changes as soon as it navigates, before rendering it, and never for a navigation
+ * refused (see `useUnsavedChanges`). Shared, so that changes made one after the other compose,
+ * whichever part of the page makes them. `UrlStateProvider` provides it.
  */
-export const PendingLocation = createContext<RefObject<Location> | null>(null)
+export const UrlStateRouter = createContext<Pick<DataRouter, 'state'> | null>(null)
 
 /**
  * The settings `params` declares, read from the URL, and a function that changes some of them.
@@ -198,8 +197,8 @@ export function useUrlState<P extends Params>(
 ): [ValuesOf<P>, (changes: Partial<ValuesOf<P>>) => void] {
   const location = useLocation()
   const navigate = useNavigate()
-  const pendingRef = useContext(PendingLocation)
-  if (pendingRef === null) throw new Error('useUrlState must be used inside a UrlStateProvider')
+  const router = useContext(UrlStateRouter)
+  if (router === null) throw new Error('useUrlState must be used inside a UrlStateProvider')
 
   // What each setting was last read as, which only ever lets a setting keep the value it had.
   const [readings] = useState(() => new WeakMap<Param<unknown>, Reading>())
@@ -211,7 +210,7 @@ export function useUrlState<P extends Params>(
   const { pathname } = location
   const update = useCallback(
     (changes: Partial<ValuesOf<P>>) => {
-      const current = pendingRef.current
+      const current = router.state.location
       if (current.pathname !== pathname) return
 
       const search = new URLSearchParams(current.search)
@@ -230,13 +229,9 @@ export function useUrlState<P extends Params>(
       // check that rejects the default too) would never settle.
       if (!changed) return
       const next = search.toString()
-      pendingRef.current = { ...current, search: next ? `?${next}` : '' }
-      navigate(
-        { pathname, search: pendingRef.current.search, hash: current.hash },
-        { replace: true },
-      )
+      navigate({ pathname, search: next ? `?${next}` : '', hash: current.hash }, { replace: true })
     },
-    [params, navigate, pathname, pendingRef],
+    [params, navigate, pathname, router],
   )
 
   // Make the URL say what the page shows: drop what it cannot use, and spell the rest canonically.
