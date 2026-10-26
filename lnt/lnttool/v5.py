@@ -134,9 +134,9 @@ def action_convert_profile(profile: str, output: Any, encode: bool,
                 type=click.File("rb"))
 @click.option("--suite", required=True, metavar="NAME",
               help="test suite to submit the runs to")
-@click.option("--token", envvar="LNT_V5_TOKEN", metavar="TOKEN",
+@click.option("--token", envvar="LNT_TOKEN", metavar="TOKEN",
               help="API token, with submit scope (manage with "
-                   "--create-suite) [default: $LNT_V5_TOKEN]")
+                   "--create-suite) [default: $LNT_TOKEN]")
 @click.option("--create-suite", "schema_file", metavar="FILE",
               type=click.Path(exists=True, dir_okay=False),
               help="create the suite, which must not exist yet, from the "
