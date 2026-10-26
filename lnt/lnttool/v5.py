@@ -147,9 +147,16 @@ def action_convert_profile(profile: str, output: Any, encode: bool,
 @click.option("--skip-existing", is_flag=True,
               help="list the runs the suite already has, and skip them; "
                    "worth it when submitting much of an input again")
+@click.option("--retries", default=30, show_default=True,
+              type=click.IntRange(min=0),
+              help="number of times to retry a failed request")
+@click.option("--retry-delay", default=10, show_default=True,
+              type=click.FloatRange(min=0), metavar="SECONDS",
+              help="seconds to wait before each retry")
 def action_submit(url: str, input_file: Any, suite: str, token: str | None,
                   schema_file: str | None, workers: int,
-                  skip_existing: bool) -> None:
+                  skip_existing: bool, retries: int,
+                  retry_delay: float) -> None:
     """submit runs to a test suite of an LNT v5 instance
 
     URL is the root of the v5 instance, e.g. https://lnt.example.com. The runs
@@ -159,8 +166,8 @@ def action_submit(url: str, input_file: Any, suite: str, token: str | None,
     only submits the missing ones.
 
     Requests that fail because of the network, a server error or a concurrent
-    change to the suite's schema are retried a few times. Any other failure is
-    reported, and the command carries on with the next run.
+    change are retried (see --retries). Any other failure is reported, and the
+    command carries on with the next run.
 
     Exits with a zero status if every run was submitted (or skipped without an
     error), and with a non-zero status if any failed.
@@ -178,7 +185,8 @@ def action_submit(url: str, input_file: Any, suite: str, token: str | None,
             raise click.BadParameter(str(e), param_hint="--create-suite")
     try:
         failures = submit(url, suite, input_file, token, schema, workers,
-                          echo=click.echo, skip_existing=skip_existing)
+                          echo=click.echo, skip_existing=skip_existing,
+                          retries=retries, retry_delay=retry_delay)
     except SubmitError as e:
         click.echo("error: %s" % e, err=True)
         sys.exit(1)

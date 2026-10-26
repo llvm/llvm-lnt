@@ -11,7 +11,6 @@ import collections
 import gzip
 import json
 import threading
-import time
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -22,11 +21,6 @@ import requests
 
 # Where the command reports its progress, one line at a time.
 Echo = Callable[[str], None]
-
-# Requests are retried on connection errors, 5xx responses and `409 retry`
-# responses, with these delays (in seconds) before the second and third
-# attempts.
-RETRY_DELAYS = (1, 4)
 
 # (connect, read) timeouts, in seconds. A large run can take a v5 instance a
 # few seconds to store.
@@ -57,7 +51,16 @@ def _message(response: requests.Response) -> str:
         return '%d %s' % (response.status_code,
                           response.json()['error']['message'])
     except (ValueError, KeyError, TypeError):
-        return '%d %s' % (response.status_code, response.text.strip()[:200])
+        # Not from the instance itself, e.g. a proxy's HTML error page.
+        return '%d %s' % (response.status_code, response.reason or
+                          ' '.join(response.text.split())[:200])
+
+
+def _network_failure(e: requests.RequestException) -> bool:
+    """Whether `e` is a network failure, which a retry may not hit again."""
+    return isinstance(e, (requests.ConnectionError, requests.Timeout,
+                          requests.exceptions.ChunkedEncodingError)) and \
+        not isinstance(e, requests.exceptions.SSLError)
 
 
 def _error_code(response: requests.Response) -> Any:
@@ -70,12 +73,21 @@ def _error_code(response: requests.Response) -> Any:
 class Client:
     """Sends requests to a v5 instance's REST API."""
 
-    def __init__(self, url: str, token: str | None) -> None:
+    def __init__(self, url: str, token: str | None, retries: int,
+                 retry_delay: float, echo: Echo) -> None:
         self.base = url.rstrip('/') + '/api'
         self.token = token
+        self.retries = retries
+        self.retry_delay = retry_delay
+        self.echo = echo
         # requests does not promise that a Session is safe to share between
         # threads, so give each worker its own.
         self._local = threading.local()
+        self._stopping = threading.Event()
+
+    def stop(self) -> None:
+        """Send no more requests, and do not retry those in flight."""
+        self._stopping.set()
 
     def _session(self) -> requests.Session:
         session: requests.Session | None = getattr(self._local, 'session', None)
@@ -92,25 +104,38 @@ class Client:
         """Send a request, retrying it as the spec says.
 
         Returns the last response, whatever its status. Raises
-        requests.RequestException if the instance could not be reached.
+        requests.RequestException if the instance could not be reached, or if
+        the client is stopping.
         """
-        delays = iter(RETRY_DELAYS)
+        retry = 0
         while True:
+            if self._stopping.is_set():
+                raise requests.RequestException(
+                    'not sent, the command is stopping')
             try:
                 response = self._session().request(
                     method, self.base + path, timeout=TIMEOUT, **kwargs)
-            except requests.RequestException:
-                delay = next(delays, None)
-                if delay is None:
+            except requests.RequestException as e:
+                if not _network_failure(e) or retry == self.retries or \
+                        self._stopping.is_set():
                     raise
+                # Its message is long, and would be repeated at every retry.
+                failure = type(e).__name__
             else:
                 retryable = response.status_code >= 500 or \
                     (response.status_code == 409 and
                      _error_code(response) == 'retry')
-                delay = next(delays, None) if retryable else None
-                if delay is None:
+                if not retryable or retry == self.retries or \
+                        self._stopping.is_set():
                     return response
-            time.sleep(delay)
+                failure = _message(response)
+            retry += 1
+            self.echo('  %s /api%s failed (%s); retrying in %gs '
+                      '(retry %d of %d)' % (method, path, failure,
+                                            self.retry_delay, retry,
+                                            self.retries))
+            # Unlike sleeping, this ends as soon as the client stops.
+            self._stopping.wait(self.retry_delay)
 
 
 def _check_token(client: Client, needed: str) -> None:
@@ -207,14 +232,15 @@ def _lines(lines: Iterable[bytes]) -> Iterable[_Line]:
 def submit(url: str, suite: str, lines: Iterable[bytes],
            token: str | None = None, create_suite: Any = None,
            workers: int = 4, echo: Echo = print, *,
-           skip_existing: bool = False) -> int:
+           skip_existing: bool = False, retries: int = 30,
+           retry_delay: float = 10) -> int:
     """Submit the runs in `lines`, one JSON object per line, to `suite`.
 
     `create_suite` is the schema given with --create-suite, if any. Returns
     the number of runs that could not be submitted. Raises SubmitError for
     problems that stop the command before it submits anything.
     """
-    client = Client(url, token)
+    client = Client(url, token, retries, retry_delay, echo)
     path = '/suites/%s' % quote(suite, safe='')
     existing: set[str] = set()
     try:
@@ -285,6 +311,8 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
                 oldest, future = in_flight.popleft()
                 settle(oldest, future.result())
         except BaseException:
+            client.stop()
+            echo('Stopping: waiting for the requests in flight to finish...')
             pool.shutdown(wait=True, cancel_futures=True)
             raise
     echo('Submitted %d run(s), %d the suite already had; %d failure(s).'
