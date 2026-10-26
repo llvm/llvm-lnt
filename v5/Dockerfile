@@ -44,4 +44,10 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 --start-period=60s --start-interval=1s \
   CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/healthz', timeout=2).status == 200 else 1)"
 
+# The commit the image is built from, reported by the API index (E1). Passed in, since the build
+# context has no .git. Last, so that a new revision rebuilds nothing.
+ARG LNT_REVISION=
+ENV LNT_REVISION=$LNT_REVISION
+LABEL org.opencontainers.image.revision=$LNT_REVISION
+
 CMD ["lnt-v5", "server", "run"]

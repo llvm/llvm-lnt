@@ -10,7 +10,8 @@
 - [OpenAPI specification](/api/openapi.json): every parameter, request body,
   response body and status code. Consult it for anything this file leaves out.
 - [Interactive documentation](/api/docs): the same specification, for humans.
-- [API index](/api): links to the suite list endpoint and to both of the above.
+- [API index](/api): links to the suite list endpoint and to both of the above,
+  and the commit of LNT the server was built from.
 
 ## Concepts
 

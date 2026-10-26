@@ -13,6 +13,8 @@
 #
 # The image is $LNT_V5_IMAGE if set. Otherwise it is built from the tree first, so that the tests
 # are a single command from a clean checkout, and removed afterwards. CI passes the image it built.
+# Either way, the integration tests expect it to be built with a revision (LNT_REVISION), as CI
+# builds it: this builds it with HEAD's, even if the tree has changed since.
 #
 # COMMAND runs once the app answers, both directly and through Nginx, with:
 #   CONTAINER             the app container
@@ -147,7 +149,8 @@ if grep -Eq '^ *published: "?(80|443)"?$' <<< "$merged"; then
 fi
 if [ -n "$BUILT" ]; then
     echo "Building ${IMAGE}..."
-    docker build --tag "$IMAGE" "${HERE}/.."
+    docker build --tag "$IMAGE" \
+        --build-arg LNT_REVISION="$(git -C "$HERE" rev-parse --short HEAD)" "${HERE}/.."
 fi
 
 echo "Starting the stack..."

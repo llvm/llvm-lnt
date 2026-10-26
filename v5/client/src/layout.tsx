@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { NavLink, Outlet, useLocation, useMatch } from 'react-router'
 import clsx from 'clsx'
+import { useRevision } from './api/api-index'
 import { SettingsMenu } from './auth/settings-menu'
 import { Loading } from './components/feedback'
 import { PageErrorBoundary } from './components/page-error-boundary'
@@ -53,6 +54,30 @@ export function Layout() {
           </Suspense>
         </PageErrorBoundary>
       </main>
+      <Footer />
     </div>
+  )
+}
+
+/** The page footer (AR4), naming the commit of LNT the server was built from, if it says. */
+function Footer() {
+  const revision = useRevision()
+  return (
+    <footer className={styles.footer}>
+      LNT v5
+      {revision !== null && (
+        <>
+          <span aria-hidden="true"> · </span>
+          <a
+            href={`https://github.com/llvm/llvm-lnt/commit/${revision}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.revision}
+          >
+            {revision}
+          </a>
+        </>
+      )}
+    </footer>
   )
 }

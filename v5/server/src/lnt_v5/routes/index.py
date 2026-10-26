@@ -6,7 +6,7 @@ when it configures FastAPI, so there is one place that decides where they live.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from lnt_v5.auth import require_scope
@@ -34,15 +34,25 @@ class ApiLinks(BaseModel):
 
 
 class ApiIndex(BaseModel):
-    """Links to the test suite list and to the API documentation."""
+    """Links to the test suite list and to the API documentation, and the server's revision."""
 
     links: ApiLinks
+    revision: str | None = Field(
+        description="The commit of LNT this server was built from, as a lowercase hexadecimal "
+        "commit hash, possibly abbreviated. Null when the server does not know it.",
+        examples=["0dd267f1"],
+    )
 
 
 router = APIRouter(tags=["Discovery"])
 
 
 @router.get(INDEX_PATH, dependencies=[require_scope(Scope.READ)], summary="API index")
-def index() -> ApiIndex:
-    """The starting point of the API, with links to the test suites and to this page."""
-    return ApiIndex(links=ApiLinks(suites=SUITES_PATH, openapi=OPENAPI_PATH, docs=DOCS_PATH))
+def index(request: Request) -> ApiIndex:
+    """The starting point of the API, with links to the test suites and to this page, and the
+    commit of LNT the server was built from.
+    """
+    return ApiIndex(
+        links=ApiLinks(suites=SUITES_PATH, openapi=OPENAPI_PATH, docs=DOCS_PATH),
+        revision=request.app.state.revision,
+    )

@@ -55,3 +55,20 @@
   width: 100%;
   margin: 0 auto;
 }
+
+/* Subtle: a hint for whoever debugs the instance, not something a page is about. */
+.footer {
+  padding: var(--lnt-space-2) var(--lnt-space-4);
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--lnt-muted);
+}
+
+.revision {
+  color: inherit;
+  font-family: var(--lnt-font-mono);
+}
+
+.revision:hover {
+  color: var(--lnt-accent);
+}

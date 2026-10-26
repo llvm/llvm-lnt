@@ -123,7 +123,8 @@ deploy workflow's final `/healthz` check fails, since it goes through the domain
 The `v5 Test` workflow builds the image on every PR and push to `main`, and runs the integration and
 end-to-end tests against it. On pushes to `main` (exclusively), and only once those and the other
 test suites have passed, the image is pushed to `ghcr.io/llvm/llvm-lnt-v5` and tagged with the
-commit's short SHA as well as `latest`.
+commit's short SHA as well as `latest`. The image also records that SHA as its revision (the
+`LNT_REVISION` build arg), which the API index reports and the web UI shows in its footer.
 
 ## Deploying the web app
 

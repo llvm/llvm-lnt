@@ -130,6 +130,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.suites = SuiteRegistry()
     # When this worker last recorded each key's use (D5), built here for the same reason.
     app.state.last_use = LastUseRecorder()
+    # What the API index reports as the server's revision (E1).
+    app.state.revision = settings.lnt_revision
 
     register_error_handlers(app)
     refine_document(app)
