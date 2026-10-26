@@ -1,12 +1,12 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
-import { RouterProvider, createMemoryRouter, type RouteObject } from 'react-router'
+import { createMemoryRouter, type RouteObject } from 'react-router'
 import { rootRoute } from '../app'
 import { createQueryClient } from '../api/query-client'
 import { AuthProvider } from '../auth/auth-provider'
 import { createTokenStore } from '../auth/credentials'
-import { UrlStateProvider } from '../url-state-provider'
+import { AppRouterProvider } from '../router-provider'
 
 interface Options {
   /** The URL the router starts at. */
@@ -47,11 +47,9 @@ export function providers({ url = '/', routes }: Options & { routes?: RouteObjec
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider tokens={tokens}>
-          <UrlStateProvider router={router}>
-            <Content.Provider value={children}>
-              <RouterProvider router={router} useTransitions={false} />
-            </Content.Provider>
-          </UrlStateProvider>
+          <Content.Provider value={children}>
+            <AppRouterProvider router={router} />
+          </Content.Provider>
         </AuthProvider>
       </QueryClientProvider>
     )

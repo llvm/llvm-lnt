@@ -258,6 +258,17 @@ describe('useUrlState', () => {
 
     expect(result.current.url).toBe('/suites/other?metric=b')
   })
+
+  it('ignores a change made right after the path changed, before the page renders again', () => {
+    const result = renderSettings('/suites/nts')
+
+    act(() => {
+      void result.current.navigate('/suites/other?metric=b')
+      result.current.setState({ metric: 'late' })
+    })
+
+    expect(result.current.url).toBe('/suites/other?metric=b')
+  })
 })
 
 describe('history', () => {

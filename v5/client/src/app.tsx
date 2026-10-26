@@ -36,7 +36,7 @@ export const routes: RouteObject[] = [
   },
 ]
 
-/** The route at the root of the router, above `children`: the app's routes, say. */
+/** The route at the root of a router, holding `children`, such as `routes`. */
 export function rootRoute(children: RouteObject[]): RouteObject {
   return { ErrorBoundary: RethrowError, children }
 }

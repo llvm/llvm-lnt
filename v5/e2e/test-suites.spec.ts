@@ -402,16 +402,16 @@ test.describe('the Schema tab', () => {
   })
 
   test('asks before the changes of the editor are lost by leaving it', async ({ page, signIn }) => {
-    /** Answer the next dialog, which must be of type `type`; returns its message. */
-    function answerNext(type: 'confirm' | 'beforeunload', accept: boolean) {
-      return new Promise<string>((resolve) => {
+    /** Accept or dismiss the next dialog; returns its type and message, for the test to check. */
+    function answerNext(accept: boolean) {
+      return new Promise<{ type: string; message: string }>((resolve) => {
         page.once('dialog', async (dialog) => {
-          expect(dialog.type()).toBe(type)
           await (accept ? dialog.accept() : dialog.dismiss())
-          resolve(dialog.message())
+          resolve({ type: dialog.type(), message: dialog.message() })
         })
       })
     }
+    const CONFIRM = { type: 'confirm', message: 'You have unsaved changes. Leave anyway?' }
 
     await signIn(page, 'manage')
     // From another suite, for Back to have an entry of the SPA to go back to.
@@ -427,19 +427,19 @@ test.describe('the Schema tab', () => {
     await displayName.fill('Not saved')
 
     // Staying keeps the editor, with its changes.
-    let asked = answerNext('confirm', false)
+    let asked = answerNext(false)
     await page.getByRole('tab', { name: 'Runs' }).click()
-    expect(await asked).toBe('You have unsaved changes. Leave anyway?')
-    asked = answerNext('confirm', false)
+    expect(await asked).toEqual(CONFIRM)
+    asked = answerNext(false)
     await page.goBack()
-    await asked
+    expect(await asked).toEqual(CONFIRM)
     await expect(page).toHaveURL('/suites/libcxx?tab=schema')
     await expect(displayName).toHaveValue('Not saved')
 
     // Leaving discards them.
-    asked = answerNext('confirm', true)
+    asked = answerNext(true)
     await page.getByRole('tab', { name: 'Runs' }).click()
-    await asked
+    expect(await asked).toEqual(CONFIRM)
     await expect(page).toHaveURL('/suites/libcxx')
     await page.getByRole('tab', { name: 'Schema' }).click()
     await expect(editor).toBeHidden()
@@ -451,9 +451,9 @@ test.describe('the Schema tab', () => {
     // cover: Playwright loses track of the page once a reload is cancelled.)
     await page.getByRole('button', { name: 'Edit schema' }).click()
     await displayName.fill('Not saved')
-    asked = answerNext('beforeunload', true)
+    asked = answerNext(true)
     await page.reload()
-    await asked
+    expect((await asked).type).toBe('beforeunload')
     await expect(editor).toBeHidden()
   })
 })

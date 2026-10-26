@@ -222,7 +222,7 @@ describe('leaving the tab', () => {
     expect(confirm).toHaveBeenCalledOnce()
     expectEditor()
 
-    // Asked again, the tab refused before being no change the page has made already.
+    // The tab refused can be asked for again, and asks again.
     confirm.mockReturnValue(true)
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
@@ -233,27 +233,46 @@ describe('leaving the tab', () => {
   })
 
   it('to another suite, or by Back or Forward, asks first', async () => {
+    /** Change the editor, opened anew on the Schema tab shown. */
+    async function changeAgain() {
+      await waitFor(() => expect(editButton()).toBeEnabled())
+      fireEvent.click(editButton())
+      typeInto(await screen.findByRole('textbox', CODE_SIZE), 'Changed')
+    }
+    function browser(button: 'back' | 'forward') {
+      fireEvent.click(screen.getByRole('button', { name: `Browser ${button}` }))
+    }
+
     await openChanged()
     const confirm = answerLeaving(true)
     fireEvent.click(card('nts'))
     await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
     expect(confirm).toHaveBeenCalledOnce()
-    fireEvent.click(card('libcxx'))
-    fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
-    await waitFor(() => expect(editButton()).toBeEnabled())
-    fireEvent.click(editButton())
-    typeInto(await screen.findByRole('textbox', CODE_SIZE), 'Changed')
+    browser('back')
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=schema'))
+    await changeAgain()
 
     confirm.mockReturnValue(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    browser('forward')
     expect(confirm).toHaveBeenCalledTimes(2)
     expectEditor()
-
     confirm.mockReturnValue(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    browser('forward')
     await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
     expect(confirm).toHaveBeenCalledTimes(3)
-    fireEvent.click(screen.getByRole('button', { name: 'Browser forward' }))
+
+    fireEvent.click(card('libcxx'))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
+    await changeAgain()
+    confirm.mockReturnValue(false)
+    browser('back')
+    expect(confirm).toHaveBeenCalledTimes(4)
+    expectEditor()
+    confirm.mockReturnValue(true)
+    browser('back')
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    expect(confirm).toHaveBeenCalledTimes(5)
+    browser('forward')
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=schema'))
 
     await expectViewer()
