@@ -210,7 +210,7 @@ submit('--suite', 'new', '--create-suite', SCHEMA, '--token', 'submit-token',
 
 # The token can also come from the environment.
 del posts[:]
-result = CliRunner(env={'LNT_V5_TOKEN': 'submit-token'}).invoke(
+result = CliRunner(env={'LNT_TOKEN': 'submit-token'}).invoke(
     action_submit, [URL, '--suite', 'nts', RUNS])
 print(result.output, end='')
 # CHECK-NEXT: Submitted 0 run(s), 3 the suite already had; 0 failure(s).
