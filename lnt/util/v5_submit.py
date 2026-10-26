@@ -56,6 +56,17 @@ def _message(response: requests.Response) -> str:
                           ' '.join(response.text.split())[:200])
 
 
+def _network_failure(e: requests.RequestException) -> bool:
+    """Whether `e` is a failure to talk to the instance that may not recur.
+
+    Others, such as a malformed URL or a certificate that cannot be verified,
+    would fail again however often they are retried.
+    """
+    return isinstance(e, (requests.ConnectionError, requests.Timeout,
+                          requests.exceptions.ChunkedEncodingError)) and \
+        not isinstance(e, requests.exceptions.SSLError)
+
+
 def _error_code(response: requests.Response) -> Any:
     try:
         return response.json()['error']['code']
@@ -113,7 +124,8 @@ class Client:
                 response = self._session().request(
                     method, self.base + path, timeout=TIMEOUT, **kwargs)
             except requests.RequestException as e:
-                if retry == self.retries or self._stopping.is_set():
+                if not _network_failure(e) or retry == self.retries or \
+                        self._stopping.is_set():
                     raise
                 # Its message is long, and would be repeated at every retry.
                 failure = type(e).__name__

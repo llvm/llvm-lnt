@@ -52,29 +52,33 @@ Retries
 -------
 
 Every request the command makes, from checking the token to submitting runs,
-is retried when it fails because of the network, with a 5xx response, or with a
+is retried when it fails because of the network (failing to connect, or the
+connection breaking or timing out), with a 5xx response, or with a
 ``409 retry`` response: a concurrent change to the suite's schema, or the
 deletion of the machine or commit of a run being submitted. It is retried up to
 ``--retries`` times (30 by default), waiting ``--retry-delay`` seconds (10 by
 default) before each retry, and each retry is reported. ``--retries 0`` turns
 retries off.
 
-A request is therefore retried for at least ``--retries`` times
-``--retry-delay`` seconds, and longer, since its failed attempts take time too:
-a CDN can take about 20 seconds to give up on an instance that is down. The
-defaults ride out the few minutes it takes to redeploy an instance, during
-which it answers 5xx responses.
+A request that keeps failing is therefore only given up on after at least
+``--retries`` times ``--retry-delay`` seconds, and later, since its failed
+attempts take time too: a CDN can take about 20 seconds to give up on an
+instance that is down. The defaults ride out the few minutes it takes to
+redeploy an instance, during which it answers 5xx responses.
 
 If the instance stays down longer, the runs being submitted fail one after
 another, each once its own retries are exhausted, so the command takes about
 (runs left / ``--workers``) times that long to finish. It is better to
 interrupt it, and to submit the same runs again with ``--skip-existing`` once
 the instance is back. A lower ``--retries`` is also worth it when an instance
-persistently fails some runs with 5xx responses, so that each fails quickly.
+persistently fails some runs with 5xx responses: each such run also holds back
+the runs after it until it fails, since the results are reported in input
+order.
 
 A run is submitted again when the response to its submission is lost, e.g.
 because the instance went down meanwhile. A run with a ``uuid`` is then
 answered ``409 duplicate``, but a run without one may be stored twice.
 
 When the command is interrupted, it sends no more requests and stops retrying,
-but waits for the requests in flight to finish.
+but waits for the requests in flight to finish, which can take about 5 minutes
+for an instance that does not answer.

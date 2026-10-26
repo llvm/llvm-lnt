@@ -249,16 +249,12 @@ scripted.update({
 })
 lines = [run('r1'), run('r2'), run('r3', machine='m3', commit='c3'),
          run('r4'), '', run('r5'), 'not json', '[1, 2]', run('r6')]
-# A single worker reports the retries in a predictable order.
-submit('--suite', 'nts', '--token', 'submit-token', '--workers', '1',
+submit('--suite', 'nts', '--token', 'submit-token', '--workers', '2',
        '--retries', '2', write('failures.jsonl', '\n'.join(lines)))
 print('r3 posted %d times' % posts.count('r3'))
+# The retries come first, in no particular order (RETRIES checks them).
 # CHECK-LABEL: # FAILURES
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (500 scripted 500 internal_error); retrying in 0s (retry 1 of 2)
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (409 scripted 409 retry); retrying in 0s (retry 1 of 2)
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (500 scripted 500 internal_error); retrying in 0s (retry 1 of 2)
-# CHECK-NEXT:   POST /api/suites/nts/runs failed (500 scripted 500 internal_error); retrying in 0s (retry 2 of 2)
-# CHECK-NEXT:   line 3 (run r3 of machine m3 at commit c3): 500 scripted 500 internal_error
+# CHECK:        line 3 (run r3 of machine m3 at commit c3): 500 scripted 500 internal_error
 # CHECK-NEXT:   line 4 (run r4 of machine m at commit c1): 400 scripted 400 invalid_request
 # CHECK-NEXT:   line 7 (run None of machine None at commit None): not a JSON object
 # CHECK-NEXT:   line 8 (run None of machine None at commit None): not a JSON object
@@ -272,7 +268,7 @@ print('# RETRIES')
 # Without retries, a run fails at once.
 scripted['q1'] = [(500, 'internal_error')]
 submit('--suite', 'nts', '--token', 'submit-token', '--retries', '0',
-       input=run('q1'))
+       '--retry-delay', '60', input=run('q1'))
 # CHECK-LABEL: # RETRIES
 # CHECK-NEXT:   line 1 (run q1 of machine m at commit c1): 500 scripted 500 internal_error
 # CHECK-NEXT: Submitted 0 run(s), 0 the suite already had; 1 failure(s).
@@ -301,13 +297,13 @@ submit('--suite', 'nts', '--token', 'submit-token', input=run('q4'))
 # CHECK-NEXT: exit: 0, posted: 1, listed: 0
 
 # Retries wait for --retry-delay.
-scripted['q5'] = [(500, 'internal_error')] * 2
+scripted['q5'] = [(409, 'retry'), (500, 'internal_error')]
 start = time.monotonic()
 submit('--suite', 'nts', '--token', 'submit-token', '--retry-delay', '0.1',
        input=run('q5'))
 print('waited at least 0.2s: %s' % (time.monotonic() - start >= 0.2))
-# CHECK-NEXT:   POST /api/suites/nts/runs failed ({{.*}}); retrying in 0.1s (retry 1 of 30)
-# CHECK-NEXT:   POST /api/suites/nts/runs failed ({{.*}}); retrying in 0.1s (retry 2 of 30)
+# CHECK-NEXT:   POST /api/suites/nts/runs failed (409 scripted 409 retry); retrying in 0.1s (retry 1 of 30)
+# CHECK-NEXT:   POST /api/suites/nts/runs failed (500 scripted 500 internal_error); retrying in 0.1s (retry 2 of 30)
 # CHECK-NEXT: Submitted 1 run(s), 0 the suite already had; 0 failure(s).
 # CHECK-NEXT: exit: 0, posted: 3, listed: 0
 # CHECK-NEXT: waited at least 0.2s: True
@@ -320,6 +316,14 @@ for option in ('--retries', '--retry-delay'):
 # CHECK-NEXT: --retries -1: exit 2
 # CHECK-NEXT: --retry-delay -1: exit 2
 
+# A request that would fail again, such as one to a URL without a scheme, is
+# not retried.
+result = CliRunner().invoke(action_submit, [
+    'lnt.example.com', '--suite', 'nts', '--retries', '1', '--retry-delay',
+    '60', RUNS])
+print(result.output, end='')
+# CHECK-NEXT: error: lnt.example.com cannot be reached: {{.*}}No scheme supplied{{.*}}
+
 print('# INTERRUPTED')
 # Interrupting the command, as Ctrl-C would while a run waits to be retried,
 # stops the retries without waiting for the delay to pass.
@@ -329,7 +333,8 @@ del posts[:]
 
 def interrupted():
     yield run('c1').encode()
-    while 'c1' not in posts:
+    # Once the run's first attempt has failed, and its retry is waiting.
+    while not any('retry 1 of 1' in line for line in reported):
         time.sleep(0.01)
     raise KeyboardInterrupt
 
