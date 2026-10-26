@@ -3,8 +3,8 @@
  * each is called, which keys it accepts, and which names it reserves.
  */
 
-import type { Schemas } from '../../api/client'
-import { NUMERIC_TYPES } from '../../schema'
+import type { Schemas } from '../../../api/client'
+import { NUMERIC_TYPES } from '../../../schema'
 
 export type ListName = 'metrics' | 'commit_fields' | 'machine_fields'
 export type AttributeType = Schemas['AttributeType']
@@ -63,7 +63,7 @@ export const KEY_HEADERS: Record<PresentationKey, { header: string; label: strin
 }
 
 interface ListInfo {
-  /** The list's heading, in the viewer and the editor alike (AD2, AD3). */
+  /** The list's heading, in the viewer and the editor alike (TS6, TS7). */
   heading: string
   /** The accessible name of the list's table. */
   label: string

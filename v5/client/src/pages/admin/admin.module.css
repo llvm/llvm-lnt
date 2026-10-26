@@ -3,7 +3,7 @@
   color: var(--lnt-muted);
 }
 
-/* A form creating an API key (AD1) or a suite, or editing a suite's schema (AD3). */
+/* A form creating an API key (AD1) or a suite (TS7). */
 .createForm {
   padding: var(--lnt-space-3);
   margin-bottom: var(--lnt-space-3);
@@ -64,34 +64,6 @@
   overflow-wrap: anywhere;
 }
 
-/* A list of a suite's schema (AD2). */
-.heading {
-  margin: var(--lnt-space-4) 0 var(--lnt-space-2);
-  font-size: 1.2rem;
-}
-
-/* The row of actions below a suite's schema, set apart from its last table. */
-.actions {
-  margin-top: var(--lnt-space-4);
-}
-
-/* Cancel and the button submitting the editor, at the far end of its controls. */
-.editorButtons {
-  display: flex;
-  gap: var(--lnt-space-2);
-  margin-left: auto;
-}
-
-/* An input in a cell of the editor's tables, as wide as its column lets it be. */
-.cellInput {
-  width: 100%;
-  min-width: 6rem;
-}
-
-.addEntry {
-  margin-top: var(--lnt-space-2);
-}
-
 /* "Import JSON": the document, and what loads and sends it. */
 .importJson {
   display: flex;
@@ -122,33 +94,6 @@
   padding: 0;
   border: none;
   background: none;
-}
-
-/* A cell of the editor's tables, its checkbox in line with the inputs beside it. */
-.editorCell {
-  vertical-align: middle;
-}
-
-.checkbox {
-  margin: 0;
-  vertical-align: middle;
-}
-
-/* An existing entry removed in this edit, until saved or undone (AD3). */
-.removedName {
-  color: var(--lnt-muted);
-  text-decoration: line-through;
-}
-
-/* The heading of the editor of a suite's schema, beside its buttons. */
-.editorTitle {
-  align-self: center;
-}
-
-/* The editor's heading and buttons, below a suite's schema as the viewer's actions are (AD3). */
-.editorFooter {
-  composes: createForm;
-  margin-top: var(--lnt-space-4);
 }
 
 /* The suites a new key is for (AD1). */
@@ -183,4 +128,16 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lnt-space-1) var(--lnt-space-2);
+}
+
+/* "New suite", above the suites (AD2). */
+.newSuite {
+  margin-bottom: var(--lnt-space-3);
+}
+
+/* The suites, each leading to its Schema tab (AD2). */
+.suiteList {
+  margin: 0;
+  padding-left: var(--lnt-space-4);
+  line-height: 1.8;
 }

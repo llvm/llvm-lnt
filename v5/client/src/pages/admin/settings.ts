@@ -1,7 +1,7 @@
 /** The settings of the Admin page that live in the URL (see admin.md): the tab, and its own. */
 
 import { sortParam, type TableSort } from '../../components/table-sort'
-import { enumParam, stringParam, tabSettings } from '../../url-state'
+import { enumParam, tabSettings } from '../../url-state'
 
 export const TABS = [
   { id: 'api-keys', label: 'API Keys' },
@@ -30,8 +30,6 @@ export const PARAMS = {
     'api-keys',
   ),
   sort: sortParam(KEY_SORT_COLUMNS, DEFAULT_KEY_SORT),
-  // The suite the Test Suites tab shows (AD2).
-  suite: stringParam(),
 }
 
 /**
@@ -40,5 +38,5 @@ export const PARAMS = {
  */
 export const { reset: resetSettings, unused: unusedSettings } = tabSettings(PARAMS, {
   'api-keys': ['sort'],
-  suites: ['suite'],
+  suites: [],
 })

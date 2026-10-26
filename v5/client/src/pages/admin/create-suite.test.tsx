@@ -12,6 +12,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
+  main,
   mockSuites,
   renderPage,
   rowsOf,
@@ -71,16 +72,13 @@ function createButton() {
 }
 
 /**
- * Show the Test Suites tab, on `suite` if given, to a holder of a `manage` token (or of `scope`),
- * and open the editor creating a suite.
+ * Show the Test Suites tab, the instance holding `suites`, to a holder of a `manage` token, and
+ * open the editor creating a suite.
  */
-async function openEditor({
-  suite = 'libcxx',
-  suites = [SUITE, BARE_SUITE],
-}: { suite?: string; suites?: SuiteSchema[] } = {}) {
+async function openEditor({ suites = [SUITE, BARE_SUITE] }: { suites?: SuiteSchema[] } = {}) {
   signIn('manage')
   const store = mockSuites(suites)
-  const { queryClient } = renderPage(`/admin?tab=suites${suite ? `&suite=${suite}` : ''}`)
+  const { queryClient } = renderPage('/admin?tab=suites')
   await waitFor(() => expect(newSuiteButton()).toBeEnabled())
   fireEvent.click(newSuiteButton())
   await waitFor(() => expect(editor()).toBeInTheDocument())
@@ -100,23 +98,20 @@ describe('opening the editor', () => {
   it('needs the manage scope', async () => {
     signIn('submit')
     mockSuites()
-    renderPage('/admin?tab=suites&suite=libcxx')
+    renderPage('/admin?tab=suites')
 
-    await table('Metrics')
+    await main().findByRole('list', { name: 'Test suites' })
     await waitFor(() =>
       expect(newSuiteButton()).toHaveAttribute('title', expect.stringContaining("'manage' scope")),
     )
     expect(newSuiteButton()).toBeDisabled()
   })
 
-  it('takes the place of the viewer, with the dropdown and New suite disabled', async () => {
+  it("takes the place of the tab's content, New suite included", async () => {
     await openEditor()
 
-    expect(screen.queryByRole('button', { name: 'Delete This Suite' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Copy as JSON' })).not.toBeInTheDocument()
-    expect(selectButton('Test suite')).toBeDisabled()
-    expect(newSuiteButton()).toBeDisabled()
-    expect(newSuiteButton()).toHaveAccessibleDescription('Close the schema editor first.')
+    expect(main().queryByRole('list', { name: 'Test suites' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New suite' })).not.toBeInTheDocument()
     expect(suiteNameInput()).toHaveFocus()
     // It starts empty.
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
@@ -124,7 +119,7 @@ describe('opening the editor', () => {
     expect(rowsOf(await table('Machine fields'))).toEqual(['No machine fields.'])
   })
 
-  it('discards it all on Cancel, showing the suite selected before again', async () => {
+  it('discards it all on Cancel, showing the suites again', async () => {
     await openEditor()
     typeInto(suiteNameInput(), 'draft')
     addEntry('metric', 'size')
@@ -132,11 +127,9 @@ describe('opening the editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(editor()).not.toBeInTheDocument()
-    expect(rowsOf(await table('Metrics'))).toEqual([
-      'execution_time | real | Execution Time | seconds (s) | No | Yes',
-    ])
+    expect(main().getByRole('list', { name: 'Test suites' })).toBeInTheDocument()
     expect(newSuiteButton()).toHaveFocus()
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=libcxx')
+    expect(currentUrl()).toBe('/admin?tab=suites')
 
     fireEvent.click(newSuiteButton())
     expect(await screen.findByRole('textbox', { name: 'Suite name' })).toHaveValue('')
@@ -144,16 +137,15 @@ describe('opening the editor', () => {
   })
 
   it('is offered without suites, with nothing to start from', async () => {
-    const store = await openEditor({ suite: '', suites: [] })
+    const store = await openEditor({ suites: [] })
     mockCreate(store)
     expect(selectButton('Start from')).toBeDisabled()
 
     typeInto(suiteNameInput(), 'first')
     fireEvent.click(createButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=first'))
-    expect(selectButton('Test suite')).toHaveTextContent('first')
-    expect(selectButton('Test suite')).toHaveFocus()
+    await waitFor(() => expect(currentUrl()).toBe('/suites/first?tab=schema'))
+    expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
     expect(screen.queryByText('There are no test suites yet.')).not.toBeInTheDocument()
   })
 
@@ -176,7 +168,7 @@ describe('opening the editor', () => {
     typeInto(suiteNameInput(), 'entered')
     fireEvent.submit(suiteNameInput())
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=entered'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/entered?tab=schema'))
     expect(sent).toHaveLength(1)
   })
 
@@ -343,7 +335,7 @@ describe('the name checks', () => {
 })
 
 describe('creating the suite', () => {
-  it('sends the schema, then selects the new suite and shows it', async () => {
+  it("sends the schema, then goes to the new suite's Schema tab", async () => {
     const store = await openEditor()
     const sent = mockCreate(store)
     typeInto(suiteNameInput(), 'fresh')
@@ -357,7 +349,7 @@ describe('creating the suite', () => {
 
     fireEvent.click(createButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=fresh'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/fresh?tab=schema'))
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'fresh',
       metrics: [
@@ -378,10 +370,13 @@ describe('creating the suite', () => {
     })
     expect(sent[0].auth).toMatch(/^Bearer /)
     expect(editor()).not.toBeInTheDocument()
-    expect(selectButton('Test suite')).toHaveTextContent('fresh')
-    expect(selectButton('Test suite')).toHaveFocus()
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
+
+    // A page of its own: Back returns to the Admin page.
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    expect(await main().findByRole('link', { name: 'fresh' })).toBeInTheDocument()
   })
 
   it('creates a suite without entries', async () => {
@@ -391,7 +386,7 @@ describe('creating the suite', () => {
 
     fireEvent.click(createButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=empty'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/empty?tab=schema'))
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'empty',
       metrics: [],
@@ -515,15 +510,16 @@ describe('creating the suite', () => {
     server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: store.suites })))
 
     fireEvent.click(createButton())
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=fresh'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/fresh?tab=schema'))
     await act(async () => stale.open())
     await waitFor(() => expect(store.queryClient.isFetching()).toBe(0))
 
-    expect(selectButton('Test suite')).toHaveTextContent('fresh')
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=fresh')
+    expect(await table('Metrics')).toBeInTheDocument()
+    expect(screen.queryByText("Test suite 'fresh' not found.")).not.toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites/fresh?tab=schema')
   })
 
-  it('selects nothing once done if the user has left the tab meanwhile', async () => {
+  it('stays where the user is once done if they have left the tab meanwhile', async () => {
     const store = await openEditor()
     const reply = gate()
     mockCreate(store, { wait: () => reply.promise })
@@ -539,8 +535,7 @@ describe('creating the suite', () => {
 
     // The suite was created all the same, and is in the list.
     fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
-    await userEvent.setup().click(await screen.findByRole('button', { name: / Test suite$/ }))
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toContain('fresh')
+    expect(await main().findByRole('link', { name: 'fresh' })).toBeInTheDocument()
   })
 })
 
@@ -623,7 +618,7 @@ describe('Import JSON', () => {
     expect(documentInput()).toHaveValue(DOCUMENT)
   })
 
-  it('sends the document as it is, then selects the new suite', async () => {
+  it("sends the document as it is, then goes to the new suite's Schema tab", async () => {
     const store = await openEditor()
     const sent = mockCreate(store)
     fireEvent.click(importToggle())
@@ -634,7 +629,7 @@ describe('Import JSON', () => {
     typeInto(documentInput(), DOCUMENT)
     fireEvent.click(send)
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=imported'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/imported?tab=schema'))
     expect(sent[0].text).toBe(DOCUMENT)
     expect(editor()).not.toBeInTheDocument()
     expect(rowsOf(await table('Metrics'))).toEqual(['size | real | -- | -- | No | No'])

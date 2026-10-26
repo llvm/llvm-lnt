@@ -1,14 +1,17 @@
-import { useEffect } from 'react'
-import { Link, Navigate, useLocation, useParams } from 'react-router'
-import { useSuites, type SuiteSchema } from '../../api/suites'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
+import { removeSuite, useSuites, type SuiteSchema } from '../../api/suites'
 import { Alert, ErrorMessage, Loading } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
+import { useMounted } from '../../components/use-mounted'
 import { suitePath } from '../../paths'
 import { useUrlState } from '../../url-state'
 import { CommitsTab } from './commits-tab'
 import { MachinesTab } from './machines-tab'
 import { RegressionsTab } from './regressions-tab'
 import { RunsTab } from './runs-tab'
+import { SchemaTab } from './schema-tab'
 import { PARAMS, TABS, resetSettings, unusedSettings, type TabId } from './settings'
 import styles from './test-suites.module.css'
 
@@ -17,12 +20,18 @@ export default function TestSuites() {
   const { suite } = useParams()
   const { search } = useLocation()
   const suites = useSuites()
+  const schema = suites.data?.find((entry) => entry.name === suite)
+  const notFound = useNotFoundFocus(suite, schema !== undefined)
 
   let content
-  if (suites.isPending) {
-    content = <Loading label="Loading test suites..." />
-  } else if (suites.isError) {
-    content = <ErrorMessage error={suites.error} />
+  // A list fetched again that fails leaves the one the page shows, and the tabs with it: an open
+  // schema editor, say, which has the list fetched again when a save finds it out of date (TS7).
+  if (suites.data === undefined) {
+    content = suites.isError ? (
+      <ErrorMessage error={suites.error} onRetry={() => void suites.refetch()} />
+    ) : (
+      <Loading label="Loading test suites..." />
+    )
   } else if (suite === undefined) {
     // `/suites` gives way to the first suite, which takes its place in the history (TS1).
     const first = suites.data.at(0)
@@ -33,12 +42,13 @@ export default function TestSuites() {
         <Navigate to={{ pathname: suitePath(first.name), search }} replace />
       )
   } else {
-    const schema = suites.data.find((entry) => entry.name === suite)
     content = (
       <>
         <SuitePicker suites={suites.data} selected={suite} />
         {schema === undefined ? (
-          <Alert>Test suite '{suite}' not found.</Alert>
+          <Alert ref={notFound} tabIndex={-1}>
+            Test suite '{suite}' not found.
+          </Alert>
         ) : (
           <SuiteTabs key={suite} schema={schema} />
         )}
@@ -52,6 +62,25 @@ export default function TestSuites() {
       {content}
     </section>
   )
+}
+
+/**
+ * The ref of the message saying that `suite` was not found, which takes the focus when it replaces
+ * the suite's tabs -- once the suite has gone from the list, deleted elsewhere -- if the focus went
+ * with them, so that it is not left nowhere.
+ */
+function useNotFoundFocus(suite: string | undefined, found: boolean) {
+  const ref = useRef<HTMLDivElement>(null)
+  // The suite whose tabs were shown last, if they were.
+  const shown = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const lost = !found && shown.current === suite
+    shown.current = found && suite !== undefined ? suite : null
+    if (lost && (document.activeElement === null || document.activeElement === document.body)) {
+      ref.current?.focus()
+    }
+  })
+  return ref
 }
 
 function SuitePicker({ suites, selected }: { suites: SuiteSchema[]; selected?: string }) {
@@ -75,6 +104,19 @@ function SuitePicker({ suites, selected }: { suites: SuiteSchema[]; selected?: s
 function SuiteTabs({ schema }: { schema: SuiteSchema }) {
   const [settings, update] = useUrlState(PARAMS)
   const { tab, search } = settings
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  // Whether the user is still on the suite's page, whichever its tab: these tabs are its page.
+  const mounted = useMounted()
+
+  // Once the suite is deleted from its Schema tab, the page leaves for `/suites`, in place of itself
+  // in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
+  // going from the list takes these tabs with it.
+  const onDeleted = async () => {
+    const leaving = mounted.current
+    await removeSuite(queryClient, schema.name)
+    if (leaving) navigate('/suites', { replace: true })
+  }
 
   // `settings` changes only with the URL.
   useEffect(() => {
@@ -101,6 +143,7 @@ function SuiteTabs({ schema }: { schema: SuiteSchema }) {
           onFilters={update}
         />
       )}
+      {tab === 'schema' && <SchemaTab schema={schema} onDeleted={onDeleted} />}
     </Tabs>
   )
 }

@@ -3,9 +3,9 @@ import { Link } from 'react-router'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useRecentlyActiveMachines } from '../../api/machines'
 import { Loaded } from '../../components/feedback'
-import { adminSuitePath } from '../../paths'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, useUrlState } from '../../url-state'
+import { suiteTabPath } from '../test-suites/settings'
 import { SparklineCard } from './sparkline-card'
 import { MACHINES_SHOWN } from './sparkline'
 import styles from './dashboard.module.css'
@@ -96,7 +96,7 @@ function NoCards({ schema }: { schema: SuiteSchema }) {
   return (
     <p className={styles.note}>
       This suite shows no metrics on the Dashboard. Choose which ones to show in{' '}
-      <Link to={adminSuitePath(schema.name)}>its schema</Link>.
+      <Link to={suiteTabPath(schema.name, 'schema')}>its schema</Link>.
     </p>
   )
 }

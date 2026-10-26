@@ -12,8 +12,9 @@ import {
   draftProblem,
   schemaOf,
   suiteNameProblem,
-} from './schema-editor-model'
-import { NameInput, SchemaEditorTables } from './schema-editor-tables'
+} from '../test-suites/schema/schema-editor-model'
+import { NameInput, SchemaEditorTables } from '../test-suites/schema/schema-editor-tables'
+import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
 
 interface Props {
@@ -25,7 +26,7 @@ interface Props {
 }
 
 /**
- * The schema editor creating a suite (AD3): the suite's name and its entries, which can start as a
+ * The schema editor creating a suite (TS7): the suite's name and its entries, which can start as a
  * copy of another suite's. Or, through "Import JSON", a schema document sent as it is.
  */
 export function CreateSuite({ suites, onCancel, onCreated }: Props) {
@@ -46,7 +47,7 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
   const send = useCreateSuite()
   const busy = create.isPending || send.isPending
   // Only once the suite is created, and only if the editor is still shown: a user who has left the
-  // tab meanwhile is not taken back to it (TanStack Query skips `mutate`'s callbacks then).
+  // tab meanwhile is not taken to the new suite (TanStack Query skips `mutate`'s callbacks then).
   const created = { onSuccess: (schema: SuiteSchema) => onCreated(schema.name) }
 
   const nameProblem = suiteNameProblem(
@@ -129,21 +130,16 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
       ) : (
         <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
       )}
-      {/* Below the tables, as the viewer's buttons are below a schema. */}
-      <div className={styles.editorFooter}>
-        <div className={styles.fields}>
-          <span className={styles.editorButtons}>
-            <ActionButton busy={busy} onClick={onCancel}>
-              Cancel
-            </ActionButton>
-            {!importing && (
-              <ActionButton type="submit" form={formId} reason={reason} busy={busy}>
-                {create.isPending ? 'Creating...' : 'Create'}
-              </ActionButton>
-            )}
-          </span>
-        </div>
-      </div>
+      <EditorFooter>
+        <ActionButton busy={busy} onClick={onCancel}>
+          Cancel
+        </ActionButton>
+        {!importing && (
+          <ActionButton type="submit" form={formId} reason={reason} busy={busy}>
+            {create.isPending ? 'Creating...' : 'Create'}
+          </ActionButton>
+        )}
+      </EditorFooter>
       {!importing && create.isError && <ErrorMessage error={create.error} />}
     </section>
   )
@@ -186,7 +182,7 @@ interface ImportProps {
 }
 
 /**
- * "Import JSON" (AD3): a schema document, pasted or loaded from a file, sent to `POST /api/suites`
+ * "Import JSON" (TS7): a schema document, pasted or loaded from a file, sent to `POST /api/suites`
  * exactly as it is, for the server to validate. It is kept when that fails.
  */
 function ImportJson({ text, onText, reason, busy, error, onSend }: ImportProps) {

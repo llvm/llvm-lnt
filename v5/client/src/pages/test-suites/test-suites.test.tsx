@@ -76,6 +76,7 @@ describe('the Test Suites page', () => {
       'Machines',
       'Commits',
       'Regressions',
+      'Schema',
     ])
     expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
     expect(await table('Runs')).toBeInTheDocument()
@@ -137,6 +138,8 @@ describe('the Test Suites page', () => {
     expect(screen.getByRole('navigation', { name: 'Test suites' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(currentUrl()).toBe('/suites/nope')
+    // It takes the focus only from the tabs it replaces (see the schema editor's tests).
+    expect(screen.getByRole('alert')).not.toHaveFocus()
   })
 
   it('says nothing about the suite until the list has loaded', async () => {
@@ -156,7 +159,7 @@ describe('the Test Suites page', () => {
   })
 
   it.each([['/suites/libcxx'], ['/suites']])(
-    'reports a failure to list the suites at %s, and selects no suite',
+    'reports a failure to list the suites at %s, selecting no suite until it is retried',
     async (url) => {
       server.use(
         mockApi('get', '/api/suites', () =>
@@ -168,6 +171,12 @@ describe('the Test Suites page', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
       expect(screen.queryByText(/not found/)).not.toBeInTheDocument()
       expect(currentUrl()).toBe(url)
+
+      mockSuites()
+      mockRuns(() => cursorPage([]))
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(await table('Runs')).toBeInTheDocument()
+      expect(currentUrl()).toBe('/suites/libcxx')
     },
   )
 

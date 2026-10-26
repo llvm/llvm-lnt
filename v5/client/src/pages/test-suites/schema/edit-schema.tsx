@@ -1,15 +1,15 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
-import { refetchSuites, removeSuite, updateSuite, type SuiteSchema } from '../../api/suites'
-import { useScopeGate } from '../../auth/scope'
-import { ActionButton } from '../../components/action-button'
-import { Confirmation } from '../../components/confirmation'
-import { ErrorMessage, Loaded } from '../../components/feedback'
+import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
+import { refetchSuites, removeSuite, updateSuite, type SuiteSchema } from '../../../api/suites'
+import { useScopeGate } from '../../../auth/scope'
+import { ActionButton } from '../../../components/action-button'
+import { Confirmation } from '../../../components/confirmation'
+import { ErrorMessage, Loaded } from '../../../components/feedback'
+import { EditorFooter } from './editor-footer'
 import { draftOf, draftProblem, patchOf, removedEntries } from './schema-editor-model'
 import { LIST_INFO } from './schema-lists'
 import { SchemaEditorTables } from './schema-editor-tables'
-import styles from './admin.module.css'
 
 /** How many times an editor has been opened, so that each opening has a query of its own. */
 let openings = 0
@@ -21,7 +21,7 @@ interface Props {
 }
 
 /**
- * The schema editor changing a suite's schema (AD3). It starts from the schema as it is when the
+ * The schema editor changing a suite's schema (TS7). It starts from the schema as it is when the
  * editor opens, fetched afresh rather than taken from the list of suites, which may be older.
  */
 export function EditSchema({ name, onClose }: Props) {
@@ -35,8 +35,8 @@ export function EditSchema({ name, onClose }: Props) {
       try {
         return await unwrap(api.GET('/api/suites/{name}', { params: { path: { name } }, signal }))
       } catch (error) {
-        // The suite was deleted elsewhere: it goes from the list of suites, and the tab closes the
-        // editor.
+        // The suite was deleted elsewhere: it goes from the list of suites, and the page says that
+        // it was not found, in place of its tabs and the editor (TS1).
         if (error instanceof ApiError && error.code === 'not_found') {
           await removeSuite(queryClient, name)
         }
@@ -82,14 +82,13 @@ function Frame({
   return (
     <section aria-labelledby={titleId}>
       {children}
-      <div className={styles.editorFooter}>
-        <div className={styles.fields}>
-          <strong id={titleId} className={styles.editorTitle}>
-            Editing {name}
-          </strong>
-          <span className={styles.editorButtons}>{buttons}</span>
-        </div>
-      </div>
+      <EditorFooter
+        title={
+          <strong id={titleId}>Editing {name}</strong>
+        }
+      >
+        {buttons}
+      </EditorFooter>
       {below}
     </section>
   )
@@ -193,8 +192,8 @@ function EditForm({ schema, onClose }: FormProps) {
  * list of suites, and forget what was read from inside the suite, whether or not the editor is
  * still shown. A 404 or a 409 `duplicate` says that the schema changed elsewhere since the editor
  * opened -- the suite was deleted, or an entry added or removed -- and has the list fetched again:
- * if the suite is gone, the tab closes the editor, and otherwise the viewer shows the schema as it
- * is once the editor closes. (A 404 does not say which: an entry can be gone rather than the
+ * if the suite is gone, the page says so in place of the editor, and otherwise the viewer shows it
+ * as it is once the editor closes. (A 404 does not say which: an entry can be gone rather than the
  * suite.)
  */
 function useSaveSchema(name: string) {

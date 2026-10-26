@@ -1,16 +1,16 @@
-import type { SuiteSchema } from '../../api/suites'
-import { DataTable, type Column } from '../../components/data-table'
-import { MISSING, yesNo } from '../../format'
-import { formatUnit, type Metric } from '../../schema'
+import type { SuiteSchema } from '../../../api/suites'
+import { DataTable, type Column } from '../../../components/data-table'
+import { MISSING, yesNo } from '../../../format'
+import { formatUnit, type Metric } from '../../../schema'
 import { KEY_HEADERS, LIST_INFO, type ListName } from './schema-lists'
-import styles from './admin.module.css'
+import styles from './schema.module.css'
 
 type CommitField = SuiteSchema['commit_fields'][number]
 type MachineField = SuiteSchema['machine_fields'][number]
 
 /**
  * The columns every list starts with. An entry is shown by its name, with its display name apart,
- * `--` when it has none, rather than repeating the name (AD2).
+ * `--` when it has none, rather than repeating the name (TS6).
  */
 const ENTRY_COLUMNS: Column<Metric | CommitField | MachineField>[] = [
   { id: 'name', header: 'Name', looks: ['nowrap'], cell: (entry) => entry.name },
@@ -86,7 +86,7 @@ export function SchemaList<Entry>(props: {
   )
 }
 
-/** A schema's three lists, each with exactly the presentation keys it accepts (D4, AD2). */
+/** A schema's three lists, each with exactly the presentation keys it accepts (D4, TS6). */
 export function SchemaTables({ schema }: { schema: SuiteSchema }) {
   return (
     <>

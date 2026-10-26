@@ -187,7 +187,7 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
     await expect(own.getByRole('article')).toHaveCount(0)
 
     await own.getByRole('link', { name: 'its schema', exact: true }).click()
-    await expect(page).toHaveURL(`/admin?tab=suites&suite=${suite}`)
+    await expect(page).toHaveURL(`/suites/${suite}?tab=schema`)
     await page.getByRole('button', { name: 'Edit schema' }).click()
     const editor = page.getByRole('region', { name: `Editing ${suite}` })
     await editor.getByRole('checkbox', { name: 'On the Dashboard of metric compile_time' }).check()

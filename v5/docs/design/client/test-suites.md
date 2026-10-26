@@ -1,11 +1,13 @@
 # v5 Web UI: Test Suites
 
-Page specifications for the Test Suites page (suite picker + tabs).
+Page specifications for the Test Suites page (suite picker + tabs), including the Schema tab and
+the schema editor.
 
 
 ## TS1: Test Suites -- `/suites` and `/suites/{ts}`
 
-The primary entry point for browsing test suite data. `/suites/{ts}` shows the
+The primary entry point for browsing test suite data, and for maintaining a
+suite's schema (see TS6). `/suites/{ts}` shows the
 suite picker with `{ts}` selected, plus the tabbed content for that suite.
 `/suites` shows the first suite of the picker: once the suites have loaded, the
 page goes to `/suites/{first}` with the same query parameters, which takes the
@@ -18,7 +20,7 @@ ordered by name. Clicking a card selects it (highlighted) and shows the tab bar
 below, navigating to `/suites/{name}`. When `{ts}` names no suite, the page
 shows the suite picker and says that the suite was not found.
 
-**Tabs**: [Runs] [Machines] [Commits] [Regressions]. Default tab is Runs.
+**Tabs**: [Runs] [Machines] [Commits] [Regressions] [Schema]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
 
 **URL state**: the suite is a path segment (`/suites/{ts}`); the remaining state
@@ -31,6 +33,7 @@ path and params to restore state. On changes, updates the URL.
 | Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
+| Schema | The suite's schema, its export, editing and deletion (see TS6) | `GET suites` | -- |
 
 ## TS2: Runs tab
 
@@ -157,3 +160,152 @@ Machines and Tests are the `machine_count` and `test_count` the list endpoint re
 for each regression. They count the whole regression even when the table is filtered.
 The names are on the regression detail page. Created is the regression's
 `created_at`.
+
+## TS6: Schema tab
+
+This tab shows the suite's schema, as follows:
+
+```
+Metrics (subtitle font)
+
+Name              Type        Display Name              Unit                    Bigger is Better    Dashboard
+-----------------------------------------------------------------------------------------------------------
+execution_time    real        Execution Time            seconds (s)             No                  Yes
+instructions      real        Instructions Retired      instructions (instr)    No                  Yes
+etc...
+
+
+Commit Fields (subtitle font)
+
+Name              Type        Display Name              Searchable    Display    Listed
+-----------------------------------------------------------------------------------------
+short_sha         text        Short SHA                 Yes           Yes        No
+commit_info       text        --                        No            No         Yes
+etc...
+
+
+Machine Fields (subtitle font)
+
+Name              Type        Display Name              Searchable    Listed
+------------------------------------------------------------------------------
+hardware          text        Hardware                  Yes           Yes
+os                text        --                        Yes           Yes
+compiler          text        --                        No            No
+etc...
+
+[Edit schema] [Copy as JSON] [Download JSON]                            [Delete This Suite]
+```
+
+Each table shows exactly the presentation keys its list accepts (see D4), so the three
+tables deliberately differ in their columns. Entries are shown by their `name`, with their
+`display_name` in a column of its own; one that was not set shows `--` rather than
+repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR6
+writes it, and `--` when it has neither a unit nor an abbreviation.
+
+"Edit schema" opens the schema editor (see TS7) on the suite. "Copy as JSON" and "Download
+JSON" export the schema exactly as the API returns it. Another instance can create the same
+suite from it unchanged (see D4).
+
+Clicking the red "Delete This Suite" button shows an inline panel warning that deleting a
+suite permanently destroys all its machines, runs, commits, samples, and regressions, with
+the confirmation prompt AR16 describes. Once the suite is deleted, the page leaves for
+`/suites`, without query parameters (see AR16), which selects the first suite left, or says
+that there is none (see TS1). It does so whichever tab of the suite the user is on by then:
+only a user who has left the suite's page stays where they are.
+
+Anyone can view and export a schema. Editing it or deleting the suite requires `manage` in
+the suite, which a key restricted to it grants (see I5).
+
+
+## TS7: Schema editor
+
+The schema editor creates a suite, from the Admin page's Test Suites tab (see AD2), or edits a
+suite's schema, from its Schema tab (see TS6). It takes the place of what the tab shows: its
+whole content in the Admin page, and the schema viewer, buttons included, in the Schema tab.
+"Cancel" closes it and discards its changes, and the tab shows what it showed before again.
+Leaving the tab, for another tab, another suite or another page, discards the changes too,
+without asking.
+
+```
+New suite    Suite name [________]    Start from [suite v]    [Import JSON]
+
+Metrics
+Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
+-------------------------------------------------------------------------------------------------------
+execution_time    real        [Execution Time]    [seconds]     [s]       [ ]                 [x]         ×
+code_size         integer     (removed)                                                            [undo]
+[instructions]    [real v]    [              ]    [       ]     [   ]     [ ]                 [ ]         ×
+[+ Add metric]
+
+Commit Fields
+Name              Type        Display Name        Searchable    Display    Listed
+-----------------------------------------------------------------------------------
+short_sha         text        [Short SHA     ]    [x]           [x]        [ ]        ×
+commit_info       text        [              ]    [ ]           [ ]        [x]        ×
+[+ Add commit field]
+
+Machine Fields
+...
+
+                                                                           [Cancel] [Create]
+
+Editing nts                                                                  [Cancel] [Save]
+```
+
+When creating a suite, the header above the tables holds its name, "Start from" and "Import JSON".
+The editor's buttons are below the tables: "Cancel" and "Create" when creating a suite, and its
+heading, "Cancel" and "Save" when editing one, where the viewer has its own buttons. The tables
+are the same in both modes.
+
+The editor shows the same entries and keys as the viewer, with an input for each value. Each
+table has a button to add an entry, and each entry a button (×) to remove it. An added entry
+goes at the end of its list, and entries cannot be reordered. The display name, unit and
+abbreviation are sent without whitespace at either end, and an input that is empty, or holds only
+whitespace, sets its key to `null` (see D2).
+
+`searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
+metric (see D3): each is disabled for the other types, says why on hover, and is cleared when the
+entry's type changes to one of them. Checking `display` on one commit field unchecks it on the
+others, since at most one can have it.
+
+As the user types a name, the editor checks it against D4's rules for names, including the
+names that D5 reserves, and for uniqueness within its list. A name that fails shows the red
+halo (see AR11), and says why on hover. "Create" or "Save" is disabled while any name fails or is
+empty, and when disabled, says why on hover. The server validates everything else when the schema
+is submitted.
+
+**Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
+is also checked against the names of the existing suites. A "Start from" dropdown replaces the
+editor's entries with a copy of an existing suite's. It does not copy the suite's name.
+
+"Create" creates the suite. On success, the page goes to the new suite's Schema tab
+(`/suites/{name}?tab=schema`), unless the user has left the tab meanwhile. If the name was
+taken meanwhile, the name check says so once "Create" fails.
+
+"Import JSON" creates a suite from a schema document instead, without going through the editor. It
+opens a text area, where the user pastes the document or loads it from a file, and a button that
+sends the document unchanged to `POST /api/suites`, where the server validates it. They take the
+place of the suite name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
+which goes back to the editor as the user left it, and keeps the document. On success, the page
+goes to the new suite's Schema tab, as with "Create". On failure, the text area keeps its
+contents, and the API's error message is shown.
+
+**Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only
+an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since
+D2 allows changing neither. An added entry is editable in full. Removing an existing entry only
+marks it as removed, with an undo button, and its name stays taken until the schema is saved:
+the reason given for refusing an added entry with that name is that an entry removed in this edit
+cannot be added again in the same edit.
+
+"Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
+the user changed, so that it does not overwrite changes made by others since the editor opened.
+When the user changed nothing, "Save" closes the editor without sending anything.
+If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR16),
+and the editor's contents cannot change until the user does, or cancels.
+The prompt lists the removed entries and warns that every value stored for them will be
+permanently destroyed, along with the regression indicators of any removed metric (see D2). On
+success, the editor closes and the viewer shows the schema the API returned.
+
+In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
+the API's error message. If the suite being edited no longer exists, the editor closes, and the
+page says that the suite was not found (see TS1).

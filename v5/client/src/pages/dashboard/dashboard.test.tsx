@@ -156,7 +156,7 @@ describe('the Dashboard', () => {
     expect(section('unchosen').queryByRole('article')).not.toBeInTheDocument()
     expect(section('unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(
       'href',
-      '/admin?tab=suites&suite=unchosen',
+      '/suites/unchosen?tab=schema',
     )
     expect(asked).toEqual([])
   })

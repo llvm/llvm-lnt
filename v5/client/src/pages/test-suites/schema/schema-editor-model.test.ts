@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SUITE } from '../../test/fixtures'
+import { SUITE } from '../../../test/fixtures'
 import {
   addEntry,
   changeEntry,

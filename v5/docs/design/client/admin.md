@@ -10,12 +10,11 @@ This page provides various tabs with different tools.
 | Tab | Shows | API Calls |
 |-----|-------|-----------|
 | API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys`, `GET suites` |
-| Test Suites | Suite selector, schema viewer and editor, create and delete suites | `GET/POST/DELETE suites`, `PATCH suites/{name}/schema` |
+| Test Suites | The suites, each leading to its Schema tab; create suites | `GET/POST suites` |
 
 The URL keeps the selected tab as `tab` (`suites` for Test Suites, and nothing for API Keys,
-the default), the sort of the API Keys tab's table as `sort` (see AD1), and the suite selected
-in the Test Suites tab as `suite` (see AR2 "State"). Switching tabs clears the setting of the
-tab left.
+the default), and the sort of the API Keys tab's table as `sort` (see AD1). Switching tabs
+clears the setting of the tab left.
 
 ### AD1: API Keys tab detail
 
@@ -107,147 +106,18 @@ longer be available, and that a token shown and not copied yet will be lost.
 
 ### AD2: Test Suites tab detail
 
-A dropdown switches between test suites, and a "New suite" button opens the schema editor
-(see AD3) to create one. Unless the URL names one, no suite is selected until the user selects
-one, which the dropdown prompts for. When the instance has no suites, the tab says so, and
-"New suite" is still offered. Selecting a suite displays its schema, as follows:
+A "New suite" button opens the schema editor (see TS7) to create a suite, in place of the tab's
+content, the button included. Below the button, the tab lists the instance's suites by name, each
+a link to its Schema tab (see TS6), where its schema is viewed, exported and edited, and the
+suite deleted. When the instance has no suites, the tab says so, and "New suite" is still
+offered.
 
 ```
-Metrics (subtitle font)
+[New suite]
 
-Name              Type        Display Name              Unit                    Bigger is Better    Dashboard
------------------------------------------------------------------------------------------------------------
-execution_time    real        Execution Time            seconds (s)             No                  Yes
-instructions      real        Instructions Retired      instructions (instr)    No                  Yes
-etc...
-
-
-Commit Fields (subtitle font)
-
-Name              Type        Display Name              Searchable    Display    Listed
------------------------------------------------------------------------------------------
-short_sha         text        Short SHA                 Yes           Yes        No
-commit_info       text        --                        No            No         Yes
-etc...
-
-
-Machine Fields (subtitle font)
-
-Name              Type        Display Name              Searchable    Listed
-------------------------------------------------------------------------------
-hardware          text        Hardware                  Yes           Yes
-os                text        --                        Yes           Yes
-compiler          text        --                        No            No
-etc...
-
-[Edit schema] [Copy as JSON] [Download JSON]                            [Delete This Suite]
+Edit, export or delete a suite from its Schema tab:
+  - libcxx
+  - nts
 ```
 
-Each table shows exactly the presentation keys its list accepts (see D4), so the three
-tables deliberately differ in their columns. Entries are shown by their `name`, with their
-`display_name` in a column of its own; one that was not set shows `--` rather than
-repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR6
-writes it, and `--` when it has neither a unit nor an abbreviation.
-
-"Edit schema" opens the schema editor on the selected suite. "Copy as JSON" and "Download
-JSON" export the schema exactly as the API returns it. Another instance can create the same
-suite from it unchanged (see D4).
-
-Clicking the red "Delete This Suite" button shows an inline panel warning that deleting a
-suite permanently destroys all its machines, runs, commits, samples, and regressions, with
-the confirmation prompt AR16 describes. On confirmation, the suite is deleted, and so is no
-longer selected.
-
-Anyone can view and export a schema. Creating a suite requires an instance-wide
-`manage` key (see I5); editing or deleting one requires `manage` in it.
-
-### AD3: Schema editor
-
-The schema editor takes the place of the schema viewer in the Test Suites tab, buttons
-included, to create a suite or to edit the selected suite's schema. While it is open, the suite
-dropdown and "New suite" are disabled. "Cancel" closes it and discards its changes, and the
-viewer shows the suite selected before again. Leaving the tab or the page discards the changes
-too, without asking.
-
-```
-New suite    Suite name [________]    Start from [suite v]    [Import JSON]
-
-Metrics
-Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
--------------------------------------------------------------------------------------------------------
-execution_time    real        [Execution Time]    [seconds]     [s]       [ ]                 [x]         ×
-code_size         integer     (removed)                                                            [undo]
-[instructions]    [real v]    [              ]    [       ]     [   ]     [ ]                 [ ]         ×
-[+ Add metric]
-
-Commit Fields
-Name              Type        Display Name        Searchable    Display    Listed
------------------------------------------------------------------------------------
-short_sha         text        [Short SHA     ]    [x]           [x]        [ ]        ×
-commit_info       text        [              ]    [ ]           [ ]        [x]        ×
-[+ Add commit field]
-
-Machine Fields
-...
-
-                                                                           [Cancel] [Create]
-
-Editing nts                                                                  [Cancel] [Save]
-```
-
-When creating a suite, the header above the tables holds its name, "Start from" and "Import JSON".
-The editor's buttons are below the tables, where the viewer has its own: "Cancel" and "Create"
-when creating a suite, and its heading, "Cancel" and "Save" when editing one. The tables are the
-same in both modes.
-
-The editor shows the same entries and keys as the viewer, with an input for each value. Each
-table has a button to add an entry, and each entry a button (×) to remove it. An added entry
-goes at the end of its list, and entries cannot be reordered. The display name, unit and
-abbreviation are sent without whitespace at either end, and an input that is empty, or holds only
-whitespace, sets its key to `null` (see D2).
-
-`searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
-metric (see D3): each is disabled for the other types, says why on hover, and is cleared when the
-entry's type changes to one of them. Checking `display` on one commit field unchecks it on the
-others, since at most one can have it.
-
-As the user types a name, the editor checks it against D4's rules for names, including the
-names that D5 reserves, and for uniqueness within its list. A name that fails shows the red
-halo (see AR11), and says why on hover. "Create" or "Save" is disabled while any name fails or is
-empty, and when disabled, says why on hover. The server validates everything else when the schema
-is submitted.
-
-**Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
-is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's entries with a copy of an existing suite's. It does not copy the suite's name.
-
-"Create" creates the suite. On success, the editor closes and the dropdown selects the new
-suite. If the name was taken meanwhile, the name check says so once "Create" fails.
-
-"Import JSON" creates a suite from a schema document instead, without going through the editor. It
-opens a text area, where the user pastes the document or loads it from a file, and a button that
-sends the document unchanged to `POST /api/suites`, where the server validates it. They take the
-place of the suite name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
-which goes back to the editor as the user left it, and keeps the document. On success, the editor
-closes and the dropdown selects the new suite, as with "Create". On failure, the text area keeps its
-contents, and the API's error message is shown.
-
-**Editing a schema**: The editor starts from the suite's schema as fetched when it opens. Only
-an existing entry's presentation keys can be edited: its `name` and `type` are read-only, since
-D2 allows changing neither. An added entry is editable in full. Removing an existing entry only
-marks it as removed, with an undo button, and its name stays taken until the schema is saved:
-the reason given for refusing an added entry with that name is that an entry removed in this edit
-cannot be added again in the same edit.
-
-"Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
-the user changed, so that it does not overwrite changes made by others since the editor opened.
-When the user changed nothing, "Save" closes the editor without sending anything.
-If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR16),
-and the editor's contents cannot change until the user does, or cancels.
-The prompt lists the removed entries and warns that every value stored for them will be
-permanently destroyed, along with the regression indicators of any removed metric (see D2). On
-success, the editor closes and the viewer shows the schema the API returned.
-
-In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
-the API's error message. If the suite being edited no longer exists, the editor closes, and the
-suite is no longer selected.
+Creating a suite requires an instance-wide `manage` key (see I5).

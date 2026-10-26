@@ -8,7 +8,7 @@ import { SuitesTab } from './suites-tab'
 /** The Admin page: its API Keys (AD1) and Test Suites (AD2) tabs. */
 export default function Admin() {
   const [settings, update] = useUrlState(PARAMS)
-  const { tab, sort, suite } = settings
+  const { tab, sort } = settings
 
   // `settings` changes only with the URL.
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function Admin() {
         {tab === 'api-keys' ? (
           <ApiKeysTab sort={sort} onSort={(value) => update({ sort: value })} />
         ) : (
-          <SuitesTab selected={suite} onSelect={(name) => update({ suite: name })} />
+          <SuitesTab />
         )}
       </Tabs>
     </section>

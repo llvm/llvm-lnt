@@ -137,11 +137,3 @@ export function profilesPath(a: ProfileSide = {}, b: ProfileSide = {}): string {
   ]
   return withQuery('/profiles', [...side('a', a), ...side('b', b)])
 }
-
-/** The Admin page's Test Suites tab, showing the schema of `suite` (AD2). */
-export function adminSuitePath(suite: string): string {
-  return withQuery('/admin', [
-    ['tab', 'suites'],
-    ['suite', suite],
-  ])
-}

@@ -8,9 +8,9 @@ import {
   type Ref,
 } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
-import { ActionButton } from '../../components/action-button'
-import type { Column } from '../../components/data-table'
-import { Select } from '../../components/select'
+import { ActionButton } from '../../../components/action-button'
+import type { Column } from '../../../components/data-table'
+import { Select } from '../../../components/select'
 import { SchemaList } from './schema-tables'
 import {
   addEntry,
@@ -33,7 +33,7 @@ import {
   type ListName,
   type PresentationKey,
 } from './schema-lists'
-import styles from './admin.module.css'
+import styles from './schema.module.css'
 
 const TYPE_OPTIONS = TYPES.map((type) => ({ value: type, label: type }))
 
@@ -52,7 +52,7 @@ interface Props {
 }
 
 /**
- * The schema editor's three tables (AD3): the viewer's, with an input for each value. Each table
+ * The schema editor's three tables (TS7): the viewer's, with an input for each value. Each table
  * adds an entry at its end, and each entry can be removed.
  */
 export function SchemaEditorTables({ draft, onChange, busy }: Props) {
@@ -256,7 +256,7 @@ interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChang
 
 /**
  * The input of a name the schema editor checks as it is typed: when refused, it has the red halo,
- * and the reason on hover and for assistive technology (AD3, AR11). Not limited in length, so that
+ * and the reason on hover and for assistive technology (TS7, AR11). Not limited in length, so that
  * a name too long is refused rather than cut short.
  */
 export function NameInput({ label, problem, onValue, ...props }: NameProps) {

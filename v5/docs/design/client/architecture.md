@@ -76,7 +76,7 @@ within the UI causes a full page reload.
 /graph?suite={ts}&machine=...         Graph (time series) -- suite-agnostic
 /compare?suite_a={ts}&...             Compare -- suite-agnostic
 /profiles?suite_a={ts}&...            Profiles (A/B profile viewer) -- suite-agnostic
-/admin                                Admin (API keys, schemas -- suite-agnostic)
+/admin                                Admin (API keys, suite creation -- suite-agnostic)
 ```
 
 
@@ -234,7 +234,7 @@ to the selection than a click on a row, leaves the anchor where it is.
 ## AR11: Invalid Input
 
 An input whose text is invalid -- an invalid regex in a test filter, a name the
-schema editor rejects (AD3), an ordinal that is not an integer its column can
+schema editor rejects (TS7), an ordinal that is not an integer its column can
 hold (DT3), a machine name that I1 rejects, or an empty one (DT1) -- shows a red
 halo (red border and glow) for as long as its text stays invalid.
 
@@ -340,7 +340,7 @@ Deleting a suite, a machine, a commit, a run or a regression is confirmed by
 typing its identifier -- the name of a suite or a machine, the commit string of
 a commit, the first 8 characters of the UUID of a run or a regression -- before
 the request is sent; the prompt shows the text to type. Saving a schema change
-that removes entries (AD3) is confirmed the same way, by typing the suite name,
+that removes entries (TS7) is confirmed the same way, by typing the suite name,
 since it destroys their stored values. Revoking an API key (AD1), which destroys
 nothing, asks for a plain confirmation instead, as does renaming a machine
 (DT1), since run submissions that still use the old name create a new machine.
