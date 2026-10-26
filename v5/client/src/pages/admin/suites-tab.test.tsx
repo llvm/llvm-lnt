@@ -156,18 +156,25 @@ describe('the Test Suites tab', () => {
       'Display Name',
       'Searchable',
       'Display',
+      'Listed',
     ])
     expect(rowsOf(commitFields)).toEqual([
-      'svn_revision | text | -- | Yes | Yes',
-      'commit_info | text | -- | No | No',
+      'svn_revision | text | -- | Yes | Yes | No',
+      'commit_info | text | -- | No | No | Yes',
     ])
 
     const machineFields = await table('Machine fields')
-    expect(headersOf(machineFields)).toEqual(['Name', 'Type', 'Display Name', 'Searchable'])
+    expect(headersOf(machineFields)).toEqual([
+      'Name',
+      'Type',
+      'Display Name',
+      'Searchable',
+      'Listed',
+    ])
     expect(rowsOf(machineFields)).toEqual([
-      'hardware | text | Hardware | Yes',
-      'os | text | -- | Yes',
-      'core_count | integer | Cores | No',
+      'hardware | text | Hardware | Yes | Yes',
+      'os | text | -- | Yes | No',
+      'core_count | integer | Cores | No | Yes',
     ])
 
     expect(main().getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([

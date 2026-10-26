@@ -27,14 +27,14 @@ EXAMPLE: dict[str, Any] = {
     ],
     "machine_fields": [
         {"name": "hardware", "type": "text", "searchable": True},
-        {"name": "os", "type": "text", "searchable": True},
+        {"name": "os", "type": "text", "searchable": True, "listed": True},
         {"name": "core_count", "type": "integer"},
     ],
     "commit_fields": [
         {"name": "git_sha", "type": "text", "searchable": True},
         {"name": "author", "type": "text", "searchable": True},
         {"name": "commit_message", "type": "text"},
-        {"name": "commit_timestamp", "type": "datetime"},
+        {"name": "commit_timestamp", "type": "datetime", "listed": True},
     ],
 }
 
@@ -192,6 +192,18 @@ class TestTypes:
             schema(**{list_name: [{"name": "entry", "type": attribute.value}]})
         )
 
+    @pytest.mark.parametrize(
+        ("list_name", "attribute"),
+        [("commit_fields", AttributeType.DATETIME), ("machine_fields", AttributeType.INTEGER)],
+    )
+    def test_a_field_of_any_type_can_be_listed(
+        self, list_name: str, attribute: AttributeType
+    ) -> None:
+        # Unlike `searchable`, `display` and `dashboard`, `listed` has no type restriction (D3).
+        entry = {"name": "entry", "type": attribute.value, "listed": True}
+        parsed = SuiteSchema.model_validate(schema(**{list_name: [entry]}))
+        assert getattr(parsed, list_name)[0].listed
+
     @pytest.mark.parametrize("list_name", ["metrics", "commit_fields", "machine_fields"])
     def test_is_required_on_every_entry(self, list_name: str) -> None:
         # D3: there is no default type.
@@ -226,6 +238,8 @@ class TestPresentationKeys:
             # Only a metric is charted on the Dashboard.
             ("commit_fields", "dashboard", False),
             ("machine_fields", "dashboard", False),
+            # Only a commit or machine field has a column in the list of its entity.
+            ("metrics", "listed", False),
         ],
     )
     def test_a_key_that_means_nothing_for_a_list_is_refused(
@@ -387,6 +401,7 @@ class TestNormalization:
                 "display_name": None,
                 "searchable": False,
                 "display": False,
+                "listed": False,
             }
         ]
 
@@ -399,6 +414,7 @@ class TestNormalization:
                 "type": AttributeType.TEXT,
                 "display_name": None,
                 "searchable": False,
+                "listed": False,
             }
         ]
 

@@ -114,20 +114,20 @@ etc...
 
 Commit Fields (subtitle font)
 
-Name              Type        Display Name              Searchable    Display
-------------------------------------------------------------------------------
-short_sha         text        Short SHA                 Yes           Yes
-commit_info       text        --                        No            No
+Name              Type        Display Name              Searchable    Display    Listed
+-----------------------------------------------------------------------------------------
+short_sha         text        Short SHA                 Yes           Yes        No
+commit_info       text        --                        No            No         Yes
 etc...
 
 
 Machine Fields (subtitle font)
 
-Name              Type        Display Name              Searchable
-------------------------------------------------------------------
-hardware          text        Hardware                  Yes
-os                text        --                        Yes
-compiler          text        --                        No
+Name              Type        Display Name              Searchable    Listed
+------------------------------------------------------------------------------
+hardware          text        Hardware                  Yes           Yes
+os                text        --                        Yes           Yes
+compiler          text        --                        No            No
 etc...
 
 [Edit schema] [Copy as JSON] [Download JSON]                            [Delete This Suite]
@@ -171,10 +171,10 @@ code_size         integer     (removed)                                         
 [+ Add metric]
 
 Commit Fields
-Name              Type        Display Name        Searchable    Display
--------------------------------------------------------------------------
-short_sha         text        [Short SHA     ]    [x]           [x]             ×
-commit_info       text        [              ]    [ ]           [ ]             ×
+Name              Type        Display Name        Searchable    Display    Listed
+-----------------------------------------------------------------------------------
+short_sha         text        [Short SHA     ]    [x]           [x]        [ ]        ×
+commit_info       text        [              ]    [ ]           [ ]        [x]        ×
 [+ Add commit field]
 
 Machine Fields

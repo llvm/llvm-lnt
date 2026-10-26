@@ -980,7 +980,7 @@ export interface components {
         Commit: {
             /**
              * Fields
-             * @description The commit's values for the fields defined in the suite's schema, keyed by field name. Every field is listed, with null for those that have no value.
+             * @description The commit's values for the fields defined in the suite's schema, keyed by field name. Every field is included, with null for those that have no value.
              * @example {
              *       "commit_info": "[libc++] Vectorize std::find_if",
              *       "svn_revision": "r554973"
@@ -1033,7 +1033,7 @@ export interface components {
         CommitDetail: {
             /**
              * Fields
-             * @description The commit's values for the fields defined in the suite's schema, keyed by field name. Every field is listed, with null for those that have no value.
+             * @description The commit's values for the fields defined in the suite's schema, keyed by field name. Every field is included, with null for those that have no value.
              * @example {
              *       "commit_info": "[libc++] Vectorize std::find_if",
              *       "svn_revision": "r554973"
@@ -1080,6 +1080,7 @@ export interface components {
          * @example {
          *       "display": true,
          *       "display_name": null,
+         *       "listed": false,
          *       "name": "svn_revision",
          *       "searchable": true,
          *       "type": "text"
@@ -1109,6 +1110,12 @@ export interface components {
              * @default false
              */
             display: boolean;
+            /**
+             * Listed
+             * @description Whether the web UI's list of commits shows this field in a column of its own.
+             * @default false
+             */
+            listed: boolean;
         };
         /**
          * CommitFieldChanges
@@ -1140,6 +1147,7 @@ export interface components {
          * @example {
          *       "display": true,
          *       "display_name": null,
+         *       "listed": false,
          *       "name": "svn_revision",
          *       "searchable": true,
          *       "type": "text"
@@ -1169,6 +1177,12 @@ export interface components {
              * @default false
              */
             display?: boolean;
+            /**
+             * Listed
+             * @description Whether the web UI's list of commits shows this field in a column of its own.
+             * @default false
+             */
+            listed?: boolean;
         };
         /**
          * CommitFieldUpdate
@@ -1196,6 +1210,11 @@ export interface components {
              * @description Whether the UI should show this field instead of the commit's value. Can't be null.
              */
             display?: boolean;
+            /**
+             * Listed
+             * @description Whether the web UI's list of commits shows this field in a column. Can't be null.
+             */
+            listed?: boolean;
         };
         /**
          * CommitObject
@@ -1596,7 +1615,7 @@ export interface components {
         Machine: {
             /**
              * Fields
-             * @description The machine's values for the fields defined in the suite's schema, keyed by field name. Every field is listed, with null for those that have no value.
+             * @description The machine's values for the fields defined in the suite's schema, keyed by field name. Every field is included, with null for those that have no value.
              * @example {
              *       "compiler": "clang version 22.1.0",
              *       "hardware": "AMD EPYC 9654",
@@ -1638,6 +1657,7 @@ export interface components {
          *     The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
          * @example {
          *       "display_name": null,
+         *       "listed": true,
          *       "name": "hardware",
          *       "searchable": true,
          *       "type": "text"
@@ -1661,6 +1681,12 @@ export interface components {
              * @default false
              */
             searchable: boolean;
+            /**
+             * Listed
+             * @description Whether the web UI's list of machines shows this field in a column of its own.
+             * @default false
+             */
+            listed: boolean;
         };
         /**
          * MachineFieldChanges
@@ -1690,6 +1716,7 @@ export interface components {
          *     The name can't be `id`, `name`, `tracked`, `first_seen_at` or `delete_after_inactive_days`.
          * @example {
          *       "display_name": null,
+         *       "listed": true,
          *       "name": "hardware",
          *       "searchable": true,
          *       "type": "text"
@@ -1713,6 +1740,12 @@ export interface components {
              * @default false
              */
             searchable?: boolean;
+            /**
+             * Listed
+             * @description Whether the web UI's list of machines shows this field in a column of its own.
+             * @default false
+             */
+            listed?: boolean;
         };
         /**
          * MachineFieldUpdate
@@ -1735,6 +1768,11 @@ export interface components {
              * @description Whether `search` on the machine and run lists matches this field. Can't be null.
              */
             searchable?: boolean;
+            /**
+             * Listed
+             * @description Whether the web UI's list of machines shows this field in a column. Can't be null.
+             */
+            listed?: boolean;
         };
         /**
          * MachineList
@@ -2648,6 +2686,7 @@ export interface components {
          *         {
          *           "display": true,
          *           "display_name": null,
+         *           "listed": false,
          *           "name": "svn_revision",
          *           "searchable": true,
          *           "type": "text"
@@ -2655,6 +2694,7 @@ export interface components {
          *         {
          *           "display": false,
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "commit_info",
          *           "searchable": false,
          *           "type": "text"
@@ -2663,30 +2703,35 @@ export interface components {
          *       "machine_fields": [
          *         {
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "hardware",
          *           "searchable": true,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "os",
          *           "searchable": true,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": false,
          *           "name": "test_suite_commit",
          *           "searchable": false,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "compiler",
          *           "searchable": false,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": false,
          *           "name": "sdk",
          *           "searchable": false,
          *           "type": "text"
@@ -2776,6 +2821,7 @@ export interface components {
          *         {
          *           "display": true,
          *           "display_name": null,
+         *           "listed": false,
          *           "name": "svn_revision",
          *           "searchable": true,
          *           "type": "text"
@@ -2783,6 +2829,7 @@ export interface components {
          *         {
          *           "display": false,
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "commit_info",
          *           "searchable": false,
          *           "type": "text"
@@ -2791,30 +2838,35 @@ export interface components {
          *       "machine_fields": [
          *         {
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "hardware",
          *           "searchable": true,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "os",
          *           "searchable": true,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": false,
          *           "name": "test_suite_commit",
          *           "searchable": false,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": true,
          *           "name": "compiler",
          *           "searchable": false,
          *           "type": "text"
          *         },
          *         {
          *           "display_name": null,
+         *           "listed": false,
          *           "name": "sdk",
          *           "searchable": false,
          *           "type": "text"

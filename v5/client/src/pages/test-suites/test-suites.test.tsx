@@ -7,6 +7,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
+  headersOf,
   mockCommits,
   mockMachines,
   mockRegressions,
@@ -491,7 +492,7 @@ describe('the Runs tab', () => {
 })
 
 describe('the Machines tab', () => {
-  it('lists machines with the fields they have, labelled, and marks untracked ones', async () => {
+  it('lists machines with their listed fields, labelled, and marks untracked ones', async () => {
     mockSuites()
     const queries = mockMachines(() => ({
       items: [
@@ -506,10 +507,12 @@ describe('the Machines tab', () => {
     renderPage('/suites/libcxx?tab=machines')
 
     const machines = await table('Machines')
+    // `os` is not listed, so it is left out, whatever its values.
+    expect(headersOf(machines)).toEqual(['Name', 'Hardware', 'Cores'])
     expect(rowsOf(machines)).toEqual([
-      'linux-x86_64 | os: Linux, Cores: 64',
-      'macos-O3 untracked | Hardware: Apple M4, os: macOS 26.5',
-      'bare | ',
+      'linux-x86_64 | -- | 64',
+      'macos-O3 untracked | Apple M4 | --',
+      'bare | -- | --',
     ])
     expect(within(machines).getByRole('link', { name: 'linux-x86_64' })).toHaveAttribute(
       'href',
@@ -596,15 +599,32 @@ describe('the Commits tab', () => {
         commit('abc123', {
           ordinal: 591886,
           tag: 'llvm-22.0',
-          fields: { svn_revision: 'r591886', commit_info: null },
+          fields: { svn_revision: 'r591886', commit_info: '[libc++] Speed up std::format' },
         }),
-        commit('experiment'),
+        commit('experiment', {
+          fields: {
+            svn_revision: null,
+            commit_info: 'A/B experiment: a faster floating-point path for std::format',
+          },
+        }),
+        commit('bare'),
       ]),
     )
     renderPage('/suites/libcxx?tab=commits')
 
     const commits = await table('Commits')
-    expect(rowsOf(commits)).toEqual(['r591886 | 591886 | llvm-22.0', 'experiment | -- | --'])
+    // The fields the schema lists follow, cut short when long, and whole on hover.
+    expect(headersOf(commits)).toEqual(['Commit', 'Ordinal', 'Tag', 'commit_info'])
+    const [first, experiment, bare] = rowsOf(commits)
+    expect(first).toBe('r591886 | 591886 | llvm-22.0 | [libc++] Speed up std::format')
+    expect(bare).toBe('bare | -- | -- | --')
+    // Assistive technology reads the whole value rather than the cut one.
+    const info = 'A/B experiment: a faster floating-point path for std::format'
+    expect(experiment).toMatch(/^experiment \| -- \| -- \| /)
+    const cut = within(commits).getByTitle(info)
+    expect(cut).toHaveTextContent(/^A\/B experiment: a faster floating-point path for …$/)
+    expect(cut).toHaveAttribute('aria-hidden', 'true')
+    expect(within(commits).getByText(info)).toBeInTheDocument()
     expect(within(commits).getByRole('link', { name: 'r591886' })).toHaveAttribute(
       'href',
       '/suites/libcxx/commits/abc123',

@@ -9,7 +9,7 @@ import { formatNumber, formatTimestamp, MISSING } from './format'
 export type Commit = Schemas['Commit']
 export type Metric = SuiteSchema['metrics'][number]
 
-type FieldValue = string | number | null | undefined
+export type FieldValue = string | number | null | undefined
 
 /** What a metric, machine field or commit field is labelled with: its display name, if set. */
 export function labelOf(entry: { name: string; display_name: string | null }): string {
@@ -36,9 +36,9 @@ export function formatFieldValue(value: FieldValue, type: Schemas['AttributeType
 /** The numeric types (D3). */
 export const NUMERIC_TYPES: readonly Schemas['AttributeType'][] = ['real', 'integer']
 
-/** Whether `metric` is numeric (D3): what a value axis, or a number's formatting, needs. */
-export function isNumeric(metric: Metric): boolean {
-  return NUMERIC_TYPES.includes(metric.type)
+/** Whether `entry` is numeric (D3): what a value axis, or a number's formatting, needs. */
+export function isNumeric(entry: { type: Schemas['AttributeType'] }): boolean {
+  return NUMERIC_TYPES.includes(entry.type)
 }
 
 /** The metric a page shows unless told otherwise: the first numeric one, else the first (DT2). */

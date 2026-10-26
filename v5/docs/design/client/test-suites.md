@@ -60,15 +60,19 @@ or a prefix of their UUID (see O4).
 This tab shows every machine defined in the test suite, by name, in a single table like this:
 
 ```
-Name                        Info
-----------------------------------------------------------------------------------------------------------------------
-linux-x86_64                compiler: clang version 22.1.0, test_suite_commit: 8bb5e216937e6b541f351aa1637c67e85a43ada0
-macos-26.5-arm64            compiler: Apple clang version 21.0.0, hardware: Apple M4, os: macOS 26.5 (25F71)
-macos-arm64-O3 [untracked]  compiler: Apple clang version 21.0.0, hardware: Apple M4, cflags: -O3
+Name                        hardware    os                    compiler
+------------------------------------------------------------------------------------------------------------
+linux-x86_64                --          --                    clang version 22.1.0 (https://github.com/llvm/llv…
+macos-26.5-arm64            Apple M4    macOS 26.5 (25F71)    Apple clang version 21.0.0 (clang-2100.1.1.101)
+macos-arm64-O3 [untracked]  Apple M4    macOS 26.5 (25F71)    Apple clang version 21.0.0 (clang-2100.1.1.101)
 ```
 
-The `Name` is a clickable link to the machine detail page. The `Info` column presents the machine
-fields that have a value for that machine, separated by commas.
+The `Name` is a clickable link to the machine detail page. It is followed by a
+column for each machine field the schema marks `listed: true` (see D4), in
+schema order, headed by the field's label (see AR6). A cell shows the machine's
+value for that field, or `--` when it has none. A value longer than 50
+characters is cut short, and shown whole on hover and to assistive technology.
+Every field, listed or not, is shown on the machine's detail page (see DT1).
 
 Machines with `tracked: false` carry a small grey `untracked` badge next to the name. All machines
 are listed regardless of `tracked`, by name; the badge is informational, marking configurations
@@ -85,10 +89,10 @@ This tab shows the commits present in the test suite, most recently seen first
 not they have an ordinal. It shows a table like:
 
 ```
-Commit            Ordinal                 Tag
-----------------------------------------------------
-0f985af790f8      591886                  --
-0f69d2804b9b      588009                  llvm-22.0
+Commit            Ordinal                 Tag            commit_info
+------------------------------------------------------------------------------------------
+0f985af790f8      591886                  --             [libc++] Speed up std::to_chars
+0f69d2804b9b      588009                  llvm-22.0      --
 etc...
 ```
 
@@ -96,6 +100,11 @@ etc...
   ` (tag)` suffix.
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
+- After `Tag`, a column for each commit field the schema marks `listed: true`
+  (see D4), in schema order, headed by the field's label (see AR6). A cell shows
+  the commit's value for that field, or `--` when it has none, cut short and
+  shown whole on hover and to assistive technology when longer than 50
+  characters.
 
 Above the table, a `Search commits...` box searches the commits by value, tag and searchable
 fields (see O4).

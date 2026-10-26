@@ -28,7 +28,9 @@ mirror on 2026-09-25, without recording the v4 run ids, and converted from that 
   of which v4 has no notion: `hardware`, `os` and `svn_revision` are searchable, and `svn_revision`
   is the commit's display value, so that the UI shows `r598181` rather than a SHA. Nor does v4 have
   `dashboard`: it is set on every `real` metric, and not on the `integer` ones, which hold status
-  codes rather than quantities (see D3), so that a trend of them would mean nothing.
+  codes rather than quantities (see D3), so that a trend of them would mean nothing. `listed`, which
+  v4 has no notion of either, is set on both machine fields, and not on `svn_revision`, which the
+  Commits tab already shows as the commit itself.
 - `machine`: the v4 name. The v4 instance has no `hardware` or `os` for these machines, so `fields`
   is omitted.
 - `commit`: `value` is the LLVM commit the compiler was built from (v4's `cc_src_revision`),

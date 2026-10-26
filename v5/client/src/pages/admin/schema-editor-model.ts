@@ -39,6 +39,7 @@ export interface DraftEntry {
   dashboard: boolean
   searchable: boolean
   display: boolean
+  listed: boolean
 }
 
 export type Draft = Record<ListName, DraftEntry[]>
@@ -69,6 +70,7 @@ function draftEntry(entry: AnyEntry, original: AnyEntry | null): DraftEntry {
     dashboard: entry.dashboard ?? false,
     searchable: entry.searchable ?? false,
     display: entry.display ?? false,
+    listed: entry.listed ?? false,
   }
 }
 

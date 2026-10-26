@@ -46,12 +46,14 @@
     {
       "name": "hardware",
       "type": "text",
-      "searchable": true
+      "searchable": true,
+      "listed": true
     },
     {
       "name": "os",
       "type": "text",
-      "searchable": true
+      "searchable": true,
+      "listed": true
     },
     {
       "name": "test_suite_commit",
@@ -59,7 +61,8 @@
     },
     {
       "name": "compiler",
-      "type": "text"
+      "type": "text",
+      "listed": true
     },
     {
       "name": "sdk",
@@ -75,7 +78,8 @@
     },
     {
       "name": "commit_info",
-      "type": "text"
+      "type": "text",
+      "listed": true
     }
   ]
 }

@@ -10,6 +10,7 @@ import { useServerSearch } from '../../components/use-server-search'
 import { MISSING } from '../../format'
 import { commitPath } from '../../paths'
 import { commitDisplayValue, type Commit } from '../../schema'
+import { listedColumns } from './listed-columns'
 import { TabContent } from './tab-content'
 
 interface Props {
@@ -84,5 +85,6 @@ function columns(schema: SuiteSchema): Column<Commit>[] {
       cell: (commit) => (commit.ordinal === null ? MISSING : String(commit.ordinal)),
     },
     { id: 'tag', header: 'Tag', cell: (commit) => commit.tag ?? MISSING },
+    ...listedColumns<Commit>(schema.commit_fields),
   ]
 }

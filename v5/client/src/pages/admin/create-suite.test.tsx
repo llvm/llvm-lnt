@@ -372,14 +372,16 @@ describe('creating the suite', () => {
         },
       ],
       commit_fields: [],
-      machine_fields: [{ name: 'kernel', type: 'text', display_name: null, searchable: false }],
+      machine_fields: [
+        { name: 'kernel', type: 'text', display_name: null, searchable: false, listed: false },
+      ],
     })
     expect(sent[0].auth).toMatch(/^Bearer /)
     expect(editor()).not.toBeInTheDocument()
     expect(selectButton('Test suite')).toHaveTextContent('fresh')
     expect(selectButton('Test suite')).toHaveFocus()
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
-    expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No'])
+    expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
   })
 
   it('creates a suite without entries', async () => {
