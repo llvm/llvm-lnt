@@ -226,9 +226,10 @@ the suite, which a key restricted to it grants (see I5).
 The schema editor creates a suite, from the Admin page's Test Suites tab (see AD2), or edits a
 suite's schema, from its Schema tab (see TS6). It takes the place of what the tab shows: its
 whole content in the Admin page, and the schema viewer, buttons included, in the Schema tab.
-"Cancel" closes it and discards its changes, and the tab shows what it showed before again.
-Leaving the tab, for another tab, another suite or another page, discards the changes too,
-without asking.
+"Cancel" closes it and discards its changes, without asking, and the tab shows what it showed
+before again. Leaving the tab with unsaved changes asks first (see AR19): when editing a schema,
+the changes "Save" would send; when creating a suite, a suite name, any entry, or a document to
+import that is not blank.
 
 ```
 New suite    Suite name [________]    Start from [suite v]    [Import JSON]

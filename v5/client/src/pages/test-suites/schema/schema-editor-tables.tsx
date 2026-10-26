@@ -1,8 +1,8 @@
 import {
   memo,
   useCallback,
-  useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   type InputHTMLAttributes,
   type Ref,
@@ -57,9 +57,11 @@ interface Props {
  */
 export function SchemaEditorTables({ draft, onChange, busy }: Props) {
   const container = useRef<HTMLDivElement>(null)
-  // What takes the focus once a change has rendered: the element whose `data-focus` it is.
+  // What takes the focus once a change has rendered: the element whose `data-focus` it is. Given in
+  // the commit itself: an effect after it may run only as the next change begins, with `focusNext`
+  // set for that change already, whose element is not there yet.
   const focusNext = useRef<string | null>(null)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusNext.current === null) return
     container.current?.querySelector<HTMLElement>(`[data-focus="${focusNext.current}"]`)?.focus()
     focusNext.current = null

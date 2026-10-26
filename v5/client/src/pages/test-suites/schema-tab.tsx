@@ -18,8 +18,8 @@ interface Props {
 
 /**
  * The Schema tab (TS6): the suite's schema, its exports, and its editing and deletion, which need
- * `manage` in it. "Edit schema" opens the schema editor (TS7) in their place, whose changes go with
- * the tab.
+ * `manage` in it. "Edit schema" opens the schema editor (TS7) in their place, which asks before
+ * its changes go with the tab.
  */
 export function SchemaTab({ schema, onDeleted }: Props) {
   const { name } = schema

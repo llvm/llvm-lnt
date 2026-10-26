@@ -6,6 +6,7 @@ import { rootRoute } from '../app'
 import { createQueryClient } from '../api/query-client'
 import { AuthProvider } from '../auth/auth-provider'
 import { createTokenStore } from '../auth/credentials'
+import { UrlStateProvider } from '../url-state-provider'
 
 interface Options {
   /** The URL the router starts at. */
@@ -46,9 +47,11 @@ export function providers({ url = '/', routes }: Options & { routes?: RouteObjec
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider tokens={tokens}>
-          <Content.Provider value={children}>
-            <RouterProvider router={router} useTransitions={false} />
-          </Content.Provider>
+          <UrlStateProvider router={router}>
+            <Content.Provider value={children}>
+              <RouterProvider router={router} useTransitions={false} />
+            </Content.Provider>
+          </UrlStateProvider>
         </AuthProvider>
       </QueryClientProvider>
     )

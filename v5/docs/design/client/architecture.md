@@ -405,3 +405,13 @@ a list's filter, covers both tracked and untracked machines.
 
 The Machines tab (TS3) is a listing rather than a picker: it lists every
 machine by name.
+
+
+## AR19: Unsaved Changes
+
+A form whose spec says so asks before the user leaves it with unsaved changes, as that spec defines
+them: for another tab, suite or page, by Back or Forward, or by reloading or closing the browser
+tab. Within the SPA, the user either confirms or stays, with the URL, the page and the form as they
+were; otherwise, the browser's own prompt asks. Changes still being saved are unsaved: leaving does
+not cancel the save, but its failure could no longer be shown. The form's Cancel, and the form
+closing on its own (once saved, or once what it edits is gone), ask nothing.

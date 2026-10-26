@@ -1,4 +1,4 @@
-import { Outlet, type RouteObject } from 'react-router'
+import type { RouteObject } from 'react-router'
 import { Layout } from './layout'
 import {
   Admin,
@@ -14,7 +14,6 @@ import {
 } from './pages/lazy'
 import { NotFound } from './pages/not-found'
 import { RethrowError } from './rethrow-error'
-import { UrlStateProvider } from './url-state-provider'
 
 /** The page hierarchy of AR3, every URL in it: those it does not name show `NotFound`. */
 export const routes: RouteObject[] = [
@@ -39,13 +38,5 @@ export const routes: RouteObject[] = [
 
 /** The route at the root of the router, above `children`: the app's routes, say. */
 export function rootRoute(children: RouteObject[]): RouteObject {
-  return {
-    element: (
-      <UrlStateProvider>
-        <Outlet />
-      </UrlStateProvider>
-    ),
-    ErrorBoundary: RethrowError,
-    children,
-  }
+  return { ErrorBoundary: RethrowError, children }
 }

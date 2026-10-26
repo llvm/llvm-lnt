@@ -59,6 +59,11 @@ export function main() {
   return within(screen.getByRole('main'))
 }
 
+/** The link named `name` in the navbar, the first navigation landmark of the page. */
+export function navbarLink(name: string) {
+  return within(screen.getAllByRole('navigation')[0]).getByRole('link', { name })
+}
+
 /** Queries within the breadcrumb trail of a detail page (see SuiteTrail). */
 export function trail() {
   return within(screen.getByRole('navigation', { name: 'Breadcrumb' }))

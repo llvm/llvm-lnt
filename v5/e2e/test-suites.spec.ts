@@ -401,21 +401,59 @@ test.describe('the Schema tab', () => {
     })
   })
 
-  test('discards the changes of the editor on leaving the tab', async ({ page, signIn }) => {
+  test('asks before the changes of the editor are lost by leaving it', async ({ page, signIn }) => {
+    /** Answer the next dialog, which must be of type `type`; returns its message. */
+    function answerNext(type: 'confirm' | 'beforeunload', accept: boolean) {
+      return new Promise<string>((resolve) => {
+        page.once('dialog', async (dialog) => {
+          expect(dialog.type()).toBe(type)
+          await (accept ? dialog.accept() : dialog.dismiss())
+          resolve(dialog.message())
+        })
+      })
+    }
+
     await signIn(page, 'manage')
-    await page.goto('/suites/libcxx?tab=schema')
+    // From another suite, for Back to have an entry of the SPA to go back to.
+    await page.goto('/suites/nts')
+    const picker = page.getByRole('navigation', { name: 'Test suites' })
+    await picker.getByRole('link', { name: 'libcxx' }).click()
+    await page.getByRole('tab', { name: 'Schema' }).click()
     await page.getByRole('button', { name: 'Edit schema' }).click()
     const editor = page.getByRole('region', { name: 'Editing libcxx' })
-    await editor
-      .getByRole('textbox', { name: 'Display name of metric execution_time' })
-      .fill('Not saved')
+    const displayName = editor.getByRole('textbox', {
+      name: 'Display name of metric execution_time',
+    })
+    await displayName.fill('Not saved')
 
+    // Staying keeps the editor, with its changes.
+    let asked = answerNext('confirm', false)
     await page.getByRole('tab', { name: 'Runs' }).click()
-    await page.getByRole('tab', { name: 'Schema' }).click()
+    expect(await asked).toBe('You have unsaved changes. Leave anyway?')
+    asked = answerNext('confirm', false)
+    await page.goBack()
+    await asked
+    await expect(page).toHaveURL('/suites/libcxx?tab=schema')
+    await expect(displayName).toHaveValue('Not saved')
 
+    // Leaving discards them.
+    asked = answerNext('confirm', true)
+    await page.getByRole('tab', { name: 'Runs' }).click()
+    await asked
+    await expect(page).toHaveURL('/suites/libcxx')
+    await page.getByRole('tab', { name: 'Schema' }).click()
     await expect(editor).toBeHidden()
     await expect(rows(table(page, 'Metrics')).first().locator('td').nth(2)).toHaveText(
       'Execution Time',
     )
+
+    // Reloading discards them too, once the browser has asked. (Not staying, which the unit tests
+    // cover: Playwright loses track of the page once a reload is cancelled.)
+    await page.getByRole('button', { name: 'Edit schema' }).click()
+    await displayName.fill('Not saved')
+    asked = answerNext('beforeunload', true)
+    await page.reload()
+    await asked
+    await expect(editor).toBeHidden()
   })
 })

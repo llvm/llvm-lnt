@@ -5,6 +5,7 @@ import { queryKeys } from '../../../api/keys'
 import type { SuiteSchema } from '../../../api/suites'
 import { signIn } from '../../../test/auth'
 import { BARE_SUITE, SUITE, cursorPage } from '../../../test/fixtures'
+import { answerLeaving, unloadAsks } from '../../../test/leave'
 import { errorResponse, mockApi } from '../../../test/mock-api'
 import {
   currentUrl,
@@ -12,6 +13,7 @@ import {
   main,
   mockRuns,
   mockSuites,
+  navbarLink,
   renderPage,
   rowsOf,
   table,
@@ -185,11 +187,18 @@ describe('leaving the tab', () => {
     })
   }
 
+  const CODE_SIZE = { name: 'Display name of metric code_size' }
+
+  function codeSize() {
+    return screen.getByRole('textbox', CODE_SIZE)
+  }
+
   /** Open the editor on libcxx, and change it, the Runs tab listing no runs. */
   async function openChanged() {
     mockRuns(() => cursorPage([]))
-    await openEditor()
-    typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Changed')
+    const store = await openEditor()
+    typeInto(codeSize(), 'Changed')
+    return store
   }
 
   /** Whether the Schema tab shows the viewer, rather than the editor and its changes. */
@@ -199,36 +208,129 @@ describe('leaving the tab', () => {
     expect(screen.queryByDisplayValue('Changed')).not.toBeInTheDocument()
   }
 
-  it('to another tab discards the changes', async () => {
+  /** Whether the editor is still open on the Schema tab, with its changes. */
+  function expectEditor() {
+    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(codeSize()).toHaveValue('Changed')
+  }
+
+  it('to another tab asks first, staying if the user says so', async () => {
     await openChanged()
+    const confirm = answerLeaving(false)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    expect(confirm).toHaveBeenCalledOnce()
+    expectEditor()
+
+    // Asked again, the tab refused before being no change the page has made already.
+    confirm.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    expect(confirm).toHaveBeenCalledTimes(2)
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
 
     await expectViewer()
   })
 
-  it('to another suite discards the changes', async () => {
+  it('to another suite, or by Back or Forward, asks first', async () => {
     await openChanged()
-
+    const confirm = answerLeaving(true)
     fireEvent.click(card('nts'))
     await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    expect(confirm).toHaveBeenCalledOnce()
+    fireEvent.click(card('libcxx'))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
+    await waitFor(() => expect(editButton()).toBeEnabled())
+    fireEvent.click(editButton())
+    typeInto(await screen.findByRole('textbox', CODE_SIZE), 'Changed')
+
+    confirm.mockReturnValue(false)
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expectEditor()
+
+    confirm.mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    expect(confirm).toHaveBeenCalledTimes(3)
+    fireEvent.click(screen.getByRole('button', { name: 'Browser forward' }))
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=schema'))
 
     await expectViewer()
   })
 
-  it("by the suite's own card discards the changes", async () => {
+  it("by the suite's own card, or the navbar, asks first", async () => {
     await openChanged()
+    const confirm = answerLeaving(false)
 
     fireEvent.click(card('libcxx'))
+    fireEvent.click(navbarLink('Graph'))
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expectEditor()
+
+    confirm.mockReturnValue(true)
+    fireEvent.click(navbarLink('Test Suites'))
     await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
     expect(editor()).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
 
     await expectViewer()
+  })
+
+  it('has the browser ask before a reload, only while changed', async () => {
+    await openEditor()
+    expect(unloadAsks()).toBe(false)
+
+    typeInto(codeSize(), 'Changed')
+    expect(unloadAsks()).toBe(true)
+    // Changed back: Save would send nothing.
+    typeInto(codeSize(), 'Size')
+    expect(unloadAsks()).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove metric code_size' }))
+    expect(unloadAsks()).toBe(true)
+  })
+
+  it('asks nothing without changes, or once they are undone', async () => {
+    mockRuns(() => cursorPage([]))
+    await openEditor()
+    const confirm = answerLeaving(false)
+    typeInto(codeSize(), 'Changed')
+    typeInto(codeSize(), ' Size ')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('asks first with an entry added, even without a name', async () => {
+    await openEditor()
+    const confirm = answerLeaving(false)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add metric' }))
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+  })
+
+  it('asks nothing once the changes are discarded by Cancel, or saved', async () => {
+    const store = await openChanged()
+    const confirm = answerLeaving(false)
+
+    fireEvent.click(within(editor()!).getByRole('button', { name: 'Cancel' }))
+    expect(unloadAsks()).toBe(false)
+    fireEvent.click(editButton())
+    typeInto(await screen.findByRole('textbox', CODE_SIZE), 'Changed')
+    mockPatch(store, (schema) => schema)
+    fireEvent.click(saveButton())
+    await waitFor(() => expect(editor()).not.toBeInTheDocument())
+    expect(unloadAsks()).toBe(false)
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    expect(confirm).not.toHaveBeenCalled()
   })
 })
 
@@ -578,8 +680,12 @@ describe('saving', () => {
     fireEvent.click(saveButton())
     await waitFor(() => expect(saveButton()).toHaveTextContent('Saving...'))
 
+    // Still unsaved: the user is asked first, and leaving does not cancel the save.
+    const confirm = answerLeaving(true)
     mockRuns(() => cursorPage([]))
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    expect(confirm).toHaveBeenCalledOnce()
     await act(async () => reply.open())
     await waitFor(() => expect(store.queryClient.isMutating()).toBe(0))
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))

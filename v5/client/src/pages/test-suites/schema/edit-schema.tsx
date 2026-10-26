@@ -6,6 +6,7 @@ import { useScopeGate } from '../../../auth/scope'
 import { ActionButton } from '../../../components/action-button'
 import { Confirmation } from '../../../components/confirmation'
 import { ErrorMessage, Loaded } from '../../../components/feedback'
+import { useUnsavedChanges } from '../../../components/use-unsaved-changes'
 import { EditorFooter } from './editor-footer'
 import { draftOf, draftProblem, patchOf, removedEntries } from './schema-editor-model'
 import { LIST_INFO } from './schema-lists'
@@ -106,11 +107,14 @@ function EditForm({ schema, onClose }: FormProps) {
 
   const removed = removedEntries(draft)
   const reason = gate.title ?? draftProblem(draft)
+  const patch = patchOf(draft)
+  // The changes Save would send, until it closes the editor (TS7).
+  const changed = Object.keys(patch).length > 0
+  useUnsavedChanges(changed)
 
   const onSave = () => {
-    const patch = patchOf(draft)
     // Nothing changed: nothing to send.
-    if (Object.keys(patch).length === 0) onClose()
+    if (!changed) onClose()
     else if (removed.length > 0) {
       // A failure of an earlier save is no longer what the editor is about.
       save.reset()
@@ -148,9 +152,7 @@ function EditForm({ schema, onClose }: FormProps) {
               confirmLabel="Save"
               gate={gate}
               busyMessage="Removing entries from a suite with much data may take a while."
-              onConfirm={() =>
-                save.mutateAsync({ patch: patchOf(draft), confirm: true }, { onSuccess: onClose })
-              }
+              onConfirm={() => save.mutateAsync({ patch, confirm: true }, { onSuccess: onClose })}
               onCancel={() => {
                 setConfirming(false)
                 saveRef.current?.focus()

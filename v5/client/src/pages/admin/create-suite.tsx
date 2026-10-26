@@ -6,6 +6,7 @@ import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ErrorMessage } from '../../components/feedback'
 import { Select } from '../../components/select'
+import { useUnsavedChanges } from '../../components/use-unsaved-changes'
 import {
   copyOf,
   EMPTY_DRAFT,
@@ -13,6 +14,7 @@ import {
   schemaOf,
   suiteNameProblem,
 } from '../test-suites/schema/schema-editor-model'
+import { LISTS } from '../test-suites/schema/schema-lists'
 import { NameInput, SchemaEditorTables } from '../test-suites/schema/schema-editor-tables'
 import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
@@ -48,9 +50,18 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
   const create = useCreateSuite()
   const send = useCreateSuite()
   const busy = create.isPending || send.isPending
+  // Anything entered, until the suite is created (TS7).
+  const allowLeaving = useUnsavedChanges(
+    name !== '' || LISTS.some((list) => draft[list].length > 0) || text.trim() !== '',
+  )
   // Only once the suite is created, and only if the editor is still shown: a user who has left the
   // tab meanwhile is not taken to the new suite (TanStack Query skips `mutate`'s callbacks then).
-  const created = { onSuccess: (schema: SuiteSchema) => onCreated(schema.name) }
+  const created = {
+    onSuccess: (schema: SuiteSchema) => {
+      allowLeaving()
+      onCreated(schema.name)
+    },
+  }
 
   const nameProblem = suiteNameProblem(name, list?.map((suite) => suite.name) ?? [])
   // Until the suites have loaded, the name cannot be checked against theirs.
