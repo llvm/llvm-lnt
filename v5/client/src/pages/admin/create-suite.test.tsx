@@ -2,7 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { PERMISSION_DENIED } from '../../api/client'
+import type { QueryClient } from '@tanstack/react-query'
+import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
 import { compareStrings } from '../../format'
@@ -12,7 +13,6 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
-  main,
   mockSuites,
   renderPage,
   rowsOf,
@@ -73,7 +73,7 @@ function createButton() {
 
 /**
  * Show the Test Suites tab, the instance holding `suites`, to a holder of a `manage` token, and
- * open the editor creating a suite.
+ * open the editor creating a suite, once it has loaded the suites.
  */
 async function openEditor({ suites = [SUITE, BARE_SUITE] }: { suites?: SuiteSchema[] } = {}) {
   signIn('manage')
@@ -82,7 +82,15 @@ async function openEditor({ suites = [SUITE, BARE_SUITE] }: { suites?: SuiteSche
   await waitFor(() => expect(newSuiteButton()).toBeEnabled())
   fireEvent.click(newSuiteButton())
   await waitFor(() => expect(editor()).toBeInTheDocument())
+  await waitFor(() => expect(queryClient.getQueryState(queryKeys.suites)?.status).toBe('success'))
   return Object.assign(store, { queryClient })
+}
+
+/** The names the suites listed in the cache have. */
+function cachedSuites(queryClient: QueryClient) {
+  return queryClient
+    .getQueryData<Schemas['SuiteSchemaList']>(queryKeys.suites)
+    ?.items.map((suite) => suite.name)
 }
 
 /** Add an entry to `list`, as its "+ Add" button does, naming it `name`. */
@@ -100,17 +108,77 @@ describe('opening the editor', () => {
     mockSuites()
     renderPage('/admin?tab=suites')
 
-    await main().findByRole('list', { name: 'Test suites' })
     await waitFor(() =>
       expect(newSuiteButton()).toHaveAttribute('title', expect.stringContaining("'manage' scope")),
     )
     expect(newSuiteButton()).toBeDisabled()
   })
 
+  it('needs an instance-wide token, rather than one restricted to some suites', async () => {
+    signIn('manage', ['nts'])
+    mockSuites()
+    renderPage('/admin?tab=suites')
+
+    // Creating a suite addresses none.
+    await waitFor(() =>
+      expect(newSuiteButton()).toHaveAccessibleDescription(
+        "Needs an instance-wide API token with the 'manage' scope. The token in Settings has " +
+          "the 'manage' scope only in suite 'nts'.",
+      ),
+    )
+    expect(newSuiteButton()).toBeDisabled()
+  })
+
+  it('loads the suites to start from, and creates nothing until they have loaded', async () => {
+    signIn('manage')
+    const list = gate()
+    const store = mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
+    renderPage('/admin?tab=suites')
+    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
+    fireEvent.click(newSuiteButton())
+    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'libcxx')
+
+    expect(selectButton('Start from')).toBeDisabled()
+    expect(createButton()).toBeDisabled()
+    expect(createButton()).toHaveAccessibleDescription('Loading the test suites...')
+    await act(async () => list.open())
+
+    // The name is checked against the suites now loaded.
+    await waitFor(() => expect(selectButton('Start from')).toBeEnabled())
+    expect(createButton()).toHaveAccessibleDescription("There is already a suite named 'libcxx'.")
+    expect(store.requests).toBe(1)
+  })
+
+  it('says why the suites could not be loaded, and loads them again', async () => {
+    signIn('manage')
+    server.use(
+      mockApi('get', '/api/suites', () =>
+        errorResponse(500, 'internal_error', 'The database is down.'),
+      ),
+    )
+    renderPage('/admin?tab=suites')
+    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
+    fireEvent.click(newSuiteButton())
+    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'fresh')
+
+    const alert = await within(editor()!).findByRole('alert')
+    expect(alert).toHaveTextContent('The test suites could not be loaded: The database is down.')
+    expect(createButton()).toHaveAccessibleDescription('The test suites could not be loaded.')
+    // Importing a document needs no suites.
+    fireEvent.click(screen.getByRole('button', { name: 'Import JSON' }))
+    expect(within(editor()!).queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Import JSON' }))
+
+    mockSuites()
+    fireEvent.click(within(editor()!).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(selectButton('Start from')).toBeEnabled())
+    expect(within(editor()!).queryByRole('alert')).not.toBeInTheDocument()
+    expect(createButton()).toBeEnabled()
+  })
+
   it("takes the place of the tab's content, New suite included", async () => {
     await openEditor()
 
-    expect(main().queryByRole('list', { name: 'Test suites' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New suite' })).not.toBeInTheDocument()
     expect(suiteNameInput()).toHaveFocus()
     // It starts empty.
@@ -119,7 +187,7 @@ describe('opening the editor', () => {
     expect(rowsOf(await table('Machine fields'))).toEqual(['No machine fields.'])
   })
 
-  it('discards it all on Cancel, showing the suites again', async () => {
+  it('discards it all on Cancel, giving New suite back', async () => {
     await openEditor()
     typeInto(suiteNameInput(), 'draft')
     addEntry('metric', 'size')
@@ -127,7 +195,6 @@ describe('opening the editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(editor()).not.toBeInTheDocument()
-    expect(main().getByRole('list', { name: 'Test suites' })).toBeInTheDocument()
     expect(newSuiteButton()).toHaveFocus()
     expect(currentUrl()).toBe('/admin?tab=suites')
 
@@ -146,7 +213,6 @@ describe('opening the editor', () => {
 
     await waitFor(() => expect(currentUrl()).toBe('/suites/first?tab=schema'))
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
-    expect(screen.queryByText('There are no test suites yet.')).not.toBeInTheDocument()
   })
 
   it('leaves the focus on Import JSON when it gives the editor back', async () => {
@@ -376,7 +442,7 @@ describe('creating the suite', () => {
     // A page of its own: Back returns to the Admin page.
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
-    expect(await main().findByRole('link', { name: 'fresh' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'New suite' })).toBeInTheDocument()
   })
 
   it('creates a suite without entries', async () => {
@@ -533,9 +599,8 @@ describe('creating the suite', () => {
     await waitFor(() => expect(store.queryClient.isMutating()).toBe(0))
     expect(currentUrl()).toBe('/admin')
 
-    // The suite was created all the same, and is in the list.
-    fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
-    expect(await main().findByRole('link', { name: 'fresh' })).toBeInTheDocument()
+    // The suite was created all the same, and is in the list of suites.
+    expect(cachedSuites(store.queryClient)).toContain('fresh')
   })
 })
 

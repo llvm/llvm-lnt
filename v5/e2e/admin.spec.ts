@@ -168,15 +168,6 @@ test.describe('the API Keys tab', () => {
 })
 
 test.describe('the Test Suites tab', () => {
-  test('lists the suites, each leading to its Schema tab', async ({ page }) => {
-    await page.goto('/admin?tab=suites')
-    const suites = page.getByRole('main').getByRole('list', { name: 'Test suites' })
-    await suites.getByRole('link', { name: 'libcxx', exact: true }).click()
-
-    await expect(page).toHaveURL('/suites/libcxx?tab=schema')
-    await expect(table(page, 'Metrics')).toBeVisible()
-  })
-
   test('creates no suite with a manage token restricted to a suite', async ({ page, signIn }) => {
     await signIn(page, 'manage', ['libcxx'])
     await page.goto('/admin?tab=suites')

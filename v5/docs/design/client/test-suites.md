@@ -280,7 +280,9 @@ is submitted.
 
 **Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
 is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's entries with a copy of an existing suite's. It does not copy the suite's name.
+editor's entries with a copy of an existing suite's. It does not copy the suite's name. Until
+the existing suites have loaded, "Start from" is disabled, and so is "Create", saying why. If
+they cannot be loaded, the editor says so and offers to try again (see AR7).
 
 "Create" creates the suite. On success, the page goes to the new suite's Schema tab
 (`/suites/{name}?tab=schema`), unless the user has left the tab meanwhile. If the name was

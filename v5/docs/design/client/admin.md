@@ -10,7 +10,7 @@ This page provides various tabs with different tools.
 | Tab | Shows | API Calls |
 |-----|-------|-----------|
 | API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys`, `GET suites` |
-| Test Suites | The suites, each leading to its Schema tab; create suites | `GET/POST suites` |
+| Test Suites | Create suites | `GET/POST suites` |
 
 The URL keeps the selected tab as `tab` (`suites` for Test Suites, and nothing for API Keys,
 the default), and the sort of the API Keys tab's table as `sort` (see AD1). Switching tabs
@@ -106,17 +106,6 @@ longer be available, and that a token shown and not copied yet will be lost.
 
 ### AD2: Test Suites tab detail
 
-A "New suite" button opens the schema editor (see TS7) to create a suite. Below the button, the
-tab lists the instance's suites by name, each a link to its Schema tab (see TS6), where its
-schema is viewed, exported and edited, and the suite deleted. When the instance has no suites,
-the tab says so, and "New suite" is still offered.
-
-```
-[New suite]
-
-Edit, export or delete a suite from its Schema tab:
-  - libcxx
-  - nts
-```
-
-Creating a suite requires an instance-wide `manage` key (see I5).
+The tab holds a "New suite" button, which opens the schema editor (see TS7) to create a suite.
+An existing suite's schema is viewed, exported and edited, and the suite deleted, on its Schema
+tab (see TS6). Creating a suite requires an instance-wide `manage` key (see I5).

@@ -1,8 +1,3 @@
-/* What a tab says in place of what it cannot show. */
-.note {
-  color: var(--lnt-muted);
-}
-
 /* A form creating an API key (AD1) or a suite (TS7). */
 .createForm {
   padding: var(--lnt-space-3);
@@ -128,16 +123,4 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lnt-space-1) var(--lnt-space-2);
-}
-
-/* "New suite", above the suites (AD2). */
-.newSuite {
-  margin-bottom: var(--lnt-space-3);
-}
-
-/* The suites, each leading to its Schema tab (AD2). */
-.suiteList {
-  margin: 0;
-  padding-left: var(--lnt-space-4);
-  line-height: 1.8;
 }

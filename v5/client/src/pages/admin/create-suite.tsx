@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
-import { addSuite, refetchSuites, type SuiteSchema } from '../../api/suites'
+import { addSuite, refetchSuites, useSuites, type SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ErrorMessage } from '../../components/feedback'
@@ -18,8 +18,6 @@ import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
 
 interface Props {
-  /** The suites of the instance: to start from, and whose names are taken. */
-  suites: SuiteSchema[]
   onCancel(): void
   /** The suite `name` has been created, and is in the list of suites. */
   onCreated(name: string): void
@@ -29,8 +27,12 @@ interface Props {
  * The schema editor creating a suite (TS7): the suite's name and its entries, which can start as a
  * copy of another suite's. Or, through "Import JSON", a schema document sent as it is.
  */
-export function CreateSuite({ suites, onCancel, onCreated }: Props) {
+export function CreateSuite({ onCancel, onCreated }: Props) {
   const gate = useScopeGate('manage', null)
+  // The suites of the instance: to start from, and whose names are taken. A list fetched again
+  // that fails leaves the one the editor has.
+  const suites = useSuites()
+  const list = suites.data
   const titleId = useId()
   const nameId = useId()
   const formId = useId()
@@ -50,13 +52,18 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
   // tab meanwhile is not taken to the new suite (TanStack Query skips `mutate`'s callbacks then).
   const created = { onSuccess: (schema: SuiteSchema) => onCreated(schema.name) }
 
-  const nameProblem = suiteNameProblem(
-    name,
-    suites.map((suite) => suite.name),
-  )
+  const nameProblem = suiteNameProblem(name, list?.map((suite) => suite.name) ?? [])
+  // Until the suites have loaded, the name cannot be checked against theirs.
+  const listProblem =
+    list !== undefined
+      ? undefined
+      : suites.isError
+        ? 'The test suites could not be loaded.'
+        : 'Loading the test suites...'
   const reason =
     gate.title ??
     (name === '' ? 'Give the suite a name first.' : undefined) ??
+    listProblem ??
     nameProblem ??
     draftProblem(draft)
 
@@ -67,7 +74,7 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
 
   // An action rather than a setting: it shows no suite, so that any suite can be picked, again.
   const startFrom = (value: string) => {
-    const source = suites.find((suite) => suite.name === value)
+    const source = list?.find((suite) => suite.name === value)
     if (source && !busy) setDraft(copyOf(source))
   }
 
@@ -98,12 +105,12 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
                 label="Start from"
                 options={[
                   { value: '', label: 'Select a suite' },
-                  ...suites.map((suite) => ({ value: suite.name, label: suite.name })),
+                  ...(list ?? []).map((suite) => ({ value: suite.name, label: suite.name })),
                 ]}
                 value=""
                 onChange={startFrom}
                 listPicksOnly
-                isDisabled={suites.length === 0}
+                isDisabled={!list?.length}
                 isPending={busy}
               />
             </>
@@ -118,6 +125,14 @@ export function CreateSuite({ suites, onCancel, onCreated }: Props) {
           </ActionButton>
         </div>
       </form>
+      {/* Only the editor needs the suites: importing a document does not. */}
+      {!importing && list === undefined && suites.isError && (
+        <ErrorMessage
+          error={suites.error}
+          context="The test suites could not be loaded"
+          onRetry={() => void suites.refetch()}
+        />
+      )}
       {importing ? (
         <ImportJson
           text={text}
