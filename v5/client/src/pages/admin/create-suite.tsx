@@ -29,7 +29,7 @@ interface Props {
  * copy of another suite's. Or, through "Import JSON", a schema document sent as it is.
  */
 export function CreateSuite({ suites, onCancel, onCreated }: Props) {
-  const gate = useScopeGate('manage')
+  const gate = useScopeGate('manage', null)
   const titleId = useId()
   const nameId = useId()
   const formId = useId()

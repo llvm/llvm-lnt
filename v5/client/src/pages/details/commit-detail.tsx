@@ -155,7 +155,7 @@ function invalidOrdinal(text: string): string | undefined {
  */
 function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
   const update = useUpdateCommit(schema.name, commit.value)
-  const manage = useScopeGate('manage')
+  const manage = useScopeGate('manage', schema.name)
   return (
     <InfoBox label="Commit">
       <InfoRow label="Commit" mono>

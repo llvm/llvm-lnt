@@ -25,7 +25,7 @@ export function CreateRegression({ schema, onCancel }: Props) {
   const suite = schema.name
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
   const [title, setTitle] = useState('')
   const [bug, setBug] = useState('')
   const [state, setState] = useState<RegressionState>('detected')

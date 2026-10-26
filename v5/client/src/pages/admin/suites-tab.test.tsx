@@ -247,6 +247,43 @@ describe('the Test Suites tab', () => {
   })
 })
 
+describe('a manage token restricted to some suites', () => {
+  async function renderRestricted(name: string) {
+    signIn('manage', ['nts'])
+    mockSuites(SUITES)
+    renderPage(`/admin?tab=suites&suite=${name}`)
+    await table('Metrics')
+    const newSuite = screen.getByRole('button', { name: 'New suite' })
+    // Creating a suite addresses none, so it needs an instance-wide token.
+    await waitFor(() =>
+      expect(newSuite).toHaveAccessibleDescription(
+        "Needs an instance-wide API token with the 'manage' scope. The token in Settings has " +
+          "the 'manage' scope only in suite 'nts'.",
+      ),
+    )
+    expect(newSuite).toBeDisabled()
+  }
+
+  it('edits and deletes a suite it lists, but creates none', async () => {
+    await renderRestricted('nts')
+
+    expect(screen.getByRole('button', { name: 'Edit schema' })).toBeEnabled()
+    expect(deleteButton()).toBeEnabled()
+  })
+
+  it('neither edits nor deletes another suite', async () => {
+    await renderRestricted('libcxx')
+
+    expect(screen.getByRole('button', { name: 'Edit schema' })).toBeDisabled()
+    expect(deleteButton()).toBeDisabled()
+    expect(deleteButton()).toHaveAttribute(
+      'title',
+      "Needs an API token with the 'manage' scope in suite 'libcxx'. The token in Settings has " +
+        "the 'manage' scope only in suite 'nts'.",
+    )
+  })
+})
+
 describe('exporting a schema', () => {
   const JSON_TEXT = JSON.stringify(SUITE, null, 2)
 

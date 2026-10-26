@@ -52,7 +52,7 @@ export function RegressionIndicators({
 }) {
   const suite = schema.name
   const all = regression.indicators
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
   const [settings, update] = useUrlState(PARAMS)
 
   const metrics = useMemo(

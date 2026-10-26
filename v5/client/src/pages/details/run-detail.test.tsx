@@ -279,6 +279,21 @@ describe('the Run Detail page', () => {
       expect(button).toBeDisabled()
     })
 
+    it("needs manage scope in the run's suite", async () => {
+      signIn('manage', ['nts'])
+      renderRun()
+
+      const button = await screen.findByRole('button', { name: 'Delete run' })
+      await waitFor(() =>
+        expect(button).toHaveAttribute(
+          'title',
+          "Needs an API token with the 'manage' scope in suite 'libcxx'. The token in Settings " +
+            "has the 'manage' scope only in suite 'nts'.",
+        ),
+      )
+      expect(button).toBeDisabled()
+    })
+
     it('is confirmed by typing the start of the UUID, then shows the machine', async () => {
       signIn('manage')
       const deleted: (string | null)[] = []

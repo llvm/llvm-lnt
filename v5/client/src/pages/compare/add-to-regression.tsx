@@ -69,7 +69,7 @@ export function AddToRegression({
   rows,
   swapped,
 }: Props) {
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
   // The tests made indicators of: those of the rows with a value on side B, whose suite may not
   // even have the others' tests. In no particular order, so that sorting the table changes nothing.
   const tests = useMemo(
@@ -101,8 +101,9 @@ export function AddToRegression({
 
   // Why nothing can be added, if nothing can.
   let why: string | undefined
-  if (triage.title !== undefined) why = triage.title
-  else if (tests === undefined) why = 'There is no comparison yet.'
+  // Before the scope, which side B's suite cannot be named for until there is a comparison.
+  if (tests === undefined) why = 'There is no comparison yet.'
+  else if (triage.title !== undefined) why = triage.title
   else if (tests.length === 0) why = 'No compared test has a value on side B.'
   else if (tests.length > INDICATOR_BATCH) {
     why = `One request can add at most ${plural(INDICATOR_BATCH, 'indicator')}: hide some tests.`

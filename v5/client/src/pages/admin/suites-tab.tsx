@@ -29,7 +29,8 @@ interface Props {
  */
 export function SuitesTab({ selected, onSelect }: Props) {
   const suites = useSuites()
-  const gate = useScopeGate('manage')
+  // Creating a suite addresses none, so it needs an instance-wide token (AD2).
+  const gate = useScopeGate('manage', null)
   // What the schema editor is open for, if it is: creating a suite, or editing the suite named.
   const [editor, setEditor] = useState<{ edit: string } | 'create' | null>(null)
   const selectRef = useRef<HTMLButtonElement>(null)
@@ -149,12 +150,12 @@ interface ViewerProps {
 }
 
 /**
- * A suite's schema, its exports, and its editing and deletion, which need `manage` (AD2).
+ * A suite's schema, its exports, and its editing and deletion, which need `manage` in it (AD2).
  */
 function SchemaViewer({ schema, onEdit, editRef, onDeleted }: ViewerProps) {
   const queryClient = useQueryClient()
-  const gate = useScopeGate('manage')
   const { name } = schema
+  const gate = useScopeGate('manage', name)
   // The schema as the API returned it, which another instance can create the suite from (D4).
   const json = JSON.stringify(schema, null, 2)
 
@@ -167,6 +168,7 @@ function SchemaViewer({ schema, onEdit, editRef, onDeleted }: ViewerProps) {
           deletion={{
             label: 'Delete This Suite',
             scope: 'manage',
+            suite: name,
             expected: name,
             message: (
               <p>

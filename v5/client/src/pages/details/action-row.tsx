@@ -6,8 +6,6 @@ import { ActionRow, type Deletion as RowDeletion } from '../../components/action
 
 /** The deletion of the entity a detail page is about. */
 interface Deletion extends Omit<RowDeletion, 'onDeleted'> {
-  /** The suite the entity belongs to, whose data the deletion changes. */
-  suite: string
   /** Where to go once it is deleted, since the page shows nothing any more. */
   leaveTo: string
 }
@@ -24,7 +22,9 @@ interface Props {
  * leaves for `leaveTo`, in place of itself in the history, unless the user has left it already.
  */
 export function DetailActionRow({ children, deletion }: Props) {
-  const { suite, leaveTo, ...rest } = deletion
+  const { leaveTo, ...rest } = deletion
+  // The suite of the entity, whose data the deletion changes.
+  const { suite } = deletion
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   // Whether the page has left the entity it deleted.

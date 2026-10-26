@@ -368,10 +368,11 @@ requests that need more than `read` scope, and with the check below.
 The navigation bar includes a Settings panel with a Bearer token input. The
 token is checked through `GET /api/auth` (see E12) when it is entered and
 whenever the SPA loads: the panel shows the name and scope of the key it
-belongs to, that it is not valid (the API refuses it with a 401, or it cannot be
-sent at all), or that the check failed (any other error), which it offers to
-retry. It can also clear the token. Until a check succeeds, the SPA behaves as
-if no token were set, unless a page specifies otherwise (see AD1).
+belongs to, and its suites when it is restricted to some (see I5), that it is
+not valid (the API refuses it with a 401, or it cannot be sent at all), or that
+the check failed (any other error), which it offers to retry. It can also
+clear the token. Until a check succeeds, the SPA behaves as if no token were
+set, unless a page specifies otherwise (see AD1).
 
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
@@ -380,8 +381,13 @@ the meantime.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --
-is disabled, and hovering it says which scope it needs. A request the API
-nevertheless refuses with 401 or 403 is reported as
+is disabled, and hovering it says which scope it needs. A token whose key is
+restricted to some suites (see I5) grants its scope only for actions on those
+suites, and an action on no suite, such as creating one (AD2), needs an
+instance-wide token. The hover of a control whose action is on no suite says
+that it needs an instance-wide token, and for a restricted token, that of a
+control on a suite says in which suite. A request the API nevertheless refuses
+with 401 or 403 is reported as
 `Permission denied. Set an API token with the required scope in Settings.`
 
 

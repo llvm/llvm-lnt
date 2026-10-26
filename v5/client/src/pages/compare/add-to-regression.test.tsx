@@ -77,6 +77,29 @@ describe('Add to Regression (CP9)', () => {
     expect(toggle()).toHaveAttribute('title', expect.stringMatching(/triage/))
   })
 
+  it("needs the triage scope in side B's suite, whatever side A's", async () => {
+    mockWorld()
+    // Side A in other, side B in libcxx.
+    const url = COMPARED.replace('suite_a=libcxx', 'suite_a=other')
+    signIn('triage', ['libcxx'])
+    const { unmount } = renderPage(url)
+    await comparison()
+    await waitFor(() => expect(toggle()).toBeEnabled())
+    unmount()
+
+    signIn('triage', ['other'])
+    renderPage(url)
+    await comparison()
+    await waitFor(() =>
+      expect(toggle()).toHaveAttribute(
+        'title',
+        "Needs an API token with the 'triage' scope in suite 'libcxx'. The token in Settings " +
+          "has the 'triage' scope only in suite 'other'.",
+      ),
+    )
+    expect(toggle()).toBeDisabled()
+  })
+
   it('says when there is no comparison yet', async () => {
     mockWorld()
     signIn('triage')

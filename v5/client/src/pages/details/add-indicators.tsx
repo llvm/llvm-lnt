@@ -37,7 +37,7 @@ const nameOf = (name: string) => name
  */
 export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
   const suite = schema.name
-  const triage = useScopeGate('triage')
+  const triage = useScopeGate('triage', suite)
   const [metric, setMetric] = useState(defaultMetric(schema)?.name ?? '')
   const [report, setReport] = useState<string | null>(null)
 

@@ -26,12 +26,13 @@ export function apiKey(scope: Scope, overrides: Partial<ApiKey> = {}): ApiKey {
 }
 
 /**
- * Act as a user holding a key of `scope`: store `TOKEN` as the app does, before rendering, and
- * have `GET /api/auth` accept it. Returns the headers the check was sent with, one per check.
+ * Act as a user holding a key of `scope`, restricted to `suites` unless null: store `TOKEN` as the
+ * app does, before rendering, and have `GET /api/auth` accept it. Returns the headers the check was
+ * sent with, one per check.
  */
-export function signIn(scope: Scope): string[] {
+export function signIn(scope: Scope, suites: string[] | null = null): string[] {
   localStorage.setItem(TOKEN_STORAGE_KEY, TOKEN)
-  return mockAuth(() => HttpResponse.json({ key: apiKey(scope) }))
+  return mockAuth(() => HttpResponse.json({ key: apiKey(scope, { suites }) }))
 }
 
 type AuthResponse = HttpResponse<Schemas['Authentication'] | Schemas['ErrorEnvelope']>

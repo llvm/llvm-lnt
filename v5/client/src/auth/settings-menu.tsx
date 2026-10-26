@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useId, useState, type FormEvent, type ReactNode } from 'react'
 import { Button, Dialog, DialogTrigger } from 'react-aria-components'
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
@@ -78,13 +78,27 @@ function statusText(status: TokenStatus): ReactNode {
       return 'No token set.'
     case 'checking':
       return 'Checking the token...'
-    case 'valid':
+    case 'valid': {
+      const { name, prefix, scope, suites } = status.key
       return (
         <>
-          Using key <strong>{status.key.name}</strong> ({status.key.prefix}), with{' '}
-          <strong>{status.key.scope}</strong> scope.
+          Using key <strong>{name}</strong> ({prefix}), with <strong>{scope}</strong> scope
+          {suites !== null && (
+            <>
+              {' '}
+              in {suites.length === 1 ? 'suite' : 'suites'}{' '}
+              {suites.map((suite, i) => (
+                <Fragment key={suite}>
+                  {i > 0 && ', '}
+                  <strong>{suite}</strong>
+                </Fragment>
+              ))}
+            </>
+          )}
+          .
         </>
       )
+    }
     case 'invalid':
       return 'This token is not valid: it is malformed, unknown to the server, or revoked.'
     case 'failed':
