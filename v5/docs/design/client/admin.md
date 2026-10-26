@@ -34,18 +34,28 @@ banner.
 
 A "Create API Key" form has a text input for the key name, a dropdown to select
 the scope of the key, starting on `read`, the lowest, a choice of the suites the
-key is for, and a "Create key" button to create the new key.
+key is for, and a "Create key" button to create the new key:
+
+```
+Name [ci-bot      ]   Scope [triage v]   Suites
+                                         ( ) All suites (instance-wide)
+                                         (o) Only these suites: [libcxx, nts v]   [Create key]
+```
 
 The suites are chosen with two radio buttons: "All suites (instance-wide)", the
 default, and "Only these suites:", which restricts the key to the suites checked
-below it, one checkbox per suite of the instance. The checkboxes can be used
-only while it is selected, and are a form's rather than a list's (AR10): there
-is no range selection, and no checkbox selecting them all. "Create key" is
-disabled, saying why on hover, while "Only these suites:" is selected with no
-suite checked. Only `submit`, `triage` and `manage` keys can be restricted (see
-I5): for another scope, "Only these suites:" is disabled, saying why on hover,
-and the choice goes back to "All suites (instance-wide)". While the suites are
-not loaded, or there are none, only "Only these suites:" is unavailable.
+in the dropdown beside it. The dropdown can be used only while "Only these
+suites:" is selected. It opens a list of the instance's suites, each with a
+checkbox; the list stays open while suites are checked and unchecked, and
+scrolls when long. It is not an AR10 list: there is no checkbox selecting them
+all. The dropdown's button shows "Select suites" while no suite is checked, and
+otherwise names the suites checked, or says how many when there are more than
+two. "Create key" is disabled, saying why on hover, while "Only these suites:"
+is selected with no suite checked. Only `submit`, `triage` and `manage` keys can
+be restricted (see I5): for another scope, "Only these suites:" is disabled,
+saying why on hover, and the choice goes back to "All suites (instance-wide)".
+While the suites are not loaded, or there are none, only "Only these suites:" is
+unavailable.
 
 On creation, a banner shows:
 

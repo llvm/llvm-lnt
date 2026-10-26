@@ -107,3 +107,78 @@ export function Select<Value extends string>({
     </span>
   )
 }
+
+/** The most options a `MultiSelect`'s button names; beyond that it counts them. */
+const NAMED = 2
+
+interface MultiProps<Value extends string> {
+  label: string
+  options: readonly Option<Value>[]
+  /** The values of the options picked, in any order. */
+  value: readonly Value[]
+  /** What the button shows while no option is picked. */
+  placeholder: string
+  /** The values of the options picked, in the order of `options`. */
+  onChange(value: NoInfer<Value>[]): void
+  isDisabled?: boolean
+  /** Keep the label for assistive technology only, where the page already says what it is. */
+  hideLabel?: boolean
+}
+
+/**
+ * A dropdown picking any number of `options`, each with a checkbox, whose list stays open while
+ * they are checked and unchecked. Its button names the options picked, or says how many there are
+ * when they are too many to name.
+ */
+export function MultiSelect<Value extends string>({
+  label,
+  options,
+  value,
+  placeholder,
+  onChange,
+  isDisabled,
+  hideLabel,
+}: MultiProps<Value>) {
+  const picked = options.filter((option) => value.includes(option.value))
+  let summary = placeholder
+  if (picked.length > NAMED) summary = `${picked.length} selected`
+  else if (picked.length > 0) summary = picked.map((option) => option.label).join(', ')
+  return (
+    <AriaSelect
+      className={shared.root}
+      selectionMode="multiple"
+      value={picked.map((option) => option.value)}
+      onChange={(keys) =>
+        onChange(options.filter((option) => keys.includes(option.value)).map(({ value }) => value))
+      }
+      isDisabled={isDisabled}
+    >
+      <FieldLabel label={label} hidden={hideLabel} />
+      <Button className={styles.button}>
+        <SelectValue>{summary}</SelectValue>
+        <span aria-hidden="true">▾</span>
+      </Button>
+      <Popover className={shared.popover} maxHeight={320}>
+        <ListBox className={shared.list} items={options}>
+          {(option) => (
+            <ListBoxItem id={option.value} textValue={option.label} className={styles.checkOption}>
+              {({ isSelected }) => (
+                <>
+                  {/* Only to show the option as checked: the option itself is what is picked. */}
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                  {option.label}
+                </>
+              )}
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </Popover>
+    </AriaSelect>
+  )
+}

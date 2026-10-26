@@ -13,3 +13,16 @@
 .titled {
   display: contents;
 }
+
+/* An option of a `MultiSelect`, its checkbox before its label. */
+.checkOption {
+  composes: option from './dropdown.module.css';
+  display: flex;
+  align-items: center;
+  gap: var(--lnt-space-1);
+}
+
+.checkOption input {
+  margin: 0;
+  pointer-events: none;
+}

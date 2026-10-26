@@ -20,6 +20,18 @@ export async function pickOption(label: string, option: string, container?: HTML
 }
 
 /**
+ * Check or uncheck each of `options` in the `MultiSelect` labelled `label`, as a mouse user does,
+ * then close its list.
+ */
+export async function toggleOptions(label: string, options: string[], container?: HTMLElement) {
+  const user = userEvent.setup()
+  await user.click(selectButton(label, container))
+  for (const name of options) await user.click(await screen.findByRole('option', { name }))
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+}
+
+/**
  * Pick `name` in the combobox labelled `label`. It types `name` over the input's text without
  * emptying the input first, since an empty input would clear the combobox's value (AR14). It finds
  * the suggestion by `option`, its accessible name. That is `name`, unless the suggestion shows

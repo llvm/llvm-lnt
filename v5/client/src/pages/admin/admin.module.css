@@ -177,8 +177,10 @@
   margin-bottom: var(--lnt-space-1);
 }
 
-.suiteChecks {
+/* "Only these suites:", and the dropdown picking them. */
+.only {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--lnt-space-1) var(--lnt-space-3);
+  align-items: center;
+  gap: var(--lnt-space-1) var(--lnt-space-2);
 }

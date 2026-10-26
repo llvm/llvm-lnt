@@ -3,7 +3,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 /** The button of the select labelled `label`, which React Aria names `<value> <label>`. */
-function selectButton(scope: Page | Locator, label: string): Locator {
+export function selectButton(scope: Page | Locator, label: string): Locator {
   return scope.getByRole('button', { name: new RegExp(` ${label}$`) })
 }
 
