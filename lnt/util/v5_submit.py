@@ -57,11 +57,7 @@ def _message(response: requests.Response) -> str:
 
 
 def _network_failure(e: requests.RequestException) -> bool:
-    """Whether `e` is a failure to talk to the instance that may not recur.
-
-    Others, such as a malformed URL or a certificate that cannot be verified,
-    would fail again however often they are retried.
-    """
+    """Whether `e` is a network failure, which a retry may not hit again."""
     return isinstance(e, (requests.ConnectionError, requests.Timeout,
                           requests.exceptions.ChunkedEncodingError)) and \
         not isinstance(e, requests.exceptions.SSLError)
@@ -75,11 +71,7 @@ def _error_code(response: requests.Response) -> Any:
 
 
 class Client:
-    """Sends requests to a v5 instance's REST API.
-
-    Failed requests are retried `retries` times, `retry_delay` seconds apart,
-    and each retry is reported to `echo`.
-    """
+    """Sends requests to a v5 instance's REST API."""
 
     def __init__(self, url: str, token: str | None, retries: int,
                  retry_delay: float, echo: Echo) -> None:
@@ -142,8 +134,7 @@ class Client:
                       '(retry %d of %d)' % (method, path, failure,
                                             self.retry_delay, retry,
                                             self.retries))
-            # Waiting on the event rather than sleeping ends the wait as soon
-            # as the client stops.
+            # Unlike sleeping, this ends as soon as the client stops.
             self._stopping.wait(self.retry_delay)
 
 
@@ -320,8 +311,6 @@ def submit(url: str, suite: str, lines: Iterable[bytes],
                 oldest, future = in_flight.popleft()
                 settle(oldest, future.result())
         except BaseException:
-            # E.g. the user interrupting the command: the requests in flight
-            # cannot be interrupted, but the others can be dropped.
             client.stop()
             echo('Stopping: waiting for the requests in flight to finish...')
             pool.shutdown(wait=True, cancel_futures=True)

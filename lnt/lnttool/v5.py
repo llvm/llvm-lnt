@@ -149,11 +149,10 @@ def action_convert_profile(profile: str, output: Any, encode: bool,
                    "worth it when submitting much of an input again")
 @click.option("--retries", default=30, show_default=True,
               type=click.IntRange(min=0),
-              help="number of times to retry a request that failed in a way "
-                   "worth retrying")
+              help="number of times to retry a failed request")
 @click.option("--retry-delay", default=10, show_default=True,
               type=click.FloatRange(min=0), metavar="SECONDS",
-              help="time to wait before retrying a request")
+              help="seconds to wait before each retry")
 def action_submit(url: str, input_file: Any, suite: str, token: str | None,
                   schema_file: str | None, workers: int,
                   skip_existing: bool, retries: int,
@@ -167,10 +166,8 @@ def action_submit(url: str, input_file: Any, suite: str, token: str | None,
     only submits the missing ones.
 
     Requests that fail because of the network, a server error or a concurrent
-    change (to the suite's schema, or deleting the machine or commit of a run
-    being submitted) are retried --retries times, --retry-delay seconds apart,
-    and each retry is reported. Any other failure is reported, and the command
-    carries on with the next run.
+    change are retried (see --retries). Any other failure is reported, and the
+    command carries on with the next run.
 
     Exits with a zero status if every run was submitted (or skipped without an
     error), and with a non-zero status if any failed.
