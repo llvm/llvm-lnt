@@ -256,9 +256,12 @@ describe('copyOf and schemaOf', () => {
           display_name: null,
           searchable: false,
           display: false,
+          listed: false,
         },
       ],
-      machine_fields: [{ name: 'x', type: 'text', display_name: null, searchable: false }],
+      machine_fields: [
+        { name: 'x', type: 'text', display_name: null, searchable: false, listed: false },
+      ],
     })
   })
 
@@ -367,7 +370,16 @@ describe('patchOf', () => {
     draft = changeEntry(added.draft, 'commit_fields', added.entry.id, { display: true })
     expect(patchOf(draft)).toEqual({
       commit_fields: {
-        add: [{ name: 'sha', type: 'text', display_name: null, searchable: false, display: true }],
+        add: [
+          {
+            name: 'sha',
+            type: 'text',
+            display_name: null,
+            searchable: false,
+            display: true,
+            listed: false,
+          },
+        ],
         remove: ['svn_revision'],
       },
     })

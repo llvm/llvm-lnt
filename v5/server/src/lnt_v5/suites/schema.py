@@ -250,6 +250,15 @@ class CommitField(_SearchableEntry):
         ),
     )
 
+    # Last, so that the key global revision 0006 appends to stored commit fields is where the server
+    # writes it too.
+    listed: bool = Field(
+        default=False,
+        description=(
+            "Whether the web UI's list of commits shows this field in a column of its own."
+        ),
+    )
+
     @model_validator(mode="after")
     def _display_is_text_only(self) -> Self:
         # D4: the display value stands in for the commit string, which is text.
@@ -276,6 +285,14 @@ class MachineField(_SearchableEntry):
             {"id", "name", "tracked", "first_seen_at", "delete_after_inactive_days"}
         )
     }
+
+    # As on `CommitField`, last, where global revision 0006 appends it.
+    listed: bool = Field(
+        default=False,
+        description=(
+            "Whether the web UI's list of machines shows this field in a column of its own."
+        ),
+    )
 
 
 def _reject_duplicates(entries: Sequence[Entry]) -> None:

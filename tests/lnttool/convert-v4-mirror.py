@@ -135,24 +135,28 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
     print('--schema-out is the schema:', json.load(f) == plan.schema)
 
 # The v4 metric types, mapped. A display name equal to the metric's name and
-# an empty unit become null, and keys v5 doesn't know are dropped.
+# an empty unit become null, and keys v5 doesn't know are dropped. Only the
+# declared machine fields are listed.
 # CHECK-LABEL: # CONVERSION
 # CHECK:       "commit_fields": [],
 # CHECK-NEXT:  "machine_fields": [
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "display_name": null,
+# CHECK-NEXT:    "listed": true,
 # CHECK-NEXT:    "name": "os",
 # CHECK-NEXT:    "searchable": false,
 # CHECK-NEXT:    "type": "text"
 # CHECK-NEXT:   },
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "display_name": null,
+# CHECK-NEXT:    "listed": false,
 # CHECK-NEXT:    "name": "cpu",
 # CHECK-NEXT:    "searchable": false,
 # CHECK-NEXT:    "type": "text"
 # CHECK-NEXT:   },
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "display_name": null,
+# CHECK-NEXT:    "listed": false,
 # CHECK-NEXT:    "name": "ram",
 # CHECK-NEXT:    "searchable": false,
 # CHECK-NEXT:    "type": "text"

@@ -66,11 +66,17 @@ METRICS: list[dict[str, Any]] = [
     },
 ]
 MACHINE_FIELDS: list[dict[str, Any]] = [
-    {"name": "hardware", "type": "text", "display_name": None, "searchable": True},
-    {"name": "os", "type": "text", "display_name": None, "searchable": True},
-    {"name": "test_suite_commit", "type": "text", "display_name": None, "searchable": False},
-    {"name": "compiler", "type": "text", "display_name": None, "searchable": False},
-    {"name": "sdk", "type": "text", "display_name": None, "searchable": False},
+    {"name": "hardware", "type": "text", "display_name": None, "searchable": True, "listed": True},
+    {"name": "os", "type": "text", "display_name": None, "searchable": True, "listed": True},
+    {
+        "name": "test_suite_commit",
+        "type": "text",
+        "display_name": None,
+        "searchable": False,
+        "listed": False,
+    },
+    {"name": "compiler", "type": "text", "display_name": None, "searchable": False, "listed": True},
+    {"name": "sdk", "type": "text", "display_name": None, "searchable": False, "listed": False},
 ]
 COMMIT_FIELDS: list[dict[str, Any]] = [
     {
@@ -79,6 +85,7 @@ COMMIT_FIELDS: list[dict[str, Any]] = [
         "display_name": None,
         "searchable": True,
         "display": True,
+        "listed": False,
     },
     {
         "name": "commit_info",
@@ -86,6 +93,7 @@ COMMIT_FIELDS: list[dict[str, Any]] = [
         "display_name": None,
         "searchable": False,
         "display": False,
+        "listed": True,
     },
 ]
 SUITE_SCHEMA: dict[str, Any] = {

@@ -357,15 +357,12 @@ class TestMetricDashboard:
         upgrade_by_hand(empty_engine, "0003")
         store_schema_json(empty_engine, {"before": compact(_BEFORE_DASHBOARD)})
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0004")
 
         expected = copy.deepcopy(_BEFORE_DASHBOARD)
         for metric, shown in zip(expected["metrics"], [True, True, False, False], strict=True):
             metric["dashboard"] = shown
-        stored = stored_schema_json(empty_engine)["before"]
-        assert stored == compact(expected)
-        # Byte for byte what the server itself writes for that schema.
-        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+        assert stored_schema_json(empty_engine)["before"] == compact(expected)
 
     def test_bumps_the_schema_version_once_and_leaves_set_keys_alone(
         self, empty_engine: Engine
@@ -386,7 +383,7 @@ class TestMetricDashboard:
             },
         )
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0004")
 
         # D2: like any other change to a stored schema, however many rows it rewrites.
         assert schema_version_of(empty_engine) == 1
@@ -408,7 +405,7 @@ class TestMetricDashboard:
         upgrade_by_hand(empty_engine, "0003")
         store_schema_json(empty_engine, rows)
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0004")
 
         assert stored_schema_json(empty_engine) == rows
         assert schema_version_of(empty_engine) == 0
@@ -425,7 +422,7 @@ class TestMetricDashboard:
         upgrade_by_hand(empty_engine, "0003")
         store_schema_json(empty_engine, {"mixed": compact({"name": "mixed", "metrics": metrics})})
 
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0004")
 
         expected = [{**metrics[0], "dashboard": True}, *metrics[1:]]
         assert stored_schema_json(empty_engine)["mixed"] == compact(
@@ -436,7 +433,7 @@ class TestMetricDashboard:
     def test_downgrading_removes_it_and_nothing_else(self, empty_engine: Engine) -> None:
         upgrade_by_hand(empty_engine, "0003")
         store_schema_json(empty_engine, {"before": compact(_BEFORE_DASHBOARD)})
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0004")
 
         downgrade_by_hand(empty_engine, "0003")
 
@@ -488,6 +485,149 @@ class TestApiKeySuites:
             "bbbbbbbb": True,
         }
         assert "suites" not in column_names(empty_engine, "public", "api_key")
+
+
+def commit_field_0005(name: str, **keys: Any) -> dict[str, Any]:
+    """A commit field as builds up to 0005 stored it, in the server's key order: no `listed`."""
+    return {
+        "name": name,
+        "type": "text",
+        "display_name": None,
+        "searchable": False,
+        "display": False,
+        **keys,
+    }
+
+
+def machine_field_0005(name: str, **keys: Any) -> dict[str, Any]:
+    """A machine field as builds up to 0005 stored it, in the server's key order."""
+    return {"name": name, "type": "text", "display_name": None, "searchable": False, **keys}
+
+
+# A schema stored by a build that showed every machine field on the Machines tab, and no commit
+# field on the Commits tab.
+_BEFORE_LISTED: dict[str, Any] = {
+    "name": "before",
+    "metrics": [{**metric_0003("execution_time", "real"), "dashboard": True}],
+    "commit_fields": [
+        commit_field_0005("sha", display_name="Shà", searchable=True, display=True),
+        commit_field_0005("message"),
+    ],
+    "machine_fields": [machine_field_0005("os"), machine_field_0005("cores", type="integer")],
+}
+
+
+class TestFieldListed:
+    """0006 sets `listed` on every stored field, so the Machines and Commits tabs show what they
+    showed."""
+
+    def test_lists_the_machine_fields_and_not_the_commit_fields(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_LISTED)})
+
+        # To the head, so that what is stored is what the latest build writes.
+        upgrade_to_head(empty_engine)
+
+        expected = copy.deepcopy(_BEFORE_LISTED)
+        for field in expected["commit_fields"]:
+            field["listed"] = False
+        for field in expected["machine_fields"]:
+            field["listed"] = True
+        # Metrics are left as they were.
+        stored = stored_schema_json(empty_engine)["before"]
+        assert stored == compact(expected)
+        # Byte for byte what the server itself writes for that schema.
+        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+
+    def test_bumps_the_schema_version_once_and_leaves_set_keys_alone(
+        self, empty_engine: Engine
+    ) -> None:
+        # Never overwritten, even where it is not what this revision would have set.
+        already = compact(
+            {
+                "name": "already",
+                "commit_fields": [commit_field_0005("sha", listed=True)],
+                "machine_fields": [machine_field_0005("os", listed=False)],
+            }
+        )
+        no_fields = compact({"name": "no_fields", "metrics": [], "commit_fields": []})
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(
+            empty_engine,
+            {
+                "before": compact(_BEFORE_LISTED),
+                "second": compact({**_BEFORE_LISTED, "name": "second"}),
+                "already": already,
+                "no_fields": no_fields,
+            },
+        )
+
+        upgrade_by_hand(empty_engine, "0006")
+
+        # D2: like any other change to a stored schema, however many rows it rewrites.
+        assert schema_version_of(empty_engine) == 1
+        stored = stored_schema_json(empty_engine)
+        assert stored["already"] == already
+        assert stored["no_fields"] == no_fields
+
+    def test_writes_out_a_false_it_adds(self, empty_engine: Engine) -> None:
+        # D6: the stored form stays normalized, so a key whose default would have meant the same
+        # is written out all the same, which is a change to the stored schema.
+        commits_only = {"name": "commits_only", "commit_fields": [commit_field_0005("sha")]}
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(empty_engine, {"commits_only": compact(commits_only)})
+
+        upgrade_by_hand(empty_engine, "0006")
+
+        assert stored_schema_json(empty_engine)["commits_only"] == compact(
+            {**commits_only, "commit_fields": [commit_field_0005("sha", listed=False)]}
+        )
+        assert schema_version_of(empty_engine) == 1
+
+    def test_leaves_a_row_it_cannot_make_sense_of_untouched(self, empty_engine: Engine) -> None:
+        rows = {
+            "not_json": "{",
+            "not_an_object": "[]",
+            "no_lists": '{"name": "no_lists"}',
+            "not_a_list": '{"name": "not_a_list", "machine_fields": {"type": "text"}}',
+            "not_an_entry": '{"name": "not_an_entry", "commit_fields": ["text"]}',
+        }
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(empty_engine, rows)
+
+        upgrade_by_hand(empty_engine, "0006")
+
+        assert stored_schema_json(empty_engine) == rows
+        assert schema_version_of(empty_engine) == 0
+
+    def test_sets_it_on_every_entry_that_is_an_object(self, empty_engine: Engine) -> None:
+        # Entry by entry, as 0003 does: an entry that is not an object is left as it is, and does
+        # not keep the others from being rewritten. Every object gets the key, whatever else it
+        # holds, since the value depends only on its list.
+        fields: list[Any] = [machine_field_0005("os"), {"name": "m"}, "x"]
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(
+            empty_engine, {"mixed": compact({"name": "mixed", "machine_fields": fields})}
+        )
+
+        upgrade_by_hand(empty_engine, "0006")
+
+        expected = [{**fields[0], "listed": True}, {"name": "m", "listed": True}, "x"]
+        assert stored_schema_json(empty_engine)["mixed"] == compact(
+            {"name": "mixed", "machine_fields": expected}
+        )
+        assert schema_version_of(empty_engine) == 1
+
+    def test_downgrading_removes_it_and_nothing_else(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_LISTED)})
+        upgrade_by_hand(empty_engine, "0006")
+
+        downgrade_by_hand(empty_engine, "0005")
+
+        assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_LISTED)}
+        # Once on the way up, and once on the way down.
+        assert schema_version_of(empty_engine) == 2
 
 
 class TestConcurrentUpgrade:

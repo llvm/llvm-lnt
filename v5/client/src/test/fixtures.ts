@@ -7,7 +7,10 @@ import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
 import type { Commit, Metric } from '../schema'
 
-/** A suite like libcxx: a display field, labelled and unlabelled fields, and a non-text one. */
+/**
+ * A suite like libcxx: a display field, labelled and unlabelled fields, a non-text one, and listed
+ * and unlisted ones.
+ */
 export const SUITE: SuiteSchema = {
   name: 'libcxx',
   metrics: [
@@ -22,13 +25,27 @@ export const SUITE: SuiteSchema = {
     },
   ],
   machine_fields: [
-    { name: 'hardware', type: 'text', display_name: 'Hardware', searchable: true },
-    { name: 'os', type: 'text', display_name: null, searchable: true },
-    { name: 'core_count', type: 'integer', display_name: 'Cores', searchable: false },
+    { name: 'hardware', type: 'text', display_name: 'Hardware', searchable: true, listed: true },
+    { name: 'os', type: 'text', display_name: null, searchable: true, listed: false },
+    { name: 'core_count', type: 'integer', display_name: 'Cores', searchable: false, listed: true },
   ],
   commit_fields: [
-    { name: 'svn_revision', type: 'text', display_name: null, searchable: true, display: true },
-    { name: 'commit_info', type: 'text', display_name: null, searchable: false, display: false },
+    {
+      name: 'svn_revision',
+      type: 'text',
+      display_name: null,
+      searchable: true,
+      display: true,
+      listed: false,
+    },
+    {
+      name: 'commit_info',
+      type: 'text',
+      display_name: null,
+      searchable: false,
+      display: false,
+      listed: true,
+    },
   ],
 }
 

@@ -263,6 +263,7 @@ test.describe('the Test Suites tab', () => {
         'text',
         '--',
         'No',
+        'No',
       ])
       const libcxx = await json<components['schemas']['SuiteSchema']>(request, '/api/suites/libcxx')
       const created = await json<components['schemas']['SuiteSchema']>(
@@ -274,7 +275,7 @@ test.describe('the Test Suites tab', () => {
         name: suite,
         machine_fields: [
           ...libcxx.machine_fields,
-          { name: 'kernel', type: 'text', display_name: null, searchable: false },
+          { name: 'kernel', type: 'text', display_name: null, searchable: false, listed: false },
         ],
       })
     })
@@ -416,9 +417,14 @@ test.describe('the Test Suites tab', () => {
       const run = ((await submitted.json()) as components['schemas']['RunDetail']).uuid
 
       // The pages of the suite, visited before its schema changes, and again after, without the
-      // page being loaded again.
-      await page.goto(`/suites/${suite}/runs/${run}`)
+      // page being loaded again. No field is listed yet.
+      await page.goto(`/suites/${suite}?tab=machines`)
       await page.evaluate(() => Object.assign(window, { notReloaded: true }))
+      const machines = table(page, 'Machines')
+      await expect(machines.getByRole('columnheader')).toHaveText(['Name'])
+      await machines.getByRole('link', { name: 'm1', exact: true }).click()
+      await table(page, 'Run history').getByRole('link').first().click()
+      await expect(page).toHaveURL(`/suites/${suite}/runs/${run}`)
       await pickOption(page, 'Metric', 'compile_time')
       await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('0.25')
       await page.getByRole('main').getByRole('link', { name: 'm1', exact: true }).click()
@@ -434,6 +440,7 @@ test.describe('the Test Suites tab', () => {
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')
+      await editor.getByRole('checkbox', { name: 'Listed of machine field hardware' }).check()
       await editor.getByRole('button', { name: 'Remove metric compile_time' }).click()
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
       await editor
@@ -463,6 +470,13 @@ test.describe('the Test Suites tab', () => {
         'Execution Time',
       )
       await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('1.5')
+
+      // The Machines tab shows the field now listed in a column of its own.
+      const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+      await trail.getByRole('link', { name: suite, exact: true }).click()
+      await page.getByRole('tab', { name: 'Machines' }).click()
+      await expect(machines.getByRole('columnheader')).toHaveText(['Name', 'hardware'])
+      await expect(rows(machines).locator('td')).toHaveText(['m1', 'Apple M4'])
 
       expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)
     })

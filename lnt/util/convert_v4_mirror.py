@@ -334,8 +334,10 @@ def _derive_schema(mirrored: MirroredSuite, target_suite: str,
                          for key in machine
                          if key not in _MACHINE_KEYS_DROPPED and
                          key not in declared})
+    # Only the declared fields get a column in v5's list of machines: the
+    # undeclared ones can be many.
     machine_fields = [{'name': name, 'type': 'text', 'display_name': None,
-                       'searchable': False}
+                       'searchable': False, 'listed': name in declared}
                       for name in declared + undeclared]
 
     schema = {'name': target_suite, 'metrics': metrics,

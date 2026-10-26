@@ -9,7 +9,7 @@ import { DataTable, type Column } from '../../components/data-table'
 import { useServerSearch } from '../../components/use-server-search'
 import { UNTRACKED_HELP } from '../../machines'
 import { machinePath } from '../../paths'
-import { formatFieldValue, labelOf } from '../../schema'
+import { listedColumns } from './listed-columns'
 import { TabContent } from './tab-content'
 
 type Machine = Schemas['Machine']
@@ -20,7 +20,7 @@ interface Props {
   onSearch(text: string): void
 }
 
-/** Every machine of the suite, by name (TS3). */
+/** Every machine of the suite, by name, with the fields the schema lists (TS3). */
 export function MachinesTab({ schema, search, onSearch }: Props) {
   const suite = schema.name
   const input = useServerSearch(search, onSearch)
@@ -72,17 +72,6 @@ function columns(schema: SuiteSchema): Column<Machine>[] {
         </>
       ),
     },
-    { id: 'info', header: 'Info', cell: (machine) => machineInfo(schema, machine) },
+    ...listedColumns<Machine>(schema.machine_fields),
   ]
-}
-
-/** The fields that have a value for `machine`, in schema order, separated by commas (TS3). */
-function machineInfo(schema: SuiteSchema, machine: Machine): string {
-  return schema.machine_fields
-    .filter((field) => machine.fields[field.name] != null)
-    .map((field) => {
-      const value = formatFieldValue(machine.fields[field.name], field.type)
-      return `${labelOf(field)}: ${value}`
-    })
-    .join(', ')
 }

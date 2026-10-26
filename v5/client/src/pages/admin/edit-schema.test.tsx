@@ -224,8 +224,10 @@ describe('saving', () => {
           : metric,
       ),
       machine_fields: [
-        ...schema.machine_fields,
-        { name: 'kernel', type: 'text', display_name: null, searchable: false },
+        ...schema.machine_fields.map((field) =>
+          field.name === 'hardware' ? { ...field, listed: false } : field,
+        ),
+        { name: 'kernel', type: 'text', display_name: null, searchable: false, listed: false },
       ],
     }))
     // Read from inside the suite, before its schema changed.
@@ -233,6 +235,7 @@ describe('saving', () => {
 
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Code size')
     fireEvent.click(screen.getByRole('checkbox', { name: 'On the Dashboard of metric code_size' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Listed of machine field hardware' }))
     fireEvent.click(screen.getByRole('button', { name: '+ Add machine field' }))
     typeInto(screen.getByRole('textbox', { name: 'Name of machine field 4' }), 'kernel')
     fireEvent.click(saveButton())
@@ -245,7 +248,16 @@ describe('saving', () => {
             update: [{ name: 'code_size', display_name: 'Code size', dashboard: false }],
           },
           machine_fields: {
-            add: [{ name: 'kernel', type: 'text', display_name: null, searchable: false }],
+            add: [
+              {
+                name: 'kernel',
+                type: 'text',
+                display_name: null,
+                searchable: false,
+                listed: false,
+              },
+            ],
+            update: [{ name: 'hardware', listed: false }],
           },
         },
         confirm: null,
@@ -254,7 +266,12 @@ describe('saving', () => {
     expect(rowsOf(await table('Metrics'))[1]).toBe(
       'code_size | real | Code size | seconds (s) | No | No',
     )
-    expect(rowsOf(await table('Machine fields')).at(-1)).toBe('kernel | text | -- | No')
+    expect(rowsOf(await table('Machine fields'))).toEqual([
+      'hardware | text | Hardware | Yes | No',
+      'os | text | -- | Yes | No',
+      'core_count | integer | Cores | No | Yes',
+      'kernel | text | -- | No | No',
+    ])
     expect(editButton()).toHaveFocus()
     expect(
       store.queryClient.getQueryData([...queryKeys.machines('libcxx'), 'list']),

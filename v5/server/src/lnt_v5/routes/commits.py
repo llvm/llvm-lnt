@@ -172,7 +172,7 @@ class Commit(CommitObject):
     fields: dict[str, FieldValue] = Field(
         description=(
             "The commit's values for the fields defined in the suite's schema, keyed by field "
-            "name. Every field is listed, with null for those that have no value."
+            "name. Every field is included, with null for those that have no value."
         ),
         examples=[examples.COMMIT_VALUES],
     )

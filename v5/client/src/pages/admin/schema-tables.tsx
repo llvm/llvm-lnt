@@ -43,13 +43,24 @@ const SEARCHABLE_COLUMN: Column<CommitField | MachineField> = {
   cell: (field) => yesNo(field.searchable),
 }
 
+const LISTED_COLUMN: Column<CommitField | MachineField> = {
+  id: 'listed',
+  header: KEY_HEADERS.listed.header,
+  cell: (field) => yesNo(field.listed),
+}
+
 const COMMIT_FIELD_COLUMNS: Column<CommitField>[] = [
   ...ENTRY_COLUMNS,
   SEARCHABLE_COLUMN,
   { id: 'display', header: KEY_HEADERS.display.header, cell: (field) => yesNo(field.display) },
+  LISTED_COLUMN,
 ]
 
-const MACHINE_FIELD_COLUMNS: Column<MachineField>[] = [...ENTRY_COLUMNS, SEARCHABLE_COLUMN]
+const MACHINE_FIELD_COLUMNS: Column<MachineField>[] = [
+  ...ENTRY_COLUMNS,
+  SEARCHABLE_COLUMN,
+  LISTED_COLUMN,
+]
 
 const nameOf = (entry: { name: string }) => entry.name
 

@@ -62,7 +62,9 @@ machines:
 - **Machine fields**: one ``text`` field per v4 machine field, followed by one
   ``text`` field per other key found on any of the suite's machines, other than
   ``id`` and ``name``, in alphabetical order. v4 machines can hold keys that
-  their schema does not declare, whereas v5 machines cannot.
+  their schema does not declare, whereas v5 machines cannot. The declared
+  fields are marked ``listed``, so that v5's Machines tab shows them; the
+  others, which can be many, are not.
 - **Commit fields**: none.
 - **Run fields**: the v4 schema must have exactly one run field marked
   ``order``, which defines commits (see below). Other run fields are not

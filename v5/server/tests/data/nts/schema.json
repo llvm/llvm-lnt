@@ -12,8 +12,8 @@
     {"name": "code_size", "type": "real", "display_name": "Code Size", "unit": "bytes", "unit_abbrev": "b", "dashboard": true}
   ],
   "machine_fields": [
-    {"name": "hardware", "type": "text", "searchable": true},
-    {"name": "os", "type": "text", "searchable": true}
+    {"name": "hardware", "type": "text", "searchable": true, "listed": true},
+    {"name": "os", "type": "text", "searchable": true, "listed": true}
   ],
   "commit_fields": [
     {"name": "svn_revision", "type": "text", "searchable": true, "display": true}

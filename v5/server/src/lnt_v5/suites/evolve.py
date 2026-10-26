@@ -111,6 +111,12 @@ class CommitFieldUpdate(_EntryUpdate):
             "Whether the UI should show this field instead of the commit's value. Can't be null."
         ),
     )
+    listed: bool = Field(
+        default=False,
+        description=(
+            "Whether the web UI's list of commits shows this field in a column. Can't be null."
+        ),
+    )
 
 
 class MachineFieldUpdate(_EntryUpdate):
@@ -121,6 +127,12 @@ class MachineFieldUpdate(_EntryUpdate):
         default=False,
         description=(
             "Whether `search` on the machine and run lists matches this field. Can't be null."
+        ),
+    )
+    listed: bool = Field(
+        default=False,
+        description=(
+            "Whether the web UI's list of machines shows this field in a column. Can't be null."
         ),
     )
 

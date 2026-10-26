@@ -389,7 +389,12 @@ class TestEvolve:
 
     @pytest.mark.parametrize(
         ("list_name", "entry", "key"),
-        [("machine_fields", "hardware", "searchable"), ("metrics", "compile_time", "dashboard")],
+        [
+            ("machine_fields", "hardware", "searchable"),
+            ("metrics", "compile_time", "dashboard"),
+            ("commit_fields", "git_sha", "listed"),
+            ("machine_fields", "hardware", "listed"),
+        ],
     )
     def test_refuses_a_boolean_key_sent_as_null(
         self,
@@ -410,21 +415,30 @@ class TestEvolve:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    def test_shows_a_metric_on_the_dashboard_and_hides_it_again(
-        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    @pytest.mark.parametrize(
+        ("list_name", "key"),
+        [("metrics", "dashboard"), ("commit_fields", "listed"), ("machine_fields", "listed")],
+    )
+    def test_turns_a_flag_on_and_off_again(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        list_name: str,
+        key: str,
     ) -> None:
         create()
+        name = NTS[list_name][0]["name"]
 
-        def dashboard(value: bool) -> list[bool]:
+        def flags(value: bool) -> list[bool]:
             body = patch_request(
-                api_client,
-                manage,
-                {"metrics": {"update": [{"name": "compile_time", "dashboard": value}]}},
+                api_client, manage, {list_name: {"update": [{"name": name, key: value}]}}
             ).json()
-            return [m["dashboard"] for m in body["metrics"]]
+            return [entry[key] for entry in body[list_name]]
 
-        assert dashboard(True) == [True, False]
-        assert dashboard(False) == [False, False]
+        others = [False] * (len(NTS[list_name]) - 1)
+        assert flags(True) == [True, *others]
+        assert flags(False) == [False, *others]
 
     def test_refuses_to_show_a_non_numeric_metric_on_the_dashboard(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -599,16 +613,15 @@ class TestEvolve:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize("key", ["searchable", "listed"])
     def test_refuses_a_key_that_belongs_to_another_list(
-        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str], key: str
     ) -> None:
         # The reason there are three update models rather than one carrying the union (D4).
         create()
 
         response = patch_request(
-            api_client,
-            manage,
-            {"metrics": {"update": [{"name": "compile_time", "searchable": True}]}},
+            api_client, manage, {"metrics": {"update": [{"name": "compile_time", key: True}]}}
         )
 
         assert response.status_code == 400

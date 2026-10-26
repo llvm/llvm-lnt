@@ -146,15 +146,27 @@ test.describe('the Runs tab', () => {
 })
 
 test.describe('the Machines tab', () => {
-  test('shows every machine with its fields, marking the untracked one', async ({
+  test('shows every machine with its listed fields, marking the untracked one', async ({
     page,
     request,
   }) => {
     await page.goto('/suites/libcxx?tab=machines')
     const machines = table(page, 'Machines')
 
+    // Not `test_suite_commit` nor `sdk`, which the seeded schema does not list.
+    await expect(machines.getByRole('columnheader')).toHaveText([
+      'Name',
+      'hardware',
+      'os',
+      'compiler',
+    ])
     const macos = rows(machines).filter({ has: page.getByRole('link', { name: MACOS }) })
-    await expect(macos.locator('td').nth(1)).toContainText('hardware: Apple M4, os: macOS 26.5')
+    await expect(macos.locator('td')).toHaveText([
+      MACOS,
+      'Apple M4',
+      'macOS 26.5 (25F71)',
+      /^Apple clang version 21\.0\.0/,
+    ])
     const untracked = rows(machines).filter({ has: page.getByRole('link', { name: UNTRACKED }) })
     await expect(untracked.getByText('untracked', { exact: true })).toHaveAttribute(
       'title',
@@ -184,7 +196,9 @@ test.describe('the Machines tab', () => {
 })
 
 test.describe('the Commits tab', () => {
-  test('shows display values without the tag, and -- for what a commit lacks', async ({ page }) => {
+  test('shows display values without the tag, listed fields, and -- for what is missing', async ({
+    page,
+  }) => {
     await page.goto('/suites/libcxx?tab=commits')
     const commits = table(page, 'Commits')
     await expect(rows(commits)).toHaveCount(25)
@@ -195,12 +209,23 @@ test.describe('the Commits tab', () => {
     const experiment = rows(commits).filter({
       has: page.getByRole('link', { name: EXPERIMENT, exact: true }),
     })
-    await expect(experiment.locator('td')).toHaveText([EXPERIMENT, '--', '--'])
+    // Its `commit_info` is long, and is cut short, whole on hover and to assistive technology.
+    const info = 'A/B experiment: a faster floating-point path for std::format'
+    await expect(experiment.locator('td')).toHaveText([EXPERIMENT, '--', '--', /^A\/B /])
+    const cut = experiment.locator('td').last().getByTitle(info)
+    await expect(cut).toHaveText(/^A\/B .*…$/)
+    await expect(cut).toHaveAttribute('aria-hidden', 'true')
+    await expect(experiment.getByText(info, { exact: true })).toBeAttached()
 
     await search.fill(TAG)
     await settled(commits)
     const tagged = rows(commits).filter({ hasText: TAG }).first()
-    await expect(tagged.locator('td')).toHaveText([/^r\d+$/, /^\d+$/, TAG])
+    await expect(tagged.locator('td')).toHaveText([
+      /^r\d+$/,
+      /^\d+$/,
+      TAG,
+      /^\[libc\+\+\] Synthetic commit \d+ of \d+$/,
+    ])
   })
 
   test('pages through the commits, most recently seen first', async ({ page }) => {

@@ -98,10 +98,10 @@ both machines and commits (see O2).
 
 - **Adding** an entry leaves existing rows with no value for it.
 - Only presentation metadata can be **updated**: whichever of `display_name`,
-  `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard`, `searchable` and
-  `display` the entry accepts (see D4). A `type` cannot be changed in place,
-  because the conversion is not always defined (`text` to `integer` can fail
-  for some rows, and `real` to `integer` truncates).
+  `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard`, `searchable`,
+  `display` and `listed` the entry accepts (see D4). A `type` cannot be changed
+  in place, because the conversion is not always defined (`text` to `integer`
+  can fail for some rows, and `real` to `integer` truncates).
 - **Removing** an entry permanently destroys every value stored for it. Since
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry used. Removing a metric also removes every regression
@@ -111,9 +111,9 @@ both machines and commits (see O2).
 In an `update` entry, an omitted key leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`,
 `unit_abbrev`); an empty string does not, and is rejected with 400 (see D4).
-The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`) are
-not nullable, because D4 normalizes them to `false` rather than to null, so
-`null` for one of them is rejected with 400.
+The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`,
+`listed`) are not nullable, because D4 normalizes them to `false` rather than to
+null, so `null` for one of them is rejected with 400.
 
 Notes:
 - Renaming is not supported: it is semantically a remove plus an add.
@@ -211,14 +211,14 @@ through the API. The two formats still share much of their vocabulary.
   ],
   "machine_fields": [
     {"name": "hardware", "type": "text", "searchable": true},
-    {"name": "os", "type": "text", "searchable": true},
+    {"name": "os", "type": "text", "searchable": true, "listed": true},
     {"name": "core_count", "type": "integer"}
   ],
   "commit_fields": [
     {"name": "git_sha", "type": "text", "searchable": true},
     {"name": "author", "type": "text", "searchable": true},
     {"name": "commit_message", "type": "text"},
-    {"name": "commit_timestamp", "type": "datetime"}
+    {"name": "commit_timestamp", "type": "datetime", "listed": true}
   ]
 }
 ```
@@ -244,6 +244,10 @@ Notes:
   only valid on a numeric metric (see D3). Like `display`, it is purely a UI
   concern: the API treats metrics alike whether or not they set it, in trends,
   series and everywhere else.
+- `listed: true` on a commit or machine field is a hint for the UI: the Commits
+  and Machines tabs of the Test Suites page show a column for each field that
+  sets it (see TS3, TS4). Like `display`, it is purely a UI concern: the API
+  treats fields alike whether or not they set it.
 - There is no `format_version` in the schema: v5 has only one format.
 
 **Presentation keys.** Besides `name` and `type`, each list accepts only the
@@ -253,11 +257,12 @@ rejected with 400.
 | List | Accepts, in addition to `name` and `type` |
 |------|-------------------------------------------|
 | `metrics` | `display_name`, `unit`, `unit_abbrev`, `bigger_is_better`, `dashboard` |
-| `commit_fields` | `display_name`, `searchable`, `display` |
-| `machine_fields` | `display_name`, `searchable` |
+| `commit_fields` | `display_name`, `searchable`, `display`, `listed` |
+| `machine_fields` | `display_name`, `searchable`, `listed` |
 
 Only metrics accept `bigger_is_better` and `dashboard`, only commit and machine
-fields can be searchable, and only a commit field can be the UI's display value.
+fields can be searchable or listed, and only a commit field can be the UI's
+display value.
 
 **Normalization.** The stored and returned form of a schema contains every
 optional key, filled in with the default below when the submitted document
@@ -272,6 +277,7 @@ another, so these defaults are part of the wire contract.
 | `dashboard` | `false` |
 | `searchable` | `false` |
 | `display` | `false` |
+| `listed` | `false` |
 
 A schema that omits one of the three lists entirely gets it back as an empty
 list.

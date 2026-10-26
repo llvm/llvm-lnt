@@ -16,7 +16,7 @@ export const TYPES: readonly AttributeType[] = ['real', 'integer', 'text', 'date
 
 const TEXT_KEYS = ['display_name', 'unit', 'unit_abbrev'] as const
 type TextKey = (typeof TEXT_KEYS)[number]
-export type FlagKey = 'bigger_is_better' | 'dashboard' | 'searchable' | 'display'
+export type FlagKey = 'bigger_is_better' | 'dashboard' | 'searchable' | 'display' | 'listed'
 export type PresentationKey = TextKey | FlagKey
 
 export function isTextKey(key: PresentationKey): key is TextKey {
@@ -59,6 +59,7 @@ export const KEY_HEADERS: Record<PresentationKey, { header: string; label: strin
   dashboard: { header: 'Dashboard', label: 'On the Dashboard' },
   searchable: { header: 'Searchable', label: 'Searchable' },
   display: { header: 'Display', label: 'Display' },
+  listed: { header: 'Listed', label: 'Listed' },
 }
 
 interface ListInfo {
@@ -92,7 +93,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     heading: 'Commit Fields',
     label: 'Commit fields',
     noun: 'commit field',
-    keys: ['display_name', 'searchable', 'display'],
+    keys: ['display_name', 'searchable', 'display', 'listed'],
     type: 'text',
     reserved: ['commit', 'delete_after_inactive_days', 'first_seen_at', 'id', 'ordinal', 'tag'],
   },
@@ -100,7 +101,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     heading: 'Machine Fields',
     label: 'Machine fields',
     noun: 'machine field',
-    keys: ['display_name', 'searchable'],
+    keys: ['display_name', 'searchable', 'listed'],
     type: 'text',
     reserved: ['delete_after_inactive_days', 'first_seen_at', 'id', 'name', 'tracked'],
   },
