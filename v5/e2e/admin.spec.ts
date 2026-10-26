@@ -11,7 +11,7 @@ import type { components } from '../client/src/api/schema.d.ts'
 import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite, withOwnSuiteName } from './own-suite.ts'
-import { pickOption } from './select.ts'
+import { pickOption, selectButton } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
 /** The key that `token` belongs to, or null if the API does not accept it. */
@@ -101,8 +101,15 @@ test.describe('the API Keys tab', () => {
     await form.getByLabel('Name').fill(name)
     await pickOption(form, 'Scope', 'submit')
     await form.getByRole('radio', { name: 'Only these suites:' }).check()
-    await form.getByRole('checkbox', { name: 'nts' }).check()
-    await form.getByRole('checkbox', { name: 'libcxx' }).check()
+    // The list of suites stays open while they are checked.
+    const suites = selectButton(form, 'Suites to restrict to')
+    await expect(suites).toHaveText(/Select suites/)
+    await suites.click()
+    await page.getByRole('option', { name: 'nts', exact: true }).click()
+    await page.getByRole('option', { name: 'libcxx', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await expect(suites).toHaveText(/libcxx, nts/)
+    await expect(suites).toBeFocused()
     await form.getByRole('button', { name: 'Create key' }).click()
 
     const created = page.getByRole('region', { name: 'Created key' })

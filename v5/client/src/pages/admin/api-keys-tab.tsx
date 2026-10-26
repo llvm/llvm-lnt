@@ -20,7 +20,7 @@ import { ActionButton } from '../../components/action-button'
 import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
 import { Alert, ErrorMessage, Loaded, Loading } from '../../components/feedback'
-import { Select } from '../../components/select'
+import { MultiSelect, Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { formatTimestamp, yesNo } from '../../format'
@@ -215,8 +215,8 @@ interface SuitesChoiceProps {
 }
 
 /**
- * The suites a key is for (AD1): all of them, or only those checked, one checkbox per suite of the
- * instance. These are a form's checkboxes rather than a list's (AR10).
+ * The suites a key is for (AD1): all of them, or only those checked in a dropdown listing every
+ * suite of the instance.
  */
 function SuitesChoice({
   suites,
@@ -227,7 +227,6 @@ function SuitesChoice({
   onCheck,
 }: SuitesChoiceProps) {
   const group = useId()
-  const onlyId = useId()
   const whyId = useId()
 
   return (
@@ -237,8 +236,8 @@ function SuitesChoice({
         <input type="radio" name={group} checked={!restrict} onChange={() => onRestrict(false)} />
         All suites (instance-wide)
       </label>
-      <div className={styles.suiteChecks}>
-        <label id={onlyId} title={unrestrictable}>
+      <div className={styles.only}>
+        <label title={unrestrictable}>
           <input
             type="radio"
             name={group}
@@ -252,25 +251,15 @@ function SuitesChoice({
         {unrestrictable !== undefined && (
           <VisuallyHidden id={whyId}>{unrestrictable}</VisuallyHidden>
         )}
-        <span role="group" aria-labelledby={onlyId} className={styles.suiteChecks}>
-          {suites.data?.map(({ name }) => (
-            <label key={name}>
-              <input
-                type="checkbox"
-                checked={checked.includes(name)}
-                disabled={!restrict}
-                onChange={(event) =>
-                  onCheck(
-                    event.target.checked
-                      ? [...checked, name]
-                      : checked.filter((suite) => suite !== name),
-                  )
-                }
-              />
-              {name}
-            </label>
-          ))}
-        </span>
+        <MultiSelect
+          label="Suites to restrict to"
+          hideLabel
+          placeholder="Select suites"
+          options={(suites.data ?? []).map(({ name }) => ({ value: name, label: name }))}
+          value={checked}
+          onChange={onCheck}
+          isDisabled={!restrict}
+        />
       </div>
       {suites.isError && suites.data === undefined && (
         <ErrorMessage

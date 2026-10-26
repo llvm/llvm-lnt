@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ApiKey } from '../../api/api-keys'
@@ -19,8 +20,8 @@ import {
   rowsOf,
   table,
 } from '../../test/page'
-import { pickOption, selectButton } from '../../test/select'
-import { SUITE } from '../../test/fixtures'
+import { pickOption, selectButton, toggleOptions } from '../../test/select'
+import { BARE_SUITE, SUITE } from '../../test/fixtures'
 import { server } from '../../test/server'
 
 /** The key of the token `signIn` stores, among the others. */
@@ -161,6 +162,11 @@ function nameInput() {
 function createKey(name: string) {
   fireEvent.change(nameInput(), { target: { value: name } })
   fireEvent.click(createButton())
+}
+
+/** The dropdown of the suites a new key is restricted to (AD1). */
+function suitesButton() {
+  return selectButton('Suites to restrict to', createForm())
 }
 
 /** The banner showing the token of the key just created, if it shows. */
@@ -466,17 +472,15 @@ describe('creating a key', () => {
 
     fireEvent.change(nameInput(), { target: { value: 'ci-bot' } })
     await pickOption('Scope', 'triage', createForm())
-    // The suites are a form's checkboxes, usable only once "Only these suites:" is chosen.
-    const nts = await form.findByRole('checkbox', { name: 'nts' })
-    const group = form.getByRole('group', { name: 'Only these suites:' })
-    const boxes = within(group).getAllByRole('checkbox')
-    expect(boxes.map((box) => box.closest('label')?.textContent)).toEqual(['libcxx', 'nts'])
-    expect(nts).toBeDisabled()
+    // The dropdown of suites can be used only once "Only these suites:" is chosen.
+    expect(suitesButton()).toBeDisabled()
     fireEvent.click(only)
-    expect(nts).toBeEnabled()
+    expect(suitesButton()).toBeEnabled()
+    expect(suitesButton()).toHaveTextContent('Select suites')
     expect(createButton()).toHaveAccessibleDescription('Pick at least one suite.')
 
-    fireEvent.click(nts)
+    await toggleOptions('Suites to restrict to', ['nts'], createForm())
+    expect(suitesButton()).toHaveTextContent('nts')
     fireEvent.click(createButton())
 
     await findCreatedKey()
@@ -485,13 +489,52 @@ describe('creating a key', () => {
     ])
   })
 
+  it('lists the suites with a checkbox each, operated from the keyboard', async () => {
+    mockSuites([SUITE, BARE_SUITE, { ...BARE_SUITE, name: 'zorg' }])
+    await renderKeys()
+    await pickOption('Scope', 'submit', createForm())
+    fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these suites:' }))
+    const user = userEvent.setup()
+    const button = suitesButton()
+    expect(button).toBeEnabled()
+
+    button.focus()
+    await user.keyboard('{ArrowDown}')
+    const list = await screen.findByRole('listbox')
+    expect(list).toHaveAttribute('aria-multiselectable', 'true')
+    expect(within(list).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'libcxx',
+      'nts',
+      'zorg',
+    ])
+    // Space checks the option focused, and the list stays open for more.
+    await user.keyboard(' ')
+    await user.keyboard('{ArrowDown} ')
+    expect(within(list).getByRole('option', { name: 'nts' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    // Each option shows a checkbox, hidden from assistive technology, which has the option's state.
+    expect(within(list).queryAllByRole('checkbox')).toHaveLength(0)
+    const boxes = within(list).getAllByRole<HTMLInputElement>('checkbox', { hidden: true })
+    expect(boxes.map((box) => box.checked)).toEqual([true, true, false])
+    expect(button).toHaveTextContent('libcxx, nts')
+    await user.keyboard('{ArrowDown} ')
+    // Too many to name.
+    expect(button).toHaveTextContent('3 selected')
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
   it('goes back to every suite for a scope that cannot be restricted', async () => {
     const { store } = await renderKeys()
     const sent = mockCreate(store)
     const form = within(createForm())
     await pickOption('Scope', 'manage', createForm())
     fireEvent.click(form.getByRole('radio', { name: 'Only these suites:' }))
-    fireEvent.click(await form.findByRole('checkbox', { name: 'libcxx' }))
+    await toggleOptions('Suites to restrict to', ['libcxx'], createForm())
 
     await pickOption('Scope', 'admin', createForm())
 
@@ -501,8 +544,8 @@ describe('creating a key', () => {
     // suites checked kept for "Only these suites:".
     await pickOption('Scope', 'triage', createForm())
     expect(form.getByRole('radio', { name: 'All suites (instance-wide)' })).toBeChecked()
-    expect(form.getByRole('checkbox', { name: 'libcxx' })).toBeChecked()
-    expect(form.getByRole('checkbox', { name: 'libcxx' })).toBeDisabled()
+    expect(suitesButton()).toBeDisabled()
+    expect(suitesButton()).toHaveTextContent('libcxx')
 
     await pickOption('Scope', 'admin', createForm())
     createKey('root')
@@ -513,16 +556,14 @@ describe('creating a key', () => {
   it('sends only the suites checked that are still listed', async () => {
     const { store, queryClient } = await renderKeys()
     const sent = mockCreate(store)
-    const form = within(createForm())
     await pickOption('Scope', 'submit', createForm())
-    fireEvent.click(form.getByRole('radio', { name: 'Only these suites:' }))
-    fireEvent.click(await form.findByRole('checkbox', { name: 'libcxx' }))
-    fireEvent.click(form.getByRole('checkbox', { name: 'nts' }))
+    fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these suites:' }))
+    await toggleOptions('Suites to restrict to', ['libcxx', 'nts'], createForm())
 
     // nts is deleted meanwhile.
     const suites = mockSuites([SUITE])
     await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.suites }))
-    await waitFor(() => expect(form.queryByRole('checkbox', { name: 'nts' })).toBeNull())
+    await waitFor(() => expect(suitesButton()).not.toHaveTextContent('nts'))
     expect(suites.requests).toBe(1)
     createKey('ci-bot')
 
@@ -552,8 +593,9 @@ describe('creating a key', () => {
 
     mockSuites()
     fireEvent.click(form.getByRole('button', { name: 'Retry' }))
-    expect(await form.findByRole('checkbox', { name: 'nts' })).toBeDisabled()
-    expect(form.getByRole('radio', { name: 'Only these suites:' })).toBeEnabled()
+    await waitFor(() =>
+      expect(form.getByRole('radio', { name: 'Only these suites:' })).toBeEnabled(),
+    )
   })
 
   it('copies the token to the clipboard', async () => {
