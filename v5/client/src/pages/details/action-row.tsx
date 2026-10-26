@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { forgetSuite, forgetUnobserved } from '../../api/keys'
 import { ActionRow, type Deletion as RowDeletion } from '../../components/action-row'
+import { useMounted } from '../../components/use-mounted'
 
 /** The deletion of the entity a detail page is about. */
 interface Deletion extends Omit<RowDeletion, 'onDeleted'> {
@@ -27,6 +28,8 @@ export function DetailActionRow({ children, deletion }: Props) {
   const { suite } = deletion
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // Whether the page is still shown once the deletion is done, rather than left by the user.
+  const shown = useMounted()
   // Whether the page has left the entity it deleted.
   const left = useRef(false)
   useEffect(
@@ -40,7 +43,8 @@ export function DetailActionRow({ children, deletion }: Props) {
     },
     [queryClient, suite],
   )
-  const onDeleted = async (leaving: boolean) => {
+  const onDeleted = async () => {
+    const leaving = shown.current
     await forgetSuite(queryClient, suite, { leaving })
     if (leaving) {
       left.current = true

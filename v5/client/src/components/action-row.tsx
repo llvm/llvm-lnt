@@ -3,7 +3,6 @@ import clsx from 'clsx'
 import { useScopeGate, type Scope } from '../auth/scope'
 import { Confirmation } from './confirmation'
 import { DangerButton } from './danger-button'
-import { useMounted } from './use-mounted'
 import styles from './action-row.module.css'
 
 /** The deletion of what a page, or a part of one, is about. */
@@ -23,10 +22,10 @@ export interface Deletion {
   /** Delete it. A rejection is shown in the prompt, which stays open to try again. */
   onDelete(): Promise<unknown>
   /**
-   * Forget it once it is deleted: `shown` says whether the row is still shown, rather than left by
-   * the user meanwhile.
+   * Forget it once it is deleted, and leave the page if the user is still on it. Called even if the
+   * row is no longer shown: whether the user has left the page is up to the page.
    */
-  onDeleted(shown: boolean): Promise<unknown> | void
+  onDeleted(): Promise<unknown> | void
 }
 
 interface Props {
@@ -46,12 +45,10 @@ export function ActionRow({ children, deletion, deleteAtEnd = false }: Props) {
   const gate = useScopeGate(scope, suite)
   const [confirming, setConfirming] = useState(false)
   const deleteButton = useRef<HTMLButtonElement>(null)
-  // Whether the row is still shown once the deletion is done.
-  const shown = useMounted()
 
   const remove = async () => {
     await onDelete()
-    await onDeleted(shown.current)
+    await onDeleted()
   }
 
   return (

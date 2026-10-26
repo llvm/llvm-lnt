@@ -1,11 +1,22 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { ApiError, errorMessage } from '../api/client'
 import styles from './feedback.module.css'
 
-/** Something went wrong, in the page's own words. */
-export function Alert({ children }: { children: ReactNode }) {
+/**
+ * Something went wrong, in the page's own words. With `tabIndex={-1}`, it can take the focus from
+ * script, for when it replaces what had the focus.
+ */
+export function Alert({
+  children,
+  ref,
+  tabIndex,
+}: {
+  children: ReactNode
+  ref?: Ref<HTMLDivElement>
+  tabIndex?: number
+}) {
   return (
-    <div className={styles.error} role="alert">
+    <div ref={ref} className={styles.error} role="alert" tabIndex={tabIndex}>
       {children}
     </div>
   )

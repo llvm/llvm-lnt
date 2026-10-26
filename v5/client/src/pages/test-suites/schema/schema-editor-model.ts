@@ -1,5 +1,5 @@
 /**
- * The schema editor's model (AD3): what the editor holds before it is sent -- its draft -- and what
+ * The schema editor's model (TS7): what the editor holds before it is sent -- its draft -- and what
  * it sends, a whole schema to create a suite, or the changes to an existing one's (E10).
  *
  * The name checks only spare the user a round trip: the server validates every schema in full, and
@@ -7,8 +7,8 @@
  * everything else to it.
  */
 
-import type { Schemas } from '../../api/client'
-import type { SuiteSchema } from '../../api/suites'
+import type { Schemas } from '../../../api/client'
+import type { SuiteSchema } from '../../../api/suites'
 import {
   flagAllowed,
   isTextKey,
@@ -82,12 +82,12 @@ function entriesOf(schema: SuiteSchema, toDraft: (entry: AnyEntry) => DraftEntry
   }
 }
 
-/** The entries of `schema`, as entries to add: to create a suite from a copy of it (AD3). */
+/** The entries of `schema`, as entries to add: to create a suite from a copy of it (TS7). */
 export function copyOf(schema: SuiteSchema): Draft {
   return entriesOf(schema, (entry) => draftEntry(entry, null))
 }
 
-/** The entries of `schema`, as they are stored: to edit its schema (AD3). */
+/** The entries of `schema`, as they are stored: to edit its schema (TS7). */
 export function draftOf(schema: SuiteSchema): Draft {
   return entriesOf(schema, (entry) => draftEntry(entry, entry))
 }
@@ -240,7 +240,7 @@ export function draftProblem(draft: Draft): string | undefined {
 
 /**
  * The value of `key` the entry is to have. Text is sent without surrounding whitespace, and an
- * input left empty is null (AD3).
+ * input left empty is null (TS7).
  */
 function valueOf(entry: DraftEntry, key: PresentationKey): string | boolean | null {
   const value = entry[key]
@@ -284,7 +284,7 @@ function isChanged(entry: DraftEntry, original: AnyEntry, key: PresentationKey):
  * The body of `PATCH /api/suites/{name}/schema` making the changes in `draft` (E10): an entry added
  * in full, an existing one updated with only the keys the user changed, and a removed one by its
  * name. It says nothing of what the user left alone, so that saving does not undo changes others
- * made since the editor opened (AD3). Empty when the user changed nothing.
+ * made since the editor opened (TS7). Empty when the user changed nothing.
  */
 export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
   const patch: Record<string, Record<string, unknown[]>> = {}

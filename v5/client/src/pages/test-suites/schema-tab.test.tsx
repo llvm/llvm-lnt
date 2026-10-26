@@ -1,29 +1,29 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
 import { signIn, TOKEN } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
-import { BARE_SUITE, SUITE } from '../../test/fixtures'
+import { BARE_SUITE, SUITE, cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
   headersOf,
   main,
+  mockRuns,
   mockSuites,
   renderPage,
   rowsOf,
+  settle,
   table,
   type SuiteStore,
 } from '../../test/page'
-import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
-import { downloadFile } from './download'
+import { downloadFile } from './schema/download'
 
-vi.mock('./download', () => ({ downloadFile: vi.fn() }))
+vi.mock('./schema/download', () => ({ downloadFile: vi.fn() }))
 
 /** A suite whose only metric has no unit at all. */
 const UNITLESS: SuiteSchema = {
@@ -72,14 +72,17 @@ function mockDelete(
   return sent
 }
 
-function suiteSelect() {
-  return selectButton('Test suite')
+/** The names of the suite picker's cards. */
+function cards() {
+  return within(screen.getByRole('navigation', { name: 'Test suites' }))
+    .getAllByRole('link')
+    .map((card) => card.textContent)
 }
 
-/** The names of the dropdown's options, opening it. */
-async function optionsOf() {
-  await userEvent.setup().click(suiteSelect())
-  return screen.getAllByRole('option').map((option) => option.textContent)
+function card(name: string) {
+  return within(screen.getByRole('navigation', { name: 'Test suites' })).getByRole('link', {
+    name,
+  })
 }
 
 function deleteButton() {
@@ -97,8 +100,9 @@ function confirmDeletion(name: string) {
 }
 
 /**
- * Show the suite `name`, among `suites`, without a token, or to a holder of a `manage` token, ready
- * to delete it.
+ * Show the Schema tab of the suite `name`, among `suites`, without a token, or to a holder of a
+ * `manage` token, ready to delete it. The Runs tab, which the page goes to once the suite is
+ * deleted, lists no runs.
  */
 async function renderSuite(
   name = 'libcxx',
@@ -106,37 +110,45 @@ async function renderSuite(
 ) {
   if (manage) signIn('manage')
   const store = mockSuites(suites)
-  const rendered = renderPage(`/admin?tab=suites&suite=${name}`)
+  mockRuns(() => cursorPage([]))
+  const rendered = renderPage(`/suites/${name}?tab=schema`)
   await table('Metrics')
   if (manage) await waitFor(() => expect(deleteButton()).toBeEnabled())
   return { ...rendered, store }
 }
 
-describe('the Test Suites tab', () => {
-  it('offers every suite, and selects none until asked', async () => {
+/**
+ * Show libcxx's Schema tab to a holder of a `manage` token, reached from `/nope` through the
+ * navbar, so that Back leaves the page.
+ */
+async function renderFromElsewhere() {
+  signIn('manage')
+  const store = mockSuites(SUITES)
+  mockRuns(() => cursorPage([]))
+  renderPage('/nope')
+  fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
+  await waitFor(() => expect(deleteButton()).toBeEnabled())
+  return store
+}
+
+/** Delete `name` from its Schema tab, its deletion held until the returned gate opens. */
+async function startDeleting(name: string, store: SuiteStore) {
+  const deletion = gate()
+  mockDelete(store, { wait: () => deletion.promise })
+  fireEvent.click(deleteButton())
+  confirmDeletion(name)
+  await within(prompt()!).findByText('Deleting a suite with much data may take a while.')
+  return deletion
+}
+
+describe('the Schema tab', () => {
+  it('shows the schema of the suite, each list with its own columns', async () => {
     mockSuites(SUITES)
-    renderPage('/admin?tab=suites')
-
-    await waitFor(() => expect(suiteSelect()).toHaveTextContent('Select a suite'))
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    expect(await optionsOf()).toEqual(['Select a suite', 'libcxx', 'nts', 'units'])
-    await userEvent.setup().keyboard('{Escape}')
-
-    await pickOption('Test suite', 'nts')
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=nts'))
-    expect(await table('Metrics')).toBeInTheDocument()
-
-    await pickOption('Test suite', 'Select a suite')
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  })
-
-  it('shows the schema of the suite in the URL, each list with its own columns', async () => {
-    mockSuites(SUITES)
-    renderPage('/admin?tab=suites&suite=libcxx')
+    renderPage('/suites/libcxx?tab=schema')
 
     const metrics = await table('Metrics')
-    expect(suiteSelect()).toHaveTextContent('libcxx')
+    expect(screen.getByRole('tab', { name: 'Schema' })).toHaveAttribute('aria-selected', 'true')
     expect(headersOf(metrics)).toEqual([
       'Name',
       'Type',
@@ -186,71 +198,18 @@ describe('the Test Suites tab', () => {
 
   it('writes -- for a metric with no unit, as for an unset display name', async () => {
     mockSuites(SUITES)
-    renderPage('/admin?tab=suites&suite=units')
+    renderPage('/suites/units?tab=schema')
 
     expect(rowsOf(await table('Metrics'))).toEqual(['neither | datetime | -- | -- | No | No'])
   })
 
   it('says when a list of the schema is empty', async () => {
     mockSuites(SUITES)
-    renderPage('/admin?tab=suites&suite=nts')
+    renderPage('/suites/nts?tab=schema')
 
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
     expect(rowsOf(await table('Commit fields'))).toEqual(['No commit fields.'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['No machine fields.'])
-  })
-
-  it('drops a suite that does not exist from the URL', async () => {
-    mockSuites(SUITES)
-    renderPage('/admin?tab=suites&suite=nope')
-
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
-    expect(suiteSelect()).toHaveTextContent('Select a suite')
-  })
-
-  it('keeps the suite in the URL while the list loads, and when it fails, which it retries', async () => {
-    const list = gate()
-    server.use(
-      mockApi('get', '/api/suites', async () => {
-        await list.promise
-        return errorResponse(500, 'internal_error', 'The database is down.')
-      }),
-    )
-    renderPage('/admin?tab=suites&suite=libcxx')
-
-    expect(await main().findByText('Loading test suites...')).toBeInTheDocument()
-    await act(async () => list.open())
-    expect(await main().findByRole('alert')).toHaveTextContent('The database is down.')
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=libcxx')
-
-    mockSuites(SUITES)
-    fireEvent.click(main().getByRole('button', { name: 'Retry' }))
-    expect(await table('Metrics')).toBeInTheDocument()
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=libcxx')
-  })
-
-  it('says when there are no suites, with no dropdown', async () => {
-    mockSuites([])
-    renderPage('/admin?tab=suites')
-
-    expect(await main().findByText('There are no test suites yet.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: / Test suite$/ })).not.toBeInTheDocument()
-  })
-
-  it('drops the suite on leaving the tab', async () => {
-    await renderSuite('libcxx')
-
-    fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
-    await waitFor(() => expect(currentUrl()).toBe('/admin'))
-    fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
-    expect(screen.queryByRole('table', { name: 'Metrics' })).not.toBeInTheDocument()
-  })
-
-  it('drops a suite from the URL of the API Keys tab', async () => {
-    renderPage('/admin?suite=libcxx')
-
-    await waitFor(() => expect(currentUrl()).toBe('/admin'))
   })
 })
 
@@ -258,36 +217,29 @@ describe('a manage token restricted to some suites', () => {
   async function renderRestricted(name: string) {
     signIn('manage', ['nts'])
     mockSuites(SUITES)
-    renderPage(`/admin?tab=suites&suite=${name}`)
+    renderPage(`/suites/${name}?tab=schema`)
     await table('Metrics')
-    const newSuite = screen.getByRole('button', { name: 'New suite' })
-    // Creating a suite addresses none, so it needs an instance-wide token.
-    await waitFor(() =>
-      expect(newSuite).toHaveAccessibleDescription(
-        "Needs an instance-wide API token with the 'manage' scope. The token in Settings has " +
-          "the 'manage' scope only in suite 'nts'.",
-      ),
-    )
-    expect(newSuite).toBeDisabled()
   }
 
-  it('edits and deletes a suite it lists, but creates none', async () => {
+  it('edits and deletes a suite it lists', async () => {
     await renderRestricted('nts')
 
+    await waitFor(() => expect(deleteButton()).toBeEnabled())
     expect(screen.getByRole('button', { name: 'Edit schema' })).toBeEnabled()
-    expect(deleteButton()).toBeEnabled()
   })
 
   it('neither edits nor deletes another suite', async () => {
     await renderRestricted('libcxx')
 
+    await waitFor(() =>
+      expect(deleteButton()).toHaveAttribute(
+        'title',
+        "Needs an API token with the 'manage' scope in suite 'libcxx'. The token in Settings " +
+          "has the 'manage' scope only in suite 'nts'.",
+      ),
+    )
     expect(screen.getByRole('button', { name: 'Edit schema' })).toBeDisabled()
     expect(deleteButton()).toBeDisabled()
-    expect(deleteButton()).toHaveAttribute(
-      'title',
-      "Needs an API token with the 'manage' scope in suite 'libcxx'. The token in Settings has " +
-        "the 'manage' scope only in suite 'nts'.",
-    )
   })
 })
 
@@ -324,7 +276,7 @@ describe('exporting a schema', () => {
 })
 
 describe('deleting a suite', () => {
-  it('asks for its name, deletes it, and forgets it, selecting no suite', async () => {
+  it('asks for its name, deletes it, forgets it, and leaves for the first suite left', async () => {
     const { store, queryClient } = await renderSuite('libcxx', { manage: true })
     // Something read from inside the suite, which a suite created later under its name must not
     // find.
@@ -340,38 +292,41 @@ describe('deleting a suite', () => {
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
     confirmDeletion('libcxx')
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    // `/suites`, without the tab, gives way to the first suite left.
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
     expect(sent).toEqual([{ name: 'libcxx', confirm: 'true', auth: `Bearer ${TOKEN}` }])
-    expect(screen.queryByRole('table', { name: 'Metrics' })).not.toBeInTheDocument()
-    expect(prompt()).not.toBeInTheDocument()
-    await waitFor(() => expect(suiteSelect()).toHaveFocus())
-    expect(await optionsOf()).toEqual(['Select a suite', 'nts', 'units'])
+    expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+    expect(cards()).toEqual(['nts', 'units'])
     expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite('libcxx') })).toEqual([])
+  })
+
+  it('leaves the suite in place of its page in the history', async () => {
+    const store = await renderFromElsewhere()
+    mockDelete(store)
+
+    fireEvent.click(deleteButton())
+    confirmDeletion('libcxx')
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
   })
 
   it('says that deleting may take a while, while it does', async () => {
     const { store } = await renderSuite('libcxx', { manage: true })
-    const deletion = gate()
-    mockDelete(store, { wait: () => deletion.promise })
-    fireEvent.click(deleteButton())
-
-    confirmDeletion('libcxx')
-
-    expect(
-      await within(prompt()!).findByText('Deleting a suite with much data may take a while.'),
-    ).toBeInTheDocument()
+    const deletion = await startDeleting('libcxx', store)
     await act(async () => deletion.open())
   })
 
-  it('says that no suite is left once the last is deleted, and focuses that', async () => {
+  it('says that no suite is left once the last is deleted', async () => {
     const { store } = await renderSuite('nts', { manage: true, suites: [BARE_SUITE] })
     mockDelete(store)
     fireEvent.click(deleteButton())
 
     confirmDeletion('nts')
 
-    const note = await main().findByText('There are no test suites yet.')
-    await waitFor(() => expect(note).toHaveFocus())
+    expect(await main().findByText('There are no test suites yet.')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites')
   })
 
   it('sends nothing when cancelled, and gives the focus back to its button', async () => {
@@ -394,7 +349,7 @@ describe('deleting a suite', () => {
     confirmDeletion('libcxx')
 
     expect(await within(prompt()!).findByRole('alert')).toHaveTextContent('Try again.')
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=libcxx')
+    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
   })
 
   it('reports a suite that is not found, in the prompt, as other deletions do', async () => {
@@ -405,10 +360,10 @@ describe('deleting a suite', () => {
     confirmDeletion('libcxx')
 
     expect(await within(prompt()!).findByRole('alert')).toHaveTextContent("No suite 'libcxx'.")
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=libcxx')
+    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
   })
 
-  it('does not bring the suite back from a list on its way when it is deleted', async () => {
+  it('neither leaves for the suite deleted nor brings it back from a list on its way', async () => {
     const { store, queryClient } = await renderSuite('libcxx', { manage: true })
     const stale = gate()
     const refetched = mockSuites(SUITES, { wait: () => stale.promise })
@@ -418,51 +373,55 @@ describe('deleting a suite', () => {
     fireEvent.click(deleteButton())
 
     confirmDeletion('libcxx')
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    // The suite deleted, first of the list on its way, is not the first suite left.
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
     await act(async () => stale.open())
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
-    expect(await optionsOf()).toEqual(['Select a suite', 'nts', 'units'])
+    expect(cards()).toEqual(['nts', 'units'])
+    expect(currentUrl()).toBe('/suites/nts')
+  })
+
+  it("leaves for /suites when the user is on another of the suite's tabs meanwhile", async () => {
+    const { store } = await renderSuite('libcxx', { manage: true })
+    const deletion = await startDeleting('libcxx', store)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await act(async () => deletion.open())
+
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    expect(cards()).toEqual(['nts', 'units'])
   })
 
   it('leaves another suite selected meanwhile as it is, and the focus where it is', async () => {
     const { store } = await renderSuite('libcxx', { manage: true })
-    const deletion = gate()
-    mockDelete(store, { wait: () => deletion.promise })
-    fireEvent.click(deleteButton())
-    confirmDeletion('libcxx')
-    await within(prompt()!).findByText('Deleting a suite with much data may take a while.')
+    const deletion = await startDeleting('libcxx', store)
 
-    await pickOption('Test suite', 'units')
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites&suite=units'))
-    const metrics = await table('Metrics')
-    screen.getByRole('button', { name: 'Copy as JSON' }).focus()
+    fireEvent.click(card('units'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/units'))
+    const runs = screen.getByRole('tab', { name: 'Runs' })
+    runs.focus()
     await act(async () => deletion.open())
 
-    await waitFor(() => expect(store.suites.map((suite) => suite.name)).not.toContain('libcxx'))
-    expect(currentUrl()).toBe('/admin?tab=suites&suite=units')
-    expect(metrics).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Copy as JSON' })).toHaveFocus()
+    await waitFor(() => expect(cards()).toEqual(['nts', 'units']))
+    expect(currentUrl()).toBe('/suites/units')
+    expect(runs).toHaveFocus()
   })
 
-  it('forgets the suite when the tab was left meanwhile, without taking the focus', async () => {
-    const { store } = await renderSuite('libcxx', { manage: true })
-    const deletion = gate()
-    mockDelete(store, { wait: () => deletion.promise })
-    fireEvent.click(deleteButton())
-    confirmDeletion('libcxx')
-    await within(prompt()!).findByText('Deleting a suite with much data may take a while.')
+  it('forgets the suite when the user has left the page meanwhile', async () => {
+    const store = await renderFromElsewhere()
+    const deletion = await startDeleting('libcxx', store)
 
-    const apiKeys = screen.getByRole('tab', { name: 'API Keys' })
-    fireEvent.click(apiKeys)
-    await waitFor(() => expect(currentUrl()).toBe('/admin'))
-    apiKeys.focus()
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
     await act(async () => deletion.open())
 
-    await waitFor(() => expect(store.suites.map((suite) => suite.name)).not.toContain('libcxx'))
-    expect(apiKeys).toHaveFocus()
-    fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
-    await waitFor(() => expect(suiteSelect()).toBeInTheDocument())
-    expect(await optionsOf()).toEqual(['Select a suite', 'nts', 'units'])
+    await waitFor(() => expect(store.suites.map((suite) => suite.name)).toEqual(['nts', 'units']))
+    await settle()
+    expect(currentUrl()).toBe('/nope')
+    fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    expect(cards()).toEqual(['nts', 'units'])
   })
 })

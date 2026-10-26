@@ -44,8 +44,8 @@ from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 #
 # The web UI's schema editor checks names as they are typed with a copy of these rules, and of the
 # reserved names below and on each entry model: see schema-lists.ts and schema-editor-model.ts in
-# client/src/pages/admin. So does `lnt v5 convert-v4-mirror`, in lnt/util/convert_v4_mirror.py at
-# the root of the repository.
+# client/src/pages/test-suites/schema. So does `lnt v5 convert-v4-mirror`, in
+# lnt/util/convert_v4_mirror.py at the root of the repository.
 SUITE_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 ENTRY_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_]*$"
 

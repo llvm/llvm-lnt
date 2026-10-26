@@ -20,6 +20,7 @@ export const TABS = [
   { id: 'machines', label: 'Machines' },
   { id: 'commits', label: 'Commits' },
   { id: 'regressions', label: 'Regressions' },
+  { id: 'schema', label: 'Schema' },
 ] as const
 
 export type TabId = (typeof TABS)[number]['id']
@@ -61,6 +62,7 @@ export const { reset: resetSettings, unused: unusedSettings } = tabSettings(PARA
   machines: ['search'],
   commits: ['search'],
   regressions: ['search', 'state', 'machine', 'metric', 'has_commit'],
+  schema: [],
 })
 
 /**

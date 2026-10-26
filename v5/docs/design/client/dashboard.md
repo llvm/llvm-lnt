@@ -18,8 +18,8 @@ performance trends across all test suites.
   meaningful geomean. A suite with no card still has its section, which says
   why in place of its cards: that the suite has no numeric metric, or, when it
   has some but marks none of them, that it shows no metrics on the Dashboard,
-  with a link to the suite's schema in the Admin page's Test Suites tab (AD2),
-  from which they can be chosen (AD3).
+  with a link to the suite's Schema tab (TS6), from which they can be chosen
+  (TS7).
 
 ## DA2: Sparkline cards
 

@@ -1,0 +1,60 @@
+/* A list of a suite's schema (TS6). */
+.heading {
+  margin: var(--lnt-space-4) 0 var(--lnt-space-2);
+  font-size: 1.2rem;
+}
+
+/* The row of actions below a suite's schema, set apart from its last table. */
+.actions {
+  margin-top: var(--lnt-space-4);
+}
+
+/* The editor's buttons, and its heading when editing a suite, below its tables (TS7). */
+.editorFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-3);
+  padding: var(--lnt-space-3);
+  margin: var(--lnt-space-4) 0 var(--lnt-space-3);
+  border: 1px solid var(--lnt-border);
+  border-radius: var(--lnt-radius);
+}
+
+/* Cancel and the button submitting the editor, at the far end of the footer. */
+.editorButtons {
+  display: flex;
+  gap: var(--lnt-space-2);
+  margin-left: auto;
+}
+
+/* An input in a cell of the editor's tables, as wide as its column lets it be. */
+.cellInput {
+  width: 100%;
+  min-width: 6rem;
+}
+
+.addEntry {
+  margin-top: var(--lnt-space-2);
+}
+
+/* A cell of the editor's tables, its checkbox in line with the inputs beside it. */
+.editorCell {
+  vertical-align: middle;
+}
+
+.checkbox {
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* An existing entry removed in this edit, until saved or undone (TS7). */
+.removedName {
+  color: var(--lnt-muted);
+  text-decoration: line-through;
+}
+
+/* What the editor says in place of what an entry no longer has. */
+.note {
+  composes: note from '../test-suites.module.css';
+}

@@ -1,23 +1,24 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { queryKeys } from '../../api/keys'
-import type { SuiteSchema } from '../../api/suites'
-import { signIn } from '../../test/auth'
-import { BARE_SUITE, SUITE } from '../../test/fixtures'
-import { errorResponse, mockApi } from '../../test/mock-api'
+import { queryKeys } from '../../../api/keys'
+import type { SuiteSchema } from '../../../api/suites'
+import { signIn } from '../../../test/auth'
+import { BARE_SUITE, SUITE, cursorPage } from '../../../test/fixtures'
+import { errorResponse, mockApi } from '../../../test/mock-api'
 import {
   currentUrl,
   gate,
+  main,
+  mockRuns,
   mockSuites,
   renderPage,
   rowsOf,
   table,
   typeInto,
   type SuiteStore,
-} from '../../test/page'
-import { pickOption } from '../../test/select'
-import { server } from '../../test/server'
+} from '../../../test/page'
+import { server } from '../../../test/server'
 
 type Failure = ReturnType<typeof errorResponse>
 
@@ -93,14 +94,14 @@ function prompt() {
 }
 
 /**
- * Show libcxx in the Test Suites tab to a holder of a `manage` token, whose list of suites holds
+ * Show libcxx's Schema tab to a holder of a `manage` token, whose list of suites holds
  * SUITE but whose server holds FRESH, and open the editor on it.
  */
 async function openEditor() {
   signIn('manage')
   const store = mockSuites([SUITE, BARE_SUITE])
   const fresh = mockFresh({ ...store, suites: [FRESH, BARE_SUITE] })
-  const { queryClient } = renderPage('/admin?tab=suites&suite=libcxx')
+  const { queryClient } = renderPage('/suites/libcxx?tab=schema')
   await waitFor(() => expect(editButton()).toBeEnabled())
   fireEvent.click(editButton())
   await screen.findByRole('textbox', { name: 'Display name of metric code_size' })
@@ -112,7 +113,7 @@ describe('opening the editor on a suite', () => {
   it('needs the manage scope', async () => {
     signIn('submit')
     mockSuites()
-    renderPage('/admin?tab=suites&suite=libcxx')
+    renderPage('/suites/libcxx?tab=schema')
 
     await table('Metrics')
     await waitFor(() =>
@@ -126,8 +127,6 @@ describe('opening the editor on a suite', () => {
 
     expect(store.fresh.count).toBe(1)
     expect(screen.queryByRole('button', { name: 'Delete This Suite' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: / Test suite$/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'New suite' })).toBeDisabled()
     // An existing entry's name and type are shown, not edited.
     expect(rowsOf(await table('Metrics'))[1]).toMatch(/^code_size \| real \| /)
     expect(screen.queryByRole('textbox', { name: /^Name of metric/ })).not.toBeInTheDocument()
@@ -147,7 +146,7 @@ describe('opening the editor on a suite', () => {
       wait: () => reply.promise,
       fail: () => errorResponse(500, 'internal_error', 'The database is down.'),
     })
-    renderPage('/admin?tab=suites&suite=libcxx')
+    renderPage('/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     fireEvent.click(editButton())
 
@@ -166,14 +165,70 @@ describe('opening the editor on a suite', () => {
     signIn('manage')
     const store = mockSuites([SUITE, BARE_SUITE])
     mockFresh({ ...store, suites: [BARE_SUITE] })
-    renderPage('/admin?tab=suites&suite=libcxx')
+    renderPage('/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     store.suites = [BARE_SUITE]
 
     fireEvent.click(editButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    expect(await main().findByRole('alert')).toHaveTextContent("Test suite 'libcxx' not found.")
     expect(editor()).not.toBeInTheDocument()
+    expect(main().queryByRole('link', { name: 'libcxx' })).not.toBeInTheDocument()
+    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+  })
+})
+
+describe('leaving the tab', () => {
+  function card(name: string) {
+    return within(screen.getByRole('navigation', { name: 'Test suites' })).getByRole('link', {
+      name,
+    })
+  }
+
+  /** Open the editor on libcxx, and change it, the Runs tab listing no runs. */
+  async function openChanged() {
+    mockRuns(() => cursorPage([]))
+    await openEditor()
+    typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Changed')
+  }
+
+  /** Whether the Schema tab shows the viewer, rather than the editor and its changes. */
+  async function expectViewer() {
+    expect(await table('Metrics')).toBeInTheDocument()
+    expect(editor()).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Changed')).not.toBeInTheDocument()
+  }
+
+  it('to another tab discards the changes', async () => {
+    await openChanged()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
+
+    await expectViewer()
+  })
+
+  it('to another suite discards the changes', async () => {
+    await openChanged()
+
+    fireEvent.click(card('nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=schema'))
+
+    await expectViewer()
+  })
+
+  it("by the suite's own card discards the changes", async () => {
+    await openChanged()
+
+    fireEvent.click(card('libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    expect(editor()).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
+
+    await expectViewer()
   })
 })
 
@@ -409,11 +464,37 @@ describe('saving', () => {
     })
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Odd')
 
+    saveButton().focus()
     fireEvent.click(saveButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    // The page says so in place of the editor, and takes the focus the editor had.
+    const notFound = await main().findByText("Test suite 'libcxx' not found.")
     expect(editor()).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: / Test suite$/ })).toHaveFocus()
+    expect(notFound).toHaveFocus()
+    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+  })
+
+  it('leaves the focus where it is, if elsewhere, once the suite turns out deleted', async () => {
+    const store = await openEditor()
+    const reply = gate()
+    mockPatch(store, (schema) => schema, {
+      wait: () => reply.promise,
+      fail: () => {
+        store.suites = [BARE_SUITE]
+        return errorResponse(404, 'not_found', "No suite 'libcxx'")
+      },
+    })
+    typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Odd')
+    fireEvent.click(saveButton())
+    const card = within(screen.getByRole('navigation', { name: 'Test suites' })).getByRole('link', {
+      name: 'nts',
+    })
+    card.focus()
+
+    await act(async () => reply.open())
+
+    expect(await main().findByText("Test suite 'libcxx' not found.")).not.toHaveFocus()
+    expect(card).toHaveFocus()
   })
 
   it('has the list of suites fetched again when an entry was added meanwhile', async () => {
@@ -430,6 +511,32 @@ describe('saving', () => {
     expect(await within(editor()!).findByRole('alert')).toHaveTextContent('already exists')
     await waitFor(() => expect(store.requests).toBe(before + 1))
     expect(editor()).toBeInTheDocument()
+  })
+
+  it('stays open, with the page, when the list fetched again fails', async () => {
+    const store = await openEditor()
+    mockPatch(store, (schema) => schema, {
+      fail: () => errorResponse(409, 'duplicate', "A machine field 'kernel' already exists"),
+    })
+    const lists = { count: 0 }
+    server.use(
+      mockApi('get', '/api/suites', () => {
+        lists.count++
+        return errorResponse(500, 'internal_error', 'The database is down.')
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '+ Add machine field' }))
+    typeInto(screen.getByRole('textbox', { name: 'Name of machine field 4' }), 'kernel')
+
+    fireEvent.click(saveButton())
+
+    expect(await within(editor()!).findByRole('alert')).toHaveTextContent('already exists')
+    await waitFor(() => expect(lists.count).toBe(1))
+    await waitFor(() => expect(store.queryClient.isFetching()).toBe(0))
+    expect(editor()).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Name of machine field 4' })).toHaveValue('kernel')
+    expect(main().getByRole('link', { name: 'nts' })).toBeInTheDocument()
+    expect(screen.queryByText('The database is down.')).not.toBeInTheDocument()
   })
 
   it('changes nothing while it is under way, keeping the focus', async () => {
@@ -471,11 +578,11 @@ describe('saving', () => {
     fireEvent.click(saveButton())
     await waitFor(() => expect(saveButton()).toHaveTextContent('Saving...'))
 
-    fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
+    mockRuns(() => cursorPage([]))
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
     await act(async () => reply.open())
     await waitFor(() => expect(store.queryClient.isMutating()).toBe(0))
-    fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
-    await pickOption('Test suite', 'libcxx')
+    fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
 
     expect(rowsOf(await table('Metrics'))[1]).toMatch(/^code_size \| real \| Changed/)
     expect(editor()).not.toBeInTheDocument()
