@@ -1,40 +1,51 @@
-import { lazy } from 'react'
-import { Route, Routes } from 'react-router'
+import { Outlet, type RouteObject } from 'react-router'
 import { Layout } from './layout'
+import {
+  Admin,
+  CommitDetail,
+  Compare,
+  Dashboard,
+  Graph,
+  MachineDetail,
+  Profiles,
+  RegressionDetail,
+  RunDetail,
+  TestSuites,
+} from './pages/lazy'
 import { NotFound } from './pages/not-found'
+import { RethrowError } from './rethrow-error'
+import { UrlStateProvider } from './url-state-provider'
 
-// One chunk per page, fetched the first time the page is visited (AR2 "Code splitting").
-const Dashboard = lazy(() => import('./pages/dashboard'))
-const TestSuites = lazy(() => import('./pages/test-suites'))
-const MachineDetail = lazy(() => import('./pages/details/machine-detail'))
-const RunDetail = lazy(() => import('./pages/details/run-detail'))
-const CommitDetail = lazy(() => import('./pages/details/commit-detail'))
-const RegressionDetail = lazy(() => import('./pages/details/regression-detail'))
-const Graph = lazy(() => import('./pages/graph'))
-const Compare = lazy(() => import('./pages/compare'))
-const Profiles = lazy(() => import('./pages/profiles'))
-const Admin = lazy(() => import('./pages/admin'))
+/** The page hierarchy of AR3, every URL in it: those it does not name show `NotFound`. */
+export const routes: RouteObject[] = [
+  {
+    element: <Layout />,
+    children: [
+      { index: true, element: <Dashboard /> },
+      { path: 'suites', element: <TestSuites /> },
+      { path: 'suites/:suite', element: <TestSuites /> },
+      { path: 'suites/:suite/machines/:name', element: <MachineDetail /> },
+      { path: 'suites/:suite/runs/:uuid', element: <RunDetail /> },
+      { path: 'suites/:suite/commits/:value', element: <CommitDetail /> },
+      { path: 'suites/:suite/regressions/:uuid', element: <RegressionDetail /> },
+      { path: 'graph', element: <Graph /> },
+      { path: 'compare', element: <Compare /> },
+      { path: 'profiles', element: <Profiles /> },
+      { path: 'admin', element: <Admin /> },
+      { path: '*', element: <NotFound /> },
+    ],
+  },
+]
 
-// The page hierarchy of AR3.
-function App() {
-  return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="suites" element={<TestSuites />} />
-        <Route path="suites/:suite" element={<TestSuites />} />
-        <Route path="suites/:suite/machines/:name" element={<MachineDetail />} />
-        <Route path="suites/:suite/runs/:uuid" element={<RunDetail />} />
-        <Route path="suites/:suite/commits/:value" element={<CommitDetail />} />
-        <Route path="suites/:suite/regressions/:uuid" element={<RegressionDetail />} />
-        <Route path="graph" element={<Graph />} />
-        <Route path="compare" element={<Compare />} />
-        <Route path="profiles" element={<Profiles />} />
-        <Route path="admin" element={<Admin />} />
-        <Route path="*" element={<NotFound />} />
-      </Route>
-    </Routes>
-  )
+/** The route at the root of the router, above `children`: the app's routes, say. */
+export function rootRoute(children: RouteObject[]): RouteObject {
+  return {
+    element: (
+      <UrlStateProvider>
+        <Outlet />
+      </UrlStateProvider>
+    ),
+    ErrorBoundary: RethrowError,
+    children,
+  }
 }
-
-export default App

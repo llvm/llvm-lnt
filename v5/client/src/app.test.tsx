@@ -1,11 +1,11 @@
 import { fireEvent, screen } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import App from './app'
+import { routes } from './app'
 import { queryKeys } from './api/keys'
 import { errorResponse, mockApi } from './test/mock-api'
 import { mockSuites } from './test/page'
-import { renderWithProviders } from './test/render'
+import { renderRoutes } from './test/render'
 import { INDEX, server } from './test/server'
 
 // Every page so far starts from the list of suites, and asks for nothing else without one.
@@ -15,7 +15,7 @@ beforeEach(() => mockSuites([]))
 vi.mock('./components/chart', () => import('./test/chart'))
 
 function renderAt(url: string) {
-  return renderWithProviders(<App />, { url })
+  return renderRoutes(routes, { url })
 }
 
 describe('navbar', () => {

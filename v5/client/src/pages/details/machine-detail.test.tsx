@@ -2,7 +2,6 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { useNavigate } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import App from '../../app'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { INACTIVITY_HELP } from '../../inactivity'
 import { machinePath } from '../../paths'
@@ -31,7 +30,6 @@ import {
   trailLink,
   typeInto,
 } from '../../test/page'
-import { renderWithProviders } from '../../test/render'
 import { server } from '../../test/server'
 
 const NAME = 'linux-x86_64'
@@ -589,13 +587,7 @@ describe('the Machine Detail page', () => {
           </button>
         ))
       }
-      renderWithProviders(
-        <>
-          <App />
-          <GoTo />
-        </>,
-        { url: machinePath('libcxx', other) },
-      )
+      renderPage(machinePath('libcxx', other), <GoTo />)
       await ready('Machine', deleteButton)
       fireEvent.click(screen.getByRole('button', { name: `Go to ${PAGE}` }))
       await waitFor(() => expect(heading()).toHaveTextContent(`Machine: ${NAME}`))
