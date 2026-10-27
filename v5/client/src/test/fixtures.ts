@@ -7,9 +7,16 @@ import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
 import type { Commit, Metric } from '../schema'
 
+/** The repository of a suite that sets none of its keys (D4). */
+export const NO_REPOSITORY: SuiteSchema['repository'] = {
+  label: null,
+  commit_url: null,
+  range_url: null,
+}
+
 /**
- * A suite like libcxx: a display field, labelled and unlabelled fields, a non-text one, and listed
- * and unlisted ones.
+ * A suite like libcxx: a display field, labelled and unlabelled fields, a non-text one, listed and
+ * unlisted ones, and a repository.
  */
 export const SUITE: SuiteSchema = {
   name: 'libcxx',
@@ -47,14 +54,20 @@ export const SUITE: SuiteSchema = {
       listed: true,
     },
   ],
+  repository: {
+    label: 'GitHub',
+    commit_url: 'https://github.com/llvm/llvm-project/commit/{commit}',
+    range_url: 'https://github.com/llvm/llvm-project/compare/{from}...{to}',
+  },
 }
 
-/** A suite with no fields at all, and so no display field. */
+/** A suite with no fields at all, and so no display field, and no repository. */
 export const BARE_SUITE: SuiteSchema = {
   name: 'nts',
   metrics: [],
   machine_fields: [],
   commit_fields: [],
+  repository: NO_REPOSITORY,
 }
 
 /** A metric (D4), `real`, without a label or a unit, and not on the Dashboard unless given. */

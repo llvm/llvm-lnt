@@ -18,6 +18,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from conftest import code_of, entry, ndjson_lines, run_payload
 from introspection import column_names, schema_version_of
+from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import SUITES_PATH, delete_suite, patch_schema
 from lnt_v5.scopes import Scope
@@ -125,6 +126,15 @@ class TestCreate:
         # The Location has to actually resolve, and to the same document.
         assert api_client.get(response.headers["Location"]).json() == response.json()
 
+    def test_normalizes_the_repository(self, create: Callable[..., Any]) -> None:
+        repository = {"commit_url": "https://git.example.com/{commit}"}
+
+        assert create(repository=repository).json()["repository"] == {
+            "label": None,
+            "commit_url": "https://git.example.com/{commit}",
+            "range_url": None,
+        }
+
     def test_normalizes_what_it_returns(self, create: Callable[..., Any]) -> None:
         # D4: every optional key present and explicit, so the response is postable verbatim.
         metric = create(metrics=[{"name": "execution_time", "type": "real"}]).json()["metrics"][0]
@@ -184,6 +194,8 @@ class TestCreate:
             ({"name": "NTS"}, "a name rule"),
             ({"name": "nts", "metrics": [{"name": "m", "type": "status"}]}, "a type rule"),
             ({"name": "nts", "format_version": "5"}, "an unknown top-level key"),
+            ({"name": "nts", "repository": None}, "a null repository"),
+            ({"name": "nts", "repository": {"url": "https://example.com/"}}, "a repository key"),
         ],
     )
     def test_refuses_a_schema_that_does_not_validate(
@@ -711,6 +723,125 @@ class TestEvolveConfirmation:
             ).status_code
             == 200
         )
+
+
+class TestEvolveRepository:
+    """`repository` is changed key by key, like an entry's `update` (D2)."""
+
+    def test_sets_the_keys_it_is_given_and_clears_those_sent_as_null(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create(repository=examples.REPOSITORY)
+        commit_url = "https://git.example.com/{commit}"
+
+        # No `confirm`: it destroys nothing.
+        response = patch_request(
+            api_client, manage, {"repository": {"commit_url": commit_url, "label": None}}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["repository"] == {
+            "label": None,
+            "commit_url": commit_url,
+            "range_url": examples.REPOSITORY["range_url"],
+        }
+
+    def test_changes_no_column_but_tells_every_worker(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+        tables = ("sample", "commit", "machine")
+        columns = {table: column_names(db_engine, "nts", table) for table in tables}
+        before = schema_version_of(db_engine)
+
+        body = patch_request(api_client, manage, {"repository": {"label": "GitHub"}}).json()
+
+        assert {table: column_names(db_engine, "nts", table) for table in tables} == columns
+        assert stored_schema(db_engine, "nts") == body
+        assert schema_version_of(db_engine) == before + 1
+
+    def test_setting_what_is_stored_changes_nothing(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create(repository=examples.REPOSITORY)
+        before = schema_version_of(db_engine)
+
+        response = patch_request(api_client, manage, {"repository": {"label": "GitHub"}})
+
+        assert response.status_code == 200
+        assert schema_version_of(db_engine) == before
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}},
+            {"metrics": {"update": [{"name": "compile_time", "unit": "ms"}]}},
+            {"machine_fields": {"remove": ["hardware"]}},
+        ],
+    )
+    def test_is_kept_by_a_change_to_the_lists(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        body: dict[str, Any],
+    ) -> None:
+        create(repository=examples.REPOSITORY)
+
+        response = patch_request(api_client, manage, body, confirm=True)
+
+        assert response.json()["repository"] == examples.REPOSITORY
+        assert stored_schema(db_engine, "nts")["repository"] == examples.REPOSITORY
+
+    def test_can_change_with_the_lists_in_one_request(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create()
+
+        body = patch_request(
+            api_client,
+            manage,
+            {
+                "metrics": {"add": [{"name": "code_size", "type": "integer"}]},
+                "repository": {"range_url": examples.REPOSITORY["range_url"]},
+            },
+        ).json()
+
+        assert body["metrics"][-1]["name"] == "code_size"
+        assert body["repository"]["range_url"] == examples.REPOSITORY["range_url"]
+
+    @pytest.mark.parametrize(
+        "repository",
+        [
+            None,
+            {"label": ""},
+            {"commit_url": "https://{commit}.example.com/"},
+            {"url": examples.REPOSITORY["commit_url"]},
+        ],
+    )
+    def test_refuses_what_a_schema_would_not_accept(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        repository: Any,
+    ) -> None:
+        # Null for the whole block too: its keys are cleared one by one.
+        create(repository=examples.REPOSITORY)
+
+        response = patch_request(api_client, manage, {"repository": repository})
+
+        assert code_of(response) == "invalid_request"
+        assert api_client.get(f"{SUITES}/nts").json()["repository"] == examples.REPOSITORY
 
 
 def suite_tables_for(engine: Engine) -> Any:

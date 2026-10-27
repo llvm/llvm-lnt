@@ -1,0 +1,66 @@
+{
+  "about": "Repository URL templates (D4), which the server and the web UI's schema editor must accept or refuse alike. The last valid commit_url holds characters that Python or JavaScript count as whitespace, but D4 does not exclude.",
+  "commit_url": {
+    "valid": [
+      "https://github.com/llvm/llvm-project/commit/{commit}",
+      "http://example.com/{commit}",
+      "HTTPS://example.com/{commit}",
+      "https://example.com/c/{commit}?again={commit}#{commit}",
+      "https://example.com?c={commit}",
+      "https://example.com#{commit}",
+      "https://user@example.com:8080/{commit}",
+      "https://example.com/\u00fcn\u00efcode/{commit}",
+      "https://[::1]/{commit}",
+      "https://example.com/\u00a0\u0085\u2028\ufeff/{commit}"
+    ],
+    "invalid": [
+      "",
+      "https://example.com/commit",
+      "https://example.com/{sha}",
+      "https://example.com/{from}",
+      "https://example.com/{commit}/{}",
+      "https://example.com/{commit}}",
+      "https://example.com/{{commit}}",
+      "https://example.com/{commit",
+      "ftp://example.com/{commit}",
+      "http\u017f://example.com/{commit}",
+      "javascript:alert('{commit}')",
+      "https:/example.com/{commit}",
+      "//example.com/{commit}",
+      "/commit/{commit}",
+      "{commit}https://example.com/",
+      "https://{commit}",
+      "https://{commit}.example.com/",
+      "https://github.com.{commit}/llvm/llvm-project",
+      "https://example.com:{commit}/",
+      "https:///{commit}",
+      "https://?c={commit}",
+      " https://example.com/{commit}",
+      "https://example.com/{commit} ",
+      "https://example.com/a b/{commit}",
+      "https://example.com/{commit}\t",
+      "https://example.com/{commit}\n",
+      "https://example.com/{commit}\u0000",
+      "https://example.com/{commit}\u001c",
+      "https://example.com/{commit}\u001f",
+      "https://example.com/{commit}\u007f",
+      "https://[{commit}]/",
+      "https://example.com\\@{commit}/"
+    ]
+  },
+  "range_url": {
+    "valid": [
+      "https://github.com/llvm/llvm-project/compare/{from}...{to}",
+      "https://example.com/log?to={to}&from={from}",
+      "https://example.com/{from}/{to}/{from}"
+    ],
+    "invalid": [
+      "https://example.com/compare/{from}",
+      "https://example.com/compare/{to}",
+      "https://example.com/{commit}",
+      "https://example.com/{from}...{to}/{commit}",
+      "https://{from}.example.com/{to}",
+      "https://example.com/{from}...{to} "
+    ]
+  }
+}

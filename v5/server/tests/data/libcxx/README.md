@@ -34,7 +34,8 @@ the v4 instance: `r554973-linux-1` is v4 run 339, `r554973-macos-2` run 563 and
   the commit's display value. v4 has no notion of `dashboard` either: every metric sets it, so that
   the Dashboard shows them all. Nor of `listed`: the Machines tab shows `hardware`, `os` and
   `compiler`, but not `test_suite_commit`, a SHA, or `sdk`, which `os` already gives. The Commits
-  tab shows `commit_info`, but not `svn_revision`, already shown as the commit itself.
+  tab shows `commit_info`, but not `svn_revision`, already shown as the commit itself. Nor of a
+  `repository`: it points at llvm-project on GitHub, whose commits the runs' Git SHAs are.
 - `machine`: the v4 name, and as `fields` whichever v4 machine fields the machine reports. The
   Linux machine has no `hardware`, `os` or `sdk`.
 - `commit`: `value` is v4's `git_sha`, `ordinal` is v4's order field as an integer, and `fields`

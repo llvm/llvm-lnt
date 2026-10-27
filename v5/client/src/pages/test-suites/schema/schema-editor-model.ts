@@ -2,9 +2,9 @@
  * The schema editor's model (TS7): what the editor holds before it is sent -- its draft -- and what
  * it sends, a whole schema to create a suite, or the changes to an existing one's (E10).
  *
- * The name checks only spare the user a round trip: the server validates every schema in full, and
- * is authoritative. They mirror its rules (D4, D5; `suites/schema.py` on the server) and leave
- * everything else to it.
+ * The checks of names and of URL templates only spare the user a round trip: the server validates
+ * every schema in full, and is authoritative. They mirror its rules (D4, D5; `suites/schema.py` on
+ * the server) and leave everything else to it.
  */
 
 import type { Schemas } from '../../../api/client'
@@ -14,9 +14,15 @@ import {
   isTextKey,
   LIST_INFO,
   LISTS,
+  PLACEHOLDERS,
+  REPOSITORY_KEYS,
+  URL_KEYS,
   type AttributeType,
   type ListName,
   type PresentationKey,
+  type Repository,
+  type RepositoryKey,
+  type UrlKey,
 } from './schema-lists'
 
 /**
@@ -42,12 +48,19 @@ export interface DraftEntry {
   listed: boolean
 }
 
-export type Draft = Record<ListName, DraftEntry[]>
+/** The repository as the editor holds it: what each input shows. */
+export interface DraftRepository extends Record<RepositoryKey, string> {
+  /** The repository as stored, when editing a suite's schema; null when creating a suite. */
+  original: Repository | null
+}
+
+export type Draft = Record<ListName, DraftEntry[]> & { repository: DraftRepository }
 
 export const EMPTY_DRAFT: Draft = {
   metrics: [],
   commit_fields: [],
   machine_fields: [],
+  repository: { original: null, label: '', commit_url: '', range_url: '' },
 }
 
 /** An entry of any list, as a schema has it: the keys of the other lists are absent. */
@@ -74,22 +87,33 @@ function draftEntry(entry: AnyEntry, original: AnyEntry | null): DraftEntry {
   }
 }
 
-function entriesOf(schema: SuiteSchema, toDraft: (entry: AnyEntry) => DraftEntry): Draft {
+function draftOfSchema(schema: SuiteSchema, stored: boolean): Draft {
+  const toDraft = (entry: AnyEntry) => draftEntry(entry, stored ? entry : null)
+  const { repository } = schema
   return {
     metrics: schema.metrics.map(toDraft),
     commit_fields: schema.commit_fields.map(toDraft),
     machine_fields: schema.machine_fields.map(toDraft),
+    repository: {
+      original: stored ? repository : null,
+      label: repository.label ?? '',
+      commit_url: repository.commit_url ?? '',
+      range_url: repository.range_url ?? '',
+    },
   }
 }
 
-/** The entries of `schema`, as entries to add: to create a suite from a copy of it (TS7). */
+/**
+ * The entries and the repository of `schema`, as new ones: to create a suite from a copy of it
+ * (TS7).
+ */
 export function copyOf(schema: SuiteSchema): Draft {
-  return entriesOf(schema, (entry) => draftEntry(entry, null))
+  return draftOfSchema(schema, false)
 }
 
-/** The entries of `schema`, as they are stored: to edit its schema (TS7). */
+/** The entries and the repository of `schema`, as they are stored: to edit its schema (TS7). */
 export function draftOf(schema: SuiteSchema): Draft {
-  return entriesOf(schema, (entry) => draftEntry(entry, entry))
+  return draftOfSchema(schema, true)
 }
 
 /** A new, unnamed entry of `list`, for `addEntry`. */
@@ -145,6 +169,11 @@ export function restoreEntry(draft: Draft, list: ListName, id: number): Draft {
     ...draft,
     [list]: draft[list].map((entry) => (entry.id === id ? { ...entry, removed: false } : entry)),
   }
+}
+
+/** `draft` with the repository's `key` showing `text`. */
+export function changeRepository(draft: Draft, key: RepositoryKey, text: string): Draft {
+  return { ...draft, repository: { ...draft.repository, [key]: text } }
 }
 
 // D4's rules for names, each of which becomes a namespace or a column. An entry's name may have
@@ -224,9 +253,63 @@ export function suiteNameProblem(name: string, existing: readonly string[]): str
   return undefined
 }
 
+// D4's rules for URL templates: an http or https URL that names its host literally, with no space
+// or ASCII control character -- a set spelled out, rather than "whitespace", which JavaScript and
+// the server's Python do not agree on -- and no brace but those of the placeholders it accepts.
+// `client/src/test/url-templates.json` holds the cases both must accept or refuse alike.
+// Without the `u` flag, `i` folds no non-ASCII letter onto an ASCII one, unlike Python's
+// IGNORECASE, which the server limits to ASCII: U+017F (the long s) does not pass for an `s`.
+const URL_SCHEME = /^https?:\/\//i
+// eslint-disable-next-line no-control-regex
+const URL_EXCLUDED = /[\u0000-\u0020\u007f]/
+const PLACEHOLDER = /\{([^{}]*)\}/g
+
+/** Why `template` cannot be the repository's `key`, if it cannot. */
+export function templateProblem(key: UrlKey, template: string): string | undefined {
+  const placeholders = PLACEHOLDERS[key]
+  const accepted = placeholders.map((name) => `{${name}}`).join(' and ')
+  if (URL_EXCLUDED.test(template)) return 'A URL cannot contain spaces or ASCII control characters.'
+  const scheme = URL_SCHEME.exec(template)
+  if (scheme === null) return 'A URL starts with http:// or https://.'
+  for (const [placeholder, name] of template.matchAll(PLACEHOLDER)) {
+    if (!placeholders.includes(name)) {
+      return `${placeholder} is not a placeholder this URL accepts, only ${accepted}.`
+    }
+  }
+  if (/[{}]/.test(template.replace(PLACEHOLDER, ''))) {
+    return `This URL cannot contain braces other than those of ${accepted}.`
+  }
+  if (placeholders.some((name) => !template.includes(`{${name}}`))) {
+    return `This URL must contain ${accepted}.`
+  }
+  const host = template.slice(scheme[0].length).split(/[/?#]/, 1)[0]
+  if (host === '') return 'A URL names a host after http:// or https://.'
+  if (host.includes('{')) return 'A URL names its host as it is, without a placeholder.'
+  return undefined
+}
+
+/**
+ * Why each URL of `repository` cannot be sent, by its key, for those that cannot. A URL left as it
+ * is stored is not checked, so that a schema stored with one the editor refuses can still be saved;
+ * nor is one left empty, which is sent as null.
+ */
+export function repositoryProblems(repository: DraftRepository): Map<RepositoryKey, string> {
+  const { original } = repository
+  const problems = new Map<RepositoryKey, string>()
+  for (const key of URL_KEYS) {
+    const value = sent(repository[key])
+    if (value === null || (original !== null && !isChanged(repository[key], original[key]))) {
+      continue
+    }
+    const problem = templateProblem(key, value)
+    if (problem !== undefined) problems.set(key, problem)
+  }
+  return problems
+}
+
 /**
  * Why `draft` cannot be sent, if it cannot: some entry has a name that `nameProblems` refuses, or
- * no name yet.
+ * no name yet, or the repository has a URL that `repositoryProblems` refuses.
  */
 export function draftProblem(draft: Draft): string | undefined {
   if (LISTS.some((list) => nameProblems(list, draft[list]).size > 0)) {
@@ -235,18 +318,22 @@ export function draftProblem(draft: Draft): string | undefined {
   if (LISTS.some((list) => draft[list].some((entry) => entry.name === ''))) {
     return 'Give every new entry a name first.'
   }
+  if (repositoryProblems(draft.repository).size > 0) {
+    return 'Correct the repository URLs marked in red first.'
+  }
   return undefined
 }
 
-/**
- * The value of `key` the entry is to have. Text is sent without surrounding whitespace, and an
- * input left empty is null (TS7).
- */
+/** Text as it is sent: without surrounding whitespace, and null if that leaves nothing (TS7). */
+function sent(text: string): string | null {
+  const trimmed = text.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+/** The value of `key` the entry is to have: a flag as it is, and text as `sent` sends it. */
 function valueOf(entry: DraftEntry, key: PresentationKey): string | boolean | null {
   const value = entry[key]
-  if (typeof value === 'boolean') return value
-  const text = value.trim()
-  return text === '' ? null : text
+  return typeof value === 'boolean' ? value : sent(value)
 }
 
 /** The entry as a schema document spells it (D4), with exactly the keys its list accepts. */
@@ -255,10 +342,26 @@ function entryOf(list: ListName, entry: DraftEntry) {
   return { name: entry.name, type: entry.type, ...Object.fromEntries(keys) }
 }
 
-/** The body of `POST /api/suites` creating the suite `name` with `draft`'s entries (E10). */
+/**
+ * The body of `POST /api/suites` creating the suite `name` with `draft`'s entries and repository
+ * (E10).
+ */
 export function schemaOf(name: string, draft: Draft): Schemas['SuiteSchemaInput'] {
   const lists = LISTS.map((list) => [list, draft[list].map((entry) => entryOf(list, entry))])
-  return { name, ...Object.fromEntries(lists) } as Schemas['SuiteSchemaInput']
+  const repository = REPOSITORY_KEYS.map((key) => [key, sent(draft.repository[key])])
+  return {
+    name,
+    ...Object.fromEntries(lists),
+    repository: Object.fromEntries(repository),
+  } as Schemas['SuiteSchemaInput']
+}
+
+/** Whether a suite's `draft` holds anything the user entered: an entry, or a repository value. */
+export function hasContent(draft: Draft): boolean {
+  return (
+    LISTS.some((list) => draft[list].length > 0) ||
+    REPOSITORY_KEYS.some((key) => sent(draft.repository[key]) !== null)
+  )
 }
 
 /** The existing entries the user removed, with their list. */
@@ -269,25 +372,32 @@ export function removedEntries(draft: Draft): { list: ListName; name: string }[]
 }
 
 /**
- * Whether the user changed the key `key` of the existing entry `entry`, stored as `original`: a flag that differs from
- * the stored one, or a text that differs both as typed and as it would be sent, so that neither
- * text left untouched (a stored " Foo " shows as typed) nor text changed only around its ends
- * counts.
+ * Whether the user changed the text `text` of a value stored as `stored`: whether it differs both as
+ * typed and as it would be sent, so that neither text left untouched (a stored " Foo " shows as
+ * typed) nor text changed only around its ends counts.
  */
-function isChanged(entry: DraftEntry, original: AnyEntry, key: PresentationKey): boolean {
+function isChanged(text: string, stored: string | null): boolean {
+  return text !== (stored ?? '') && sent(text) !== stored
+}
+
+/**
+ * Whether the user changed the key `key` of the existing entry `entry`, stored as `original`: a
+ * flag that differs from the stored one, or a text that `isChanged`.
+ */
+function isEntryChanged(entry: DraftEntry, original: AnyEntry, key: PresentationKey): boolean {
   const stored = original[key] ?? null
   if (!isTextKey(key)) return entry[key] !== stored
-  return entry[key] !== (stored ?? '') && valueOf(entry, key) !== stored
+  return isChanged(entry[key], stored as string | null)
 }
 
 /**
  * The body of `PATCH /api/suites/{name}/schema` making the changes in `draft` (E10): an entry added
- * in full, an existing one updated with only the keys the user changed, and a removed one by its
- * name. It says nothing of what the user left alone, so that saving does not undo changes others
+ * in full, an existing one updated with only the keys the user changed, a removed one by its name,
+ * and the repository with only the keys the user changed. It says nothing of what the user left alone, so that saving does not undo changes others
  * made since the editor opened (TS7). Empty when the user changed nothing.
  */
 export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
-  const patch: Record<string, Record<string, unknown[]>> = {}
+  const patch: Record<string, Record<string, unknown>> = {}
   for (const list of LISTS) {
     const add = []
     const update = []
@@ -297,7 +407,7 @@ export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
       if (original === null) add.push(entryOf(list, entry))
       else if (entry.removed) remove.push(entry.name)
       else {
-        const changed = LIST_INFO[list].keys.filter((key) => isChanged(entry, original, key))
+        const changed = LIST_INFO[list].keys.filter((key) => isEntryChanged(entry, original, key))
         if (changed.length > 0) {
           const values = changed.map((key) => [key, valueOf(entry, key)])
           update.push({ name: entry.name, ...Object.fromEntries(values) })
@@ -306,6 +416,14 @@ export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
     }
     const operations = Object.entries({ add, update, remove }).filter(([, items]) => items.length)
     if (operations.length > 0) patch[list] = Object.fromEntries(operations)
+  }
+  const { repository } = draft
+  const { original } = repository
+  if (original !== null) {
+    const changed = REPOSITORY_KEYS.filter((key) => isChanged(repository[key], original[key]))
+    if (changed.length > 0) {
+      patch.repository = Object.fromEntries(changed.map((key) => [key, sent(repository[key])]))
+    }
   }
   return patch as Schemas['SchemaPatch']
 }

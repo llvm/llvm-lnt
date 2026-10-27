@@ -335,6 +335,16 @@ describe('leaving the tab', () => {
     expect(unloadAsks()).toBe(true)
   })
 
+  it('has the browser ask before a reload once the repository changed', async () => {
+    await openEditor()
+    const label = screen.getByRole('textbox', { name: 'Label' })
+
+    typeInto(label, 'GitLab')
+    expect(unloadAsks()).toBe(true)
+    typeInto(label, ' GitHub ')
+    expect(unloadAsks()).toBe(false)
+  })
+
   it('asks nothing without changes, or once they are undone', async () => {
     mockRuns(() => cursorPage([]))
     await openEditor()
@@ -411,6 +421,53 @@ describe('editing', () => {
     )
     expect(saveButton()).toBeDisabled()
     expect(saveButton()).toHaveAccessibleDescription('Correct the names marked in red first.')
+  })
+})
+
+describe('the repository', () => {
+  it('starts as stored, its URLs checked only once changed', async () => {
+    // Stored by a server that accepted it, which this editor would not.
+    const odd = { ...SUITE.repository, commit_url: 'https://{commit}' }
+    signIn('manage')
+    const store = mockSuites([{ ...SUITE, repository: odd }])
+    mockFresh(store)
+    renderPage('/suites/libcxx?tab=schema')
+    await waitFor(() => expect(editButton()).toBeEnabled())
+    fireEvent.click(editButton())
+    const url = await screen.findByRole('textbox', { name: 'Commit URL' })
+
+    expect(url).toHaveValue('https://{commit}')
+    expect(url).not.toHaveAttribute('aria-invalid')
+    expect(saveButton()).toBeEnabled()
+
+    typeInto(url, 'https://{commit}/')
+    expect(url).toHaveAttribute('aria-invalid', 'true')
+    expect(saveButton()).toHaveAccessibleDescription(
+      'Correct the repository URLs marked in red first.',
+    )
+  })
+
+  it('sends only the keys changed, then shows the repository saved', async () => {
+    const store = await openEditor()
+    const sent = mockPatch(store, (schema) => ({
+      ...schema,
+      repository: { ...schema.repository, label: null, range_url: 'https://example.com/{from}/{to}' },
+    }))
+
+    typeInto(screen.getByRole('textbox', { name: 'Label' }), '  ')
+    typeInto(screen.getByRole('textbox', { name: 'Range URL' }), 'https://example.com/{from}/{to}')
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(editor()).not.toBeInTheDocument())
+    expect(sent).toEqual([
+      {
+        body: { repository: { label: null, range_url: 'https://example.com/{from}/{to}' } },
+        confirm: null,
+      },
+    ])
+    expect(screen.getByRole('group', { name: 'Repository' })).toHaveTextContent(
+      `Label--Commit URL${SUITE.repository.commit_url}Range URLhttps://example.com/{from}/{to}`,
+    )
   })
 })
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { SUITE } from '../../../test/fixtures'
+import URL_TEMPLATES from '../../../test/url-templates.json'
+import { BARE_SUITE, NO_REPOSITORY, SUITE } from '../../../test/fixtures'
 import {
   addEntry,
   changeEntry,
+  changeRepository,
   copyOf,
   draftOf,
   EMPTY_DRAFT,
@@ -13,8 +15,10 @@ import {
   restoreEntry,
   nameProblems,
   removeEntry,
+  repositoryProblems,
   schemaOf,
   suiteNameProblem,
+  templateProblem,
   type Draft,
 } from './schema-editor-model'
 import { type ListName } from './schema-lists'
@@ -262,6 +266,7 @@ describe('copyOf and schemaOf', () => {
       machine_fields: [
         { name: 'x', type: 'text', display_name: null, searchable: false, listed: false },
       ],
+      repository: NO_REPOSITORY,
     })
   })
 
@@ -285,7 +290,14 @@ describe('copyOf and schemaOf', () => {
       metrics: [],
       commit_fields: [],
       machine_fields: [],
+      repository: NO_REPOSITORY,
     })
+  })
+
+  it('send the repository without surrounding whitespace, and only whitespace as null', () => {
+    let draft = changeRepository(EMPTY_DRAFT, 'label', ' GitHub ')
+    draft = changeRepository(draft, 'commit_url', '  ')
+    expect(schemaOf('new', draft).repository).toEqual({ ...NO_REPOSITORY, label: 'GitHub' })
   })
 })
 
@@ -383,5 +395,88 @@ describe('patchOf', () => {
         remove: ['svn_revision'],
       },
     })
+  })
+})
+
+describe('patchOf, for the repository', () => {
+  it('leaves the repository out while none of its keys changes', () => {
+    const spaced = { ...SUITE, repository: { ...SUITE.repository, label: ' GitHub ' } }
+    expect(patchOf(draftOf(spaced))).toEqual({})
+    // The label sent as it is stored, once trimmed, is not a change either.
+    expect(patchOf(changeRepository(draftOf(SUITE), 'label', 'GitHub '))).toEqual({})
+    expect(patchOf(changeRepository(draftOf(BARE_SUITE), 'range_url', '  '))).toEqual({})
+  })
+
+  it('sends only the keys changed, text trimmed, and an emptied one as null', () => {
+    let draft = changeRepository(draftOf(SUITE), 'label', ' GitLab ')
+    draft = changeRepository(draft, 'range_url', '')
+    expect(patchOf(draft)).toEqual({ repository: { label: 'GitLab', range_url: null } })
+  })
+})
+
+describe('copyOf and draftOf, for the repository', () => {
+  it('copy the repository as new values, which creating a suite checks in full', () => {
+    const copy = copyOf({
+      ...SUITE,
+      repository: { ...SUITE.repository, commit_url: 'https://{commit}' },
+    })
+    expect(copy.repository.original).toBeNull()
+    expect(repositoryProblems(copy.repository).get('commit_url')).toBe(
+      'A URL names its host as it is, without a placeholder.',
+    )
+  })
+
+  it("keep the stored repository, whose URLs are checked only once changed", () => {
+    // Stored by a server that accepted it, which this editor would not.
+    const draft = draftOf({
+      ...SUITE,
+      repository: { ...SUITE.repository, commit_url: 'https://{commit}' },
+    })
+    expect(draft.repository.original?.commit_url).toBe('https://{commit}')
+    expect(repositoryProblems(draft.repository).size).toBe(0)
+    expect(draftProblem(draft)).toBeUndefined()
+
+    const changed = changeRepository(draft, 'commit_url', 'https://{commit}/')
+    expect(repositoryProblems(changed.repository).get('commit_url')).toBeDefined()
+    expect(draftProblem(changed)).toBe('Correct the repository URLs marked in red first.')
+  })
+})
+
+describe('templateProblem', () => {
+  // The cases the server's tests check its own rules against, so that the two agree.
+  for (const key of ['commit_url', 'range_url'] as const) {
+    it(`accepts and refuses the ${key} templates the server does`, () => {
+      for (const template of URL_TEMPLATES[key].valid) {
+        expect(templateProblem(key, template), template).toBeUndefined()
+      }
+      for (const template of URL_TEMPLATES[key].invalid) {
+        expect(templateProblem(key, template), template).toBeDefined()
+      }
+    })
+  }
+
+  it('says why', () => {
+    const problems = {
+      'https://example.com/{commit} ': 'A URL cannot contain spaces or ASCII control characters.',
+      'ftp://example.com/{commit}': 'A URL starts with http:// or https://.',
+      'https://example.com/{sha}': '{sha} is not a placeholder this URL accepts, only {commit}.',
+      'https://example.com/{{commit}}':
+        'This URL cannot contain braces other than those of {commit}.',
+      'https://example.com/': 'This URL must contain {commit}.',
+      'https:///{commit}': 'A URL names a host after http:// or https://.',
+      'https://github.com.{commit}/': 'A URL names its host as it is, without a placeholder.',
+    }
+    for (const [template, problem] of Object.entries(problems)) {
+      expect(templateProblem('commit_url', template)).toBe(problem)
+    }
+    expect(templateProblem('range_url', 'https://example.com/{from}')).toBe(
+      'This URL must contain {from} and {to}.',
+    )
+  })
+
+  it('leaves an empty URL alone, which is sent as null', () => {
+    expect(repositoryProblems(changeRepository(EMPTY_DRAFT, 'commit_url', ' ').repository).size).toBe(
+      0,
+    )
   })
 })

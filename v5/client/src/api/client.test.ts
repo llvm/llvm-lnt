@@ -5,7 +5,13 @@ import { errorResponse, mockApi } from '../test/mock-api'
 import { server } from '../test/server'
 import { TOKEN, mockAuth, unknownToken } from '../test/auth'
 
-const SUITE = { name: 'nts', metrics: [], commit_fields: [], machine_fields: [] }
+const SUITE = {
+  name: 'nts',
+  metrics: [],
+  commit_fields: [],
+  machine_fields: [],
+  repository: { label: null, commit_url: null, range_url: null },
+}
 
 describe('unwrap', () => {
   it('returns the body of a successful response', async () => {

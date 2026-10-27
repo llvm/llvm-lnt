@@ -239,11 +239,11 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 ## AR11: Invalid Input
 
-An input whose text is invalid -- an invalid regex in a test filter, a name the
-schema editor rejects (TS7), an ordinal that is not an integer its column can
-hold (DT3), a machine name that I1 rejects or an empty one (DT1), or a field
-value that its type does not allow (DT1) -- shows a red halo (red border and
-glow) for as long as its text stays invalid.
+An input whose text is invalid -- an invalid regex in a test filter, a name or a
+repository URL the schema editor rejects (TS7), an ordinal that is not an
+integer its column can hold (DT3), a machine name that I1 rejects or an empty
+one (DT1), or a field value that its type does not allow (DT1) -- shows a red
+halo (red border and glow) for as long as its text stays invalid.
 
 
 ## AR12: Inline Editing
