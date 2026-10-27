@@ -661,7 +661,10 @@ describe('the Commits tab', () => {
   })
 
   it('links a listed value that is a URL, but not a display value, which names the commit', async () => {
-    mockSuites()
+    // The display field is listed too: its column shows it as a field's value.
+    mockSuites([
+      { ...SUITE, commit_fields: SUITE.commit_fields.map((field) => ({ ...field, listed: true })) },
+    ])
     const display = 'https://example.com/r591886'
     const info = 'https://example.com/r591886/message'
     mockCommits(() =>
@@ -670,10 +673,11 @@ describe('the Commits tab', () => {
     renderPage('/suites/libcxx?tab=commits')
 
     const commits = await table('Commits')
-    expect(within(commits).getByRole('link', { name: display })).toHaveAttribute(
-      'href',
+    const displayLinks = within(commits).getAllByRole('link', { name: display })
+    expect(displayLinks.map((link) => link.getAttribute('href'))).toEqual([
       '/suites/libcxx/commits/abc123',
-    )
+      display,
+    ])
     expect(within(commits).getByRole('link', { name: info })).toHaveAttribute('href', info)
   })
 

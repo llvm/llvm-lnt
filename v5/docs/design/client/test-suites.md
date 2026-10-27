@@ -75,9 +75,8 @@ macos-arm64-O3 [untracked]  Apple M4    macOS 26.5 (25F71)    Apple clang versio
 The `Name` is a clickable link to the machine detail page. It is followed by a
 column for each machine field the schema marks `listed: true` (see D4), in
 schema order, headed by the field's label (see AR6). A cell shows the machine's
-value for that field, as DT1 shows it, or `--` when it has none. A value longer
-than 50 characters is cut short, and shown whole on hover and to assistive
-technology.
+value for that field as DT1 shows it. A value longer than 50 characters is cut
+short, and shown whole on hover and to assistive technology.
 Every field, listed or not, is shown on the machine's detail page (see DT1).
 
 Machines with `tracked: false` carry a small grey `untracked` badge next to the name. All machines
@@ -108,9 +107,9 @@ etc...
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 - After `Tag`, a column for each commit field the schema marks `listed: true`
   (see D4), in schema order, headed by the field's label (see AR6). A cell shows
-  the commit's value for that field, as DT1 shows a machine's, or `--` when it
-  has none, cut short and shown whole on hover and to assistive technology when
-  longer than 50 characters.
+  the commit's value for that field as DT1 shows a machine's, cut short and
+  shown whole on hover and to assistive technology when longer than 50
+  characters.
 
 Above the table, a `Search commits...` box searches the commits by value, tag and searchable
 fields (see O4).

@@ -22,6 +22,7 @@ describe('LinkableText', () => {
     // Accepted by a browser, but AR6 asks for the slashes.
     'https:example.com',
     'http:/x',
+    'https://',
     'https://example.com/1 (fixed in r5)',
     'clang version 22.1.0 (https://github.com/llvm/llvm-project)',
     'PR1234',

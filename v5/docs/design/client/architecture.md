@@ -149,10 +149,10 @@ These hold on every page, unless the page specifies otherwise.
 - A regression's bug, and a machine or commit field's value where it is shown
   as such, are a link opening in a new tab when they are an `http` or `https`
   URL, and plain text otherwise, since the API stores any string. A value is
-  such a URL when, ignoring whitespace at either end, it begins with `http://`
-  or `https://`, in any case, and contains no whitespace: a URL within other
-  text is not one. The link leads to the value without that whitespace, even
-  where the value is cut short. A commit's display value, where it names the
+  such a URL when, ignoring whitespace at either end, it is `http://` or
+  `https://`, in any case, followed by at least one character, and contains no
+  whitespace: a URL within other text is not one. The link leads to the value
+  without that whitespace, even where the value is cut short. A commit's display value, where it names the
   commit, is not a field's value shown as such.
 
 

@@ -1,12 +1,12 @@
 import { VisuallyHidden } from 'react-aria-components'
 import { truncate } from '../format'
 
-/** A web URL as AR6 defines one, once trimmed: `http://` or `https://`, then no whitespace. */
-const WEB_URL = /^https?:\/\/\S*$/i
+/** A web URL as AR6 defines one, once trimmed: `http://` or `https://`, then non-whitespace. */
+const WEB_URL = /^https?:\/\/\S+$/i
 
 interface Props {
   text: string
-  /** Cut it to at most this many characters, showing it whole on hover and to assistive technology. */
+  /** Cut it to at most this many characters, whole on hover and to assistive technology. */
   max?: number
 }
 
