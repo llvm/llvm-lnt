@@ -121,11 +121,13 @@ invalid (see AR11):
   column holds too.
 - `real`: a finite number in decimal notation, optionally with an exponent
   (`1.5`, `-.5`, `2e-3`).
-- `datetime`: a date and time in ISO 8601 with an explicit offset, or `Z`
-  (`2026-08-25T14:22:41-04:00`). The input opens with the value in local time,
-  with the local offset. The text is saved as typed, for the API to read (see
-  D3): a date or time that does not exist is refused, and the input says so
-  (see AR12).
+- `datetime`: a date and time, `YYYY-MM-DD` and `HH:MM`, optionally with
+  seconds and a fraction of a second, separated by `T` or a space, and followed
+  by an offset in the form `±HH:MM`, or by `Z` (`2026-08-25T14:22:41-04:00`).
+  The input opens with the value in local time, with the offset local time has
+  at that instant. The text is sent as typed, once trimmed (see AR12), for the
+  API to read (see D3): a date or time that does not exist is refused, and the
+  input says so.
 
 ### Active regressions table
 

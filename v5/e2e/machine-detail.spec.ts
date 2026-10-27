@@ -209,6 +209,7 @@ test('its fields are edited by a holder of manage scope, and listed as changed',
     await hardware.fill('')
     await hardware.press('Control+Enter')
     await expect(hardware).toHaveCount(0)
+    await expect(info.locator('dt', { hasText: 'hardware' }).locator('+ dd')).toHaveText('--Edit')
     const cleared = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
     expect(cleared.fields.hardware).toBeNull()
   })

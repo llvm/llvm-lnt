@@ -24,6 +24,10 @@
   min-width: 0;
   max-height: var(--lnt-value-max-height);
   overflow: auto;
+  /* Room inside it for the focus ring of a link it holds, which it would otherwise clip, taken
+     back outside so that the value stays where it was. */
+  padding: 3px;
+  margin: -3px;
 }
 
 /* The input and its buttons, with the confirmation a save may ask for, and why a save failed, below

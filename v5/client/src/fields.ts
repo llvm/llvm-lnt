@@ -5,11 +5,12 @@
 
 import type { Schemas } from './api/client'
 import { isIntegerIn, localTimestampText, parseNumber } from './format'
+import type { FieldValue } from './schema'
 
 type AttributeType = Schemas['AttributeType']
 
-/** A field's value, as the API gives it and takes it (D3). */
-export type StoredValue = string | number
+/** A field's value, when it has one, as the API gives it and takes it (D3). */
+export type StoredValue = NonNullable<FieldValue>
 
 interface FieldEditing {
   /** The text the input opens with, for a field that has a value. */

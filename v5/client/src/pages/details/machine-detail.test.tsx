@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { useNavigate } from 'react-router'
 import { describe, expect, it } from 'vitest'
@@ -384,14 +385,14 @@ describe('the Machine Detail page', () => {
       renderMachine()
       await ready('Machine', () => editButton('os'))
 
-      fireEvent.click(editButton('os'))
+      const user = userEvent.setup()
+      await user.click(editButton('os'))
       const input = screen.getByRole('textbox', { name: 'os' })
-      expect(input.tagName).toBe('TEXTAREA')
-      typeInto(input, ' Ubuntu 24.04\nkernel 6.8 ')
-      // Enter starts a new line, and Ctrl+Enter saves.
-      fireEvent.keyDown(input, { key: 'Enter' })
+      // Enter starts a new line rather than saving, and Ctrl+Enter saves.
+      await user.type(input, ' Ubuntu 24.04{Enter}kernel 6.8 ')
+      expect(input).toHaveValue(' Ubuntu 24.04\nkernel 6.8 ')
       expect(sent).toEqual([])
-      fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+      await user.keyboard('{Control>}{Enter}{/Control}')
       await expectField(1, ['os', 'Ubuntu 24.04\nkernel 6.8Edit'])
 
       save('Hardware', '')

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   formatNumber,
   formatPercent,
@@ -49,6 +49,27 @@ describe('localTimestampText', () => {
 
   it('gives back text that is not a timestamp as it is', () => {
     expect(localTimestampText('yesterday')).toBe('yesterday')
+  })
+
+  describe('in other time zones', () => {
+    // Node reads the time zone again once `TZ` changes.
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it.each([
+      // The offset of the instant, not today's: daylight saving time comes and goes.
+      ['America/New_York', '2026-01-15T12:00:00Z', '2026-01-15T07:00:00-05:00'],
+      ['America/New_York', '2026-07-15T12:00:00Z', '2026-07-15T08:00:00-04:00'],
+      ['Asia/Kathmandu', '2026-07-15T12:00:00Z', '2026-07-15T17:45:00+05:45'],
+      ['America/St_Johns', '2026-07-15T12:00:00Z', '2026-07-15T09:30:00-02:30'],
+      // Local mean time, whose offset has seconds, which the text's cannot: the instant is kept.
+      ['America/New_York', '1800-01-01T00:00:00Z', '1799-12-31T19:04:00-04:56'],
+    ])('writes it in %s, for %s', (zone, iso, text) => {
+      vi.stubEnv('TZ', zone)
+      expect(localTimestampText(iso)).toBe(text)
+      expect(new Date(text).getTime()).toBe(new Date(iso).getTime())
+    })
   })
 })
 

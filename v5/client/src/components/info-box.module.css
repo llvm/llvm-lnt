@@ -19,13 +19,13 @@
   font-weight: 600;
 }
 
-/* A value can be long and span lines, such as a compiler's whole `--version` output. */
 .value {
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
+/* A value can be long and span lines, such as a run parameter holding a whole command line. */
 .scroll {
   max-height: var(--lnt-value-max-height);
   overflow: auto;

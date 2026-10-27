@@ -235,9 +235,9 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 An input whose text is invalid -- an invalid regex in a test filter, a name the
 schema editor rejects (TS7), an ordinal that is not an integer its column can
-hold (DT3), a machine name that I1 rejects, or an empty one (DT1), a field value
-that its type does not allow (DT1) -- shows a red halo (red border and glow) for
-as long as its text stays invalid.
+hold (DT3), a machine name that I1 rejects or an empty one (DT1), or a field
+value that its type does not allow (DT1) -- shows a red halo (red border and
+glow) for as long as its text stays invalid.
 
 
 ## AR12: Inline Editing
@@ -352,7 +352,7 @@ confirmed: a run submission still sending the old value is refused (see O2), so
 the mismatch surfaces, unlike a rename, which silently splits a machine's runs.
 Clearing a value that a submitter sends lasts only until its next submission
 fills it in again. Removing indicators from a regression (DT4) is not confirmed
-at all: it destroys no measured data, and the indicators can be added again.
+either: it destroys no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry

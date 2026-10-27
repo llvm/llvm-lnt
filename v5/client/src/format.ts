@@ -37,15 +37,20 @@ export function formatTimestamp(iso: string): string {
  * some. Text that is not a timestamp is given back as it is.
  */
 export function localTimestampText(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  const day = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-  const ms = date.getMilliseconds()
+  const instant = new Date(iso)
+  if (Number.isNaN(instant.getTime())) return iso
+  // `getTimezoneOffset` is how far UTC is ahead of local time, the opposite of an ISO offset. The
+  // local time is the instant moved by that offset, rather than what the local getters give: the
+  // offset is a whole number of minutes, whereas they keep the seconds of an older offset, such as
+  // a local mean time's (`-04:56:02` in New York until 1883).
+  const offset = -instant.getTimezoneOffset()
+  const date = new Date(instant.getTime() + offset * 60_000)
+  const year = pad(date.getUTCFullYear(), 4)
+  const day = `${year}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
+  const ms = date.getUTCMilliseconds()
   const time =
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}` +
     (ms === 0 ? '' : `.${pad(ms, 3)}`)
-  // `getTimezoneOffset` is how far UTC is ahead of local time, the opposite of an ISO offset.
-  const offset = -date.getTimezoneOffset()
   const sign = offset < 0 ? '-' : '+'
   const zone = `${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`
   return `${day}T${time}${zone}`
