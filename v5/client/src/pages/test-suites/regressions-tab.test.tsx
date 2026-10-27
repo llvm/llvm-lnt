@@ -78,16 +78,19 @@ describe('the Regressions tab', () => {
           bug: 'https://github.com/llvm/llvm-project/issues/1234',
         }),
         regression('b', { title: null, state: 'not_to_be_fixed', bug: 'PR1234' }),
+        regression('c', { title: 'No bug yet' }),
       ]),
     )
 
     const list = await table('Regressions')
     await waitFor(() =>
       expect(rowsOf(list)).toEqual([
+        // The bug, cut short, then whole for assistive technology.
         'aaaaaaaa… | find_if slowdown | active | r100 (v1) | 2 | 12 | 2026-08-31, 3:03:36 PM | ' +
-          'https://github.com/llvm/llvm-project/issues/1234 | Delete',
+          'https://github.com/llvm/llvm-…https://github.com/llvm/llvm-project/issues/1234 | Delete',
         'bbbbbbbb… | (untitled) | not to be fixed | -- | 0 | 0 | 2026-08-31, 3:03:36 PM | ' +
           'PR1234 | Delete',
+        'cccccccc… | No bug yet | detected | -- | 0 | 0 | 2026-08-31, 3:03:36 PM | -- | Delete',
       ]),
     )
     expect(Object.fromEntries(regressions[0])).toEqual({ sort: '-created_at', limit: '25' })
@@ -101,8 +104,11 @@ describe('the Regressions tab', () => {
       'href',
       '/suites/libcxx/commits/abc123',
     )
-    const bug = within(list).getByRole('link', { name: /issues\/1234/ })
+    const url = 'https://github.com/llvm/llvm-project/issues/1234'
+    const bug = within(list).getByRole('link', { name: url })
+    expect(bug).toHaveAttribute('href', url)
     expect(bug).toHaveAttribute('target', '_blank')
+    expect(within(bug).getByTitle(url)).toHaveAttribute('aria-hidden', 'true')
     // A bug that is not a web URL is shown, not linked.
     expect(within(list).queryByRole('link', { name: 'PR1234' })).toBeNull()
   })

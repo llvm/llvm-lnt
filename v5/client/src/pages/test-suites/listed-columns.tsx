@@ -1,7 +1,6 @@
-import { VisuallyHidden } from 'react-aria-components'
 import type { SuiteSchema } from '../../api/suites'
 import type { Column } from '../../components/data-table'
-import { truncate } from '../../format'
+import { LinkableText } from '../../components/linkable-text'
 import { formatFieldValue, isNumeric, labelOf, type FieldValue } from '../../schema'
 
 type Field = SuiteSchema['commit_fields' | 'machine_fields'][number]
@@ -11,8 +10,7 @@ const VALUE_LENGTH = 50
 
 /**
  * A column for each of `fields` the schema marks `listed`, in schema order, headed by its label
- * and showing a row's value for it. A long one is cut short, and whole on hover and to assistive
- * technology, which reads it in place of the cut one (TS3, TS4).
+ * and showing a row's value for it, cut short when long (TS3, TS4).
  */
 export function listedColumns<Row extends { fields: Record<string, FieldValue> }>(
   fields: readonly Field[],
@@ -23,18 +21,11 @@ export function listedColumns<Row extends { fields: Record<string, FieldValue> }
       id: `field:${field.name}`,
       header: labelOf(field),
       looks: isNumeric(field) ? ['numeric'] : undefined,
-      cell: (row) => {
-        const value = formatFieldValue(row.fields[field.name], field.type)
-        const shown = truncate(value, VALUE_LENGTH)
-        if (shown === value) return value
-        return (
-          <>
-            <span title={value} aria-hidden="true">
-              {shown}
-            </span>
-            <VisuallyHidden elementType="span">{value}</VisuallyHidden>
-          </>
-        )
-      },
+      cell: (row) => (
+        <LinkableText
+          text={formatFieldValue(row.fields[field.name], field.type)}
+          max={VALUE_LENGTH}
+        />
+      ),
     }))
 }

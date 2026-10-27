@@ -8,12 +8,12 @@ import {
 } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
-import { BugLink } from '../../components/bug-link'
 import { CommitLink } from '../../components/commit-link'
 import { CommitPicker, UNPICKED_COMMIT } from '../../components/commit-picker'
 import { ErrorMessage, Loaded } from '../../components/feedback'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
+import { LinkableText } from '../../components/linkable-text'
 import { StateBadge } from '../../components/regression-state'
 import { Select } from '../../components/select'
 import { WithSchema } from '../../components/with-schema'
@@ -109,7 +109,7 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
         <InlineEdit
           label="Bug"
           value={regression.bug}
-          display={(bug) => <BugLink bug={bug} />}
+          display={(bug) => <LinkableText text={bug} />}
           gate={triage}
           maxLength={TEXT_LENGTH}
           onSave={(bug) => update({ bug })}

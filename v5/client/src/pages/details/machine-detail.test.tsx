@@ -352,6 +352,30 @@ describe('the Machine Detail page', () => {
       renderPage(PAGE)
     }
 
+    it('show a value that is a URL as a link opening in a new tab, beside its Edit button', async () => {
+      const url = 'https://example.com/hardware/epyc'
+      const embedded = 'Linux (https://example.com/os)'
+      mockPage({
+        machine: () =>
+          HttpResponse.json(
+            machine(NAME, { fields: { hardware: `${url}\n`, os: embedded, core_count: 64 } }),
+          ),
+      })
+      renderPage(PAGE)
+
+      expect(await fieldRows()).toEqual([
+        ['Hardware', `${url}\nEdit`],
+        ['os', `${embedded}Edit`],
+        ['Cores', '64Edit'],
+      ])
+      const box = screen.getByRole('group', { name: 'Machine' })
+      const link = within(box).getByRole('link', { name: url })
+      expect(link).toHaveAttribute('href', url)
+      expect(link).toHaveAttribute('target', '_blank')
+      // Only a value that is a URL as a whole is a link.
+      expect(within(box).getAllByRole('link')).toEqual([link])
+    })
+
     it('cannot be changed without manage scope', async () => {
       signIn('triage')
       renderMachine()

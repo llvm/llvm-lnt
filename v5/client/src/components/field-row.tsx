@@ -5,6 +5,7 @@ import { FIELD_EDITING, type StoredValue } from '../fields'
 import { formatFieldValue, labelOf, type FieldValue } from '../schema'
 import { InfoRow } from './info-box'
 import { InlineEdit } from './inline-edit'
+import { LinkableText } from './linkable-text'
 
 interface Props {
   /** The machine or commit field (D4). */
@@ -30,7 +31,7 @@ export function FieldRow({ field, value, gate, label, onSave }: Props) {
         label={labelOf(field)}
         value={value === null || value === undefined ? null : editing.text(value)}
         // The value as shown everywhere else, rather than the text it is edited as.
-        display={() => formatFieldValue(value, field.type)}
+        display={() => <LinkableText text={formatFieldValue(value, field.type)} />}
         gate={gate}
         invalid={editing.invalid}
         multiline={editing.multiline}

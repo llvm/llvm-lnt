@@ -146,8 +146,14 @@ These hold on every page, unless the page specifies otherwise.
   `-1.235e-4`). Zero is shown as `0`, without a sign.
 - Where space is short, a UUID is shortened to its first 8 characters.
 - A regression without a title is labelled `(untitled)`.
-- A regression's bug is a link opening in a new tab when it is an `http` or
-  `https` URL, and plain text otherwise, since the API stores any string.
+- A regression's bug, and a machine or commit field's value where it is shown
+  as such, are a link opening in a new tab when they are an `http` or `https`
+  URL, and plain text otherwise, since the API stores any string. A value is
+  such a URL when, ignoring whitespace at either end, it begins with `http://`
+  or `https://`, in any case, and contains no whitespace: a URL within other
+  text is not one. The link leads to the value without that whitespace, even
+  where the value is cut short. A commit's display value, where it names the
+  commit, is not a field's value shown as such.
 
 
 ## AR7: Paginated Tables and Fetch Errors
