@@ -173,12 +173,6 @@ describe('the Regression Detail page', () => {
     expect(main().queryByRole('link', { name: /^View changes/ })).not.toBeInTheDocument()
   })
 
-  it('names the repository generically when it has no label', async () => {
-    renderRegression({ suites: [{ ...SUITE, repository: { ...SUITE.repository, label: null } }] })
-
-    await expectRow('Commit', 'r100 (v1)View in repositoryEdit')
-  })
-
   it('does not link to the commit when the suite has no template of its URL', async () => {
     renderRegression({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
 

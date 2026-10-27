@@ -85,6 +85,8 @@ interface World {
   profilesAnswer?: (hex: string) => Response | undefined
   /** The commits without an ordinal: the others have their number, `c2` the ordinal 2. */
   adHoc?: string[]
+  /** The `svn_revision` of commits that have one, libcxx's display field, by commit string. */
+  revisions?: Record<string, string>
 }
 
 /** The hex a run's UUID is made of (see `uuidOf`). */
@@ -103,12 +105,16 @@ export function mockWorld({
   profiles = {},
   profilesAnswer,
   adHoc = [],
+  revisions = {},
 }: World = {}) {
   const sampled: string[] = []
   mockSuites(suites)
   mockMachines(() => ({ items: MACHINES.map((name) => machine(name)) }))
   const commitOf = (value: string) =>
-    commit(value, { ordinal: adHoc.includes(value) ? null : Number(value.slice(1)) })
+    commit(value, {
+      ordinal: adHoc.includes(value) ? null : Number(value.slice(1)),
+      fields: { svn_revision: revisions[value] ?? null, commit_info: null },
+    })
   mockResolve([...new Set(Object.keys(runs).map((key) => key.split('/')[1]))].map(commitOf))
   // The commits a machine has runs at, as a commit picker lists or looks them up (AR15).
   mockCommits((query) => {

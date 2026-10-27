@@ -313,7 +313,7 @@ other key is rejected with 400.
   for a commit string -- the commit's identity, not its display value (see D1).
 - `range_url` is a template of the URL of the changes between two commits, in
   which `{from}` stands for the commit string of the commit the changes start
-  from and `{to}` for that of the commit they end at. As in Git's `from..to`,
+  after and `{to}` for that of the commit they end at. As in Git's `from..to`,
   the changes of `from` are excluded and those of `to` are included. GitHub's
   `compare/{from}...{to}` fits, since on a linear history its three dots mean
   the same.

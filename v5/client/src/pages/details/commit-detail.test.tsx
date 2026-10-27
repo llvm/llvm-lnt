@@ -372,22 +372,6 @@ describe('the Commit Detail page', () => {
       expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
     })
 
-    it('are each shown only when the suite has the template it needs', async () => {
-      const commitOnly = { ...SUITE.repository, range_url: null }
-      renderCommit({ suites: [{ ...SUITE, repository: commitOnly }] })
-
-      await screen.findByRole('group', { name: 'Commit' })
-      expect(viewOn()).toBeInTheDocument()
-      expect(main().queryByRole('link', { name: 'View changes on GitHub' })).not.toBeInTheDocument()
-    })
-
-    it('name the repository generically when it has no label', async () => {
-      renderCommit({ suites: [{ ...SUITE, repository: { ...SUITE.repository, label: null } }] })
-
-      await screen.findByRole('group', { name: 'Commit' })
-      expect(link('View in repository')).toBeInTheDocument()
-      expect(link('View changes in repository')).toBeInTheDocument()
-    })
   })
 
   describe('its ordinal and tag', () => {

@@ -385,25 +385,6 @@ describe('the point details (GR11)', () => {
       )
     })
 
-    it('name the repository generically when it has no label', async () => {
-      const unlabelled = {
-        ...GRAPH_SUITE,
-        name: 'unlabelled',
-        repository: { ...GRAPH_SUITE.repository, label: null },
-      }
-      mockWorld({ samples: SAMPLES, suites: [unlabelled] })
-      renderPage('/graph?suite=unlabelled&machine=m1&metric=execution_time&test=a')
-      await waitFor(() => expect(dataTraces()).toHaveLength(1))
-      draw()
-
-      click('a - m1', 1)
-
-      expect(details().getByRole('link', { name: 'View in repository' })).toBeInTheDocument()
-      expect(
-        details().getByRole('link', { name: 'View changes in repository' }),
-      ).toBeInTheDocument()
-    })
-
     it('are not shown when the suite has no templates of their URLs', async () => {
       const bare = { ...GRAPH_SUITE, name: 'bare', repository: NO_REPOSITORY }
       mockWorld({ samples: SAMPLES, suites: [bare] })

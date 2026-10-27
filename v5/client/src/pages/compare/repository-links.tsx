@@ -44,9 +44,9 @@ function NamedCommitLink({ target }: { target: Named }) {
 }
 
 /**
- * "View changes on {label}" from side A's commit to side B's, always in that order, whichever is
- * older, below the sides (CP1): while both have a commit in the same suite, which has a template of
- * a range's URL.
+ * "View changes on {label}" from side A's commit to side B's, always in that order, even when B's
+ * is the older, below the sides (CP1): while both have a commit in the same suite, which has a
+ * template of a range's URL.
  */
 export function RangeLink({ a, b }: { a: Side; b: Side }) {
   const from = named(a)

@@ -367,8 +367,9 @@ COMMIT_URL = (
 )
 RANGE_URL = (
     "A template of the URL of the changes between two commits, in which `{from}` stands for the "
-    "commit they start from, whose changes are not included, and `{to}` for the one they end at, "
-    "whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. "
+    "commit the changes start after, whose own changes are excluded, and `{to}` for the commit "
+    "they end at, whose own changes are included, as in Git's `from..to`. It must contain both "
+    "`{from}` and `{to}`. "
     f"{TEMPLATE_RULES}"
 )
 REPOSITORY_LABEL = (

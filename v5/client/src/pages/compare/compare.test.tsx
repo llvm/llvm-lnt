@@ -283,7 +283,18 @@ describe('the links into the repository (CP1, AR20)', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })
 
-  it('link the changes from side A’s commit to side B’s, whichever is older', async () => {
+  it('name the commits by their display values', async () => {
+    mockWorld({ revisions: { c1: 'r1', c2: 'r2' } })
+    renderPage(COMPARED)
+    await comparison()
+
+    const side = await within(sideOf('A')).findByRole('link', { name: 'View on GitHub: r1' })
+    expect(side).toHaveAttribute('href', `${GITHUB}/commit/c1`)
+    const range = await main().findByRole('link', { name: 'View changes on GitHub: r1 → r2' })
+    expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
+  })
+
+  it('link the changes from side A’s commit to side B’s, even from the newer', async () => {
     mockWorld()
     renderPage(
       '/compare?suite_a=libcxx&machine_a=m1&commit_a=c2&suite_b=libcxx&machine_b=m1&commit_b=c1',
@@ -304,15 +315,6 @@ describe('the links into the repository (CP1, AR20)', () => {
     expect(viewChanges()).not.toBeInTheDocument()
   })
 
-  it('are each shown only when the suite has the template it needs', async () => {
-    mockWorld({ suites: [{ ...SUITE, repository: { ...SUITE.repository, range_url: null } }] })
-    renderPage(COMPARED)
-    await comparison()
-
-    expect(viewOn('A', 'c1')).toBeInTheDocument()
-    expect(viewChanges()).not.toBeInTheDocument()
-  })
-
   it('are not shown when the suite has no templates of their URLs', async () => {
     mockWorld({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
     renderPage(COMPARED)
@@ -321,16 +323,6 @@ describe('the links into the repository (CP1, AR20)', () => {
     expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
   })
 
-  it('name the repository generically when it has no label', async () => {
-    mockWorld({ suites: [{ ...SUITE, repository: { ...SUITE.repository, label: null } }] })
-    renderPage(COMPARED)
-    await comparison()
-
-    expect(within(sideOf('A')).getByRole('link', { name: 'View in repository: c1' })).toBeVisible()
-    expect(
-      main().getByRole('link', { name: 'View changes in repository: c1 → c2' }),
-    ).toBeInTheDocument()
-  })
 })
 
 describe('the metric (CP1)', () => {

@@ -77,7 +77,7 @@ listed.
 
 Below the two sides, "View changes on {label}" (see AR20) links the changes from
 side A's commit, which fills in `{from}`, to side B's, which fills in `{to}`,
-whichever is older. It names the two commits by their display values, as in
+even when B's is the older. It names the two commits by their display values, as in
 `View changes on GitHub: 0f985af790f8 → 014621ede7c1`. It is shown only while
 both sides have a commit in the same suite, since suites may have different
 templates. When it appears, it pushes what is below it down a line, as a side's

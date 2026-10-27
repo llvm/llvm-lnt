@@ -48,27 +48,21 @@ describe('templateProblem', () => {
 
 describe('fillTemplate', () => {
   it('replaces each placeholder with its value', () => {
-    expect(
-      fillTemplate('https://example.com/{from}...{to}', {
-        from: 'abc',
-        to: 'def',
-      }),
-    ).toBe('https://example.com/abc...def')
+    const values = { from: 'abc', to: 'def' }
+    expect(fillTemplate('https://example.com/{from}...{to}', values)).toBe(
+      'https://example.com/abc...def',
+    )
     // Whichever comes first.
-    expect(
-      fillTemplate('https://example.com/{to}/{from}', {
-        from: 'abc',
-        to: 'def',
-      }),
-    ).toBe('https://example.com/def/abc')
+    expect(fillTemplate('https://example.com/{to}/{from}', values)).toBe(
+      'https://example.com/def/abc',
+    )
   })
 
   it('replaces every occurrence of a placeholder', () => {
-    expect(
-      fillTemplate('https://example.com/c/{commit}?again={commit}#{commit}', {
-        commit: 'a b',
-      }),
-    ).toBe('https://example.com/c/a%20b?again=a%20b#a%20b')
+    const template = 'https://example.com/c/{commit}?again={commit}#{commit}'
+    expect(fillTemplate(template, { commit: 'a b' })).toBe(
+      'https://example.com/c/a%20b?again=a%20b#a%20b',
+    )
   })
 
   it("percent-encodes every character but an ASCII letter, a digit or one of -_.!~*'()", () => {
