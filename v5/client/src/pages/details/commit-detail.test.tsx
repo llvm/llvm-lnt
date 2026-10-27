@@ -6,7 +6,15 @@ import { withoutNeighbours } from '../../api/commits'
 import { INACTIVITY_HELP } from '../../inactivity'
 import type { SuiteSchema } from '../../api/suites'
 import { signIn, TOKEN } from '../../test/auth'
-import { commit, cursorPage, regression, run, SUITE, uuidOf } from '../../test/fixtures'
+import {
+  commit,
+  cursorPage,
+  NO_REPOSITORY,
+  regression,
+  run,
+  SUITE,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -143,7 +151,7 @@ describe('the Commit Detail page', () => {
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Commit: ${VALUE}`)
     expect(await infoRows('Commit')).toEqual([
-      ['Commit', VALUE],
+      ['Commit', `${VALUE}View on GitHub`],
       ['Ordinal', '100Edit'],
       ['Tag', 'v1Edit'],
       ['Delete after inactivity', inactivityCell('--')],
@@ -307,8 +315,78 @@ describe('the Commit Detail page', () => {
 
       await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/commits/prev99'))
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Commit: prev99')
-      await expectInfo(0, ['Commit', 'prev99'])
+      await expectInfo(0, ['Commit', 'prev99View on GitHub'])
       expect(screen.queryByRole('textbox', { name: 'Tag' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('its links into the repository', () => {
+    const viewOn = () => link('View on GitHub')
+    const viewChanges = () => link('View changes on GitHub')
+
+    it('lead to the commit, and to the changes since the previous one, in a new tab', async () => {
+      renderCommit()
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(viewOn()).toHaveAttribute(
+        'href',
+        `https://github.com/llvm/llvm-project/commit/${VALUE}`,
+      )
+      expect(viewChanges()).toHaveAttribute(
+        'href',
+        `https://github.com/llvm/llvm-project/compare/prev99...${VALUE}`,
+      )
+      for (const shown of [viewOn(), viewChanges()]) {
+        expect(shown).toHaveAttribute('target', '_blank')
+        expect(shown).toHaveAttribute('rel', 'noopener noreferrer')
+      }
+      // Beside the commit string, and among the navigation buttons.
+      expect(within(screen.getByRole('group', { name: 'Commit' })).getByRole('link')).toBe(viewOn())
+    })
+
+    it.each<[string, Partial<Schemas['CommitDetail']>, string]>([
+      ['the first commit', { previous: null }, 'No commit comes before this one.'],
+      [
+        'a commit with no ordinal',
+        { ordinal: null, previous: null, next: null },
+        'This commit has no ordinal.',
+      ],
+    ])('lead to no changes from %s, saying why', async (_, change, why) => {
+      renderCommit({ detail: () => HttpResponse.json({ ...DETAIL, ...change }) })
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(viewChanges()).toHaveAttribute('aria-disabled', 'true')
+      expect(viewChanges()).not.toHaveAttribute('href')
+      expect(viewChanges()).toHaveAccessibleDescription(why)
+      // A commit needs nothing but its commit string.
+      expect(viewOn()).toHaveAttribute(
+        'href',
+        `https://github.com/llvm/llvm-project/commit/${VALUE}`,
+      )
+    })
+
+    it('are not shown when the suite has no templates of their URLs', async () => {
+      renderCommit({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
+    })
+
+    it('are each shown only when the suite has the template it needs', async () => {
+      const commitOnly = { ...SUITE.repository, range_url: null }
+      renderCommit({ suites: [{ ...SUITE, repository: commitOnly }] })
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(viewOn()).toBeInTheDocument()
+      expect(main().queryByRole('link', { name: 'View changes on GitHub' })).not.toBeInTheDocument()
+    })
+
+    it('name the repository generically when it has no label', async () => {
+      renderCommit({ suites: [{ ...SUITE, repository: { ...SUITE.repository, label: null } }] })
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(link('View in repository')).toBeInTheDocument()
+      expect(link('View changes in repository')).toBeInTheDocument()
     })
   })
 

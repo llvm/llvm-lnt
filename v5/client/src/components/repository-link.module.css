@@ -1,0 +1,6 @@
+/* "View on {label}", in small type after the commit it links to, kept on one line (AR20). */
+.commit {
+  margin-left: var(--lnt-space-2);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}

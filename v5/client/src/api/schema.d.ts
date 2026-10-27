@@ -2405,7 +2405,7 @@ export interface components {
             commit_url: string | null;
             /**
              * Range Url
-             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the commit they start from, whose changes are not included, and `{to}` for the one they end at, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
              */
             range_url: string | null;
         };
@@ -2432,7 +2432,7 @@ export interface components {
             commit_url?: string | null;
             /**
              * Range Url
-             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the commit they start from, whose changes are not included, and `{to}` for the one they end at, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
              */
             range_url?: string | null;
         };
@@ -2453,7 +2453,7 @@ export interface components {
             commit_url?: string | null;
             /**
              * Range Url
-             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the commit they start from, whose changes are not included, and `{to}` for the one they end at, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
              */
             range_url?: string | null;
         };

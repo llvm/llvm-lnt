@@ -31,6 +31,12 @@
   cursor: pointer;
 }
 
+/* The link to the changes from side A's commit to side B's, between the sides and the settings. */
+.range {
+  margin: 0 0 var(--lnt-space-3);
+  font-size: 0.9rem;
+}
+
 /* A side's runs, each with its checkbox, kept within the side, which a fieldset is not by default. */
 .runs {
   min-width: 0;

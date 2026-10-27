@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PAGE_SIZE } from '../api/client'
 import { fetchCommitPage, type CommitFilters } from '../api/commits'
@@ -26,6 +26,8 @@ interface CommonProps {
   isReadOnly?: boolean
   /** See `Combobox`. */
   hideLabel?: boolean
+  /** See `Combobox`. */
+  labelAside?: ReactNode
   /** Called with whether the input holds text that is not a commit picked (see `Combobox`). */
   onPendingChange?: (pending: boolean) => void
   /**
@@ -96,6 +98,7 @@ export function CommitPicker({
   isDisabled = false,
   isReadOnly,
   hideLabel,
+  labelAside,
   onPendingChange,
   reportsLookupFailure = true,
 }: Props) {
@@ -165,6 +168,7 @@ export function CommitPicker({
         isDisabled={isDisabled}
         isReadOnly={isReadOnly}
         hideLabel={hideLabel}
+        labelAside={labelAside}
         onPendingChange={onPendingChange}
       />
       {failed && (

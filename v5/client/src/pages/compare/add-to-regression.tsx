@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import {
   addIndicators,
@@ -14,7 +14,7 @@ import {
 } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
-import { commitLookupQuery } from '../../components/commit-lookup'
+import { usePickedCommitText } from '../../components/commit-lookup'
 import { ErrorMessage } from '../../components/feedback'
 import { pendingGuard } from '../../components/pending-guard'
 import {
@@ -247,13 +247,13 @@ interface SummaryProps {
  * by its display value once known, which its picker has looked up already (AR15).
  */
 function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryProps) {
-  const lookup = useQuery(commitLookupQuery(schema, { machine }, commit))
+  const shown = usePickedCommitText(schema, { machine }, commit)
   const rows: [string, string][] = [
     ['Covers', plural(tests, 'selected test')],
     ['Test Suite', schema.name],
     ['Metric', metric],
     ['Machine', machine],
-    ['Commit', lookup.data?.text ?? commit],
+    ['Commit', shown],
   ]
   return (
     <div className={styles.regressionSummary}>

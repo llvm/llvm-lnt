@@ -15,6 +15,7 @@ import { ButtonLink } from '../../components/button-link'
 import { ChartDialog, type Anchor } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
 import { ErrorMessage } from '../../components/feedback'
+import { CommitRepositoryLink, RangeRepositoryLink } from '../../components/repository-link'
 import { RunSamplesTable, type RunSamples } from '../../components/run-samples-table'
 import { plural, shortUuid } from '../../format'
 import { commitPath, comparePath, machinePath, regressionPath } from '../../paths'
@@ -53,10 +54,14 @@ interface Props {
   onClose(): void
 }
 
+/** Why there is no point before this one to compare it with. */
+const FIRST_POINT = 'This is the first point of its trace.'
+
 /**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
- * value, its runs with their samples, a comparison with the point before it, a way to highlight
- * its commit, a way to add it as a baseline, and a way to create a regression from it.
+ * value, its runs with their samples, a comparison with the point before it and the changes since
+ * it in the repository, a way to highlight its commit, a way to add it as a baseline, and a way to
+ * create a regression from it.
  */
 export function PointDetails({
   schema,
@@ -106,6 +111,7 @@ export function PointDetails({
         <dt>Commit</dt>
         <dd>
           <Link to={commitPath(suite, point.commit)}>{display}</Link>
+          <CommitRepositoryLink repository={schema.repository} commit={point.commit} />
         </dd>
         <dt>Value</dt>
         <dd>
@@ -117,12 +123,15 @@ export function PointDetails({
         <RunSamplesTable label="Runs" suite={suite} metric={metric} runs={runs} />
       </div>
       <div className={dialog.actions}>
-        <ButtonLink
-          to={compare}
-          title={compare === null ? 'This is the first point of its trace.' : undefined}
-        >
+        <ButtonLink to={compare} title={compare === null ? FIRST_POINT : undefined}>
           Compare with previous commit
         </ButtonLink>
+        <RangeRepositoryLink
+          repository={schema.repository}
+          from={previous?.commit ?? null}
+          to={point.commit}
+          reason={FIRST_POINT}
+        />
         {/* Each toggle is the same button either way, so that it keeps the focus (GR11). */}
         <ActionButton reason={highlighted ? undefined : highlightsFull} onClick={onHighlight}>
           {highlighted ? 'Remove the highlight' : 'Highlight this commit'}

@@ -62,6 +62,12 @@ interface CommonProps {
   isClearable?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
+  /**
+   * What goes on the label's line, at its end, such as a link about the value: beside the label
+   * rather than in it, so that it is no part of the combobox's name, and clicking it does not focus
+   * the input. The line is there with or without it, so that nothing moves when it appears.
+   */
+  labelAside?: ReactNode
   /** Make the combobox fill the rest of its row, for text too long for the usual width. */
   fill?: boolean
   /**
@@ -140,6 +146,7 @@ export function Combobox({
   isReadOnly,
   isClearable = true,
   hideLabel,
+  labelAside,
   fill = false,
   onPendingChange,
   renderSuggestion,
@@ -218,7 +225,14 @@ export function Combobox({
       isDisabled={isDisabled}
       isReadOnly={isReadOnly}
     >
-      <FieldLabel label={label} hidden={hideLabel} />
+      {labelAside === undefined ? (
+        <FieldLabel label={label} hidden={hideLabel} />
+      ) : (
+        <div className={shared.labelLine}>
+          <FieldLabel label={label} hidden={hideLabel} />
+          {labelAside}
+        </div>
+      )}
       <Field query={query} suggestions={suggestions} pick={pick} closeListRef={closeListRef}>
         <div className={styles.inputBox}>
           <Input

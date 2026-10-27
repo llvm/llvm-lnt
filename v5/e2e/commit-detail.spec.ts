@@ -82,6 +82,36 @@ test('shows the commit, its neighbours and its runs, filtered by machine', async
   expect(query.get('machine_a')).toBe(LINUX)
 })
 
+test('links the commit, and the changes since the previous one, on GitHub', async ({
+  page,
+  request,
+}) => {
+  const commit = await taggedCommit(request)
+  const detail = await json<Schemas['CommitDetail']>(
+    request,
+    `/api/suites/libcxx/commits/${commit.value}`,
+  )
+  await page.goto(`/suites/libcxx/commits/${commit.value}`)
+
+  // The seeded libcxx suite's repository is llvm-project, on GitHub.
+  const github = 'https://github.com/llvm/llvm-project'
+  const viewOn = link(page, 'View on GitHub')
+  await expect(viewOn).toHaveAttribute('href', `${github}/commit/${commit.value}`)
+  await expect(viewOn).toHaveAttribute('target', '_blank')
+  await expect(link(page, 'View changes on GitHub')).toHaveAttribute(
+    'href',
+    `${github}/compare/${detail.previous!.value}...${commit.value}`,
+  )
+})
+
+test('has no links into a repository the suite does not name', async ({ page, request }) => {
+  const commits = await json<Schemas['CommitCursorPage']>(request, '/api/suites/nts/commits')
+  await page.goto(`/suites/nts/commits/${commits.items[0].value}`)
+
+  await expect(link(page, '← Previous commit')).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link', { name: /^View/ })).toHaveCount(0)
+})
+
 test('lists the regressions attributed to the commit', async ({ page, request }) => {
   const regression = await json<Schemas['RegressionDetail']>(
     request,
@@ -98,10 +128,15 @@ test('lists the regressions attributed to the commit', async ({ page, request })
 test('has no neighbours, nor previous commits, for a commit with no ordinal', async ({ page }) => {
   await page.goto(`/suites/libcxx/commits/${EXPERIMENT}`)
 
-  for (const name of ['← Previous commit', 'Next commit →']) {
+  for (const name of ['← Previous commit', 'Next commit →', 'View changes on GitHub']) {
     await expect(link(page, name)).toHaveAttribute('aria-disabled', 'true')
     await expect(link(page, name)).toHaveAttribute('title', 'This commit has no ordinal.')
   }
+  // Its commit string is all it takes to link it.
+  await expect(link(page, 'View on GitHub')).toHaveAttribute(
+    'href',
+    `https://github.com/llvm/llvm-project/commit/${EXPERIMENT}`,
+  )
   const runs = table(page, 'Runs')
   const compare = rows(runs).first().getByRole('link', { name: 'Compare with previous' })
   await expect(compare).toHaveAttribute('title', 'This commit has no ordinal.')

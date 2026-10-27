@@ -4,6 +4,7 @@
  */
 
 import type { Schemas } from '../../../api/client'
+import { PLACEHOLDERS, type Repository, type UrlKey } from '../../../repository'
 import { NUMERIC_TYPES } from '../../../schema'
 
 export type ListName = 'metrics' | 'commit_fields' | 'machine_fields'
@@ -107,9 +108,7 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
   },
 }
 
-export type Repository = Schemas['Repository']
 export type RepositoryKey = keyof Repository
-export type UrlKey = Exclude<RepositoryKey, 'label'>
 
 /** The repository's keys, in the order a schema has them. */
 export const REPOSITORY_KEYS: readonly RepositoryKey[] = ['label', 'commit_url', 'range_url']
@@ -121,14 +120,8 @@ export const REPOSITORY_HEADERS: Record<RepositoryKey, string> = {
   range_url: 'Range URL',
 }
 
-/** The repository's URL templates. */
-export const URL_KEYS: readonly UrlKey[] = ['commit_url', 'range_url']
-
-/** The placeholders each URL template accepts, and requires (D4). */
-export const PLACEHOLDERS: Record<UrlKey, readonly string[]> = {
-  commit_url: ['commit'],
-  range_url: ['from', 'to'],
-}
+/** The repository's URL templates, in the order a schema has them. */
+export const URL_KEYS = Object.keys(PLACEHOLDERS) as readonly UrlKey[]
 
 export function isUrlKey(key: RepositoryKey): key is UrlKey {
   return (URL_KEYS as readonly string[]).includes(key)

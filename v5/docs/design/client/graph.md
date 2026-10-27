@@ -304,7 +304,8 @@ hidden until the pointer moves again. It shows:
 
 - the test name;
 - the machine, linking to its Machine Detail page;
-- the commit, linking to its Commit Detail page;
+- the commit, linking to its Commit Detail page, followed by "View on {label}"
+  (see AR20);
 - the point's value and run count;
 - the point's runs, in the order they were measured, each with its measurement
   time, its shortened UUID linking to its Run Detail page, and the values of its
@@ -319,6 +320,10 @@ hidden until the pointer moves again. It shows:
   the x-axis where this trace has a value, so that unlike the previous commit of
   Run Detail's "Compare with previous commit" (DT2), it always has data for the
   test. The link is disabled (see AR8) at the first point of a trace.
+- "View changes on {label}" (see AR20): a link to the changes between the two
+  commits that "Compare with previous commit" compares, the previous point's
+  filling in `{from}` and this point's `{to}`. Like that link, it is disabled
+  at the first point of a trace.
 - "Highlight this commit": a button that adds the point's commit to the
   highlighted commits (GR16). It is disabled, with the reason, when the maximum
   number of commits is already highlighted. When the point's commit is already

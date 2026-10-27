@@ -253,16 +253,16 @@ libcxx › Commits
 
 # Commit: 014621ede7c175aece29796adcaf5000f891cf0c
 
-+-------------------------------------------------------------------+
-| Commit                  014621ede7c175aece29796adcaf5000f891cf0c  |
-| Ordinal                 593922    [Edit]                          |
-| Tag                     --        [Edit]                          |
-| Delete after inactivity --        [Edit]                          |
-| svn_revision [display]  r593922   [Edit]                          |
-| <other commit-fields>                                             |
-+-------------------------------------------------------------------+
++----------------------------------------------------------------------------------+
+| Commit                  014621ede7c175aece29796adcaf5000f891cf0c  View on GitHub |
+| Ordinal                 593922    [Edit]                                         |
+| Tag                     --        [Edit]                                         |
+| Delete after inactivity --        [Edit]                                         |
+| svn_revision [display]  r593922   [Edit]                                         |
+| <other commit-fields>                                                            |
++----------------------------------------------------------------------------------+
 
-[<- Previous commit] [Next commit ->] [Delete commit]
+[<- Previous commit] [Next commit ->] [View changes on GitHub] [Delete commit]
 
 ## Regressions
 
@@ -303,11 +303,17 @@ set and the commit has an ordinal, the row says after the number of days that it
 effect (see O10). It can still be edited, since it takes effect again if the ordinal is
 cleared.
 
+The `Commit` row follows the commit string with "View on {label}" (see AR20).
+
 ### Navigation
 
 Previous / next buttons allow navigating to the previous or next commit based on ordinals.
 Each is greyed out when there is no such commit: when the commit has no ordinal, and at
 either end of the ordered range.
+
+"View changes on {label}" (see AR20) follows them, linking the changes from the previous commit,
+which fills in `{from}`, to this one, which fills in `{to}`. Like Previous, it is greyed out,
+saying why, when there is no previous commit.
 
 ### Delete commit
 
@@ -355,7 +361,7 @@ libcxx › Regressions
 | Title      find_if slowdown                          [Edit]   |
 | State      (active) [active v]                                |
 | Bug        https://github.com/llvm/llvm-project/...  [Edit]   |
-| Commit     014621ede7c1                              [Edit]   |
+| Commit     014621ede7c1  View on GitHub              [Edit]   |
 | Created    2026-08-31, 3:03:36 PM                             |
 | Notes      Bisected to the vectorizer change.        [Edit]   |
 +---------------------------------------------------------------+
@@ -400,9 +406,11 @@ included.
   their line breaks.
 - State shows the state's colored badge, then a dropdown listing every state.
   Picking a state saves it (see AR13).
-- Commit links to the commit's detail page, showing its display value. It is
-  edited in place with a commit picker that offers every commit of the suite
-  (see AR15). Emptying the picker clears the regression's commit.
+- Commit links to the commit's detail page, showing its display value, followed
+  by "View on {label}" (see AR20), which links the commit itself rather than the
+  changes leading to it. It is edited in place with a commit picker that offers
+  every commit of the suite (see AR15). Emptying the picker clears the
+  regression's commit.
 
 ### Delete regression
 

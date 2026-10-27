@@ -18,6 +18,7 @@ import { useMetric } from './metrics'
 import { CompareChart } from './compare-chart'
 import { CompareTable } from './compare-table'
 import { NoiseControls } from './noise-controls'
+import { RangeLink } from './repository-links'
 import { NOISE_PARAMS, noiseSettings, PARAMS } from './settings'
 import { useShadowLines, useShadows } from './shadows'
 import { ShadowStatus } from './shadow-status'
@@ -113,6 +114,7 @@ function ComparePage() {
           }
         />
       </div>
+      <RangeLink a={a} b={b} />
       <ControlsPanel>
         <div className={styles.settings}>
           {!noSchema && offered.length === 0 ? (
