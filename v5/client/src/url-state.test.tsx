@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { api, unwrap } from './api/client'
+import { BARE_SUITE } from './test/fixtures'
 import { errorResponse, mockApi } from './test/mock-api'
 import { providers } from './test/render'
 import { server } from './test/server'
@@ -317,7 +318,7 @@ describe('useDropUnusable', () => {
     return result
   }
 
-  const suite = (name: string) => ({ name, metrics: [], commit_fields: [], machine_fields: [] })
+  const suite = (name: string) => ({ ...BARE_SUITE, name })
 
   it('drops a value once a response shows it is unusable', async () => {
     server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: [suite('nts')] })))

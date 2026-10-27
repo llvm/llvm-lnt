@@ -198,6 +198,13 @@ os                text        --                        Yes           Yes
 compiler          text        --                        No            No
 etc...
 
+
+Repository (subtitle font)
+
+Label         GitHub
+Commit URL    https://github.com/llvm/llvm-project/commit/{commit}
+Range URL     --
+
 [Edit schema] [Copy as JSON] [Download JSON]                            [Delete This Suite]
 ```
 
@@ -206,6 +213,9 @@ tables deliberately differ in their columns. Entries are shown by their `name`, 
 `display_name` in a column of its own; one that was not set shows `--` rather than
 repeating the name, matching what the API returns. `Unit` shows the metric's unit as AR6
 writes it, and `--` when it has neither a unit nor an abbreviation.
+
+"Repository" shows each key of the schema's `repository` (see D4), `--` when it is not set.
+The URL templates are shown as text, not as links: they are not URLs until filled in.
 
 "Edit schema" opens the schema editor (see TS7) on the suite; once the editor closes, the
 focus returns to "Edit schema". "Copy as JSON" and "Download
@@ -231,8 +241,8 @@ suite's schema, from its Schema tab (see TS6). It takes the place of what the ta
 whole content in the Admin page, and the schema viewer, buttons included, in the Schema tab.
 "Cancel" closes it and discards its changes, without asking, and the tab shows what it showed
 before again. Leaving the tab with unsaved changes asks first (see AR19): when editing a schema,
-the changes "Save" would send; when creating a suite, a suite name, any entry, or a document to
-import that is not blank.
+the changes "Save" would send; when creating a suite, a suite name, any entry, a repository value,
+or a document to import that is not blank.
 
 ```
 New suite    Suite name [________]    Start from [suite v]    [Import JSON]
@@ -255,6 +265,13 @@ commit_info       text        [              ]    [ ]           [ ]        [x]  
 Machine Fields
 ...
 
+Repository
+Label         [GitHub                                                    ]
+Commit URL    [https://github.com/llvm/llvm-project/commit/{commit}      ]
+              {commit} is replaced by the commit.
+Range URL     [                                                          ]
+              {from} and {to} are replaced by the older and the newer commit.
+
                                                                            [Cancel] [Create]
 
 Editing nts                                                                  [Cancel] [Save]
@@ -265,11 +282,12 @@ The editor's buttons are below the tables: "Cancel" and "Create" when creating a
 heading, "Cancel" and "Save" when editing one, where the viewer has its own buttons. The tables
 are the same in both modes.
 
-The editor shows the same entries and keys as the viewer, with an input for each value. Each
-table has a button to add an entry, and each entry a button (×) to remove it. An added entry
-goes at the end of its list, and entries cannot be reordered. The display name, unit and
-abbreviation are sent without whitespace at either end, and an input that is empty, or holds only
-whitespace, sets its key to `null` (see D2).
+The editor shows the same entries and keys as the viewer, with an input for each value, and the
+same repository keys, with an input for each. Each URL's input says which placeholders it
+accepts (see D4). Each table has a button to add an entry, and each entry a button (×) to remove
+it. An added entry goes at the end of its list, and entries cannot be reordered. The display name,
+unit and abbreviation, and the repository's keys, are sent without whitespace at either end, and
+an input that is empty, or holds only whitespace, sets its key to `null` (see D2).
 
 `searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
 metric (see D3): each is disabled for the other types, says why on hover, and is cleared when the
@@ -277,16 +295,19 @@ entry's type changes to one of them. Checking `display` on one commit field unch
 others, since at most one can have it.
 
 As the user types a name, the editor checks it against D4's rules for names, including the
-names that D5 reserves, and for uniqueness within its list. A name that fails shows the red
-halo (see AR11), and says why on hover. "Create" or "Save" is disabled while any name fails or is
-empty, and when disabled, says why on hover. The server validates everything else when the schema
-is submitted.
+names that D5 reserves, and for uniqueness within its list. Likewise, as the user changes a
+repository URL, the editor checks it, as it would be sent, against D4's rules for templates. A
+name or a URL that fails shows the red halo (see AR11), and says why on hover. "Create" or "Save"
+is disabled while any name or URL fails, or any name is empty, and when disabled, says why on
+hover. When editing a schema, a URL the user has not changed is not checked, so that a schema
+stored with one the editor would refuse can still be saved. The server validates everything else
+when the schema is submitted.
 
 **Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
 is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's entries with a copy of an existing suite's. It does not copy the suite's name. Until
-the existing suites have loaded, "Start from" is disabled, and so is "Create", saying why. If
-they cannot be loaded, the editor says so and offers to try again (see AR7).
+editor's entries and repository with a copy of an existing suite's. It does not copy the suite's
+name. Until the existing suites have loaded, "Start from" is disabled, and so is "Create", saying
+why. If they cannot be loaded, the editor says so and offers to try again (see AR7).
 
 "Create" creates the suite. On success, the page goes to the new suite's Schema tab
 (`/suites/{name}?tab=schema`), unless the user has left the tab meanwhile. If the name was
@@ -308,7 +329,8 @@ the reason given for refusing an added entry with that name is that an entry rem
 cannot be added again in the same edit.
 
 "Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
-the user changed, so that it does not overwrite changes made by others since the editor opened.
+the user changed, of the entries and of the repository alike, so that it does not overwrite changes
+made by others since the editor opened.
 When the user changed nothing, "Save" closes the editor without sending anything.
 If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR16),
 and the editor's contents cannot change until the user does, or cancels.

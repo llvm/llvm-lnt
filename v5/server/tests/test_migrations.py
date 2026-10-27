@@ -525,8 +525,7 @@ class TestFieldListed:
         upgrade_by_hand(empty_engine, "0005")
         store_schema_json(empty_engine, {"before": compact(_BEFORE_LISTED)})
 
-        # To the head, so that what is stored is what the latest build writes.
-        upgrade_to_head(empty_engine)
+        upgrade_by_hand(empty_engine, "0006")
 
         expected = copy.deepcopy(_BEFORE_LISTED)
         for field in expected["commit_fields"]:
@@ -534,10 +533,7 @@ class TestFieldListed:
         for field in expected["machine_fields"]:
             field["listed"] = True
         # Metrics are left as they were.
-        stored = stored_schema_json(empty_engine)["before"]
-        assert stored == compact(expected)
-        # Byte for byte what the server itself writes for that schema.
-        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+        assert stored_schema_json(empty_engine)["before"] == compact(expected)
 
     def test_bumps_the_schema_version_once_and_leaves_set_keys_alone(
         self, empty_engine: Engine
@@ -626,6 +622,99 @@ class TestFieldListed:
         downgrade_by_hand(empty_engine, "0005")
 
         assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_LISTED)}
+        # Once on the way up, and once on the way down.
+        assert schema_version_of(empty_engine) == 2
+
+
+# A schema stored by a build before suites had a repository, in the server's key order.
+_BEFORE_REPOSITORY: dict[str, Any] = {
+    "name": "before",
+    "metrics": [{**metric_0003("execution_time", "real"), "dashboard": True}],
+    "commit_fields": [commit_field_0005("sha", display_name="Shà", listed=False)],
+    "machine_fields": [{**machine_field_0005("os"), "listed": True}],
+}
+_NO_REPOSITORY = {"label": None, "commit_url": None, "range_url": None}
+
+
+class TestSchemaRepository:
+    """0007 gives every stored schema the `repository` block, with every key null, to keep stored
+    schemas normalized."""
+
+    def test_adds_the_block_and_nothing_else(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0006")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_REPOSITORY)})
+
+        # To the head, so that what is stored is what the latest build writes.
+        upgrade_to_head(empty_engine)
+
+        stored = stored_schema_json(empty_engine)["before"]
+        assert stored == compact({**_BEFORE_REPOSITORY, "repository": _NO_REPOSITORY})
+        # Byte for byte what the server itself writes for that schema.
+        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+
+    def test_bumps_the_schema_version_once_and_leaves_a_block_alone(
+        self, empty_engine: Engine
+    ) -> None:
+        already = compact({"name": "already", "repository": {"label": "GitHub"}})
+        upgrade_by_hand(empty_engine, "0006")
+        store_schema_json(
+            empty_engine,
+            {
+                "before": compact(_BEFORE_REPOSITORY),
+                "second": compact({**_BEFORE_REPOSITORY, "name": "second"}),
+                "already": already,
+            },
+        )
+
+        upgrade_by_hand(empty_engine, "0007")
+
+        # D2: like any other change to a stored schema, however many rows it rewrites.
+        assert schema_version_of(empty_engine) == 1
+        assert stored_schema_json(empty_engine)["already"] == already
+
+    def test_applying_it_again_changes_nothing(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0006")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_REPOSITORY)})
+        upgrade_by_hand(empty_engine, "0007")
+        stored = stored_schema_json(empty_engine)
+
+        # Recorded as not applied, so that the revision runs again on what it wrote.
+        with empty_engine.begin() as connection:
+            config = alembic_config()
+            config.attributes["connection"] = connection
+            command.stamp(config, "0006")
+        upgrade_by_hand(empty_engine, "0007")
+
+        assert stored_schema_json(empty_engine) == stored
+        assert schema_version_of(empty_engine) == 1
+
+    def test_adds_it_to_any_object_and_leaves_the_rest_alone(self, empty_engine: Engine) -> None:
+        rows = {"not_json": "{", "not_an_object": "[]"}
+        upgrade_by_hand(empty_engine, "0006")
+        store_schema_json(empty_engine, {**rows, "bare": '{"name": "bare"}'})
+
+        upgrade_by_hand(empty_engine, "0007")
+
+        assert stored_schema_json(empty_engine) == {
+            **rows,
+            "bare": compact({"name": "bare", "repository": _NO_REPOSITORY}),
+        }
+        assert schema_version_of(empty_engine) == 1
+
+    def test_downgrading_removes_it_whatever_it_holds(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0006")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_REPOSITORY)})
+        upgrade_by_hand(empty_engine, "0007")
+        with empty_engine.begin() as connection:
+            stored = {**_BEFORE_REPOSITORY, "repository": {**_NO_REPOSITORY, "label": "GitHub"}}
+            connection.execute(
+                text("UPDATE schema SET schema_json = :schema_json"),
+                {"schema_json": compact(stored)},
+            )
+
+        downgrade_by_hand(empty_engine, "0006")
+
+        assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_REPOSITORY)}
         # Once on the way up, and once on the way down.
         assert schema_version_of(empty_engine) == 2
 

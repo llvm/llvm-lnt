@@ -81,5 +81,10 @@
       "type": "text",
       "listed": true
     }
-  ]
+  ],
+  "repository": {
+    "label": "GitHub",
+    "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+    "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+  }
 }

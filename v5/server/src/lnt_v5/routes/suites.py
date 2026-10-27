@@ -82,6 +82,10 @@ _PATCH_EXAMPLES = {
         "summary": "Remove a machine field (requires confirm=true)",
         "value": {"machine_fields": {"remove": ["test_suite_commit"]}},
     },
+    "repository": {
+        "summary": "Change the repository's commit URL and remove its label",
+        "value": {"repository": {"commit_url": examples.REPOSITORY["commit_url"], "label": None}},
+    },
 }
 
 
@@ -184,7 +188,8 @@ def patch_schema(
     engine: EngineDep,
     confirm: ConfirmRemoval = False,
 ) -> SuiteSchema:
-    """Add, update or remove metrics, commit fields and machine fields. Returns the updated schema.
+    """Add, update or remove metrics, commit fields and machine fields, or change the repository.
+    Returns the updated schema.
 
     Only display settings can be updated. To change the type of a metric or field, remove it and
     add it again. Removing a metric or field permanently deletes its data, so the request must

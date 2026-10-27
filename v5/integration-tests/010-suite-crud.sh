@@ -69,6 +69,18 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     fi
 done
 
+echo "  changing only its repository, which changes no table, is visible on every worker"
+request -X PATCH -H "$AUTH" -H "$JSON" \
+    --data '{"repository": {"label": "Forge"}}' "${SUITES}/integration/schema"
+expect_status 200
+expect_body '"label":"Forge"'
+
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${SUITES}/integration"
+    expect_status 200
+    expect_body '"label":"Forge"'
+done
+
 echo "  a removal without confirmation is refused"
 request -X PATCH -H "$AUTH" -H "$JSON" \
     --data '{"metrics": {"remove": ["code_size"]}}' "${SUITES}/integration/schema"

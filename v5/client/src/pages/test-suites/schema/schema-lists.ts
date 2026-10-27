@@ -1,6 +1,6 @@
 /**
- * What is true of a suite schema's three lists (D4), whether a page views them or edits them: what
- * each is called, which keys it accepts, and which names it reserves.
+ * What is true of a suite schema's three lists and its repository (D4), whether a page views them or
+ * edits them: what each is called, which keys it accepts, and which names it reserves.
  */
 
 import type { Schemas } from '../../../api/client'
@@ -105,4 +105,31 @@ export const LIST_INFO: Record<ListName, ListInfo> = {
     type: 'text',
     reserved: ['delete_after_inactive_days', 'first_seen_at', 'id', 'name', 'tracked'],
   },
+}
+
+export type Repository = Schemas['Repository']
+export type RepositoryKey = keyof Repository
+export type UrlKey = Exclude<RepositoryKey, 'label'>
+
+/** The repository's keys, in the order a schema has them. */
+export const REPOSITORY_KEYS: readonly RepositoryKey[] = ['label', 'commit_url', 'range_url']
+
+/** What each of the repository's keys is called, in the viewer and the editor alike (TS6, TS7). */
+export const REPOSITORY_HEADERS: Record<RepositoryKey, string> = {
+  label: 'Label',
+  commit_url: 'Commit URL',
+  range_url: 'Range URL',
+}
+
+/** The repository's URL templates. */
+export const URL_KEYS: readonly UrlKey[] = ['commit_url', 'range_url']
+
+/** The placeholders each URL template accepts, and requires (D4). */
+export const PLACEHOLDERS: Record<UrlKey, readonly string[]> = {
+  commit_url: ['commit'],
+  range_url: ['from', 'to'],
+}
+
+export function isUrlKey(key: RepositoryKey): key is UrlKey {
+  return (URL_KEYS as readonly string[]).includes(key)
 }

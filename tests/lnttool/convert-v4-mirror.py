@@ -191,7 +191,12 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # CHECK-NEXT:    "unit_abbrev": null
 # CHECK-NEXT:   }
 # CHECK-NEXT:  ],
-# CHECK-NEXT:  "name": "target"
+# CHECK-NEXT:  "name": "target",
+# CHECK-NEXT:  "repository": {
+# CHECK-NEXT:   "commit_url": null,
+# CHECK-NEXT:   "label": null,
+# CHECK-NEXT:   "range_url": null
+# CHECK-NEXT:  }
 #
 # Run 10: samples are grouped by test, in the order the tests first appear,
 # without their null metrics, and a sample without any value is kept. The run

@@ -96,11 +96,17 @@ COMMIT_FIELDS: list[dict[str, Any]] = [
         "listed": True,
     },
 ]
+REPOSITORY: dict[str, Any] = {
+    "label": "GitHub",
+    "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+    "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}",
+}
 SUITE_SCHEMA: dict[str, Any] = {
     "name": SUITE,
     "metrics": METRICS,
     "commit_fields": COMMIT_FIELDS,
     "machine_fields": MACHINE_FIELDS,
+    "repository": REPOSITORY,
 }
 
 METRIC = "execution_time"

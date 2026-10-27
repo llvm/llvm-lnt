@@ -5,7 +5,7 @@ import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
 import { signIn, TOKEN } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
-import { BARE_SUITE, SUITE, cursorPage } from '../../test/fixtures'
+import { BARE_SUITE, NO_REPOSITORY, SUITE, cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -41,6 +41,7 @@ const UNITLESS: SuiteSchema = {
   ],
   commit_fields: [],
   machine_fields: [],
+  repository: NO_REPOSITORY,
 }
 
 const SUITES = [SUITE, BARE_SUITE, UNITLESS]
@@ -193,7 +194,19 @@ describe('the Schema tab', () => {
       'Metrics',
       'Commit Fields',
       'Machine Fields',
+      'Repository',
     ])
+    // The templates as text, not links: they are not URLs until filled in.
+    const repository = screen.getByRole('group', { name: 'Repository' })
+    expect(repository).toHaveTextContent(
+      'Label' +
+        'GitHub' +
+        'Commit URL' +
+        'https://github.com/llvm/llvm-project/commit/{commit}' +
+        'Range URL' +
+        'https://github.com/llvm/llvm-project/compare/{from}...{to}',
+    )
+    expect(within(repository).queryByRole('link')).toBeNull()
   })
 
   it('writes -- for a metric with no unit, as for an unset display name', async () => {
@@ -210,6 +223,9 @@ describe('the Schema tab', () => {
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
     expect(rowsOf(await table('Commit fields'))).toEqual(['No commit fields.'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['No machine fields.'])
+    expect(screen.getByRole('group', { name: 'Repository' })).toHaveTextContent(
+      'Label--Commit URL--Range URL--',
+    )
   })
 })
 

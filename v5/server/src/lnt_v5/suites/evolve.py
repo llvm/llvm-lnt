@@ -8,6 +8,9 @@ The three lists are described once, in `LISTS`, and everything else reads that: 
 validates an addition, which update model validates a change, and -- through the entry model's own
 `RESERVED_COLUMNS` -- which of the suite's tables gain or lose a column. Spelling that
 correspondence out per operation is how a fourth list would end up half-supported.
+
+The schema's `repository` is not a list: it is changed key by key, like an entry's `update`, and
+adds or removes no column.
 """
 
 from __future__ import annotations
@@ -23,12 +26,17 @@ from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import (
+    COMMIT_URL,
+    RANGE_URL,
+    REPOSITORY_LABEL,
     CommitField,
+    CommitUrl,
     Entry,
     EntryName,
     Label,
     MachineField,
     Metric,
+    RangeUrl,
     SuiteSchema,
 )
 from lnt_v5.suites.store import bump, normalized_json
@@ -174,15 +182,28 @@ class MachineFieldChanges(_Changes[MachineField, MachineFieldUpdate]):
     """Machine fields to add, update or remove."""
 
 
+class RepositoryUpdate(BaseModel):
+    """Changes to the suite's repository. Only include the keys you want to change."""
+
+    # As `_EntryUpdate`: read with `exclude_unset`, so the defaults are never read, and kept out of
+    # the document. The same types as `Repository`'s, so a template is refused here as it would be
+    # on creation, and described the same way.
+    model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
+
+    label: Label | None = Field(default=None, description=f"{REPOSITORY_LABEL} Null removes it.")
+    commit_url: CommitUrl | None = Field(default=None, description=f"{COMMIT_URL} Null removes it.")
+    range_url: RangeUrl | None = Field(default=None, description=f"{RANGE_URL} Null removes it.")
+
+
 class SchemaPatch(BaseModel):
-    """Changes to a suite's metrics, commit fields and machine fields. Lists you leave out are
-    not changed.
+    """Changes to a suite's metrics, commit fields, machine fields and repository. What you leave
+    out is not changed.
 
     Either all the changes are applied or none are, and the resulting schema must be valid. Each
     metric or field can only be changed once per request. A new metric or field has no value for
     existing data. Removing one permanently deletes its data (and, for a metric, the regression
     indicators that refer to it), so the request must include `confirm=true`. To rename a metric
-    or field, remove it and add it again.
+    or field, remove it and add it again. Changing the repository needs no confirmation.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -190,6 +211,7 @@ class SchemaPatch(BaseModel):
     metrics: MetricChanges = Field(default_factory=MetricChanges)
     commit_fields: CommitFieldChanges = Field(default_factory=CommitFieldChanges)
     machine_fields: MachineFieldChanges = Field(default_factory=MachineFieldChanges)
+    repository: RepositoryUpdate = Field(default_factory=RepositoryUpdate)
 
 
 @dataclass(frozen=True)
@@ -296,6 +318,11 @@ def resulting_schema(current: SuiteSchema, patch: SchemaPatch) -> SuiteSchema:
     document: dict[str, Any] = {"name": current.name}
     for of in LISTS:
         document[of.attribute] = _apply(of, getattr(current, of.attribute), _changes(patch, of))
+    # As in an entry's `update`: a key left out is unchanged, and one sent as null is cleared.
+    document["repository"] = {
+        **current.repository.model_dump(),
+        **patch.repository.model_dump(exclude_unset=True),
+    }
     try:
         return SuiteSchema.model_validate(document)
     except ValidationError as error:

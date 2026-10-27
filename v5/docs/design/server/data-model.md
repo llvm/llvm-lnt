@@ -115,6 +115,13 @@ The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`,
 `listed`) are not nullable, because D4 normalizes them to `false` rather than to
 null, so `null` for one of them is rejected with 400.
 
+The same request can change the suite's `repository` (D4), with the same rule:
+an omitted key is left unchanged, and an explicit `null` clears one. `null` for
+the whole `repository` is rejected with 400, since there is one way to clear
+it, key by key. A change to it destroys nothing and changes no table, but it is
+a schema write all the same: it takes the lock above, and bumps
+`schema_version`.
+
 Notes:
 - Renaming is not supported: it is semantically a remove plus an add.
 - A schema change is atomic: it applies entirely or not at all.
@@ -219,7 +226,12 @@ through the API. The two formats still share much of their vocabulary.
     {"name": "author", "type": "text", "searchable": true},
     {"name": "commit_message", "type": "text"},
     {"name": "commit_timestamp", "type": "datetime", "listed": true}
-  ]
+  ],
+  "repository": {
+    "label": "GitHub",
+    "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+    "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+  }
 }
 ```
 
@@ -248,6 +260,9 @@ Notes:
   and Machines tabs of the Test Suites page show a column for each field that
   sets it (see TS3, TS4). Like `display`, it is purely a UI concern: the API
   treats fields alike whether or not they set it.
+- `repository` says where the suite's commits come from, so that the UI can
+  link to them (see Repository below). Like `display`, it is purely a UI
+  concern: the server stores and validates it, but never fills its templates in.
 - There is no `format_version` in the schema: v5 has only one format.
 
 **Presentation keys.** Besides `name` and `type`, each list accepts only the
@@ -278,13 +293,51 @@ another, so these defaults are part of the wire contract.
 | `searchable` | `false` |
 | `display` | `false` |
 | `listed` | `false` |
+| `repository`'s `label`, `commit_url`, `range_url` | `null` |
 
 A schema that omits one of the three lists entirely gets it back as an empty
-list.
+list, and one that omits `repository` gets it back with all of its keys. Like a
+list, `repository` itself cannot be `null`.
 
-`display_name`, `unit` and `unit_abbrev` are each either `null`, meaning the
-entry has none, or a non-empty string. An empty string is rejected with 400
-rather than read as `null`: it would only be a second spelling of `null`.
+`display_name`, `unit` and `unit_abbrev`, and the keys of `repository`, are
+each either `null`, meaning there is none, or a non-empty string. An empty
+string is rejected with 400 rather than read as `null`: it would only be a
+second spelling of `null`.
+
+**Repository.** `repository` accepts only the keys below, each optional. Any
+other key is rejected with 400.
+
+- `label` names the repository in the UI's links to it, such as `GitHub` in
+  "View on GitHub". When it is `null`, the UI names the repository generically.
+- `commit_url` is a template of the URL of a commit, in which `{commit}` stands
+  for a commit string -- the commit's identity, not its display value (see D1).
+- `range_url` is a template of the URL of the changes between two commits, in
+  which `{from}` stands for the commit string of the older commit and `{to}` for
+  that of the newer one. As in Git's `from..to`, the changes of `from` are
+  excluded and those of `to` are included. GitHub's `compare/{from}...{to}`
+  fits: with three dots, it shows the changes of `to` since the two commits'
+  latest common ancestor, which is `from` itself on a linear history.
+
+A template is rejected with 400 unless:
+- it contains each of its placeholders at least once, in any order, and no other
+  `{` or `}`: `commit_url` only `{commit}`, `range_url` only `{from}` and
+  `{to}`;
+- it starts with `http://` or `https://`, in any case;
+- its authority, everything between that `://` and the first `/`, `?` or `#`
+  after it, is not empty and contains no placeholder;
+- it contains no space or ASCII control character (U+0000 to U+0020, and
+  U+007F).
+
+Together, these make a filled-in template an `http` or `https` link to the
+host the template names, whatever the commit strings filling it in, which
+anyone who can submit a run chooses. Refusing any other brace keeps the syntax
+free for further placeholders.
+
+The UI fills a template in by replacing every occurrence of each placeholder
+with its commit string, percent-encoded: every character other than an ASCII
+letter, a digit, or one of `-_.!~*'()` is replaced by `%` and two hexadecimal
+digits for each byte of its UTF-8 encoding. I1 already keeps `/` and `%` out of
+commit strings.
 
 **Suite name.** `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
 characters; anything else is rejected with 400. The name is also the name of
@@ -832,12 +885,13 @@ that applies them must meet these requirements:
   reader can address it without handling its absence.
 
 Stored schemas are data in a global table. If the schema format (D4) changes
-in a way that existing `schema_json` values no longer satisfy, or that would
+in a way that existing `schema_json` values no longer satisfy, that would
 change what they mean (such as a new key whose default does not preserve how
-existing suites behave), rewriting them is a global migration. The rewrite
-preserves each schema's meaning, keeps the stored form normalized (D5) by
-writing out every key it adds, and bumps `schema_version` like any other change
-to a stored schema (see D2 and D5).
+existing suites behave), or that would leave them no longer normalized (such as
+a new key, whatever its default), rewriting them is a global migration. The
+rewrite preserves each schema's meaning, keeps the stored form normalized (D5)
+by writing out every key it adds, and bumps `schema_version` like any other
+change to a stored schema (see D2 and D5).
 
 A build that adds a built-in column to a table with dynamic columns reserves
 that column's name (see D4). A suite whose schema already declares an entry

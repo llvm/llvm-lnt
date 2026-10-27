@@ -8,7 +8,7 @@ import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
 import { compareStrings } from '../../format'
 import { signIn } from '../../test/auth'
-import { BARE_SUITE, SUITE } from '../../test/fixtures'
+import { BARE_SUITE, NO_REPOSITORY, SUITE } from '../../test/fixtures'
 import { answerLeaving, unloadAsks } from '../../test/leave'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -48,6 +48,7 @@ function mockCreate(
         commit_fields: [],
         machine_fields: [],
         ...body,
+        repository: { ...NO_REPOSITORY, ...body.repository },
       }
       store.suites = [...store.suites, schema].sort((a, b) => compareStrings(a.name, b.name))
       return HttpResponse.json(schema, { status: 201 })
@@ -269,8 +270,14 @@ describe('opening the editor', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
-  it('has unsaved changes once a name or an entry is entered', async () => {
+  it('has unsaved changes once a name, an entry or a repository value is entered', async () => {
     await openEditor()
+
+    typeInto(screen.getByRole('textbox', { name: 'Range URL' }), ' ')
+    expect(unloadAsks()).toBe(false)
+    typeInto(screen.getByRole('textbox', { name: 'Range URL' }), 'h')
+    expect(unloadAsks()).toBe(true)
+    typeInto(screen.getByRole('textbox', { name: 'Range URL' }), '')
 
     typeInto(suiteNameInput(), 'draft')
     expect(unloadAsks()).toBe(true)
@@ -450,6 +457,33 @@ describe('the name checks', () => {
   })
 })
 
+describe('the URL checks', () => {
+  it('refuse a repository URL, saying why, with the red halo, and keep Create disabled', async () => {
+    await openEditor()
+    typeInto(suiteNameInput(), 'fresh')
+    const url = screen.getByRole('textbox', { name: 'Range URL' })
+    expect(screen.getByRole('region', { name: 'Repository' })).toHaveTextContent(
+      '{from} and {to} are replaced by the older and the newer commit.',
+    )
+
+    typeInto(url, 'https://{from}.example.com/{to}')
+    const why = 'A URL names its host as it is, without a placeholder.'
+    expect(url).toHaveAttribute('aria-invalid', 'true')
+    expect(url).toHaveAttribute('title', why)
+    expect(url).toHaveAccessibleDescription(why)
+    expect(createButton()).toBeDisabled()
+    expect(createButton()).toHaveAttribute(
+      'title',
+      'Correct the repository URLs marked in red first.',
+    )
+
+    // Checked as it would be sent.
+    typeInto(url, ' https://example.com/{from}...{to} ')
+    expect(url).not.toHaveAttribute('aria-invalid')
+    expect(createButton()).toBeEnabled()
+  })
+})
+
 describe('creating the suite', () => {
   it("sends the schema, then goes to the new suite's Schema tab", async () => {
     const store = await openEditor()
@@ -463,6 +497,8 @@ describe('creating the suite', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Bigger is better of metric size' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'On the Dashboard of metric size' }))
     addEntry('machine field', 'kernel')
+    typeInto(screen.getByRole('textbox', { name: 'Label' }), ' Forge ')
+    typeInto(screen.getByRole('textbox', { name: 'Commit URL' }), ' https://git.example.com/{commit}')
 
     fireEvent.click(createButton())
 
@@ -484,12 +520,16 @@ describe('creating the suite', () => {
       machine_fields: [
         { name: 'kernel', type: 'text', display_name: null, searchable: false, listed: false },
       ],
+      repository: { label: 'Forge', commit_url: 'https://git.example.com/{commit}', range_url: null },
     })
     expect(sent[0].auth).toMatch(/^Bearer /)
     expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
+    expect(screen.getByRole('group', { name: 'Repository' })).toHaveTextContent(
+      'LabelForgeCommit URLhttps://git.example.com/{commit}Range URL--',
+    )
 
     // A page of its own: Back returns to the Admin page.
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
@@ -510,6 +550,7 @@ describe('creating the suite', () => {
       metrics: [],
       commit_fields: [],
       machine_fields: [],
+      repository: NO_REPOSITORY,
     })
   })
 
@@ -688,6 +729,9 @@ describe('Start from', () => {
         name: 'Display of commit field svn_revision',
       }),
     ).toBeChecked()
+    expect(screen.getByRole('textbox', { name: 'Commit URL' })).toHaveValue(
+      SUITE.repository.commit_url,
+    )
     expect(selectButton('Start from')).toHaveTextContent('Select a suite')
 
     // Picking it again starts again from it.

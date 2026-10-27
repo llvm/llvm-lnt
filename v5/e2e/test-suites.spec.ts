@@ -276,6 +276,14 @@ test.describe('the Schema tab', () => {
       'No',
       'Yes',
     ])
+    await expect(page.getByRole('group', { name: 'Repository' })).toHaveText(
+      'Label' +
+        'GitHub' +
+        'Commit URL' +
+        'https://github.com/llvm/llvm-project/commit/{commit}' +
+        'Range URL' +
+        'https://github.com/llvm/llvm-project/compare/{from}...{to}',
+    )
     await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeDisabled()
   })
 
@@ -399,6 +407,45 @@ test.describe('the Schema tab', () => {
         ['short_sha', true],
       ])
       expect(schema.machine_fields.map((field) => field.name)).toEqual(['kernel'])
+    })
+  })
+
+  test("edits a suite's repository", async ({ page, request, signIn, tokenFor }, testInfo) => {
+    const token = await tokenFor('manage')
+    await withOwnSuiteName(request, token, testInfo, async (suite) => {
+      const created = await request.post('/api/suites', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { name: suite, repository: { label: 'Forge' } },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+      await signIn(page, 'manage')
+      await page.goto(`/suites/${suite}?tab=schema`)
+
+      await page.getByRole('button', { name: 'Edit schema' }).click()
+      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      const save = editor.getByRole('button', { name: 'Save', exact: true })
+      const commitUrl = editor.getByRole('textbox', { name: 'Commit URL' })
+      // Refused while the host is not written out.
+      await commitUrl.fill('https://{commit}.example.com/')
+      await expect(commitUrl).toHaveAttribute('aria-invalid', 'true')
+      await expect(save).toBeDisabled()
+      await commitUrl.fill('https://git.example.com/commit/{commit}')
+      await editor.getByRole('textbox', { name: 'Label' }).fill('')
+      await save.click()
+
+      await expect(editor).toBeHidden()
+      await expect(page.getByRole('group', { name: 'Repository' })).toHaveText(
+        'Label--Commit URLhttps://git.example.com/commit/{commit}Range URL--',
+      )
+      const schema = await json<components['schemas']['SuiteSchema']>(
+        request,
+        `/api/suites/${suite}`,
+      )
+      expect(schema.repository).toEqual({
+        label: null,
+        commit_url: 'https://git.example.com/commit/{commit}',
+        range_url: null,
+      })
     })
   })
 

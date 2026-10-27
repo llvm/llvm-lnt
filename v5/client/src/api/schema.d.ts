@@ -188,7 +188,8 @@ export interface paths {
         head?: never;
         /**
          * Change a test suite's schema
-         * @description Add, update or remove metrics, commit fields and machine fields. Returns the updated schema.
+         * @description Add, update or remove metrics, commit fields and machine fields, or change the repository.
+         *     Returns the updated schema.
          *
          *     Only display settings can be updated. To change the type of a metric or field, remove it and
          *     add it again. Removing a metric or field permanently deletes its data, so the request must
@@ -2382,6 +2383,81 @@ export interface components {
             commit?: string | null;
         };
         /**
+         * Repository
+         * @description The repository holding the suite's commits, so that clients can link a commit, or the changes
+         *     between two commits, to it. Every key is optional.
+         * @example {
+         *       "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+         *       "label": "GitHub",
+         *       "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+         *     }
+         */
+        Repository: {
+            /**
+             * Label
+             * @description What the repository is called in links to it, such as `GitHub`, as in "View on GitHub". Null if it has no name.
+             */
+            label: string | null;
+            /**
+             * Commit Url
+             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             */
+            commit_url: string | null;
+            /**
+             * Range Url
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             */
+            range_url: string | null;
+        };
+        /**
+         * RepositoryInput
+         * @description The repository holding the suite's commits, so that clients can link a commit, or the changes
+         *     between two commits, to it. Every key is optional.
+         * @example {
+         *       "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+         *       "label": "GitHub",
+         *       "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+         *     }
+         */
+        RepositoryInput: {
+            /**
+             * Label
+             * @description What the repository is called in links to it, such as `GitHub`, as in "View on GitHub". Null if it has no name.
+             */
+            label?: string | null;
+            /**
+             * Commit Url
+             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             */
+            commit_url?: string | null;
+            /**
+             * Range Url
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             */
+            range_url?: string | null;
+        };
+        /**
+         * RepositoryUpdate
+         * @description Changes to the suite's repository. Only include the keys you want to change.
+         */
+        RepositoryUpdate: {
+            /**
+             * Label
+             * @description What the repository is called in links to it, such as `GitHub`, as in "View on GitHub". Null removes it.
+             */
+            label?: string | null;
+            /**
+             * Commit Url
+             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
+             */
+            commit_url?: string | null;
+            /**
+             * Range Url
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
+             */
+            range_url?: string | null;
+        };
+        /**
          * ResolveRequest
          * @description The commits to look up.
          */
@@ -2642,19 +2718,20 @@ export interface components {
         };
         /**
          * SchemaPatch
-         * @description Changes to a suite's metrics, commit fields and machine fields. Lists you leave out are
-         *     not changed.
+         * @description Changes to a suite's metrics, commit fields, machine fields and repository. What you leave
+         *     out is not changed.
          *
          *     Either all the changes are applied or none are, and the resulting schema must be valid. Each
          *     metric or field can only be changed once per request. A new metric or field has no value for
          *     existing data. Removing one permanently deletes its data (and, for a metric, the regression
          *     indicators that refer to it), so the request must include `confirm=true`. To rename a metric
-         *     or field, remove it and add it again.
+         *     or field, remove it and add it again. Changing the repository needs no confirmation.
          */
         SchemaPatch: {
             metrics?: components["schemas"]["MetricChanges"];
             commit_fields?: components["schemas"]["CommitFieldChanges"];
             machine_fields?: components["schemas"]["MachineFieldChanges"];
+            repository?: components["schemas"]["RepositoryUpdate"];
         };
         /**
          * Scope
@@ -2676,8 +2753,8 @@ export interface components {
         Scope: "read" | "submit" | "triage" | "manage" | "admin";
         /**
          * SuiteSchema
-         * @description A test suite's schema: its name, and the metrics, commit fields and machine fields it
-         *     defines. A suite can only store what its schema defines.
+         * @description A test suite's schema: its name, the metrics, commit fields and machine fields it defines,
+         *     and the repository its commits come from. A suite can only store what its schema defines.
          *
          *     The same document is used to create a suite and is returned when reading one (with all
          *     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -2784,7 +2861,12 @@ export interface components {
          *           "unit_abbrev": "mb"
          *         }
          *       ],
-         *       "name": "libcxx"
+         *       "name": "libcxx",
+         *       "repository": {
+         *         "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+         *         "label": "GitHub",
+         *         "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+         *       }
          *     }
          */
         SuiteSchema: {
@@ -2808,11 +2890,13 @@ export interface components {
              * @description The information machines can have.
              */
             machine_fields: components["schemas"]["MachineField"][];
+            /** @description The repository holding the suite's commits, for clients to link to. */
+            repository: components["schemas"]["Repository"];
         };
         /**
          * SuiteSchemaInput
-         * @description A test suite's schema: its name, and the metrics, commit fields and machine fields it
-         *     defines. A suite can only store what its schema defines.
+         * @description A test suite's schema: its name, the metrics, commit fields and machine fields it defines,
+         *     and the repository its commits come from. A suite can only store what its schema defines.
          *
          *     The same document is used to create a suite and is returned when reading one (with all
          *     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -2919,7 +3003,12 @@ export interface components {
          *           "unit_abbrev": "mb"
          *         }
          *       ],
-         *       "name": "libcxx"
+         *       "name": "libcxx",
+         *       "repository": {
+         *         "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+         *         "label": "GitHub",
+         *         "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+         *       }
          *     }
          */
         SuiteSchemaInput: {
@@ -2943,6 +3032,8 @@ export interface components {
              * @description The information machines can have.
              */
             machine_fields?: components["schemas"]["MachineFieldInput"][];
+            /** @description The repository holding the suite's commits, for clients to link to. */
+            repository?: components["schemas"]["RepositoryInput"];
         };
         /**
          * SuiteSchemaList

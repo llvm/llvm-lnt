@@ -706,7 +706,7 @@ line of the series, an item does not repeat `metric`.
 GET    /api/suites               -- List test suites defined on this instance
 POST   /api/suites               -- Create a test suite from a schema definition
 GET    /api/suites/{name}        -- Detail
-PATCH  /api/suites/{name}/schema -- Add, update, or remove metrics and fields
+PATCH  /api/suites/{name}/schema -- Add, update, or remove metrics and fields; change the repository
 DELETE /api/suites/{name}        -- Delete a test suite and all its data
 ```
 
@@ -725,7 +725,7 @@ renamed. Whole schemas are returned rather than names alone, because suites
 are few and parts of the client need every suite's metrics up front.
 
 **Create** (`POST /api/suites`): the body is the schema itself: `name`,
-`metrics`, `commit_fields`, `machine_fields` (see D4).
+`metrics`, `commit_fields`, `machine_fields`, `repository` (see D4).
 
 - 201 with the created suite's detail body, and a `Location` header pointing at
   `GET /api/suites/{name}`.
@@ -736,8 +736,8 @@ are few and parts of the client need every suite's metrics up front.
 - 409 `retry` if the creation could not take the locks it needs.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
-`commit_fields`, and/or `machine_fields` after creation. D2 gives the semantics;
-this is the wire format.
+`commit_fields`, `machine_fields` and/or `repository` after creation. D2 gives
+the semantics; this is the wire format.
 
 For each of the three lists, the body may supply any of `add`, `update`, and
 `remove`:
@@ -757,10 +757,17 @@ For each of the three lists, the body may supply any of `add`, `update`, and
   changed.
 - `remove` is a list of names.
 
+The body may also supply `repository`, with only the keys being changed, `null`
+clearing one:
+
+```json
+{"repository": {"commit_url": "https://github.com/llvm/llvm-project/commit/{commit}", "label": null}}
+```
+
 Because `remove` destroys data, a request with a non-empty `remove` list
 requires `?confirm=true`. Without it, or with `confirm=false`, the request is
-rejected with 400. An empty `remove` list requires nothing. This mirrors
-`DELETE /api/suites/{name}`.
+rejected with 400. An empty `remove` list requires nothing, and neither does a
+change to `repository`. This mirrors `DELETE /api/suites/{name}`.
 
 - 200 with the suite's detail body. A request that asks for no change is a
   successful no-op.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -9,7 +11,7 @@ from pydantic import ValidationError
 
 from lnt_v5.suites.schema import AttributeType, SuiteSchema
 
-# The schema from D4, which exercises every list and most of the optional keys.
+# The schema from D4, which exercises every list, the repository, and most of the optional keys.
 EXAMPLE: dict[str, Any] = {
     "name": "nts",
     "metrics": [
@@ -36,6 +38,11 @@ EXAMPLE: dict[str, Any] = {
         {"name": "commit_message", "type": "text"},
         {"name": "commit_timestamp", "type": "datetime", "listed": True},
     ],
+    "repository": {
+        "label": "GitHub",
+        "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+        "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}",
+    },
 }
 
 
@@ -368,6 +375,51 @@ class TestDashboard:
         )
 
 
+# Templates the web UI's schema editor checks against too, so that the two agree. Kept with the
+# client's tests, since the client is built from its own directory alone.
+URL_TEMPLATES: dict[str, Any] = json.loads(
+    (Path(__file__).parents[2] / "client" / "src" / "test" / "url-templates.json").read_text()
+)
+TEMPLATE_CASES = [
+    (key, template, verdict == "valid")
+    for key in ("commit_url", "range_url")
+    for verdict in ("valid", "invalid")
+    for template in URL_TEMPLATES[key][verdict]
+]
+
+GITHUB: dict[str, Any] = EXAMPLE["repository"]
+
+
+class TestRepository:
+    def test_accepts_every_key(self) -> None:
+        parsed = SuiteSchema.model_validate(schema(repository=GITHUB))
+
+        assert parsed.model_dump()["repository"] == GITHUB
+
+    @pytest.mark.parametrize(("key", "template", "valid"), TEMPLATE_CASES)
+    def test_checks_a_url_template(self, key: str, template: str, valid: bool) -> None:
+        document = schema(repository={key: template})
+        if valid:
+            assert SuiteSchema.model_validate(document).repository.model_dump()[key] == template
+        else:
+            with pytest.raises(ValidationError):
+                SuiteSchema.model_validate(document)
+
+    @pytest.mark.parametrize("value", ["", "Git\x00Hub"])
+    def test_a_label_is_refused_when_empty_or_holding_a_nul(self, value: str) -> None:
+        with pytest.raises(ValidationError):
+            SuiteSchema.model_validate(schema(repository={"label": value}))
+
+    def test_an_unknown_key_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            SuiteSchema.model_validate(schema(repository={"url": GITHUB["commit_url"]}))
+
+    def test_the_block_cannot_be_null(self) -> None:
+        # Like a list, it is omitted rather than null, and each of its keys is cleared on its own.
+        with pytest.raises(ValidationError):
+            SuiteSchema.model_validate(schema(repository=None))
+
+
 class TestNormalization:
     """D4's stored and returned form: every optional key present and explicit.
 
@@ -428,12 +480,22 @@ class TestNormalization:
 
         assert parsed.metrics[0].display_name is None
 
-    def test_names_all_three_lists_even_when_a_schema_omits_them(self) -> None:
+    def test_names_all_three_lists_and_the_repository_even_when_a_schema_omits_them(self) -> None:
         assert SuiteSchema.model_validate(schema()).model_dump() == {
             "name": "nts",
             "metrics": [],
             "commit_fields": [],
             "machine_fields": [],
+            "repository": {"label": None, "commit_url": None, "range_url": None},
+        }
+
+    def test_fills_in_every_key_of_the_repository(self) -> None:
+        parsed = SuiteSchema.model_validate(schema(repository={"label": "GitHub"}))
+
+        assert parsed.model_dump()["repository"] == {
+            "label": "GitHub",
+            "commit_url": None,
+            "range_url": None,
         }
 
     def test_round_trips_through_its_own_output(self) -> None:

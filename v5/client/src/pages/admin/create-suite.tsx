@@ -11,10 +11,10 @@ import {
   copyOf,
   EMPTY_DRAFT,
   draftProblem,
+  hasContent,
   schemaOf,
   suiteNameProblem,
 } from '../test-suites/schema/schema-editor-model'
-import { LISTS } from '../test-suites/schema/schema-lists'
 import { NameInput, SchemaEditorTables } from '../test-suites/schema/schema-editor-tables'
 import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
@@ -26,8 +26,8 @@ interface Props {
 }
 
 /**
- * The schema editor creating a suite (TS7): the suite's name and its entries, which can start as a
- * copy of another suite's. Or, through "Import JSON", a schema document sent as it is.
+ * The schema editor creating a suite (TS7): the suite's name, its entries and its repository, which
+ * can start as a copy of another suite's. Or, through "Import JSON", a schema document sent as it is.
  */
 export function CreateSuite({ onCancel, onCreated }: Props) {
   const gate = useScopeGate('manage', null)
@@ -51,9 +51,7 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
   const send = useCreateSuite()
   const busy = create.isPending || send.isPending
   // Anything entered, until the suite is created (TS7).
-  const allowLeaving = useUnsavedChanges(
-    name !== '' || LISTS.some((list) => draft[list].length > 0) || text.trim() !== '',
-  )
+  const allowLeaving = useUnsavedChanges(name !== '' || hasContent(draft) || text.trim() !== '')
   // Only once the suite is created, and only if the editor is still shown: a user who has left the
   // tab meanwhile is not taken to the new suite (TanStack Query skips `mutate`'s callbacks then).
   const created = {

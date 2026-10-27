@@ -1,8 +1,18 @@
+import type { ReactNode } from 'react'
 import type { SuiteSchema } from '../../../api/suites'
 import { DataTable, type Column } from '../../../components/data-table'
+import { InfoBox, InfoRow } from '../../../components/info-box'
 import { MISSING, yesNo } from '../../../format'
 import { formatUnit, type Metric } from '../../../schema'
-import { KEY_HEADERS, LIST_INFO, type ListName } from './schema-lists'
+import {
+  isUrlKey,
+  KEY_HEADERS,
+  LIST_INFO,
+  REPOSITORY_HEADERS,
+  REPOSITORY_KEYS,
+  type ListName,
+  type RepositoryKey,
+} from './schema-lists'
 import styles from './schema.module.css'
 
 type CommitField = SuiteSchema['commit_fields'][number]
@@ -86,7 +96,29 @@ export function SchemaList<Entry>(props: {
   )
 }
 
-/** A schema's three lists, each with exactly the presentation keys it accepts (D4, TS6). */
+/**
+ * A schema's repository, under its heading, in the viewer and the editor alike: each key, as
+ * `value` gives it, its URL templates in a fixed-width font.
+ */
+export function RepositoryBox({ value }: { value(key: RepositoryKey): ReactNode }) {
+  return (
+    <>
+      <h2 className={styles.heading}>Repository</h2>
+      <InfoBox label="Repository">
+        {REPOSITORY_KEYS.map((key) => (
+          <InfoRow key={key} label={REPOSITORY_HEADERS[key]} mono={isUrlKey(key)}>
+            {value(key)}
+          </InfoRow>
+        ))}
+      </InfoBox>
+    </>
+  )
+}
+
+/**
+ * A schema's three lists, each with exactly the presentation keys it accepts, and its repository,
+ * whose templates are text rather than links: they are not URLs until filled in (D4, TS6).
+ */
 export function SchemaTables({ schema }: { schema: SuiteSchema }) {
   return (
     <>
@@ -108,6 +140,7 @@ export function SchemaTables({ schema }: { schema: SuiteSchema }) {
         rows={schema.machine_fields}
         rowKey={nameOf}
       />
+      <RepositoryBox value={(key) => schema.repository[key] ?? MISSING} />
     </>
   )
 }

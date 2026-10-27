@@ -125,6 +125,15 @@ class TestCreate:
         # The Location has to actually resolve, and to the same document.
         assert api_client.get(response.headers["Location"]).json() == response.json()
 
+    def test_normalizes_the_repository(self, create: Callable[..., Any]) -> None:
+        repository = {"commit_url": "https://git.example.com/{commit}"}
+
+        assert create(repository=repository).json()["repository"] == {
+            "label": None,
+            "commit_url": "https://git.example.com/{commit}",
+            "range_url": None,
+        }
+
     def test_normalizes_what_it_returns(self, create: Callable[..., Any]) -> None:
         # D4: every optional key present and explicit, so the response is postable verbatim.
         metric = create(metrics=[{"name": "execution_time", "type": "real"}]).json()["metrics"][0]
@@ -711,6 +720,132 @@ class TestEvolveConfirmation:
             ).status_code
             == 200
         )
+
+
+GITHUB: dict[str, Any] = {
+    "label": "GitHub",
+    "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+    "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}",
+}
+
+
+class TestEvolveRepository:
+    """`repository` is changed key by key, like an entry's `update` (D2)."""
+
+    def test_sets_the_keys_it_is_given_and_clears_those_sent_as_null(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create(repository=GITHUB)
+        commit_url = "https://git.example.com/{commit}"
+
+        # No `confirm`: it destroys nothing.
+        response = patch_request(
+            api_client, manage, {"repository": {"commit_url": commit_url, "label": None}}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["repository"] == {
+            "label": None,
+            "commit_url": commit_url,
+            "range_url": GITHUB["range_url"],
+        }
+
+    def test_changes_no_column_but_tells_every_worker(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+        tables = ("sample", "commit", "machine")
+        columns = {table: column_names(db_engine, "nts", table) for table in tables}
+        before = schema_version_of(db_engine)
+
+        body = patch_request(api_client, manage, {"repository": {"label": "GitHub"}}).json()
+
+        assert {table: column_names(db_engine, "nts", table) for table in tables} == columns
+        assert stored_schema(db_engine, "nts") == body
+        assert schema_version_of(db_engine) == before + 1
+
+    def test_setting_what_is_stored_changes_nothing(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create(repository=GITHUB)
+        before = schema_version_of(db_engine)
+
+        response = patch_request(api_client, manage, {"repository": {"label": "GitHub"}})
+
+        assert response.status_code == 200
+        assert schema_version_of(db_engine) == before
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}},
+            {"metrics": {"update": [{"name": "compile_time", "unit": "ms"}]}},
+            {"machine_fields": {"remove": ["hardware"]}},
+        ],
+    )
+    def test_is_kept_by_a_change_to_the_lists(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        body: dict[str, Any],
+    ) -> None:
+        create(repository=GITHUB)
+
+        response = patch_request(api_client, manage, body, confirm=True)
+
+        assert response.json()["repository"] == GITHUB
+        assert stored_schema(db_engine, "nts")["repository"] == GITHUB
+
+    def test_can_change_with_the_lists_in_one_request(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create()
+
+        body = patch_request(
+            api_client,
+            manage,
+            {
+                "metrics": {"add": [{"name": "code_size", "type": "integer"}]},
+                "repository": {"range_url": GITHUB["range_url"]},
+            },
+        ).json()
+
+        assert body["metrics"][-1]["name"] == "code_size"
+        assert body["repository"]["range_url"] == GITHUB["range_url"]
+
+    @pytest.mark.parametrize(
+        "repository",
+        [
+            None,
+            {"label": ""},
+            {"commit_url": "https://{commit}.example.com/"},
+            {"url": GITHUB["commit_url"]},
+        ],
+    )
+    def test_refuses_what_a_schema_would_not_accept(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        repository: Any,
+    ) -> None:
+        # Null for the whole block too: its keys are cleared one by one.
+        create(repository=GITHUB)
+
+        response = patch_request(api_client, manage, {"repository": repository})
+
+        assert code_of(response) == "invalid_request"
+        assert api_client.get(f"{SUITES}/nts").json()["repository"] == GITHUB
 
 
 def suite_tables_for(engine: Engine) -> Any:

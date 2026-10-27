@@ -14,11 +14,19 @@ What a schema *does* is create columns; see `tables.py` for the tables these ent
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated, ClassVar, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 from lnt_v5 import examples
 from lnt_v5.strings import Storable
@@ -68,6 +76,55 @@ SuiteNameStr = Annotated[
 # is either absent (null) or a non-empty string. An empty one would only be a second spelling of
 # null. Unlike names, nothing restricts its characters, so it needs D3's NUL check.
 Label = Annotated[str, StringConstraints(min_length=1), Storable]
+
+# D4: the URL templates of a suite's `repository`. The rules exist so that filling one in can only
+# ever give a link to the host the schema names, over http or https, whatever the commit strings it
+# is filled with -- and anyone with `submit` can choose those.
+#
+# - The scheme is literal, so no placeholder can turn the link into a `javascript:` one.
+# - So is the host: a commit string can hold a `.`, and `https://{commit}` would otherwise lead
+#   wherever a commit named `evil.com` says.
+# - No space or ASCII control character, a set spelled out rather than "whitespace", which Python
+#   and JavaScript do not agree on: the web UI's schema editor checks templates as they are typed
+#   with a copy of these rules (schema-editor-model.ts in client/src/pages/test-suites/schema).
+# - No brace outside the placeholders the template accepts, which keeps the syntax free for more
+#   placeholders later.
+_URL_SCHEME = re.compile(r"^https?://", re.IGNORECASE)
+_URL_EXCLUDED = re.compile(r"[\x00-\x20\x7f]")
+_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+
+
+def _url_template(*placeholders: str) -> Callable[[str], str]:
+    """A check that a template is a URL that accepts exactly `placeholders`, each of them at least
+    once."""
+    accepted = " and ".join(f"{{{name}}}" for name in placeholders)
+
+    def check(template: str) -> str:
+        if _URL_EXCLUDED.search(template):
+            raise ValueError("must not contain spaces or control characters")
+        if not (scheme := _URL_SCHEME.match(template)):
+            raise ValueError("must start with http:// or https://")
+        for name in _PLACEHOLDER.findall(template):
+            if name not in placeholders:
+                raise ValueError(f"{{{name}}} is not a placeholder it accepts, only {accepted}")
+        if re.search(r"[{}]", _PLACEHOLDER.sub("", template)):
+            raise ValueError(f"must not contain braces other than those of {accepted}")
+        if any(f"{{{name}}}" not in template for name in placeholders):
+            raise ValueError(f"must contain {accepted}")
+        host = re.split(r"[/?#]", template[scheme.end() :], maxsplit=1)[0]
+        if not host:
+            raise ValueError("must name a host after the scheme")
+        if "{" in host:
+            raise ValueError("must name its host literally, without a placeholder")
+        return template
+
+    return check
+
+
+CommitUrl = Annotated[str, StringConstraints(min_length=1), AfterValidator(_url_template("commit"))]
+RangeUrl = Annotated[
+    str, StringConstraints(min_length=1), AfterValidator(_url_template("from", "to"))
+]
 
 # The docstrings of the enum and of the four models without a leading underscore below are
 # published, as the descriptions I8's document gives them, so they are written for API users. The
@@ -295,6 +352,47 @@ class MachineField(_SearchableEntry):
     )
 
 
+# Shared with the update model in `evolve.py`, which adds what null means there.
+TEMPLATE_RULES = (
+    "It must start with `http://` or `https://`, name its host literally, and contain no spaces, "
+    "control characters or braces other than its placeholders'. Clients replace every placeholder, "
+    "percent-encoding the value: every character but an ASCII letter, a digit or one of "
+    "`-_.!~*'()`."
+)
+COMMIT_URL = (
+    "A template of the URL of a commit in the repository, in which `{commit}` stands for the "
+    f"commit's value, such as a Git SHA. {TEMPLATE_RULES}"
+)
+RANGE_URL = (
+    "A template of the URL of the changes between two commits, in which `{from}` stands for the "
+    "older commit, whose changes are not included, and `{to}` for the newer one, whose changes "
+    f"are, as in Git's `from..to`. {TEMPLATE_RULES}"
+)
+REPOSITORY_LABEL = (
+    'What the repository is called in links to it, such as `GitHub`, as in "View on GitHub".'
+)
+
+
+# D4: presentation metadata, like `display` and `listed`. The server stores these templates and
+# checks them, but never fills them in.
+class Repository(BaseModel):
+    """The repository holding the suite's commits, so that clients can link a commit, or the changes
+    between two commits, to it. Every key is optional."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        # As for `Entry`: optional in a request, and always present in a response.
+        json_schema_serialization_defaults_required=True,
+        json_schema_extra={"examples": [examples.REPOSITORY]},
+    )
+
+    label: Label | None = Field(
+        default=None, description=f"{REPOSITORY_LABEL} Null if it has no name."
+    )
+    commit_url: CommitUrl | None = Field(default=None, description=f"{COMMIT_URL} Null if none.")
+    range_url: RangeUrl | None = Field(default=None, description=f"{RANGE_URL} Null if none.")
+
+
 def _reject_duplicates(entries: Sequence[Entry]) -> None:
     """Each entry becomes a column, so one name may appear at most once within a list.
 
@@ -311,8 +409,8 @@ def _reject_duplicates(entries: Sequence[Entry]) -> None:
 # D4. The whole document: the body `POST /api/suites` accepts and the body `GET /api/suites/{name}`
 # returns. There is no `format_version` -- only one format exists for v5.
 class SuiteSchema(BaseModel):
-    """A test suite's schema: its name, and the metrics, commit fields and machine fields it
-    defines. A suite can only store what its schema defines.
+    """A test suite's schema: its name, the metrics, commit fields and machine fields it defines,
+    and the repository its commits come from. A suite can only store what its schema defines.
 
     The same document is used to create a suite and is returned when reading one (with all
     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -341,6 +439,12 @@ class SuiteSchema(BaseModel):
     )
     machine_fields: list[MachineField] = Field(
         default_factory=list, description="The information machines can have."
+    )
+    # Last, so that the key global revision 0007 appends to stored schemas is where the server
+    # writes it too.
+    repository: Repository = Field(
+        default_factory=Repository,
+        description="The repository holding the suite's commits, for clients to link to.",
     )
 
     @model_validator(mode="after")

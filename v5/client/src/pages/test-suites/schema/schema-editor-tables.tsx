@@ -11,27 +11,33 @@ import { VisuallyHidden } from 'react-aria-components'
 import { ActionButton } from '../../../components/action-button'
 import type { Column } from '../../../components/data-table'
 import { Select } from '../../../components/select'
-import { SchemaList } from './schema-tables'
+import { RepositoryBox, SchemaList } from './schema-tables'
 import {
   addEntry,
   changeEntry,
+  changeRepository,
   nameProblems,
   newEntry,
   removeEntry,
+  repositoryProblems,
   restoreEntry,
   type Draft,
   type DraftEntry,
+  type DraftRepository,
 } from './schema-editor-model'
 import {
   flagProblem,
   isTextKey,
+  isUrlKey,
   KEY_HEADERS,
   LIST_INFO,
   LISTS,
+  REPOSITORY_HEADERS,
   TYPES,
   type AttributeType,
   type ListName,
   type PresentationKey,
+  type UrlKey,
 } from './schema-lists'
 import styles from './schema.module.css'
 
@@ -52,8 +58,8 @@ interface Props {
 }
 
 /**
- * The schema editor's three tables (TS7): the viewer's, with an input for each value. Each table
- * adds an entry at its end, and each entry can be removed.
+ * The schema editor's three tables and its repository (TS7): the viewer's, with an input for each
+ * value. Each table adds an entry at its end, and each entry can be removed.
  */
 export function SchemaEditorTables({ draft, onChange, busy }: Props) {
   const container = useRef<HTMLDivElement>(null)
@@ -79,9 +85,55 @@ export function SchemaEditorTables({ draft, onChange, busy }: Props) {
       {LISTS.map((list) => (
         <ListTable key={list} list={list} entries={draft[list]} busy={busy} change={change} />
       ))}
+      <RepositoryInputs repository={draft.repository} busy={busy} change={change} />
     </div>
   )
 }
+
+/** What each URL's input says of the placeholders it accepts (D4). */
+const URL_HINTS: Record<UrlKey, string> = {
+  commit_url: '{commit} is replaced by the commit.',
+  range_url: '{from} and {to} are replaced by the older and the newer commit.',
+}
+
+/**
+ * The repository's inputs, each URL's checked as the user changes it, and saying which placeholders
+ * it accepts (TS7).
+ */
+const RepositoryInputs = memo(function RepositoryInputs({
+  repository,
+  busy,
+  change,
+}: {
+  repository: DraftRepository
+  busy: boolean
+  change(update: Update): void
+}) {
+  const problems = repositoryProblems(repository)
+  return (
+    <section aria-label="Repository">
+      <RepositoryBox
+        value={(key) => {
+          return (
+            <>
+              <NameInput
+                label={REPOSITORY_HEADERS[key]}
+                value={repository[key]}
+                problem={problems.get(key)}
+                readOnly={busy}
+                className={styles.cellInput}
+                onValue={(text) => {
+                  if (!busy) change((draft) => changeRepository(draft, key, text))
+                }}
+              />
+              {isUrlKey(key) && <div className={styles.hint}>{URL_HINTS[key]}</div>}
+            </>
+          )
+        }}
+      />
+    </section>
+  )
+})
 
 interface ListProps {
   list: ListName
@@ -257,9 +309,9 @@ interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChang
 }
 
 /**
- * The input of a name the schema editor checks as it is typed: when refused, it has the red halo,
- * and the reason on hover and for assistive technology (TS7, AR11). Not limited in length, so that
- * a name too long is refused rather than cut short.
+ * The input of a name, or of a URL, that the schema editor checks as it is typed: when refused, it
+ * has the red halo, and the reason on hover and for assistive technology (TS7, AR11). Not limited
+ * in length, so that a name too long is refused rather than cut short.
  */
 export function NameInput({ label, problem, onValue, ...props }: NameProps) {
   const problemId = useId()

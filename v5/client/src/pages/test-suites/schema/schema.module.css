@@ -58,3 +58,9 @@
 .note {
   composes: note from '../test-suites.module.css';
 }
+
+/* What an input of the editor's repository accepts, below it (TS7). */
+.hint {
+  composes: note from '../test-suites.module.css';
+  font-size: 0.85rem;
+}

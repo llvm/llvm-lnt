@@ -66,6 +66,7 @@ machines:
   fields are marked ``listed``, so that v5's Machines tab shows them; the
   others, which can be many, are not.
 - **Commit fields**: none.
+- **Repository**: none of its keys is set, since v4 has no notion of one.
 - **Run fields**: the v4 schema must have exactly one run field marked
   ``order``, which defines commits (see below). Other run fields are not
   declared anywhere: v5 runs have no declared fields, so their values go into
