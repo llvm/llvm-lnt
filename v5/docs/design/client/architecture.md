@@ -347,12 +347,8 @@ that removes entries (TS7) is confirmed the same way, by typing the suite name,
 since it destroys their stored values. Revoking an API key (AD1), which destroys
 nothing, asks for a plain confirmation instead, as does renaming a machine
 (DT1), since run submissions that still use the old name create a new machine.
-Changing a machine's or a commit's fields, or a commit's ordinal or tag, is not
-confirmed: a run submission still sending the old value is refused (see O2), so
-the mismatch surfaces, unlike a rename, which silently splits a machine's runs.
-Clearing a value that a submitter sends lasts only until its next submission
-fills it in again. Removing indicators from a regression (DT4) is not confirmed
-either: it destroys no measured data, and the indicators can be added again.
+Removing indicators from a regression (DT4) is not confirmed at all: it destroys
+no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry

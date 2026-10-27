@@ -110,7 +110,7 @@ schema order, labelled as AR6 says, with the machine's value for it, or `--`
 when it has none: a `datetime` in local time (see AR6), and any other value in
 its JSON form. Each field is edited in place on its own (see AR12) through
 `PATCH /machines/{name}`, which requires `manage` scope, sending only that
-field. Emptying the input clears the field. Saving is not confirmed (see AR16).
+field. Emptying the input clears the field. Saving is not confirmed.
 What the input takes depends on the field's type (see D3), and any other text is
 invalid (see AR11):
 
