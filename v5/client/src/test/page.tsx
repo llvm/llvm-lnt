@@ -327,3 +327,8 @@ export async function infoRows(name: string) {
     label.nextElementSibling!.textContent,
   ])
 }
+
+/** Wait until the row `row` of the info box named `name` shows `expected`: its label and value. */
+export async function expectInfoRow(name: string, row: number, expected: [string, string]) {
+  await waitFor(async () => expect((await infoRows(name))[row]).toEqual(expected))
+}

@@ -235,8 +235,9 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 An input whose text is invalid -- an invalid regex in a test filter, a name the
 schema editor rejects (TS7), an ordinal that is not an integer its column can
-hold (DT3), a machine name that I1 rejects, or an empty one (DT1) -- shows a red
-halo (red border and glow) for as long as its text stays invalid.
+hold (DT3), a machine name that I1 rejects, or an empty one (DT1), a field value
+that its type does not allow (DT1) -- shows a red halo (red border and glow) for
+as long as its text stays invalid.
 
 
 ## AR12: Inline Editing
@@ -261,7 +262,9 @@ the input and its buttons cannot be used. If the save fails, the input stays
 open with its text and says why. If it succeeds, the input closes and the field
 shows the value the API returned, so an edit never appears before the API has
 accepted it. When the input closes, the focus returns to the Edit button. Edit
-and Save need the scope that the change needs (see AR17).
+and Save need the scope that the change needs (see AR17). However long the
+value, the Edit button, and the input's Save and Cancel, stay in view: a value
+too long to show whole scrolls on its own, beside its Edit button.
 
 
 ## AR13: Controls Saving on Change
@@ -344,8 +347,12 @@ that removes entries (TS7) is confirmed the same way, by typing the suite name,
 since it destroys their stored values. Revoking an API key (AD1), which destroys
 nothing, asks for a plain confirmation instead, as does renaming a machine
 (DT1), since run submissions that still use the old name create a new machine.
-Removing indicators from a regression (DT4) is not confirmed at all: it destroys
-no measured data, and the indicators can be added again.
+Changing a machine's or a commit's fields, or a commit's ordinal or tag, is not
+confirmed: a run submission still sending the old value is refused (see O2), so
+the mismatch surfaces, unlike a rename, which silently splits a machine's runs.
+Clearing a value that a submitter sends lasts only until its next submission
+fills it in again. Removing indicators from a regression (DT4) is not confirmed
+at all: it destroys no measured data, and the indicators can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry

@@ -112,6 +112,7 @@ test('cannot be changed without a token', async ({ page, request }) => {
 
   await expect(page.getByRole('button', { name: 'Edit Ordinal' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Edit Tag' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Edit svn_revision' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Delete commit' })).toBeDisabled()
 })
 
@@ -169,6 +170,45 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
     await expect(info).not.toContainText('release-1')
     const cleared = await json<Schemas['CommitDetail']>(request, `/api/suites/${suite}/commits/c2`)
     expect(cleared.tag).toBeNull()
+  })
+})
+
+test('its display field is edited by a holder of manage scope, and shows the commit elsewhere', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`/suites/${suite}?tab=commits`)
+    await table(page, 'Commits').getByRole('link', { name: 'c2', exact: true }).click()
+    const revision = page.getByRole('textbox', { name: 'revision' })
+
+    await page.getByRole('button', { name: 'Edit revision' }).click()
+    await revision.fill(' r2 ')
+    await revision.press('Control+Enter')
+    await expect(revision).toHaveCount(0)
+    await expect(page.getByRole('group', { name: 'Commit', exact: true })).toContainText('r2')
+    // The page shows the commit string itself.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Commit: c2')
+    const stored = await json<Schemas['CommitDetail']>(request, `/api/suites/${suite}/commits/c2`)
+    expect(stored.fields.revision).toBe('r2')
+
+    // Elsewhere, the commit is shown by its new display value.
+    await page.goBack()
+    const commits = table(page, 'Commits')
+    await expect(commits.getByRole('link', { name: 'r2', exact: true })).toBeVisible()
+    await expect(commits.getByRole('link', { name: 'c2', exact: true })).toHaveCount(0)
+
+    // Emptied, it is cleared, and the commit is shown by its commit string again.
+    await commits.getByRole('link', { name: 'r2', exact: true }).click()
+    await page.getByRole('button', { name: 'Edit revision' }).click()
+    await revision.fill('')
+    await revision.press('Control+Enter')
+    await expect(revision).toHaveCount(0)
+    await page.goBack()
+    await expect(commits.getByRole('link', { name: 'c2', exact: true })).toBeVisible()
   })
 })
 

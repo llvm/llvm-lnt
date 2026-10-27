@@ -3,6 +3,7 @@ import {
   formatNumber,
   formatPercent,
   formatTimestamp,
+  localTimestampText,
   longestFormatted,
   parseNumber,
   plural,
@@ -28,6 +29,26 @@ describe('formatTimestamp', () => {
 
   it('shows something it cannot read as it is', () => {
     expect(formatTimestamp('yesterday')).toBe('yesterday')
+  })
+})
+
+describe('localTimestampText', () => {
+  it('writes a timestamp in local time, with the offset that makes it the same instant', () => {
+    expect(localTimestampText('2026-08-25T14:22:41Z')).toBe('2026-08-25T14:22:41+00:00')
+    expect(localTimestampText('2026-08-25T14:22:41-04:00')).toBe('2026-08-25T18:22:41+00:00')
+  })
+
+  it('writes milliseconds only when there are some', () => {
+    expect(localTimestampText('2026-08-25T14:22:41.120456Z')).toBe('2026-08-25T14:22:41.120+00:00')
+    expect(localTimestampText('2026-08-25T14:22:41.000Z')).toBe('2026-08-25T14:22:41+00:00')
+  })
+
+  it('writes a year with four digits', () => {
+    expect(localTimestampText('0099-01-02T03:04:05Z')).toBe('0099-01-02T03:04:05+00:00')
+  })
+
+  it('gives back text that is not a timestamp as it is', () => {
+    expect(localTimestampText('yesterday')).toBe('yesterday')
   })
 })
 

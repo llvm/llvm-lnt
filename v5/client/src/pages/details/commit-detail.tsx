@@ -22,6 +22,7 @@ import { ButtonLink } from '../../components/button-link'
 import { ControlsPanel } from '../../components/controls-panel'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
+import { FieldRow } from '../../components/field-row'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
 import { InactivityRow } from '../../components/inactivity-row'
@@ -32,13 +33,7 @@ import { useTextFilter } from '../../components/use-text-filter'
 import { WithSchema } from '../../components/with-schema'
 import { compareStrings, isIntegerIn, plural } from '../../format'
 import { commitPath } from '../../paths'
-import {
-  commitDisplayValue,
-  defaultMetric,
-  formatFieldValue,
-  labelOf,
-  type Commit,
-} from '../../schema'
+import { commitDisplayValue, defaultMetric, labelOf, type Commit } from '../../schema'
 import { trimmedStringParam, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
@@ -150,7 +145,7 @@ function invalidOrdinal(text: string): string | undefined {
 }
 
 /**
- * The commit, its ordinal and tag, which a holder of `manage` scope can edit, and its fields, the
+ * The commit, and its ordinal, tag and fields, which a holder of `manage` scope can edit, the
  * display field marked as such.
  */
 function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
@@ -186,8 +181,11 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
         onSave={(days) => update({ delete_after_inactive_days: days })}
       />
       {schema.commit_fields.map((field) => (
-        <InfoRow
+        <FieldRow
           key={field.name}
+          field={field}
+          value={commit.fields[field.name]}
+          gate={manage}
           label={
             <>
               {labelOf(field)}
@@ -199,9 +197,8 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
               )}
             </>
           }
-        >
-          {formatFieldValue(commit.fields[field.name], field.type)}
-        </InfoRow>
+          onSave={(value) => update({ fields: { [field.name]: value } })}
+        />
       ))}
     </InfoBox>
   )

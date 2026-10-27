@@ -106,11 +106,11 @@ function holdsCommits(query: Query): boolean {
 }
 
 /**
- * Mark stale what shows a commit of `suite`, after a change to its ordinal or tag: every query
- * about commits, every list that holds its commits' display values, and every trend, which ordinals
- * place and window (E9). Nothing is fetched again until it is shown. What names a commit only by
- * its value is left alone, such as a run's samples, which never change and would otherwise all be
- * fetched again when next shown.
+ * Mark stale what shows a commit of `suite`, after a change to its ordinal, tag or fields: every
+ * query about commits, every list that holds its commits' display values, and every trend, which
+ * ordinals place and window (E9). Nothing is fetched again until it is shown. What names a commit
+ * only by its value is left alone, such as a run's samples, which never change and would otherwise
+ * all be fetched again when next shown.
  */
 export async function commitChanged(queryClient: QueryClient, suite: string): Promise<void> {
   await queryClient.invalidateQueries({

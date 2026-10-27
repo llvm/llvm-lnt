@@ -155,7 +155,8 @@ metadata -- and every write path accepts that same object:
    create the record without a run.
 3. **PATCH**: `PATCH /api/suites/{testsuite}/machines/{name}` and
    `PATCH /api/suites/{testsuite}/commits/{value}` set or update metadata at
-   any time, overwriting existing values.
+   any time, overwriting existing values. Inside `fields`, an explicit `null`
+   clears a stored value, and a key that is omitted is left unchanged.
 
 **Declared keys only.** On every path, each metadata key must be declared in
 the suite's schema; an undeclared key is rejected with 400. Neither entity has

@@ -37,9 +37,10 @@ export async function withOwnSuiteName(
 }
 
 /**
- * Create a suite named after the test, with the metrics `execution_time` and `compile_time`, and
- * the machine field `hardware`, submit `runs` to it, and call `use` with its name and the UUIDs of
- * the runs, in order. The suite is deleted once `use` returns.
+ * Create a suite named after the test, with the metrics `execution_time` and `compile_time`, the
+ * listed machine field `hardware`, and the display commit field `revision`, which no commit has a
+ * value for, submit `runs` to it, and call `use` with its name and the UUIDs of the runs, in order.
+ * The suite is deleted once `use` returns.
  */
 export async function ownSuite(
   request: APIRequestContext,
@@ -59,7 +60,8 @@ export async function ownSuite(
           { name: 'execution_time', type: 'real' },
           { name: 'compile_time', type: 'real' },
         ],
-        machine_fields: [{ name: 'hardware', type: 'text' }],
+        machine_fields: [{ name: 'hardware', type: 'text', listed: true }],
+        commit_fields: [{ name: 'revision', type: 'text', display: true }],
       },
     })
     expect(created.status(), await created.text()).toBe(201)

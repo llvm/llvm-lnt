@@ -6,8 +6,24 @@
 }
 
 .button {
+  flex: none;
   padding: 0 var(--lnt-space-2);
   font-size: 0.8rem;
+}
+
+/* The value and its Edit button, which stays beside it, at its first line, however long the value
+   is: the value wraps, and scrolls once taller than the info box lets a value be (AR12). */
+.shown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--lnt-space-2);
+  max-width: 100%;
+}
+
+.value {
+  min-width: 0;
+  max-height: var(--lnt-value-max-height);
+  overflow: auto;
 }
 
 /* The input and its buttons, with the confirmation a save may ask for, and why a save failed, below
