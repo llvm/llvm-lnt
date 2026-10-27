@@ -462,15 +462,14 @@ describe('the URL checks', () => {
     await openEditor()
     typeInto(suiteNameInput(), 'fresh')
     const url = screen.getByRole('textbox', { name: 'Range URL' })
-    expect(screen.getByRole('region', { name: 'Repository' })).toHaveTextContent(
-      '{from} and {to} are replaced by the older and the newer commit.',
-    )
+    const hint = '{from} and {to} are replaced by the older and the newer commit.'
+    expect(url).toHaveAccessibleDescription(hint)
 
     typeInto(url, 'https://{from}.example.com/{to}')
     const why = 'A URL names its host as it is, without a placeholder.'
     expect(url).toHaveAttribute('aria-invalid', 'true')
     expect(url).toHaveAttribute('title', why)
-    expect(url).toHaveAccessibleDescription(why)
+    expect(url).toHaveAccessibleDescription(`${hint} ${why}`)
     expect(createButton()).toBeDisabled()
     expect(createButton()).toHaveAttribute(
       'title',

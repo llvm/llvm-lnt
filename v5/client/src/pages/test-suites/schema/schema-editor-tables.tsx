@@ -110,6 +110,7 @@ const RepositoryInputs = memo(function RepositoryInputs({
   change(update: Update): void
 }) {
   const problems = repositoryProblems(repository)
+  const hintId = useId()
   return (
     <section aria-label="Repository">
       <RepositoryBox
@@ -120,13 +121,18 @@ const RepositoryInputs = memo(function RepositoryInputs({
                 label={REPOSITORY_HEADERS[key]}
                 value={repository[key]}
                 problem={problems.get(key)}
+                aria-describedby={isUrlKey(key) ? `${hintId}-${key}` : undefined}
                 readOnly={busy}
                 className={styles.cellInput}
                 onValue={(text) => {
                   if (!busy) change((draft) => changeRepository(draft, key, text))
                 }}
               />
-              {isUrlKey(key) && <div className={styles.hint}>{URL_HINTS[key]}</div>}
+              {isUrlKey(key) && (
+                <div id={`${hintId}-${key}`} className={styles.hint}>
+                  {URL_HINTS[key]}
+                </div>
+              )}
             </>
           )
         }}
@@ -315,6 +321,7 @@ interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChang
  */
 export function NameInput({ label, problem, onValue, ...props }: NameProps) {
   const problemId = useId()
+  const describedBy = [props['aria-describedby'], problem === undefined ? undefined : problemId]
   return (
     <>
       <input
@@ -324,7 +331,7 @@ export function NameInput({ label, problem, onValue, ...props }: NameProps) {
         spellCheck={false}
         {...props}
         aria-invalid={problem !== undefined || undefined}
-        aria-describedby={problem === undefined ? undefined : problemId}
+        aria-describedby={describedBy.filter(Boolean).join(' ') || undefined}
         title={problem}
         onChange={(event) => onValue(event.target.value)}
       />

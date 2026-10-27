@@ -89,7 +89,9 @@ Label = Annotated[str, StringConstraints(min_length=1), Storable]
 #   with a copy of these rules (schema-editor-model.ts in client/src/pages/test-suites/schema).
 # - No brace outside the placeholders the template accepts, which keeps the syntax free for more
 #   placeholders later.
-_URL_SCHEME = re.compile(r"^https?://", re.IGNORECASE)
+# ASCII only: Python folds case across Unicode, where `s` would also match U+017F (the long s),
+# and a browser reads `http` followed by that letter and `://` as a relative link.
+_URL_SCHEME = re.compile(r"^https?://", re.IGNORECASE | re.ASCII)
 _URL_EXCLUDED = re.compile(r"[\x00-\x20\x7f]")
 _PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
 
@@ -101,7 +103,7 @@ def _url_template(*placeholders: str) -> Callable[[str], str]:
 
     def check(template: str) -> str:
         if _URL_EXCLUDED.search(template):
-            raise ValueError("must not contain spaces or control characters")
+            raise ValueError("must not contain spaces or ASCII control characters")
         if not (scheme := _URL_SCHEME.match(template)):
             raise ValueError("must start with http:// or https://")
         for name in _PLACEHOLDER.findall(template):
@@ -355,18 +357,19 @@ class MachineField(_SearchableEntry):
 # Shared with the update model in `evolve.py`, which adds what null means there.
 TEMPLATE_RULES = (
     "It must start with `http://` or `https://`, name its host literally, and contain no spaces, "
-    "control characters or braces other than its placeholders'. Clients replace every placeholder, "
-    "percent-encoding the value: every character but an ASCII letter, a digit or one of "
-    "`-_.!~*'()`."
+    "ASCII control characters, or braces other than its placeholders'. Clients replace every "
+    "placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one "
+    "of `-_.!~*'()`."
 )
 COMMIT_URL = (
     "A template of the URL of a commit in the repository, in which `{commit}` stands for the "
-    f"commit's value, such as a Git SHA. {TEMPLATE_RULES}"
+    f"commit's value, such as a Git SHA. It must contain `{{commit}}`. {TEMPLATE_RULES}"
 )
 RANGE_URL = (
     "A template of the URL of the changes between two commits, in which `{from}` stands for the "
     "older commit, whose changes are not included, and `{to}` for the newer one, whose changes "
-    f"are, as in Git's `from..to`. {TEMPLATE_RULES}"
+    "are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. "
+    f"{TEMPLATE_RULES}"
 )
 REPOSITORY_LABEL = (
     'What the repository is called in links to it, such as `GitHub`, as in "View on GitHub".'
@@ -377,7 +380,7 @@ REPOSITORY_LABEL = (
 # checks them, but never fills them in.
 class Repository(BaseModel):
     """The repository holding the suite's commits, so that clients can link a commit, or the changes
-    between two commits, to it. Every key is optional."""
+    between two commits, to it. Each key is null when not set."""
 
     model_config = ConfigDict(
         extra="forbid",

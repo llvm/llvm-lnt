@@ -257,6 +257,8 @@ export function suiteNameProblem(name: string, existing: readonly string[]): str
 // or ASCII control character -- a set spelled out, rather than "whitespace", which JavaScript and
 // the server's Python do not agree on -- and no brace but those of the placeholders it accepts.
 // `client/src/test/url-templates.json` holds the cases both must accept or refuse alike.
+// Without the `u` flag, `i` folds no non-ASCII letter onto an ASCII one, unlike Python's
+// IGNORECASE, which the server limits to ASCII: U+017F (the long s) does not pass for an `s`.
 const URL_SCHEME = /^https?:\/\//i
 // eslint-disable-next-line no-control-regex
 const URL_EXCLUDED = /[\u0000-\u0020\u007f]/
@@ -266,7 +268,7 @@ const PLACEHOLDER = /\{([^{}]*)\}/g
 export function templateProblem(key: UrlKey, template: string): string | undefined {
   const placeholders = PLACEHOLDERS[key]
   const accepted = placeholders.map((name) => `{${name}}`).join(' and ')
-  if (URL_EXCLUDED.test(template)) return 'A URL cannot contain spaces or control characters.'
+  if (URL_EXCLUDED.test(template)) return 'A URL cannot contain spaces or ASCII control characters.'
   const scheme = URL_SCHEME.exec(template)
   if (scheme === null) return 'A URL starts with http:// or https://.'
   for (const [placeholder, name] of template.matchAll(PLACEHOLDER)) {

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from lnt_v5 import examples
 from lnt_v5.suites.schema import AttributeType, SuiteSchema
 
 # The schema from D4, which exercises every list, the repository, and most of the optional keys.
@@ -38,11 +39,7 @@ EXAMPLE: dict[str, Any] = {
         {"name": "commit_message", "type": "text"},
         {"name": "commit_timestamp", "type": "datetime", "listed": True},
     ],
-    "repository": {
-        "label": "GitHub",
-        "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
-        "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}",
-    },
+    "repository": examples.REPOSITORY,
 }
 
 
@@ -387,14 +384,12 @@ TEMPLATE_CASES = [
     for template in URL_TEMPLATES[key][verdict]
 ]
 
-GITHUB: dict[str, Any] = EXAMPLE["repository"]
-
 
 class TestRepository:
     def test_accepts_every_key(self) -> None:
-        parsed = SuiteSchema.model_validate(schema(repository=GITHUB))
+        parsed = SuiteSchema.model_validate(schema(repository=examples.REPOSITORY))
 
-        assert parsed.model_dump()["repository"] == GITHUB
+        assert parsed.model_dump()["repository"] == examples.REPOSITORY
 
     @pytest.mark.parametrize(("key", "template", "valid"), TEMPLATE_CASES)
     def test_checks_a_url_template(self, key: str, template: str, valid: bool) -> None:
@@ -412,7 +407,7 @@ class TestRepository:
 
     def test_an_unknown_key_is_refused(self) -> None:
         with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(repository={"url": GITHUB["commit_url"]}))
+            SuiteSchema.model_validate(schema(repository={"url": "https://example.com/{commit}"}))
 
     def test_the_block_cannot_be_null(self) -> None:
         # Like a list, it is omitted rather than null, and each of its keys is cleared on its own.

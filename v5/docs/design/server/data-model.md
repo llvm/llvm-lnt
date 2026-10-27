@@ -315,8 +315,7 @@ other key is rejected with 400.
   which `{from}` stands for the commit string of the older commit and `{to}` for
   that of the newer one. As in Git's `from..to`, the changes of `from` are
   excluded and those of `to` are included. GitHub's `compare/{from}...{to}`
-  fits: with three dots, it shows the changes of `to` since the two commits'
-  latest common ancestor, which is `from` itself on a linear history.
+  fits, since on a linear history its three dots mean the same.
 
 A template is rejected with 400 unless:
 - it contains each of its placeholders at least once, in any order, and no other
@@ -336,8 +335,9 @@ free for further placeholders.
 The UI fills a template in by replacing every occurrence of each placeholder
 with its commit string, percent-encoded: every character other than an ASCII
 letter, a digit, or one of `-_.!~*'()` is replaced by `%` and two hexadecimal
-digits for each byte of its UTF-8 encoding. I1 already keeps `/` and `%` out of
-commit strings.
+digits for each byte of its UTF-8 encoding. Since I1 rejects the commit strings
+`.` and `..`, a placeholder that is a whole path segment never fills it with a
+dot segment, which would change the path.
 
 **Suite name.** `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
 characters; anything else is rejected with 400. The name is also the name of

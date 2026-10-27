@@ -10,6 +10,7 @@
       "https://example.com#{commit}",
       "https://user@example.com:8080/{commit}",
       "https://example.com/\u00fcn\u00efcode/{commit}",
+      "https://[::1]/{commit}",
       "https://example.com/\u00a0\u0085\u2028\ufeff/{commit}"
     ],
     "invalid": [
@@ -22,6 +23,7 @@
       "https://example.com/{{commit}}",
       "https://example.com/{commit",
       "ftp://example.com/{commit}",
+      "http\u017f://example.com/{commit}",
       "javascript:alert('{commit}')",
       "https:/example.com/{commit}",
       "//example.com/{commit}",
@@ -41,7 +43,9 @@
       "https://example.com/{commit}\u0000",
       "https://example.com/{commit}\u001c",
       "https://example.com/{commit}\u001f",
-      "https://example.com/{commit}\u007f"
+      "https://example.com/{commit}\u007f",
+      "https://[{commit}]/",
+      "https://example.com\\@{commit}/"
     ]
   },
   "range_url": {

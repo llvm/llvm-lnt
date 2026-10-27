@@ -517,6 +517,14 @@ _BEFORE_LISTED: dict[str, Any] = {
 }
 
 
+# What 0006 makes of it.
+_AFTER_LISTED: dict[str, Any] = {
+    **_BEFORE_LISTED,
+    "commit_fields": [{**field, "listed": False} for field in _BEFORE_LISTED["commit_fields"]],
+    "machine_fields": [{**field, "listed": True} for field in _BEFORE_LISTED["machine_fields"]],
+}
+
+
 class TestFieldListed:
     """0006 sets `listed` on every stored field, so the Machines and Commits tabs show what they
     showed."""
@@ -527,13 +535,8 @@ class TestFieldListed:
 
         upgrade_by_hand(empty_engine, "0006")
 
-        expected = copy.deepcopy(_BEFORE_LISTED)
-        for field in expected["commit_fields"]:
-            field["listed"] = False
-        for field in expected["machine_fields"]:
-            field["listed"] = True
         # Metrics are left as they were.
-        assert stored_schema_json(empty_engine)["before"] == compact(expected)
+        assert stored_schema_json(empty_engine)["before"] == compact(_AFTER_LISTED)
 
     def test_bumps_the_schema_version_once_and_leaves_set_keys_alone(
         self, empty_engine: Engine
@@ -626,13 +629,8 @@ class TestFieldListed:
         assert schema_version_of(empty_engine) == 2
 
 
-# A schema stored by a build before suites had a repository, in the server's key order.
-_BEFORE_REPOSITORY: dict[str, Any] = {
-    "name": "before",
-    "metrics": [{**metric_0003("execution_time", "real"), "dashboard": True}],
-    "commit_fields": [commit_field_0005("sha", display_name="Shà", listed=False)],
-    "machine_fields": [{**machine_field_0005("os"), "listed": True}],
-}
+# A schema stored by a build before suites had a repository.
+_BEFORE_REPOSITORY = _AFTER_LISTED
 _NO_REPOSITORY = {"label": None, "commit_url": None, "range_url": None}
 
 
@@ -641,8 +639,9 @@ class TestSchemaRepository:
     schemas normalized."""
 
     def test_adds_the_block_and_nothing_else(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0006")
-        store_schema_json(empty_engine, {"before": compact(_BEFORE_REPOSITORY)})
+        # From before 0006, so that the whole chain of rewrites is checked.
+        upgrade_by_hand(empty_engine, "0005")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_LISTED)})
 
         # To the head, so that what is stored is what the latest build writes.
         upgrade_to_head(empty_engine)

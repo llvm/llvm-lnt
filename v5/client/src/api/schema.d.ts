@@ -2385,7 +2385,7 @@ export interface components {
         /**
          * Repository
          * @description The repository holding the suite's commits, so that clients can link a commit, or the changes
-         *     between two commits, to it. Every key is optional.
+         *     between two commits, to it. Each key is null when not set.
          * @example {
          *       "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
          *       "label": "GitHub",
@@ -2400,19 +2400,19 @@ export interface components {
             label: string | null;
             /**
              * Commit Url
-             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must contain `{commit}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
              */
             commit_url: string | null;
             /**
              * Range Url
-             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
              */
             range_url: string | null;
         };
         /**
          * RepositoryInput
          * @description The repository holding the suite's commits, so that clients can link a commit, or the changes
-         *     between two commits, to it. Every key is optional.
+         *     between two commits, to it. Each key is null when not set.
          * @example {
          *       "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
          *       "label": "GitHub",
@@ -2427,12 +2427,12 @@ export interface components {
             label?: string | null;
             /**
              * Commit Url
-             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must contain `{commit}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
              */
             commit_url?: string | null;
             /**
              * Range Url
-             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null if none.
              */
             range_url?: string | null;
         };
@@ -2448,12 +2448,12 @@ export interface components {
             label?: string | null;
             /**
              * Commit Url
-             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
+             * @description A template of the URL of a commit in the repository, in which `{commit}` stands for the commit's value, such as a Git SHA. It must contain `{commit}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
              */
             commit_url?: string | null;
             /**
              * Range Url
-             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, control characters or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
+             * @description A template of the URL of the changes between two commits, in which `{from}` stands for the older commit, whose changes are not included, and `{to}` for the newer one, whose changes are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. It must start with `http://` or `https://`, name its host literally, and contain no spaces, ASCII control characters, or braces other than its placeholders'. Clients replace every placeholder, percent-encoding the value: every character but an ASCII letter, a digit or one of `-_.!~*'()`. Null removes it.
              */
             range_url?: string | null;
         };

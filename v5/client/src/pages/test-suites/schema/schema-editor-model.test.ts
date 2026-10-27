@@ -457,7 +457,7 @@ describe('templateProblem', () => {
 
   it('says why', () => {
     const problems = {
-      'https://example.com/{commit} ': 'A URL cannot contain spaces or control characters.',
+      'https://example.com/{commit} ': 'A URL cannot contain spaces or ASCII control characters.',
       'ftp://example.com/{commit}': 'A URL starts with http:// or https://.',
       'https://example.com/{sha}': '{sha} is not a placeholder this URL accepts, only {commit}.',
       'https://example.com/{{commit}}':

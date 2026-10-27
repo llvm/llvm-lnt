@@ -18,6 +18,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from conftest import code_of, entry, ndjson_lines, run_payload
 from introspection import column_names, schema_version_of
+from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import SUITES_PATH, delete_suite, patch_schema
 from lnt_v5.scopes import Scope
@@ -193,6 +194,8 @@ class TestCreate:
             ({"name": "NTS"}, "a name rule"),
             ({"name": "nts", "metrics": [{"name": "m", "type": "status"}]}, "a type rule"),
             ({"name": "nts", "format_version": "5"}, "an unknown top-level key"),
+            ({"name": "nts", "repository": None}, "a null repository"),
+            ({"name": "nts", "repository": {"url": "https://example.com/"}}, "a repository key"),
         ],
     )
     def test_refuses_a_schema_that_does_not_validate(
@@ -722,20 +725,13 @@ class TestEvolveConfirmation:
         )
 
 
-GITHUB: dict[str, Any] = {
-    "label": "GitHub",
-    "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
-    "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}",
-}
-
-
 class TestEvolveRepository:
     """`repository` is changed key by key, like an entry's `update` (D2)."""
 
     def test_sets_the_keys_it_is_given_and_clears_those_sent_as_null(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
     ) -> None:
-        create(repository=GITHUB)
+        create(repository=examples.REPOSITORY)
         commit_url = "https://git.example.com/{commit}"
 
         # No `confirm`: it destroys nothing.
@@ -747,7 +743,7 @@ class TestEvolveRepository:
         assert response.json()["repository"] == {
             "label": None,
             "commit_url": commit_url,
-            "range_url": GITHUB["range_url"],
+            "range_url": examples.REPOSITORY["range_url"],
         }
 
     def test_changes_no_column_but_tells_every_worker(
@@ -775,7 +771,7 @@ class TestEvolveRepository:
         create: Callable[..., Any],
         manage: dict[str, str],
     ) -> None:
-        create(repository=GITHUB)
+        create(repository=examples.REPOSITORY)
         before = schema_version_of(db_engine)
 
         response = patch_request(api_client, manage, {"repository": {"label": "GitHub"}})
@@ -799,12 +795,12 @@ class TestEvolveRepository:
         manage: dict[str, str],
         body: dict[str, Any],
     ) -> None:
-        create(repository=GITHUB)
+        create(repository=examples.REPOSITORY)
 
         response = patch_request(api_client, manage, body, confirm=True)
 
-        assert response.json()["repository"] == GITHUB
-        assert stored_schema(db_engine, "nts")["repository"] == GITHUB
+        assert response.json()["repository"] == examples.REPOSITORY
+        assert stored_schema(db_engine, "nts")["repository"] == examples.REPOSITORY
 
     def test_can_change_with_the_lists_in_one_request(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -816,12 +812,12 @@ class TestEvolveRepository:
             manage,
             {
                 "metrics": {"add": [{"name": "code_size", "type": "integer"}]},
-                "repository": {"range_url": GITHUB["range_url"]},
+                "repository": {"range_url": examples.REPOSITORY["range_url"]},
             },
         ).json()
 
         assert body["metrics"][-1]["name"] == "code_size"
-        assert body["repository"]["range_url"] == GITHUB["range_url"]
+        assert body["repository"]["range_url"] == examples.REPOSITORY["range_url"]
 
     @pytest.mark.parametrize(
         "repository",
@@ -829,7 +825,7 @@ class TestEvolveRepository:
             None,
             {"label": ""},
             {"commit_url": "https://{commit}.example.com/"},
-            {"url": GITHUB["commit_url"]},
+            {"url": examples.REPOSITORY["commit_url"]},
         ],
     )
     def test_refuses_what_a_schema_would_not_accept(
@@ -840,12 +836,12 @@ class TestEvolveRepository:
         repository: Any,
     ) -> None:
         # Null for the whole block too: its keys are cleared one by one.
-        create(repository=GITHUB)
+        create(repository=examples.REPOSITORY)
 
         response = patch_request(api_client, manage, {"repository": repository})
 
         assert code_of(response) == "invalid_request"
-        assert api_client.get(f"{SUITES}/nts").json()["repository"] == GITHUB
+        assert api_client.get(f"{SUITES}/nts").json()["repository"] == examples.REPOSITORY
 
 
 def suite_tables_for(engine: Engine) -> Any:
