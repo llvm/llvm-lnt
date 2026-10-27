@@ -90,9 +90,8 @@ null if it has no runs. It is derived rather than stored (see D5).
 `name` renames the machine. The old name is not kept as an alias: run
 submissions find their machine by name (see O2), so those that still use the old
 name create a new machine. `PATCH` can flip `tracked` at any time, and set
-`delete_after_inactive_days` or clear it with `null`. Inside `fields`, an
-explicit `null` clears a stored value, the same convention as
-`PATCH /api/suites/{testsuite}/commits/{value}`.
+`delete_after_inactive_days` or clear it with `null`. Each key of `fields` is
+likewise left unchanged when omitted and cleared by `null`.
 
 **Responses.**
 
@@ -160,7 +159,7 @@ commit that has no ordinal itself.
 
 **Updating.** On `PATCH`, an omitted key is left unchanged. Sending
 `ordinal: null`, `tag: null` or `delete_after_inactive_days: null` clears a
-previously set value.
+previously set value. The same applies to each key of `fields`.
 
 **Responses.**
 

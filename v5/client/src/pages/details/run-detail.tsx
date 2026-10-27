@@ -125,7 +125,7 @@ function RunInfo({ schema, run }: { schema: SuiteSchema; run: Run }) {
       <InfoRow label="Measured">{formatTimestamp(run.measured_at)}</InfoRow>
       <InfoRow label="Submitted">{formatTimestamp(run.submitted_at)}</InfoRow>
       {parameters.map(([key, value]) => (
-        <InfoRow key={key} label={key}>
+        <InfoRow key={key} label={key} scroll>
           {typeof value === 'string' ? value : JSON.stringify(value)}
         </InfoRow>
       ))}

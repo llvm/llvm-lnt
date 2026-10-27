@@ -235,8 +235,9 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 An input whose text is invalid -- an invalid regex in a test filter, a name the
 schema editor rejects (TS7), an ordinal that is not an integer its column can
-hold (DT3), a machine name that I1 rejects, or an empty one (DT1) -- shows a red
-halo (red border and glow) for as long as its text stays invalid.
+hold (DT3), a machine name that I1 rejects or an empty one (DT1), or a field
+value that its type does not allow (DT1) -- shows a red halo (red border and
+glow) for as long as its text stays invalid.
 
 
 ## AR12: Inline Editing
@@ -261,7 +262,9 @@ the input and its buttons cannot be used. If the save fails, the input stays
 open with its text and says why. If it succeeds, the input closes and the field
 shows the value the API returned, so an edit never appears before the API has
 accepted it. When the input closes, the focus returns to the Edit button. Edit
-and Save need the scope that the change needs (see AR17).
+and Save need the scope that the change needs (see AR17). However long the
+value, the Edit button, and the input's Save and Cancel, stay in view: a value
+too long to show whole scrolls on its own, beside its Edit button.
 
 
 ## AR13: Controls Saving on Change

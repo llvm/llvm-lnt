@@ -55,6 +55,7 @@ test('cannot be changed without a token', async ({ page }) => {
 
   await expect(page.getByRole('button', { name: 'Edit Name' })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Tracked' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Edit hardware' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Delete Machine' })).toBeDisabled()
 })
 
@@ -169,6 +170,48 @@ test('its deletion after inactivity is edited by a holder of manage scope', asyn
     await expect(info).not.toContainText('30 days')
     const cleared = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
     expect(cleared.delete_after_inactive_days).toBeNull()
+  })
+})
+
+test('its fields are edited by a holder of manage scope, and listed as changed', async ({
+  page,
+  request,
+  tokenFor,
+  signIn,
+}, testInfo) => {
+  await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
+    await signIn(page, 'manage')
+    await page.goto(`/suites/${suite}?tab=machines`)
+    await table(page, 'Machines').getByRole('link', { name: 'm1', exact: true }).click()
+    const info = page.getByRole('group', { name: 'Machine', exact: true })
+    const hardware = page.getByRole('textbox', { name: 'hardware' })
+
+    // On several lines, where Enter starts a new one.
+    await page.getByRole('button', { name: 'Edit hardware' }).click()
+    await hardware.fill('Apple M4 Max')
+    await hardware.press('Enter')
+    await hardware.pressSequentially('16 cores')
+    await hardware.press('Control+Enter')
+    await expect(hardware).toHaveCount(0)
+    await expect(info).toContainText('Apple M4 Max\n16 cores')
+    const stored = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    expect(stored.fields.hardware).toBe('Apple M4 Max\n16 cores')
+
+    await page.goBack()
+    await expect(rows(table(page, 'Machines')).locator('td')).toHaveText([
+      'm1',
+      'Apple M4 Max\n16 cores',
+    ])
+
+    // Emptied, it is cleared.
+    await page.goForward()
+    await page.getByRole('button', { name: 'Edit hardware' }).click()
+    await hardware.fill('')
+    await hardware.press('Control+Enter')
+    await expect(hardware).toHaveCount(0)
+    await expect(info.locator('dt', { hasText: 'hardware' }).locator('+ dd')).toHaveText('--Edit')
+    const cleared = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    expect(cleared.fields.hardware).toBeNull()
   })
 })
 

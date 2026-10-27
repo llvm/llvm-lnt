@@ -27,8 +27,8 @@ libcxx › Machines
 | Name:                     linux-x86_64-20260812    [Edit]             |
 | Tracked:                  [x]                                         |
 | Delete after inactivity:  --    [Edit]                                |
-| compiler:                 clang version 22.1.0                        |
-| test_suite_commit:        8bb5e216937e6b541f351aa1637c67e85a43ada0    |
+| compiler:                 clang version 22.1.0    [Edit]              |
+| sdk:                      26.5    [Edit]                              |
 | etc...                                                                |
 +-----------------------------------------------------------------------+
 
@@ -102,6 +102,32 @@ setting. The label carries a help tooltip saying what the setting does (see
 O10): the machine is deleted, with its runs, once that many days have passed
 since it was created or since a run was last submitted for it, whichever is
 later. Saving is not confirmed.
+
+### Fields
+
+The info box shows a row for each machine field of the schema (see D4), in
+schema order, labelled as AR6 says, with the machine's value for it, or `--`
+when it has none: a `datetime` in local time (see AR6), and any other value in
+its JSON form. Each field is edited in place on its own (see AR12) through
+`PATCH /machines/{name}`, which requires `manage` scope, sending only that
+field. Emptying the input clears the field. Saving is not confirmed.
+What the input takes depends on the field's type (see D3), and any other text is
+invalid (see AR11):
+
+- `text`: any text, in a multi-line input, since a value can span lines, such as
+  a compiler's whole `--version` output.
+- `integer`: a whole number, in digits after an optional minus sign, from
+  -(2^53 - 1) to 2^53 - 1: the integers a browser holds exactly, which its
+  column holds too.
+- `real`: a finite number in decimal notation, optionally with an exponent
+  (`1.5`, `-.5`, `2e-3`).
+- `datetime`: a date and time, `YYYY-MM-DD` and `HH:MM`, optionally with
+  seconds and a fraction of a second, separated by `T` or a space, and followed
+  by an offset in the form `±HH:MM`, or by `Z` (`2026-08-25T14:22:41-04:00`).
+  The input opens with the value in local time, with the offset local time has
+  at that instant. The text is sent as typed, once trimmed (see AR12), for the
+  API to read (see D3): a date or time that does not exist is refused, and the
+  input says so.
 
 ### Active regressions table
 
@@ -231,7 +257,7 @@ libcxx › Commits
 | Ordinal                 593922    [Edit]                          |
 | Tag                     --        [Edit]                          |
 | Delete after inactivity --        [Edit]                          |
-| svn_revision [display]  r593922                                   |
+| svn_revision [display]  r593922   [Edit]                          |
 | <other commit-fields>                                             |
 +-------------------------------------------------------------------+
 
@@ -260,18 +286,21 @@ etc...
 
 ### Display and edit
 
-The page header and the `Commit` row show the commit string itself rather than its
-display value. The various commit fields are displayed prominently. The commit field the
-schema marks `display: true` (see D4), if any, carries a small grey `display` badge next to
-its label, like TS3's `untracked` badge, even when this commit has no value for it. Hovering
-the badge explains that the UI shows a commit by that field's value, when it has one, rather
-than by its commit string (see AR6). The ordinal and the tag are edited in place (see AR12)
-through `PATCH /commits/{value}`, which requires `manage` scope. Emptying either clears it.
-An ordinal is an integer that its column can hold (see D3 and D5): any other text is invalid
-(see AR11). The commit's `delete_after_inactive_days` is shown and edited in a
+The page header and the `Commit` row show the commit string itself rather than its display
+value. The commit fields are shown and edited like a machine's fields (see DT1), through
+`PATCH /commits/{value}`. The commit field the schema marks `display: true` (see D4), if
+any, carries a small grey `display` badge next to its label, like TS3's `untracked` badge,
+even when this commit has no value for it. Hovering the badge explains that the UI shows a
+commit by that field's value, when it has one, rather than by its commit string (see AR6). A
+change to that field changes the commit's display value wherever the UI shows it, but not on
+this page, which shows the commit string. The ordinal and the tag are edited in place (see
+AR12) through `PATCH /commits/{value}`, which requires `manage` scope. Emptying either
+clears it. An ordinal is an integer that its column can hold (see D3 and D5): any other text
+is invalid (see AR11). The commit's `delete_after_inactive_days` is shown and edited in a
 `Delete after inactivity` row, as on the Machine Detail page (see DT1). While the setting is
-set and the commit has an ordinal, the row says after the number of days that it has no effect
-(see O10). It can still be edited, since it takes effect again if the ordinal is cleared.
+set and the commit has an ordinal, the row says after the number of days that it has no
+effect (see O10). It can still be edited, since it takes effect again if the ordinal is
+cleared.
 
 ### Navigation
 

@@ -21,13 +21,20 @@ interface InfoRowProps {
   children: ReactNode
   /** Set the value in a fixed-width font, as a table sets an identifier (see `CellLook`). */
   mono?: boolean
+  /**
+   * Scroll a value taller than the box lets one be, such as a run parameter. Not for a value edited
+   * in place, which scrolls on its own so that its buttons stay in view (AR12).
+   */
+  scroll?: boolean
 }
 
-export function InfoRow({ label, children, mono = false }: InfoRowProps) {
+export function InfoRow({ label, children, mono = false, scroll = false }: InfoRowProps) {
   return (
     <div className={styles.row}>
       <dt className={styles.label}>{label}</dt>
-      <dd className={clsx(styles.value, mono && tableStyles.mono)}>{children}</dd>
+      <dd className={clsx(styles.value, scroll && styles.scroll, mono && tableStyles.mono)}>
+        {children}
+      </dd>
     </div>
   )
 }

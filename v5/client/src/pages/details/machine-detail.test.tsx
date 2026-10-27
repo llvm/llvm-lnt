@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { useNavigate } from 'react-router'
 import { describe, expect, it } from 'vitest'
@@ -7,11 +8,13 @@ import { INACTIVITY_HELP } from '../../inactivity'
 import { machinePath } from '../../paths'
 import { changeInAnotherTab, signIn, TOKEN } from '../../test/auth'
 import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
-import { commit, cursorPage, machine, regression, run, uuidOf } from '../../test/fixtures'
+import type { SuiteSchema } from '../../api/suites'
+import { commit, cursorPage, machine, regression, run, SUITE, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   editButton,
+  expectInfoRow,
   gate,
   inactivityCell,
   infoRows,
@@ -41,6 +44,8 @@ type Respond = (query: URLSearchParams) => Response | Promise<Response>
 const MACHINE_ROUTE = '/api/suites/{testsuite}/machines/{machine_name}'
 
 interface PageMocks {
+  /** The suites the API lists: `SUITE` and `BARE_SUITE` by default. */
+  suites?: SuiteSchema[]
   /** The answer to `GET /machines/{name}`, given the request and the name: `LINUX` by default. */
   machine?: (request: Request, name: string) => Response
   regressions?: Respond
@@ -53,6 +58,7 @@ interface PageMocks {
  * for, and the queries of the lists.
  */
 function mockPage({
+  suites,
   machine = () => HttpResponse.json(LINUX),
   regressions = () => HttpResponse.json(cursorPage([])),
   runs = () => HttpResponse.json(cursorPage([])),
@@ -60,7 +66,7 @@ function mockPage({
   const machineCalls = { count: 0 }
   const regressionList = recording(regressions)
   const runList = recording(runs)
-  mockSuites()
+  mockSuites(suites)
   mockResolve([
     commit('abc123', { tag: 'v1', fields: { svn_revision: 'r100', commit_info: null } }),
   ])
@@ -127,9 +133,9 @@ describe('the Machine Detail page', () => {
     expect(rows[1][0]).toBe('Tracked')
     expect(rows[2]).toEqual(['Delete after inactivity', inactivityCell('--')])
     expect(rows.slice(3)).toEqual([
-      ['Hardware', 'AMD EPYC'],
-      ['os', '--'],
-      ['Cores', '64'],
+      ['Hardware', 'AMD EPYCEdit'],
+      ['os', '--Edit'],
+      ['Cores', '64Edit'],
     ])
     expect(trackedBox()).toBeChecked()
   })
@@ -306,6 +312,194 @@ describe('the Machine Detail page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
       expect(await within(await table('Machines')).findByText('untracked')).toBeInTheDocument()
+      expect(machineQueries).toHaveLength(2)
+    })
+  })
+
+  describe('its fields', () => {
+    /** A suite whose machines also have a `real` and a `datetime` field. */
+    const TYPED: SuiteSchema = {
+      ...SUITE,
+      machine_fields: [
+        ...SUITE.machine_fields,
+        { name: 'clock', type: 'real', display_name: null, searchable: false, listed: false },
+        { name: 'built', type: 'datetime', display_name: null, searchable: false, listed: false },
+      ],
+    }
+    const TYPED_MACHINE = machine(NAME, {
+      fields: { ...LINUX.fields, clock: 3.5, built: '2026-08-25T14:22:41Z' },
+    })
+    const fieldRows = async () => (await infoRows('Machine')).slice(3)
+    /** Wait until the row of the field `index` shows `expected`: its label and value. */
+    const expectField = (index: number, expected: [string, string]) =>
+      expectInfoRow('Machine', 3 + index, expected)
+
+    /**
+     * Answer each PATCH with the machine `stored` becomes once changed. Returns what was sent, and
+     * the machine as stored.
+     */
+    function mockFieldPatch(stored: Schemas['Machine'] = LINUX) {
+      const sent = mockSent('patch', MACHINE_ROUTE, (body) => {
+        stored = { ...stored, fields: { ...stored.fields, ...body.fields } }
+        return HttpResponse.json(stored)
+      })
+      return { sent, stored: () => stored }
+    }
+
+    /** The page of a machine of `TYPED`. */
+    function renderTyped() {
+      mockPage({ suites: [TYPED], machine: () => HttpResponse.json(TYPED_MACHINE) })
+      renderPage(PAGE)
+    }
+
+    it('cannot be changed without manage scope', async () => {
+      signIn('triage')
+      renderMachine()
+
+      await screen.findByRole('group', { name: 'Machine' })
+      for (const field of ['Hardware', 'os', 'Cores']) {
+        await waitFor(() =>
+          expect(editButton(field)).toHaveAttribute(
+            'title',
+            expect.stringMatching(/has the 'triage' scope/),
+          ),
+        )
+        expect(editButton(field)).toBeDisabled()
+      }
+    })
+
+    it('cannot be changed with a key restricted to another suite', async () => {
+      signIn('manage', ['nts'])
+      renderMachine()
+
+      await screen.findByRole('group', { name: 'Machine' })
+      await waitFor(() =>
+        expect(editButton('Hardware')).toHaveAttribute('title', expect.stringMatching(/libcxx/)),
+      )
+      expect(editButton('Hardware')).toBeDisabled()
+    })
+
+    it('edits a text field on several lines, sending only it, and clears it when emptied', async () => {
+      signIn('manage')
+      const { sent } = mockFieldPatch()
+      renderMachine()
+      await ready('Machine', () => editButton('os'))
+
+      const user = userEvent.setup()
+      await user.click(editButton('os'))
+      const input = screen.getByRole('textbox', { name: 'os' })
+      // Enter starts a new line rather than saving, and Ctrl+Enter saves.
+      await user.type(input, ' Ubuntu 24.04{Enter}kernel 6.8 ')
+      expect(input).toHaveValue(' Ubuntu 24.04\nkernel 6.8 ')
+      expect(sent).toEqual([])
+      await user.keyboard('{Control>}{Enter}{/Control}')
+      await expectField(1, ['os', 'Ubuntu 24.04\nkernel 6.8Edit'])
+
+      save('Hardware', '')
+      await expectField(0, ['Hardware', '--Edit'])
+
+      expect(sent).toEqual([
+        { body: { fields: { os: 'Ubuntu 24.04\nkernel 6.8' } }, auth: `Bearer ${TOKEN}` },
+        { body: { fields: { hardware: null } }, auth: `Bearer ${TOKEN}` },
+      ])
+    })
+
+    it('takes only an integer that a browser holds exactly for an integer field', async () => {
+      signIn('manage')
+      const { sent } = mockFieldPatch()
+      renderMachine()
+      await ready('Machine', () => editButton('Cores'))
+      save('Cores', '1.5')
+      const input = screen.getByRole('textbox', { name: 'Cores' })
+      const why =
+        'An integer field takes a whole number from -9007199254740991 to 9007199254740991.'
+
+      for (const text of ['1.5', '1e3', '9007199254740992', 'many']) {
+        typeInto(input, text)
+        fireEvent.submit(input)
+        expect(input).toHaveAttribute('aria-invalid', 'true')
+        expect(input).toHaveAccessibleDescription(why)
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      }
+      expect(sent).toEqual([])
+
+      typeInto(input, ' 128 ')
+      fireEvent.submit(input)
+      await expectField(2, ['Cores', '128Edit'])
+      expect(sent.map(({ body }) => body)).toEqual([{ fields: { core_count: 128 } }])
+    })
+
+    it('takes a finite number for a real field', async () => {
+      signIn('manage')
+      const { sent } = mockFieldPatch(TYPED_MACHINE)
+      renderTyped()
+      await ready('Machine', () => editButton('clock'))
+
+      save('clock', 'NaN')
+      const input = screen.getByRole('textbox', { name: 'clock' })
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      typeInto(input, '2.5e3')
+      fireEvent.submit(input)
+
+      await expectField(3, ['clock', '2500Edit'])
+      expect(sent.map(({ body }) => body)).toEqual([{ fields: { clock: 2500 } }])
+    })
+
+    it('edits a datetime field in local time with its offset, sending the text as typed', async () => {
+      signIn('manage')
+      const { sent } = mockFieldPatch(TYPED_MACHINE)
+      renderTyped()
+      await ready('Machine', () => editButton('built'))
+
+      // Shown in local time (AR6), which is UTC in the tests.
+      expect((await fieldRows())[4]).toEqual(['built', '2026-08-25, 2:22:41 PMEdit'])
+      fireEvent.click(editButton('built'))
+      const input = screen.getByRole('textbox', { name: 'built' })
+      expect(input).toHaveValue('2026-08-25T14:22:41+00:00')
+
+      // Without an offset, the text names no instant.
+      typeInto(input, '2026-08-26 09:00')
+      fireEvent.submit(input)
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(sent).toEqual([])
+
+      typeInto(input, '2026-08-26 09:00-04:00')
+      fireEvent.submit(input)
+      await expectField(4, ['built', '2026-08-26, 1:00:00 PMEdit'])
+      expect(sent.map(({ body }) => body)).toEqual([
+        { fields: { built: '2026-08-26 09:00-04:00' } },
+      ])
+    })
+
+    it('reports a value the API refuses, keeping the editor open with its text', async () => {
+      signIn('manage')
+      mockSent('patch', MACHINE_ROUTE, () =>
+        errorResponse(400, 'invalid_request', "'built' is declared 'datetime': bad timestamp"),
+      )
+      renderTyped()
+      await ready('Machine', () => editButton('built'))
+
+      save('built', '2026-02-30T00:00Z')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('bad timestamp')
+      expect(screen.getByRole('textbox', { name: 'built' })).toHaveValue('2026-02-30T00:00Z')
+    })
+
+    it('are fetched again by the machine list once changed', async () => {
+      signIn('manage')
+      const { stored } = mockFieldPatch()
+      mockPage()
+      const machineQueries = mockMachines(() => ({ items: [stored()] }))
+      // From the Machines tab, whose list is then cached.
+      renderPage('/suites/libcxx?tab=machines')
+      fireEvent.click(within(await table('Machines')).getByRole('link', { name: NAME }))
+      await ready('Machine', () => editButton('Hardware'))
+
+      save('Hardware', 'Apple M4')
+      await expectField(0, ['Hardware', 'Apple M4Edit'])
+      fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+
+      expect(await within(await table('Machines')).findByText('Apple M4')).toBeInTheDocument()
       expect(machineQueries).toHaveLength(2)
     })
   })

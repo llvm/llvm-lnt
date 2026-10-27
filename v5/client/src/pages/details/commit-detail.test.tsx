@@ -11,6 +11,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   editButton,
+  expectInfoRow,
   gate,
   inactivityCell,
   infoRows,
@@ -126,9 +127,8 @@ function compareLinks(runs: HTMLElement) {
 }
 
 /** Wait until the row `row` of the info box shows `expected`, as its label and value. */
-async function expectInfo(row: number, expected: [string, string]) {
-  await waitFor(async () => expect((await infoRows('Commit'))[row]).toEqual(expected))
-}
+const expectInfo = (row: number, expected: [string, string]) =>
+  expectInfoRow('Commit', row, expected)
 
 /** Runs on two machines, macos twice, in the order the API gives them: most recently measured first. */
 const RUNS = [
@@ -147,8 +147,8 @@ describe('the Commit Detail page', () => {
       ['Ordinal', '100Edit'],
       ['Tag', 'v1Edit'],
       ['Delete after inactivity', inactivityCell('--')],
-      ['svn_revision display', 'r100'],
-      ['commit_info', 'Fix the vectorizer'],
+      ['svn_revision display', 'r100Edit'],
+      ['commit_info', 'Fix the vectorizerEdit'],
     ])
     // An identifier, set as a table sets one.
     expect(within(screen.getByRole('group', { name: 'Commit' })).getByText(VALUE)).toHaveClass(
@@ -176,7 +176,7 @@ describe('the Commit Detail page', () => {
         HttpResponse.json({ ...DETAIL, fields: { ...DETAIL.fields, svn_revision: null } }),
     })
 
-    expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', '--'])
+    expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', '--Edit'])
   })
 
   it('marks no field when the schema has none to display', async () => {
@@ -184,8 +184,8 @@ describe('the Commit Detail page', () => {
     renderCommit({ suites: [{ ...SUITE, commit_fields: fields }] })
 
     expect((await infoRows('Commit')).slice(4)).toEqual([
-      ['svn_revision', 'r100'],
-      ['commit_info', 'Fix the vectorizer'],
+      ['svn_revision', 'r100Edit'],
+      ['commit_info', 'Fix the vectorizerEdit'],
     ])
   })
 
@@ -488,6 +488,72 @@ describe('the Commit Detail page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
 
       expect(await within(await table('Commits')).findByText('v9')).toBeInTheDocument()
+      expect(listQueries).toHaveLength(2)
+    })
+  })
+
+  describe('its fields', () => {
+    it('cannot be edited without manage scope', async () => {
+      signIn('triage')
+      renderCommit()
+
+      await screen.findByRole('group', { name: 'Commit' })
+      for (const field of ['svn_revision', 'commit_info']) {
+        await waitFor(() =>
+          expect(editButton(field)).toHaveAttribute(
+            'title',
+            expect.stringMatching(/has the 'triage' scope/),
+          ),
+        )
+        expect(editButton(field)).toBeDisabled()
+      }
+    })
+
+    it('are changed with PATCH one at a time, and cleared when emptied', async () => {
+      signIn('manage')
+      let stored = DETAIL
+      const sent = mockSent('patch', COMMIT_ROUTE, (body) => {
+        stored = { ...stored, fields: { ...stored.fields, ...body.fields } }
+        return HttpResponse.json(stored)
+      })
+      renderCommit()
+      await ready('Commit', () => editButton('commit_info'))
+
+      save('commit_info', ' Fix the vectorizer\n\nIt was slow. ')
+      await expectInfo(5, ['commit_info', 'Fix the vectorizer\n\nIt was slow.Edit'])
+      save('svn_revision', '')
+      await expectInfo(4, ['svn_revision display', '--Edit'])
+
+      expect(sent).toEqual([
+        {
+          body: { fields: { commit_info: 'Fix the vectorizer\n\nIt was slow.' } },
+          auth: `Bearer ${TOKEN}`,
+        },
+        { body: { fields: { svn_revision: null } }, auth: `Bearer ${TOKEN}` },
+      ])
+      // The page shows the commit string, whatever the display field holds.
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(`Commit: ${VALUE}`)
+    })
+
+    it('show a new display value in the commit list, once fetched again', async () => {
+      signIn('manage')
+      let stored: Schemas['Commit'] = withoutNeighbours(DETAIL)
+      mockSent('patch', COMMIT_ROUTE, (body) => {
+        stored = { ...stored, fields: { ...stored.fields, ...body.fields } }
+        return HttpResponse.json({ ...DETAIL, ...stored })
+      })
+      renderCommit({ url: '/suites/libcxx?tab=commits' })
+      const listQueries = mockCommits(() => cursorPage([stored]))
+      server.use(mockApi('get', COMMIT_ROUTE, () => HttpResponse.json(DETAIL)))
+      fireEvent.click(within(await table('Commits')).getByRole('link', { name: 'r100' }))
+      await ready('Commit', () => editButton('svn_revision'))
+
+      save('svn_revision', 'r200')
+      await expectInfo(4, ['svn_revision display', 'r200Edit'])
+      fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+
+      const commits = await table('Commits')
+      expect(await within(commits).findByRole('link', { name: 'r200' })).toBeInTheDocument()
       expect(listQueries).toHaveLength(2)
     })
   })

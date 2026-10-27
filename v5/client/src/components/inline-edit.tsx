@@ -43,6 +43,10 @@ interface Props {
    */
   required?: string
   maxLength?: number
+  /** What the input shows while empty, such as the form its text takes. */
+  placeholder?: string
+  /** How many characters wide a single-line input is, for text of a known form. */
+  size?: number
   /**
    * Edit in a text area, where Enter starts a new line and Ctrl+Enter (Cmd+Enter on a Mac)
    * saves.
@@ -80,6 +84,8 @@ export function InlineEdit({
   invalid,
   required,
   maxLength,
+  placeholder,
+  size,
   multiline = false,
   editor,
   pendingReason,
@@ -166,8 +172,11 @@ export function InlineEdit({
 
   if (!editing) {
     return (
-      <span className={styles.root}>
-        <span>{value === null ? MISSING : (display?.(value) ?? value)}</span>
+      // However long the value, Edit stays in view beside it: the value scrolls on its own (AR12).
+      <span className={styles.shown}>
+        <span className={styles.value}>
+          {value === null ? MISSING : (display?.(value) ?? value)}
+        </span>
         <button
           type="button"
           ref={editButton}
@@ -195,6 +204,7 @@ export function InlineEdit({
     value: text,
     readOnly: busy,
     maxLength,
+    placeholder,
     'aria-invalid': reason !== undefined || undefined,
     'aria-describedby':
       [describedBy, reason === undefined ? undefined : reasonId].filter(Boolean).join(' ') ||
@@ -219,7 +229,14 @@ export function InlineEdit({
       />
     )
   } else {
-    input = <input type="text" {...inputProps} onChange={(event) => setText(event.target.value)} />
+    input = (
+      <input
+        type="text"
+        {...inputProps}
+        size={size}
+        onChange={(event) => setText(event.target.value)}
+      />
+    )
   }
 
   const pendingId = `${reasonId}-pending`

@@ -13,8 +13,8 @@ export function yesNo(value: boolean): string {
   return value ? 'Yes' : 'No'
 }
 
-function pad(value: number): string {
-  return String(value).padStart(2, '0')
+function pad(value: number, length = 2): string {
+  return String(value).padStart(length, '0')
 }
 
 /**
@@ -29,6 +29,31 @@ export function formatTimestamp(iso: string): string {
   const hours = date.getHours()
   const time = `${hours % 12 || 12}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   return `${day}, ${time} ${hours < 12 ? 'AM' : 'PM'}`
+}
+
+/**
+ * The timestamp `iso` in the browser's local time zone (AR6), with its offset, so that the API
+ * reads it as the same instant (D3): `2026-08-25T14:22:41-04:00`, with milliseconds when it has
+ * some. Text that is not a timestamp is given back as it is.
+ */
+export function localTimestampText(iso: string): string {
+  const instant = new Date(iso)
+  if (Number.isNaN(instant.getTime())) return iso
+  // `getTimezoneOffset` is how far UTC is ahead of local time, the opposite of an ISO offset. The
+  // local time is the instant moved by that offset, rather than what the local getters give: the
+  // offset is a whole number of minutes, whereas they keep the seconds of an older offset, such as
+  // a local mean time's (`-04:56:02` in New York until 1883).
+  const offset = -instant.getTimezoneOffset()
+  const date = new Date(instant.getTime() + offset * 60_000)
+  const year = pad(date.getUTCFullYear(), 4)
+  const day = `${year}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
+  const ms = date.getUTCMilliseconds()
+  const time =
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}` +
+    (ms === 0 ? '' : `.${pad(ms, 3)}`)
+  const sign = offset < 0 ? '-' : '+'
+  const zone = `${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`
+  return `${day}T${time}${zone}`
 }
 
 /** The first 8 characters of a UUID: what a deletion is confirmed with (AR16). */

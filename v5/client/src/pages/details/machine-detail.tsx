@@ -13,6 +13,7 @@ import { useScopeGate } from '../../auth/scope'
 import { ButtonLink } from '../../components/button-link'
 import { DataTable } from '../../components/data-table'
 import { ErrorMessage, Loaded } from '../../components/feedback'
+import { FieldRow } from '../../components/field-row'
 import { HelpLabel } from '../../components/help-label'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InactivityRow } from '../../components/inactivity-row'
@@ -24,7 +25,7 @@ import { WithSchema } from '../../components/with-schema'
 import { invalidMachineName, UNTRACKED_HELP } from '../../machines'
 import { comparePath, graphPath, machinePath } from '../../paths'
 import { ACTIVE_STATES } from '../../regression-states'
-import { formatFieldValue, labelOf, type Commit } from '../../schema'
+import type { Commit } from '../../schema'
 import { suiteTabPath } from '../test-suites/settings'
 import { DetailActionRow } from './action-row'
 import { RegressionsTable } from './regressions-table'
@@ -87,6 +88,8 @@ function MachineContent({ schema, name }: { schema: SuiteSchema; name: string })
 function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Machine }) {
   const suite = schema.name
   const { name } = machine
+  const manage = useScopeGate('manage', suite)
+  const update = useUpdateMachine(suite, name)
   return (
     <>
       <InfoBox label="Machine">
@@ -94,9 +97,13 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
         <TrackedRow suite={suite} machine={machine} />
         <InactivityDays suite={suite} machine={machine} />
         {schema.machine_fields.map((field) => (
-          <InfoRow key={field.name} label={labelOf(field)}>
-            {formatFieldValue(machine.fields[field.name], field.type)}
-          </InfoRow>
+          <FieldRow
+            key={field.name}
+            field={field}
+            value={machine.fields[field.name]}
+            gate={manage}
+            onSave={(value) => update.mutateAsync({ fields: { [field.name]: value } })}
+          />
         ))}
       </InfoBox>
       <Actions suite={suite} name={name} />

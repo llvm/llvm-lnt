@@ -44,6 +44,9 @@
   /* Borders */
   --lnt-radius: 4px;
 
+  /* How tall an info box value is shown before it scrolls (see components/info-box.tsx) */
+  --lnt-value-max-height: 12rem;
+
   /* Identifiers, such as a commit string or a UUID */
   --lnt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
