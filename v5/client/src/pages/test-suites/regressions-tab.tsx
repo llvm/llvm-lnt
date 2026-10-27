@@ -8,12 +8,12 @@ import { deleteRegression, fetchRegressionPage, type RegressionPage } from '../.
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
-import { BugLink } from '../../components/bug-link'
 import { Combobox } from '../../components/combobox'
 import { Confirmation } from '../../components/confirmation'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
 import { hasMachine } from '../../api/machines'
+import { LinkableText } from '../../components/linkable-text'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { CursorPager } from '../../components/pagination'
 import { StateBadge, StateChips } from '../../components/regression-state'
@@ -31,6 +31,9 @@ import { TabContent } from './tab-content'
 import styles from './test-suites.module.css'
 
 type Regression = Schemas['Regression']
+
+/** How long a bug may be in its cell before it is cut short (TS5). */
+const BUG_LENGTH = 30
 
 interface Props {
   schema: SuiteSchema
@@ -266,7 +269,8 @@ function columns(
     {
       id: 'bug',
       header: 'Bug',
-      cell: (regression) => <BugLink bug={regression.bug} truncate />,
+      looks: ['nowrap'],
+      cell: ({ bug }) => (bug === null ? MISSING : <LinkableText text={bug} max={BUG_LENGTH} />),
     },
     {
       id: 'delete',

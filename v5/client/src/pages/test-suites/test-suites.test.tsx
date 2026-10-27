@@ -537,6 +537,24 @@ describe('the Machines tab', () => {
     expect(screen.queryByRole('navigation', { name: /pagination/ })).not.toBeInTheDocument()
   })
 
+  it('links a listed value that is a URL, cut short, to the whole URL', async () => {
+    mockSuites()
+    const url = 'https://example.com/hardware/amd-epyc-9654-96-core-processor'
+    mockMachines(() => ({
+      items: [machine('linux-x86_64', { fields: { hardware: url, os: null, core_count: 64 } })],
+    }))
+    renderPage('/suites/libcxx?tab=machines')
+
+    const machines = await table('Machines')
+    // Assistive technology reads the whole URL as the link's name.
+    const link = within(machines).getByRole('link', { name: url })
+    expect(link).toHaveAttribute('href', url)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(within(link).getByTitle(url)).toHaveTextContent(
+      /^https:\/\/example\.com\/hardware\/amd-epyc-9654-96-cor…$/,
+    )
+  })
+
   it('shows the error of a failed search in place of the table, and retries', async () => {
     mockSuites()
     let failures = 1
@@ -640,6 +658,27 @@ describe('the Commits tab', () => {
     )
     expect(queries[0].get('sort')).toBe('-first_seen')
     expect(queries[0].get('limit')).toBe('25')
+  })
+
+  it('links a listed value that is a URL, but not a display value, which names the commit', async () => {
+    // The display field is listed too: its column shows it as a field's value.
+    mockSuites([
+      { ...SUITE, commit_fields: SUITE.commit_fields.map((field) => ({ ...field, listed: true })) },
+    ])
+    const display = 'https://example.com/r591886'
+    const info = 'https://example.com/r591886/message'
+    mockCommits(() =>
+      cursorPage([commit('abc123', { fields: { svn_revision: display, commit_info: info } })]),
+    )
+    renderPage('/suites/libcxx?tab=commits')
+
+    const commits = await table('Commits')
+    const displayLinks = within(commits).getAllByRole('link', { name: display })
+    expect(displayLinks.map((link) => link.getAttribute('href'))).toEqual([
+      '/suites/libcxx/commits/abc123',
+      display,
+    ])
+    expect(within(commits).getByRole('link', { name: info })).toHaveAttribute('href', info)
   })
 
   it('pages, and searches from the first page', async () => {

@@ -26,7 +26,10 @@ export function formatUnit({ unit, unit_abbrev }: Metric): string | null {
   return `${unit} (${unit_abbrev})`
 }
 
-/** A value of a declared field, as shown: in its JSON form, except timestamps in local time. */
+/**
+ * A value of a declared field, as shown (DT1): a timestamp in local time, a number in its JSON form,
+ * and text as it is.
+ */
 export function formatFieldValue(value: FieldValue, type: Schemas['AttributeType']): string {
   if (value === null || value === undefined) return MISSING
   if (type === 'datetime' && typeof value === 'string') return formatTimestamp(value)

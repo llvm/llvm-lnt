@@ -179,6 +179,18 @@ describe('the Commit Detail page', () => {
     expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', '--Edit'])
   })
 
+  it('shows a field value that is a URL as a link, even the display field', async () => {
+    const url = 'https://example.com/r100'
+    renderCommit({
+      detail: () =>
+        HttpResponse.json({ ...DETAIL, fields: { ...DETAIL.fields, svn_revision: url } }),
+    })
+
+    expect((await infoRows('Commit'))[4]).toEqual(['svn_revision display', `${url}Edit`])
+    const box = screen.getByRole('group', { name: 'Commit' })
+    expect(within(box).getByRole('link', { name: url })).toHaveAttribute('href', url)
+  })
+
   it('marks no field when the schema has none to display', async () => {
     const fields = SUITE.commit_fields.map((field) => ({ ...field, display: false }))
     renderCommit({ suites: [{ ...SUITE, commit_fields: fields }] })

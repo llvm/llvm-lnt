@@ -2,11 +2,11 @@ import { Link } from 'react-router'
 import clsx from 'clsx'
 import type { MarkedRegression } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
-import { BugLink } from '../../components/bug-link'
 import { ChartDialog, type Anchor } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
+import { LinkableText } from '../../components/linkable-text'
 import { StateBadge } from '../../components/regression-state'
-import { formatTimestamp, regressionTitle, shortUuid } from '../../format'
+import { formatTimestamp, MISSING, regressionTitle, shortUuid } from '../../format'
 import { commitPath, regressionPath } from '../../paths'
 import styles from './graph.module.css'
 
@@ -49,9 +49,7 @@ export function RegressionDetails({ schema, regression, tests, display, at, onCl
           <Link to={commitPath(suite, commit)}>{display}</Link>
         </dd>
         <dt>Bug</dt>
-        <dd>
-          <BugLink bug={bug} />
-        </dd>
+        <dd>{bug === null ? MISSING : <LinkableText text={bug} />}</dd>
         <dt>Created</dt>
         <dd>{formatTimestamp(created_at)}</dd>
       </dl>

@@ -75,8 +75,8 @@ macos-arm64-O3 [untracked]  Apple M4    macOS 26.5 (25F71)    Apple clang versio
 The `Name` is a clickable link to the machine detail page. It is followed by a
 column for each machine field the schema marks `listed: true` (see D4), in
 schema order, headed by the field's label (see AR6). A cell shows the machine's
-value for that field, or `--` when it has none. A value longer than 50
-characters is cut short, and shown whole on hover and to assistive technology.
+value for that field as DT1 shows it. A value longer than 50 characters is cut
+short, and shown whole on hover and to assistive technology.
 Every field, listed or not, is shown on the machine's detail page (see DT1).
 
 Machines with `tracked: false` carry a small grey `untracked` badge next to the name. All machines
@@ -107,7 +107,7 @@ etc...
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 - After `Tag`, a column for each commit field the schema marks `listed: true`
   (see D4), in schema order, headed by the field's label (see AR6). A cell shows
-  the commit's value for that field, or `--` when it has none, cut short and
+  the commit's value for that field as DT1 shows a machine's, cut short and
   shown whole on hover and to assistive technology when longer than 50
   characters.
 
@@ -149,8 +149,8 @@ recorded regressions are on the first page. It looks like this:
 ```
 UUID          Title                 State       Commit        Machines      Tests         Created                   Bug
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
-3f0ac112...   find_if slowdown      detected    abc123        2             12            2026-08-31, 3:03:36 PM    https://github.com/llvm/.../issues/1234
-9b27d4e0...   (untitled)            active      --            1             3             2026-08-30, 9:12:44 AM
+3f0ac112...   find_if slowdown      detected    abc123        2             12            2026-08-31, 3:03:36 PM    https://github.com/llvm/llvm-…
+9b27d4e0...   (untitled)            active      --            1             3             2026-08-30, 9:12:44 AM    --
 etc...
 ```
 
@@ -162,6 +162,9 @@ Machines and Tests are the `machine_count` and `test_count` the list endpoint re
 for each regression. They count the whole regression even when the table is filtered.
 The names are on the regression detail page. Created is the regression's
 `created_at`.
+
+Bug is the regression's bug (see AR6), or `--` when it has none. A bug longer than 30
+characters is cut short, and shown whole on hover and to assistive technology.
 
 ## TS6: Schema tab
 

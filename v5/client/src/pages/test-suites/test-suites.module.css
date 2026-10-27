@@ -93,7 +93,7 @@
 }
 
 /* Cells may break anywhere (see data-table.module.css), which would let the other columns squeeze
-   the title to a few characters a line. The bug, cut short (see BugLink), leaves it the room. */
+   the title to a few characters a line. */
 .title {
   min-width: 10rem;
 }

@@ -688,6 +688,19 @@ describe('the regression annotations (GR15)', () => {
     expect(currentUrl()).toContain('/graph')
   })
 
+  it('says when the regression whose details are shown has no bug', async () => {
+    mockWorld()
+    mockRegressionWorld()
+    renderPage(`${GRAPHED}&test=a&regressions=all`)
+    await waitFor(() => expect(markers()).toHaveLength(2))
+    draw()
+
+    click(markers()[1].name!, 0)
+
+    screen.getByRole('dialog', { name: 'Regression: (untitled)' })
+    expect(details().getByText('Bug').nextElementSibling).toHaveTextContent(/^--$/)
+  })
+
   it("shows one popover at a time, a point's or a regression's, none on right-click", async () => {
     mockWorld()
     mockRegressionWorld()
