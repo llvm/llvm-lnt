@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   commitLinkText,
+  repositoryLinkText,
   commitUrl,
   fillTemplate,
-  rangeLinkText,
   rangeUrl,
   templateProblem,
   usableTemplate,
@@ -112,14 +112,14 @@ describe('commitUrl and rangeUrl', () => {
   }
 })
 
-describe('commitLinkText and rangeLinkText', () => {
+describe('repositoryLinkText and commitLinkText', () => {
   it('name the repository by its label', () => {
+    expect(repositoryLinkText(GITHUB, 'Diff')).toBe('Diff on GitHub')
     expect(commitLinkText(GITHUB)).toBe('View on GitHub')
-    expect(rangeLinkText(GITHUB)).toBe('View changes on GitHub')
   })
 
   it('name it generically without one', () => {
+    expect(repositoryLinkText(NO_REPOSITORY, 'Diff')).toBe('Diff in repository')
     expect(commitLinkText(NO_REPOSITORY)).toBe('View in repository')
-    expect(rangeLinkText(NO_REPOSITORY)).toBe('View changes in repository')
   })
 })

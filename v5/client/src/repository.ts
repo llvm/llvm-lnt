@@ -88,12 +88,15 @@ export function rangeUrl(repository: Repository, from: string, to: string): stri
 /** The attributes of a link into the repository, which opens in a new tab (AR20). */
 export const NEW_TAB = { target: '_blank', rel: 'noopener noreferrer' } as const
 
-/** The text of a link to a commit in the repository (AR20). */
-export function commitLinkText({ label }: Repository): string {
-  return label === null ? 'View in repository' : `View on ${label}`
+/**
+ * The text of a link into the repository that does `action` (AR20): "{action} on {label}", or
+ * "{action} in repository" when the repository has no label.
+ */
+export function repositoryLinkText({ label }: Repository, action: string): string {
+  return label === null ? `${action} in repository` : `${action} on ${label}`
 }
 
-/** The text of a link to a range of commits in the repository (AR20). */
-export function rangeLinkText({ label }: Repository): string {
-  return label === null ? 'View changes in repository' : `View changes on ${label}`
+/** The text of a link to a commit in the repository (AR20). */
+export function commitLinkText(repository: Repository): string {
+  return repositoryLinkText(repository, 'View')
 }

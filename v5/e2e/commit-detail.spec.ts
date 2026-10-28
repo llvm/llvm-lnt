@@ -82,29 +82,20 @@ test('shows the commit, its neighbours and its runs, filtered by machine', async
   expect(query.get('machine_a')).toBe(LINUX)
 })
 
-test('links the commit, and the changes since the previous one, on GitHub', async ({
-  page,
-  request,
-}) => {
+test('links the commit on GitHub, among its navigation buttons', async ({ page, request }) => {
   const commit = await taggedCommit(request)
-  const detail = await json<Schemas['CommitDetail']>(
-    request,
-    `/api/suites/libcxx/commits/${commit.value}`,
-  )
   await page.goto(`/suites/libcxx/commits/${commit.value}`)
 
   // The seeded libcxx suite's repository is llvm-project, on GitHub.
-  const github = 'https://github.com/llvm/llvm-project'
   const viewOn = link(page, 'View on GitHub')
-  await expect(viewOn).toHaveAttribute('href', `${github}/commit/${commit.value}`)
-  await expect(viewOn).toHaveAttribute('target', '_blank')
-  await expect(link(page, 'View changes on GitHub')).toHaveAttribute(
+  await expect(viewOn).toHaveAttribute(
     'href',
-    `${github}/compare/${detail.previous!.value}...${commit.value}`,
+    `https://github.com/llvm/llvm-project/commit/${commit.value}`,
   )
+  await expect(viewOn).toHaveAttribute('target', '_blank')
 })
 
-test('has no links into a repository the suite does not name', async ({ page, request }) => {
+test('has no link into a repository the suite does not name', async ({ page, request }) => {
   const commits = await json<Schemas['CommitCursorPage']>(request, '/api/suites/nts/commits')
   await page.goto(`/suites/nts/commits/${commits.items[0].value}`)
 
@@ -128,7 +119,7 @@ test('lists the regressions attributed to the commit', async ({ page, request })
 test('has no neighbours, nor previous commits, for a commit with no ordinal', async ({ page }) => {
   await page.goto(`/suites/libcxx/commits/${EXPERIMENT}`)
 
-  for (const name of ['← Previous commit', 'Next commit →', 'View changes on GitHub']) {
+  for (const name of ['← Previous commit', 'Next commit →']) {
     await expect(link(page, name)).toHaveAttribute('aria-disabled', 'true')
     await expect(link(page, name)).toHaveAttribute('title', 'This commit has no ordinal.')
   }

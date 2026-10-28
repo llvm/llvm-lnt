@@ -114,7 +114,7 @@ test("links each side's commit, and the changes from A to B, on GitHub (CP1)", a
     sideOf(page, side).getByRole('link', { name: /^View on GitHub/ })
   await expect(viewOn('A')).toHaveAttribute('href', `${github}/commit/${newer.value}`)
   await expect(viewOn('B')).toHaveAttribute('href', `${github}/commit/${older.value}`)
-  const changes = page.getByRole('main').getByRole('link', { name: /^View changes on GitHub: / })
+  const changes = page.getByRole('main').getByRole('link', { name: /^Diff on GitHub: / })
   await expect(changes).toHaveAttribute('href', `${github}/compare/${newer.value}...${older.value}`)
   await expect(changes).toHaveAttribute('target', '_blank')
 })

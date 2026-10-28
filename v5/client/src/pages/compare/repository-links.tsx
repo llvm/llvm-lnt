@@ -3,7 +3,7 @@
 import type { SuiteSchema } from '../../api/suites'
 import { usePickedCommitText } from '../../components/commit-lookup'
 import { CommitRepositoryLink } from '../../components/repository-link'
-import { NEW_TAB, rangeLinkText, rangeUrl } from '../../repository'
+import { NEW_TAB, rangeUrl, repositoryLinkText } from '../../repository'
 import type { Side } from './use-side'
 import styles from './compare.module.css'
 
@@ -44,7 +44,7 @@ function NamedCommitLink({ target }: { target: Named }) {
 }
 
 /**
- * "View changes on {label}" from side A's commit to side B's, always in that order, even when B's
+ * "Diff on {label}" from side A's commit to side B's, always in that order, even when B's
  * is the older, below the sides (CP1): while both have a commit in the same suite, which has a
  * template of a range's URL.
  */
@@ -62,7 +62,7 @@ function NamedRangeLink({ from, to, url }: { from: Named; to: Named; url: string
   return (
     <p className={styles.range}>
       <a href={url} {...NEW_TAB}>
-        {rangeLinkText(from.schema.repository)}: {shownFrom} → {shownTo}
+        {repositoryLinkText(from.schema.repository, 'Diff')}: {shownFrom} → {shownTo}
       </a>
     </p>
   )

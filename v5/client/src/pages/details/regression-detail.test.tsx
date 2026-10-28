@@ -170,7 +170,7 @@ describe('the Regression Detail page', () => {
     expect(viewOn).toHaveAttribute('target', '_blank')
     expect(viewOn).toHaveAttribute('rel', 'noopener noreferrer')
     // The commit itself, rather than the changes that led to it.
-    expect(main().queryByRole('link', { name: /^View changes/ })).not.toBeInTheDocument()
+    expect(main().queryByRole('link', { name: /^Diff/ })).not.toBeInTheDocument()
   })
 
   it('does not link to the commit when the suite has no template of its URL', async () => {

@@ -128,6 +128,7 @@ export function PointDetails({
         </ButtonLink>
         <RangeRepositoryLink
           repository={schema.repository}
+          action="Diff with previous commit"
           from={previous?.commit ?? null}
           to={point.commit}
           reason={FIRST_POINT}

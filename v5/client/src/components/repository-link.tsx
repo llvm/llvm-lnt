@@ -4,7 +4,7 @@ import {
   commitUrl,
   fillTemplate,
   NEW_TAB,
-  rangeLinkText,
+  repositoryLinkText,
   usableTemplate,
   type Repository,
 } from '../repository'
@@ -21,18 +21,19 @@ interface CommitProps {
    * several such links side by side.
    */
   name?: string
+  /** Whether it looks like a button, in a row of actions, rather than a link after the commit. */
+  button?: boolean
 }
 
 /**
  * "View on {label}" (AR20): a link to the commit `commit` in the repository, opening in a new tab,
- * or nothing if the suite has no usable template of a commit's URL. It goes after the commit, or
- * whatever names it.
+ * or nothing if the suite has no usable template of a commit's URL.
  */
-export function CommitRepositoryLink({ repository, commit, name }: CommitProps) {
+export function CommitRepositoryLink({ repository, commit, name, button = false }: CommitProps) {
   const url = commitUrl(repository, commit)
   if (url === null) return null
   return (
-    <a href={url} {...NEW_TAB} className={styles.commit}>
+    <a href={url} {...NEW_TAB} className={button ? buttons.button : styles.commit}>
       {commitLinkText(repository)}
       {name !== undefined && <VisuallyHidden elementType="span">: {name}</VisuallyHidden>}
     </a>
@@ -41,6 +42,8 @@ export function CommitRepositoryLink({ repository, commit, name }: CommitProps) 
 
 interface RangeProps {
   repository: Repository
+  /** What the link does, such as "Diff with previous commit", before its repository (AR20). */
+  action: string
   /** The commit strings filling in `{from}` and `{to}` (D4), or no `from` while there is none. */
   from: string | null
   to: string
@@ -49,14 +52,14 @@ interface RangeProps {
 }
 
 /**
- * "View changes on {label}" (AR20), in a row of actions: a link to the changes from `from` to `to`
- * in the repository, opening in a new tab, or nothing if the suite has no usable template of a
- * range's URL. While there is no `from`, it is shown disabled, saying why (AR8).
+ * A link to the changes from `from` to `to` in the repository (AR20), in a row of actions, opening
+ * in a new tab, or nothing if the suite has no usable template of a range's URL. While there is no
+ * `from`, it is shown disabled, saying why (AR8).
  */
-export function RangeRepositoryLink({ repository, from, to, reason }: RangeProps) {
+export function RangeRepositoryLink({ repository, action, from, to, reason }: RangeProps) {
   const template = usableTemplate(repository, 'range_url')
   if (template === null) return null
-  const text = rangeLinkText(repository)
+  const text = repositoryLinkText(repository, action)
   if (from === null) {
     return (
       <DisabledLink title={reason} className={buttons.button}>

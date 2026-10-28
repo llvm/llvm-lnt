@@ -151,7 +151,7 @@ describe('the Commit Detail page', () => {
 
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(`Commit: ${VALUE}`)
     expect(await infoRows('Commit')).toEqual([
-      ['Commit', `${VALUE}View on GitHub`],
+      ['Commit', VALUE],
       ['Ordinal', '100Edit'],
       ['Tag', 'v1Edit'],
       ['Delete after inactivity', inactivityCell('--')],
@@ -315,63 +315,44 @@ describe('the Commit Detail page', () => {
 
       await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/commits/prev99'))
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Commit: prev99')
-      await expectInfo(0, ['Commit', 'prev99View on GitHub'])
+      await expectInfo(0, ['Commit', 'prev99'])
       expect(screen.queryByRole('textbox', { name: 'Tag' })).not.toBeInTheDocument()
     })
   })
 
-  describe('its links into the repository', () => {
-    const viewOn = () => link('View on GitHub')
-    const viewChanges = () => link('View changes on GitHub')
-
-    it('lead to the commit, and to the changes since the previous one, in a new tab', async () => {
+  describe('its link into the repository', () => {
+    it('leads to the commit in a new tab, among the navigation buttons', async () => {
       renderCommit()
 
       await screen.findByRole('group', { name: 'Commit' })
-      expect(viewOn()).toHaveAttribute(
-        'href',
-        `https://github.com/llvm/llvm-project/commit/${VALUE}`,
-      )
-      expect(viewChanges()).toHaveAttribute(
-        'href',
-        `https://github.com/llvm/llvm-project/compare/prev99...${VALUE}`,
-      )
-      for (const shown of [viewOn(), viewChanges()]) {
-        expect(shown).toHaveAttribute('target', '_blank')
-        expect(shown).toHaveAttribute('rel', 'noopener noreferrer')
-      }
-      // Beside the commit string, and among the navigation buttons.
-      expect(within(screen.getByRole('group', { name: 'Commit' })).getByRole('link')).toBe(viewOn())
+      const viewOn = link('View on GitHub')
+      expect(viewOn).toHaveAttribute('href', `https://github.com/llvm/llvm-project/commit/${VALUE}`)
+      expect(viewOn).toHaveAttribute('target', '_blank')
+      expect(viewOn).toHaveAttribute('rel', 'noopener noreferrer')
+      // Looking like the buttons beside it, rather than beside the commit string. A comparison
+      // with the previous commit is left to the Graph and Compare pages.
+      expect(viewOn).toHaveClass('button')
+      expect(main().getAllByRole('link', { name: /^View/ })).toEqual([viewOn])
     })
 
-    it.each<[string, Partial<Schemas['CommitDetail']>, string]>([
-      ['the first commit', { previous: null }, 'No commit comes before this one.'],
-      [
-        'a commit with no ordinal',
-        { ordinal: null, previous: null, next: null },
-        'This commit has no ordinal.',
-      ],
-    ])('lead to no changes from %s, saying why', async (_, change, why) => {
-      renderCommit({ detail: () => HttpResponse.json({ ...DETAIL, ...change }) })
+    it('leads to a commit with no ordinal too', async () => {
+      renderCommit({
+        detail: () => HttpResponse.json({ ...DETAIL, ordinal: null, previous: null, next: null }),
+      })
 
       await screen.findByRole('group', { name: 'Commit' })
-      expect(viewChanges()).toHaveAttribute('aria-disabled', 'true')
-      expect(viewChanges()).not.toHaveAttribute('href')
-      expect(viewChanges()).toHaveAccessibleDescription(why)
-      // A commit needs nothing but its commit string.
-      expect(viewOn()).toHaveAttribute(
+      expect(link('View on GitHub')).toHaveAttribute(
         'href',
         `https://github.com/llvm/llvm-project/commit/${VALUE}`,
       )
     })
 
-    it('are not shown when the suite has no templates of their URLs', async () => {
+    it('is not shown when the suite has no template of its URL', async () => {
       renderCommit({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
 
       await screen.findByRole('group', { name: 'Commit' })
       expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
     })
-
   })
 
   describe('its ordinal and tag', () => {

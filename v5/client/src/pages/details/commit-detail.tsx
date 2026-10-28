@@ -21,14 +21,13 @@ import { Badge } from '../../components/badge'
 import { ButtonLink } from '../../components/button-link'
 import { ControlsPanel } from '../../components/controls-panel'
 import { DataTable, type Column } from '../../components/data-table'
-import tableStyles from '../../components/data-table.module.css'
 import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
 import { FieldRow } from '../../components/field-row'
 import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
 import { InactivityRow } from '../../components/inactivity-row'
 import { CursorPager } from '../../components/pagination'
-import { CommitRepositoryLink, RangeRepositoryLink } from '../../components/repository-link'
+import { CommitRepositoryLink } from '../../components/repository-link'
 import { runColumns } from '../../components/run-columns'
 import { SearchInput } from '../../components/search-input'
 import { useTextFilter } from '../../components/use-text-filter'
@@ -51,9 +50,6 @@ type Run = Schemas['Run']
 const DISPLAY_HELP =
   'The UI shows a commit by the value of this field, when it has one, rather than by its commit ' +
   'string.'
-
-/** Why a commit with an ordinal has no previous commit (DT3). */
-const NO_PREVIOUS = 'No commit comes before this one.'
 
 /** D5's limit on a tag. */
 const TAG_LENGTH = 256
@@ -158,9 +154,8 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
   const manage = useScopeGate('manage', schema.name)
   return (
     <InfoBox label="Commit">
-      <InfoRow label="Commit">
-        <span className={tableStyles.mono}>{commit.value}</span>
-        <CommitRepositoryLink repository={schema.repository} commit={commit.value} />
+      <InfoRow label="Commit" mono>
+        {commit.value}
       </InfoRow>
       <InfoRow label="Ordinal">
         <InlineEdit
@@ -211,8 +206,8 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
 }
 
 /**
- * Previous commit, Next commit, the changes from the previous commit in the repository, and Delete
- * commit, with its confirmation below them (DT3).
+ * Previous commit, Next commit, the commit in the repository, and Delete commit, with its
+ * confirmation below them (DT3).
  */
 function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
   const suite = schema.name
@@ -251,14 +246,9 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
         leaveTo: suiteTabPath(suite, 'commits'),
       }}
     >
-      {link(commit.previous, NO_PREVIOUS, '← Previous commit')}
+      {link(commit.previous, 'No commit comes before this one.', '← Previous commit')}
       {link(commit.next, 'No commit comes after this one.', 'Next commit →')}
-      <RangeRepositoryLink
-        repository={schema.repository}
-        from={commit.previous?.value ?? null}
-        to={value}
-        reason={unordered ? NO_ORDINAL : NO_PREVIOUS}
-      />
+      <CommitRepositoryLink repository={schema.repository} commit={value} button />
     </DetailActionRow>
   )
 }

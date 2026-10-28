@@ -21,7 +21,7 @@ suite-agnostic: each side selects its own suite. Layout:
 |                  | [x] 08-25 ...  | |       |                  | [x] 2026-08-31, 3:03 PM  | |
 |                  +----------------+ |       |                  +--------------------------+ |
 +-------------------------------------+       +-----------------------------------------------+
-View changes on GitHub: 0f985af790f8 → 014621ede7c1
+Diff on GitHub: 0f985af790f8 → 014621ede7c1
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
 [ ] Hide noise  [Noise filtering v]
@@ -75,13 +75,13 @@ Each side's controls span its box, and the two sides share the width equally,
 so that nothing moves as a side's selections change, such as when its runs are
 listed.
 
-Below the two sides, "View changes on {label}" (see AR20) links the changes from
-side A's commit, which fills in `{from}`, to side B's, which fills in `{to}`,
-even when B's is the older. It names the two commits by their display values, as in
-`View changes on GitHub: 0f985af790f8 → 014621ede7c1`. It is shown only while
-both sides have a commit in the same suite, since suites may have different
-templates. When it appears, it pushes what is below it down a line, as a side's
-runs do when they are listed.
+Below the two sides, "Diff on {label}" (see AR20), followed by the two commits'
+display values, as in `Diff on GitHub: 0f985af790f8 → 014621ede7c1`, links the
+changes from side A's commit, which fills in `{from}`, to side B's, which fills
+in `{to}`, even when B's is the older. It is shown only while both sides have a
+commit in the same suite, since suites may have different templates. When it
+appears, it pushes what is below it down a line, as a side's runs do when they
+are listed.
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to
