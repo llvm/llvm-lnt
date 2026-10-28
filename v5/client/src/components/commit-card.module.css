@@ -35,9 +35,9 @@
   white-space: nowrap;
 }
 
-/* All of the commit string but its last character, which wraps anywhere, as the row's value does. */
+/* All of the commit string but its last character, which wraps as the row's value does. */
 .wraps {
-  white-space: normal;
+  white-space: pre-wrap;
 }
 
 /* A long value, cut to two lines (AR21). */

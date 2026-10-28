@@ -50,6 +50,8 @@ export function CommitCard({ card, schema, value, commit }: Props) {
  * string does not fit on one.
  */
 function CommitString({ suite, value }: { suite: string; value: string }) {
+  // By code point, which may split a character made of several, but commit strings are hashes or
+  // numbers, rather than text.
   const characters = Array.from(value)
   const last = characters.pop()
   return (

@@ -114,17 +114,18 @@ export function useHoverCard<Trigger extends HTMLElement>() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isOpen, isPending, close])
 
-  // Whether the card had the focus when a press outside it started.
+  // Whether the ⓘ or the card had the focus when a press outside both started.
   const hadFocus = useRef(false)
   // A press on the ⓘ is its own: it toggles the card. A press elsewhere is reported once over, when
   // it has already moved the focus where it goes, so that closing the card does not take it back.
-  // A press on nothing that takes the focus drops it from the card to the page, from where the
-  // popover would give it to whatever had it when the card opened: it goes to the ⓘ instead.
+  // A press on nothing that takes the focus drops it from the ⓘ or the card to the page, from where
+  // the popover, once it has held the focus, would give it to whatever had it when the card opened:
+  // it goes to the ⓘ instead.
   useInteractOutside({
     ref: popoverRef,
     isDisabled: !isOpen,
     onInteractOutsideStart: () => {
-      hadFocus.current = !!popoverRef.current?.contains(document.activeElement)
+      hadFocus.current = document.activeElement !== null && isInside(document.activeElement)
     },
     onInteractOutside: (event) => {
       if (!kept.current || isInside(event.target as Element)) return
@@ -153,7 +154,8 @@ export function useHoverCard<Trigger extends HTMLElement>() {
         if (event.shiftKey || first === undefined) return
         event.preventDefault()
         first.focus()
-        // Kept from the popover, which would take the focus on out of a card holding only `first`.
+        // Kept from the popover, which would take the focus on out of a card holding only `first`,
+        // and so from every later listener, which has nothing to do with it either.
         event.stopPropagation()
         return
       }

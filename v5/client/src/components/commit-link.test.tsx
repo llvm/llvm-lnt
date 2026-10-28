@@ -411,13 +411,21 @@ describe('a ⓘ', () => {
     await user.click(button())
     await user.tab()
     const stops: string[] = []
-    while (queryCard()?.contains(document.activeElement)) {
-      stops.push(document.activeElement!.textContent!)
+    while (stops.length < 10 && queryCard()?.contains(document.activeElement)) {
+      const focused = document.activeElement!
+      stops.push(focused.getAttribute('aria-label') ?? focused.textContent!)
       await user.tab()
     }
-    expect(stops).toEqual([HASH, '', 'View on GitHub'])
+    expect(stops).toEqual([HASH, 'Copy commit', 'View on GitHub'])
     expect(after()).toHaveFocus()
     expect(queryCard()).toBeNull()
+  })
+
+  it('leads Tab into the card it keeps open with Alt held, as Safari has it', async () => {
+    await renderButton()
+    await user.click(button())
+    await user.keyboard('{Alt>}{Tab}{/Alt}')
+    expect(commitPageLink()).toHaveFocus()
   })
 
   it('leads Tab into a kept card that holds a single element', async () => {
@@ -475,6 +483,22 @@ describe('a ⓘ', () => {
     await user.click(button())
     await user.tab()
     expect(commitPageLink()).toHaveFocus()
+
+    await user.click(screen.getByText('Elsewhere'))
+    await wait(100)
+    expect(queryCard()).toBeNull()
+    expect(button()).toHaveFocus()
+  })
+
+  it('gives the focus back to it on such a press after the focus went back to it from the card', async () => {
+    await renderButton()
+    await user.click(screen.getByRole('textbox', { name: 'Search' }))
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS)
+    await user.click(button())
+    await user.tab()
+    await user.tab({ shift: true })
+    expect(button()).toHaveFocus()
 
     await user.click(screen.getByText('Elsewhere'))
     await wait(100)
