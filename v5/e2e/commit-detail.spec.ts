@@ -7,7 +7,15 @@
 
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { EXPERIMENT, HARDENED, LINUX, MACOS, TAG, uuidFor } from '../tools/synthetic.ts'
+import {
+  EXPERIMENT,
+  HARDENED,
+  LINUX,
+  MACOS,
+  TAG,
+  TAGGED_INFO,
+  uuidFor,
+} from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite, type OwnRun } from './own-suite.ts'
 import { column, rows, table } from './tables.ts'
@@ -53,7 +61,7 @@ test('shows the commit, its neighbours and its runs, filtered by machine', async
   const info = page.getByRole('group', { name: 'Commit', exact: true })
   await expect(info).toContainText(String(commit.ordinal))
   await expect(info).toContainText(TAG)
-  await expect(info).toContainText('[libc++] Synthetic commit 20 of 40')
+  await expect(info).toContainText(TAGGED_INFO)
   // The seeded schema shows commits by their `svn_revision`.
   await expect(info.locator('dt', { hasText: 'svn_revision' })).toHaveText('svn_revision display')
   await expect(link(page, '← Previous commit')).toHaveAttribute(

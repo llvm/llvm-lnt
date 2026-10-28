@@ -10,6 +10,8 @@
  */
 
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import type { components } from '../client/src/api/schema.d.ts'
 
@@ -153,9 +155,35 @@ const COMMITS = 40
 /** The distance between the ordinals of consecutive synthetic commits. */
 const ORDINAL_STEP = 37
 const TAGGED_COMMIT = 19
-export const TAG = 'llvmorg-22.1.0'
+export const TAG = 'seed-milestone'
 /** An ad-hoc A/B experiment on the newest commit: a commit with no ordinal (D1). */
 export const EXPERIMENT = 'experiment-faster-format'
+
+/**
+ * The llvm-project `main` commits that the synthetic commits stand for, so that the suite
+ * repository's links to them work: for each synthetic ordinal N, the one with N commits in its
+ * history, with its subject. Generated in an llvm-project checkout, where main is linear after the
+ * newest real commit, with `$LNT` the root of this repository:
+ *
+ *     base=45c41247f82e newest=554973 step=37 commits=40
+ *     main=$(git rev-list --first-parent --reverse $base..origin/main)
+ *     for i in $(seq 1 $commits); do
+ *       n=$((newest + step * i))
+ *       c=$(echo "$main" | sed -n "$((step * i))p")
+ *       test "$(git rev-list --count $c)" = $n || echo "r$n: no such commit on main" >&2
+ *       git log -1 --format=%s $c |
+ *         jq -R --argjson n $n --arg c $c '{ordinal: $n, commit: $c, subject: .}'
+ *     done | jq -s . > "$LNT/v5/tools/llvm-commits.json"
+ *
+ * `base` and `newest` are the newest real commit and its ordinal, `step` is `ORDINAL_STEP` and
+ * `commits` is `COMMITS`.
+ */
+const LLVM_COMMITS: { ordinal: number; commit: string; subject: string }[] = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, 'llvm-commits.json'), 'utf8'),
+)
+
+/** The tagged commit's `commit_info`. */
+export const TAGGED_INFO = LLVM_COMMITS[TAGGED_COMMIT].subject
 
 /** A change to some tests' values from commit `from` on, until commit `until` (excluded). */
 interface Effect {
@@ -307,8 +335,13 @@ export function libcxxSynthetic(realRuns: Submission[]): {
 } {
   const { newest, tests } = baselines(realRuns)
   const ordinalOf = (i: number) => newest + ORDINAL_STEP * (i + 1)
-  const commitOf = (i: number) =>
-    createHash('sha1').update(`libcxx/${ordinalOf(i)}`).digest('hex')
+  if (
+    LLVM_COMMITS.length !== COMMITS ||
+    LLVM_COMMITS.some((commit, i) => commit.ordinal !== ordinalOf(i))
+  ) {
+    throw new Error('llvm-commits.json does not match the synthetic ordinals: regenerate it')
+  }
+  const commitOf = (i: number) => LLVM_COMMITS[i].commit
   const macosFields = realRuns.find((run) => run.machine.name === MACOS)?.machine.fields
   const runs: Submission[] = []
 
@@ -347,7 +380,7 @@ export function libcxxSynthetic(realRuns: Submission[]): {
       tag: i === TAGGED_COMMIT ? TAG : null,
       fields: {
         svn_revision: `r${ordinalOf(i)}`,
-        commit_info: `[libc++] Synthetic commit ${i + 1} of ${COMMITS}`,
+        commit_info: LLVM_COMMITS[i].subject,
       },
     }
     // Before the real machines, so that those stay the ones submitted and measured last.
@@ -424,7 +457,7 @@ function regressions(
       state: 'active',
       commit: commitOf(12),
       bug: 'https://example.com/bugs/1001',
-      notes: 'About 15% slower on every machine, std::format only.\nBisected to this commit.',
+      notes: 'About 15% slower on every machine, std::format only.',
       indicators: indicators(TRACKED, matching(FORMAT_TESTS), ['execution_time', 'cycles']),
     },
     {
@@ -447,7 +480,7 @@ function regressions(
       title: 'filesystem::path construction regressed on macOS',
       state: 'fixed',
       commit: commitOf(6),
-      notes: 'The change was reverted three commits later.',
+      notes: 'Back to its usual level three commits later.',
       indicators: indicators([MACOS], matching(PATH_TESTS, MACOS)),
     },
     {
