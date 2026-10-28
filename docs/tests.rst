@@ -23,9 +23,7 @@ documentation.
     git clone https://github.com/llvm/llvm-test-suite.git llvm-test-suite
 
    You should always keep the test-suite directory itself clean (that is, never
-   do a configure inside your test suite). Make sure not to check it out into
-   the LLVM projects directory, as LLVM's configure/make build will then want to
-   automatically configure it for you.
+   do a configure inside your test suite).
 
 #. Execute the ``lnt runtest test-suite`` test producer, point it at the test suite and
    the compiler you want to test::
@@ -62,11 +60,11 @@ documentation.
    * When running on linux: Make ``lnt`` use ``perf`` to get more accurate
      timing for short-running benchmarks (use ``--use-perf=time``).
    * Pin the running benchmark to a specific core, so the OS doesn't move the
-     benchmark process from core to core (on linux, use ``--make-param="RUNUNDER=taskset -c 1"``).
+     benchmark process from core to core (on linux, use ``--run-under "taskset -c 1"``).
    * Only run the programs that are marked as a benchmark; some of the tests
      in the test-suite are not intended to be used as a benchmark (use ``--benchmarking-only``).
    * Make sure each program gets run multiple times, so that LNT has a higher
-     chance of recognizing which programs are inherently noisy (use ``--multisample=5``).
+     chance of recognizing which programs are inherently noisy (use ``--exec-multisample=5``).
    * Disable frequency scaling / turbo boost. In case of thermal throttling it
      can skew the results.
    * Disable as many processes or services as possible on the target system.
@@ -79,21 +77,6 @@ By default, ``lnt runtest test-suite`` will show the passes and failures after d
 run, but if you are interested in viewing the result data in more detail you should install
 a local LNT instance to submit the results to. See the sections on :ref:`running a server <running_server>`
 and :ref:`importing data <importing_data>` for instructions on how to do that.
-
-
-Test Producers
---------------
-
-On the client-side, LNT comes with a number of built-in test data producers.
-This documentation focuses on the LLVM test-suite (aka nightly test) generator,
-since it is the primary test run using the LNT infrastructure, but note that LNT
-also includes tests for other interesting pieces of data, for example Clang
-compile-time performance.
-
-LNT also makes it easy to add new test data producers and includes examples of
-custom data importers (e.g., to import buildbot build information into) and
-dynamic test data generators (e.g., abusing the infrastructure to plot graphs,
-for example).
 
 
 Built-in Tests
@@ -121,19 +104,13 @@ following tools for working with built-in tests are available:
 LLVM CMake test-suite
 ~~~~~~~~~~~~~~~~~~~~~
 
-The llvm test-suite can be run with the ``test-suite`` built-in test.
+The llvm test-suite can be run with the ``test-suite`` built-in test::
 
-Running the test-suite via CMake and lit uses a different LNT test::
-
-  rm -rf /tmp/BAR
-  lnt runtest test-suite                                \
-       --sandbox /tmp/BAR                               \
-       --cc ~/llvm.obj.64/Release+Asserts/bin/clang     \
-       --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++  \
-       --use-cmake=/usr/local/bin/cmake                 \
-       --use-lit=~/llvm/utils/lit/lit.py                \
-       --test-suite llvm-test-suite                     \
-       --cmake-cache Release
+  lnt runtest test-suite --sandbox $PWD/sandbox            \
+                         --cc clang                        \
+                         --cxx clang++                     \
+                         --test-suite $PWD/llvm-test-suite \
+                         --cmake-cache Release
 
 Since the CMake test-suite uses lit to run the tests and compare their output,
 LNT needs to know the path to your LLVM lit installation. The test-suite holds
@@ -168,41 +145,8 @@ code looks something like the following::
        --run-under 'taskset -c 1'
 
 
-Bisecting: ``--single-result`` and ``--single-result-predicate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The LNT driver for the CMake-based test suite comes with helpers for bisecting conformance and performance changes with ``llvmlab bisect``.
-
-``llvmlab bisect`` is part of the ``zorg`` repository and allows easy bisection of some predicate through a build cache. The key to using ``llvmlab`` effectively is to design a good predicate command - one which exits with zero on 'pass' and nonzero on 'fail'.
-
-LNT normally runs one or more tests then produces a test report. It always exits with status zero unless an internal error occurred. The ``--single-result`` argument changes LNT's behaviour - it will only run one specific test and will apply a predicate to the result of that test to determine LNT's exit status.
-
-The ``--single-result-predicate`` argument defines the predicate to use. This is a Python expression that is executed in a context containing several pre-set variables:
-
-  * ``status`` - Boolean passed or failed (True for passed, False for failed).
-  * ``exec_time`` - Execution time (note that ``exec`` is a reserved keyword in Python!)
-  * ``compile`` (or ``compile_time``) - Compilation time
-
-Any metrics returned from the test, such as "score" or "hash" are also added to the context.
-
-The default predicate is simply ``status`` - so this can be used to debug correctness regressions out of the box. More complex predicates are possible; for example ``exec_time < 3.0`` would bisect assuming that a 'good' result takes less than 3 seconds.
-
-Full example using ``llvmlab`` to debug a performance improvement::
-
-  llvmlab bisect --min-rev=261265 --max-rev=261369                            \
-    lnt runtest test-suite                                                    \
-      --cc '%(path)s/bin/clang'                                               \
-      --sandbox SANDBOX                                                       \
-      --test-suite /work/llvm-test-suite                                      \
-      --use-lit lit                                                           \
-      --run-under 'taskset -c 5'                                              \
-      --cflags '-O3 -mthumb -mcpu=cortex-a57'                                 \
-      --single-result MultiSource/Benchmarks/TSVC/Expansion-flt/Expansion-flt \
-      --single-result-predicate 'exec_time > 8.0'
-
-
-Producing Diagnositic Reports
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Producing Diagnostic Reports
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The test-suite module can produce a diagnostic report which might be useful
 for figuring out what is going on with a benchmark::
@@ -217,9 +161,9 @@ for figuring out what is going on with a benchmark::
          --cmake-cache Release                            \
          --diagnose --only-test SingleSource/Benchmarks/Stanford/Bubblesort
 
-This will run the test-suite many times over, collecting useful information
-in a report directory. The report collects many things like execution profiles,
-compiler time reports, intermediate files, binary files, and build information.
+This builds the test several times, and collects its intermediate files,
+binaries, build log, ``-ftime-report`` and ``-stats`` output, and on macOS an
+execution profile, in a ``<test>.report`` directory in the current directory.
 
 
 Cross-compiling
@@ -229,7 +173,7 @@ The best way to run the test-suite in a cross-compiling setup with the
 cmake driver is to use cmake's built-in support for cross-compiling as much as
 possible. In practice, the recommended way to cross-compile is to use a cmake
 toolchain file (see
-https://cmake.org/cmake/help/v3.0/manual/cmake-toolchains.7.html#cross-compiling)
+https://cmake.org/cmake/help/latest/manual/cmake-toolchains.7.html#cross-compiling)
 
 An example command line for cross-compiling on an X86 machine, targeting
 AArch64 linux, is::
@@ -240,13 +184,14 @@ AArch64 linux, is::
          --use-lit lit                                      \
          --cppflags="-O3"                                   \
          --run-under=$HOME/dev/aarch64-emu/aarch64-qemu.sh  \
-         --cmake-define=CMAKE_TOOLCHAIN_FILE:FILEPATH=$HOME/clang_aarch64_linux.cmake
+         --cmake-toolchain=$HOME/clang_aarch64_linux.cmake
 
-The key part here is the CMAKE_TOOLCHAIN_FILE define. As you're
-cross-compiling, you may need a --run-under command as the produced binaries
-probably won't run natively on your development machine, but something extra
-needs to be done (e.g. running under a qemu simulator, or transferring the
-binaries to a development board). This isn't explained further here.
+The key part here is the ``--cmake-toolchain`` option. As you're
+cross-compiling, you may need a ``--run-under`` or ``--remote-host`` option, as
+the produced binaries probably won't run natively on your development machine,
+but something extra needs to be done (e.g. running under a qemu simulator, or
+transferring the binaries to a development board). This isn't explained further
+here.
 
 In your toolchain file, it's important to specify that the cmake variables
 defining the toolchain must be cached in CMakeCache.txt, as that's where lnt
