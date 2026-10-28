@@ -10,9 +10,9 @@ export const CLOSE_DELAY_MS = 300
 /**
  * The hover mechanics of a card about a link (AR21): it opens once the pointer has rested on the
  * link for `OPEN_DELAY_MS`, stays open while the pointer is on the link or the card, and closes
- * `CLOSE_DELAY_MS` after the pointer has left both, or on Escape, wherever the focus is. Neither
- * keyboard focus nor touch opens it: `useHover` ignores touch, and the mouse events a browser
- * emulates after one.
+ * `CLOSE_DELAY_MS` after the pointer has left both, on Escape, wherever the focus is, or when the
+ * link moves. Neither keyboard focus nor touch opens it: `useHover` ignores touch, and the mouse
+ * events a browser emulates after one.
  *
  * `triggerProps` go on the link, and the result as a whole to the card's `HoverCard`.
  */
@@ -54,6 +54,22 @@ export function useHoverCard<Trigger extends HTMLElement>() {
   }, [cancel])
 
   useEffect(() => () => clearTimeout(timer.current), [])
+
+  // It closes when its link moves, rather than be left behind, as when a box holding the link moves
+  // (GR11): checked every frame, since what moves the link need not render it again. Its popover
+  // also closes on a scroll of its own accord.
+  useEffect(() => {
+    const trigger = triggerRef.current
+    if (!isOpen || trigger === null) return
+    const start = trigger.getBoundingClientRect()
+    const check = () => {
+      const now = trigger.getBoundingClientRect()
+      if (Math.abs(now.left - start.left) > 1 || Math.abs(now.top - start.top) > 1) close()
+      else frame = requestAnimationFrame(check)
+    }
+    let frame = requestAnimationFrame(check)
+    return () => cancelAnimationFrame(frame)
+  }, [isOpen, close])
 
   useEffect(() => {
     if (!isOpen && !isPending) return

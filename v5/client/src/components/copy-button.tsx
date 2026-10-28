@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
 import clsx from 'clsx'
+import { CopiedIcon, CopyIcon, FailedIcon } from './icons'
 import styles from './copy-button.module.css'
 
 /** How long the outcome of a copy is shown in place of the button's label. */
@@ -107,50 +108,5 @@ export function CopyButton({ text, children, describedBy, autoFocus, icon }: Pro
       </button>
       {status}
     </>
-  )
-}
-
-/** A small icon, in the color of the text around it, which its button names. */
-function Icon({ children }: { children: ReactNode }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {children}
-    </svg>
-  )
-}
-
-/** Two sheets, one over the other. */
-function CopyIcon() {
-  return (
-    <Icon>
-      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-      <path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 10h.5" />
-    </Icon>
-  )
-}
-
-function CopiedIcon() {
-  return (
-    <Icon>
-      <path d="M3 8.5l3 3 7-7" />
-    </Icon>
-  )
-}
-
-function FailedIcon() {
-  return (
-    <Icon>
-      <path d="M4 4l8 8M12 4l-8 8" />
-    </Icon>
   )
 }

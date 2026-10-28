@@ -228,6 +228,23 @@ describe('the hover mechanics', () => {
     expect(queryCard()).not.toBeNull()
   })
 
+  it('closes when its link moves, rather than be left behind', async () => {
+    await renderLink()
+    const rect = (top: number) => DOMRect.fromRect({ x: 10, y: top, width: 50, height: 16 })
+    const at = vi.spyOn(link(), 'getBoundingClientRect').mockReturnValue(rect(100))
+    await open()
+    // Not for less than a pixel.
+    at.mockReturnValue(rect(100.5))
+    await wait(100)
+    expect(queryCard()).not.toBeNull()
+
+    // Moved by what need not render it again, such as a box holding it growing (GR11).
+    at.mockReturnValue(rect(120))
+    await wait(20)
+
+    expect(queryCard()).toBeNull()
+  })
+
   it('does not open on keyboard focus', async () => {
     await renderLink()
     await user.tab()

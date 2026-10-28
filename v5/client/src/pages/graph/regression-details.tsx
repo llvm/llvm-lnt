@@ -4,10 +4,12 @@ import type { MarkedRegression } from '../../api/regressions'
 import type { SuiteSchema } from '../../api/suites'
 import { ChartDialog, type Anchor } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
+import { ListedCommitLink } from '../../components/commit-link'
 import { LinkableText } from '../../components/linkable-text'
 import { StateBadge } from '../../components/regression-state'
 import { formatTimestamp, MISSING, regressionTitle, shortUuid } from '../../format'
-import { commitPath, regressionPath } from '../../paths'
+import { regressionPath } from '../../paths'
+import type { Commit } from '../../schema'
 import styles from './graph.module.css'
 
 interface Props {
@@ -15,8 +17,8 @@ interface Props {
   regression: MarkedRegression
   /** The selected tests it affects, in order. */
   tests: string[]
-  /** The display value of the regression's commit. */
-  display: string
+  /** The regression's commit, from the x-axis, where its marker is (GR3). */
+  commit: Commit
   /** Where the regression's marker is. */
   at: Anchor
   onClose(): void
@@ -27,9 +29,9 @@ interface Props {
  * its UUID, linking to its page as the regressions tables' do, its state, commit, bug and creation
  * time, and the selected tests it affects.
  */
-export function RegressionDetails({ schema, regression, tests, display, at, onClose }: Props) {
+export function RegressionDetails({ schema, regression, commit, tests, at, onClose }: Props) {
   const suite = schema.name
-  const { uuid, state, commit, bug, created_at } = regression
+  const { uuid, state, bug, created_at } = regression
   const title = regressionTitle(regression)
   return (
     <ChartDialog label={`Regression: ${title}`} title={title} at={at} onClose={onClose}>
@@ -46,7 +48,7 @@ export function RegressionDetails({ schema, regression, tests, display, at, onCl
         </dd>
         <dt>Commit</dt>
         <dd>
-          <Link to={commitPath(suite, commit)}>{display}</Link>
+          <ListedCommitLink schema={schema} value={commit.value} commit={commit} />
         </dd>
         <dt>Bug</dt>
         <dd>{bug === null ? MISSING : <LinkableText text={bug} />}</dd>

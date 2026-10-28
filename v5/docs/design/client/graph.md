@@ -304,8 +304,7 @@ hidden until the pointer moves again. It shows:
 
 - the test name;
 - the machine, linking to its Machine Detail page;
-- the commit, linking to its Commit Detail page, followed by "View on {label}"
-  (see AR20);
+- the commit, linking to its Commit Detail page, with its card (see AR21);
 - the point's value and run count;
 - the point's runs, in the order they were measured, each with its measurement
   time, its shortened UUID linking to its Run Detail page, and the values of its
@@ -356,11 +355,12 @@ hidden until the pointer moves again. It shows:
 While it is open, the popover follows its point -- as more data arrives or a
 baseline changes the y-axis range, the chart is resized or the page scrolls --
 and updates its contents as the data arrives. It closes on Escape, unless
-pressed in its "Create regression" form, on its close button, on a click
-anywhere but on it or a marker of its point's scatter, and on any change to the
-chart other than data arriving, such as a zoom or pan, or a change to the
-selected tests, machines, metric, aggregation or regression annotation mode, and
-once its point is no longer drawn. A change to the baselines (GR9) or the
+pressed in its "Create regression" form, which closes alone, even with the
+commit's card open, or while the commit's card is open (see AR21); on its close
+button; on a click anywhere but on it, a marker of its point's scatter or its
+commit's card; and on any change to the chart other than data arriving, such as a
+zoom or pan, or a change to the selected tests, machines, metric, aggregation or
+regression annotation mode, and once its point is no longer drawn. A change to the baselines (GR9) or the
 highlighted commits (GR16) does not close it: neither changes which point it is
 about.
 Moving the focus out of it does not close it. A click on another point opens
@@ -429,9 +429,9 @@ others), and a last line saying that clicking the marker shows the regression's
 details. Clicking it opens a popover beside it, which behaves as a point's does
 (GR11): it shows the regression's title, its UUID (shortened, see AR6, and
 linking to its Regression Detail page), its state (as a colored badge), its
-commit (linking to its Commit Detail page), its bug (see AR6), or `--` when it
-has none, when it was created, and the selected tests it affects. One popover is
-open at a time, a point's or a regression's.
+commit (linking to its Commit Detail page, with its card; see AR21), its bug
+(see AR6), or `--` when it has none, when it was created, and the selected tests
+it affects. One popover is open at a time, a point's or a regression's.
 A regression with no commit, or whose commit is not on the x-axis scaffold
 (GR3), has no position on the chart and is not drawn. The selected mode is
 persisted in the URL as `regressions={off|active|all}`.

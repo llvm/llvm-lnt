@@ -460,9 +460,10 @@ so:
 - Resting the pointer on the link opens its card beside it, after a short delay.
   The card stays open while the pointer is on the link or on the card, so that
   its links can be followed, and closes once the pointer has left both, after a
-  short delay. It also closes on Escape, wherever the focus is, and when the page
-  scrolls. Once Escape has closed it, or kept it from opening, it opens again
-  only once the pointer has left the link and come back.
+  short delay. It also closes on Escape, wherever the focus is, and when its link
+  moves, as it does when the page scrolls. Once Escape has closed it, or kept it
+  from opening, it opens again only once the pointer has left the link and come
+  back.
 - Only hovering opens it: not keyboard focus, so that moving through a table
   from the keyboard does not open a card on every row, and not touch, which has
   no hover. Nothing is lost that way, since everything the card shows is also on
@@ -471,6 +472,10 @@ so:
   focus inside, the focus returns to its link. While it is open, assistive
   technology can reach it from the link, as details of the link rather than as
   a description of it, since it holds links.
+- A card opened from inside a box floating over the page, such as a point's
+  details on the Graph page (GR11), is part of that box: a press in the card is
+  no press outside the box, and while the card is open, Escape closes the card
+  alone.
 
 The card shows:
 
@@ -484,10 +489,10 @@ The card shows:
 A value longer than two lines is cut short to two, with no hover of its own, and
 read whole by assistive technology; the commit's page shows it whole.
 
-The card shows the commit as the page loaded it for the link's text, so that the
-two always agree. When the page has not loaded it, because it could not for
-instance, the card fetches it when first shown, and never before: a page with
-many such links does not fetch their commits in advance. Until it has, the card
-says that it is loading, with the commit string at its top. If the commit cannot
-be fetched, the card says so and offers to try again (see AR7), and if it no
-longer exists, the card says so.
+The card shows the commit as the page loaded it for the link's text or name, so
+that the two always agree. When the page has not loaded it, because it could not
+for instance, the card fetches it when first shown, and never before: a page
+with many such links does not fetch their commits in advance. Until it has, the
+card says that it is loading, with the commit string at its top. If the commit
+cannot be fetched, the card says so and offers to try again (see AR7), and if it
+no longer exists, the card says so.

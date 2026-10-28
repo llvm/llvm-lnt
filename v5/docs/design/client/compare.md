@@ -14,7 +14,7 @@ suite-agnostic: each side selects its own suite. Layout:
 +-- Side A (Baseline) ----------------+       +-- Side B (New) -------------- [Pin as shadow] +
 | Suite            [libcxx         v] |       | Suite            [libcxx                   v] |
 | Machine          [linux-x86_64     ] | (<->) | Machine          [linux-x86_64               ] |
-|                      View on GitHub |       |                                View on GitHub |
+|                                  ⓘ |       |                                             ⓘ |
 | Commit           [0f985af790f8    ] |       | Commit           [014621ede7c1              ] |
 | Runs             [-] Run            |       | Runs             [x] Run                      |
 |                  +----------------+ |       |                  +--------------------------+ |
@@ -60,9 +60,10 @@ Each side has its own controls:
 - **Commit**: a commit picker (see AR15) over the commits at which the selected
   machine has runs. Disabled until a machine is selected, showing "Select a
   machine first". Clearing the commit clears the runs. Once the side has a
-  commit, "View on {label}" (see AR20) links it from the end of the picker's
-  label line: beside the label rather than in it, so that it is no part of the
-  picker's name.
+  commit, a small ⓘ links to its Commit Detail page, with its card (see AR21),
+  from the end of the picker's label line: beside the label rather than in it,
+  so that it is no part of the picker's name. It is named `Commit` followed by
+  the commit's display value, as the picker shows it.
 - **Runs**: a checkbox list of the selected machine's runs at the selected
   commit, in the order they were measured, in a box of its own that scrolls
   when they are many. Each run shows its measurement time and its shortened UUID
@@ -459,6 +460,10 @@ page or the table.
   side A has the same suite and machine, through `POST commits/resolve` (see
   CP3). The details don't wait for these lookups; only their link to the Graph
   does.
+- A side's commit card (AR21) shows the commit as its picker looked it up or
+  listed it when it was picked. Only while the picker has it neither way, such
+  as while its lookup is pending or after it failed, does the card fetch it,
+  through `POST commits/resolve`, once first shown.
 - When the page is loaded from a URL, it sends all the requests that the URL's
   values call for at once, without first checking that the values are usable.
   There are exceptions: the page waits for the list of suites before it

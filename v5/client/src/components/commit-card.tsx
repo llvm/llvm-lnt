@@ -120,7 +120,7 @@ function CommitSummary({ schema, commit, headingId }: ContentProps & { commit: C
           </InfoRow>
         ))}
       </dl>
-      <CommitRepositoryLink repository={schema.repository} commit={commit.value} look="alone" />
+      <CommitRepositoryLink repository={schema.repository} commit={commit.value} />
     </>
   )
 }

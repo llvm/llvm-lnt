@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useResolvedCommit } from '../api/commits'
 import type { SuiteSchema } from '../api/suites'
@@ -36,12 +37,31 @@ interface ListedProps extends Props {
  * and by `value` without it, with the commit's card (AR21): what a list that loaded its commits
  * shows each of them as. Without `commit`, the card fetches the commit once shown.
  */
-export function ListedCommitLink({ schema, value, commit, withTag = true }: ListedProps) {
+export function ListedCommitLink({ withTag = true, ...props }: ListedProps) {
+  const { schema, value, commit } = props
+  return (
+    <CardedCommitLink {...props}>
+      {commit ? commitDisplayValue(commit, schema, { withTag }) : value}
+    </CardedCommitLink>
+  )
+}
+
+interface CardedProps extends Props {
+  /** The commit, as the page loaded it, if it did. */
+  commit: Commit | undefined
+  /** What names the link, when its content does not. */
+  'aria-label'?: string
+  className?: string
+  children: ReactNode
+}
+
+/** A link to the page of the commit `value`, showing `children`, with the commit's card (AR21). */
+export function CardedCommitLink({ schema, value, commit, children, ...link }: CardedProps) {
   const card = useHoverCard<HTMLAnchorElement>()
   return (
     <>
-      <Link to={commitPath(schema.name, value)} {...card.triggerProps}>
-        {commit ? commitDisplayValue(commit, schema, { withTag }) : value}
+      <Link to={commitPath(schema.name, value)} {...link} {...card.triggerProps}>
+        {children}
       </Link>
       {/* Beside the link rather than in it, which a click in the card would otherwise follow. */}
       <CommitCard card={card} schema={schema} value={value} commit={commit} />

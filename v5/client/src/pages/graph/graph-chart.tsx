@@ -514,7 +514,7 @@ export function GraphChart({
             machine={trace.machine}
             test={trace.test}
             point={point}
-            display={displayValue(point.commit)}
+            commit={commits[point.position]}
             runs={runsOf(samples)}
             previous={trace.points[index - 1] ?? null}
             sampleAgg={sampleAgg}
@@ -531,7 +531,8 @@ export function GraphChart({
         )
       } else if (openMark !== undefined) {
         const { uuid, commit, stack, tests } = openMark
-        const x = geometry.x(positions.get(commit)!)
+        const position = positions.get(commit)!
+        const x = geometry.x(position)
         // On the axis of the markers, which spans the plot from 0 at the bottom to 1 at the top.
         const y = area.top + (1 - markerHeight(stack)) * area.height
         details = (
@@ -539,8 +540,8 @@ export function GraphChart({
             key={uuid}
             schema={schema}
             regression={placed.find((regression) => regression.uuid === uuid)!}
+            commit={commits[position]}
             tests={tests}
-            display={displayValue(commit)}
             // Below the marker, at the top of the plot, rather than above the plot.
             at={{ x, y, side: sideOf(x), align: 'start' }}
             onClose={close}

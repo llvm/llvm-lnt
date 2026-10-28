@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
-import { currentUrl, main, query, renderPage } from '../../test/page'
+import { commitCard, currentUrl, main, mockResolve, query, renderPage } from '../../test/page'
 import { pick, pickOption, selectButton } from '../../test/select'
 import { NO_REPOSITORY, SUITE, uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, ROWS, runBox, sideOf } from './compare-world'
@@ -245,30 +245,66 @@ describe('the Compare page (CP1)', () => {
   })
 })
 
-describe('the links into the repository (CP1, AR20)', () => {
+describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
   const GITHUB = 'https://github.com/llvm/llvm-project'
-  const viewOn = (side: 'A' | 'B', commit: string) =>
-    within(sideOf(side)).queryByRole('link', { name: `View on GitHub: ${commit}` })
+  const commitLink = (side: 'A' | 'B', name: string) =>
+    within(sideOf(side)).queryByRole('link', { name: `Commit ${name}` })
   const diff = () => main().queryByRole('link', { name: /^Diff/ })
 
-  it('link each side’s commit beside its picker, once it has one, in a new tab', async () => {
+  it('link each side’s commit to its page beside its picker, once it has one, with its card', async () => {
     mockWorld()
+    const resolves = mockResolve()
     renderPage('/compare?suite_a=libcxx&machine_a=m1')
     await waitFor(() =>
       expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeEnabled(),
     )
-    expect(within(sideOf('A')).queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
+    expect(within(sideOf('A')).queryByRole('link', { name: /^Commit/ })).not.toBeInTheDocument()
 
     await pick('Commit', 'c1', sideOf('A'))
 
-    const link = await waitFor(() => viewOn('A', 'c1')!)
-    expect(link).toHaveAttribute('href', `${GITHUB}/commit/c1`)
-    expect(link).toHaveAttribute('target', '_blank')
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    const link = await waitFor(() => commitLink('A', 'c1')!)
+    expect(link).toHaveAttribute('href', '/suites/libcxx/commits/c1')
     // Beside the picker's label, rather than in it.
     expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeInTheDocument()
+    // No longer a link into the repository, which the card holds.
+    expect(within(sideOf('A')).queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
     // Only once both sides have a commit is there a range.
     expect(diff()).not.toBeInTheDocument()
+
+    // The commit picked, as the picker listed it, without asking for it.
+    const card = await commitCard(link)
+    expect(card).toHaveAccessibleName('c1')
+    expect(within(card).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
+      'href',
+      `${GITHUB}/commit/c1`,
+    )
+    expect(resolves).toEqual([])
+  })
+
+  it('show the card of a commit restored from the URL as its picker looked it up', async () => {
+    mockWorld({ revisions: { c1: 'r1', c2: 'r2' } })
+    const resolves = mockResolve()
+    renderPage(COMPARED)
+    await comparison()
+
+    const card = await commitCard(await waitFor(() => commitLink('B', 'r2')!))
+    expect(card).toHaveAccessibleName('r2')
+    expect(card).toHaveTextContent('c2')
+    expect(resolves).toEqual([])
+  })
+
+  it("leave the commit picker's list to it while a card is open", async () => {
+    mockWorld()
+    const user = userEvent.setup()
+    renderPage(COMPARED)
+    await comparison()
+
+    const card = await commitCard(await waitFor(() => commitLink('A', 'c1')!))
+    await user.click(within(sideOf('A')).getByRole('button', { name: /Show suggestions.*Commit/ }))
+
+    // Not hidden from assistive technology, as it would be were the card the combobox's popover.
+    expect(await screen.findByRole('listbox')).toBeInTheDocument()
+    expect(card.closest('[data-trigger]')).toBeNull()
   })
 
   it('link the changes from side A’s commit to side B’s, below the sides', async () => {
@@ -276,7 +312,7 @@ describe('the links into the repository (CP1, AR20)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    expect(viewOn('B', 'c2')).toHaveAttribute('href', `${GITHUB}/commit/c2`)
+    expect(commitLink('B', 'c2')).toHaveAttribute('href', '/suites/libcxx/commits/c2')
     const link = main().getByRole('link', { name: 'Diff on GitHub: c1 → c2' })
     expect(link).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
     expect(link).toHaveAttribute('target', '_blank')
@@ -288,8 +324,8 @@ describe('the links into the repository (CP1, AR20)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const side = await within(sideOf('A')).findByRole('link', { name: 'View on GitHub: r1' })
-    expect(side).toHaveAttribute('href', `${GITHUB}/commit/c1`)
+    const side = await waitFor(() => commitLink('A', 'r1')!)
+    expect(side).toHaveAttribute('href', '/suites/libcxx/commits/c1')
     const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → r2' })
     expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
   })
@@ -310,19 +346,19 @@ describe('the links into the repository (CP1, AR20)', () => {
     renderPage(COMPARED.replace('suite_b=libcxx', 'suite_b=twin'))
     await comparison()
 
-    expect(viewOn('A', 'c1')).toBeInTheDocument()
-    expect(viewOn('B', 'c2')).toBeInTheDocument()
+    expect(commitLink('A', 'c1')).toHaveAttribute('href', '/suites/libcxx/commits/c1')
+    expect(commitLink('B', 'c2')).toHaveAttribute('href', '/suites/twin/commits/c2')
     expect(diff()).not.toBeInTheDocument()
   })
 
-  it('are not shown when the suite has no templates of their URLs', async () => {
+  it('link no changes when the suite has no template of their URL', async () => {
     mockWorld({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
     renderPage(COMPARED)
     await comparison()
 
-    expect(main().queryByRole('link', { name: /^(View|Diff)/ })).not.toBeInTheDocument()
+    expect(diff()).not.toBeInTheDocument()
+    expect(commitLink('A', 'c1')).toBeInTheDocument()
   })
-
 })
 
 describe('the metric (CP1)', () => {

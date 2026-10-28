@@ -2,16 +2,11 @@
  * The card of a commit's link (AR21), on the pages of the seeded libcxx suite.
  */
 
-import type { Locator, Page } from '@playwright/test'
+import type { Locator } from '@playwright/test'
 import { EXPERIMENT } from '../tools/synthetic.ts'
+import { cardOf } from './cards.ts'
 import { expect, REAL_RUN, test } from './fixtures.ts'
 import { rows, table } from './tables.ts'
-
-/** The card of `link`, which refers to it as its details while it is open. */
-async function cardOf(page: Page, link: Locator): Promise<Locator> {
-  await expect(link).toHaveAttribute('aria-details', /.+/)
-  return page.locator(`[id="${await link.getAttribute('aria-details')}"]`)
-}
 
 /** The commit string of the commit `link` leads to. */
 async function commitOf(link: Locator): Promise<string> {

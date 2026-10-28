@@ -1,11 +1,5 @@
 /* "View on {label}", in small type, kept on one line (AR20). */
-.alone {
+.small {
   font-size: 0.85rem;
   white-space: nowrap;
-}
-
-/* After the commit it links to. */
-.after {
-  composes: alone;
-  margin-left: var(--lnt-space-2);
 }

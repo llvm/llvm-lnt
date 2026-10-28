@@ -12,14 +12,15 @@ import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ButtonLink } from '../../components/button-link'
+import { ListedCommitLink } from '../../components/commit-link'
 import { ChartDialog, type Anchor } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
 import { ErrorMessage } from '../../components/feedback'
-import { CommitRepositoryLink, RangeRepositoryLink } from '../../components/repository-link'
+import { RangeRepositoryLink } from '../../components/repository-link'
 import { RunSamplesTable, type RunSamples } from '../../components/run-samples-table'
 import { plural, shortUuid } from '../../format'
-import { commitPath, comparePath, machinePath, regressionPath } from '../../paths'
-import { formatMetricValue, type Metric } from '../../schema'
+import { comparePath, machinePath, regressionPath } from '../../paths'
+import { commitDisplayValue, formatMetricValue, type Commit, type Metric } from '../../schema'
 import type { Point } from './points'
 import styles from './graph.module.css'
 
@@ -29,8 +30,8 @@ interface Props {
   machine: string
   test: string
   point: Point
-  /** The display value of the point's commit. */
-  display: string
+  /** The point's commit, from the x-axis, which holds every commit a point can be at (GR3). */
+  commit: Commit
   /** The point's runs, in the order they were measured, each with its samples, ascending. */
   runs: RunSamples[]
   /** The point before it on its trace, if there is one. */
@@ -69,7 +70,7 @@ export function PointDetails({
   machine,
   test,
   point,
-  display,
+  commit,
   runs,
   previous,
   sampleAgg,
@@ -97,7 +98,7 @@ export function PointDetails({
 
   return (
     <ChartDialog
-      label={`${test} on ${machine} at ${display}`}
+      label={`${test} on ${machine} at ${commitDisplayValue(commit, schema)}`}
       title={test}
       at={at}
       companion={companion}
@@ -110,8 +111,7 @@ export function PointDetails({
         </dd>
         <dt>Commit</dt>
         <dd>
-          <Link to={commitPath(suite, point.commit)}>{display}</Link>
-          <CommitRepositoryLink repository={schema.repository} commit={point.commit} />
+          <ListedCommitLink schema={schema} value={commit.value} commit={commit} />
         </dd>
         <dt>Value</dt>
         <dd>

@@ -23,8 +23,8 @@ interface Props {
 
 /**
  * A side's controls (CP1): its suite, machine and commit, each choice clearing what depends on it,
- * with a link to the commit in its repository, and the runs of the machine at the commit, every one
- * selected to begin with.
+ * with a link to the commit's page, with its card, and the runs of the machine at the commit, every
+ * one selected to begin with.
  */
 export function SidePanel({ side, title, suites, action }: Props) {
   const { settings, schema, machines, update: onChange } = side

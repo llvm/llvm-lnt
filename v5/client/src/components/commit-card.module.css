@@ -12,6 +12,11 @@
   font-size: 0.9rem;
 }
 
+/* Focused by a click only (see `HoverCard`), where an outline means nothing. */
+.card:focus {
+  outline: none;
+}
+
 .heading {
   font-weight: 600;
   overflow-wrap: anywhere;
