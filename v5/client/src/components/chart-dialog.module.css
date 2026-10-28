@@ -84,10 +84,10 @@
   padding-right: var(--lnt-space-3);
 }
 
-/* The dialog's actions, one per line. */
+/* The dialog's actions, in a row, which wraps if they do not fit. */
 .actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--lnt-space-2);
 }

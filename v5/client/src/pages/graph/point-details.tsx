@@ -11,15 +11,15 @@ import {
 import type { SuiteSchema } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
-import { ButtonLink } from '../../components/button-link'
+import { DisabledLink } from '../../components/button-link'
 import { ListedCommitLink } from '../../components/commit-link'
 import { ChartDialog, type Anchor } from '../../components/chart-dialog'
 import dialog from '../../components/chart-dialog.module.css'
 import { ErrorMessage } from '../../components/feedback'
-import { RangeRepositoryLink } from '../../components/repository-link'
 import { RunSamplesTable, type RunSamples } from '../../components/run-samples-table'
 import { plural, shortUuid } from '../../format'
 import { comparePath, machinePath, regressionPath } from '../../paths'
+import { fillTemplate, NEW_TAB, repositoryLinkText, usableTemplate } from '../../repository'
 import { commitDisplayValue, formatMetricValue, type Commit, type Metric } from '../../schema'
 import type { Point } from './points'
 import styles from './graph.module.css'
@@ -59,10 +59,17 @@ interface Props {
 const FIRST_POINT = 'This is the first point of its trace.'
 
 /**
+ * What assistive technology reads after the text of a link about the previous point, which leans on
+ * the "Previous commit:" before it. Its text comes first, as the label it is spoken by (WCAG's
+ * label in name).
+ */
+const ABOUT_PREVIOUS = 'with previous commit'
+
+/**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
- * value, its runs with their samples, a comparison with the point before it and the changes since
- * it in the repository, a way to highlight its commit, a way to add it as a baseline, and a way to
- * create a regression from it.
+ * value, its runs with their samples; links to a comparison with the point before it and to the
+ * changes since it in the repository; and a row of buttons highlighting its commit, adding it as a
+ * baseline and creating a regression from it.
  */
 export function PointDetails({
   schema,
@@ -87,14 +94,43 @@ export function PointDetails({
   const suite = schema.name
 
   const side = (commit: string) => ({ suite, machine, commit })
+  const compareName = `Compare ${ABOUT_PREVIOUS}`
   const compare =
-    previous === null
-      ? null
-      : comparePath(side(previous.commit), side(point.commit), {
+    previous === null ? (
+      <DisabledLink title={FIRST_POINT} aria-label={compareName}>
+        Compare
+      </DisabledLink>
+    ) : (
+      <Link
+        to={comparePath(side(previous.commit), side(point.commit), {
           metric: metric.name,
           sampleAgg: linkedAggregation(sampleAgg),
           runAgg: linkedAggregation(runAgg),
-        })
+        })}
+        aria-label={compareName}
+      >
+        Compare
+      </Link>
+    )
+  // The changes since the previous point in the repository, if the suite has a usable template
+  // (AR20).
+  const range = usableTemplate(schema.repository, 'range_url')
+  const diffText = repositoryLinkText(schema.repository, 'Diff')
+  const diffName = `${diffText} ${ABOUT_PREVIOUS}`
+  const diff =
+    range === null ? null : previous === null ? (
+      <DisabledLink title={FIRST_POINT} aria-label={diffName}>
+        {diffText}
+      </DisabledLink>
+    ) : (
+      <a
+        href={fillTemplate(range, { from: previous.commit, to: point.commit })}
+        {...NEW_TAB}
+        aria-label={diffName}
+      >
+        {diffText}
+      </a>
+    )
 
   return (
     <ChartDialog
@@ -122,23 +158,23 @@ export function PointDetails({
         <h3 className={dialog.heading}>Runs</h3>
         <RunSamplesTable label="Runs" suite={suite} metric={metric} runs={runs} />
       </div>
+      <p className={styles.detailsPrevious}>
+        Previous commit:{' '}
+        {compare}
+        {diff !== null && (
+          <>
+            <span aria-hidden="true"> · </span>
+            {diff}
+          </>
+        )}
+      </p>
       <div className={dialog.actions}>
-        <ButtonLink to={compare} title={compare === null ? FIRST_POINT : undefined}>
-          Compare with previous commit
-        </ButtonLink>
-        <RangeRepositoryLink
-          repository={schema.repository}
-          action="Diff with previous commit"
-          from={previous?.commit ?? null}
-          to={point.commit}
-          reason={FIRST_POINT}
-        />
         {/* Each toggle is the same button either way, so that it keeps the focus (GR11). */}
         <ActionButton reason={highlighted ? undefined : highlightsFull} onClick={onHighlight}>
-          {highlighted ? 'Remove the highlight' : 'Highlight this commit'}
+          {highlighted ? 'Remove highlight' : 'Highlight commit'}
         </ActionButton>
         <ActionButton onClick={onBaseline}>
-          {baselined ? 'Remove the baseline' : 'Add as baseline'}
+          {baselined ? 'Remove baseline' : 'Add baseline'}
         </ActionButton>
         <CreateRegression
           suite={suite}
@@ -162,9 +198,10 @@ interface CreateRegressionProps {
 }
 
 /**
- * "Create regression" (GR11): a button opening a form for the regression's title, which creates a
- * regression of the point, and gives way to a link to it. The form cancels as an inline edit does
- * (AR12): with its Cancel button or Escape, giving the focus back to the button.
+ * "Create regression" (GR11): a button that gives way to a form, on a line of its own below the
+ * other buttons. The form asks for the regression's title, creates a regression of the point, and
+ * gives way to a link to it. It cancels as an inline edit does (AR12): with its Cancel button or
+ * Escape, giving the focus back to the button.
  */
 function CreateRegression({ suite, machine, test, metric, commit }: CreateRegressionProps) {
   const triage = useScopeGate('triage', suite)
@@ -205,7 +242,7 @@ function CreateRegression({ suite, machine, test, metric, commit }: CreateRegres
   if (create.data !== undefined) {
     const { uuid, title: created } = create.data
     return (
-      <span role="status">
+      <span className={styles.detailsCreated} role="status">
         Regression created:{' '}
         <Link ref={focusOnMount} to={regressionPath(suite, uuid)}>
           {created ?? shortUuid(uuid)}
