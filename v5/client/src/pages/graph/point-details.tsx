@@ -112,7 +112,8 @@ export function PointDetails({
         Compare
       </Link>
     )
-  // The changes since the previous point in the repository, if the suite has a template (AR20).
+  // The changes since the previous point in the repository, if the suite has a usable template
+  // (AR20).
   const range = usableTemplate(schema.repository, 'range_url')
   const diffText = repositoryLinkText(schema.repository, 'Diff')
   const diffName = `${diffText} ${ABOUT_PREVIOUS}`
@@ -197,10 +198,10 @@ interface CreateRegressionProps {
 }
 
 /**
- * "Create regression" (GR11): a button giving way to a form for the regression's title, on a line
- * of its own below the other buttons, which creates a regression of the point, and gives way to a
- * link to it. The form cancels as an inline edit does (AR12): with its Cancel button or Escape,
- * giving the focus back to the button.
+ * "Create regression" (GR11): a button that gives way to a form, on a line of its own below the
+ * other buttons. The form asks for the regression's title, creates a regression of the point, and
+ * gives way to a link to it. It cancels as an inline edit does (AR12): with its Cancel button or
+ * Escape, giving the focus back to the button.
  */
 function CreateRegression({ suite, machine, test, metric, commit }: CreateRegressionProps) {
   const triage = useScopeGate('triage', suite)

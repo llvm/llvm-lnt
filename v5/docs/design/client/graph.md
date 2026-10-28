@@ -311,19 +311,19 @@ hidden until the pointer moves again. It shows:
   samples (GR1), in ascending order and on one line. The list scrolls when it is
   long or wide;
 - "Previous commit:", followed by two links about the previous point of the
-  same trace: the one at the nearest lower commit on the x-axis where this trace
-  has a value, so that unlike the previous commit of Run Detail's "Compare with
-  previous commit" (DT2), it always has data for the test. Both links are
-  disabled (see AR8) at the first point of a trace, and the accessible name of
-  each is its text followed by "with previous commit":
-  - "Compare": a link to the Compare page set up to compare this point with the
-    previous point. Side A is the previous point's commit, side B this point's
-    commit, both in this suite and on this machine with all their runs, with
-    the plotted metric, and with the Graph's sample and run aggregation, so that
-    Compare's Value A and Value B are the two points' values.
-  - "Diff on {label}" (see AR20): a link to the changes between the two commits
-    that "Compare" compares, the previous point's filling in `{from}` and this
-    point's `{to}`.
+  same trace, the one at the nearest lower commit on the x-axis where this
+  trace has a value, so that unlike the previous commit of Run Detail's
+  "Compare with previous commit" (DT2), it always has data for the test. Both
+  links are disabled (see AR8) at the first point of a trace. The accessible
+  name of each is its text followed by "with previous commit". The links are:
+  - "Compare", which leads to the Compare page set up to compare this point
+    with the previous point. Side A is the previous point's commit, side B this
+    point's commit, both in this suite and on this machine with all their runs,
+    with the plotted metric, and with the Graph's sample and run aggregation,
+    so that Compare's Value A and Value B are the two points' values.
+  - "Diff on {label}" (see AR20), which leads to the changes between the two
+    commits that "Compare" compares, the previous point's filling in `{from}`
+    and this point's `{to}`.
 - in a row below them, three buttons:
   - "Highlight commit", which adds the point's commit to the highlighted
     commits (GR16). It is disabled, with the reason, when the maximum number of

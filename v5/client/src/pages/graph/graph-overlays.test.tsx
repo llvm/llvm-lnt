@@ -1037,7 +1037,7 @@ describe('creating a regression from a point (GR11)', () => {
     await openForm('a - m1', 1)
     const user = userEvent.setup()
 
-    // The button gives way to the form, below the other buttons, which stay.
+    // The button gives way to the form; the other buttons stay.
     expect(details().queryByRole('button', { name: 'Create regression' })).not.toBeInTheDocument()
     expect(details().getByRole('button', { name: 'Highlight commit' })).toBeVisible()
     await user.type(titleInput(), 'Slow')
