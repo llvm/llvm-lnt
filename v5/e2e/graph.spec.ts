@@ -7,6 +7,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { escapeHtml } from '../client/src/format.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
+import { cardOf } from './cards.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf, zoomAround, type PlotDiv } from './plot.ts'
@@ -235,6 +236,33 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
 
   await details.getByRole('table', { name: 'Runs' }).getByRole('link').first().click()
   await expect(page).toHaveURL(/\/suites\/libcxx\/runs\//)
+})
+
+test("shows the card of a point's commit, as part of its details (GR11, AR21)", async ({
+  page,
+}) => {
+  await page.goto(LINUX_TEST)
+  await expect(tracesOf(page)).toHaveCount(1)
+  await plotOf(page).click({ position: await pointOf(page, 0, 1) })
+  const details = page.getByRole('dialog')
+  const link = details.getByRole('link', { name: /^r\d+/ })
+
+  await link.hover()
+  const card = await cardOf(page, link)
+  await expect(card.getByRole('link', { name: 'View on GitHub' })).toBeVisible()
+  await expect(details.getByRole('link', { name: 'View on GitHub' })).toHaveCount(0)
+
+  // A press in it is none outside the details, which stay open.
+  await card.getByRole('button', { name: 'Copy commit' }).click()
+  await expect(details).toBeVisible()
+
+  // Escape closes the card first, then the details.
+  await page.keyboard.press('Escape')
+  await expect(card).toBeHidden()
+  await expect(details).toBeVisible()
+  await expect(link).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(details).toBeHidden()
 })
 
 test("marks a regression at its commit, and shows its details from its marker (GR15)", async ({

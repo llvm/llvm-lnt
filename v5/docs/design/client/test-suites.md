@@ -54,7 +54,7 @@ etc...
 
 - `Run` is a link to the run detail page, showing the shortened UUID.
 - `Machine` is a link to the machine detail page.
-- `Commit` is a link to the commit detail page.
+- `Commit` is a link to the commit detail page, with its card (see AR21).
 - `Submitted` is the submission timestamp for that run
 
 Above the table, a search box showing "Search". It finds runs by their machine, their commit
@@ -102,7 +102,7 @@ etc...
 ```
 
 - `Commit` is a link to the commit detail page, showing the display value without its
-  ` (tag)` suffix.
+  ` (tag)` suffix, with its card (see AR21).
 - `Ordinal` is the ordinal value for that commit, or `--` if there is no ordinal.
 - `Tag` is the tag associated to that commit if any, or `--` if there is no tag.
 - After `Tag`, a column for each commit field the schema marks `listed: true`
@@ -157,6 +157,9 @@ etc...
 UUID is the regression's shortened UUID, linking to its detail page like Title. It is the
 only way to tell regressions without a title apart, and it shows the prefix by which the
 search can find a regression.
+
+Commit is a link to the page of the regression's commit, showing its display value, with its
+card (see AR21), or `--` when the regression has none.
 
 Machines and Tests are the `machine_count` and `test_count` the list endpoint returns
 for each regression. They count the whole regression even when the table is filtered.

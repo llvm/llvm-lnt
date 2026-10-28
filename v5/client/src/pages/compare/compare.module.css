@@ -37,6 +37,14 @@
   font-size: 0.9rem;
 }
 
+/* ⓘ, a link to a side's commit: a target of 24px square (WCAG 2.5.8) that grows no line. */
+.commitLink {
+  display: inline-flex;
+  align-self: center;
+  margin: -5px;
+  padding: 5px;
+}
+
 /* A side's runs, each with its checkbox, kept within the side, which a fieldset is not by default. */
 .runs {
   min-width: 0;

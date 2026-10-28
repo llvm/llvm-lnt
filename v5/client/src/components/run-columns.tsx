@@ -2,8 +2,9 @@ import { Link } from 'react-router'
 import type { Schemas } from '../api/client'
 import type { SuiteSchema } from '../api/suites'
 import { formatTimestamp } from '../format'
-import { commitPath, machinePath, runPath } from '../paths'
-import { displayValueOf, type Commit } from '../schema'
+import { machinePath, runPath } from '../paths'
+import type { Commit } from '../schema'
+import { ListedCommitLink } from './commit-link'
 import type { Column } from './data-table'
 import { uuidColumn } from './uuid-column'
 
@@ -11,9 +12,9 @@ type Run = Schemas['Run']
 
 /**
  * The columns a table of runs picks from, so that every such table shows runs the same way: the
- * run, its machine and its commit, each linked to its own page, and when it was measured or
- * submitted.
- * `commits` resolves the commits' display values (see `fetchRunPage`).
+ * run, its machine and its commit, each linked to its own page, the commit with its card (AR21), and
+ * when it was measured or submitted.
+ * `commits` resolves the commits' display values, and their cards' contents (see `fetchRunPage`).
  */
 export function runColumns(schema: SuiteSchema, commits: Map<string, Commit>) {
   const suite = schema.name
@@ -28,9 +29,7 @@ export function runColumns(schema: SuiteSchema, commits: Map<string, Commit>) {
       id: 'commit',
       header: 'Commit',
       cell: (run) => (
-        <Link to={commitPath(suite, run.commit)}>
-          {displayValueOf(run.commit, commits, schema)}
-        </Link>
+        <ListedCommitLink schema={schema} value={run.commit} commit={commits.get(run.commit)} />
       ),
     },
     measured: {

@@ -7,6 +7,7 @@ import { signIn, TOKEN } from '../../test/auth'
 import { SUITE, commit, cursorPage, machine, runDetail, sample, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   gate,
   headersOf,
@@ -144,6 +145,15 @@ describe('the Run Detail page', () => {
     const info = within(screen.getByRole('group', { name: 'Run' }))
     expect(info.getByText(UUID)).toHaveClass('mono')
     expect(info.getByText('r100 (v1)').closest('dd')).not.toHaveClass('mono')
+  })
+
+  it("shows its commit's card, from the commit's resolution", async () => {
+    renderRun()
+
+    const card = await commitCard(await main().findByRole('link', { name: 'r100 (v1)' }))
+    expect(card).toHaveAccessibleName('r100 (v1)')
+    expect(card).toHaveTextContent('abc123')
+    expect(within(card).getByText('100')).toBeInTheDocument()
   })
 
   it('shows only the error for a run that does not exist, and the trail', async () => {

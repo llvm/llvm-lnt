@@ -154,7 +154,7 @@ It is shown even when the table is empty, since the machine may have resolved re
 
 Shows the runs of this machine, most recently measured first, 25 per page
 (`GET /runs?machine={name}&sort=-measured_at&limit=25`). Entities (runs, commits) are clickable and
-lead to the details page for that object.
+lead to the details page for that object. A commit's link has its card (see AR21).
 
 
 ## DT2: Run Detail -- `/suites/{ts}/runs/{uuid}`
@@ -187,6 +187,8 @@ BM_align/1                                                                      
 BM_ascii_text<char>                                                                   66656
 BM_BitsetToString<1048576>/Dense_(90%)/90                                             59243
 ```
+
+The `Commit` row links to the commit's page, showing its display value, with its card (see AR21).
 
 The info box has one row per top-level key of the run's `run_parameters`, ordered by key: a
 string value as it is, and any other value as compact JSON.
@@ -358,7 +360,7 @@ libcxx › Regressions
 | Title      find_if slowdown                          [Edit]   |
 | State      (active) [active v]                                |
 | Bug        https://github.com/llvm/llvm-project/...  [Edit]   |
-| Commit     014621ede7c1  View on GitHub              [Edit]   |
+| Commit     014621ede7c1                              [Edit]   |
 | Created    2026-08-31, 3:03:36 PM                             |
 | Notes      Bisected to the vectorizer change.        [Edit]   |
 +---------------------------------------------------------------+
@@ -403,11 +405,10 @@ included.
   their line breaks.
 - State shows the state's colored badge, then a dropdown listing every state.
   Picking a state saves it (see AR13).
-- Commit links to the commit's detail page, showing its display value, followed
-  by "View on {label}" (see AR20), which links the commit itself rather than the
-  changes leading to it. It is edited in place with a commit picker that offers
-  every commit of the suite (see AR15). Emptying the picker clears the
-  regression's commit.
+- Commit links to the commit's detail page, showing its display value, with its
+  card (see AR21). It is edited in place with a commit picker that offers every
+  commit of the suite (see AR15). Emptying the picker clears the regression's
+  commit.
 
 ### Delete regression
 

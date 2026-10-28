@@ -1,15 +1,14 @@
-import { Link } from 'react-router'
 import { PAGE_SIZE } from '../../api/client'
 import { fetchCommitPage } from '../../api/commits'
 import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
+import { ListedCommitLink } from '../../components/commit-link'
 import { DataTable, type Column } from '../../components/data-table'
 import { CursorPager } from '../../components/pagination'
 import { useServerSearch } from '../../components/use-server-search'
 import { MISSING } from '../../format'
-import { commitPath } from '../../paths'
-import { commitDisplayValue, type Commit } from '../../schema'
+import type { Commit } from '../../schema'
 import { listedColumns } from './listed-columns'
 import { TabContent } from './tab-content'
 
@@ -73,9 +72,7 @@ function columns(schema: SuiteSchema): Column<Commit>[] {
       header: 'Commit',
       cell: (commit) => (
         // The tag has a column of its own, so the display value goes without it.
-        <Link to={commitPath(schema.name, commit.value)}>
-          {commitDisplayValue(commit, schema, { withTag: false })}
-        </Link>
+        <ListedCommitLink schema={schema} value={commit.value} commit={commit} withTag={false} />
       ),
     },
     {

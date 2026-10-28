@@ -54,3 +54,43 @@ describe('CopyButton', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Could not copy.')
   })
 })
+
+describe('CopyButton as an icon', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('is named, on hover too, and says in place of its name whether it copied', async () => {
+    const writeText = mockClipboard()
+    render(
+      <CopyButton text="abc123" icon>
+        Copy commit
+      </CopyButton>,
+    )
+    expect(button()).toHaveAccessibleName('Copy commit')
+    expect(button()).toHaveAttribute('title', 'Copy commit')
+    expect(button()).toHaveTextContent('')
+
+    await act(async () => fireEvent.click(button()))
+
+    expect(writeText).toHaveBeenCalledWith('abc123')
+    expect(button()).toHaveAccessibleName('Copied.')
+    expect(button()).toHaveAttribute('title', 'Copied.')
+    expect(screen.getByRole('status')).toHaveTextContent('Copied.')
+    await act(async () => vi.advanceTimersByTime(FEEDBACK_MS))
+    expect(button()).toHaveAccessibleName('Copy commit')
+  })
+
+  it('says that it could not copy when the browser refuses', async () => {
+    mockClipboard(() => Promise.reject(new Error('Denied')))
+    render(
+      <CopyButton text="abc123" icon>
+        Copy commit
+      </CopyButton>,
+    )
+
+    await act(async () => fireEvent.click(button()))
+
+    expect(button()).toHaveAccessibleName('Could not copy.')
+    expect(button()).toHaveClass('failed')
+  })
+})

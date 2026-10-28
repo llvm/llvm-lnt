@@ -10,7 +10,6 @@ import {
   commit,
   cursorPage,
   machine,
-  NO_REPOSITORY,
   SUITE,
   regression,
   regressionDetail,
@@ -18,6 +17,7 @@ import {
 } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   editButton,
   gate,
@@ -133,7 +133,7 @@ describe('the Regression Detail page', () => {
     renderRegression()
 
     // The commit by its display value, once resolved.
-    await expectRow('Commit', 'r100 (v1)View on GitHubEdit')
+    await expectRow('Commit', 'r100 (v1)Edit')
     const rows = await infoRows('Regression')
     expect(rows.map(([label]) => label)).toEqual([
       'Title',
@@ -161,23 +161,18 @@ describe('the Regression Detail page', () => {
     )
   })
 
-  it('links to its commit in the repository, in a new tab', async () => {
+  it("shows its commit's card, from the commit's resolution, which links it into the repository", async () => {
     renderRegression()
 
-    await expectRow('Commit', 'r100 (v1)View on GitHubEdit')
-    const viewOn = main().getByRole('link', { name: 'View on GitHub' })
-    expect(viewOn).toHaveAttribute('href', 'https://github.com/llvm/llvm-project/commit/abc123')
-    expect(viewOn).toHaveAttribute('target', '_blank')
-    expect(viewOn).toHaveAttribute('rel', 'noopener noreferrer')
-    // The commit itself, rather than the changes that led to it.
-    expect(main().queryByRole('link', { name: /^Diff/ })).not.toBeInTheDocument()
-  })
-
-  it('does not link to the commit when the suite has no template of its URL', async () => {
-    renderRegression({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
-
+    // Only through its card: the row has no link into the repository of its own.
     await expectRow('Commit', 'r100 (v1)Edit')
-    expect(main().queryByRole('link', { name: 'View on GitHub' })).not.toBeInTheDocument()
+    const card = await commitCard(main().getByRole('link', { name: 'r100 (v1)' }))
+    expect(card).toHaveAccessibleName('r100 (v1)')
+    expect(card).toHaveTextContent('abc123')
+    expect(within(card).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/llvm/llvm-project/commit/abc123',
+    )
   })
 
   it('shows what is not set as such, and a regression without a title by its UUID', async () => {
@@ -372,7 +367,7 @@ describe('the Regression Detail page', () => {
       await user.click(await screen.findByRole('option', { name: 'def456' }))
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      await expectRow('Commit', 'def456View on GitHubEdit')
+      await expectRow('Commit', 'def456Edit')
       expect(sent.map(({ body }) => body)).toEqual([{ commit: 'def456' }])
     })
 
@@ -404,8 +399,6 @@ describe('the Regression Detail page', () => {
     it('is saved with Enter once picked', async () => {
       const { sent, picker, user } = await editCommit()
       await waitFor(() => expect(picker).toHaveValue('r100 (v1)'))
-      // It goes with the value shown, not with the editor.
-      expect(main().queryByRole('link', { name: 'View on GitHub' })).not.toBeInTheDocument()
 
       await user.clear(picker)
       await user.type(picker, 'def456{Enter}')
@@ -413,7 +406,7 @@ describe('the Regression Detail page', () => {
       expect(sent).toEqual([])
       await user.keyboard('{Enter}')
 
-      await expectRow('Commit', 'def456View on GitHubEdit')
+      await expectRow('Commit', 'def456Edit')
       expect(sent.map(({ body }) => body)).toEqual([{ commit: 'def456' }])
     })
 
@@ -455,7 +448,7 @@ describe('the Regression Detail page', () => {
       expect(picker).toBeInTheDocument()
 
       await user.keyboard('{Escape}')
-      await expectRow('Commit', 'r100 (v1)View on GitHubEdit')
+      await expectRow('Commit', 'r100 (v1)Edit')
       expect(editButton('Commit')).toHaveFocus()
       expect(sent).toEqual([])
     })

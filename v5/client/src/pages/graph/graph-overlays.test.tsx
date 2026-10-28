@@ -8,6 +8,7 @@ import type { SuiteSchema } from '../../api/suites'
 import type { PlotGeometry } from '../../components/chart'
 import { formatTimestamp, shortUuid } from '../../format'
 import { signIn } from '../../test/auth'
+import { mockClipboard } from '../../test/clipboard'
 import {
   cursorPage,
   metric,
@@ -19,6 +20,7 @@ import {
 import { hoverText } from '../../test/hover-text'
 import { errorResponse, mockApi, ndjsonResponse } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   gate,
   main,
@@ -348,7 +350,7 @@ describe('the point details (GR11)', () => {
     const diffLink = () =>
       details().getByRole('link', { name: 'Diff with previous commit on GitHub' })
 
-    it('lead to the commit, and to the changes since the point before, in a new tab', async () => {
+    it('lead to the changes since the point before, in a new tab', async () => {
       mockWorld({ samples: SAMPLES })
       renderPage(`${ONE_MACHINE}&test=a`)
       await waitFor(() => expect(dataTraces()).toHaveLength(1))
@@ -356,18 +358,13 @@ describe('the point details (GR11)', () => {
 
       click('a - m1', 1)
 
-      const viewOn = details().getByRole('link', { name: 'View on GitHub' })
-      expect(viewOn).toHaveAttribute('href', 'https://github.com/llvm/llvm-project/commit/c20')
       // The same two commits as the comparison with the point before.
       const diff = diffLink()
-      expect(diff).toHaveAttribute(
-        'href',
-        'https://github.com/llvm/llvm-project/compare/c10...c20',
-      )
-      for (const shown of [viewOn, diff]) {
-        expect(shown).toHaveAttribute('target', '_blank')
-        expect(shown).toHaveAttribute('rel', 'noopener noreferrer')
-      }
+      expect(diff).toHaveAttribute('href', 'https://github.com/llvm/llvm-project/compare/c10...c20')
+      expect(diff).toHaveAttribute('target', '_blank')
+      expect(diff).toHaveAttribute('rel', 'noopener noreferrer')
+      // The commit itself is linked from its card.
+      expect(details().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
     })
 
     it('lead to no changes from the first point of a trace, saying why', async () => {
@@ -382,10 +379,6 @@ describe('the point details (GR11)', () => {
       expect(diff).toHaveAttribute('aria-disabled', 'true')
       expect(diff).not.toHaveAttribute('href')
       expect(diff).toHaveAccessibleDescription('This is the first point of its trace.')
-      expect(details().getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
-        'href',
-        'https://github.com/llvm/llvm-project/commit/c10',
-      )
     })
 
     it('are not shown when the suite has no templates of their URLs', async () => {
@@ -399,6 +392,78 @@ describe('the point details (GR11)', () => {
 
       expect(details().getByRole('link', { name: 'Compare with previous commit' })).toBeVisible()
       expect(details().queryByRole('link', { name: /^(View|Diff)/ })).not.toBeInTheDocument()
+    })
+  })
+
+  describe("its commit's card (AR21)", () => {
+    /** The details of the point of a at c20, and the card of its commit. */
+    async function openCard() {
+      mockWorld({ samples: SAMPLES })
+      renderPage(`${ONE_MACHINE}&test=a`)
+      await waitFor(() => expect(dataTraces()).toHaveLength(1))
+      draw()
+      click('a - m1', 1)
+      const link = details().getByRole('link', { name: 'r20' })
+      return { link, card: await commitCard(link) }
+    }
+
+    it('shows the commit as the x-axis holds it, linked into the repository', async () => {
+      // No request resolves the commit: the world answers none.
+      const { link, card } = await openCard()
+
+      expect(link).toHaveAttribute('href', '/suites/libcxx/commits/c20')
+      expect(card).toHaveAccessibleName('r20')
+      expect(within(card).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
+        'href',
+        'https://github.com/llvm/llvm-project/commit/c20',
+      )
+    })
+
+    it('is part of the details, which a press in it does not close', async () => {
+      const user = userEvent.setup()
+      const { card } = await openCard()
+      mockClipboard()
+
+      await user.click(within(card).getByRole('button', { name: 'Copy commit' }))
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('leaves the details closing on a press outside them and it', async () => {
+      const { card } = await openCard()
+
+      fireEvent.pointerDown(main().getByRole('heading', { name: 'Graph' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(card).not.toBeInTheDocument()
+    })
+
+    it('is no part of the details once closed, which Escape then closes', async () => {
+      const user = userEvent.setup()
+      const { card } = await openCard()
+      // Closed by the pointer leaving it, rather than by Escape.
+      await user.hover(main().getByRole('heading', { name: 'Graph' }))
+      await waitFor(() => expect(card).not.toBeInTheDocument())
+
+      await user.keyboard('{Escape}')
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('closes first on Escape, giving the focus back to its link, then the details', async () => {
+      const user = userEvent.setup()
+      const { link, card } = await openCard()
+      // A click on its text, which gives it the focus.
+      await user.click(within(card).getByText('Ordinal'))
+      expect(card).toHaveFocus()
+
+      await user.keyboard('{Escape}')
+
+      expect(card).not.toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(link).toHaveFocus()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
   })
 
@@ -753,6 +818,20 @@ describe('the regression annotations (GR15)', () => {
     expect(currentUrl()).toContain('/graph')
   })
 
+  it("shows the card of the regression's commit, as the x-axis holds it", async () => {
+    mockWorld()
+    mockRegressionWorld()
+    renderPage(`${GRAPHED}&test=a&regressions=all`)
+    await waitFor(() => expect(markers()).toHaveLength(2))
+    draw()
+    click(markers()[0].name!, 0)
+
+    const card = await commitCard(details().getByRole('link', { name: 'r20' }))
+
+    expect(card).toHaveAccessibleName('r20')
+    expect(card).toHaveTextContent('c20')
+  })
+
   it('says when the regression whose details are shown has no bug', async () => {
     mockWorld()
     mockRegressionWorld()
@@ -912,6 +991,21 @@ describe('creating a regression from a point (GR11)', () => {
     expect(markers().map((marker) => marker.x)).toContainEqual(['c10'])
     // Marking it is no change that closes the details.
     expect(details().getByRole('status')).toHaveTextContent(/^Regression created: 44444444…$/)
+  })
+
+  it("cancels the form on Escape, leaving its commit's card open", async () => {
+    signIn('triage')
+    mockWorld()
+    renderPage(`${ONE_MACHINE}&test=a`)
+    await waitFor(() => expect(dataTraces()).toHaveLength(1))
+    await openForm('a - m1', 1)
+    const card = await commitCard(details().getByRole('link', { name: 'r20' }))
+
+    // The form's own (AR12): it goes no further.
+    await userEvent.setup().keyboard('{Escape}')
+
+    expect(details().queryByRole('form')).not.toBeInTheDocument()
+    expect(card).toBeInTheDocument()
   })
 
   it('cancels the form, forgetting its title, and gives the focus back', async () => {

@@ -1,8 +1,12 @@
-/** The Compare page's links into the repository its sides' commits come from (CP1, AR20). */
+/**
+ * The Compare page's links to its sides' commits (CP1): to each side's commit page, with the
+ * commit's card (AR21), and to the changes between them in the repository (AR20).
+ */
 
 import type { SuiteSchema } from '../../api/suites'
-import { usePickedCommitText } from '../../components/commit-lookup'
-import { CommitRepositoryLink } from '../../components/repository-link'
+import { usePickedCommit, usePickedCommitText } from '../../components/commit-lookup'
+import { CardedCommitLink } from '../../components/commit-link'
+import { InfoIcon } from '../../components/icons'
 import { NEW_TAB, rangeUrl, repositoryLinkText } from '../../repository'
 import type { Side } from './use-side'
 import styles from './compare.module.css'
@@ -25,21 +29,30 @@ function useShownCommit({ schema, machine, commit }: Named): string {
   return usePickedCommitText(schema, { machine }, commit)
 }
 
-/** "View on {label}" for the side's commit, once it has one, beside its picker's label (CP1). */
+/**
+ * ⓘ, a link to the side's commit page with the commit's card, once the side names a commit, beside
+ * its picker's label (CP1). Its name and its card show the commit as the picker knows it (see
+ * `usePickedCommit`).
+ */
 export function SideCommitLink({ side }: { side: Side }) {
   const target = named(side)
   return target && <NamedCommitLink target={target} />
 }
 
 function NamedCommitLink({ target }: { target: Named }) {
-  // Named after its commit, since each side has such a link.
-  const shown = useShownCommit(target)
+  const { schema, machine, commit } = target
+  const picked = usePickedCommit(schema, { machine }, commit)
   return (
-    <CommitRepositoryLink
-      repository={target.schema.repository}
-      commit={target.commit}
-      name={shown}
-    />
+    <CardedCommitLink
+      schema={schema}
+      value={commit}
+      commit={picked?.commit}
+      // Named after its commit, since each side has such a link.
+      aria-label={`Commit ${picked?.text ?? commit}`}
+      className={styles.commitLink}
+    >
+      <InfoIcon />
+    </CardedCommitLink>
   )
 }
 

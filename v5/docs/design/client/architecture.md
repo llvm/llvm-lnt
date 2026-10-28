@@ -450,3 +450,50 @@ its spec says so:
   two commits.
 - A commit needs only its commit string to be linked, so a commit without an
   ordinal is linked too.
+
+
+## AR21: Commit Cards
+
+A link to a commit's page has a card about the commit where its page's spec says
+so:
+
+- Resting the pointer on the link opens its card beside it, after a short delay.
+  The card stays open while the pointer is on the link or on the card, so that
+  its links can be followed, and closes once the pointer has left both, after a
+  short delay. It also closes on Escape, wherever the focus is, unless what has
+  the focus takes the key for itself, such as GR11's "Create regression" form,
+  and when its link moves, as it does when the page scrolls. Once Escape has
+  closed it, or kept it from opening, it opens again only once the pointer has
+  left the link and come back.
+- Only hovering opens it: not keyboard focus, so that moving through a table
+  from the keyboard does not open a card on every row, and not touch, which has
+  no hover. Nothing is lost that way, since everything the card shows is also on
+  the page of the commit, where the link leads.
+- The card never takes the focus, and does not keep it: when it closes with the
+  focus inside, the focus returns to its link. While it is open, assistive
+  technology can reach it from the link, as details of the link rather than as
+  a description of it, since it holds links.
+- A card opened from inside a box floating over the page, such as a point's
+  details on the Graph page (GR11), is part of that box: a press in the card is
+  no press outside the box, and while the card is open, Escape closes the card
+  alone.
+
+The card shows:
+
+- at its top, naming it, the commit's display value, with its tag (see AR6);
+- a `Commit` row with the commit string, followed by a button copying it;
+- an `Ordinal` row with the commit's ordinal, left out when it has none;
+- a row for each commit field that has a value for the commit, in schema order,
+  labelled as AR6 says, with the value as DT1 shows a machine's;
+- "View on {label}" for the commit (see AR20).
+
+A value longer than two lines is cut short to two, with no hover of its own, and
+read whole by assistive technology; the commit's page shows it whole.
+
+The card shows the commit as the page loaded it for the link's text or name, so
+that the two always agree. When the page has not loaded it, because it could not
+for instance, the card fetches it when first shown, and never before: a page
+with many such links does not fetch their commits in advance. Until it has, the
+card says that it is loading, with the commit string at its top. If the commit
+cannot be fetched, the card says so and offers to try again (see AR7), and if it
+no longer exists, the card says so.

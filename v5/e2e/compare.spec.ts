@@ -6,6 +6,7 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.ts'
+import { cardOf } from './cards.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { pickOption, pickSuggestion } from './select.ts'
@@ -98,7 +99,7 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   expect(await positionOf(cells.nth(1))).toBe('static')
 })
 
-test("links each side's commit, and the changes from A to B, on GitHub (CP1)", async ({
+test("links each side's commit to its page, with its card, and the changes from A to B (CP1)", async ({
   page,
   request,
 }) => {
@@ -110,13 +111,18 @@ test("links each side's commit, and the changes from A to B, on GitHub (CP1)", a
   )
 
   const github = 'https://github.com/llvm/llvm-project'
-  const viewOn = (side: 'A' | 'B') =>
-    sideOf(page, side).getByRole('link', { name: /^View on GitHub/ })
-  await expect(viewOn('A')).toHaveAttribute('href', `${github}/commit/${newer.value}`)
-  await expect(viewOn('B')).toHaveAttribute('href', `${github}/commit/${older.value}`)
+  const commitLink = (side: 'A' | 'B') => sideOf(page, side).getByRole('link', { name: /^Commit / })
+  await expect(commitLink('A')).toHaveAttribute('href', `/suites/libcxx/commits/${newer.value}`)
+  await expect(commitLink('B')).toHaveAttribute('href', `/suites/libcxx/commits/${older.value}`)
   const changes = page.getByRole('main').getByRole('link', { name: /^Diff on GitHub: / })
   await expect(changes).toHaveAttribute('href', `${github}/compare/${newer.value}...${older.value}`)
   await expect(changes).toHaveAttribute('target', '_blank')
+
+  // The commit's card (AR21), on the link to its page.
+  await commitLink('B').hover()
+  await expect(await cardOf(page, commitLink('B'))).toContainText(older.value)
+  await commitLink('B').click()
+  await expect(page).toHaveURL(`/suites/libcxx/commits/${older.value}`)
 })
 
 test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, request }) => {

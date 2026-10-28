@@ -5,6 +5,7 @@ import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import { SUITE, commit, cursorPage, machine, run } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   gate,
   headersOf,
@@ -304,6 +305,19 @@ describe('the Runs tab', () => {
     )
     expect(within(runs).getByRole('link', { name: 'deleted' })).toBeInTheDocument()
     expect(resolved).toEqual([['abc123', 'deleted']])
+  })
+
+  it("shows a commit's card, as resolved for the page, without asking for it again", async () => {
+    mockSuites()
+    mockRuns(() => cursorPage([run('a', { commit: 'abc123' })]))
+    const resolved = mockResolve([TAGGED])
+    renderPage('/suites/libcxx')
+
+    const runs = await table('Runs')
+    const card = await commitCard(await within(runs).findByRole('link', { name: 'r100 (v1)' }))
+    expect(card).toHaveAccessibleName('r100 (v1)')
+    expect(card).toHaveTextContent('abc123')
+    expect(resolved).toEqual([['abc123']])
   })
 
   it('shows the commit strings when their display values cannot be resolved', async () => {
@@ -658,6 +672,25 @@ describe('the Commits tab', () => {
     )
     expect(queries[0].get('sort')).toBe('-first_seen')
     expect(queries[0].get('limit')).toBe('25')
+  })
+
+  it("shows a commit's card, with its tag, as listed, without asking for it", async () => {
+    mockSuites()
+    mockCommits(() =>
+      cursorPage([
+        commit('abc123', {
+          ordinal: 591886,
+          tag: 'llvm-22.0',
+          fields: { svn_revision: 'r591886', commit_info: null },
+        }),
+      ]),
+    )
+    renderPage('/suites/libcxx?tab=commits')
+
+    const commits = await table('Commits')
+    const card = await commitCard(within(commits).getByRole('link', { name: 'r591886' }))
+    expect(card).toHaveAccessibleName('r591886 (llvm-22.0)')
+    expect(within(card).getByText('591886')).toBeInTheDocument()
   })
 
   it('links a listed value that is a URL, but not a display value, which names the commit', async () => {
