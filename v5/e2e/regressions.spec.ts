@@ -11,7 +11,7 @@ import type { APIRequestContext, TestInfo } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { HARDENED, TAG, uuidFor } from '../tools/synthetic.ts'
 import { adminToken, expect, test } from './fixtures.ts'
-import { pickOption } from './select.ts'
+import { clickSuggestion, pickOption, typeInto } from './select.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 type RegressionDetail = components['schemas']['RegressionDetail']
@@ -63,8 +63,8 @@ test.describe('filtering', () => {
     const list = table(page, 'Regressions')
 
     const machine = page.getByRole('combobox', { name: 'Machine' })
-    await machine.fill('hardenedfast')
-    await page.getByRole('option', { name: HARDENED }).click()
+    await typeInto(machine, 'hardenedfast')
+    await clickSuggestion(page.getByRole('option', { name: HARDENED }))
 
     await expect(page).toHaveURL(`/suites/libcxx?tab=regressions&machine=${HARDENED}`)
     await settled(list)
@@ -247,9 +247,9 @@ test('creates a regression with a commit picked through the picker', async ({
     await pickOption(form, 'State', 'active')
     const picker = form.getByRole('combobox', { name: 'Commit' })
     // The tag is searched, and only one commit has it.
-    await picker.fill(TAG)
+    await typeInto(picker, TAG)
     const suggestion = page.getByRole('option', { name: new RegExp(`^r\\d+ \\(${TAG}\\)$`) })
-    await suggestion.click()
+    await clickSuggestion(suggestion)
     await expect(picker).toHaveValue(new RegExp(`\\(${TAG}\\)$`))
     await form.getByRole('button', { name: 'Create' }).click()
 
@@ -280,7 +280,7 @@ test.describe('the commit picker', () => {
 
     // A substring of many commits, which the picker lists, but not a commit itself. By name, since
     // the list's only option is its "Loading..." message until they arrive.
-    await picker.fill('r55')
+    await typeInto(picker, 'r55')
     await expect(
       page.getByRole('listbox').getByRole('option', { name: /^r55/ }).first(),
     ).toBeVisible()
@@ -306,7 +306,7 @@ test.describe('the commit picker', () => {
       await create.scrollIntoViewIfNeeded()
       await expect(create).toBeInViewport()
 
-      await picker.fill('r55')
+      await typeInto(picker, 'r55')
       await expect(create).toBeDisabled()
       const reason = 'Pick a commit from the list, or clear the field.'
       await expect(form.getByText(reason)).toBeVisible()
@@ -340,7 +340,7 @@ test.describe('the commit picker', () => {
     })
     const [tagged] = ((await response.json()) as components['schemas']['CommitCursorPage']).items
 
-    await picker.fill(tagged.value)
+    await typeInto(picker, tagged.value)
     await picker.press('Enter')
 
     await expect(picker).toHaveValue(new RegExp(`\\(${TAG}\\)$`))

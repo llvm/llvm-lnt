@@ -11,7 +11,7 @@ import { cardOf } from './cards.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf, zoomAround, type PlotDiv } from './plot.ts'
-import { pickOption } from './select.ts'
+import { clickSuggestion, pickOption, pickSuggestion } from './select.ts'
 import { table } from './tables.ts'
 
 /** A page of a cursor-paginated list (I2). */
@@ -73,9 +73,7 @@ test('plots a test chosen from scratch', async ({ page }) => {
   await page.goto('/graph')
 
   await pickOption(page, 'Suite', 'libcxx')
-  const machines = page.getByRole('combobox', { name: 'Machines' })
-  await machines.fill(LINUX)
-  await page.getByRole('option', { name: LINUX, exact: true }).click()
+  await pickSuggestion(page, 'Machines', LINUX)
   await pickOption(page, 'Metric', 'Execution Time')
   // Found with the filter, which then only narrows the table: the test stays drawn under a filter
   // that hides it, and comes back selected once the filter is cleared (GR1).
@@ -376,14 +374,12 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
 
   await page.getByRole('button', { name: 'Add a baseline' }).click()
   await pickOption(page, 'Baseline suite', 'libcxx')
-  const machine = page.getByRole('combobox', { name: 'Baseline machine' })
-  await machine.fill(MACOS)
-  await page.getByRole('option', { name: MACOS, exact: true }).click()
+  await pickSuggestion(page, 'Baseline machine', MACOS)
   const commit = page.getByRole('combobox', { name: 'Baseline commit' })
   await commit.click()
   await commit.press('ArrowDown')
   // By name: until the suggestions arrive, the list's only option is its "Loading..." message.
-  await page.getByRole('option', { name: revision, exact: true }).click()
+  await clickSuggestion(page.getByRole('option', { name: revision, exact: true }))
 
   await expect
     .poll(() => new URL(page.url()).searchParams.get('baseline'))

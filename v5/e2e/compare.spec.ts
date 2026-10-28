@@ -9,7 +9,7 @@ import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/
 import { cardOf } from './cards.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
-import { pickOption, pickSuggestion } from './select.ts'
+import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
 import { plotOf, pointOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -352,7 +352,7 @@ test('offers the untracked machines last, under their heading (AR18)', async ({ 
   await page.goto('/compare?suite_a=libcxx')
   const machine = sideOf(page, 'A').getByRole('combobox', { name: 'Machine' })
 
-  await machine.fill('macos-26.5-arm64')
+  await typeInto(machine, 'macos-26.5-arm64')
 
   const untracked = page.getByRole('group', { name: 'Untracked' })
   await expect(untracked.getByRole('option')).toHaveText([UNTRACKED])
@@ -496,8 +496,8 @@ test('adds the comparison to a new regression, then to that one', async ({
     // Adding the same indicator again adds none.
     await toggle.click()
     const add = page.getByRole('form', { name: 'Add to existing' })
-    await add.getByRole('combobox', { name: 'Regression' }).fill('From')
-    await page.getByRole('option', { name: 'From compare' }).click()
+    await typeInto(add.getByRole('combobox', { name: 'Regression' }), 'From')
+    await clickSuggestion(page.getByRole('option', { name: 'From compare' }))
     await add.getByRole('button', { name: 'Add indicators' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Added' })).toHaveText(
       'Added 0 indicators to From compare. 1 indicator already existed.',
@@ -522,13 +522,7 @@ test('overlays sides B pinned on the chart, keeping them on a swap', async ({ pa
   await expect(page.getByRole('button', { name: `Dismiss the shadow ${first}` })).toBeFocused()
   await expect(pin).toBeDisabled()
   // Side B on the experiment: its comparison is the bars, and the newest commit's a line.
-  // Typed key by key, as a user does: `fill`, which sets the whole text at once, is sometimes lost
-  // when the focus comes from the chip's button.
-  const commitB = sideOf(page, 'B').getByRole('combobox', { name: 'Commit' })
-  await commitB.click()
-  await commitB.press('ControlOrMeta+a')
-  await commitB.pressSequentially(EXPERIMENT)
-  await page.getByRole('option', { name: EXPERIMENT, exact: true }).click()
+  await pickSuggestion(sideOf(page, 'B'), 'Commit', EXPERIMENT)
   await expect(page).toHaveURL(new RegExp(`[?&]commit_b=${EXPERIMENT}(&|$)`))
   const traces = () =>
     plotOf(page).evaluate((element) =>
