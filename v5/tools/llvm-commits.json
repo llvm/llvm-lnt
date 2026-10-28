@@ -1,0 +1,202 @@
+[
+  {
+    "ordinal": 555010,
+    "commit": "fdbd17d1fb0d532e54773626cc0e65eed94440cb",
+    "subject": "[llvm] Add subcommand support for OptTable (#155026)"
+  },
+  {
+    "ordinal": 555047,
+    "commit": "709980e6d8c9da5bf0320bdf2cf5c0be8ae6fe5d",
+    "subject": "[lld][WebAssembly] Error on unexpected relocation types in `-pie`/`-shared` data sections (#162117)"
+  },
+  {
+    "ordinal": 555084,
+    "commit": "fddd1b60fdf0451a42ba916e63423406d1e76798",
+    "subject": "[X86] avx512fp16intrin.h - allow _mm512_set1_pch to be used in constexpr (#162245)"
+  },
+  {
+    "ordinal": 555121,
+    "commit": "01f4510118b8a9a3ca1f7f1e4b19bd2e918c7dc0",
+    "subject": "[LLVM-C] Upstream `LLVMGetOrInsertFunction` from rustc (#162235)"
+  },
+  {
+    "ordinal": 555158,
+    "commit": "11fb8358fab2796e6cdc5f85d24cc33696317b11",
+    "subject": "[libc] Make LIBC_EXIT RPC code use quick exit"
+  },
+  {
+    "ordinal": 555195,
+    "commit": "289e85b18101e058b3f4b81ce3c2b7c47489e7ca",
+    "subject": "Add MIR2Vec and missing IR2Vec files to MLGO label (#162395)"
+  },
+  {
+    "ordinal": 555232,
+    "commit": "f59736758113c568908c6b9293622c530d6ab827",
+    "subject": "[flang][HLFIR] add skip_rebox option to hlfir.declare (#162305)"
+  },
+  {
+    "ordinal": 555269,
+    "commit": "be301a6a3df2a6acf1323965d21ac4c7ad390f00",
+    "subject": "[libc] add `in_addr{, _t}` type (#162452)"
+  },
+  {
+    "ordinal": 555306,
+    "commit": "9aa94f6b29b722b7b598f2ae50aa22398eb6c247",
+    "subject": "[-Wunsafe-buffer-usage] Add unique_ptr <T[]> accesses (#156773)"
+  },
+  {
+    "ordinal": 555343,
+    "commit": "5ebb05215f1cdbbeb49daace25838d925f8fe589",
+    "subject": "Generalize codegen tests to not hardcode G_MIR opcodes (#162554)"
+  },
+  {
+    "ordinal": 555380,
+    "commit": "cc1ca591a4bb2207ebe8b8f400ce0dbf3df43ff7",
+    "subject": "[GlobalIsel] Add failure memory order to LegalityQuery (NFC) (#162284)"
+  },
+  {
+    "ordinal": 555417,
+    "commit": "0c2e900074a4a412afdbee5e56b1a513ea97b90f",
+    "subject": "[SystemZ] Fix variable names to reflect Coding Standards (#161899)"
+  },
+  {
+    "ordinal": 555454,
+    "commit": "b0d252da3cbc1c6e5747b618c301881da663de86",
+    "subject": "[llvm][mustache] Avoid extra copy for json strings (#159195)"
+  },
+  {
+    "ordinal": 555491,
+    "commit": "c8205d6661267401983f0cad098b908d18baf9e5",
+    "subject": "[Hexagon] Remove unreachable isel patterns. NFC (#162754)"
+  },
+  {
+    "ordinal": 555528,
+    "commit": "2eb8c47b88e83cf310b86480b5b8d0f45a1f91af",
+    "subject": "[LifetimeSafety] Reorganize code into modular components (#162474)"
+  },
+  {
+    "ordinal": 555565,
+    "commit": "c265d7aebf8c5bc136805d75cd009bee82df8613",
+    "subject": "[SelectionDAG] Add SDTCisInt<1> to SDTVecReduce and SDTCisEltOfVec to SDTFPVecReduce. NFC (#162761)"
+  },
+  {
+    "ordinal": 555602,
+    "commit": "fabd1c418a6b20266cf191b5d8c92476567c77af",
+    "subject": "[MLIR][Math][XeVM] Add MathToXeVM (`math-to-xevm`) pass (#159878)"
+  },
+  {
+    "ordinal": 555639,
+    "commit": "3bfb5b0e7ccbcb9f127f5b9c958e6499ba9c0523",
+    "subject": "[llvm][DebugInfo] Support versioned source language names in DwarfUnit (#162625)"
+  },
+  {
+    "ordinal": 555676,
+    "commit": "5db774a8224fd71418877fa4b90349381cb257d5",
+    "subject": "[LV] Add additional test for narrowing to single scalars."
+  },
+  {
+    "ordinal": 555713,
+    "commit": "06e2c78680d753d97b0cd6b7a86b4dbd0dbfb1e9",
+    "subject": "[MLIR][Python] Pass OpView subclasses instead of Operation in rewrite patterns (#163080)"
+  },
+  {
+    "ordinal": 555750,
+    "commit": "4c3ec9cda0158bed7e55aeb7e8e0c54e14f02824",
+    "subject": "[ARM] carry.ll - regenerate test checks (#163172)"
+  },
+  {
+    "ordinal": 555787,
+    "commit": "f140491dcc906e18aa67a6c204774245c69fc606",
+    "subject": "[LLVM][CppCompile] Fix unused variable warning after 0e025418 (#163203)"
+  },
+  {
+    "ordinal": 555824,
+    "commit": "b86503efe51aae792da0a27acc01af66ceff0418",
+    "subject": "[AMDGPU] Do not put memory instructions in *ALU SchedGroups (#162560)"
+  },
+  {
+    "ordinal": 555861,
+    "commit": "8706ef474c4bbc7cf7bf8895649789b96e07c842",
+    "subject": "[lldb] Remove obsolete comment in TestCortexMExceptionUnwind"
+  },
+  {
+    "ordinal": 555898,
+    "commit": "6fc2318192178c788cb62b49b27e965c5f41270a",
+    "subject": "[libc++][C++03] Cherry-pick #123236 and #147835 (#163363)"
+  },
+  {
+    "ordinal": 555935,
+    "commit": "55d4d2ee0d92599cd1f19aa700b3ad2de5d09c85",
+    "subject": "[mlir][spirv] Fix test (NFC) (#163413)"
+  },
+  {
+    "ordinal": 555972,
+    "commit": "d4ca6f6710c3e8bcd77477d1d19f52186f98a429",
+    "subject": "[bazel][mlir] Add missing deps from #593894 (#163451)"
+  },
+  {
+    "ordinal": 556009,
+    "commit": "0a71fd15283e70def97a9919186548a8ccbbbcae",
+    "subject": "[MLIR][Vector] Improve warp distribution robustness (#161647)"
+  },
+  {
+    "ordinal": 556046,
+    "commit": "b82baf0f5bce0aa787ac280f2a43943d211b9cc5",
+    "subject": "[llvm] Remove redundant control flow statements (NFC) (#163509)"
+  },
+  {
+    "ordinal": 556083,
+    "commit": "67790d3fb06b184b7be9c4d3e36ab01f0ac4198e",
+    "subject": "[llvm] Fix C++23 error in {Succ,Pred}Iterator (#163555)"
+  },
+  {
+    "ordinal": 556120,
+    "commit": "c422881670faf30b545362b3af2c310a6800cde5",
+    "subject": "[SelectionDAGBuilder] Use address width when lowering ptrtoaddr"
+  },
+  {
+    "ordinal": 556157,
+    "commit": "65363e64f808b0411e5011e7e37a6f3b134ed5bd",
+    "subject": "[WebAssembly] Partial SMLA with relaxed dot (#163529)"
+  },
+  {
+    "ordinal": 556194,
+    "commit": "6ea54567894b7305ee09dd4341c49276b460c459",
+    "subject": "[llvm][utils] Run 2to3 on zkill script"
+  },
+  {
+    "ordinal": 556231,
+    "commit": "56503d85dc007d8db40039c113e3ab148ba6c8b9",
+    "subject": "[AArch64][NFC] Align ZCM test names to MOVE not MOV (#163069)"
+  },
+  {
+    "ordinal": 556268,
+    "commit": "8c05b5cca8784814cf11ac9d85c4ab59d2952ca5",
+    "subject": "[mlir][Affine] Cancel delinearize_index ops fully reversed by apply (#163440)"
+  },
+  {
+    "ordinal": 556305,
+    "commit": "059f2df74898ff7f394dc8e60f746323499ae32b",
+    "subject": "[clang-format] Fix an assertion failure on comment-only config files (#163111)"
+  },
+  {
+    "ordinal": 556342,
+    "commit": "0cefd5c3c2277f24d195aa6d6a730e41515e6495",
+    "subject": "CodeGen: Fix hardcoded libcall names in insertSSPDeclarations (NFC) (#163710)"
+  },
+  {
+    "ordinal": 556379,
+    "commit": "64c511f6a88f607798db29a1af59aab4dd13ff20",
+    "subject": "[AMDGPU] Add additional aliases for load transpose instructions (#163900)"
+  },
+  {
+    "ordinal": 556416,
+    "commit": "eed8d3aa4aa6efe01fcf7bd56015b671f5f18e29",
+    "subject": "Revert \"[FlowSensitive] [StatusOr] [2/N] Add minimal model\" (#164040)"
+  },
+  {
+    "ordinal": 556453,
+    "commit": "5a20b72fce52244e7c2de1c69c6cea36e00d8bb5",
+    "subject": "[ADT] Simplify ResolveUnderlyingType (NFC) (#164114)"
+  }
+]

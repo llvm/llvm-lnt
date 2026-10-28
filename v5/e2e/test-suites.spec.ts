@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs'
 import type { Dialog } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { EXPERIMENT, HARDENED, MACOS, TAG, UNTRACKED } from '../tools/synthetic.ts'
+import { EXPERIMENT, HARDENED, MACOS, TAG, TAGGED_INFO, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite, withOwnSuiteName } from './own-suite.ts'
 import { column, rows, settled, table } from './tables.ts'
@@ -224,12 +224,9 @@ test.describe('the Commits tab', () => {
     await search.fill(TAG)
     await settled(commits)
     const tagged = rows(commits).filter({ hasText: TAG }).first()
-    await expect(tagged.locator('td')).toHaveText([
-      /^r\d+$/,
-      /^\d+$/,
-      TAG,
-      /^\[libc\+\+\] Synthetic commit \d+ of \d+$/,
-    ])
+    await expect(tagged.locator('td')).toHaveText([/^r\d+$/, /^\d+$/, TAG, /./])
+    // Its `commit_info`, whole to assistive technology even when cut short.
+    await expect(tagged.locator('td').last()).toContainText(TAGGED_INFO)
   })
 
   test('pages through the commits, most recently seen first', async ({ page }) => {
