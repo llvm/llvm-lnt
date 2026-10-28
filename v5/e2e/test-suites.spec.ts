@@ -225,8 +225,8 @@ test.describe('the Commits tab', () => {
     await settled(commits)
     const tagged = rows(commits).filter({ hasText: TAG }).first()
     await expect(tagged.locator('td')).toHaveText([/^r\d+$/, /^\d+$/, TAG, /./])
-    // Its `commit_info`, whole to assistive technology even when cut short.
-    await expect(tagged.locator('td').last()).toContainText(TAGGED_INFO)
+    // Its `commit_info`, whole, though the cell shows it cut short.
+    await expect(tagged.getByText(TAGGED_INFO, { exact: true })).toBeAttached()
   })
 
   test('pages through the commits, most recently seen first', async ({ page }) => {
