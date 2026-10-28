@@ -5,6 +5,7 @@
 
 import type { ReactNode } from 'react'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { expect } from 'vitest'
@@ -233,6 +234,19 @@ export function mockResolve(known: Commit[] = []) {
     }),
   )
   return requests
+}
+
+/** Rest the pointer on the commit link `link`, and return the card it opens (AR21). */
+export async function commitCard(link: HTMLElement): Promise<HTMLElement> {
+  await userEvent.hover(link)
+  // The card is the link's details.
+  const id = await waitFor(() => {
+    expect(link).toHaveAttribute('aria-details')
+    return link.getAttribute('aria-details')!
+  })
+  const card = document.getElementById(id)!
+  expect(card).toHaveRole('group')
+  return card
 }
 
 /** Wait for what a render sends to go out and be answered, to check that nothing changes. */

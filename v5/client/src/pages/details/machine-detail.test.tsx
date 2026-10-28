@@ -12,6 +12,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { commit, cursorPage, machine, regression, run, SUITE, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   editButton,
   expectInfoRow,
@@ -1137,6 +1138,15 @@ describe('the Machine Detail page', () => {
 
       await waitFor(() => expect(rowsOf(runs)[0]).toMatch(/^ffffffff…/))
       expect(runQueries.at(-1)!.get('cursor')).toBe('p2')
+    })
+
+    it("shows a commit's card, as resolved for the page", async () => {
+      renderMachine({ runs: [run('a', { commit: 'abc123' })] })
+
+      const runs = await table('Run history')
+      const card = await commitCard(await within(runs).findByRole('link', { name: 'r100 (v1)' }))
+      expect(card).toHaveAccessibleName('r100 (v1)')
+      expect(within(card).getByText('abc123')).toBeInTheDocument()
     })
 
     it('says when the machine has no runs', async () => {

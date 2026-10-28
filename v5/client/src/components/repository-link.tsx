@@ -21,19 +21,24 @@ interface CommitProps {
    * several such links side by side.
    */
   name?: string
-  /** Whether it looks like a button, in a row of actions, rather than a link after the commit. */
-  button?: boolean
+  /**
+   * How it is set: after the commit, in small type; as a button, in a row of actions; or on its
+   * own, in small type.
+   */
+  look?: 'after' | 'button' | 'alone'
 }
+
+const LOOKS = { after: styles.after, button: buttons.button, alone: styles.alone }
 
 /**
  * "View on {label}" (AR20): a link to the commit `commit` in the repository, opening in a new tab,
  * or nothing if the suite has no usable template of a commit's URL.
  */
-export function CommitRepositoryLink({ repository, commit, name, button = false }: CommitProps) {
+export function CommitRepositoryLink({ repository, commit, name, look = 'after' }: CommitProps) {
   const url = commitUrl(repository, commit)
   if (url === null) return null
   return (
-    <a href={url} {...NEW_TAB} className={button ? buttons.button : styles.commit}>
+    <a href={url} {...NEW_TAB} className={LOOKS[look]}>
       {commitLinkText(repository)}
       {name !== undefined && <VisuallyHidden elementType="span">: {name}</VisuallyHidden>}
     </a>

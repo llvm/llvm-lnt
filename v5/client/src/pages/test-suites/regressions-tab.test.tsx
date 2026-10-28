@@ -16,6 +16,7 @@ import {
 } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   gate,
   mockCommits,
@@ -327,6 +328,19 @@ describe('the Regressions tab', () => {
     fireEvent.click(within(rowOf('slow')).getAllByRole('cell')[3])
     await waitFor(() => expect(currentUrl()).toBe(`/suites/libcxx/regressions/${uuidOf('a')}`))
     expect(await screen.findByRole('heading', { name: 'Regression: slow' })).toBeInTheDocument()
+  })
+
+  it("shows its commit's card, as resolved for the page, where a click opens nothing", async () => {
+    const { resolved } = renderTab('', () =>
+      cursorPage([regression('a', { title: 'slow', commit: 'abc123' })]),
+    )
+    await table('Regressions')
+
+    const card = await commitCard(within(rowOf('slow')).getByRole('link', { name: 'r100 (v1)' }))
+    expect(card).toHaveAccessibleName('r100 (v1)')
+    expect(resolved).toEqual([['abc123']])
+    await userEvent.click(within(card).getByText('abc123'))
+    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
   })
 
   it('leaves a modified click on a row, or one ending a text selection, to the browser', async () => {

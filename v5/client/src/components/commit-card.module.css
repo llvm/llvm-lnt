@@ -1,0 +1,53 @@
+.popover {
+  width: min(32rem, calc(100vw - 24px));
+  overflow: auto;
+}
+
+.card {
+  display: grid;
+  justify-items: start;
+  gap: var(--lnt-space-2);
+  padding: var(--lnt-space-3);
+  font-size: 0.9rem;
+}
+
+.heading {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The rows of an info box (see InfoRow), without its frame. */
+.rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--lnt-space-1) var(--lnt-space-3);
+  justify-self: stretch;
+  margin: 0;
+}
+
+/* The commit string, with its Copy button after it, or below it when they do not fit side by side. */
+.commit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--lnt-space-1) var(--lnt-space-2);
+}
+
+.mono {
+  composes: mono from './data-table.module.css';
+  min-width: 0;
+}
+
+/* A long value, cut to two lines (AR21). */
+.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.gone {
+  margin: 0;
+  color: var(--lnt-muted);
+}

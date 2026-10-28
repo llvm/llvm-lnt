@@ -18,6 +18,7 @@ import {
 } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  commitCard,
   currentUrl,
   editButton,
   gate,
@@ -171,6 +172,14 @@ describe('the Regression Detail page', () => {
     expect(viewOn).toHaveAttribute('rel', 'noopener noreferrer')
     // The commit itself, rather than the changes that led to it.
     expect(main().queryByRole('link', { name: /^Diff/ })).not.toBeInTheDocument()
+  })
+
+  it("shows its commit's card, from the commit's resolution", async () => {
+    renderRegression()
+
+    const card = await commitCard(await main().findByRole('link', { name: 'r100 (v1)' }))
+    expect(card).toHaveAccessibleName('r100 (v1)')
+    expect(within(card).getByText('abc123')).toBeInTheDocument()
   })
 
   it('does not link to the commit when the suite has no template of its URL', async () => {

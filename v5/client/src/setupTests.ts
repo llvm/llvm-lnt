@@ -1,11 +1,16 @@
 import '@testing-library/jest-dom/vitest'
-import { afterAll, afterEach, beforeAll } from 'vitest'
+import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { NO_CREDENTIALS, setCredentials } from './api/client'
 import { FakeIntersectionObserver, resetIntersections } from './test/intersection-observer'
 import { FakeResizeObserver, resetResizes } from './test/resize-observer'
 import { server } from './test/server'
 
+// What Testing Library looks for to advance fake timers while it waits, as it does Jest's: without
+// it, it waits for timers that never fire under Vitest's. It has no effect under real timers.
+Object.assign(globalThis, {
+  jest: { advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms) },
+})
 globalThis.IntersectionObserver = FakeIntersectionObserver
 globalThis.ResizeObserver = FakeResizeObserver
 

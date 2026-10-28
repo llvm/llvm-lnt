@@ -9,6 +9,7 @@ import type { SuiteSchema } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
 import { Combobox } from '../../components/combobox'
+import { ListedCommitLink } from '../../components/commit-link'
 import { Confirmation } from '../../components/confirmation'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage } from '../../components/feedback'
@@ -22,8 +23,8 @@ import { useRowConfirm } from '../../components/use-row-confirm'
 import { useServerSearch } from '../../components/use-server-search'
 import { uuidColumn } from '../../components/uuid-column'
 import { formatTimestamp, MISSING, regressionTitle, uuidPrefix } from '../../format'
-import { commitPath, regressionPath } from '../../paths'
-import { displayValueOf, metricOptions } from '../../schema'
+import { regressionPath } from '../../paths'
+import { metricOptions } from '../../schema'
 import { useDropUnusable } from '../../url-state'
 import { CreateRegression } from './create-regression'
 import { isFiltered, type RegressionFilters } from './settings'
@@ -111,6 +112,8 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
   const openRow = (regression: Regression) => (event: MouseEvent) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
     if ((event.target as Element).closest('a, button')) return
+    // Not a click in a commit's card, which React passes up from its portal.
+    if (!event.currentTarget.contains(event.target as Node)) return
     if (window.getSelection()?.toString()) return
     navigate(regressionPath(suite, regression.uuid))
   }
@@ -245,7 +248,7 @@ function columns(
         commit === null ? (
           MISSING
         ) : (
-          <Link to={commitPath(suite, commit)}>{displayValueOf(commit, page.commits, schema)}</Link>
+          <ListedCommitLink schema={schema} value={commit} commit={page.commits.get(commit)} />
         ),
     },
     {
