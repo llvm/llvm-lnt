@@ -360,7 +360,7 @@ libcxx › Regressions
 | Title      find_if slowdown                          [Edit]   |
 | State      (active) [active v]                                |
 | Bug        https://github.com/llvm/llvm-project/...  [Edit]   |
-| Commit     014621ede7c1  View on GitHub              [Edit]   |
+| Commit     014621ede7c1                              [Edit]   |
 | Created    2026-08-31, 3:03:36 PM                             |
 | Notes      Bisected to the vectorizer change.        [Edit]   |
 +---------------------------------------------------------------+
@@ -406,10 +406,9 @@ included.
 - State shows the state's colored badge, then a dropdown listing every state.
   Picking a state saves it (see AR13).
 - Commit links to the commit's detail page, showing its display value, with its
-  card (see AR21), followed by "View on {label}" (see AR20), which links the
-  commit itself rather than the changes leading to it. It is edited in place
-  with a commit picker that offers every commit of the suite (see AR15).
-  Emptying the picker clears the regression's commit.
+  card (see AR21). It is edited in place with a commit picker that offers every
+  commit of the suite (see AR15). Emptying the picker clears the regression's
+  commit.
 
 ### Delete regression
 

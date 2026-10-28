@@ -181,7 +181,7 @@ describe('the hover mechanics', () => {
     [
       'inside the card',
       async () => {
-        await user.click(within(card()).getByRole('button', { name: 'Copy' }))
+        await user.click(within(card()).getByRole('button', { name: 'Copy commit' }))
       },
     ],
   ])(
@@ -252,7 +252,7 @@ describe('the hover mechanics', () => {
     mockClipboard()
     await user.click(screen.getByRole('textbox', { name: 'Search' }))
     await open()
-    await user.click(within(card()).getByRole('button', { name: 'Copy' }))
+    await user.click(within(card()).getByRole('button', { name: 'Copy commit' }))
     await user.hover(screen.getByText('Elsewhere'))
     await wait(CLOSE_DELAY_MS + 100)
     expect(queryCard()).toBeNull()
@@ -288,7 +288,10 @@ describe('the content', () => {
       'committed_at',
     ])
     const values = within(shown).getAllByRole('definition')
+    // The commit string, with the button copying it after it.
     expect(values[0]).toHaveTextContent(HASH)
+    const copy = within(values[0]).getByRole('button', { name: 'Copy commit' })
+    expect(copy).toHaveAttribute('title', 'Copy commit')
     expect(values[1]).toHaveTextContent('593922')
     expect(values[2]).toHaveTextContent('r593922')
     // Cut to two lines, but whole in the page.
@@ -300,8 +303,9 @@ describe('the content', () => {
     )
     expect(values[5]).toHaveTextContent('2026-08-25, 2:22:41 PM')
 
-    await user.click(within(shown).getByRole('button', { name: 'Copy' }))
+    await user.click(copy)
     expect(writeText).toHaveBeenCalledWith(HASH)
+    await waitFor(() => expect(copy).toHaveAccessibleName('Copied.'))
   })
 
   it('has no ordinal row for a commit without one, and its commit string as its heading', async () => {

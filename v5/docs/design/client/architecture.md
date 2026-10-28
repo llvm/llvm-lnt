@@ -475,7 +475,7 @@ so:
 The card shows:
 
 - at its top, naming it, the commit's display value, with its tag (see AR6);
-- a `Commit` row with the commit string, and a button copying it;
+- a `Commit` row with the commit string, followed by a button copying it;
 - an `Ordinal` row with the commit's ordinal, left out when it has none;
 - a row for each commit field that has a value for the commit, in schema order,
   labelled as AR6 says, with the value as DT1 shows a machine's;

@@ -316,7 +316,7 @@ describe('the Runs tab', () => {
     const runs = await table('Runs')
     const card = await commitCard(await within(runs).findByRole('link', { name: 'r100 (v1)' }))
     expect(card).toHaveAccessibleName('r100 (v1)')
-    expect(within(card).getByText('abc123')).toBeInTheDocument()
+    expect(card).toHaveTextContent('abc123')
     expect(resolved).toEqual([['abc123']])
   })
 

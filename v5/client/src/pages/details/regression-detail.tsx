@@ -15,7 +15,6 @@ import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
 import { LinkableText } from '../../components/linkable-text'
 import { StateBadge } from '../../components/regression-state'
-import { CommitRepositoryLink } from '../../components/repository-link'
 import { Select } from '../../components/select'
 import { WithSchema } from '../../components/with-schema'
 import { formatTimestamp, plural, regressionTitle, shortUuid, uuidPrefix } from '../../format'
@@ -120,12 +119,7 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
         <InlineEdit
           label="Commit"
           value={regression.commit}
-          display={(commit) => (
-            <>
-              <CommitLink schema={schema} value={commit} />
-              <CommitRepositoryLink repository={schema.repository} commit={commit} />
-            </>
-          )}
+          display={(commit) => <CommitLink schema={schema} value={commit} />}
           gate={triage}
           // Any commit of the suite (AR15). The row says what it is, so the picker's label is for
           // assistive technology only.

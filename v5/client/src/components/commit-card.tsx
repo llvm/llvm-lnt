@@ -42,6 +42,26 @@ export function CommitCard({ card, schema, value, commit }: Props) {
   )
 }
 
+/**
+ * The commit string, with a button copying it after its end: with its last character, so that it
+ * goes onto the next line with it, rather than on its own, when the string does not fit on one.
+ */
+function CommitString({ value }: { value: string }) {
+  const characters = Array.from(value)
+  const last = characters.pop()
+  return (
+    <span className={styles.mono}>
+      {characters.join('')}
+      <span className={styles.end}>
+        {last}
+        <CopyButton text={value} icon>
+          Copy commit
+        </CopyButton>
+      </span>
+    </span>
+  )
+}
+
 function Heading({ id, text }: { id: string; text: string }) {
   return (
     <div id={id} className={styles.heading}>
@@ -88,11 +108,7 @@ function CommitSummary({ schema, commit, headingId }: ContentProps & { commit: C
       <Heading id={headingId} text={commitDisplayValue(commit, schema)} />
       <dl className={styles.rows}>
         <InfoRow label="Commit">
-          <span className={styles.commit}>
-            <span className={styles.mono}>{commit.value}</span>
-            {/* In the row of the commit string, which names what it copies. */}
-            <CopyButton text={commit.value}>Copy</CopyButton>
-          </span>
+          <CommitString value={commit.value} />
         </InfoRow>
         {commit.ordinal !== null && <InfoRow label="Ordinal">{commit.ordinal}</InfoRow>}
         {fields.map(({ field, value }) => (

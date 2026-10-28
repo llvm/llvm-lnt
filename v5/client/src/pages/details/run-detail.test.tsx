@@ -152,7 +152,7 @@ describe('the Run Detail page', () => {
 
     const card = await commitCard(await main().findByRole('link', { name: 'r100 (v1)' }))
     expect(card).toHaveAccessibleName('r100 (v1)')
-    expect(within(card).getByText('abc123')).toBeInTheDocument()
+    expect(card).toHaveTextContent('abc123')
     expect(within(card).getByText('100')).toBeInTheDocument()
   })
 

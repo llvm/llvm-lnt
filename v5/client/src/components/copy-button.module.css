@@ -12,6 +12,24 @@
   visibility: hidden;
 }
 
+/* A small icon, set after what it copies, in its line, as a letter would be. */
+.icon {
+  margin-left: var(--lnt-space-1);
+  padding: 0 2px;
+  line-height: 1;
+  border: none;
+  background: none;
+  color: var(--lnt-muted);
+}
+
+.icon svg {
+  vertical-align: text-bottom;
+}
+
+.icon:hover:not(.failed) {
+  color: var(--lnt-accent);
+}
+
 .failed {
   color: var(--lnt-danger);
 }

@@ -1146,7 +1146,7 @@ describe('the Machine Detail page', () => {
       const runs = await table('Run history')
       const card = await commitCard(await within(runs).findByRole('link', { name: 'r100 (v1)' }))
       expect(card).toHaveAccessibleName('r100 (v1)')
-      expect(within(card).getByText('abc123')).toBeInTheDocument()
+      expect(card).toHaveTextContent('abc123')
     })
 
     it('says when the machine has no runs', async () => {

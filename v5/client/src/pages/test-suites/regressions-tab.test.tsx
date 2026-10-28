@@ -339,7 +339,7 @@ describe('the Regressions tab', () => {
     const card = await commitCard(within(rowOf('slow')).getByRole('link', { name: 'r100 (v1)' }))
     expect(card).toHaveAccessibleName('r100 (v1)')
     expect(resolved).toEqual([['abc123']])
-    await userEvent.click(within(card).getByText('abc123'))
+    await userEvent.click(within(card).getByText('r100 (v1)'))
     expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
   })
 

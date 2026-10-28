@@ -1,6 +1,6 @@
 /* At most as wide as the window, less React Aria's default padding of 12px on either side. */
 .popover {
-  width: min(32rem, calc(100vw - 24px));
+  width: min(34rem, calc(100vw - 24px));
   overflow: auto;
 }
 
@@ -26,17 +26,12 @@
   margin: 0;
 }
 
-/* The commit string, with its Copy button after it, or below it when they do not fit side by side. */
-.commit {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--lnt-space-1) var(--lnt-space-2);
-}
-
 .mono {
   composes: mono from './data-table.module.css';
-  min-width: 0;
+}
+
+.end {
+  white-space: nowrap;
 }
 
 /* A long value, cut to two lines (AR21). */
