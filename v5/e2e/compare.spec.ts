@@ -20,6 +20,11 @@ function sideOf(page: Page, side: 'A' | 'B') {
   return page.getByRole('region', { name: new RegExp(`^Side ${side} `) })
 }
 
+/** The ⓘ of `side`, which gives the card of its commit (CP1). */
+function commitButton(page: Page, side: 'A' | 'B') {
+  return sideOf(page, side).getByRole('button', { name: /^Commit / })
+}
+
 /** The CSS `position` of `cell`, which is `sticky` for a cell kept in view (CP2 "Width"). */
 const positionOf = (cell: Locator) =>
   cell.evaluate((element) => getComputedStyle(element).position)
@@ -99,11 +104,13 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   expect(await positionOf(cells.nth(1))).toBe('static')
 })
 
-test("links each side's commit to its page, with its card, and the changes from A to B (CP1)", async ({
+test("gives each side's commit card from its ⓘ, and links the changes from A to B (CP1)", async ({
   page,
   request,
 }) => {
   const [older, newer] = await newestCommits(request)
+  // To let time pass for the card without waiting for it.
+  await page.clock.install()
   // Side A newer than side B: the changes are still from A to B.
   await page.goto(
     `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newer.value}` +
@@ -111,18 +118,87 @@ test("links each side's commit to its page, with its card, and the changes from 
   )
 
   const github = 'https://github.com/llvm/llvm-project'
-  const commitLink = (side: 'A' | 'B') => sideOf(page, side).getByRole('link', { name: /^Commit / })
-  await expect(commitLink('A')).toHaveAttribute('href', `/suites/libcxx/commits/${newer.value}`)
-  await expect(commitLink('B')).toHaveAttribute('href', `/suites/libcxx/commits/${older.value}`)
   const changes = page.getByRole('main').getByRole('link', { name: /^Diff on GitHub: / })
   await expect(changes).toHaveAttribute('href', `${github}/compare/${newer.value}...${older.value}`)
   await expect(changes).toHaveAttribute('target', '_blank')
 
-  // The commit's card (AR21), on the link to its page.
-  await commitLink('B').hover()
-  await expect(await cardOf(page, commitLink('B'))).toContainText(older.value)
-  await commitLink('B').click()
+  // The commit's card (AR21), which hovering its ⓘ opens.
+  const info = commitButton(page, 'B')
+  await info.hover()
+  const card = await cardOf(page, info)
+  await expect(card.getByRole('link', { name: older.value, exact: true })).toHaveAttribute(
+    'href',
+    `/suites/libcxx/commits/${older.value}`,
+  )
+
+  // Clicking it keeps the card open, rather than lead anywhere.
+  await info.click()
+  await expect(info).toHaveAttribute('aria-expanded', 'true')
+  await page.getByRole('heading', { level: 1 }).hover()
+  await page.clock.runFor(1000)
+  await expect(card).toBeVisible()
+  await expect(page).toHaveURL(/^[^#]*\/compare\?/)
+  await info.click()
+  await expect(card).toBeHidden()
+
+  // The card leads to the commit's page.
+  await info.click()
+  await card.getByRole('link', { name: older.value, exact: true }).click()
   await expect(page).toHaveURL(`/suites/libcxx/commits/${older.value}`)
+})
+
+test('the card a side’s ⓘ keeps open follows it from the keyboard (CP1, AR21)', async ({
+  page,
+  request,
+}) => {
+  const [older, newer] = await newestCommits(request)
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}`,
+  )
+  const info = commitButton(page, 'B')
+  const picker = sideOf(page, 'B').getByRole('combobox', { name: 'Commit' })
+  await expect(picker).toHaveValue(/.+/)
+
+  // From the keyboard alone: Tab leads into the card, and Escape closes it, back to the ⓘ.
+  await info.focus()
+  await page.keyboard.press('Enter')
+  const card = await cardOf(page, info)
+  const pageLink = card.getByRole('link', { name: newer.value, exact: true })
+  await page.keyboard.press('Tab')
+  await expect(pageLink).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(card).toBeHidden()
+  await expect(info).toBeFocused()
+
+  // Opened on hover, then kept open with a click, while something else had the focus.
+  await page.getByRole('combobox', { name: 'Machine' }).first().focus()
+  await info.hover()
+  await expect(await cardOf(page, info)).toBeVisible()
+  await info.click()
+  await page.keyboard.press('Tab')
+  await expect(pageLink).toBeFocused()
+  // Shift+Tab goes back to the ⓘ, with the card still open.
+  await page.keyboard.press('Shift+Tab')
+  await expect(info).toBeFocused()
+  await expect(card).toBeVisible()
+  // Tab past the card goes on to what follows the ⓘ, the picker, and closes the card.
+  // Whether the card, which closes once the focus leaves it, holds the focus.
+  const id = await info.getAttribute('aria-details')
+  const inCard = () =>
+    page.evaluate((id) => !!document.getElementById(id!)?.contains(document.activeElement), id)
+  await page.keyboard.press('Tab')
+  for (let stops = 0; stops < 10 && (await inCard()); stops++) await page.keyboard.press('Tab')
+  await expect(picker).toBeFocused()
+  await expect(card).toBeHidden()
+
+  // A press outside it closes it, leaving the focus where the press put it.
+  await info.click()
+  await page.keyboard.press('Tab')
+  await expect(pageLink).toBeFocused()
+  await picker.click()
+  await expect(picker).toBeFocused()
+  await expect(card).toBeHidden()
 })
 
 test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, request }) => {

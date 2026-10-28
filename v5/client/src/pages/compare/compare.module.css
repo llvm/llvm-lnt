@@ -37,12 +37,18 @@
   font-size: 0.9rem;
 }
 
-/* ⓘ, a link to a side's commit: a target of 24px square (WCAG 2.5.8) that grows no line. */
-.commitLink {
+/*
+ * ⓘ, which gives a side's commit card: a target of 24px square (WCAG 2.5.8) that grows no line,
+ * shown as the icon alone, in the color of a link.
+ */
+.commitCard {
   display: inline-flex;
   align-self: center;
   margin: -5px;
   padding: 5px;
+  border: none;
+  background: none;
+  color: var(--lnt-accent);
 }
 
 /* A side's runs, each with its checkbox, kept within the side, which a fieldset is not by default. */

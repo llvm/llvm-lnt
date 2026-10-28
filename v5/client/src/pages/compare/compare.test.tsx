@@ -245,27 +245,35 @@ describe('the Compare page (CP1)', () => {
   })
 })
 
-describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
+describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
   const GITHUB = 'https://github.com/llvm/llvm-project'
-  const commitLink = (side: 'A' | 'B', name: string) =>
-    within(sideOf(side)).queryByRole('link', { name: `Commit ${name}` })
-  const findCommitLink = (side: 'A' | 'B', name: string) =>
-    within(sideOf(side)).findByRole('link', { name: `Commit ${name}` })
+  const commitButton = (side: 'A' | 'B', name: string) =>
+    within(sideOf(side)).queryByRole('button', { name: `Commit ${name}` })
+  const findCommitButton = (side: 'A' | 'B', name: string) =>
+    within(sideOf(side)).findByRole('button', { name: `Commit ${name}` })
   const diff = () => main().queryByRole('link', { name: /^Diff/ })
+  /** The link of `card` to the page of its commit, `value`. */
+  const pageLink = (card: HTMLElement, value: string) =>
+    within(card).getByRole('link', { name: value })
+  /** Where the card of `side`'s ⓘ, named after `name`, leads for its commit, `value`. */
+  const cardTarget = async (side: 'A' | 'B', name: string, value: string) =>
+    pageLink(await commitCard(await findCommitButton(side, name)), value).getAttribute('href')
 
-  it('link each side’s commit to its page beside its picker, once it has one, with its card', async () => {
+  it('give each side’s commit card from a ⓘ beside its picker, once it has one', async () => {
     mockWorld()
     const resolves = mockResolve()
     renderPage('/compare?suite_a=libcxx&machine_a=m1')
     await waitFor(() =>
       expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeEnabled(),
     )
-    expect(within(sideOf('A')).queryByRole('link', { name: /^Commit/ })).not.toBeInTheDocument()
+    expect(within(sideOf('A')).queryByRole('button', { name: /^Commit/ })).not.toBeInTheDocument()
 
     await pick('Commit', 'c1', sideOf('A'))
 
-    const link = await findCommitLink('A', 'c1')
-    expect(link).toHaveAttribute('href', '/suites/libcxx/commits/c1')
+    // A button, rather than a link to the commit's page, which its card holds.
+    const button = await findCommitButton('A', 'c1')
+    expect(button).not.toHaveAttribute('href')
+    expect(button).toHaveAttribute('aria-expanded', 'false')
     // Beside the picker's label, rather than in it.
     expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeInTheDocument()
     // No longer a link into the repository, which the card holds.
@@ -274,8 +282,9 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     expect(diff()).not.toBeInTheDocument()
 
     // The commit picked, as the picker listed it, without asking for it.
-    const card = await commitCard(link)
+    const card = await commitCard(button)
     expect(card).toHaveAccessibleName('c1')
+    expect(pageLink(card, 'c1')).toHaveAttribute('href', '/suites/libcxx/commits/c1')
     expect(within(card).getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
       'href',
       `${GITHUB}/commit/c1`,
@@ -289,7 +298,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const card = await commitCard(await findCommitLink('B', 'r2'))
+    const card = await commitCard(await findCommitButton('B', 'r2'))
     expect(card).toHaveAccessibleName('r2')
     expect(card).toHaveTextContent('c2')
     expect(resolves).toEqual([])
@@ -311,7 +320,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
       renderPage(COMPARED)
 
       // By its commit string, which is all that is known of it.
-      const card = await commitCard(await findCommitLink('B', 'c2'))
+      const card = await commitCard(await findCommitButton('B', 'c2'))
 
       await waitFor(() => expect(card).toHaveAccessibleName('r2'))
     },
@@ -323,7 +332,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const card = await commitCard(await findCommitLink('A', 'c1'))
+    const card = await commitCard(await findCommitButton('A', 'c1'))
     await user.click(within(sideOf('A')).getByRole('button', { name: /Show suggestions.*Commit/ }))
 
     // Not hidden from assistive technology, as it would be were the card the combobox's popover.
@@ -336,7 +345,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    expect(commitLink('B', 'c2')).toHaveAttribute('href', '/suites/libcxx/commits/c2')
+    expect(await cardTarget('B', 'c2', 'c2')).toBe('/suites/libcxx/commits/c2')
     const link = main().getByRole('link', { name: 'Diff on GitHub: c1 → c2' })
     expect(link).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
     expect(link).toHaveAttribute('target', '_blank')
@@ -348,8 +357,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const side = await findCommitLink('A', 'r1')
-    expect(side).toHaveAttribute('href', '/suites/libcxx/commits/c1')
+    expect(await cardTarget('A', 'r1', 'c1')).toBe('/suites/libcxx/commits/c1')
     const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → r2' })
     expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
   })
@@ -370,8 +378,8 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED.replace('suite_b=libcxx', 'suite_b=twin'))
     await comparison()
 
-    expect(commitLink('A', 'c1')).toHaveAttribute('href', '/suites/libcxx/commits/c1')
-    expect(commitLink('B', 'c2')).toHaveAttribute('href', '/suites/twin/commits/c2')
+    expect(await cardTarget('A', 'c1', 'c1')).toBe('/suites/libcxx/commits/c1')
+    expect(await cardTarget('B', 'c2', 'c2')).toBe('/suites/twin/commits/c2')
     expect(diff()).not.toBeInTheDocument()
   })
 
@@ -381,7 +389,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     await comparison()
 
     expect(diff()).not.toBeInTheDocument()
-    expect(commitLink('A', 'c1')).toBeInTheDocument()
+    expect(commitButton('A', 'c1')).toBeInTheDocument()
   })
 })
 

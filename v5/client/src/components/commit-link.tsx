@@ -37,33 +37,39 @@ interface ListedProps extends Props {
  * and by `value` without it, with the commit's card (AR21): what a list that loaded its commits
  * shows each of them as. Without `commit`, the card fetches the commit once shown.
  */
-export function ListedCommitLink({ withTag = true, ...props }: ListedProps) {
-  const { schema, value, commit } = props
+export function ListedCommitLink({ schema, value, commit, withTag = true }: ListedProps) {
+  const card = useHoverCard<HTMLAnchorElement>()
   return (
-    <CardedCommitLink {...props}>
-      {commit ? commitDisplayValue(commit, schema, { withTag }) : value}
-    </CardedCommitLink>
+    <>
+      <Link to={commitPath(schema.name, value)} {...card.triggerProps}>
+        {commit ? commitDisplayValue(commit, schema, { withTag }) : value}
+      </Link>
+      {/* Beside the link rather than in it, which a click in the card would otherwise follow. */}
+      <CommitCard card={card} schema={schema} value={value} commit={commit} />
+    </>
   )
 }
 
-interface CardedProps extends Props {
+interface ButtonProps extends Props {
   /** The commit, as the page loaded it, if it did. */
   commit: Commit | undefined
-  /** What names the link, when its content does not. */
-  'aria-label'?: string
+  /** What names the button. */
+  'aria-label': string
   className?: string
   children: ReactNode
 }
 
-/** A link to the page of the commit `value`, showing `children`, with the commit's card (AR21). */
-export function CardedCommitLink({ schema, value, commit, children, ...link }: CardedProps) {
-  const card = useHoverCard<HTMLAnchorElement>()
+/**
+ * A ⓘ, a button showing `children`, that opens the card of the commit `value` (AR21) on hover, and
+ * toggles it, kept open, when activated.
+ */
+export function CommitCardButton({ schema, value, commit, children, ...button }: ButtonProps) {
+  const card = useHoverCard<HTMLButtonElement>()
   return (
     <>
-      <Link to={commitPath(schema.name, value)} {...link} {...card.triggerProps}>
+      <button type="button" {...button} {...card.triggerProps} {...card.toggleProps}>
         {children}
-      </Link>
-      {/* Beside the link rather than in it, which a click in the card would otherwise follow. */}
+      </button>
       <CommitCard card={card} schema={schema} value={value} commit={commit} />
     </>
   )

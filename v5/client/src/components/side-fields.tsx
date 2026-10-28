@@ -37,7 +37,7 @@ interface Props {
   commitFilters?: Omit<CommitFilters, 'machine'>
   /** What the commit picker says when the machine has no commit to offer (see `Combobox`). */
   noCommitsMessage?: string
-  /** What goes beside the commit picker's label, such as a link to the commit (see `Combobox`). */
+  /** What goes beside the commit picker's label, such as a ⓘ giving its card (see `Combobox`). */
   commitAside?: ReactNode
   /** A suite was picked. */
   onSuite(suite: string): void

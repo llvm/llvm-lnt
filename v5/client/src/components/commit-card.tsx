@@ -1,5 +1,7 @@
+import { Link } from 'react-router'
 import { useResolvedCommit } from '../api/commits'
 import type { SuiteSchema } from '../api/suites'
+import { commitPath } from '../paths'
 import { commitDisplayValue, formatFieldValue, labelOf, type Commit } from '../schema'
 import { CopyButton } from './copy-button'
 import { ErrorMessage, Loading } from './feedback'
@@ -11,18 +13,18 @@ import type { HoverCardState } from './use-hover-card'
 import styles from './commit-card.module.css'
 
 interface Props {
-  /** From the link's `useHoverCard`. */
+  /** From the trigger's `useHoverCard`. */
   card: HoverCardState
   schema: SuiteSchema
   /** The commit string. */
   value: string
-  /** The commit, as the page loaded it for the link's text, if it has. */
+  /** The commit, as the page loaded it for the trigger's text or name, if it has. */
   commit: Commit | undefined
 }
 
 /**
- * The card of a link to the commit `value` (AR21), while it is open: the commit as the page loaded
- * it, or else as fetched once the card is shown, since it is only rendered then.
+ * The card about the commit `value` (AR21), while it is open: the commit as the page loaded it, or
+ * else as fetched once the card is shown, since it is only rendered then.
  */
 export function CommitCard({ card, schema, value, commit }: Props) {
   const headingId = `${card.id}-heading`
@@ -43,21 +45,24 @@ export function CommitCard({ card, schema, value, commit }: Props) {
 }
 
 /**
- * The commit string, with a button copying it after its end: with its last character, so that it
- * goes onto the next line with it, rather than on its own, when the string does not fit on one.
+ * The commit string, linking to the commit's page, with a button copying it after its end: with its
+ * last character, so that it goes onto the next line with it, rather than on its own, when the
+ * string does not fit on one.
  */
-function CommitString({ value }: { value: string }) {
+function CommitString({ suite, value }: { suite: string; value: string }) {
+  // By code point, which may split a character made of several, but commit strings are hashes or
+  // numbers, rather than text.
   const characters = Array.from(value)
   const last = characters.pop()
   return (
-    <span className={styles.mono}>
-      {characters.join('')}
-      <span className={styles.end}>
+    <span className={styles.commit}>
+      <Link to={commitPath(suite, value)}>
+        <span className={styles.wraps}>{characters.join('')}</span>
         {last}
-        <CopyButton text={value} icon>
-          Copy commit
-        </CopyButton>
-      </span>
+      </Link>
+      <CopyButton text={value} icon>
+        Copy commit
+      </CopyButton>
     </span>
   )
 }
@@ -108,7 +113,7 @@ function CommitSummary({ schema, commit, headingId }: ContentProps & { commit: C
       <Heading id={headingId} text={commitDisplayValue(commit, schema)} />
       <dl className={styles.rows}>
         <InfoRow label="Commit">
-          <CommitString value={commit.value} />
+          <CommitString suite={schema.name} value={commit.value} />
         </InfoRow>
         {commit.ordinal !== null && <InfoRow label="Ordinal">{commit.ordinal}</InfoRow>}
         {fields.map(({ field, value }) => (

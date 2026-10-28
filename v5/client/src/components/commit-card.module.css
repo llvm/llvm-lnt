@@ -26,12 +26,18 @@
   margin: 0;
 }
 
-.mono {
+/*
+ * The commit string, which does not wrap at its end, so that its last character and the button
+ * after it go onto the next line together.
+ */
+.commit {
   composes: mono from './data-table.module.css';
+  white-space: nowrap;
 }
 
-.end {
-  white-space: nowrap;
+/* All of the commit string but its last character, which wraps as the row's value does. */
+.wraps {
+  white-space: pre-wrap;
 }
 
 /* A long value, cut to two lines (AR21). */

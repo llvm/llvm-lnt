@@ -1,11 +1,11 @@
 /**
- * The Compare page's links to its sides' commits (CP1): to each side's commit page, with the
- * commit's card (AR21), and to the changes between them in the repository (AR20).
+ * The Compare page's ways to its sides' commits (CP1): each side's ⓘ, with the commit's card
+ * (AR21), and the link to the changes between them in the repository (AR20).
  */
 
 import type { SuiteSchema } from '../../api/suites'
 import { usePickedCommit, usePickedCommitText } from '../../components/commit-lookup'
-import { CardedCommitLink } from '../../components/commit-link'
+import { CommitCardButton } from '../../components/commit-link'
 import { InfoIcon } from '../../components/icons'
 import { NEW_TAB, rangeUrl, repositoryLinkText } from '../../repository'
 import type { Side } from './use-side'
@@ -30,29 +30,28 @@ function useShownCommit({ schema, machine, commit }: Named): string {
 }
 
 /**
- * ⓘ, a link to the side's commit page with the commit's card, once the side names a commit, beside
- * its picker's label (CP1). Its name and its card show the commit as the picker knows it (see
- * `usePickedCommit`).
+ * ⓘ, which gives the side's commit card, once the side names a commit, beside its picker's label
+ * (CP1). Its name and its card show the commit as the picker knows it (see `usePickedCommit`).
  */
-export function SideCommitLink({ side }: { side: Side }) {
+export function SideCommitCard({ side }: { side: Side }) {
   const target = named(side)
-  return target && <NamedCommitLink target={target} />
+  return target && <NamedCommitCard target={target} />
 }
 
-function NamedCommitLink({ target }: { target: Named }) {
+function NamedCommitCard({ target }: { target: Named }) {
   const { schema, machine, commit } = target
   const picked = usePickedCommit(schema, { machine }, commit)
   return (
-    <CardedCommitLink
+    <CommitCardButton
       schema={schema}
       value={commit}
       commit={picked?.commit}
-      // Named after its commit, since each side has such a link.
+      // Named after its commit, since each side has one.
       aria-label={`Commit ${picked?.text ?? commit}`}
-      className={styles.commitLink}
+      className={styles.commitCard}
     >
       <InfoIcon />
-    </CardedCommitLink>
+    </CommitCardButton>
   )
 }
 
