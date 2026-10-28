@@ -296,8 +296,9 @@ value. While the input holds text, a button in it empties it, so that a value
 can be cleared without editing the text. When no suggestion matches the typed
 text, the list says so. The list closes on Escape, on blur, on a click outside
 it, once a suggestion is picked, and when the page, or a box holding the
-combobox, scrolls. A list too long to show whole stops scrolling at its ends
-rather than scrolling the page.
+combobox, scrolls; on Escape and on such a scroll, the combobox also puts back
+the text of its current value, as leaving it does. A list too long to show
+whole stops scrolling at its ends rather than scrolling the page.
 
 So that a value can be pasted and entered, Enter with no suggestion highlighted
 picks the suggestion that the typed text exactly identifies: its shown text, or

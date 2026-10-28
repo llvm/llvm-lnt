@@ -18,7 +18,7 @@ import {
   PROFILED_TEST,
 } from '../tools/synthetic.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
-import { pickOption, pickSuggestion } from './select.ts'
+import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
 import { rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
@@ -73,18 +73,14 @@ async function expectDefault(field: Locator, name: string) {
 }
 
 /**
- * Pick the function `name` in the column of `side`, whose suggestions show their share too. The
- * selector is mounted anew as the counter settles, losing what was typed, so it is typed again
- * until the suggestion shows.
+ * Pick the function `name` in the column of `side`, whose suggestions show their share too. Only
+ * once the column shows its profile's functions for good: a new profile, or counter, mounts a new
+ * selector, which would lose what was typed.
  */
 async function pickFunction(page: Page, side: 'A' | 'B', name: string) {
+  await typeInto(columnOf(page, side).getByRole('combobox', { name: 'Function' }), name)
   // Named by its share too: "main, 1% of cycles".
-  const suggestion = page.getByRole('option', { name: `${name}, ` })
-  await expect(async () => {
-    await columnOf(page, side).getByRole('combobox', { name: 'Function' }).fill(name)
-    await expect(suggestion).toBeVisible({ timeout: 1000 })
-  }).toPass()
-  await suggestion.click()
+  await clickSuggestion(page.getByRole('option', { name: `${name}, ` }))
 }
 
 test("defaults side B's test to side A's, also on another machine", async ({ page, request }) => {

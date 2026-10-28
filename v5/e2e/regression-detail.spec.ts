@@ -10,7 +10,7 @@ import type { components } from '../client/src/api/schema.d.ts'
 import { uuidFor } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite, type OwnRun } from './own-suite.ts'
-import { pickOption } from './select.ts'
+import { pickOption, pickSuggestion } from './select.ts'
 import { rows, table } from './tables.ts'
 
 type RegressionDetail = components['schemas']['RegressionDetail']
@@ -101,8 +101,7 @@ test('every field is edited by a holder of triage scope', async ({
     await page.getByRole('button', { name: 'Edit Commit' }).click()
     const picker = page.getByRole('combobox', { name: 'Commit' })
     await expect(picker).toBeFocused()
-    await picker.fill('c2')
-    await page.getByRole('option', { name: 'c2', exact: true }).click()
+    await pickSuggestion(page, 'Commit', 'c2')
     // The list closes just after the pick, and until then takes Enter for itself.
     await expect(picker).toHaveAttribute('aria-expanded', 'false')
     await picker.press('Enter')

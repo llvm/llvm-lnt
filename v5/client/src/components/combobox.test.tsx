@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { act, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -245,6 +245,23 @@ describe('Combobox with local suggestions', () => {
     await user.keyboard('mac{Escape}')
     expect(listbox()).toBeNull()
     expect(input()).toHaveValue('linux-x86_64')
+    expect(value()).toBe('linux-x86_64')
+  })
+
+  it.each([
+    ['the page', () => window],
+    ['a box holding the combobox', () => input().closest('form')!],
+  ])('closes the list when %s scrolls, putting back the text of its value', async (_, box) => {
+    const user = userEvent.setup()
+    renderWithProviders(<MachinePicker initial={MACHINES[0]} />)
+
+    await user.tripleClick(input())
+    await user.keyboard('mac')
+    expect(options()).toEqual(['macos-arm64'])
+    fireEvent.scroll(box())
+    expect(listbox()).toBeNull()
+    expect(input()).toHaveValue('linux-x86_64')
+    expect(input()).toHaveFocus()
     expect(value()).toBe('linux-x86_64')
   })
 
