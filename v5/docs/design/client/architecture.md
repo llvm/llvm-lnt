@@ -461,8 +461,8 @@ so:
   The card stays open while the pointer is on the link or on the card, so that
   its links can be followed, and closes once the pointer has left both, after a
   short delay. It also closes on Escape, wherever the focus is, and when the page
-  scrolls. Once closed by Escape, it opens again only once the pointer has left
-  the link and come back.
+  scrolls. Once Escape has closed it, or kept it from opening, it opens again
+  only once the pointer has left the link and come back.
 - Only hovering opens it: not keyboard focus, so that moving through a table
   from the keyboard does not open a card on every row, and not touch, which has
   no hover. Nothing is lost that way, since everything the card shows is also on
@@ -485,9 +485,9 @@ A value longer than two lines is cut short to two, with no hover of its own, and
 read whole by assistive technology; the commit's page shows it whole.
 
 The card shows the commit as the page loaded it for the link's text, so that the
-two always agree. When the page has not loaded it, because it could not, say,
-the card fetches it when first shown, and never before: a page with many such
-links does not fetch their commits in advance. Until it has, the card says that
-it is loading, with the commit string at its top. If the commit cannot be
-fetched, the card says so and offers to try again (see AR7), and if it no longer
-exists, the card says so.
+two always agree. When the page has not loaded it, because it could not for
+instance, the card fetches it when first shown, and never before: a page with
+many such links does not fetch their commits in advance. Until it has, the card
+says that it is loading, with the commit string at its top. If the commit cannot
+be fetched, the card says so and offers to try again (see AR7), and if it no
+longer exists, the card says so.

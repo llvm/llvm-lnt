@@ -1,3 +1,4 @@
+/* At most as wide as the window, less React Aria's default padding of 12px on either side. */
 .popover {
   width: min(32rem, calc(100vw - 24px));
   overflow: auto;

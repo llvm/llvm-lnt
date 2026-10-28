@@ -22,6 +22,8 @@ async function commitOf(link: Locator): Promise<string> {
 test('a commit link of the Runs tab opens its card on hover, which stays open over it', async ({
   page,
 }) => {
+  // To let time pass for the card without waiting for it.
+  await page.clock.install()
   await page.goto('/suites/libcxx')
   // A commit with a display value, which hides its commit string.
   const link = table(page, 'Runs').getByRole('link', { name: /^r\d+/ }).first()
@@ -39,7 +41,7 @@ test('a commit link of the Runs tab opens its card on hover, which stays open ov
 
   // Its links can be followed: it stays open while the pointer is on it.
   await card.hover()
-  await page.waitForTimeout(1000)
+  await page.clock.runFor(1000)
   await expect(card).toBeVisible()
 
   await page.getByRole('heading', { level: 1 }).hover()
@@ -59,12 +61,13 @@ test('Escape closes a card', async ({ page }) => {
 })
 
 test('keyboard focus does not open a card', async ({ page }) => {
+  await page.clock.install()
   await page.goto('/suites/libcxx')
   const link = rows(table(page, 'Runs')).first().getByRole('link').nth(2)
   await expect(link).toBeVisible()
 
   await link.focus()
-  await page.waitForTimeout(1000)
+  await page.clock.runFor(1000)
   await expect(link).not.toHaveAttribute('aria-details')
   await expect(page.getByRole('link', { name: 'View on GitHub' })).toHaveCount(0)
 })

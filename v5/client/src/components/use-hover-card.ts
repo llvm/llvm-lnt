@@ -18,18 +18,27 @@ export const CLOSE_DELAY_MS = 300
  */
 export function useHoverCard<Trigger extends HTMLElement>() {
   const triggerRef = useRef<Trigger>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLElement>(null)
   const id = useId()
   const [isOpen, setOpen] = useState(false)
+  // About to open: the pointer rests on the link.
+  const [isPending, setPending] = useState(false)
+  // `isOpen`, for the hover handlers, which a pointer event can call from an earlier render.
+  const open = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const onTrigger = useRef(false)
-  // Closed by Escape with the pointer on the link: not to open again until it has left the link.
-  const dismissed = useRef(false)
 
-  const cancel = useCallback(() => clearTimeout(timer.current), [])
+  const cancel = useCallback(() => {
+    clearTimeout(timer.current)
+    setPending(false)
+  }, [])
   const schedule = (action: () => void, delay: number) => {
-    cancel()
+    clearTimeout(timer.current)
     timer.current = setTimeout(action, delay)
+  }
+  const show = () => {
+    open.current = true
+    setPending(false)
+    setOpen(true)
   }
 
   // Every way of closing the card goes through here. The card never takes the focus, but it gets
@@ -37,37 +46,39 @@ export function useHoverCard<Trigger extends HTMLElement>() {
   // whatever had it when the card opened.
   const close = useCallback(() => {
     cancel()
-    if (cardRef.current?.contains(document.activeElement)) {
+    if (popoverRef.current?.contains(document.activeElement)) {
       triggerRef.current?.focus({ preventScroll: true })
     }
+    open.current = false
     setOpen(false)
   }, [cancel])
 
-  useEffect(() => cancel, [cancel])
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen && !isPending) return
     // In the bubble phase, and without consuming the key: whatever else Escape is for still gets it.
+    // The popover leaves Escape alone (`isKeyboardDismissDisabled`), even with the focus inside.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      dismissed.current = onTrigger.current
-      close()
+      if (event.key === 'Escape') close()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOpen, close])
+  }, [isOpen, isPending, close])
 
+  // Once closed by Escape, with the pointer on the link, the card opens again only once the pointer
+  // has left the link and come back: `useHover` reports nothing until it has left.
   const { hoverProps } = useHover({
     onHoverStart: () => {
-      onTrigger.current = true
-      if (dismissed.current) return
-      if (isOpen) cancel()
-      else schedule(() => setOpen(true), OPEN_DELAY_MS)
+      if (open.current) {
+        clearTimeout(timer.current)
+      } else {
+        setPending(true)
+        schedule(show, OPEN_DELAY_MS)
+      }
     },
     onHoverEnd: () => {
-      onTrigger.current = false
-      dismissed.current = false
-      if (isOpen) schedule(close, CLOSE_DELAY_MS)
+      if (open.current) schedule(close, CLOSE_DELAY_MS)
       else cancel()
     },
   })
@@ -76,17 +87,22 @@ export function useHoverCard<Trigger extends HTMLElement>() {
     isOpen,
     id,
     /** For the card's popover, which closes through `close`. */
-    popoverProps: { triggerRef, onOpenChange: (open: boolean) => !open && close() },
-    /** For the card's own root element. */
-    cardProps: { ref: cardRef, id },
+    popoverProps: {
+      ref: popoverRef,
+      triggerRef,
+      onOpenChange: (isOpen: boolean) => !isOpen && close(),
+    },
     /** What the card does as the pointer enters and leaves it. */
-    cardHover: { onHoverStart: cancel, onHoverEnd: () => schedule(close, CLOSE_DELAY_MS) },
+    cardHover: {
+      onHoverStart: () => clearTimeout(timer.current),
+      onHoverEnd: () => schedule(close, CLOSE_DELAY_MS),
+    },
     triggerProps: {
       ref: triggerRef,
       ...hoverProps,
       // Following the link is not waiting for its card.
       onPointerDown: () => {
-        if (!isOpen) cancel()
+        if (!open.current) cancel()
       },
       // Its details (structured, with links), rather than a description, read as plain text.
       'aria-details': isOpen ? id : undefined,

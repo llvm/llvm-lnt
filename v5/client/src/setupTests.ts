@@ -6,8 +6,9 @@ import { FakeIntersectionObserver, resetIntersections } from './test/intersectio
 import { FakeResizeObserver, resetResizes } from './test/resize-observer'
 import { server } from './test/server'
 
-// What Testing Library looks for to advance fake timers while it waits, as it does Jest's: without
-// it, it waits for timers that never fire under Vitest's. It has no effect under real timers.
+// What Testing Library looks for to advance fake timers, as it does Jest's, whenever it waits: in
+// `waitFor`, the `find*` queries, and after every user-event call. Without it, any of those waits
+// under Vitest's fake timers for timers that never fire. It has no effect under real timers.
 Object.assign(globalThis, {
   jest: { advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms) },
 })

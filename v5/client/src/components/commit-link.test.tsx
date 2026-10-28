@@ -176,17 +176,43 @@ describe('the hover mechanics', () => {
     expect(queryCard()).not.toBeNull()
   })
 
-  it('does not consume Escape, which whatever else it is for still gets', async () => {
-    const onKeyDown = vi.fn()
+  it.each([
+    ['outside the card', async () => {}],
+    [
+      'inside the card',
+      async () => {
+        await user.click(within(card()).getByRole('button', { name: 'Copy' }))
+      },
+    ],
+  ])(
+    'does not consume Escape, which whatever else it is for still gets, with the focus %s',
+    async (_, focus) => {
+      const keys: KeyboardEvent[] = []
+      const onKeyDown = (event: KeyboardEvent) => keys.push(event)
+      await renderLink()
+      mockClipboard()
+      document.addEventListener('keydown', onKeyDown)
+      try {
+        await open()
+        await focus()
+        await user.keyboard('{Escape}')
+        expect(keys.map((event) => [event.key, event.defaultPrevented])).toEqual([
+          ['Escape', false],
+        ])
+        expect(queryCard()).toBeNull()
+      } finally {
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    },
+  )
+
+  it('does not open on Escape before its delay has passed', async () => {
     await renderLink()
-    document.addEventListener('keydown', onKeyDown)
-    try {
-      await open()
-      await user.keyboard('{Escape}')
-      expect(onKeyDown).toHaveBeenCalledWith(expect.objectContaining({ defaultPrevented: false }))
-    } finally {
-      document.removeEventListener('keydown', onKeyDown)
-    }
+    await user.hover(link())
+    await wait(OPEN_DELAY_MS - 1)
+    await user.keyboard('{Escape}')
+    await wait(OPEN_DELAY_MS * 10)
+    expect(queryCard()).toBeNull()
   })
 
   it('stays open on the card after one closed under the pointer', async () => {

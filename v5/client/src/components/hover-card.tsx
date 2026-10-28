@@ -29,12 +29,14 @@ function OpenHoverCard({ card, labelledBy, popoverClassName, className, children
       {...card.popoverProps}
       isOpen
       isNonModal
+      // Escape is the card's own (see `useHoverCard`), which does not consume it.
+      isKeyboardDismissDisabled
       placement="bottom start"
       offset={4}
       className={popoverClassName}
     >
       <div
-        {...card.cardProps}
+        id={card.id}
         role="group"
         aria-labelledby={labelledBy}
         className={className}
