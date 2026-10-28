@@ -11,7 +11,7 @@ import { mockResolve } from '../test/page'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 import type { Commit } from '../schema'
-import { CommitLink, ListedCommitLink } from './commit-link'
+import { CommitCardButton, CommitLink, ListedCommitLink } from './commit-link'
 import { CLOSE_DELAY_MS, OPEN_DELAY_MS } from './use-hover-card'
 
 const HASH = '014621ede7c175aece29796adcaf5000f891cf0c'
@@ -95,14 +95,21 @@ async function renderLink({
       <p>Elsewhere</p>
     </>,
   )
-  await screen.findByText('Elsewhere')
-  vi.useFakeTimers()
-  user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  await switchToFakeTimers()
   return rendered
 }
 
+/** Once the page has rendered, which takes real time, switch to fake timers. */
+async function switchToFakeTimers() {
+  await screen.findByText('Elsewhere')
+  vi.useFakeTimers()
+  user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+}
+
+/** The link, rather than its card's link to the same page. */
 function link() {
-  return screen.getByRole('link', { name: /^(r593922|014621)/ })
+  const links = screen.getAllByRole('link', { name: /^(r593922|014621)/ })
+  return links.find((link) => link.closest('[role="group"]') === null)!
 }
 
 function card() {
@@ -284,6 +291,166 @@ describe('the hover mechanics', () => {
   })
 })
 
+describe('a ⓘ', () => {
+  /** Render the ⓘ between a text box and another, as `renderLink` does. */
+  async function renderButton() {
+    renderWithProviders(
+      <>
+        <input aria-label="Search" />
+        <CommitCardButton schema={SUITE} value={HASH} commit={FULL} aria-label="Commit r593922">
+          ⓘ
+        </CommitCardButton>
+        <input aria-label="After" />
+        <p>Elsewhere</p>
+      </>,
+    )
+    await switchToFakeTimers()
+  }
+
+  const button = () => screen.getByRole('button', { name: 'Commit r593922' })
+  const commitPageLink = () => within(card()).getByRole('link', { name: HASH })
+  const leave = () => user.hover(screen.getByText('Elsewhere'))
+
+  it('is a button, which opens its card on hover, as a link does', async () => {
+    await renderButton()
+    expect(button()).not.toHaveAttribute('href')
+    expect(button()).toHaveAttribute('aria-expanded', 'false')
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS)
+    expect(button()).toHaveAttribute('aria-expanded', 'true')
+    expect(button()).toHaveAttribute('aria-details', card().id)
+    expect(button()).toHaveAttribute('aria-controls', card().id)
+
+    await leave()
+    await wait(CLOSE_DELAY_MS)
+    expect(queryCard()).toBeNull()
+    expect(button()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('opens its card at once when clicked, and keeps it open wherever the pointer goes', async () => {
+    await renderButton()
+    await user.click(button())
+    expect(card()).toHaveAccessibleName('r593922 (llvm-22.0)')
+    expect(button()).toHaveAttribute('aria-expanded', 'true')
+    expect(button()).toHaveFocus()
+
+    // Over the card and out of it, the card's own leaving closing nothing either.
+    await user.hover(card())
+    await leave()
+    await wait(CLOSE_DELAY_MS * 10)
+    expect(queryCard()).not.toBeNull()
+  })
+
+  it('keeps open the card that hovering opened, and closes it when clicked again', async () => {
+    await renderButton()
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS)
+    await user.click(button())
+    await leave()
+    await wait(CLOSE_DELAY_MS * 10)
+    expect(queryCard()).not.toBeNull()
+
+    await user.click(button())
+    expect(queryCard()).toBeNull()
+    // Not opened again by the pointer still on it, until it leaves and comes back.
+    await wait(OPEN_DELAY_MS * 10)
+    expect(queryCard()).toBeNull()
+    await leave()
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS)
+    expect(queryCard()).not.toBeNull()
+  })
+
+  it('opens its card when pressed while hovering is about to', async () => {
+    await renderButton()
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS - 1)
+    await user.click(button())
+    await leave()
+    await wait(OPEN_DELAY_MS * 10)
+    expect(queryCard()).not.toBeNull()
+  })
+
+  it('keeps its card open when tapped, until tapped again', async () => {
+    await renderButton()
+    await user.pointer({ keys: '[TouchA]', target: button() })
+    expect(queryCard()).not.toBeNull()
+    await wait(CLOSE_DELAY_MS * 10)
+    expect(queryCard()).not.toBeNull()
+    await user.pointer({ keys: '[TouchA]', target: button() })
+    expect(queryCard()).toBeNull()
+  })
+
+  it.each(['{Enter}', ' '])('keeps its card open when activated with %s', async (key) => {
+    await renderButton()
+    await user.tab()
+    await user.tab()
+    expect(button()).toHaveFocus()
+    // Not on focus alone.
+    await wait(OPEN_DELAY_MS * 10)
+    expect(queryCard()).toBeNull()
+
+    await user.keyboard(key)
+    expect(queryCard()).not.toBeNull()
+    expect(button()).toHaveFocus()
+  })
+
+  it('leads Tab into the card it keeps open, and Shift+Tab back to it', async () => {
+    await renderButton()
+    await user.click(button())
+    await user.tab()
+    expect(commitPageLink()).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(button()).toHaveFocus()
+    expect(queryCard()).not.toBeNull()
+  })
+
+  it('leaves Tab alone when its card is not kept open', async () => {
+    await renderButton()
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS)
+    button().focus()
+    await user.tab()
+    expect(screen.getByRole('textbox', { name: 'After' })).toHaveFocus()
+  })
+
+  it('closes its card on Escape, giving the focus back to it', async () => {
+    await renderButton()
+    await user.click(button())
+    await user.tab()
+    await user.keyboard('{Escape}')
+    expect(queryCard()).toBeNull()
+    expect(button()).toHaveFocus()
+  })
+
+  it('closes its card on a press outside both, leaving the focus where the press put it', async () => {
+    await renderButton()
+    await user.click(button())
+    await user.click(within(card()).getByText('Ordinal'))
+    expect(queryCard()).not.toBeNull()
+    await user.tab()
+    expect(commitPageLink()).toHaveFocus()
+
+    await user.click(screen.getByRole('textbox', { name: 'After' }))
+    expect(queryCard()).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'After' })).toHaveFocus()
+  })
+
+  it('closes its card when the focus moves to another element outside both', async () => {
+    await renderButton()
+    await user.click(button())
+    act(() => screen.getByRole('textbox', { name: 'Search' }).focus())
+    expect(queryCard()).toBeNull()
+  })
+
+  it('keeps its card open when the focus leaves the window', async () => {
+    await renderButton()
+    await user.click(button())
+    act(() => button().blur())
+    expect(queryCard()).not.toBeNull()
+  })
+})
+
 describe('the content', () => {
   it('shows the commit, its ordinal and every field it has a value for, in schema order', async () => {
     await renderLink({ schema: FIELDS_SUITE })
@@ -305,8 +472,12 @@ describe('the content', () => {
       'committed_at',
     ])
     const values = within(shown).getAllByRole('definition')
-    // The commit string, with the button copying it after it.
+    // The commit string, linking to the commit's page, with the button copying it after it.
     expect(values[0]).toHaveTextContent(HASH)
+    expect(within(values[0]).getByRole('link', { name: HASH })).toHaveAttribute(
+      'href',
+      `/suites/libcxx/commits/${HASH}`,
+    )
     const copy = within(values[0]).getByRole('button', { name: 'Copy commit' })
     expect(copy).toHaveAttribute('title', 'Copy commit')
     expect(values[1]).toHaveTextContent('593922')

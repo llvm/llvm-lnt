@@ -1,5 +1,7 @@
+import { Link } from 'react-router'
 import { useResolvedCommit } from '../api/commits'
 import type { SuiteSchema } from '../api/suites'
+import { commitPath } from '../paths'
 import { commitDisplayValue, formatFieldValue, labelOf, type Commit } from '../schema'
 import { CopyButton } from './copy-button'
 import { ErrorMessage, Loading } from './feedback'
@@ -43,21 +45,19 @@ export function CommitCard({ card, schema, value, commit }: Props) {
 }
 
 /**
- * The commit string, with a button copying it after its end: with its last character, so that it
- * goes onto the next line with it, rather than on its own, when the string does not fit on one.
+ * The commit string, linking to the commit's page, with a button copying it after its end: with its
+ * last character, so that it goes onto the next line with it, rather than on its own, when the
+ * string does not fit on one.
  */
-function CommitString({ value }: { value: string }) {
-  const characters = Array.from(value)
-  const last = characters.pop()
+function CommitString({ suite, value }: { suite: string; value: string }) {
   return (
-    <span className={styles.mono}>
-      {characters.join('')}
-      <span className={styles.end}>
-        {last}
-        <CopyButton text={value} icon>
-          Copy commit
-        </CopyButton>
-      </span>
+    <span className={styles.commit}>
+      <Link to={commitPath(suite, value)} className={styles.commitLink}>
+        {value}
+      </Link>
+      <CopyButton text={value} icon>
+        Copy commit
+      </CopyButton>
     </span>
   )
 }
@@ -108,7 +108,7 @@ function CommitSummary({ schema, commit, headingId }: ContentProps & { commit: C
       <Heading id={headingId} text={commitDisplayValue(commit, schema)} />
       <dl className={styles.rows}>
         <InfoRow label="Commit">
-          <CommitString value={commit.value} />
+          <CommitString suite={schema.name} value={commit.value} />
         </InfoRow>
         {commit.ordinal !== null && <InfoRow label="Ordinal">{commit.ordinal}</InfoRow>}
         {fields.map(({ field, value }) => (

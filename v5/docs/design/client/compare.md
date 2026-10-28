@@ -60,10 +60,10 @@ Each side has its own controls:
 - **Commit**: a commit picker (see AR15) over the commits at which the selected
   machine has runs. Disabled until a machine is selected, showing "Select a
   machine first". Clearing the commit clears the runs. Once the side has a
-  commit, a small ⓘ links to its Commit Detail page, with its card (see AR21),
-  from the end of the picker's label line: beside the label rather than in it,
-  so that it is no part of the picker's name. It is named `Commit` followed by
-  the commit's display value, as the picker shows it.
+  commit, a small ⓘ gives its card (see AR21), from the end of the picker's
+  label line: beside the label rather than in it, so that it is no part of the
+  picker's name. It is named `Commit` followed by the commit's display value, as
+  the picker shows it.
 - **Runs**: a checkbox list of the selected machine's runs at the selected
   commit, in the order they were measured, in a box of its own that scrolls
   when they are many. Each run shows its measurement time and its shortened UUID

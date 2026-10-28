@@ -63,7 +63,7 @@ interface CommonProps {
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
   /**
-   * What goes on the label's line, at its end, such as a link about the value: beside the label
+   * What goes on the label's line, at its end, such as a button about the value: beside the label
    * rather than in it, so that it is no part of the combobox's name, and clicking it does not focus
    * the input. The line is there with or without it, so that nothing moves when it appears.
    */

@@ -26,12 +26,14 @@
   margin: 0;
 }
 
-.mono {
+.commit {
   composes: mono from './data-table.module.css';
+  white-space: nowrap;
 }
 
-.end {
-  white-space: nowrap;
+/* Wraps anywhere, as the row's value does, but not before the button after it (.commit). */
+.commitLink {
+  white-space: normal;
 }
 
 /* A long value, cut to two lines (AR21). */

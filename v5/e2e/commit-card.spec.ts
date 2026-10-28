@@ -88,4 +88,9 @@ test("the Run Detail page's commit has its card", async ({ page }) => {
   await expect(card).toHaveAccessibleName('r552558')
   await expect(card.getByRole('term')).toHaveText(['Commit', 'Ordinal', 'svn_revision'])
   await expect(card).toContainText('552558')
+
+  // Its Commit row leads to the commit's page, as its link does.
+  const commit = await commitOf(link)
+  await card.getByRole('link', { name: commit, exact: true }).click()
+  await expect(page).toHaveURL(`/suites/libcxx/commits/${commit}`)
 })
