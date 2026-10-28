@@ -182,12 +182,26 @@
   font-size: 0.9rem;
 }
 
-/* The form creating a regression from a point (GR11), as wide as the details. */
+/* The links about the point before this one (GR11), which the dialog spaces as its other parts. */
+.detailsPrevious {
+  margin: 0;
+}
+
+/*
+ * What takes the place of "Create regression" in the details' buttons (GR11): the form creating a
+ * regression, then the regression created, each on a line of its own below the other buttons.
+ */
+.detailsCreate,
+.detailsCreated {
+  flex-basis: 100%;
+}
+
 .detailsCreate {
   display: flex;
   flex-direction: column;
-  align-self: stretch;
   gap: var(--lnt-space-2);
+  /* As wide as the details already are: opening the form does not widen them. */
+  contain: inline-size;
 }
 
 .detailsFields,

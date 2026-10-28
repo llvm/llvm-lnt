@@ -34,6 +34,8 @@ export function ButtonLink({ to, title, children }: Props) {
 interface DisabledLinkProps {
   /** Why the link leads nowhere, shown on hover and given to assistive technology. */
   title: string | undefined
+  /** Its accessible name, if its text needs more to be understood out of its context. */
+  'aria-label'?: string
   className?: string
   children: ReactNode
 }
@@ -43,9 +45,21 @@ interface DisabledLinkProps {
  * can still be focused, and which says why on hover. Its look is its owner's, a button's or a plain
  * link's.
  */
-export function DisabledLink({ title, className = styles.plain, children }: DisabledLinkProps) {
+export function DisabledLink({
+  title,
+  'aria-label': label,
+  className = styles.plain,
+  children,
+}: DisabledLinkProps) {
   return (
-    <span role="link" aria-disabled="true" tabIndex={0} className={className} title={title}>
+    <span
+      role="link"
+      aria-disabled="true"
+      aria-label={label}
+      tabIndex={0}
+      className={className}
+      title={title}
+    >
       {children}
     </span>
   )

@@ -200,6 +200,13 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
   const compare = details.getByRole('link', { name: 'Compare with previous commit' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
+  // Its buttons fit on one row.
+  const tops = await Promise.all(
+    ['Highlight commit', 'Add baseline', 'Create regression'].map(
+      async (name) => (await details.getByRole('button', { name }).boundingBox())!.y,
+    ),
+  )
+  expect(new Set(tops).size).toBe(1)
   // The run's samples are on one line: the list scrolls sideways rather than wrap them.
   const samplesCell = details.getByRole('table', { name: 'Runs' }).getByRole('cell').last()
   const lines = await samplesCell.evaluate((cell) => {
@@ -418,7 +425,7 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
   }
   const placed = await placement()
 
-  await details.getByRole('button', { name: 'Add as baseline' }).click()
+  await details.getByRole('button', { name: 'Add baseline' }).click()
 
   await expect
     .poll(() => new URL(page.url()).searchParams.get('baseline'))
@@ -429,7 +436,7 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
   // Its line runs through the point, which stays where it was, and so do its details.
   expect(await yRange()).toEqual(before)
   expect(await placement()).toEqual(placed)
-  await expect(details.getByRole('button', { name: 'Remove the baseline' })).toBeFocused()
+  await expect(details.getByRole('button', { name: 'Remove baseline' })).toBeFocused()
 
   // Under its line, once loaded from the URL, the point keeps its tooltip and details, which
   // remove the baseline.
@@ -439,10 +446,10 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
   await plotOf(page).hover({ position })
   await expect(page.locator('.hoverlayer')).toContainText('Click for details')
   await plotOf(page).click({ position })
-  await details.getByRole('button', { name: 'Remove the baseline' }).click()
+  await details.getByRole('button', { name: 'Remove baseline' }).click()
   await expect(tracesOf(page)).toHaveCount(1)
   expect(new URL(page.url()).searchParams.has('baseline')).toBe(false)
-  await expect(details.getByRole('button', { name: 'Add as baseline' })).toBeFocused()
+  await expect(details.getByRole('button', { name: 'Add baseline' })).toBeFocused()
 })
 
 test("draws a long history's points without markers until zoomed in, and they keep their tooltip and details (GR1, GR9, GR11)", async ({
@@ -522,13 +529,13 @@ test('highlights a commit with a band of fixed width, circling its point (GR16)'
   await expect(details).toBeFocused()
   const display = await displayOf(details)
   // Its details remove the highlight, and put it back, staying open (GR11).
-  await details.getByRole('button', { name: 'Remove the highlight' }).click()
+  await details.getByRole('button', { name: 'Remove highlight' }).click()
   await expect(band).toHaveCount(0)
   expect(new URL(page.url()).searchParams.has('highlight')).toBe(false)
-  await details.getByRole('button', { name: 'Highlight this commit' }).click()
+  await details.getByRole('button', { name: 'Highlight commit' }).click()
   await expect(band).toHaveCount(1)
   expect(new URL(page.url()).searchParams.get('highlight')).toBe(commit)
-  await expect(details.getByRole('button', { name: 'Remove the highlight' })).toBeFocused()
+  await expect(details.getByRole('button', { name: 'Remove highlight' })).toBeFocused()
   await page.keyboard.press('Escape')
 
   // Zoomed in around it, it keeps its width.

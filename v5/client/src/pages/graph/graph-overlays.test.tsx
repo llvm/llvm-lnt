@@ -310,7 +310,9 @@ describe('the point details (GR11)', () => {
       '4 · 6',
       '2',
     ])
+    // Named in full, after the visible text, which leans on "Previous commit:" before it.
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })
+    expect(compare).toHaveTextContent(/^Compare$/)
     expect(compare).toHaveAttribute(
       'href',
       '/compare?suite_a=libcxx&machine_a=m1&commit_a=c10' +
@@ -348,7 +350,7 @@ describe('the point details (GR11)', () => {
 
   describe('its links into the repository', () => {
     const diffLink = () =>
-      details().getByRole('link', { name: 'Diff with previous commit on GitHub' })
+      details().getByRole('link', { name: 'Diff on GitHub with previous commit' })
 
     it('lead to the changes since the point before, in a new tab', async () => {
       mockWorld({ samples: SAMPLES })
@@ -360,6 +362,7 @@ describe('the point details (GR11)', () => {
 
       // The same two commits as the comparison with the point before.
       const diff = diffLink()
+      expect(diff.parentElement).toHaveTextContent(/^Previous commit: Compare · Diff on GitHub$/)
       expect(diff).toHaveAttribute('href', 'https://github.com/llvm/llvm-project/compare/c10...c20')
       expect(diff).toHaveAttribute('target', '_blank')
       expect(diff).toHaveAttribute('rel', 'noopener noreferrer')
@@ -376,6 +379,7 @@ describe('the point details (GR11)', () => {
       click('a - m1', 0)
 
       const diff = diffLink()
+      expect(diff).toHaveTextContent(/^Diff on GitHub$/)
       expect(diff).toHaveAttribute('aria-disabled', 'true')
       expect(diff).not.toHaveAttribute('href')
       expect(diff).toHaveAccessibleDescription('This is the first point of its trace.')
@@ -390,8 +394,24 @@ describe('the point details (GR11)', () => {
 
       click('a - m1', 1)
 
-      expect(details().getByRole('link', { name: 'Compare with previous commit' })).toBeVisible()
+      const compare = details().getByRole('link', { name: 'Compare with previous commit' })
+      expect(compare).toBeVisible()
       expect(details().queryByRole('link', { name: /^(View|Diff)/ })).not.toBeInTheDocument()
+      // Nor the dot that would come before.
+      expect(compare.parentElement).toHaveTextContent(/^Previous commit: Compare$/)
+    })
+
+    it('say "in repository" when the repository has no label', async () => {
+      const repository = { ...GRAPH_SUITE.repository, label: null }
+      mockWorld({ samples: SAMPLES, suites: [{ ...GRAPH_SUITE, name: 'unlabelled', repository }] })
+      renderPage('/graph?suite=unlabelled&machine=m1&metric=execution_time&test=a')
+      await waitFor(() => expect(dataTraces()).toHaveLength(1))
+      draw()
+
+      click('a - m1', 1)
+
+      const diff = details().getByRole('link', { name: 'Diff in repository with previous commit' })
+      expect(diff).toHaveTextContent(/^Diff in repository$/)
     })
   })
 
@@ -1017,6 +1037,9 @@ describe('creating a regression from a point (GR11)', () => {
     await openForm('a - m1', 1)
     const user = userEvent.setup()
 
+    // The button gives way to the form, below the other buttons, which stay.
+    expect(details().queryByRole('button', { name: 'Create regression' })).not.toBeInTheDocument()
+    expect(details().getByRole('button', { name: 'Highlight commit' })).toBeVisible()
     await user.type(titleInput(), 'Slow')
     await user.click(details().getByRole('button', { name: 'Cancel' }))
 
@@ -1236,12 +1259,12 @@ describe('the baselines (GR9)', () => {
     const user = userEvent.setup()
 
     click('a - m1', 1)
-    await user.click(details().getByRole('button', { name: 'Add as baseline' }))
+    await user.click(details().getByRole('button', { name: 'Add baseline' }))
 
     // Besides the baselines added before.
     expect(query().baseline).toEqual(['libcxx/m2/c40', 'libcxx/m1/c20'])
     expect(baselineChips()).toHaveTextContent(/^libcxx\/m2\/r40×libcxx\/m1\/r20×$/)
-    const remove = details().getByRole('button', { name: 'Remove the baseline' })
+    const remove = details().getByRole('button', { name: 'Remove baseline' })
     expect(remove).toHaveFocus()
     await waitFor(() =>
       expect(baselineLines()).toEqual([
@@ -1259,13 +1282,13 @@ describe('the baselines (GR9)', () => {
 
     expect(query().baseline).toEqual(['libcxx/m2/c40'])
     expect(baselineLines()).toEqual(['b - baseline libcxx/m2/r40: 4'])
-    expect(details().getByRole('button', { name: 'Add as baseline' })).toHaveFocus()
+    expect(details().getByRole('button', { name: 'Add baseline' })).toHaveFocus()
 
     // The details of a point that is a baseline already remove it.
     click('b - m2', 0)
-    await user.click(details().getByRole('button', { name: 'Remove the baseline' }))
+    await user.click(details().getByRole('button', { name: 'Remove baseline' }))
     expect(query().baseline).toBeUndefined()
-    expect(details().getByRole('button', { name: 'Add as baseline' })).toHaveFocus()
+    expect(details().getByRole('button', { name: 'Add baseline' })).toHaveFocus()
   })
 
   it("removes a baseline from its point's details while it is still being checked", async () => {
@@ -1285,7 +1308,7 @@ describe('the baselines (GR9)', () => {
     expect(baselineChips()).toHaveTextContent('libcxx/m1/c20')
     await userEvent
       .setup()
-      .click(details().getByRole('button', { name: 'Remove the baseline' }))
+      .click(details().getByRole('button', { name: 'Remove baseline' }))
 
     expect(query().baseline).toBeUndefined()
     checked.open()
@@ -1485,7 +1508,7 @@ describe('the highlighted commits (GR16)', () => {
 
     await waitFor(() => expect(bands()).toEqual([]))
     // Its band and circles neither move nor hide a point (GR11).
-    expect(details().getByRole('button', { name: 'Highlight this commit' })).toBeInTheDocument()
+    expect(details().getByRole('button', { name: 'Highlight commit' })).toBeInTheDocument()
   })
 
   it("is added from a point's details, and removed, which stay open with the focus", async () => {
@@ -1496,7 +1519,7 @@ describe('the highlighted commits (GR16)', () => {
     const user = userEvent.setup()
 
     click('a - m1', 1)
-    await user.click(details().getByRole('button', { name: 'Highlight this commit' }))
+    await user.click(details().getByRole('button', { name: 'Highlight commit' }))
 
     // Besides the commits highlighted before.
     expect(query().highlight).toEqual(['c40', 'c20'])
@@ -1506,7 +1529,7 @@ describe('the highlighted commits (GR16)', () => {
       'b - m2 - highlighted: c20=4 c40=5',
     ])
     expect(highlightChip()).toHaveTextContent(/^Highlighted: r40×Highlighted: r20×$/)
-    const remove = details().getByRole('button', { name: 'Remove the highlight' })
+    const remove = details().getByRole('button', { name: 'Remove highlight' })
     expect(remove).toHaveFocus()
 
     await user.click(remove)
@@ -1514,7 +1537,7 @@ describe('the highlighted commits (GR16)', () => {
     expect(query().highlight).toEqual(['c40'])
     expect(bands()).toEqual(['c40'])
     expect(highlightCircles()).toEqual(['b - m2 - highlighted: c40=5'])
-    expect(details().getByRole('button', { name: 'Highlight this commit' })).toHaveFocus()
+    expect(details().getByRole('button', { name: 'Highlight commit' })).toHaveFocus()
   })
 
   it('highlights at most 10 commits, saying why no other can be, each once', async () => {
@@ -1530,7 +1553,7 @@ describe('the highlighted commits (GR16)', () => {
     draw()
 
     click('a - m1', 1)
-    const add = () => details().getByRole('button', { name: 'Highlight this commit' })
+    const add = () => details().getByRole('button', { name: 'Highlight commit' })
     expect(add()).toBeDisabled()
     expect(add()).toHaveAccessibleDescription('At most 10 commits can be highlighted at once.')
     // Once one is removed, another can be highlighted. A click without a press leaves the
@@ -1540,7 +1563,7 @@ describe('the highlighted commits (GR16)', () => {
 
     // One highlighted already can be removed.
     click('a - m1', 0)
-    await userEvent.setup().click(details().getByRole('button', { name: 'Remove the highlight' }))
+    await userEvent.setup().click(details().getByRole('button', { name: 'Remove highlight' }))
     expect(query().highlight).toEqual(others.slice(1, 9))
   })
 
