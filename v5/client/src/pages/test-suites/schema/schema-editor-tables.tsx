@@ -11,6 +11,7 @@ import { VisuallyHidden } from 'react-aria-components'
 import { ActionButton } from '../../../components/action-button'
 import type { Column } from '../../../components/data-table'
 import { Select } from '../../../components/select'
+import type { UrlKey } from '../../../repository'
 import { RepositoryBox, SchemaList } from './schema-tables'
 import {
   addEntry,
@@ -37,7 +38,6 @@ import {
   type AttributeType,
   type ListName,
   type PresentationKey,
-  type UrlKey,
 } from './schema-lists'
 import styles from './schema.module.css'
 
@@ -93,7 +93,8 @@ export function SchemaEditorTables({ draft, onChange, busy }: Props) {
 /** What each URL's input says of the placeholders it accepts (D4). */
 const URL_HINTS: Record<UrlKey, string> = {
   commit_url: '{commit} is replaced by the commit.',
-  range_url: '{from} and {to} are replaced by the older and the newer commit.',
+  range_url:
+    '{from} and {to} are replaced by the commit the changes start after and the one they end at.',
 }
 
 /**

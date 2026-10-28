@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import URL_TEMPLATES from '../../../test/url-templates.json'
 import { BARE_SUITE, NO_REPOSITORY, SUITE } from '../../../test/fixtures'
 import {
   addEntry,
@@ -18,7 +17,6 @@ import {
   repositoryProblems,
   schemaOf,
   suiteNameProblem,
-  templateProblem,
   type Draft,
 } from './schema-editor-model'
 import { type ListName } from './schema-lists'
@@ -442,38 +440,7 @@ describe('copyOf and draftOf, for the repository', () => {
   })
 })
 
-describe('templateProblem', () => {
-  // The cases the server's tests check its own rules against, so that the two agree.
-  for (const key of ['commit_url', 'range_url'] as const) {
-    it(`accepts and refuses the ${key} templates the server does`, () => {
-      for (const template of URL_TEMPLATES[key].valid) {
-        expect(templateProblem(key, template), template).toBeUndefined()
-      }
-      for (const template of URL_TEMPLATES[key].invalid) {
-        expect(templateProblem(key, template), template).toBeDefined()
-      }
-    })
-  }
-
-  it('says why', () => {
-    const problems = {
-      'https://example.com/{commit} ': 'A URL cannot contain spaces or ASCII control characters.',
-      'ftp://example.com/{commit}': 'A URL starts with http:// or https://.',
-      'https://example.com/{sha}': '{sha} is not a placeholder this URL accepts, only {commit}.',
-      'https://example.com/{{commit}}':
-        'This URL cannot contain braces other than those of {commit}.',
-      'https://example.com/': 'This URL must contain {commit}.',
-      'https:///{commit}': 'A URL names a host after http:// or https://.',
-      'https://github.com.{commit}/': 'A URL names its host as it is, without a placeholder.',
-    }
-    for (const [template, problem] of Object.entries(problems)) {
-      expect(templateProblem('commit_url', template)).toBe(problem)
-    }
-    expect(templateProblem('range_url', 'https://example.com/{from}')).toBe(
-      'This URL must contain {from} and {to}.',
-    )
-  })
-
+describe('repositoryProblems', () => {
   it('leaves an empty URL alone, which is sent as null', () => {
     expect(repositoryProblems(changeRepository(EMPTY_DRAFT, 'commit_url', ' ').repository).size).toBe(
       0,

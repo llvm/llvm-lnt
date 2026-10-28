@@ -85,8 +85,8 @@ Label = Annotated[str, StringConstraints(min_length=1), Storable]
 # - So is the host: a commit string can hold a `.`, and `https://{commit}` would otherwise lead
 #   wherever a commit named `evil.com` says.
 # - No space or ASCII control character, a set spelled out rather than "whitespace", which Python
-#   and JavaScript do not agree on: the web UI's schema editor checks templates as they are typed
-#   with a copy of these rules (schema-editor-model.ts in client/src/pages/test-suites/schema).
+#   and JavaScript do not agree on: the web UI checks templates with a copy of these rules, as
+#   they are typed in its schema editor and before it builds a link (client/src/repository.ts).
 # - No brace outside the placeholders the template accepts, which keeps the syntax free for more
 #   placeholders later.
 # ASCII only: Python folds case across Unicode, where `s` would also match U+017F (the long s),
@@ -367,8 +367,9 @@ COMMIT_URL = (
 )
 RANGE_URL = (
     "A template of the URL of the changes between two commits, in which `{from}` stands for the "
-    "older commit, whose changes are not included, and `{to}` for the newer one, whose changes "
-    "are, as in Git's `from..to`. It must contain both `{from}` and `{to}`. "
+    "commit the changes start after, whose own changes are excluded, and `{to}` for the commit "
+    "they end at, whose own changes are included, as in Git's `from..to`. It must contain both "
+    "`{from}` and `{to}`. "
     f"{TEMPLATE_RULES}"
 )
 REPOSITORY_LABEL = (

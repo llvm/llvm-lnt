@@ -14,12 +14,14 @@ suite-agnostic: each side selects its own suite. Layout:
 +-- Side A (Baseline) ----------------+       +-- Side B (New) -------------- [Pin as shadow] +
 | Suite            [libcxx         v] |       | Suite            [libcxx                   v] |
 | Machine          [linux-x86_64     ] | (<->) | Machine          [linux-x86_64               ] |
-| Commit           [0f985af790f8     ] |       | Commit           [014621ede7c1               ] |
+|                      View on GitHub |       |                                View on GitHub |
+| Commit           [0f985af790f8    ] |       | Commit           [014621ede7c1              ] |
 | Runs             [-] Run            |       | Runs             [x] Run                      |
 |                  +----------------+ |       |                  +--------------------------+ |
 |                  | [x] 08-25 ...  | |       |                  | [x] 2026-08-31, 3:03 PM  | |
 |                  +----------------+ |       |                  +--------------------------+ |
 +-------------------------------------+       +-----------------------------------------------+
+Diff on GitHub: 0f985af790f8 → 014621ede7c1
 
 Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [median v]
 [ ] Hide noise  [Noise filtering v]
@@ -57,7 +59,10 @@ Each side has its own controls:
   commit and the runs.
 - **Commit**: a commit picker (see AR15) over the commits at which the selected
   machine has runs. Disabled until a machine is selected, showing "Select a
-  machine first". Clearing the commit clears the runs.
+  machine first". Clearing the commit clears the runs. Once the side has a
+  commit, "View on {label}" (see AR20) links it from the end of the picker's
+  label line: beside the label rather than in it, so that it is no part of the
+  picker's name.
 - **Runs**: a checkbox list of the selected machine's runs at the selected
   commit, in the order they were measured, in a box of its own that scrolls
   when they are many. Each run shows its measurement time and its shortened UUID
@@ -69,6 +74,14 @@ Each side has its own controls:
 Each side's controls span its box, and the two sides share the width equally,
 so that nothing moves as a side's selections change, such as when its runs are
 listed.
+
+Below the two sides, "Diff on {label}" (see AR20), followed by the two commits'
+display values, as in `Diff on GitHub: 0f985af790f8 → 014621ede7c1`, links the
+changes from side A's commit, which fills in `{from}`, to side B's, which fills
+in `{to}`, even when B's is the older. It is shown only while both sides have a
+commit in the same suite, since suites may have different templates. When it
+appears, it pushes what is below it down a line, as a side's runs do when they
+are listed.
 
 A **Swap sides** button between the two sides exchanges their suite, machine,
 commit and runs, each side keeping the runs it had selected. No samples need to

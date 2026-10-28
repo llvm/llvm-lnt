@@ -262,7 +262,7 @@ libcxx › Commits
 | <other commit-fields>                                             |
 +-------------------------------------------------------------------+
 
-[<- Previous commit] [Next commit ->] [Delete commit]
+[<- Previous commit] [Next commit ->] [View on GitHub] [Delete commit]
 
 ## Regressions
 
@@ -308,6 +308,9 @@ cleared.
 Previous / next buttons allow navigating to the previous or next commit based on ordinals.
 Each is greyed out when there is no such commit: when the commit has no ordinal, and at
 either end of the ordered range.
+
+"View on {label}" (see AR20) follows them, as a button like them. The changes since the previous
+commit are left to the Graph and Compare pages.
 
 ### Delete commit
 
@@ -355,7 +358,7 @@ libcxx › Regressions
 | Title      find_if slowdown                          [Edit]   |
 | State      (active) [active v]                                |
 | Bug        https://github.com/llvm/llvm-project/...  [Edit]   |
-| Commit     014621ede7c1                              [Edit]   |
+| Commit     014621ede7c1  View on GitHub              [Edit]   |
 | Created    2026-08-31, 3:03:36 PM                             |
 | Notes      Bisected to the vectorizer change.        [Edit]   |
 +---------------------------------------------------------------+
@@ -400,9 +403,11 @@ included.
   their line breaks.
 - State shows the state's colored badge, then a dropdown listing every state.
   Picking a state saves it (see AR13).
-- Commit links to the commit's detail page, showing its display value. It is
-  edited in place with a commit picker that offers every commit of the suite
-  (see AR15). Emptying the picker clears the regression's commit.
+- Commit links to the commit's detail page, showing its display value, followed
+  by "View on {label}" (see AR20), which links the commit itself rather than the
+  changes leading to it. It is edited in place with a commit picker that offers
+  every commit of the suite (see AR15). Emptying the picker clears the
+  regression's commit.
 
 ### Delete regression
 

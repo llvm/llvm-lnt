@@ -98,6 +98,27 @@ test('compares the runs of two commits the URL names', async ({ page, request })
   expect(await positionOf(cells.nth(1))).toBe('static')
 })
 
+test("links each side's commit, and the changes from A to B, on GitHub (CP1)", async ({
+  page,
+  request,
+}) => {
+  const [older, newer] = await newestCommits(request)
+  // Side A newer than side B: the changes are still from A to B.
+  await page.goto(
+    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newer.value}` +
+      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${older.value}`,
+  )
+
+  const github = 'https://github.com/llvm/llvm-project'
+  const viewOn = (side: 'A' | 'B') =>
+    sideOf(page, side).getByRole('link', { name: /^View on GitHub/ })
+  await expect(viewOn('A')).toHaveAttribute('href', `${github}/commit/${newer.value}`)
+  await expect(viewOn('B')).toHaveAttribute('href', `${github}/commit/${older.value}`)
+  const changes = page.getByRole('main').getByRole('link', { name: /^Diff on GitHub: / })
+  await expect(changes).toHaveAttribute('href', `${github}/compare/${newer.value}...${older.value}`)
+  await expect(changes).toHaveAttribute('target', '_blank')
+})
+
 test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, request }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(

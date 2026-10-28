@@ -6,7 +6,15 @@ import { withoutNeighbours } from '../../api/commits'
 import { INACTIVITY_HELP } from '../../inactivity'
 import type { SuiteSchema } from '../../api/suites'
 import { signIn, TOKEN } from '../../test/auth'
-import { commit, cursorPage, regression, run, SUITE, uuidOf } from '../../test/fixtures'
+import {
+  commit,
+  cursorPage,
+  NO_REPOSITORY,
+  regression,
+  run,
+  SUITE,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -309,6 +317,41 @@ describe('the Commit Detail page', () => {
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Commit: prev99')
       await expectInfo(0, ['Commit', 'prev99'])
       expect(screen.queryByRole('textbox', { name: 'Tag' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('its link into the repository', () => {
+    it('leads to the commit in a new tab, among the navigation buttons', async () => {
+      renderCommit()
+
+      await screen.findByRole('group', { name: 'Commit' })
+      const viewOn = link('View on GitHub')
+      expect(viewOn).toHaveAttribute('href', `https://github.com/llvm/llvm-project/commit/${VALUE}`)
+      expect(viewOn).toHaveAttribute('target', '_blank')
+      expect(viewOn).toHaveAttribute('rel', 'noopener noreferrer')
+      // Looking like the buttons beside it, rather than beside the commit string. A comparison
+      // with the previous commit is left to the Graph and Compare pages.
+      expect(viewOn).toHaveClass('button')
+      expect(main().getAllByRole('link', { name: /^View/ })).toEqual([viewOn])
+    })
+
+    it('leads to a commit with no ordinal too', async () => {
+      renderCommit({
+        detail: () => HttpResponse.json({ ...DETAIL, ordinal: null, previous: null, next: null }),
+      })
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(link('View on GitHub')).toHaveAttribute(
+        'href',
+        `https://github.com/llvm/llvm-project/commit/${VALUE}`,
+      )
+    })
+
+    it('is not shown when the suite has no template of its URL', async () => {
+      renderCommit({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
+
+      await screen.findByRole('group', { name: 'Commit' })
+      expect(main().queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
     })
   })
 

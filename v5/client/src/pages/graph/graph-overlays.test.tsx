@@ -8,7 +8,14 @@ import type { SuiteSchema } from '../../api/suites'
 import type { PlotGeometry } from '../../components/chart'
 import { formatTimestamp, shortUuid } from '../../format'
 import { signIn } from '../../test/auth'
-import { cursorPage, metric, regression, regressionDetail, uuidOf } from '../../test/fixtures'
+import {
+  cursorPage,
+  metric,
+  NO_REPOSITORY,
+  regression,
+  regressionDetail,
+  uuidOf,
+} from '../../test/fixtures'
 import { hoverText } from '../../test/hover-text'
 import { errorResponse, mockApi, ndjsonResponse } from '../../test/mock-api'
 import {
@@ -335,6 +342,64 @@ describe('the point details (GR11)', () => {
     const compare = details().getByRole('link', { name: 'Compare with previous commit' })
     expect(compare).toHaveAttribute('aria-disabled', 'true')
     expect(compare).toHaveAccessibleDescription('This is the first point of its trace.')
+  })
+
+  describe('its links into the repository', () => {
+    const diffLink = () =>
+      details().getByRole('link', { name: 'Diff with previous commit on GitHub' })
+
+    it('lead to the commit, and to the changes since the point before, in a new tab', async () => {
+      mockWorld({ samples: SAMPLES })
+      renderPage(`${ONE_MACHINE}&test=a`)
+      await waitFor(() => expect(dataTraces()).toHaveLength(1))
+      draw()
+
+      click('a - m1', 1)
+
+      const viewOn = details().getByRole('link', { name: 'View on GitHub' })
+      expect(viewOn).toHaveAttribute('href', 'https://github.com/llvm/llvm-project/commit/c20')
+      // The same two commits as the comparison with the point before.
+      const diff = diffLink()
+      expect(diff).toHaveAttribute(
+        'href',
+        'https://github.com/llvm/llvm-project/compare/c10...c20',
+      )
+      for (const shown of [viewOn, diff]) {
+        expect(shown).toHaveAttribute('target', '_blank')
+        expect(shown).toHaveAttribute('rel', 'noopener noreferrer')
+      }
+    })
+
+    it('lead to no changes from the first point of a trace, saying why', async () => {
+      mockWorld({ samples: SAMPLES })
+      renderPage(`${ONE_MACHINE}&test=a`)
+      await waitFor(() => expect(dataTraces()).toHaveLength(1))
+      draw()
+
+      click('a - m1', 0)
+
+      const diff = diffLink()
+      expect(diff).toHaveAttribute('aria-disabled', 'true')
+      expect(diff).not.toHaveAttribute('href')
+      expect(diff).toHaveAccessibleDescription('This is the first point of its trace.')
+      expect(details().getByRole('link', { name: 'View on GitHub' })).toHaveAttribute(
+        'href',
+        'https://github.com/llvm/llvm-project/commit/c10',
+      )
+    })
+
+    it('are not shown when the suite has no templates of their URLs', async () => {
+      const bare = { ...GRAPH_SUITE, name: 'bare', repository: NO_REPOSITORY }
+      mockWorld({ samples: SAMPLES, suites: [bare] })
+      renderPage('/graph?suite=bare&machine=m1&metric=execution_time&test=a')
+      await waitFor(() => expect(dataTraces()).toHaveLength(1))
+      draw()
+
+      click('a - m1', 1)
+
+      expect(details().getByRole('link', { name: 'Compare with previous commit' })).toBeVisible()
+      expect(details().queryByRole('link', { name: /^(View|Diff)/ })).not.toBeInTheDocument()
+    })
   })
 
   it('follows its point as the chart is drawn again', async () => {

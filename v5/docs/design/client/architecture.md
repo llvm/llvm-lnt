@@ -427,3 +427,26 @@ try to leave again; leaving the SPA, the browser asks with its own prompt.
 Changes still being saved are unsaved: leaving does not cancel the save, but its
 failure could no longer be shown. The form's Cancel, and the form closing on its
 own (once saved, or once what it edits is gone), ask nothing.
+
+
+## AR20: Repository Links
+
+A page may link a commit, or the changes between two commits, into the
+repository that the suite's commits come from (see D4's `repository`), where
+its spec says so:
+
+- A link to a commit, "View on {label}", leads to the suite's `commit_url`
+  filled in with the commit's commit string. A link to the changes between two
+  commits, a "Diff ... on {label}" whose text the page gives, leads to its
+  `range_url` filled in with two commit strings, and the page says which
+  commits fill in `{from}` and `{to}`. Templates are filled in as D4 says.
+- When the suite has no `label`, "on {label}" reads "in repository" instead:
+  "View in repository", "Diff ... in repository".
+- Both kinds of link open in a new tab.
+- A link is shown only when the suite sets the template it needs, and that
+  template passes D4's rules, which the UI checks again rather than trust the
+  API with them. Otherwise, the link is not shown at all, not even disabled. A
+  page may show a link to changes disabled (see AR8) while it lacks one of the
+  two commits.
+- A commit needs only its commit string to be linked, so a commit without an
+  ordinal is linked too.

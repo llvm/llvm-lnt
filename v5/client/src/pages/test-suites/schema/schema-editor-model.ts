@@ -4,25 +4,24 @@
  *
  * The checks of names and of URL templates only spare the user a round trip: the server validates
  * every schema in full, and is authoritative. They mirror its rules (D4, D5; `suites/schema.py` on
- * the server) and leave everything else to it.
+ * the server) and leave everything else to it. The check of URL templates (`templateProblem`) is
+ * shared with the links built from them, which do not trust the server's alone (AR20).
  */
 
 import type { Schemas } from '../../../api/client'
 import type { SuiteSchema } from '../../../api/suites'
+import { templateProblem, type Repository } from '../../../repository'
 import {
   flagAllowed,
   isTextKey,
   LIST_INFO,
   LISTS,
-  PLACEHOLDERS,
   REPOSITORY_KEYS,
   URL_KEYS,
   type AttributeType,
   type ListName,
   type PresentationKey,
-  type Repository,
   type RepositoryKey,
-  type UrlKey,
 } from './schema-lists'
 
 /**
@@ -250,41 +249,6 @@ export function suiteNameProblem(name: string, existing: readonly string[]): str
     )
   }
   if (existing.includes(name)) return `There is already a suite named '${name}'.`
-  return undefined
-}
-
-// D4's rules for URL templates: an http or https URL that names its host literally, with no space
-// or ASCII control character -- a set spelled out, rather than "whitespace", which JavaScript and
-// the server's Python do not agree on -- and no brace but those of the placeholders it accepts.
-// `client/src/test/url-templates.json` holds the cases both must accept or refuse alike.
-// Without the `u` flag, `i` folds no non-ASCII letter onto an ASCII one, unlike Python's
-// IGNORECASE, which the server limits to ASCII: U+017F (the long s) does not pass for an `s`.
-const URL_SCHEME = /^https?:\/\//i
-// eslint-disable-next-line no-control-regex
-const URL_EXCLUDED = /[\u0000-\u0020\u007f]/
-const PLACEHOLDER = /\{([^{}]*)\}/g
-
-/** Why `template` cannot be the repository's `key`, if it cannot. */
-export function templateProblem(key: UrlKey, template: string): string | undefined {
-  const placeholders = PLACEHOLDERS[key]
-  const accepted = placeholders.map((name) => `{${name}}`).join(' and ')
-  if (URL_EXCLUDED.test(template)) return 'A URL cannot contain spaces or ASCII control characters.'
-  const scheme = URL_SCHEME.exec(template)
-  if (scheme === null) return 'A URL starts with http:// or https://.'
-  for (const [placeholder, name] of template.matchAll(PLACEHOLDER)) {
-    if (!placeholders.includes(name)) {
-      return `${placeholder} is not a placeholder this URL accepts, only ${accepted}.`
-    }
-  }
-  if (/[{}]/.test(template.replace(PLACEHOLDER, ''))) {
-    return `This URL cannot contain braces other than those of ${accepted}.`
-  }
-  if (placeholders.some((name) => !template.includes(`{${name}}`))) {
-    return `This URL must contain ${accepted}.`
-  }
-  const host = template.slice(scheme[0].length).split(/[/?#]/, 1)[0]
-  if (host === '') return 'A URL names a host after http:// or https://.'
-  if (host.includes('{')) return 'A URL names its host as it is, without a placeholder.'
   return undefined
 }
 

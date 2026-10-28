@@ -7,6 +7,14 @@
   gap: var(--lnt-space-1);
 }
 
+/* The label, and what goes beside it at the end of its line (see `Combobox`'s `labelAside`). */
+.labelLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lnt-space-2);
+}
+
 /* A field that fills the rest of its row. */
 .fill {
   flex: 1;

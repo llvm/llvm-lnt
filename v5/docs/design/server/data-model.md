@@ -312,10 +312,11 @@ other key is rejected with 400.
 - `commit_url` is a template of the URL of a commit, in which `{commit}` stands
   for a commit string -- the commit's identity, not its display value (see D1).
 - `range_url` is a template of the URL of the changes between two commits, in
-  which `{from}` stands for the commit string of the older commit and `{to}` for
-  that of the newer one. As in Git's `from..to`, the changes of `from` are
-  excluded and those of `to` are included. GitHub's `compare/{from}...{to}`
-  fits, since on a linear history its three dots mean the same.
+  which `{from}` stands for the commit string of the commit the changes start
+  after and `{to}` for that of the commit they end at. As in Git's `from..to`,
+  the changes of `from` are excluded and those of `to` are included. GitHub's
+  `compare/{from}...{to}` fits, since on a linear history its three dots mean
+  the same.
 
 A template is rejected with 400 unless:
 - it contains each of its placeholders at least once, in any order, and no other

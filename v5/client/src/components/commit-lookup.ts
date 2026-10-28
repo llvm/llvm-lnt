@@ -1,6 +1,6 @@
 /** What a commit picker knows of a commit (AR15), apart from the picker, for others to share. */
 
-import { queryOptions, type QueryClient, type QueryKey } from '@tanstack/react-query'
+import { queryOptions, useQuery, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { lookUpCommit, type CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
 import type { SuiteSchema } from '../api/suites'
@@ -42,4 +42,15 @@ export function storeCommitLookup(
   commit: Suggestion,
 ) {
   queryClient.setQueryData(commitLookupKey(suite, filters, commit.key), commit)
+}
+
+/**
+ * The commit `commit` as a commit picker under `filters` shows it: by its display value once the
+ * picker has looked it up, and by its commit string until then. It reads the picker's lookup rather
+ * than asking for it again, so pass the picker's own filters.
+ */
+export function usePickedCommitText(schema: SuiteSchema, filters: CommitFilters, commit: string) {
+  // The picker keeps its lookup fresh: another reader need not fetch it again when it appears.
+  const lookup = useQuery({ ...commitLookupQuery(schema, filters, commit), refetchOnMount: false })
+  return lookup.data?.text ?? commit
 }

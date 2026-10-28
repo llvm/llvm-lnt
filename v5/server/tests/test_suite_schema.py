@@ -372,7 +372,7 @@ class TestDashboard:
         )
 
 
-# Templates the web UI's schema editor checks against too, so that the two agree. Kept with the
+# Templates the web UI checks against too, so that the two agree. Kept with the
 # client's tests, since the client is built from its own directory alone.
 URL_TEMPLATES: dict[str, Any] = json.loads(
     (Path(__file__).parents[2] / "client" / "src" / "test" / "url-templates.json").read_text()

@@ -270,7 +270,7 @@ Label         [GitHub                                                    ]
 Commit URL    [https://github.com/llvm/llvm-project/commit/{commit}      ]
               {commit} is replaced by the commit.
 Range URL     [                                                          ]
-              {from} and {to} are replaced by the older and the newer commit.
+              {from} and {to} are replaced by the commit the changes start after and the one they end at.
 
                                                                            [Cancel] [Create]
 

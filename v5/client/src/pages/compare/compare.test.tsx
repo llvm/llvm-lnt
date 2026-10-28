@@ -5,7 +5,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
 import { currentUrl, main, query, renderPage } from '../../test/page'
 import { pick, pickOption, selectButton } from '../../test/select'
-import { uuidOf } from '../../test/fixtures'
+import { NO_REPOSITORY, SUITE, uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, ROWS, runBox, sideOf } from './compare-world'
 
 // The page renders its chart, which Plotly cannot draw in jsdom (see test/chart.tsx).
@@ -243,6 +243,86 @@ describe('the Compare page (CP1)', () => {
     await waitFor(() => expect(query().commit_a).toBeUndefined())
     expect(query().machine_a).toEqual(['m2'])
   })
+})
+
+describe('the links into the repository (CP1, AR20)', () => {
+  const GITHUB = 'https://github.com/llvm/llvm-project'
+  const viewOn = (side: 'A' | 'B', commit: string) =>
+    within(sideOf(side)).queryByRole('link', { name: `View on GitHub: ${commit}` })
+  const diff = () => main().queryByRole('link', { name: /^Diff/ })
+
+  it('link each side’s commit beside its picker, once it has one, in a new tab', async () => {
+    mockWorld()
+    renderPage('/compare?suite_a=libcxx&machine_a=m1')
+    await waitFor(() =>
+      expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeEnabled(),
+    )
+    expect(within(sideOf('A')).queryByRole('link', { name: /^View/ })).not.toBeInTheDocument()
+
+    await pick('Commit', 'c1', sideOf('A'))
+
+    const link = await waitFor(() => viewOn('A', 'c1')!)
+    expect(link).toHaveAttribute('href', `${GITHUB}/commit/c1`)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    // Beside the picker's label, rather than in it.
+    expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeInTheDocument()
+    // Only once both sides have a commit is there a range.
+    expect(diff()).not.toBeInTheDocument()
+  })
+
+  it('link the changes from side A’s commit to side B’s, below the sides', async () => {
+    mockWorld()
+    renderPage(COMPARED)
+    await comparison()
+
+    expect(viewOn('B', 'c2')).toHaveAttribute('href', `${GITHUB}/commit/c2`)
+    const link = main().getByRole('link', { name: 'Diff on GitHub: c1 → c2' })
+    expect(link).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('name the commits by their display values', async () => {
+    mockWorld({ revisions: { c1: 'r1', c2: 'r2' } })
+    renderPage(COMPARED)
+    await comparison()
+
+    const side = await within(sideOf('A')).findByRole('link', { name: 'View on GitHub: r1' })
+    expect(side).toHaveAttribute('href', `${GITHUB}/commit/c1`)
+    const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → r2' })
+    expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)
+  })
+
+  it('link the changes from side A’s commit to side B’s, even from the newer', async () => {
+    mockWorld()
+    renderPage(
+      '/compare?suite_a=libcxx&machine_a=m1&commit_a=c2&suite_b=libcxx&machine_b=m1&commit_b=c1',
+    )
+
+    const link = await main().findByRole('link', { name: 'Diff on GitHub: c2 → c1' })
+    expect(link).toHaveAttribute('href', `${GITHUB}/compare/c2...c1`)
+  })
+
+  it('link no changes between sides in different suites', async () => {
+    const twin = { ...SUITE, name: 'twin' }
+    mockWorld({ suites: [SUITE, twin] })
+    renderPage(COMPARED.replace('suite_b=libcxx', 'suite_b=twin'))
+    await comparison()
+
+    expect(viewOn('A', 'c1')).toBeInTheDocument()
+    expect(viewOn('B', 'c2')).toBeInTheDocument()
+    expect(diff()).not.toBeInTheDocument()
+  })
+
+  it('are not shown when the suite has no templates of their URLs', async () => {
+    mockWorld({ suites: [{ ...SUITE, repository: NO_REPOSITORY }] })
+    renderPage(COMPARED)
+    await comparison()
+
+    expect(main().queryByRole('link', { name: /^(View|Diff)/ })).not.toBeInTheDocument()
+  })
+
 })
 
 describe('the metric (CP1)', () => {

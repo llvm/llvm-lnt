@@ -27,6 +27,7 @@ import { InfoBox, InfoRow } from '../../components/info-box'
 import { InlineEdit } from '../../components/inline-edit'
 import { InactivityRow } from '../../components/inactivity-row'
 import { CursorPager } from '../../components/pagination'
+import { CommitRepositoryLink } from '../../components/repository-link'
 import { runColumns } from '../../components/run-columns'
 import { SearchInput } from '../../components/search-input'
 import { useTextFilter } from '../../components/use-text-filter'
@@ -204,7 +205,10 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
   )
 }
 
-/** Previous commit, Next commit, and Delete commit, with its confirmation below them (DT3). */
+/**
+ * Previous commit, Next commit, the commit in the repository, and Delete commit, with its
+ * confirmation below them (DT3).
+ */
 function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
   const suite = schema.name
   const { value } = commit
@@ -244,6 +248,7 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
     >
       {link(commit.previous, 'No commit comes before this one.', '← Previous commit')}
       {link(commit.next, 'No commit comes after this one.', 'Next commit →')}
+      <CommitRepositoryLink repository={schema.repository} commit={value} button />
     </DetailActionRow>
   )
 }
