@@ -11,7 +11,7 @@ import type { APIRequestContext, TestInfo } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { HARDENED, TAG, uuidFor } from '../tools/synthetic.ts'
 import { adminToken, expect, test } from './fixtures.ts'
-import { clickSuggestion, pickOption, typeInto } from './select.ts'
+import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 type RegressionDetail = components['schemas']['RegressionDetail']
@@ -63,8 +63,7 @@ test.describe('filtering', () => {
     const list = table(page, 'Regressions')
 
     const machine = page.getByRole('combobox', { name: 'Machine' })
-    await typeInto(machine, 'hardenedfast')
-    await clickSuggestion(page.getByRole('option', { name: HARDENED }))
+    await pickSuggestion(page, 'Machine', 'hardenedfast', HARDENED)
 
     await expect(page).toHaveURL(`/suites/libcxx?tab=regressions&machine=${HARDENED}`)
     await settled(list)
@@ -302,7 +301,7 @@ test.describe('the commit picker', () => {
       await form.getByLabel('Title').fill(title)
       // The press below does not scroll, so Create is brought into view now, before the list
       // opens: React Aria closes the list when the page scrolls, which puts back the text of the
-      // picker's value. Waiting until it is in view lets the scroll event arrive first.
+      // picker's value.
       await create.scrollIntoViewIfNeeded()
       await expect(create).toBeInViewport()
 

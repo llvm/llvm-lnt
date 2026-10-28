@@ -23,13 +23,13 @@ export async function pickOption(scope: Page | Locator, label: string, option: s
 }
 
 /**
- * Type `text` into the combobox `input`, which opens its list: tests type into comboboxes with this.
+ * Type `text` into the combobox `input`, opening its list, as tests do for every combobox.
  *
  * A combobox's list closes when the page scrolls (AR14), and focusing an input out of view scrolls
  * the page to it. `fill` focuses and types at once, before the browser reports that scroll in its
  * next rendering update, which would close the list just opened. So the input is focused first, and
- * typed into once that update is over. This relies on the page scrolling at once rather than
- * smoothly, and on scroll events being dispatched before the update's animation frame callbacks.
+ * typed into once that update is over: the event loop dispatches its scroll events before its
+ * animation frame callbacks. This relies on the page scrolling at once rather than smoothly.
  */
 export async function typeInto(input: Locator, text: string) {
   await expect(input).toBeEnabled()
@@ -40,9 +40,11 @@ export async function typeInto(input: Locator, text: string) {
 
 /**
  * Click `suggestion` in a combobox's open list, without scrolling, which would close the list
- * (AR14): Playwright otherwise scrolls an element into view before clicking it, and does so even
- * when it is in view once a first attempt found it still moving, as the list does while it opens.
- * The list shows beside its input, which is in view once typed into.
+ * (AR14). Playwright otherwise scrolls an element into view before clicking it, and on each retry
+ * after a failed check, such as the list still moving as it opens, even an element already in
+ * view. The list shows beside its input, which is in view once focused. Only for a suggestion the
+ * list shows without being scrolled: one further down a long list is not scrolled to, and the
+ * click times out.
  */
 export async function clickSuggestion(suggestion: Locator) {
   await suggestion.click({ scroll: 'none' })

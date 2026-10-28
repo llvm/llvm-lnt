@@ -248,14 +248,17 @@ describe('Combobox with local suggestions', () => {
     expect(value()).toBe('linux-x86_64')
   })
 
-  it('closes the list when the page scrolls, putting back the text of its value', async () => {
+  it.each([
+    ['the page', () => window],
+    ['a box holding the combobox', () => input().closest('form')!],
+  ])('closes the list when %s scrolls, putting back the text of its value', async (_, box) => {
     const user = userEvent.setup()
     renderWithProviders(<MachinePicker initial={MACHINES[0]} />)
 
     await user.tripleClick(input())
     await user.keyboard('mac')
     expect(options()).toEqual(['macos-arm64'])
-    fireEvent.scroll(window)
+    fireEvent.scroll(box())
     expect(listbox()).toBeNull()
     expect(input()).toHaveValue('linux-x86_64')
     expect(input()).toHaveFocus()

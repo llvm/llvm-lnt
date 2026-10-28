@@ -74,8 +74,8 @@ async function expectDefault(field: Locator, name: string) {
 
 /**
  * Pick the function `name` in the column of `side`, whose suggestions show their share too. Only
- * once the column shows its profile's functions for good: a new profile mounts a new selector,
- * which would lose what was typed.
+ * once the column shows its profile's functions for good: a new profile, or counter, mounts a new
+ * selector, which would lose what was typed.
  */
 async function pickFunction(page: Page, side: 'A' | 'B', name: string) {
   await typeInto(columnOf(page, side).getByRole('combobox', { name: 'Function' }), name)

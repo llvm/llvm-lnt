@@ -9,7 +9,7 @@ import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/
 import { cardOf } from './cards.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
-import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
+import { pickOption, pickSuggestion, typeInto } from './select.ts'
 import { plotOf, pointOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -496,8 +496,7 @@ test('adds the comparison to a new regression, then to that one', async ({
     // Adding the same indicator again adds none.
     await toggle.click()
     const add = page.getByRole('form', { name: 'Add to existing' })
-    await typeInto(add.getByRole('combobox', { name: 'Regression' }), 'From')
-    await clickSuggestion(page.getByRole('option', { name: 'From compare' }))
+    await pickSuggestion(add, 'Regression', 'From', 'From compare')
     await add.getByRole('button', { name: 'Add indicators' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Added' })).toHaveText(
       'Added 0 indicators to From compare. 1 indicator already existed.',
