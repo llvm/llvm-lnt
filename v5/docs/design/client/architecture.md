@@ -460,10 +460,11 @@ so:
 - Resting the pointer on the link opens its card beside it, after a short delay.
   The card stays open while the pointer is on the link or on the card, so that
   its links can be followed, and closes once the pointer has left both, after a
-  short delay. It also closes on Escape, wherever the focus is, and when its link
-  moves, as it does when the page scrolls. Once Escape has closed it, or kept it
-  from opening, it opens again only once the pointer has left the link and come
-  back.
+  short delay. It also closes on Escape, wherever the focus is, unless what has
+  the focus takes the key for itself, such as GR11's "Create regression" form,
+  and when its link moves, as it does when the page scrolls. Once Escape has
+  closed it, or kept it from opening, it opens again only once the pointer has
+  left the link and come back.
 - Only hovering opens it: not keyboard focus, so that moving through a table
   from the keyboard does not open a card on every row, and not touch, which has
   no hover. Nothing is lost that way, since everything the card shows is also on

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import { PopoverContext } from 'react-aria-components'
 import { useHover } from 'react-aria/useHover'
+import clsx from 'clsx'
 import { useNestedOverlay } from './nested-overlays'
 import { Popover } from './popover'
+import styles from './hover-card.module.css'
 import type { HoverCardState } from './use-hover-card'
 
 interface Props {
@@ -49,7 +51,7 @@ function OpenHoverCard({ card, labelledBy, popoverClassName, className, children
           // A click on its text gives it the focus, rather than drop the focus to the page, so that
           // the focus can return to the link when it closes.
           tabIndex={-1}
-          className={className}
+          className={clsx(styles.card, className)}
           {...hoverProps}
         >
           {children}

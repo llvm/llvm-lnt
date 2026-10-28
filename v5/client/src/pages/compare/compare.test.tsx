@@ -249,6 +249,8 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
   const GITHUB = 'https://github.com/llvm/llvm-project'
   const commitLink = (side: 'A' | 'B', name: string) =>
     within(sideOf(side)).queryByRole('link', { name: `Commit ${name}` })
+  const findCommitLink = (side: 'A' | 'B', name: string) =>
+    within(sideOf(side)).findByRole('link', { name: `Commit ${name}` })
   const diff = () => main().queryByRole('link', { name: /^Diff/ })
 
   it('link each side’s commit to its page beside its picker, once it has one, with its card', async () => {
@@ -262,7 +264,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
 
     await pick('Commit', 'c1', sideOf('A'))
 
-    const link = await waitFor(() => commitLink('A', 'c1')!)
+    const link = await findCommitLink('A', 'c1')
     expect(link).toHaveAttribute('href', '/suites/libcxx/commits/c1')
     // Beside the picker's label, rather than in it.
     expect(within(sideOf('A')).getByRole('combobox', { name: 'Commit' })).toBeInTheDocument()
@@ -287,11 +289,33 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const card = await commitCard(await waitFor(() => commitLink('B', 'r2')!))
+    const card = await commitCard(await findCommitLink('B', 'r2'))
     expect(card).toHaveAccessibleName('r2')
     expect(card).toHaveTextContent('c2')
     expect(resolves).toEqual([])
   })
+
+  it.each([
+    ['still pending', () => new Promise<never>(() => {})],
+    ['has failed', () => errorResponse(500, 'internal_error', 'The lookup broke.')],
+  ])(
+    'show the card of a commit as resolved for it while its picker’s lookup is %s',
+    async (_, answer) => {
+      mockWorld({ revisions: { c1: 'r1', c2: 'r2' } })
+      server.use(
+        mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+          const query = new URL(request.url).searchParams
+          return query.get('commit') === 'c2' ? (answer() as never) : undefined
+        }),
+      )
+      renderPage(COMPARED)
+
+      // By its commit string, which is all that is known of it.
+      const card = await commitCard(await findCommitLink('B', 'c2'))
+
+      await waitFor(() => expect(card).toHaveAccessibleName('r2'))
+    },
+  )
 
   it("leave the commit picker's list to it while a card is open", async () => {
     mockWorld()
@@ -299,12 +323,12 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const card = await commitCard(await waitFor(() => commitLink('A', 'c1')!))
+    const card = await commitCard(await findCommitLink('A', 'c1'))
     await user.click(within(sideOf('A')).getByRole('button', { name: /Show suggestions.*Commit/ }))
 
     // Not hidden from assistive technology, as it would be were the card the combobox's popover.
     expect(await screen.findByRole('listbox')).toBeInTheDocument()
-    expect(card.closest('[data-trigger]')).toBeNull()
+    expect(card).toBeInTheDocument()
   })
 
   it('link the changes from side A’s commit to side B’s, below the sides', async () => {
@@ -324,7 +348,7 @@ describe('the links to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED)
     await comparison()
 
-    const side = await waitFor(() => commitLink('A', 'r1')!)
+    const side = await findCommitLink('A', 'r1')
     expect(side).toHaveAttribute('href', '/suites/libcxx/commits/c1')
     const range = await main().findByRole('link', { name: 'Diff on GitHub: r1 → r2' })
     expect(range).toHaveAttribute('href', `${GITHUB}/compare/c1...c2`)

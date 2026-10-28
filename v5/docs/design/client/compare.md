@@ -14,7 +14,7 @@ suite-agnostic: each side selects its own suite. Layout:
 +-- Side A (Baseline) ----------------+       +-- Side B (New) -------------- [Pin as shadow] +
 | Suite            [libcxx         v] |       | Suite            [libcxx                   v] |
 | Machine          [linux-x86_64     ] | (<->) | Machine          [linux-x86_64               ] |
-|                                  ⓘ |       |                                             ⓘ |
+|                                   ⓘ |       |                                              ⓘ |
 | Commit           [0f985af790f8    ] |       | Commit           [014621ede7c1              ] |
 | Runs             [-] Run            |       | Runs             [x] Run                      |
 |                  +----------------+ |       |                  +--------------------------+ |

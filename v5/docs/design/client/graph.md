@@ -354,15 +354,15 @@ hidden until the pointer moves again. It shows:
 
 While it is open, the popover follows its point -- as more data arrives or a
 baseline changes the y-axis range, the chart is resized or the page scrolls --
-and updates its contents as the data arrives. It closes on Escape, unless
-pressed in its "Create regression" form, which closes alone, even with the
-commit's card open, or while the commit's card is open (see AR21); on its close
+and updates its contents as the data arrives. It closes on Escape, unless the
+commit's card is open, which Escape then closes alone (see AR21), or Escape is
+pressed in its "Create regression" form, which closes alone; on its close
 button; on a click anywhere but on it, a marker of its point's scatter or its
-commit's card; and on any change to the chart other than data arriving, such as a
-zoom or pan, or a change to the selected tests, machines, metric, aggregation or
-regression annotation mode, and once its point is no longer drawn. A change to the baselines (GR9) or the
-highlighted commits (GR16) does not close it: neither changes which point it is
-about.
+commit's card; and on any change to the chart other than data arriving, such as
+a zoom or pan, or a change to the selected tests, machines, metric, aggregation
+or regression annotation mode, and once its point is no longer drawn. A change
+to the baselines (GR9) or the highlighted commits (GR16) does not close it:
+neither changes which point it is about.
 Moving the focus out of it does not close it. A click on another point opens
 that point's popover instead.
 Clicking anything else on the chart does what its own section says (GR15), or

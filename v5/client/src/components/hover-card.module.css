@@ -1,0 +1,4 @@
+/* Focused by a click only, where an outline means nothing. */
+.card:focus {
+  outline: none;
+}

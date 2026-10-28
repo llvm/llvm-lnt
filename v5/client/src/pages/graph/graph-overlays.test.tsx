@@ -429,6 +429,27 @@ describe('the point details (GR11)', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
+    it('leaves the details closing on a press outside them and it', async () => {
+      const { card } = await openCard()
+
+      fireEvent.pointerDown(main().getByRole('heading', { name: 'Graph' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(card).not.toBeInTheDocument()
+    })
+
+    it('is no part of the details once closed, which Escape then closes', async () => {
+      const user = userEvent.setup()
+      const { card } = await openCard()
+      // Closed by the pointer leaving it, rather than by Escape.
+      await user.hover(main().getByRole('heading', { name: 'Graph' }))
+      await waitFor(() => expect(card).not.toBeInTheDocument())
+
+      await user.keyboard('{Escape}')
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
     it('closes first on Escape, giving the focus back to its link, then the details', async () => {
       const user = userEvent.setup()
       const { link, card } = await openCard()
