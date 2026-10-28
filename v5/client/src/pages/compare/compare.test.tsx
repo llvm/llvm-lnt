@@ -378,6 +378,7 @@ describe('the ways to the sides’ commits (CP1, AR20, AR21)', () => {
     renderPage(COMPARED.replace('suite_b=libcxx', 'suite_b=twin'))
     await comparison()
 
+    expect(await cardTarget('A', 'c1', 'c1')).toBe('/suites/libcxx/commits/c1')
     expect(await cardTarget('B', 'c2', 'c2')).toBe('/suites/twin/commits/c2')
     expect(diff()).not.toBeInTheDocument()
   })

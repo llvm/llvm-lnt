@@ -13,18 +13,18 @@ import type { HoverCardState } from './use-hover-card'
 import styles from './commit-card.module.css'
 
 interface Props {
-  /** From the link's `useHoverCard`. */
+  /** From the trigger's `useHoverCard`. */
   card: HoverCardState
   schema: SuiteSchema
   /** The commit string. */
   value: string
-  /** The commit, as the page loaded it for the link's text, if it has. */
+  /** The commit, as the page loaded it for the trigger's text or name, if it has. */
   commit: Commit | undefined
 }
 
 /**
- * The card of a link to the commit `value` (AR21), while it is open: the commit as the page loaded
- * it, or else as fetched once the card is shown, since it is only rendered then.
+ * The card about the commit `value` (AR21), while it is open: the commit as the page loaded it, or
+ * else as fetched once the card is shown, since it is only rendered then.
  */
 export function CommitCard({ card, schema, value, commit }: Props) {
   const headingId = `${card.id}-heading`
@@ -50,10 +50,13 @@ export function CommitCard({ card, schema, value, commit }: Props) {
  * string does not fit on one.
  */
 function CommitString({ suite, value }: { suite: string; value: string }) {
+  const characters = Array.from(value)
+  const last = characters.pop()
   return (
     <span className={styles.commit}>
-      <Link to={commitPath(suite, value)} className={styles.commitLink}>
-        {value}
+      <Link to={commitPath(suite, value)}>
+        <span className={styles.wraps}>{characters.join('')}</span>
+        {last}
       </Link>
       <CopyButton text={value} icon>
         Copy commit

@@ -26,13 +26,17 @@
   margin: 0;
 }
 
+/*
+ * The commit string, which does not wrap at its end, so that its last character and the button
+ * after it go onto the next line together.
+ */
 .commit {
   composes: mono from './data-table.module.css';
   white-space: nowrap;
 }
 
-/* Wraps anywhere, as the row's value does, but not before the button after it (.commit). */
-.commitLink {
+/* All of the commit string but its last character, which wraps anywhere, as the row's value does. */
+.wraps {
   white-space: normal;
 }
 

@@ -183,8 +183,12 @@ test('the card a side’s ⓘ keeps open follows it from the keyboard (CP1, AR21
   await expect(info).toBeFocused()
   await expect(card).toBeVisible()
   // Tab past the card goes on to what follows the ⓘ, the picker, and closes the card.
-  const stops = await card.locator('a[href], button').count()
-  for (let i = 0; i <= stops; i++) await page.keyboard.press('Tab')
+  // Whether the card, which closes once the focus leaves it, holds the focus.
+  const id = await info.getAttribute('aria-details')
+  const inCard = () =>
+    page.evaluate((id) => !!document.getElementById(id!)?.contains(document.activeElement), id)
+  await page.keyboard.press('Tab')
+  for (let stops = 0; stops < 10 && (await inCard()); stops++) await page.keyboard.press('Tab')
   await expect(picker).toBeFocused()
   await expect(card).toBeHidden()
 

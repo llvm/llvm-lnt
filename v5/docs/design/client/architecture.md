@@ -478,10 +478,10 @@ commit one. Below, the link or the ⓘ is the card's *trigger*.
   ⓘ moving. Meanwhile, the card follows the ⓘ in the order in which Tab moves
   the focus. Focus alone does not open it. The ⓘ says to assistive technology
   whether its card is open.
-- The card never takes the focus, and does not keep it: when it closes with the
-  focus inside, the focus returns to its trigger. While it is open, assistive
-  technology can reach it from the trigger, as details of the trigger rather
-  than as a description of it, since it holds links.
+- The card never takes the focus of its own accord, and does not keep it: when
+  it closes with the focus inside, the focus returns to its trigger. While it is
+  open, assistive technology can reach it from the trigger, as details of the
+  trigger rather than as a description of it, since it holds links.
 - A card opened from inside a box floating over the page, such as a point's
   details on the Graph page (GR11), is part of that box: a press in the card is
   no press outside the box, and while the card is open, Escape closes the card

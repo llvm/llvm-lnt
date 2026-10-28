@@ -11,7 +11,10 @@ export const CLOSE_DELAY_MS = 300
 
 const TABBABLE = 'a[href], button:not(:disabled), input:not(:disabled), [tabindex]'
 
-/** What Tab can focus in `root`, in document order. */
+/**
+ * What Tab can focus in `root`, in document order: as far as a card goes, which holds links and
+ * buttons. Not a general test, which would also have to rule out what is hidden or inert.
+ */
 function tabbables(root: Element): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE)).filter(
     (element) => element.tabIndex >= 0,
@@ -22,8 +25,8 @@ function tabbables(root: Element): HTMLElement[] {
  * The mechanics of a card about a trigger (AR21), a link or a ⓘ: it opens once the pointer has
  * rested on the trigger for `OPEN_DELAY_MS`, stays open while the pointer is on the trigger or the
  * card, and closes `CLOSE_DELAY_MS` after the pointer has left both, on Escape, wherever the focus
- * is, or when the trigger moves. Neither keyboard focus nor touch opens it: `useHover` ignores
- * touch, and the mouse events a browser emulates after one.
+ * is, or when the trigger moves. Neither keyboard focus nor touch opens it by hovering:
+ * `useHover` ignores touch, and the mouse events a browser emulates after one.
  *
  * A ⓘ also toggles its card when activated, kept open whatever the pointer does, and followed by it
  * in the order of Tab, until it closes as AR21 says.
@@ -111,24 +114,36 @@ export function useHoverCard<Trigger extends HTMLElement>() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isOpen, isPending, close])
 
+  // Whether the card had the focus when a press outside it started.
+  const hadFocus = useRef(false)
   // A press on the ⓘ is its own: it toggles the card. A press elsewhere is reported once over, when
   // it has already moved the focus where it goes, so that closing the card does not take it back.
+  // A press on nothing that takes the focus drops it from the card to the page, from where the
+  // popover would give it to whatever had it when the card opened: it goes to the ⓘ instead.
   useInteractOutside({
     ref: popoverRef,
     isDisabled: !isOpen,
+    onInteractOutsideStart: () => {
+      hadFocus.current = !!popoverRef.current?.contains(document.activeElement)
+    },
     onInteractOutside: (event) => {
-      if (kept.current && !isInside(event.target as Element)) close()
+      if (!kept.current || isInside(event.target as Element)) return
+      if (hadFocus.current && document.activeElement === document.body) {
+        triggerRef.current?.focus({ preventScroll: true })
+      }
+      close()
     },
   })
 
   // A kept card comes right after its ⓘ in the order of Tab: Tab from the ⓘ leads into it, and out
   // of it, back to the ⓘ or on from it, rather than from whatever had the focus when the card
-  // opened, as its popover would have it. In the capture phase of the window, so as to come before
-  // the popover's own handling, at the document.
+  // opened, as its popover would have it. Registered while any card is open, but acting only while
+  // it is kept, in the capture phase of the window, so as to come before the popover's own
+  // handling, at the document. With Alt too, which Safari's Tab takes to reach links and buttons.
   useEffect(() => {
     if (!isOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key !== 'Tab' || event.ctrlKey || event.metaKey) return
       const card = popoverRef.current
       const trigger = triggerRef.current
       const focused = document.activeElement
@@ -138,6 +153,8 @@ export function useHoverCard<Trigger extends HTMLElement>() {
         if (event.shiftKey || first === undefined) return
         event.preventDefault()
         first.focus()
+        // Kept from the popover, which would take the focus on out of a card holding only `first`.
+        event.stopPropagation()
         return
       }
       if (!card.contains(focused)) return
@@ -148,9 +165,9 @@ export function useHoverCard<Trigger extends HTMLElement>() {
       if (tabbables(card).some((element) => focused.compareDocumentPosition(element) & ahead)) {
         return
       }
-      event.stopPropagation()
-      trigger.focus({ preventScroll: true })
       // Back to the ⓘ, or on to what follows it, where the browser moves the focus on from the ⓘ.
+      // Out of the card, the focus is no longer the popover's concern.
+      trigger.focus({ preventScroll: true })
       if (event.shiftKey) event.preventDefault()
     }
     window.addEventListener('keydown', onKeyDown, true)
@@ -196,7 +213,7 @@ export function useHoverCard<Trigger extends HTMLElement>() {
     triggerProps: {
       ref: triggerRef,
       ...hoverProps,
-      // Following the link is not waiting for its card.
+      // Following a link, or keeping a card open, is not waiting for it to open on hover.
       onPointerDown: () => {
         if (!open.current) cancel()
       },

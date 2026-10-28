@@ -18,8 +18,8 @@ interface Props {
 }
 
 /**
- * The card `card` opens, beside its link, while it is open: a non-modal popover, which neither
- * takes nor traps the focus, holding a group that the link refers to as its details. The group is
+ * The card `card` opens, beside its trigger, while it is open: a non-modal popover, which neither
+ * takes nor traps the focus, holding a group that the trigger refers to as its details. The group is
  * the popover's child, since a non-modal popover drops the id and the role it is given. Opened
  * inside a box floating over the page, it is part of that box (see `NestedOverlays`).
  */
@@ -31,7 +31,7 @@ function OpenHoverCard({ card, labelledBy, popoverClassName, className, children
   const { hoverProps } = useHover(card.cardHover)
   useNestedOverlay(card.popoverProps.ref)
   return (
-    // Not the popover of a React Aria component holding the link, such as a combobox's list, which
+    // Not the popover of a React Aria component holding the trigger, such as a combobox's list, which
     // would otherwise pass it its own settings.
     <PopoverContext.Provider value={null}>
       <Popover
@@ -49,7 +49,7 @@ function OpenHoverCard({ card, labelledBy, popoverClassName, className, children
           role="group"
           aria-labelledby={labelledBy}
           // A click on its text gives it the focus, rather than drop the focus to the page, so that
-          // the focus can return to the link when it closes.
+          // the focus can return to the trigger when it closes.
           tabIndex={-1}
           className={clsx(styles.card, className)}
           {...hoverProps}

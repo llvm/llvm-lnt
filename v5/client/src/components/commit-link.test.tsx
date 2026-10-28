@@ -293,11 +293,11 @@ describe('the hover mechanics', () => {
 
 describe('a ⓘ', () => {
   /** Render the ⓘ between a text box and another, as `renderLink` does. */
-  async function renderButton() {
+  async function renderButton(given: Commit | null = FULL) {
     renderWithProviders(
       <>
         <input aria-label="Search" />
-        <CommitCardButton schema={SUITE} value={HASH} commit={FULL} aria-label="Commit r593922">
+        <CommitCardButton schema={SUITE} value={HASH} commit={given ?? undefined} aria-label="Commit r593922">
           ⓘ
         </CommitCardButton>
         <input aria-label="After" />
@@ -308,6 +308,7 @@ describe('a ⓘ', () => {
   }
 
   const button = () => screen.getByRole('button', { name: 'Commit r593922' })
+  const after = () => screen.getByRole('textbox', { name: 'After' })
   const commitPageLink = () => within(card()).getByRole('link', { name: HASH })
   const leave = () => user.hover(screen.getByText('Elsewhere'))
 
@@ -405,13 +406,42 @@ describe('a ⓘ', () => {
     expect(queryCard()).not.toBeNull()
   })
 
+  it('leads Tab out of the card it keeps open on to what follows it, closing the card', async () => {
+    await renderButton()
+    await user.click(button())
+    await user.tab()
+    const stops: string[] = []
+    while (queryCard()?.contains(document.activeElement)) {
+      stops.push(document.activeElement!.textContent!)
+      await user.tab()
+    }
+    expect(stops).toEqual([HASH, '', 'View on GitHub'])
+    expect(after()).toHaveFocus()
+    expect(queryCard()).toBeNull()
+  })
+
+  it('leads Tab into a kept card that holds a single element', async () => {
+    server.use(
+      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+        errorResponse(500, 'internal', 'Boom.'),
+      ),
+    )
+    await renderButton(null)
+    await user.click(button())
+    // Fetched once shown, by when the card holds only the button trying again.
+    const retry = await waitFor(() => within(card()).getByRole('button', { name: 'Retry' }))
+    await user.tab()
+    expect(retry).toHaveFocus()
+    expect(queryCard()).not.toBeNull()
+  })
+
   it('leaves Tab alone when its card is not kept open', async () => {
     await renderButton()
     await user.hover(button())
     await wait(OPEN_DELAY_MS)
     button().focus()
     await user.tab()
-    expect(screen.getByRole('textbox', { name: 'After' })).toHaveFocus()
+    expect(after()).toHaveFocus()
   })
 
   it('closes its card on Escape, giving the focus back to it', async () => {
@@ -431,9 +461,25 @@ describe('a ⓘ', () => {
     await user.tab()
     expect(commitPageLink()).toHaveFocus()
 
-    await user.click(screen.getByRole('textbox', { name: 'After' }))
+    await user.click(after())
     expect(queryCard()).toBeNull()
-    expect(screen.getByRole('textbox', { name: 'After' })).toHaveFocus()
+    expect(after()).toHaveFocus()
+  })
+
+  it('gives the focus back to it when a press on nothing focusable closes its card', async () => {
+    await renderButton()
+    await user.click(screen.getByRole('textbox', { name: 'Search' }))
+    // Opened while the focus was elsewhere, which its popover would otherwise give it back to.
+    await user.hover(button())
+    await wait(OPEN_DELAY_MS)
+    await user.click(button())
+    await user.tab()
+    expect(commitPageLink()).toHaveFocus()
+
+    await user.click(screen.getByText('Elsewhere'))
+    await wait(100)
+    expect(queryCard()).toBeNull()
+    expect(button()).toHaveFocus()
   })
 
   it('closes its card when the focus moves to another element outside both', async () => {
