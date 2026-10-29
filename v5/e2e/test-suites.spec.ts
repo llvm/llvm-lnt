@@ -328,7 +328,7 @@ test.describe('the Schema tab', () => {
       await prompt.getByRole('button', { name: 'Delete' }).click()
 
       // `/suites` gives way to the first suite left, which other tests' suites may precede.
-      await expect(page).toHaveURL(/\/suites\/[a-z0-9_]+$/)
+      await expect(page).toHaveURL(/\/suites\/[a-z0-9_-]+$/)
       await expect(page).not.toHaveURL(new RegExp(`/suites/${suite}$`))
       await expect(
         page.getByRole('navigation', { name: 'Test suites' }).getByRole('link', { name: suite }),

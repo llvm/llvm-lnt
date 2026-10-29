@@ -122,16 +122,15 @@ describe('draftProblem', () => {
 
 describe('suiteNameProblem', () => {
   it("accepts a name D4's rule allows and no suite has", () => {
-    for (const name of ['nts', 'admin', 'suites', 'pg', 'pgx', 'a'.repeat(63)]) {
+    const names = ['nts', 'admin', 'suites', 'my-suite', 'lib_cxx-2', '9lives', 'nts-', 'a'.repeat(64)]
+    for (const name of names) {
       expect(suiteNameProblem(name, ['libcxx'])).toBeUndefined()
     }
   })
 
-  it('refuses the names no namespace can have', () => {
-    const reserved =
-      "A suite cannot be named 'information_schema' or 'public', or start with 'pg_'."
+  it('reserves no name, since a suite name names nothing in the database', () => {
     for (const name of ['public', 'information_schema', 'pg_', 'pg_catalog']) {
-      expect(suiteNameProblem(name, [])).toBe(reserved)
+      expect(suiteNameProblem(name, [])).toBeUndefined()
     }
   })
 
@@ -139,7 +138,10 @@ describe('suiteNameProblem', () => {
     expect(suiteNameProblem('My Suite', [])).toMatch(/lowercase letters/)
     // Unlike an entry's name (D4).
     expect(suiteNameProblem('NTS', [])).toMatch(/lowercase letters/)
-    expect(suiteNameProblem('a'.repeat(64), [])).toMatch(/at most 63/)
+    for (const name of ['-nts', '_nts', 'nts.x', 'nts/x']) {
+      expect(suiteNameProblem(name, [])).toMatch(/starts with a letter or a digit/)
+    }
+    expect(suiteNameProblem('a'.repeat(65), [])).toMatch(/at most 64/)
     expect(suiteNameProblem('libcxx', ['libcxx'])).toBe("There is already a suite named 'libcxx'.")
   })
 

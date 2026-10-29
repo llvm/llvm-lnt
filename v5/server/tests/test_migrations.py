@@ -27,7 +27,8 @@ from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import normalized_json
-from lnt_v5.tables import SCHEMA_VERSION_ID, metadata
+from lnt_v5.tables import SCHEMA_VERSION_ID, metadata, namespace_sequence
+from migration_snapshots import reference_schema, replay
 
 
 def assert_no_pending_revision(engine: Engine) -> None:
@@ -126,7 +127,7 @@ class TestUpgrade:
             }
         )
         with empty_engine.begin() as connection:
-            suite_tables.create(connection, suite)
+            suite_tables.create(connection, suite, "nts")
 
         assert_no_pending_revision(empty_engine)
 
@@ -182,11 +183,11 @@ class TestUpgrade:
         assert not set(metadata.tables) & set(inspect(empty_engine).get_table_names())
 
 
-def store_schema_json(engine: Engine, rows: dict[str, str]) -> None:
-    """Store schema rows as they are, recorded at the latest suite migration version.
+def store_schema_json(engine: Engine, rows: dict[str, str], version: int | None = None) -> None:
+    """Store schema rows as they are, recorded at suite migration version `version`.
 
-    At that version, the suite pass neither migrates the suites' tables, which these rows don't
-    have, nor parses their schemas: only the global revisions read them.
+    By default, the latest. At that version, the suite pass neither migrates the suites' tables,
+    which these rows don't have, nor parses their schemas: only the global revisions read them.
     """
     with engine.begin() as connection:
         for name, schema_json in rows.items():
@@ -195,7 +196,11 @@ def store_schema_json(engine: Engine, rows: dict[str, str]) -> None:
                     "INSERT INTO schema (name, schema_json, migration_version) "
                     "VALUES (:name, :schema_json, :version)"
                 ),
-                {"name": name, "schema_json": schema_json, "version": migrations.head()},
+                {
+                    "name": name,
+                    "schema_json": schema_json,
+                    "version": migrations.head() if version is None else version,
+                },
             )
 
 
@@ -301,19 +306,17 @@ class TestSchemaLabels:
         """
         seen: list[str | None] = []
 
-        def step(op: Operations, suite: SuiteSchema) -> None:
-            seen.append(suite.metrics[0].display_name)
+        def step(op: Operations, suite: migrations.StoredSuite) -> None:
+            seen.append(suite.schema.metrics[0].display_name)
 
         monkeypatch.setattr(migrations, "STEPS", (step,))
         upgrade_by_hand(empty_engine, "0002")
-        store_suite(empty_engine, _CLEAN, version=0)
         with empty_engine.begin() as connection:
-            stale = _CLEAN.model_dump(mode="json")
-            stale["metrics"][0]["display_name"] = ""
-            connection.execute(
-                text("UPDATE schema SET schema_json = :schema_json WHERE name = 'clean'"),
-                {"schema_json": json.dumps(stale)},
-            )
+            # As a build at 0002 created suites, in a namespace named after the suite.
+            suite_tables.create(connection, _CLEAN, "clean")
+        stale = _CLEAN.model_dump(mode="json")
+        stale["metrics"][0]["display_name"] = ""
+        store_schema_json(empty_engine, {"clean": json.dumps(stale)}, version=0)
 
         result = upgrade_to_head(empty_engine)
 
@@ -716,6 +719,109 @@ class TestSchemaRepository:
         assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_REPOSITORY)}
         # Once on the way up, and once on the way down.
         assert schema_version_of(empty_engine) == 2
+
+
+class TestSchemaNamespace:
+    """0008 records each suite's namespace (D5), and widens suite names to 64 characters (D4)."""
+
+    def test_records_each_existing_suite_in_the_namespace_it_was_created_in(
+        self, empty_engine: Engine
+    ) -> None:
+        upgrade_by_hand(empty_engine, "0007")
+        with empty_engine.begin() as connection:
+            connection.execute(text("CREATE SCHEMA nts"))
+            connection.execute(text("CREATE TABLE nts.machine (id INTEGER)"))
+        store_schema_json(empty_engine, {"nts": '{"name": "nts"}'})
+        namespaces = set(inspect(empty_engine).get_schema_names())
+
+        upgrade_by_hand(empty_engine, "0008")
+
+        with empty_engine.connect() as connection:
+            recorded = connection.execute(text("SELECT name, namespace FROM schema")).all()
+        assert [tuple(row) for row in recorded] == [("nts", "nts")]
+        # Nothing was renamed, created or touched in a suite's namespace (D6).
+        assert set(inspect(empty_engine).get_schema_names()) == namespaces
+        assert inspect(empty_engine).get_table_names(schema="nts") == ["machine"]
+
+    def test_migrates_the_suites_after_recording_their_namespaces(
+        self, empty_engine: Engine
+    ) -> None:
+        # The suite pass reads the namespace 0008 records, so it has to run after it.
+        upgrade_by_hand(empty_engine, "0007")
+        with empty_engine.begin() as connection:
+            replay(connection, 0)
+        store_schema_json(
+            empty_engine, {"reference": normalized_json(reference_schema())}, version=0
+        )
+
+        result = upgrade_to_head(empty_engine)
+
+        assert result.suites_migrated == ("reference",)
+        with empty_engine.connect() as connection:
+            row = connection.execute(text("SELECT namespace, migration_version FROM schema")).one()
+        assert tuple(row) == ("reference", migrations.head())
+
+    def test_widens_suite_names_to_64_characters(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0008")
+        name = "a" * 64
+
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO schema (name, namespace, schema_json, migration_version) "
+                    "VALUES (:name, 'elsewhere', '{}', 0)"
+                ),
+                {"name": name},
+            )
+        insert_key_row(empty_engine, "aaaaaaaa", "submit", [name])
+
+    def test_the_namespace_sequence_is_owned_by_the_namespace_column(
+        self, empty_engine: Engine
+    ) -> None:
+        # Autogenerate compares no sequences, so `test_leaves_the_schema_and_the_code_in_agreement`
+        # cannot catch a sequence that is missing or owned by nothing.
+        upgrade_by_hand(empty_engine, "0008")
+
+        with empty_engine.connect() as connection:
+            owned = connection.execute(
+                text("SELECT pg_get_serial_sequence('schema', 'namespace')")
+            ).scalar_one()
+        assert owned == f"public.{namespace_sequence.name}"
+
+    def test_downgrading_undoes_it(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0007")
+        store_schema_json(empty_engine, {"nts": '{"name": "nts"}'})
+        upgrade_by_hand(empty_engine, "0008")
+
+        downgrade_by_hand(empty_engine, "0007")
+
+        assert "namespace" not in column_names(empty_engine, "public", "schema")
+        assert namespace_sequence.name not in inspect(empty_engine).get_sequence_names()
+        assert stored_schema_json(empty_engine) == {"nts": '{"name": "nts"}'}
+
+    def test_downgrading_refuses_a_suite_not_in_the_namespace_named_after_it(
+        self, empty_engine: Engine
+    ) -> None:
+        # Earlier builds would look for its tables in the wrong namespace.
+        upgrade_to_head(empty_engine)
+        store_suite(empty_engine, SuiteSchema.model_validate({"name": "nts"}), migrations.head())
+
+        with pytest.raises(RuntimeError, match="nts"):
+            downgrade_by_hand(empty_engine, "0007")
+
+        assert "namespace" in column_names(empty_engine, "public", "schema")
+
+    def test_downgrading_refuses_a_key_naming_a_suite_too_long_for_earlier_builds(
+        self, empty_engine: Engine
+    ) -> None:
+        # Keys keep the names of deleted suites (I5), so no suite need have that name any more.
+        upgrade_by_hand(empty_engine, "0008")
+        insert_key_row(empty_engine, "aaaaaaaa", "submit", ["a" * 64])
+
+        with pytest.raises(RuntimeError, match=r"a{64}"):
+            downgrade_by_hand(empty_engine, "0007")
+
+        assert "namespace" in column_names(empty_engine, "public", "schema")
 
 
 class TestConcurrentUpgrade:

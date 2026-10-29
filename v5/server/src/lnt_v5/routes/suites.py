@@ -13,11 +13,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Query, Response
-from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.exc import IntegrityError
 
 from lnt_v5 import examples
 from lnt_v5.auth import require_scope
-from lnt_v5.db import EngineDep, is_duplicate_schema, unique_violation_constraint
+from lnt_v5.db import EngineDep, unique_violation_constraint
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
@@ -116,8 +116,7 @@ def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
     responses={
         409: {
             "model": ErrorEnvelope,
-            "description": "`duplicate`: a suite with this name already exists. `conflict`: the "
-            f"name is already used in the database by something other than a test suite. {_BUSY}",
+            "description": f"`duplicate`: a suite with this name already exists. {_BUSY}",
         }
     },
 )
@@ -139,13 +138,6 @@ def create_suite(
             raise
         raise ApiError(
             ErrorCode.DUPLICATE, f"A test suite named '{body.name}' already exists"
-        ) from error
-    except DBAPIError as error:
-        if not is_duplicate_schema(error):
-            raise
-        raise ApiError(
-            ErrorCode.CONFLICT,
-            f"A database namespace named '{body.name}' already exists, but no test suite does",
         ) from error
 
     response.headers["Location"] = f"{SUITES_PATH}/{body.name}"
@@ -196,11 +188,11 @@ def patch_schema(
     include `confirm=true`.
     """
     with suite_write(engine, name) as connection:
-        current = locked_suite(connection, name)
+        stored = locked_suite(connection, name)
         if evolve.removes_anything(body):
             _confirmed(confirm, "Removing a schema entry destroys every value stored for it.")
-        resulting = evolve.resulting_schema(current, body)
-        evolve.apply(connection, name, current, resulting)
+        resulting = evolve.resulting_schema(stored.schema, body)
+        evolve.apply(connection, stored, resulting)
     return resulting
 
 
@@ -218,8 +210,8 @@ def delete_suite(name: SuiteName, engine: EngineDep, confirm: Confirm = False) -
     """Delete a test suite and all its data: machines, commits, runs, samples, profiles and
     regressions. This can't be undone, so the request must include `confirm=true`."""
     with suite_write(engine, name) as connection:
-        locked_suite(connection, name)
+        stored = locked_suite(connection, name)
         _confirmed(confirm, f"Deleting '{name}' permanently destroys all of its data.")
         connection.execute(schema_table.delete().where(schema_table.c.name == name))
-        suite_tables.drop(connection, name)
+        suite_tables.drop(connection, stored.namespace)
         bump(connection)

@@ -12,20 +12,24 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from fastapi import Response
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, inspect, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from conftest import code_of, entry, ndjson_lines, run_payload
-from introspection import column_names, schema_version_of
+from introspection import namespace_of, schema_version_of, suite_column_names
 from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.routes.suites import SUITES_PATH, delete_suite, patch_schema
+from lnt_v5.routes.suites import SUITES_PATH, create_suite, delete_suite, patch_schema
 from lnt_v5.scopes import Scope
+from lnt_v5.suites import migrations
+from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.store import NAMESPACE_PREFIX, normalized_json
 from lnt_v5.suites.tables import build
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH
 from lnt_v5.tables import schema as schema_table
 
 SUITES = SUITES_PATH
@@ -173,9 +177,9 @@ class TestCreate:
     ) -> None:
         create()
 
-        assert "execution_time" in column_names(db_engine, "nts", "sample")
-        assert "git_sha" in column_names(db_engine, "nts", "commit")
-        assert "hardware" in column_names(db_engine, "nts", "machine")
+        assert "execution_time" in suite_column_names(db_engine, "nts", "sample")
+        assert "git_sha" in suite_column_names(db_engine, "nts", "commit")
+        assert "hardware" in suite_column_names(db_engine, "nts", "machine")
 
     def test_refuses_a_name_already_taken(self, create: Callable[..., Any]) -> None:
         create()
@@ -230,16 +234,77 @@ class TestCreate:
             assert create(name=name).status_code == 201
             assert api_client.get(f"{SUITES}/{name}").status_code == 200
 
-    def test_accepts_a_name_at_the_identifier_limit(
-        self, api_client: TestClient, db_engine: Engine, create: Callable[..., Any]
+    def test_reserves_no_name_for_the_database(
+        self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # The name is a PostgreSQL namespace name, and the limit is exactly where PostgreSQL starts
-        # truncating -- so a suite at the limit must still be addressable at that exact path.
-        name = "a" * IDENTIFIER_MAX_LENGTH
+        # D4: a suite name names nothing in the database, so even the names of namespaces every
+        # database has, and PostgreSQL's own prefix, are fine.
+        for name in ("public", "information_schema", "pg_catalog", "pg_toast"):
+            assert create(name=name).status_code == 201
+            assert api_client.get(f"{SUITES}/{name}").status_code == 200
+
+    def test_accepts_a_name_with_hyphens_or_a_leading_digit(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        for name in ("my-suite", "9lives"):
+            assert create(name=name).status_code == 201
+            assert api_client.get(f"{SUITES}/{name}").status_code == 200
+            submitted = api_client.post(
+                f"{SUITES}/{name}/runs",
+                json=run_payload(tests=[entry("t", {"execution_time": 1.0})]),
+                headers=manage,
+            )
+            assert submitted.status_code == 201, submitted.text
+
+    def test_accepts_a_name_at_the_length_limit(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        name = "a" * SUITE_NAME_MAX_LENGTH
 
         assert create(name=name).status_code == 201
         assert api_client.get(f"{SUITES}/{name}").status_code == 200
-        assert name in inspect(db_engine).get_schema_names()
+        assert code_of(create(name=name + "a")) == "invalid_request"
+
+    def test_puts_the_tables_in_a_namespace_it_chooses_and_labels(
+        self, db_engine: Engine, create: Callable[..., Any]
+    ) -> None:
+        # D5: the namespace is never derived from the name. The label is for whoever reads the
+        # database directly.
+        create()
+
+        namespace = namespace_of(db_engine, "nts")
+        assert namespace != "nts"
+        assert "nts" not in inspect(db_engine).get_schema_names()
+        with db_engine.connect() as connection:
+            label = connection.execute(
+                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
+                {"namespace": namespace},
+            ).scalar_one()
+        assert label == "LNT test suite nts"
+
+    def test_chooses_a_namespace_no_namespace_has(
+        self, db_engine: Engine, create: Callable[..., Any]
+    ) -> None:
+        # D5: neither the namespace of a suite from before namespaces were recorded, which is its
+        # name, nor one created outside the server. The sequence restarts with each test, so these
+        # are the first names it would come up with.
+        stray, old = f"{NAMESPACE_PREFIX}1", f"{NAMESPACE_PREFIX}2"
+        suite = SuiteSchema.model_validate({**NTS, "name": old})
+        with db_engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{stray}"'))
+            suite_tables.create(connection, suite, old)
+            connection.execute(
+                insert(schema_table).values(
+                    name=old,
+                    namespace=old,
+                    schema_json=normalized_json(suite),
+                    migration_version=migrations.head(),
+                )
+            )
+
+        assert create().status_code == 201
+
+        assert namespace_of(db_engine, "nts") not in {old, stray}
 
     def test_accepts_an_entry_name_at_the_identifier_limit(
         self, db_engine: Engine, create: Callable[..., Any]
@@ -247,7 +312,7 @@ class TestCreate:
         metric = "m" * IDENTIFIER_MAX_LENGTH
 
         assert create(metrics=[{"name": metric, "type": "real"}]).status_code == 201
-        assert metric in column_names(db_engine, "nts", "sample")
+        assert metric in suite_column_names(db_engine, "nts", "sample")
 
 
 class TestDetail:
@@ -316,7 +381,7 @@ class TestEvolve:
             "execution_time",
             "code_size",
         ]
-        assert "code_size" in column_names(db_engine, "nts", "sample")
+        assert "code_size" in suite_column_names(db_engine, "nts", "sample")
 
     def test_appends_rather_than_reordering(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -473,7 +538,7 @@ class TestEvolve:
         manage: dict[str, str],
     ) -> None:
         create()
-        before = column_names(db_engine, "nts", "sample")
+        before = suite_column_names(db_engine, "nts", "sample")
 
         patch_request(
             api_client,
@@ -481,7 +546,7 @@ class TestEvolve:
             {"metrics": {"update": [{"name": "compile_time", "display_name": "CT"}]}},
         )
 
-        assert column_names(db_engine, "nts", "sample") == before
+        assert suite_column_names(db_engine, "nts", "sample") == before
 
     def test_removes_an_entry_and_its_column(
         self,
@@ -498,7 +563,7 @@ class TestEvolve:
 
         assert response.status_code == 200
         assert [m["name"] for m in response.json()["metrics"]] == ["execution_time"]
-        assert "compile_time" not in column_names(db_engine, "nts", "sample")
+        assert "compile_time" not in suite_column_names(db_engine, "nts", "sample")
 
     def test_moves_the_display_field_in_one_request(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -674,7 +739,7 @@ class TestEvolveConfirmation:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
         # And nothing happened.
-        assert "compile_time" in column_names(db_engine, "nts", "sample")
+        assert "compile_time" in suite_column_names(db_engine, "nts", "sample")
 
     def test_confirm_false_is_not_a_confirmation(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -755,12 +820,12 @@ class TestEvolveRepository:
     ) -> None:
         create()
         tables = ("sample", "commit", "machine")
-        columns = {table: column_names(db_engine, "nts", table) for table in tables}
+        columns = {table: suite_column_names(db_engine, "nts", table) for table in tables}
         before = schema_version_of(db_engine)
 
         body = patch_request(api_client, manage, {"repository": {"label": "GitHub"}}).json()
 
-        assert {table: column_names(db_engine, "nts", table) for table in tables} == columns
+        assert {table: suite_column_names(db_engine, "nts", table) for table in tables} == columns
         assert stored_schema(db_engine, "nts") == body
         assert schema_version_of(db_engine) == before + 1
 
@@ -846,13 +911,16 @@ class TestEvolveRepository:
 
 def suite_tables_for(engine: Engine) -> Any:
     """The tables of the `nts` suite, built from what the endpoint stored."""
-    return build(SuiteSchema.model_validate(stored_schema(engine, "nts")))
+    return build(
+        SuiteSchema.model_validate(stored_schema(engine, "nts")), namespace_of(engine, "nts")
+    )
 
 
 def metric_rows(engine: Engine, name: str = "nts") -> list[str]:
     """The names `{suite}.metric` holds, sorted."""
+    namespace = namespace_of(engine, name)
     with engine.connect() as connection:
-        rows = connection.execute(text(f'SELECT name FROM "{name}".metric ORDER BY name'))
+        rows = connection.execute(text(f'SELECT name FROM "{namespace}".metric ORDER BY name'))
         return list(rows.scalars())
 
 
@@ -965,7 +1033,7 @@ class TestEvolveAgainstStoredData:
         with db_engine.connect() as connection:
             assert connection.execute(select(populated.sample.c.execution_time)).scalar_one() == 2.5
             assert connection.execute(select(populated.run.c.uuid)).scalar_one() is not None
-        assert "compile_time" not in column_names(db_engine, "nts", "sample")
+        assert "compile_time" not in suite_column_names(db_engine, "nts", "sample")
 
     def test_adding_a_metric_leaves_existing_rows_without_a_value(
         self,
@@ -979,8 +1047,9 @@ class TestEvolveAgainstStoredData:
             api_client, manage, {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}}
         )
 
+        sample = f"{namespace_of(db_engine, 'nts')}.sample"
         with db_engine.connect() as connection:
-            added = connection.execute(text("SELECT code_size FROM nts.sample")).scalar_one()
+            added = connection.execute(text(f"SELECT code_size FROM {sample}")).scalar_one()
         assert added is None
 
     def test_deleting_the_suite_takes_its_data(
@@ -1084,13 +1153,13 @@ class TestCaseSensitiveNames:
 
         assert removed.status_code == 200, removed.text
         metrics = ["ipc", "Ipc"]
-        assert column_names(db_engine, "nts", "sample") == [
+        assert suite_column_names(db_engine, "nts", "sample") == [
             "run_id",
             "test_id",
             "repetition",
             *metrics,
         ]
-        assert column_names(db_engine, "nts", "test_coverage") == [
+        assert suite_column_names(db_engine, "nts", "test_coverage") == [
             "machine_id",
             "test_id",
             *metrics,
@@ -1133,6 +1202,7 @@ class TestDelete:
         manage: dict[str, str],
     ) -> None:
         create()
+        namespace = namespace_of(db_engine, "nts")
 
         response = api_client.delete(f"{SUITES}/nts?confirm=true", headers=manage)
 
@@ -1140,7 +1210,7 @@ class TestDelete:
         assert response.content == b""
         assert api_client.get(f"{SUITES}/nts").status_code == 404
         assert api_client.get(SUITES).json()["items"] == []
-        assert "nts" not in inspect(db_engine).get_schema_names()
+        assert namespace not in inspect(db_engine).get_schema_names()
 
     def test_needs_confirming(
         self,
@@ -1155,7 +1225,7 @@ class TestDelete:
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
-        assert "nts" in inspect(db_engine).get_schema_names()
+        assert namespace_of(db_engine, "nts") in inspect(db_engine).get_schema_names()
 
     def test_confirm_false_is_not_a_confirmation(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -1207,6 +1277,53 @@ class TestConcurrentWrites:
             engine,
         )
 
+    @staticmethod
+    def create_concurrently(engine: Engine, names: list[str]) -> list[Any]:
+        """Create a suite under each name at once, and return what each creation returned or
+        raised."""
+        barrier = threading.Barrier(len(names))
+        outcomes: list[Any] = [None] * len(names)
+
+        def create(index: int) -> None:
+            barrier.wait()
+            try:
+                body = SuiteSchema.model_validate({**NTS, "name": names[index]})
+                outcomes[index] = create_suite(body, engine, Response())
+            except BaseException as error:
+                outcomes[index] = error
+
+        threads = [threading.Thread(target=create, args=(i,)) for i in range(len(names))]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        return outcomes
+
+    def test_of_two_concurrent_creations_of_one_name_the_second_is_a_duplicate(
+        self, db_engine: Engine
+    ) -> None:
+        """Each creation gets a namespace of its own, so the loser fails on the suite name, and gets
+        `duplicate`, rather than on its namespace, which would be a 500."""
+        outcomes = self.create_concurrently(db_engine, ["nts", "nts"])
+
+        created = [outcome for outcome in outcomes if isinstance(outcome, SuiteSchema)]
+        refused = [outcome for outcome in outcomes if isinstance(outcome, ApiError)]
+        assert len(created) == 1 and len(refused) == 1, outcomes
+        assert refused[0].code is ErrorCode.DUPLICATE
+        # The loser leaves nothing behind.
+        prefixed = [
+            n for n in inspect(db_engine).get_schema_names() if n.startswith(NAMESPACE_PREFIX)
+        ]
+        assert prefixed == [namespace_of(db_engine, "nts")]
+
+    def test_two_suites_created_concurrently_get_namespaces_of_their_own(
+        self, db_engine: Engine
+    ) -> None:
+        outcomes = self.create_concurrently(db_engine, ["nts", "other"])
+
+        assert all(isinstance(outcome, SuiteSchema) for outcome in outcomes), outcomes
+        assert namespace_of(db_engine, "nts") != namespace_of(db_engine, "other")
+
     def test_neither_of_two_concurrent_additions_is_lost(
         self, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
@@ -1238,7 +1355,7 @@ class TestConcurrentWrites:
         declared = {m["name"] for m in stored_schema(db_engine, "nts")["metrics"]}
         assert {"aaa", "bbb"} <= declared
         # The assertion that actually catches it: no column exists that the schema does not declare.
-        assert set(column_names(db_engine, "nts", "sample")) == declared | {
+        assert set(suite_column_names(db_engine, "nts", "sample")) == declared | {
             "run_id",
             "test_id",
             "repetition",
@@ -1319,12 +1436,12 @@ class TestConcurrentWrites:
         create()
 
         with db_engine.begin() as reader:
-            reader.execute(text('SELECT 1 FROM "nts".sample LIMIT 1'))
+            reader.execute(text(f'SELECT 1 FROM "{namespace_of(db_engine, "nts")}".sample LIMIT 1'))
             with pytest.raises(ApiError) as raised:
                 self.add_metric(db_engine, "nts", "aaa")
 
         assert raised.value.code is ErrorCode.RETRY
-        assert "aaa" not in column_names(db_engine, "nts", "sample")
+        assert "aaa" not in suite_column_names(db_engine, "nts", "sample")
 
 
 class TestWriteAuthorization:

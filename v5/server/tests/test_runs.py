@@ -950,7 +950,7 @@ class TestSamples:
         assert counted(db_engine, suite, "test") == 500
 
     def test_costs_one_insert_however_many_samples_there_are(
-        self, submitted: Callable[..., Any]
+        self, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
         """The sample set's counterpart to O8's fixed round trips, which the rows alone cannot show.
 
@@ -959,9 +959,10 @@ class TestSamples:
         counts the statements: a submission two orders of magnitude larger must still be one
         insert.
         """
-        with counting_statements("INSERT INTO nts.sample") as one_row:
+        sample = f"INSERT INTO {suite.namespace}.sample"
+        with counting_statements(sample) as one_row:
             submitted(tests=[entry("suite/one", {"execution_time": 1.0})])
-        with counting_statements("INSERT INTO nts.sample") as many_rows:
+        with counting_statements(sample) as many_rows:
             submitted(
                 tests=[
                     entry(f"suite/test-{index:04d}", *[{"execution_time": float(index)}] * 10)
@@ -1275,11 +1276,12 @@ class TestProfiles:
         assert {(test, name): tuple(values) for test, name, *values in rows} == expected
 
     def test_costs_one_insert_each_however_many_profiles_and_functions_there_are(
-        self, submitted: Callable[..., Any]
+        self, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        with counting_statements("INSERT INTO nts.profile") as one:
+        profile = f"INSERT INTO {suite.namespace}.profile"
+        with counting_statements(profile) as one:
             submitted(tests=[entry("suite/one", profile=encoded_profile())])
-        with counting_statements("INSERT INTO nts.profile") as many:
+        with counting_statements(profile) as many:
             submitted(
                 tests=[
                     entry(f"suite/{test}", profile=encoded_profile(several_functions(test)))
@@ -2078,7 +2080,9 @@ class TestSchemaChangedUnderneath:
         already in -- and so the interesting one for O8's atomicity.
         """
         with db_engine.begin() as connection:
-            connection.execute(text("ALTER TABLE nts.sample DROP COLUMN execution_time"))
+            connection.execute(
+                text(f"ALTER TABLE {suite.namespace}.sample DROP COLUMN execution_time")
+            )
 
         return api_client.post(RUNS, json=payload(), headers=submitter)
 

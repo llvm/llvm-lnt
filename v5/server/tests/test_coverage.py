@@ -19,7 +19,7 @@ from sqlalchemy import Engine, func, select, text
 from sqlalchemy.exc import DBAPIError
 
 from conftest import entry, run_payload
-from introspection import counting_statements
+from introspection import counting_statements, namespace_of
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
@@ -114,11 +114,12 @@ def row_versions(engine: Engine) -> dict[str, tuple[str, str]]:
     `xmin` changes exactly when the row is rewritten. A row lock leaves the locker in `xmax`, so a
     row that keeps `xmax = 0` was not locked either -- but a rewritten row may have any `xmax`.
     """
+    namespace = namespace_of(engine, "nts")
     with engine.connect() as connection:
         rows = connection.execute(
             text(
-                "SELECT t.name, c.xmin::text, c.xmax::text FROM nts.test_coverage c "
-                "JOIN nts.test t ON t.id = c.test_id"
+                f"SELECT t.name, c.xmin::text, c.xmax::text FROM {namespace}.test_coverage c "
+                f"JOIN {namespace}.test t ON t.id = c.test_id"
             )
         ).all()
     return {row[0]: (row[1], row[2]) for row in rows}
@@ -234,7 +235,8 @@ class TestSubmission:
         # at `b`, it must hold `a` already, and not yet `c`.
         submit(*(entry(name, {"execution_time": 1.0}) for name in "abc"))
         lock = text(
-            "SELECT 1 FROM nts.test_coverage c JOIN nts.test t ON t.id = c.test_id "
+            f"SELECT 1 FROM {suite.namespace}.test_coverage c "
+            f"JOIN {suite.namespace}.test t ON t.id = c.test_id "
             "WHERE t.name = :name FOR UPDATE OF c NOWAIT"
         )
         with db_engine.connect() as holder, db_engine.connect() as probe:
@@ -257,12 +259,12 @@ class TestSubmission:
         assert assert_derivable(db_engine, suite) == {("linux", n): (True, True) for n in "abc"}
 
     def test_costs_one_statement_however_many_tests_there_are(
-        self, submit: Callable[..., str]
+        self, suite: SuiteTables, submit: Callable[..., str]
     ) -> None:
         # O8: the coverage rows are written in one statement, like the samples.
-        with counting_statements("nts.test_coverage") as one_test:
+        with counting_statements(f"{suite.namespace}.test_coverage") as one_test:
             submit(entry("a", {"execution_time": 1.0}))
-        with counting_statements("nts.test_coverage") as many_tests:
+        with counting_statements(f"{suite.namespace}.test_coverage") as many_tests:
             submit(*(entry(f"t{index}", {"execution_time": 1.0}) for index in range(500)))
 
         assert len(many_tests) == len(one_test) == 1
@@ -361,7 +363,7 @@ class TestSchemaChange:
         patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
         response = api_client.patch(f"{SUITES_PATH}/nts/schema", json=patch, headers=manage)
         assert response.status_code == 200, response.text
-        grown = build(SuiteSchema.model_validate(response.json())).test_coverage
+        grown = build(SuiteSchema.model_validate(response.json()), suite.namespace).test_coverage
         read = select(grown.c.test_id, grown.c.size).order_by(grown.c.test_id)
         with db_engine.connect() as connection:
             assert [row.size for row in connection.execute(read)] == [False, False]
@@ -387,7 +389,7 @@ class TestSchemaChange:
         )
 
         assert response.status_code == 200, response.text
-        shrunk = build(SuiteSchema.model_validate(response.json())).test_coverage
+        shrunk = build(SuiteSchema.model_validate(response.json()), suite.namespace).test_coverage
         with db_engine.connect() as connection:
             row = connection.execute(select(shrunk)).one()
         assert "compile_time" not in row._mapping

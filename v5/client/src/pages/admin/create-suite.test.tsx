@@ -418,14 +418,14 @@ describe('the name checks', () => {
   it("refuse the suite's name, saying why", async () => {
     await openEditor()
 
-    typeInto(suiteNameInput(), 'pg_stats')
+    typeInto(suiteNameInput(), '-stats')
     expect(suiteNameInput()).toHaveAttribute('aria-invalid', 'true')
     expect(suiteNameInput()).toHaveAccessibleDescription(
-      "A suite cannot be named 'information_schema' or 'public', or start with 'pg_'.",
+      "A name has only lowercase letters, digits, '-' and '_', and starts with a letter or a digit.",
     )
     typeInto(suiteNameInput(), 'nts')
     expect(suiteNameInput()).toHaveAccessibleDescription("There is already a suite named 'nts'.")
-    typeInto(suiteNameInput(), 'fresh')
+    typeInto(suiteNameInput(), 'fresh-2')
     expect(suiteNameInput()).not.toHaveAttribute('aria-invalid')
   })
 

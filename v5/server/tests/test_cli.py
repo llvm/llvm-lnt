@@ -17,6 +17,7 @@ from sqlalchemy import Engine, func, inspect, select, text
 from sqlalchemy.exc import OperationalError
 
 from conftest import TOKEN_PATTERN, store_suite
+from introspection import namespace_of
 from lnt_v5 import cli, migrate
 from lnt_v5.config import get_settings
 from lnt_v5.scopes import Scope
@@ -447,10 +448,11 @@ class TestSweep:
             SuiteSchema.model_validate({"name": "nts"}),
             suite_migrations.head(),
         )
+        machine = f"{namespace_of(configured_database, 'nts')}.machine"
         with configured_database.begin() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO nts.machine (name, delete_after_inactive_days, first_seen_at) "
+                    f"INSERT INTO {machine} (name, delete_after_inactive_days, first_seen_at) "
                     "VALUES ('pr-1', 30, now() - INTERVAL '31 days'), ('linux', NULL, now())"
                 )
             )
@@ -461,7 +463,7 @@ class TestSweep:
             "Deleted 1 inactive machine(s) from test suite 'nts': pr-1.\n"
         )
         with configured_database.connect() as connection:
-            assert connection.scalars(text("SELECT name FROM nts.machine")).all() == ["linux"]
+            assert connection.scalars(text(f"SELECT name FROM {machine}")).all() == ["linux"]
 
     def test_says_so_when_nothing_was_due(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
@@ -479,8 +481,9 @@ class TestSweep:
             SuiteSchema.model_validate({"name": "nts"}),
             suite_migrations.head(),
         )
+        namespace = namespace_of(configured_database, "nts")
         with configured_database.begin() as connection:
-            connection.execute(text('DROP SCHEMA "nts" CASCADE'))
+            connection.execute(text(f'DROP SCHEMA "{namespace}" CASCADE'))
 
         assert cli.main(["server", "sweep"]) == 1
 

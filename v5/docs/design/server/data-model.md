@@ -340,19 +340,17 @@ digits for each byte of its UTF-8 encoding. Since I1 rejects the commit strings
 `.` and `..`, a placeholder that is a whole path segment never fills it with a
 dot segment, which would change the path.
 
-**Suite name.** `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
-characters; anything else is rejected with 400. The name is also the name of
-the namespace holding the suite's tables (see D5), so some names that match the
-pattern are rejected with 400 anyway, because no namespace can be created with
-them: `public` and `information_schema` already exist in every database, and
-PostgreSQL reserves the `pg_` prefix for itself, so every name starting with
-`pg_` is rejected.
+**Suite name.** `name` must match `^[a-z0-9][a-z0-9_-]*$` and be at most 64
+characters; anything else is rejected with 400. The name identifies the suite in
+URLs and on command lines, and names nothing in the database: the namespace
+holding the suite's tables is chosen by the server (see D5). No name that
+matches the pattern is reserved.
 
 **Entry names.** Each entry becomes a column, so every `name` in `metrics`,
 `commit_fields` and `machine_fields` is an identifier too: it must match
 `^[A-Za-z][A-Za-z0-9_]*$` and be at most 63 characters. Unlike a suite name,
-which names a namespace and appears in every URL of the suite, an entry name
-may contain capitals, and is case-sensitive. The rule deliberately does not
+which appears in every URL of the suite, an entry name may contain capitals,
+and is case-sensitive. The rule deliberately does not
 exclude SQL reserved words (`order`, `user`, `table` are all valid entry
 names): an implementation quotes identifiers rather than restricting metric
 names, which also preserves their case.
@@ -390,18 +388,29 @@ unique.
 
 These exist once per instance, independently of any test suite. They live in
 the database's default namespace, whereas each suite's tables live in a
-namespace of their own named after the suite (see below).
+namespace of their own (see below).
 
 #### `schema`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | name | VARCHAR | PK |
+| namespace | VARCHAR | unique, not null |
 | schema_json | TEXT | not null |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
 | migration_version | INTEGER | not null |
 
 - One row per test suite, holding the suite's schema (see D4).
+- `namespace` is the PostgreSQL schema holding the suite's tables (see
+  Per-Suite Tables below), and nothing but them. The server chooses it when it
+  creates the suite, and nothing done to a suite after its creation changes it.
+  It is never derived from the suite's name, and nothing may assume that the
+  two are related. How the server names a namespace is up to the
+  implementation, as long as no namespace of that name exists in the database
+  already. Suites created before namespaces were recorded keep the namespace
+  they were created in. An implementation may label a namespace with its
+  suite's name, in a comment on the namespace rather than in its name, for
+  those reading the database directly.
 - `schema_json` holds the *normalized* schema -- the same content
   `GET /api/suites/{name}` returns, with omitted optional keys filled in --
   rather than the request body as submitted. It is stored as text rather than
@@ -436,7 +445,7 @@ namespace of their own named after the suite (see below).
 | key_hash | VARCHAR(64) | unique, not null |
 | name | VARCHAR(256) | not null |
 | scope | VARCHAR(32) | not null |
-| suites | VARCHAR(63)[] | nullable |
+| suites | VARCHAR(64)[] | nullable |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
 | last_used_at | TIMESTAMP WITH TIME ZONE | nullable |
 | is_active | BOOLEAN | not null, default `true` |
@@ -478,11 +487,12 @@ namespace of their own named after the suite (see below).
 
 ### Per-Suite Tables
 
-Each suite's tables live in a namespace of their own named after the suite: a
-PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `metric`,
-`run`, `test`, `sample`, `test_coverage`, `regression`, `regression_indicator`,
-`profile`, `profile_function` and `run_summary`. A table is therefore addressed
-as `{suite}.commit`, and the tables below are named that way.
+Each suite's tables live in a namespace of their own: the PostgreSQL schema
+recorded as the suite's `namespace` in `schema`, holding `commit`, `machine`,
+`metric`, `run`, `test`, `sample`, `test_coverage`, `regression`,
+`regression_indicator`, `profile`, `profile_function` and `run_summary`.
+`{suite}.commit` stands for the `commit` table in the namespace of the suite,
+and the tables below are named that way.
 
 #### `{suite}.commit`
 
@@ -863,7 +873,7 @@ that applies them must meet these requirements:
   different dynamic columns, and some changes apply to each of them -- for
   example, changing the column type used for every `integer` metric. A
   migration therefore receives the suite's schema, so that it knows which
-  columns to change. A migration may also update existing rows, not only change
+  columns to change, and its namespace, so that it knows where they are. A migration may also update existing rows, not only change
   the tables.
 - **Never backwards.** If a newer build has already migrated the database, or
   any suite, past the latest migration the running build knows about, the

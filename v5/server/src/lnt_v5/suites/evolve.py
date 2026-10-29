@@ -25,6 +25,7 @@ from sqlalchemy import Connection, update
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
+from lnt_v5.suites.migrations import StoredSuite
 from lnt_v5.suites.schema import (
     COMMIT_URL,
     RANGE_URL,
@@ -342,12 +343,13 @@ def _column_changes(
         yield of, [name for name in now if name not in was], sorted(was - set(now))
 
 
-def apply(connection: Connection, name: str, current: SuiteSchema, resulting: SuiteSchema) -> None:
+def apply(connection: Connection, stored: StoredSuite, resulting: SuiteSchema) -> None:
     """Bring the suite's columns and its stored schema to `resulting`.
 
     Nothing at all when the schema is unchanged -- an empty or no-op request should not make every
     other worker reload for a change that did not happen.
     """
+    current = stored.schema
     if resulting == current:
         return
 
@@ -355,8 +357,10 @@ def apply(connection: Connection, name: str, current: SuiteSchema, resulting: Su
     # Built from the schemas rather than taken from the registry, whose tables other request threads
     # are concurrently compiling queries against. Lazily, because an update-only change touches no
     # column and would otherwise pay for both.
-    before = suite_tables.build(current) if any(removed for _, _, removed in changes) else None
-    after = suite_tables.build(resulting) if any(added for _, added, _ in changes) else None
+    removes = any(removed for _, _, removed in changes)
+    adds = any(added for _, added, _ in changes)
+    before = suite_tables.build(current, stored.namespace) if removes else None
+    after = suite_tables.build(resulting, stored.namespace) if adds else None
 
     for of, added, removed in changes:
         for table in of.tables:
@@ -378,7 +382,7 @@ def apply(connection: Connection, name: str, current: SuiteSchema, resulting: Su
 
     connection.execute(
         update(schema_table)
-        .where(schema_table.c.name == name)
+        .where(schema_table.c.name == current.name)
         .values(schema_json=normalized_json(resulting))
     )
     bump(connection)

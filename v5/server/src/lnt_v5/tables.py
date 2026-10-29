@@ -18,6 +18,7 @@ from sqlalchemy import (
     Identity,
     Integer,
     MetaData,
+    Sequence,
     String,
     Table,
     Text,
@@ -58,12 +59,15 @@ NAMING_CONVENTION = {
 
 metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
-# PostgreSQL's identifier limit, and so the bound on every name a schema supplies (D4): a suite
-# name, because it is the name of the namespace holding the suite's tables, and each metric and
-# field name, because it is the name of a column. A longer suite name would be truncated into a
-# collision with any other suite sharing its first 63 characters. Characters and bytes are
-# interchangeable here because D4 also restricts these names to ASCII.
+# PostgreSQL's identifier limit, and so the bound on each metric and field name a schema supplies
+# (D4), because it is the name of a column, and on the namespace holding a suite's tables (D5).
+# Characters and bytes are interchangeable here because D4 restricts entry names to ASCII, and the
+# server names namespaces in ASCII.
 IDENTIFIER_MAX_LENGTH = 63
+
+# D4's limit on a suite name. Unlike an entry name, a suite name names nothing in the database, so
+# it is not bound by the identifier limit above.
+SUITE_NAME_MAX_LENGTH = 64
 
 # I5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
 # the stored hash is a hex SHA-256. These widths are the authority; keys.py reads them from here.
@@ -82,7 +86,10 @@ SCHEMA_VERSION_ID = 1
 schema = Table(
     "schema",
     metadata,
-    Column("name", String(IDENTIFIER_MAX_LENGTH), primary_key=True),
+    Column("name", String(SUITE_NAME_MAX_LENGTH), primary_key=True),
+    # Chosen by the server when the suite is created, and never changed afterwards (D5). Unique
+    # because a namespace holds the tables of one suite only.
+    Column("namespace", String(IDENTIFIER_MAX_LENGTH), nullable=False, unique=True),
     Column("schema_json", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     # Deliberately no default: whatever creates a suite must give its version explicitly (see
@@ -96,6 +103,13 @@ schema = Table(
 read whole, parsed into the in-memory model, and written whole.
 
 `migration_version` is how many per-suite migration steps have been applied to the suite (D6).
+"""
+
+namespace_sequence = Sequence("schema_namespace_seq", metadata=metadata)
+"""Numbers the namespaces the server gives new suites (see `suites/store.py`).
+
+Owned by `schema.namespace`, which SQLAlchemy cannot express, so revision 0008 says it. Autogenerate
+does not compare sequences, so `test_migrations.py` checks the ownership instead.
 """
 
 
@@ -124,7 +138,7 @@ api_key = Table(
     Column("scope", String(32), nullable=False),
     # Null for a key valid across the instance, or the suites it is restricted to (I5). Names
     # rather than foreign keys to `schema`: deleting a suite leaves its name on its keys.
-    Column("suites", ARRAY(String(IDENTIFIER_MAX_LENGTH)), nullable=True),
+    Column("suites", ARRAY(String(SUITE_NAME_MAX_LENGTH)), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("last_used_at", DateTime(timezone=True), nullable=True),
     Column("is_active", Boolean, nullable=False, server_default=true()),

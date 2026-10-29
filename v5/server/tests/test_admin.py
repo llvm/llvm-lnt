@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from conftest import TOKEN_PATTERN, code_of
 from lnt_v5.scopes import Scope
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, KEY_NAME_MAX_LENGTH
+from lnt_v5.tables import KEY_NAME_MAX_LENGTH, SUITE_NAME_MAX_LENGTH
 
 KEYS = "/api/admin/api-keys"
 
@@ -205,6 +205,21 @@ class TestCreateRestricted:
         ]
         assert listed["suites"] == ["libcxx", "nts"]
 
+    def test_can_name_a_suite_of_the_longest_name(
+        self,
+        api_client: TestClient,
+        admin: dict[str, str],
+        make_api_suite: Callable[[dict[str, Any]], Any],
+    ) -> None:
+        name = "a-" * (SUITE_NAME_MAX_LENGTH // 2)
+        make_api_suite({"name": name})
+        body = {"name": "bot", "scope": "submit", "suites": [name]}
+
+        created = api_client.post(KEYS, headers=admin, json=body)
+
+        assert created.status_code == 201, created.text
+        assert created.json()["suites"] == [name]
+
     @pytest.mark.parametrize("body", [{}, {"suites": None}])
     def test_is_not_restricted_without_suites(
         self, api_client: TestClient, admin: dict[str, str], body: dict[str, Any]
@@ -226,7 +241,7 @@ class TestCreateRestricted:
             ("submit", [None], "a null name"),
             ("submit", [1], "a name that is not a string"),
             ("submit", "nts", "a string rather than a list"),
-            ("submit", ["x" * (IDENTIFIER_MAX_LENGTH + 1)], "a name longer than any suite's"),
+            ("submit", ["x" * (SUITE_NAME_MAX_LENGTH + 1)], "a name longer than any suite's"),
             ("submit", ["NTS"], "a name D4 does not accept for a suite"),
             ("submit", ["a\x00b"], "a name PostgreSQL cannot store (D5)"),
         ],

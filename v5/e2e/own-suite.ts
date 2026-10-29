@@ -26,7 +26,7 @@ export async function withOwnSuiteName(
   testInfo: TestInfo,
   use: (suite: string) => Promise<void>,
 ) {
-  const suite = `e2e_${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`.slice(0, 63)
+  const suite = `e2e-${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '-')}`.slice(0, 64)
   try {
     await use(suite)
   } finally {

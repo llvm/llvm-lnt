@@ -26,7 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
 
 from lnt_v5.suites.tables import SuiteTables
-from lnt_v5.tables import SCHEMA_VERSION_ID, schema_version
+from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
 
 
 def composed_names(table: Table) -> set[str]:
@@ -105,18 +105,33 @@ def sql_type_of(engine: Engine, schema: str, table: str, column: str) -> str:
         ).upper()
 
 
-def columns_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedColumn]:
+def namespace_of(engine: Engine, suite: str) -> str:
+    """The namespace the server recorded for a suite's tables (D5), which is not its name."""
+    with engine.connect() as connection:
+        return str(
+            connection.execute(
+                select(schema.c.namespace).where(schema.c.name == suite)
+            ).scalar_one()
+        )
+
+
+def columns_of(inspector: Inspector, namespace: str, table: str) -> dict[str, ReflectedColumn]:
     """Every column PostgreSQL holds for a table, by name."""
-    return {column["name"]: column for column in inspector.get_columns(table, schema=suite)}
+    return {column["name"]: column for column in inspector.get_columns(table, schema=namespace)}
 
 
-def column_names(engine: Engine, suite: str, table: str) -> list[str]:
+def column_names(engine: Engine, namespace: str, table: str) -> list[str]:
     """The names alone, in the order PostgreSQL reports them -- the order they were added."""
-    return list(columns_of(inspect(engine), suite, table))
+    return list(columns_of(inspect(engine), namespace, table))
 
 
-def indexes_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedIndex]:
-    return {str(index["name"]): index for index in inspector.get_indexes(table, schema=suite)}
+def suite_column_names(engine: Engine, suite: str, table: str) -> list[str]:
+    """`column_names` of one of a suite's tables, wherever the server put them (D5)."""
+    return column_names(engine, namespace_of(engine, suite), table)
+
+
+def indexes_of(inspector: Inspector, namespace: str, table: str) -> dict[str, ReflectedIndex]:
+    return {str(index["name"]): index for index in inspector.get_indexes(table, schema=namespace)}
 
 
 def structure_of(engine: Engine, namespace: str) -> dict[str, list[tuple[Any, ...]]]:

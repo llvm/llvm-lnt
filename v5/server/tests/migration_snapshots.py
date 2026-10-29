@@ -38,6 +38,10 @@ REFERENCE_SCHEMA = SNAPSHOTS_DIR / "reference.json"
 # Between statements in a snapshot. None of the DDL contains it, so splitting on it is exact.
 _SEPARATOR = ";\n\n"
 
+# The namespace the snapshots put the reference suite's tables in. A server never chooses it (D5),
+# but the snapshots were rendered with it, and `replay` can put the tables elsewhere.
+NAMESPACE = "reference"
+
 
 def reference_schema() -> SuiteSchema:
     return SuiteSchema.model_validate_json(REFERENCE_SCHEMA.read_text())
@@ -67,18 +71,21 @@ def render(schema: SuiteSchema) -> str:
         # SQLAlchemy ends most lines of a CREATE TABLE with a space, which editors strip.
         return "\n".join(line.rstrip() for line in text.splitlines())
 
-    statements = [compiled(CreateSchema(schema.name))]
-    for table in suite_tables.build(schema).metadata.sorted_tables:
+    statements = [compiled(CreateSchema(NAMESPACE))]
+    for table in suite_tables.build(schema, NAMESPACE).metadata.sorted_tables:
         statements.append(compiled(CreateTable(table)))
         indexes = sorted(table.indexes, key=lambda index: str(index.name))
         statements.extend(compiled(CreateIndex(index)) for index in indexes)
     return _SEPARATOR.join(statements) + "\n"
 
 
-def replay(connection: Connection, version: int) -> None:
-    """Create the reference suite's tables as they were at `version`."""
+def replay(connection: Connection, version: int, namespace: str = NAMESPACE) -> None:
+    """Create the reference suite's tables as they were at `version`, in `namespace`."""
     for statement in snapshot_path(version).read_text().split(_SEPARATOR):
         if statement.strip():
+            # Every mention of the namespace is the schema creation or a qualified table name.
+            statement = statement.replace(f"SCHEMA {NAMESPACE}", f"SCHEMA {namespace}")
+            statement = statement.replace(f"{NAMESPACE}.", f"{namespace}.")
             connection.exec_driver_sql(statement)
 
 

@@ -1436,7 +1436,7 @@ class TestResolve:
         seen: list[str] = []
 
         def record(connection: object, cursor: object, statement: str, *rest: object) -> None:
-            if "nts.commit" in statement:
+            if f"{suite.namespace}.commit" in statement:
                 seen.append(statement)
 
         event.listen(engine, "before_cursor_execute", record)
@@ -1478,11 +1478,11 @@ class TestSchemaChangedUnderneath:
 
     @pytest.fixture
     def column_dropped_behind_the_registry(
-        self, db_engine: Engine, create: Callable[..., Any]
+        self, db_engine: Engine, suite: SuiteTables, create: Callable[..., Any]
     ) -> None:
         create("abc")
         with db_engine.begin() as connection:
-            connection.execute(text("ALTER TABLE nts.commit DROP COLUMN git_sha"))
+            connection.execute(text(f"ALTER TABLE {suite.namespace}.commit DROP COLUMN git_sha"))
 
     @pytest.mark.usefixtures("column_dropped_behind_the_registry")
     def test_a_read_is_a_retryable_conflict(self, api_client: TestClient) -> None:

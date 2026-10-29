@@ -175,25 +175,27 @@ export function changeRepository(draft: Draft, key: RepositoryKey, text: string)
   return { ...draft, repository: { ...draft.repository, [key]: text } }
 }
 
-// D4's rules for names, each of which becomes a namespace or a column. An entry's name may have
-// capitals, and its case is significant; a suite's is lowercase only.
+// D4's rules for names. An entry's name becomes a column: it may have capitals, and its case is
+// significant. A suite's names nothing in the database, and is lowercase only.
 const NAME_RULES = {
   suite: {
-    pattern: /^[a-z][a-z0-9_]*$/,
-    problem: 'A name has only lowercase letters, digits and underscores, and starts with a letter.',
+    pattern: /^[a-z0-9][a-z0-9_-]*$/,
+    problem:
+      "A name has only lowercase letters, digits, '-' and '_', and starts with a letter or a digit.",
+    maxLength: 64,
   },
   entry: {
     pattern: /^[A-Za-z][A-Za-z0-9_]*$/,
     problem: 'A name has only letters, digits and underscores, and starts with a letter.',
+    maxLength: 63,
   },
 }
-const NAME_MAX_LENGTH = 63
 
 /** Why `name` breaks D4's rule for the names of suites, or of entries, if it does. */
 function ruleProblem(name: string, of: keyof typeof NAME_RULES): string | undefined {
-  const { pattern, problem } = NAME_RULES[of]
+  const { pattern, problem, maxLength } = NAME_RULES[of]
   if (!pattern.test(name)) return problem
-  if (name.length > NAME_MAX_LENGTH) return `A name is at most ${NAME_MAX_LENGTH} characters long.`
+  if (name.length > maxLength) return `A name is at most ${maxLength} characters long.`
   return undefined
 }
 
@@ -233,21 +235,11 @@ export function nameProblems(list: ListName, entries: readonly DraftEntry[]): Ma
   return problems
 }
 
-// D4: the names no suite can have, since no namespace can be created under them.
-const RESERVED_SUITE_NAMES = ['information_schema', 'public']
-const RESERVED_SUITE_PREFIX = 'pg_'
-
 /** Why `name` cannot name a new suite, if it cannot. An empty name is not refused here. */
 export function suiteNameProblem(name: string, existing: readonly string[]): string | undefined {
   if (name === '') return undefined
   const problem = ruleProblem(name, 'suite')
   if (problem !== undefined) return problem
-  if (RESERVED_SUITE_NAMES.includes(name) || name.startsWith(RESERVED_SUITE_PREFIX)) {
-    return (
-      `A suite cannot be named ${quotedList(RESERVED_SUITE_NAMES)}, ` +
-      `or start with '${RESERVED_SUITE_PREFIX}'.`
-    )
-  }
   if (existing.includes(name)) return `There is already a suite named '${name}'.`
   return undefined
 }

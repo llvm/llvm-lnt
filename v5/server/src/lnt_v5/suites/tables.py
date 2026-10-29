@@ -8,11 +8,12 @@ Everything else about these tables is decided by the code here, which describes 
 the latest step in `suites/migrations.py`. Any change to it needs a new step there too, so that
 existing suites are migrated to match.
 
-Each suite's tables live in a PostgreSQL namespace of their own, named after the suite, so a table
-is addressed as `{suite}.commit`. That is what lets every suite carry *identical* constraint names:
-the naming convention composes a name from a table and its columns, neither of which mentions the
-suite, so `uq_commit_ordinal` is the name in every suite and the code that attributes a
-unique-constraint violation (O8) can write it out rather than compose it per request.
+Each suite's tables live in a PostgreSQL namespace of their own, the one recorded in the suite's
+`schema` row (D5), so a table is addressed as `{suite}.commit`: the `commit` table in that
+namespace. That is what lets every suite carry *identical* constraint names: the naming convention
+composes a name from a table and its columns, neither of which mentions the suite, so
+`uq_commit_ordinal` is the name in every suite and the code that attributes a unique-constraint
+violation (O8) can write it out rather than compose it per request.
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ from sqlalchemy import (
     false,
     func,
     insert,
+    literal,
     text,
     true,
 )
@@ -199,8 +201,8 @@ class SuiteTables:
     run_summary: Table
 
     @property
-    def name(self) -> str:
-        """The suite, which is also the namespace its tables live in.
+    def namespace(self) -> str:
+        """The namespace the tables live in (D5).
 
         Derived rather than stored: `MetaData(schema=...)` is what actually places the tables, so a
         separate copy could only ever disagree with it.
@@ -208,14 +210,14 @@ class SuiteTables:
         return str(self.metadata.schema)
 
 
-def build(schema: SuiteSchema) -> SuiteTables:
-    """The tables D5 specifies for a suite with this schema.
+def build(schema: SuiteSchema, namespace: str) -> SuiteTables:
+    """The tables D5 specifies for a suite with this schema, in this namespace.
 
     Pure: it describes the tables without touching a database. `create` is what puts them there.
     """
     # `schema=` on the MetaData is what places every table in the suite's namespace, and what makes
     # the unqualified foreign-key targets below resolve within it.
-    metadata = MetaData(schema=schema.name, naming_convention=NAMING_CONVENTION)
+    metadata = MetaData(schema=namespace, naming_convention=NAMING_CONVENTION)
 
     commit = Table(
         "commit",
@@ -490,18 +492,26 @@ def _qualified(connection: Connection, table: Table) -> str:
     return str(connection.dialect.identifier_preparer.format_table(table))
 
 
-def create(connection: Connection, schema: SuiteSchema) -> SuiteTables:
+def create(connection: Connection, schema: SuiteSchema, namespace: str) -> SuiteTables:
     """Create the suite's namespace and every table in it, and return the tables.
 
     Takes the schema rather than tables already built from it because `{suite}.metric` starts out
     holding a row per declared metric, which the tables alone do not describe.
 
+    The namespace is labelled with the suite's name, for whoever reads the database directly, since
+    nothing else about it says which suite it holds (D5).
+
     The caller owns the transaction. PostgreSQL has transactional DDL, so a failure partway leaves
     nothing behind, and the `schema` row and `schema_version` bump the caller writes alongside this
     commit or roll back with it (D2).
     """
-    tables = build(schema)
-    connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
+    tables = build(schema, namespace)
+    quoted = _quote(connection, namespace)
+    connection.execute(text(f"CREATE SCHEMA {quoted}"))
+    label = literal(f"LNT test suite {schema.name}").compile(
+        dialect=connection.dialect, compile_kwargs={"literal_binds": True}
+    )
+    connection.execute(text(f"COMMENT ON SCHEMA {quoted} IS {label}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
     # namespace exists. The default would reflect each table first, to skip the ones already there
     # -- a round trip per table that can only ever answer "no".
@@ -522,13 +532,13 @@ def remove_metrics(connection: Connection, table: Table, names: Sequence[str]) -
         connection.execute(delete(table).where(table.c.name.in_(names)))
 
 
-def drop(connection: Connection, name: str) -> None:
+def drop(connection: Connection, namespace: str) -> None:
     """Drop the suite's namespace and everything in it.
 
-    CASCADE because the tables reference each other; there is nothing outside the namespace to
-    take with them.
+    CASCADE because the tables reference each other. The namespace holds nothing but the suite's
+    tables (D5), so there is nothing else to take with them.
     """
-    connection.execute(text(f"DROP SCHEMA {_quote(connection, name)} CASCADE"))
+    connection.execute(text(f"DROP SCHEMA {_quote(connection, namespace)} CASCADE"))
 
 
 def add_column(connection: Connection, column: Column[Any]) -> None:

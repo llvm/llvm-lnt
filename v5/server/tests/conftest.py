@@ -25,6 +25,7 @@ from sqlalchemy import Connection, Engine, create_engine, insert, make_url, sele
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
+from introspection import namespace_of
 from lnt_v5 import keys
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
@@ -409,7 +410,7 @@ def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
 
 @pytest.fixture
 def make_api_suite(
-    api_client: TestClient, manage: dict[str, str]
+    api_client: TestClient, manage: dict[str, str], db_engine: Engine
 ) -> Callable[[dict[str, Any]], SuiteTables]:
     """Create a test suite through the API, and hand back its tables.
 
@@ -421,7 +422,8 @@ def make_api_suite(
     def make(schema: dict[str, Any]) -> SuiteTables:
         response = api_client.post(SUITES_PATH, json=schema, headers=manage)
         assert response.status_code == 201, response.text
-        return build(SuiteSchema.model_validate(response.json()))
+        suite = SuiteSchema.model_validate(response.json())
+        return build(suite, namespace_of(db_engine, suite.name))
 
     return make
 

@@ -196,7 +196,7 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
     """
     with connection.begin():
         row = connection.execute(
-            select(schema.c.schema_json, schema.c.migration_version)
+            select(schema.c.schema_json, schema.c.namespace, schema.c.migration_version)
             .where(schema.c.name == name)
             .with_for_update()
         ).one_or_none()
@@ -205,7 +205,9 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
             # it and created it again at the latest version.
             return False
 
-        suite = SuiteSchema.model_validate_json(row.schema_json)
+        suite = migrations.StoredSuite(
+            SuiteSchema.model_validate_json(row.schema_json), row.namespace
+        )
         operations = Operations(MigrationContext.configure(connection))
         for step in migrations.STEPS[row.migration_version : head]:
             step(operations, suite)

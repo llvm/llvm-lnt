@@ -130,7 +130,11 @@ class TestCreateRestrictedKey:
     def suites(self, db: Connection) -> None:
         # Rows alone: `create_key` only checks that the suites exist.
         for name in ("nts", "libcxx"):
-            db.execute(insert(schema).values(name=name, schema_json="{}", migration_version=0))
+            db.execute(
+                insert(schema).values(
+                    name=name, namespace=name, schema_json="{}", migration_version=0
+                )
+            )
 
     def test_stores_and_describes_its_suites_sorted(self, db: Connection) -> None:
         created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])

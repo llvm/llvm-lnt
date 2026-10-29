@@ -13,11 +13,11 @@ import pytest
 from sqlalchemy import Connection, Engine, event, insert, inspect, select, update
 from sqlalchemy.exc import ProgrammingError
 
-from introspection import schema_version_of, stored_names
+from introspection import namespace_of, schema_version_of, stored_names
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.routes.suites import delete_suite
 from lnt_v5.suites import registry as registry_module
-from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.registry import SuiteRegistry
+from lnt_v5.suites.registry import Suite, SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import (
     SCHEMA_NAME_CONSTRAINT,
@@ -48,7 +48,7 @@ def store(db_engine: Engine) -> Callable[..., SuiteSchema]:
     return write
 
 
-def fresh(registry: SuiteRegistry, engine: Engine) -> dict[str, object]:
+def fresh(registry: SuiteRegistry, engine: Engine) -> dict[str, Suite]:
     with engine.connect() as connection:
         return dict(registry.fresh(connection))
 
@@ -65,7 +65,7 @@ class TestLoading:
         suites = fresh(SuiteRegistry(), db_engine)
 
         assert list(suites) == ["nts"]
-        assert suites["nts"].schema == stored  # type: ignore[attr-defined]
+        assert suites["nts"].schema == stored
 
     def test_builds_the_tables_for_what_it_loads(
         self, db_engine: Engine, store: Callable[..., SuiteSchema]
@@ -74,8 +74,8 @@ class TestLoading:
 
         suite = fresh(SuiteRegistry(), db_engine)["nts"]
 
-        assert "execution_time" in suite.tables.sample.c  # type: ignore[attr-defined]
-        assert suite.tables.name == "nts"  # type: ignore[attr-defined]
+        assert "execution_time" in suite.tables.sample.c
+        assert suite.tables.namespace == namespace_of(db_engine, "nts")
 
     def test_reads_the_counter_and_the_schemas_in_one_statement(
         self, db_engine: Engine, store: Callable[..., SuiteSchema]
@@ -132,7 +132,7 @@ class TestFreshness:
             bump(connection)
 
         suite = fresh(worker, db_engine)["nts"]
-        assert [m.name for m in suite.schema.metrics] == ["compile_time"]  # type: ignore[attr-defined]
+        assert [m.name for m in suite.schema.metrics] == ["compile_time"]
 
     def test_a_second_worker_sees_a_deleted_suite(
         self, db_engine: Engine, store: Callable[..., SuiteSchema]
@@ -141,12 +141,41 @@ class TestFreshness:
         worker = SuiteRegistry()
         fresh(worker, db_engine)
 
-        with db_engine.begin() as connection:
-            connection.execute(schema.delete().where(schema.c.name == "nts"))
-            suite_tables.drop(connection, "nts")
-            bump(connection)
+        delete_suite("nts", db_engine, confirm=True)
 
         assert fresh(worker, db_engine) == {}
+
+    def test_a_worker_sees_a_suite_deleted_and_created_again_from_the_same_schema(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        # The stored schema is byte-identical, but the tables are in a namespace of their own (D5),
+        # so the copy built before would address tables that are gone.
+        store("nts")
+        worker = SuiteRegistry()
+        before = fresh(worker, db_engine)["nts"]
+
+        delete_suite("nts", db_engine, confirm=True)
+        store("nts")
+
+        after = fresh(worker, db_engine)["nts"]
+        assert after.tables.namespace == namespace_of(db_engine, "nts")
+        assert after.tables.namespace != before.tables.namespace
+        with db_engine.connect() as connection:
+            assert connection.execute(select(after.tables.machine)).all() == []
+
+    def test_two_workers_see_a_suite_deleted_and_created_again_from_the_same_schema(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        store("nts")
+        loaded, unloaded = SuiteRegistry(), SuiteRegistry()
+        fresh(loaded, db_engine)
+
+        delete_suite("nts", db_engine, confirm=True)
+        store("nts")
+
+        namespace = namespace_of(db_engine, "nts")
+        for worker in (loaded, unloaded):
+            assert fresh(worker, db_engine)["nts"].tables.namespace == namespace
 
     def test_does_not_rebuild_when_the_counter_has_not_moved(
         self, db_engine: Engine, store: Callable[..., SuiteSchema]
@@ -249,7 +278,10 @@ class TestBadRows:
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
-                    name="bad", schema_json='{"name": "bad", "nonsense": 1}', migration_version=0
+                    name="bad",
+                    namespace="bad",
+                    schema_json='{"name": "bad", "nonsense": 1}',
+                    migration_version=0,
                 )
             )
             bump(connection)
@@ -272,6 +304,24 @@ class TestBadRows:
             bump(connection)
 
         assert fresh(registry, db_engine)["nts"] is before
+
+    def test_drops_the_copy_it_had_for_a_suite_now_in_another_namespace_that_does_not_parse(
+        self, db_engine: Engine, store: Callable[..., SuiteSchema]
+    ) -> None:
+        # That copy's tables are those of a suite that is gone.
+        store("nts")
+        registry = SuiteRegistry()
+        fresh(registry, db_engine)
+
+        with db_engine.begin() as connection:
+            connection.execute(
+                update(schema)
+                .where(schema.c.name == "nts")
+                .values(namespace="elsewhere", schema_json="{ not json")
+            )
+            bump(connection)
+
+        assert fresh(registry, db_engine) == {}
 
 
 class TestBump:
@@ -311,7 +361,9 @@ class TestLockedSuite:
         stored = store("nts")
 
         with db_engine.begin() as connection:
-            assert locked_suite(connection, "nts") == stored
+            locked = locked_suite(connection, "nts")
+        assert locked.schema == stored
+        assert locked.namespace == namespace_of(db_engine, "nts")
 
     def test_is_404_for_a_suite_that_is_not_there(self, db_engine: Engine) -> None:
         # Which is what makes a change racing a delete answer 404 rather than succeed against a row
@@ -337,7 +389,7 @@ class TestLockedSuite:
             # Deliberately no bump, so any cache would still be showing the old schema.
 
         with db_engine.begin() as connection:
-            assert locked_suite(connection, "nts") == evolved
+            assert locked_suite(connection, "nts").schema == evolved
 
     def test_holds_the_row_against_a_second_caller(
         self, db_engine: Engine, store: Callable[..., SuiteSchema]
@@ -409,5 +461,5 @@ class TestSuiteTablesAreNotMutated:
 
         assert after["nts"] is not held_suite
         # The snapshot the caller already had still describes what it described.
-        assert "execution_time" in held_suite.tables.sample.c  # type: ignore[attr-defined]
-        assert "compile_time" not in held_suite.tables.sample.c  # type: ignore[attr-defined]
+        assert "execution_time" in held_suite.tables.sample.c
+        assert "compile_time" not in held_suite.tables.sample.c

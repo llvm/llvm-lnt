@@ -11,15 +11,16 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import Connection, Engine, insert, select, text, update
+from sqlalchemy import Connection, Engine, insert, inspect, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from lnt_v5.db import is_lock_unavailable
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
+from lnt_v5.suites.migrations import StoredSuite
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
+from lnt_v5.tables import SCHEMA_VERSION_ID, namespace_sequence, schema, schema_version
 
 # What tables.py's NAMING_CONVENTION names `schema`'s primary key, and so the constraint a repeated
 # suite name trips. Written out because it is fixed, and checked against what PostgreSQL reports by
@@ -57,28 +58,52 @@ def bump(connection: Connection) -> None:
     )
 
 
+# What the server names the namespace of a new suite, followed by a number from
+# `namespace_sequence`. Any name would do, as long as no namespace of that name exists already (D5).
+NAMESPACE_PREFIX = "suite_"
+
+
+def new_namespace(connection: Connection) -> str:
+    """A name for the namespace of a new suite: one that no namespace has (D5).
+
+    The sequence never hands out a number twice, so two suites created concurrently never get the
+    same name. A name can still be taken by a namespace this sequence did not name: one of the
+    suites created before namespaces were recorded, which have their suite's name, or one created
+    outside LNT. Those are skipped. Every suite's namespace exists as long as its row does, so
+    checking the namespaces covers every recorded one too.
+    """
+    while True:
+        number = connection.execute(select(namespace_sequence.next_value())).scalar_one()
+        candidate = f"{NAMESPACE_PREFIX}{number}"
+        if not inspect(connection).has_schema(candidate):
+            return candidate
+
+
 def add_suite(connection: Connection, suite: SuiteSchema) -> None:
     """Store a new suite and create its tables, announcing it to every worker (D2, D5).
 
     The row first: it is the lock every writer of this suite contends on, so two callers racing to
     create one name serialize here and the loser fails on its primary key rather than leaving a
-    half-built namespace. It is also the order the other writes take their locks in.
+    half-built namespace. It is also the order the other writes take their locks in. Choosing the
+    namespace takes no lock, and gives each caller a namespace of its own.
 
     The tables are created with this build's latest structure, so the suite is recorded at the
     latest migration version (D6).
     """
+    namespace = new_namespace(connection)
     connection.execute(
         insert(schema).values(
             name=suite.name,
+            namespace=namespace,
             schema_json=normalized_json(suite),
             migration_version=migrations.head(),
         )
     )
-    suite_tables.create(connection, suite)
+    suite_tables.create(connection, suite, namespace)
     bump(connection)
 
 
-def locked_suite(connection: Connection, name: str) -> SuiteSchema:
+def locked_suite(connection: Connection, name: str) -> StoredSuite:
     """The stored schema of a suite the caller is about to change, with its row locked.
 
     Two things at once, and both matter. The row lock serializes every change to this suite, so a
@@ -92,11 +117,13 @@ def locked_suite(connection: Connection, name: str) -> SuiteSchema:
     404 rather than succeeding against a row that is no longer there.
     """
     row = connection.execute(
-        select(schema.c.schema_json).where(schema.c.name == name).with_for_update()
+        select(schema.c.schema_json, schema.c.namespace)
+        .where(schema.c.name == name)
+        .with_for_update()
     ).one_or_none()
     if row is None:
         raise ApiError(ErrorCode.NOT_FOUND, f"Test suite '{name}' not found")
-    return SuiteSchema.model_validate_json(row.schema_json)
+    return StoredSuite(SuiteSchema.model_validate_json(row.schema_json), row.namespace)
 
 
 @contextmanager
