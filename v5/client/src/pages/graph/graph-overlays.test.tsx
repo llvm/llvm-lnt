@@ -310,9 +310,7 @@ describe('the point details (GR11)', () => {
       '4 · 6',
       '2',
     ])
-    // Named in full, after the visible text, which leans on "Previous commit:" before it.
-    const compare = details().getByRole('link', { name: 'Compare with previous commit' })
-    expect(compare).toHaveTextContent(/^Compare$/)
+    const compare = details().getByRole('link', { name: 'Compare prev' })
     expect(compare).toHaveAttribute(
       'href',
       '/compare?suite_a=libcxx&machine_a=m1&commit_a=c10' +
@@ -331,7 +329,7 @@ describe('the point details (GR11)', () => {
 
     click('a - m1', 1)
 
-    const compare = details().getByRole('link', { name: 'Compare with previous commit' })
+    const compare = details().getByRole('link', { name: 'Compare prev' })
     expect(compare.getAttribute('href')).not.toMatch(/agg/)
   })
 
@@ -343,14 +341,13 @@ describe('the point details (GR11)', () => {
 
     click('a - m1', 0)
 
-    const compare = details().getByRole('link', { name: 'Compare with previous commit' })
+    const compare = details().getByRole('link', { name: 'Compare prev' })
     expect(compare).toHaveAttribute('aria-disabled', 'true')
     expect(compare).toHaveAccessibleDescription('This is the first point of its trace.')
   })
 
   describe('its links into the repository', () => {
-    const diffLink = () =>
-      details().getByRole('link', { name: 'Diff on GitHub with previous commit' })
+    const diffLink = () => details().getByRole('link', { name: 'Diff prev on GitHub' })
 
     it('lead to the changes since the point before, in a new tab', async () => {
       mockWorld({ samples: SAMPLES })
@@ -362,7 +359,7 @@ describe('the point details (GR11)', () => {
 
       // The same two commits as the comparison with the point before.
       const diff = diffLink()
-      expect(diff.parentElement).toHaveTextContent(/^Previous commit: Compare · Diff on GitHub$/)
+      expect(diff.parentElement).toHaveTextContent(/^Compare prev · Diff prev on GitHub$/)
       expect(diff).toHaveAttribute('href', 'https://github.com/llvm/llvm-project/compare/c10...c20')
       expect(diff).toHaveAttribute('target', '_blank')
       expect(diff).toHaveAttribute('rel', 'noopener noreferrer')
@@ -379,7 +376,6 @@ describe('the point details (GR11)', () => {
       click('a - m1', 0)
 
       const diff = diffLink()
-      expect(diff).toHaveTextContent(/^Diff on GitHub$/)
       expect(diff).toHaveAttribute('aria-disabled', 'true')
       expect(diff).not.toHaveAttribute('href')
       expect(diff).toHaveAccessibleDescription('This is the first point of its trace.')
@@ -394,11 +390,11 @@ describe('the point details (GR11)', () => {
 
       click('a - m1', 1)
 
-      const compare = details().getByRole('link', { name: 'Compare with previous commit' })
+      const compare = details().getByRole('link', { name: 'Compare prev' })
       expect(compare).toBeVisible()
       expect(details().queryByRole('link', { name: /^(View|Diff)/ })).not.toBeInTheDocument()
       // Nor the dot that would come before.
-      expect(compare.parentElement).toHaveTextContent(/^Previous commit: Compare$/)
+      expect(compare.parentElement).toHaveTextContent(/^Compare prev$/)
     })
 
     it('say "in repository" when the repository has no label', async () => {
@@ -410,8 +406,7 @@ describe('the point details (GR11)', () => {
 
       click('a - m1', 1)
 
-      const diff = details().getByRole('link', { name: 'Diff in repository with previous commit' })
-      expect(diff).toHaveTextContent(/^Diff in repository$/)
+      expect(details().getByRole('link', { name: 'Diff prev in repository' })).toBeVisible()
     })
   })
 

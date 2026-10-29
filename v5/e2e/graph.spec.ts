@@ -196,7 +196,7 @@ test("shows a point's samples on hover, and keeps them with its details (GR10, G
   await expect.poll(background).toBe(usual)
   expect(await details.getAttribute('aria-label')).toMatch(`${TEST} on ${LINUX} at `)
   await expect(details.getByRole('link', { name: LINUX })).toBeVisible()
-  const compare = details.getByRole('link', { name: 'Compare with previous commit' })
+  const compare = details.getByRole('link', { name: 'Compare prev' })
   await expect(compare).toHaveAttribute('href', /^\/compare\?suite_a=libcxx&machine_a=.*&commit_b=/)
   // Its buttons fit on one row.
   const tops = await Promise.all(
