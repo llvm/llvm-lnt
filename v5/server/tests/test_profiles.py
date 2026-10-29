@@ -616,11 +616,12 @@ class TestInstructionsAreReadOnlyWhereServed:
     """
 
     @pytest.fixture
-    def without_the_column(self, db_engine: Engine) -> Callable[[], None]:
+    def without_the_column(self, db_engine: Engine, suite: SuiteTables) -> Callable[[], None]:
         def rename() -> None:
+            function = f"{suite.namespace}.profile_function"
             with db_engine.begin() as connection:
                 connection.execute(
-                    text("ALTER TABLE nts.profile_function RENAME COLUMN instructions TO hidden")
+                    text(f"ALTER TABLE {function} RENAME COLUMN instructions TO hidden")
                 )
 
         return rename

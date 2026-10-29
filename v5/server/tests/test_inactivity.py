@@ -365,9 +365,9 @@ class TestRounds:
     ) -> None:
         # Its tables vanish without its schema row, which the registry cannot tell from a suite
         # deleted while the round runs.
-        make_api_suite(NTS | {"name": "broken"})
+        broken = make_api_suite(NTS | {"name": "broken"})
         with db_engine.begin() as connection:
-            connection.execute(text('DROP SCHEMA "broken" CASCADE'))
+            connection.execute(text(f'DROP SCHEMA "{broken.namespace}" CASCADE'))
         submit({"name": "pr-1", "delete_after_inactive_days": 30}, "abc")
         idle(31)
 

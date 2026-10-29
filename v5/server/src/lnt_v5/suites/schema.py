@@ -30,46 +30,40 @@ from pydantic import (
 
 from lnt_v5 import examples
 from lnt_v5.strings import Storable
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH
 
-# D4: a suite name is also the name of the namespace holding its tables, and an entry name is also
-# the name of a column. Both are therefore identifiers: starting with a letter, and no longer than
-# Postgres allows an identifier to be. Characters and bytes are interchangeable because the
-# patterns admit only ASCII.
+# D4: an entry name is also the name of a column, and therefore an identifier: starting with a
+# letter, and no longer than Postgres allows an identifier to be. Characters and bytes are
+# interchangeable because the pattern admits only ASCII. Its case is significant: `IPC` and `ipc`
+# are two entries, and a machine field `ID` does not collide with the built-in `id`.
 #
-# An entry name may have capitals, and its case is significant: `IPC` and `ipc` are two entries,
-# and a machine field `ID` does not collide with the built-in `id`. A suite name is lowercase only,
-# as a namespace that every URL of the suite names.
-#
-# Neither rule excludes Postgres' reserved words: `order`, `user` and `table` are all legal metric
-# names. Nothing in the schema needs them reserved, and forbidding them would be a surprising
+# The rule does not exclude Postgres' reserved words: `order`, `user` and `table` are all legal
+# metric names. Nothing in the schema needs them reserved, and forbidding them would be a surprising
 # restriction to explain. It does mean every identifier built from one of these has to be quoted --
 # see tables.py -- which is also what keeps an entry name's case: Postgres folds an unquoted
 # identifier to lowercase.
+#
+# A suite name names nothing in the database -- the server chooses the namespace holding the
+# suite's tables (D5) -- so its rule is only about what reads well in a URL and on a command line,
+# and no name is reserved. It is lowercase only, since every URL of the suite names it.
 #
 # Anchored because pydantic's pattern is a *search* rather than a full match, so an unanchored
 # pattern would accept anything merely containing a legal name.
 #
 # The web UI's schema editor checks names as they are typed with a copy of these rules, and of the
-# reserved names below and on each entry model: see schema-lists.ts and schema-editor-model.ts in
+# reserved names on each entry model: see schema-lists.ts and schema-editor-model.ts in
 # client/src/pages/test-suites/schema. So does `lnt v5 convert-v4-mirror`, in
 # lnt/util/convert_v4_mirror.py at the root of the repository.
-SUITE_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
+SUITE_NAME_PATTERN = r"^[a-z0-9][a-z0-9_-]*$"
 ENTRY_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_]*$"
-
-# D4: names that satisfy the pattern but still cannot be a suite, because a namespace cannot be
-# created under them. The first two already exist in every database; the prefix is reserved by
-# PostgreSQL for its own use.
-RESERVED_SUITE_NAMES = frozenset({"public", "information_schema"})
-RESERVED_SUITE_PREFIX = "pg_"
 
 EntryName = Annotated[
     str, StringConstraints(pattern=ENTRY_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
 ]
 
-# D4's shape for a suite name. Creating a suite also rules out the reserved names above.
+# D4's suite name.
 SuiteNameStr = Annotated[
-    str, StringConstraints(pattern=SUITE_NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)
+    str, StringConstraints(pattern=SUITE_NAME_PATTERN, max_length=SUITE_NAME_MAX_LENGTH)
 ]
 
 # D4: the free text an entry carries for the UI -- `display_name`, `unit` and `unit_abbrev` -- which
@@ -429,10 +423,8 @@ class SuiteSchema(BaseModel):
 
     name: SuiteNameStr = Field(
         description=(
-            "The suite's name. Lowercase letters, digits and underscores, starting with a letter. "
-            "It can't be "
-            + " or ".join(f"`{reserved}`" for reserved in sorted(RESERVED_SUITE_NAMES))
-            + f", or start with `{RESERVED_SUITE_PREFIX}`."
+            "The suite's name. Lowercase letters, digits, hyphens and underscores, starting with a "
+            f"letter or a digit, and at most {SUITE_NAME_MAX_LENGTH} characters."
         )
     )
     metrics: list[Metric] = Field(
@@ -453,15 +445,6 @@ class SuiteSchema(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        if self.name in RESERVED_SUITE_NAMES or self.name.startswith(RESERVED_SUITE_PREFIX):
-            # D4: not a routing concern -- suite-scoped resources live below /api/suites/, so a
-            # suite may legally be named `admin` or `suites`. These are rejected only because a
-            # namespace cannot be created under them.
-            raise ValueError(
-                f"'{self.name}' cannot be a suite name: it names an existing namespace, or "
-                f"begins with '{RESERVED_SUITE_PREFIX}', which PostgreSQL reserves"
-            )
-
         _reject_duplicates(self.metrics)
         _reject_duplicates(self.commit_fields)
         _reject_duplicates(self.machine_fields)

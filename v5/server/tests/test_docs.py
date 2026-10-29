@@ -77,7 +77,7 @@ class TestOpenApiDocument:
         answer `retry` (D2); the writes listed here add cases of their own.
         """
         beyond_retry = {
-            ("/api/suites", "post"): {"duplicate", "conflict"},
+            ("/api/suites", "post"): {"duplicate"},
             ("/api/suites/{name}/schema", "patch"): {"duplicate"},
             (MACHINES_PATH, "post"): {"duplicate"},
             (f"{MACHINES_PATH}/{{machine_name}}", "patch"): {"duplicate"},

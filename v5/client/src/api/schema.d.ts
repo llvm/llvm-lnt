@@ -2872,7 +2872,7 @@ export interface components {
         SuiteSchema: {
             /**
              * Name
-             * @description The suite's name. Lowercase letters, digits and underscores, starting with a letter. It can't be `information_schema` or `public`, or start with `pg_`.
+             * @description The suite's name. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters.
              */
             name: string;
             /**
@@ -3014,7 +3014,7 @@ export interface components {
         SuiteSchemaInput: {
             /**
              * Name
-             * @description The suite's name. Lowercase letters, digits and underscores, starting with a letter. It can't be `information_schema` or `public`, or start with `pg_`.
+             * @description The suite's name. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters.
              */
             name: string;
             /**
@@ -3490,7 +3490,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `duplicate`: a suite with this name already exists. `conflict`: the name is already used in the database by something other than a test suite. `retry`: the suite was busy, for example because another request was reading it, so the change couldn't start. Nothing was saved: send the request again. */
+            /** @description `duplicate`: a suite with this name already exists. `retry`: the suite was busy, for example because another request was reading it, so the change couldn't start. Nothing was saved: send the request again. */
             409: {
                 headers: {
                     [name: string]: unknown;

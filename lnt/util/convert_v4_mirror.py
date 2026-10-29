@@ -40,12 +40,14 @@ METRIC_TYPES = {'Real': 'real', 'Status': 'integer', 'Hash': 'text'}
 # Suffix given to a machine whose name an older machine already has.
 DUPLICATE_SUFFIX = '-import-%s'
 
-# v5's rules for names of suites and of schema entries. An entry's name may
-# have capitals, and its case is significant; a suite's is lowercase only.
-_SUITE_NAME_RE = re.compile(r'[a-z][a-z0-9_]*')
+# v5's rules for names of suites and of schema entries, with their maximum
+# lengths. An entry's name may have capitals, and its case is significant; a
+# suite's is lowercase only. Keep in sync with
+# v5/server/src/lnt_v5/suites/schema.py.
+_SUITE_NAME_RE = re.compile(r'[a-z0-9][a-z0-9_-]*')
+_SUITE_NAME_MAX = 64
 _ENTRY_NAME_RE = re.compile(r'[A-Za-z][A-Za-z0-9_]*')
-_NAME_MAX = 63
-_RESERVED_SUITE_NAMES = {'public', 'information_schema'}
+_ENTRY_NAME_MAX = 63
 _V5_TYPES = {'real', 'integer', 'text', 'datetime'}
 # The built-in columns of the v5 tables that schema entries add columns to:
 # a metric is a column of the sample and test coverage tables, a machine field
@@ -231,10 +233,10 @@ class Plan:
     ordinals: dict[str, int | None]  # commit value -> ordinal
 
 
-def _check_name(name: Any, rule: re.Pattern[str], what: str,
+def _check_name(name: Any, rule: re.Pattern[str], max_length: int, what: str,
                 problems: list[str]) -> None:
     if not isinstance(name, str) or not rule.fullmatch(name) or \
-            len(name) > _NAME_MAX:
+            len(name) > max_length:
         problems.append('%s: %r is not a valid v5 name' % (what, name))
 
 
@@ -263,10 +265,7 @@ def check_schema(schema: JSONObject, problems: list[str]) -> None:
     """
     found: list[str] = []
     name = schema.get('name')
-    _check_name(name, _SUITE_NAME_RE, 'suite name', found)
-    if isinstance(name, str) and \
-            (name in _RESERVED_SUITE_NAMES or name.startswith('pg_')):
-        found.append('suite name: %r is reserved by v5' % name)
+    _check_name(name, _SUITE_NAME_RE, _SUITE_NAME_MAX, 'suite name', found)
     lists = [('metrics', _METRIC_BUILTINS),
              ('machine_fields', _MACHINE_FIELD_BUILTINS),
              ('commit_fields', _COMMIT_FIELD_BUILTINS)]
@@ -280,7 +279,8 @@ def check_schema(schema: JSONObject, problems: list[str]) -> None:
         for entry in entries:
             entry_name, entry_type = entry.get('name'), entry.get('type')
             what = '%s entry %r' % (key, entry_name)
-            _check_name(entry_name, _ENTRY_NAME_RE, what, found)
+            _check_name(entry_name, _ENTRY_NAME_RE, _ENTRY_NAME_MAX, what,
+                        found)
             if isinstance(entry_name, str):
                 if entry_name in builtins:
                     found.append('%s: the name is reserved by v5' % what)

@@ -23,18 +23,18 @@ readonly ATTEMPTS=12
 
 echo "  creating a suite reports where to find it"
 request -X POST -H "$AUTH" -H "$JSON" --data '{
-  "name": "integration",
+  "name": "suite-crud",
   "metrics": [{"name": "execution_time", "type": "real"}],
   "commit_fields": [{"name": "git_sha", "type": "text", "searchable": true, "display": true}],
   "machine_fields": [{"name": "hardware", "type": "text"}]
 }' "$SUITES"
 expect_status 201
-expect_body '"name":"integration"'
-expect_header Location '/api/suites/integration'
+expect_body '"name":"suite-crud"'
+expect_header Location '/api/suites/suite-crud'
 
 echo "  every worker sees it, and none of them 404s"
 for _ in $(seq 1 "$ATTEMPTS"); do
-    request "${SUITES}/integration"
+    request "${SUITES}/suite-crud"
     expect_status 200
     expect_body '"git_sha"'
 done
@@ -53,12 +53,12 @@ echo "  evolving it is visible on every worker"
 request -X PATCH -H "$AUTH" -H "$JSON" --data '{
   "metrics": {"add": [{"name": "code_size", "type": "integer"}]},
   "machine_fields": {"remove": ["hardware"]}
-}' "${SUITES}/integration/schema?confirm=true"
+}' "${SUITES}/suite-crud/schema?confirm=true"
 expect_status 200
 expect_body '"code_size"'
 
 for _ in $(seq 1 "$ATTEMPTS"); do
-    request "${SUITES}/integration"
+    request "${SUITES}/suite-crud"
     expect_status 200
     expect_body '"code_size"'
     # The removed field is gone everywhere, not just on the worker that removed it.
@@ -71,28 +71,28 @@ done
 
 echo "  changing only its repository, which changes no table, is visible on every worker"
 request -X PATCH -H "$AUTH" -H "$JSON" \
-    --data '{"repository": {"label": "Forge"}}' "${SUITES}/integration/schema"
+    --data '{"repository": {"label": "Forge"}}' "${SUITES}/suite-crud/schema"
 expect_status 200
 expect_body '"label":"Forge"'
 
 for _ in $(seq 1 "$ATTEMPTS"); do
-    request "${SUITES}/integration"
+    request "${SUITES}/suite-crud"
     expect_status 200
     expect_body '"label":"Forge"'
 done
 
 echo "  a removal without confirmation is refused"
 request -X PATCH -H "$AUTH" -H "$JSON" \
-    --data '{"metrics": {"remove": ["code_size"]}}' "${SUITES}/integration/schema"
+    --data '{"metrics": {"remove": ["code_size"]}}' "${SUITES}/suite-crud/schema"
 expect_status 400
 expect_body '"code":"invalid_request"'
 
 echo "  a key restricted to the suite manages it, and no other suite"
 # Minted only now, since the CLI only restricts a key to suites that exist.
-restricted="$(mint_key restricted manage --suite integration)"
+restricted="$(mint_key restricted manage --suite suite-crud)"
 request -X PATCH -H "Authorization: Bearer ${restricted}" -H "$JSON" \
     --data '{"metrics": {"update": [{"name": "code_size", "display_name": "Code size"}]}}' \
-    "${SUITES}/integration/schema"
+    "${SUITES}/suite-crud/schema"
 expect_status 200
 request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
     --data '{"name":"other","metrics":[]}' "$SUITES"
@@ -111,16 +111,38 @@ expect_status 401
 echo "  the schema survives a restart, which is the only test of the lazy load"
 restart_server
 SUITES="${BASE_URL}/api/suites"
-request "${SUITES}/integration"
+request "${SUITES}/suite-crud"
 expect_status 200
 expect_body '"code_size"'
 
 echo "  deleting it is visible on every worker"
-request -X DELETE -H "$AUTH" "${SUITES}/integration?confirm=true"
+request -X DELETE -H "$AUTH" "${SUITES}/suite-crud?confirm=true"
 expect_status 204
 
 for _ in $(seq 1 "$ATTEMPTS"); do
-    request "${SUITES}/integration"
+    request "${SUITES}/suite-crud"
     expect_status 404
     expect_body '"code":"not_found"'
 done
+
+echo "  a suite deleted and created again from the same schema serves its new tables on every worker"
+readonly RECREATED='{"name": "recreated", "metrics": [{"name": "execution_time", "type": "real"}]}'
+request -X POST -H "$AUTH" -H "$JSON" --data "$RECREATED" "$SUITES"
+expect_status 201
+# Every worker reads the suite's tables, so that each holds its copy of the suite.
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${SUITES}/recreated/machines"
+    expect_status 200
+done
+# Back to back, so that no worker reloads in between: the new suite has the same name and schema as
+# the copy each worker holds, but its tables are in a namespace of its own (D5).
+request -X DELETE -H "$AUTH" "${SUITES}/recreated?confirm=true"
+expect_status 204
+request -X POST -H "$AUTH" -H "$JSON" --data "$RECREATED" "$SUITES"
+expect_status 201
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${SUITES}/recreated/machines"
+    expect_status 200
+done
+request -X DELETE -H "$AUTH" "${SUITES}/recreated?confirm=true"
+expect_status 204

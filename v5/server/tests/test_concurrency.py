@@ -28,7 +28,7 @@ from sqlalchemy import Connection, Engine, delete, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from conftest import code_of, entry, run_payload
-from introspection import counted, counting_statements
+from introspection import counted, counting_statements, namespace_of
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
@@ -79,7 +79,7 @@ def suite(db_engine: Engine) -> Suite:
     """
     schema = SuiteSchema.model_validate(NTS)
     with db_engine.begin() as connection:
-        tables = suite_tables.create(connection, schema)
+        tables = suite_tables.create(connection, schema, "nts")
     return Suite(schema=schema, tables=tables, schema_json=schema.model_dump_json())
 
 
@@ -1106,13 +1106,14 @@ def deadlocked(
     The transaction ends before the response is returned, so that the test can read the tables it
     locked, and a failing test does not leave it blocking the suite's teardown.
     """
+    namespace = namespace_of(db_engine, "nts")
     with db_engine.connect() as holder, holder.begin():
         # Needs a superuser, which the test role is.
         holder.execute(text("SET LOCAL deadlock_timeout = '10s'"))
-        holder.execute(text(f'LOCK TABLE "nts".{first} IN ACCESS EXCLUSIVE MODE'))
+        holder.execute(text(f'LOCK TABLE "{namespace}".{first} IN ACCESS EXCLUSIVE MODE'))
         running = background(request)
         until_blocked(db_engine)
-        holder.execute(text(f'LOCK TABLE "nts".{second} IN ACCESS EXCLUSIVE MODE'))
+        holder.execute(text(f'LOCK TABLE "{namespace}".{second} IN ACCESS EXCLUSIVE MODE'))
     return running.result(timeout=BLOCK_TIMEOUT)
 
 
@@ -1185,15 +1186,16 @@ class TestContendingWithASchemaChange:
     def test_a_lock_timeout_is_retryable(self, db_engine: Engine, tables: SuiteTables) -> None:
         # Requests set no `lock_timeout`, but an operator may set one on the role or the database.
         # Both sides run on this thread, so this hangs if the timeout ever fails to apply.
+        sample = f'"{tables.namespace}".sample'
         with db_engine.connect() as holder, holder.begin():
-            holder.execute(text('LOCK TABLE "nts".sample IN ACCESS EXCLUSIVE MODE'))
+            holder.execute(text(f"LOCK TABLE {sample} IN ACCESS EXCLUSIVE MODE"))
             with (
                 pytest.raises(ApiError) as raised,
                 db_engine.connect() as connection,
                 suite_scope(SuiteRegistry(), connection, "nts"),
             ):
                 connection.execute(text("SET LOCAL lock_timeout = '10ms'"))
-                connection.execute(text('SELECT 1 FROM "nts".sample'))
+                connection.execute(text(f"SELECT 1 FROM {sample}"))
 
         assert raised.value.code is ErrorCode.RETRY
 
@@ -1314,3 +1316,8 @@ class TestInactivityDeletion:
         with pytest.raises(ApiError) as raised:
             filling.result(timeout=BLOCK_TIMEOUT)
         assert raised.value.code is ErrorCode.RETRY
+        # Not by its namespace, which names nothing a client knows (D5).
+        assert raised.value.message == (
+            "The machine this submission names was deleted from this test suite while the "
+            "submission was being stored. Retry."
+        )

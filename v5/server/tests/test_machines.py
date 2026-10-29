@@ -336,7 +336,7 @@ class TestLastRunAt:
         above, while reading every run in the suite to do it.
         """
         schema = SuiteSchema.model_validate(NTS)
-        suite = Suite(schema=schema, tables=build(schema), schema_json="")
+        suite = Suite(schema=schema, tables=build(schema, "nts"), schema_json="")
 
         statement = Machines(suite).select()
         sql = str(statement.compile(compile_kwargs={"literal_binds": True})).upper()
@@ -402,7 +402,7 @@ class TestCreate:
         assert code_of(response) == "invalid_request"
 
     def test_stores_declared_fields_with_their_declared_types(
-        self, db_engine: Engine, create: Callable[..., Any]
+        self, db_engine: Engine, suite: SuiteTables, create: Callable[..., Any]
     ) -> None:
         response = create(
             "linux",
@@ -423,8 +423,8 @@ class TestCreate:
             "clock_ghz": 3.5,
             "commissioned_at": "2026-04-15T14:30:00Z",
         }
-        assert sql_type_of(db_engine, "nts", "machine", "core_count") == "BIGINT"
-        assert sql_type_of(db_engine, "nts", "machine", "clock_ghz") == "DOUBLE PRECISION"
+        assert sql_type_of(db_engine, suite.namespace, "machine", "core_count") == "BIGINT"
+        assert sql_type_of(db_engine, suite.namespace, "machine", "clock_ghz") == "DOUBLE PRECISION"
 
     def test_converts_a_timestamp_to_utc(self, create: Callable[..., Any]) -> None:
         # D5: stored as UTC, and serialized with a `Z` suffix rather than the offset it arrived in.
@@ -981,11 +981,11 @@ class TestSchemaChangedUnderneath:
 
     @pytest.fixture
     def column_dropped_behind_the_registry(
-        self, api_client: TestClient, db_engine: Engine, create: Callable[..., Any]
+        self, db_engine: Engine, suite: SuiteTables, create: Callable[..., Any]
     ) -> None:
         create("linux")
         with db_engine.begin() as connection:
-            connection.execute(text("ALTER TABLE nts.machine DROP COLUMN hardware"))
+            connection.execute(text(f"ALTER TABLE {suite.namespace}.machine DROP COLUMN hardware"))
 
     @pytest.mark.usefixtures("column_dropped_behind_the_registry")
     def test_a_read_is_a_retryable_conflict(self, api_client: TestClient) -> None:
@@ -1004,12 +1004,16 @@ class TestSchemaChangedUnderneath:
         assert code_of(response) == "retry"
 
     def test_a_dropped_suite_is_a_retryable_conflict(
-        self, api_client: TestClient, db_engine: Engine, create: Callable[..., Any]
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        suite: SuiteTables,
+        create: Callable[..., Any],
     ) -> None:
         # The whole namespace, rather than one column: same race, same answer.
         create("linux")
         with db_engine.begin() as connection:
-            connection.execute(text("DROP TABLE nts.machine CASCADE"))
+            connection.execute(text(f"DROP TABLE {suite.namespace}.machine CASCADE"))
 
         assert api_client.get(MACHINES).status_code == 409
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 from sqlalchemy import Connection, Engine, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
@@ -44,6 +45,21 @@ def normalized_json(suite: SuiteSchema) -> str:
     return suite.model_dump_json()
 
 
+@dataclass(frozen=True)
+class StoredSuite:
+    """A suite as its `schema` row records it (D5): the row's key, the suite's schema, and the
+    namespace of its tables.
+
+    What a write reads under the suite's lock (see `locked_suite`), and what a per-suite migration
+    step is told about the suite it migrates (see `migrations.py`). The name is the row's, rather
+    than the copy in the schema, since the row is what a write addresses.
+    """
+
+    name: str
+    schema: SuiteSchema
+    namespace: str
+
+
 def bump(connection: Connection) -> None:
     """Tell every other worker that the suites have changed (D2).
 
@@ -62,23 +78,26 @@ def add_suite(connection: Connection, suite: SuiteSchema) -> None:
 
     The row first: it is the lock every writer of this suite contends on, so two callers racing to
     create one name serialize here and the loser fails on its primary key rather than leaving a
-    half-built namespace. It is also the order the other writes take their locks in.
+    half-built namespace. It is also the order the other writes take their locks in. Choosing the
+    namespace takes no lock, and gives each caller a namespace of its own.
 
     The tables are created with this build's latest structure, so the suite is recorded at the
     latest migration version (D6).
     """
+    namespace = suite_tables.new_namespace(connection)
     connection.execute(
         insert(schema).values(
             name=suite.name,
+            namespace=namespace,
             schema_json=normalized_json(suite),
             migration_version=migrations.head(),
         )
     )
-    suite_tables.create(connection, suite)
+    suite_tables.create(connection, suite, namespace)
     bump(connection)
 
 
-def locked_suite(connection: Connection, name: str) -> SuiteSchema:
+def locked_suite(connection: Connection, name: str) -> StoredSuite:
     """The stored schema of a suite the caller is about to change, with its row locked.
 
     Two things at once, and both matter. The row lock serializes every change to this suite, so a
@@ -92,11 +111,13 @@ def locked_suite(connection: Connection, name: str) -> SuiteSchema:
     404 rather than succeeding against a row that is no longer there.
     """
     row = connection.execute(
-        select(schema.c.schema_json).where(schema.c.name == name).with_for_update()
+        select(schema.c.schema_json, schema.c.namespace)
+        .where(schema.c.name == name)
+        .with_for_update()
     ).one_or_none()
     if row is None:
         raise ApiError(ErrorCode.NOT_FOUND, f"Test suite '{name}' not found")
-    return SuiteSchema.model_validate_json(row.schema_json)
+    return StoredSuite(name, SuiteSchema.model_validate_json(row.schema_json), row.namespace)
 
 
 @contextmanager

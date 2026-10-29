@@ -15,7 +15,8 @@
 
 ## Concepts
 
-- **Test suite** -- a namespace with a schema of its own. Nearly every endpoint
+- **Test suite** -- a self-contained collection of machines, commits, runs and
+  regressions, with a schema of its own. Nearly every endpoint
   lives under `/api/suites/{testsuite}/`, and nothing is shared between suites:
   two suites may hold machines of the same name and they are different machines.
   `GET /api/suites` returns every suite with its schema.

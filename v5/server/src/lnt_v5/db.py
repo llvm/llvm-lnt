@@ -15,7 +15,6 @@ from typing import Annotated, Any
 from fastapi import Depends, Request
 from psycopg.errors import (
     DeadlockDetected,
-    DuplicateSchema,
     LockNotAvailable,
     UndefinedColumn,
     UndefinedTable,
@@ -177,16 +176,6 @@ def is_missing_relation(error: DBAPIError) -> bool:
     retrying will succeed (409, not 500).
     """
     return isinstance(error.orig, UndefinedTable | UndefinedColumn)
-
-
-def is_duplicate_schema(error: DBAPIError) -> bool:
-    """Whether an error means the namespace already exists.
-
-    `POST /api/suites` reaches this when the `schema` row is absent but a namespace of that name is
-    present -- the two are written in one transaction, so it takes an out-of-band change to get
-    there. endpoints.md answers 409 for it, which needs telling this from a genuine server fault.
-    """
-    return isinstance(error.orig, DuplicateSchema)
 
 
 def is_lock_unavailable(error: DBAPIError) -> bool:

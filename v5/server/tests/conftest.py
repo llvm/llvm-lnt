@@ -25,6 +25,7 @@ from sqlalchemy import Connection, Engine, create_engine, insert, make_url, sele
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
+from introspection import namespace_of
 from lnt_v5 import keys
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
@@ -196,8 +197,8 @@ def db_engine(_session_engine: Engine) -> Iterator[Engine]:
     yield _session_engine
     with _session_engine.begin() as connection:
         # Every suite's namespace, whether this test created it through the API or directly (D5).
-        # The database is session-scoped, so a leaked namespace would make the next test's
-        # `CREATE SCHEMA` fail -- an order-dependent 409 where it expected a 201.
+        # The database is session-scoped, so a leaked namespace would silently change which
+        # namespace the next test's suite gets, or collide with one a test creates directly.
         for namespace in connection.execute(
             text(
                 "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\\_%' "
@@ -409,7 +410,7 @@ def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
 
 @pytest.fixture
 def make_api_suite(
-    api_client: TestClient, manage: dict[str, str]
+    api_client: TestClient, manage: dict[str, str], db_engine: Engine
 ) -> Callable[[dict[str, Any]], SuiteTables]:
     """Create a test suite through the API, and hand back its tables.
 
@@ -421,7 +422,8 @@ def make_api_suite(
     def make(schema: dict[str, Any]) -> SuiteTables:
         response = api_client.post(SUITES_PATH, json=schema, headers=manage)
         assert response.status_code == 201, response.text
-        return build(SuiteSchema.model_validate(response.json()))
+        suite = SuiteSchema.model_validate(response.json())
+        return build(suite, namespace_of(db_engine, suite.name))
 
     return make
 

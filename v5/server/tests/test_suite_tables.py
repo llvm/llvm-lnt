@@ -92,7 +92,9 @@ def make_suite(db_engine: Engine) -> Iterator[Callable[..., SuiteTables]]:
     def make(name: str = "nts", **overrides: Any) -> SuiteTables:
         schema = SuiteSchema.model_validate({"name": name} | overrides)
         with db_engine.begin() as connection:
-            built = suite_tables.create(connection, schema)
+            # In a namespace named after the suite, which the server would not choose (D5), but
+            # which keeps it plain whose tables a test reads back.
+            built = suite_tables.create(connection, schema, name)
         created.append(name)
         return built
 
@@ -222,10 +224,10 @@ class TestCreate:
         assert "execution_time" not in columns_of(inspector, "compile", "sample")
         assert "size" in columns_of(inspector, "compile", "sample")
 
-    def test_refuses_to_create_a_suite_that_already_exists(
+    def test_refuses_a_namespace_that_already_exists(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # What grounds the 409 from `POST /api/suites`, including when two workers race.
+        # Rather than mixing two suites' tables, or a suite's with anything else (D5).
         make_suite("nts")
 
         with pytest.raises(ProgrammingError):
@@ -591,7 +593,7 @@ class TestReservedColumns:
 
         A suite with no entries, so every column present is a built-in.
         """
-        bare = suite_tables.build(SuiteSchema.model_validate({"name": "nts"}))
+        bare = suite_tables.build(SuiteSchema.model_validate({"name": "nts"}), "nts")
 
         for table, reserved in entry.RESERVED_COLUMNS.items():
             assert set(getattr(bare, table).c.keys()) == reserved, table
@@ -1031,7 +1033,8 @@ class TestEvolution:
         grown = suite_tables.build(
             SuiteSchema.model_validate(
                 {"name": "nts", "machine_fields": [{"name": "hardware", "type": "text"}]}
-            )
+            ),
+            "nts",
         )
 
         with db_engine.begin() as connection:
@@ -1049,7 +1052,7 @@ class TestEvolution:
         # `test_each_declared_type_becomes_its_column_type`' job.
         make_suite("nts")
         added = ("execution_time", "compile_status", "build_id", "measured_at")
-        grown = suite_tables.build(SuiteSchema.model_validate({"name": "nts", **FULL}))
+        grown = suite_tables.build(SuiteSchema.model_validate({"name": "nts", **FULL}), "nts")
 
         with db_engine.begin() as connection:
             for name in added:
@@ -1066,7 +1069,8 @@ class TestEvolution:
         grown = suite_tables.build(
             SuiteSchema.model_validate(
                 {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
-            )
+            ),
+            "nts",
         )
 
         with db_engine.begin() as connection:
@@ -1101,7 +1105,8 @@ class TestEvolution:
                         {"name": "user", "type": "text"},
                     ],
                 }
-            )
+            ),
+            "nts",
         )
 
         with db_engine.begin() as connection:

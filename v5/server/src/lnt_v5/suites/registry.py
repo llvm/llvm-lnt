@@ -17,7 +17,7 @@ import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import FunctionType
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NamedTuple, cast
 
 from fastapi import Depends, Request
 from pydantic import ValidationError
@@ -45,7 +45,8 @@ class Suite:
     is `derived`'s cache of values computed from these fields, which never changes a value once
     cached.
 
-    `schema_json` is kept so that a reload can tell this suite is the one it already has.
+    `schema_json` is kept so that a reload can tell this suite is the one it already has, along with
+    the namespace its tables are in.
     """
 
     schema: SuiteSchema
@@ -117,7 +118,7 @@ class SuiteRegistry:
             raise ApiError(ErrorCode.NOT_FOUND, f"Test suite '{name}' not found")
         return suite
 
-    def _parse(self, rows: list[tuple[str, str]]) -> Mapping[str, Suite]:
+    def _parse(self, rows: list[_Row]) -> Mapping[str, Suite]:
         """The new map, reusing what has not changed and keeping what no longer parses.
 
         Per row rather than all-or-nothing, for two reasons. The counter is global, so a change to
@@ -126,30 +127,46 @@ class SuiteRegistry:
         built from. And letting one unparseable row propagate would turn a single bad row -- one
         edited by hand, or one a newer build wrote carrying a key this one does not know -- into a
         total outage for the worker, including for every unrelated suite, on every request.
+
+        Only a suite whose tables are in the namespace the row names is reused: one deleted and
+        created again under the same name, from the same schema, is in a namespace of its own (D5),
+        and the copy of the suite it replaced would address tables that are gone.
         """
         suites: dict[str, Suite] = {}
-        for name, schema_json in rows:
-            previous = self._suites.get(name)
-            if previous is not None and previous.schema_json == schema_json:
-                suites[name] = previous
+        for row in rows:
+            previous = self._suites.get(row.name)
+            if previous is not None and previous.tables.namespace != row.namespace:
+                previous = None
+            if previous is not None and previous.schema_json == row.schema_json:
+                suites[row.name] = previous
                 continue
             try:
-                parsed = SuiteSchema.model_validate_json(schema_json)
+                parsed = SuiteSchema.model_validate_json(row.schema_json)
             except ValidationError:
                 logger.warning(
                     "Could not parse the stored schema for suite %r; %s",
-                    name,
+                    row.name,
                     "keeping the copy already loaded" if previous else "skipping it",
                     exc_info=True,
                 )
                 if previous is not None:
-                    suites[name] = previous
+                    suites[row.name] = previous
                 continue
-            suites[name] = Suite(schema=parsed, tables=build(parsed), schema_json=schema_json)
+            suites[row.name] = Suite(
+                schema=parsed, tables=build(parsed, row.namespace), schema_json=row.schema_json
+            )
         return suites
 
 
-def _read(connection: Connection, cached: int | None) -> tuple[int, list[tuple[str, str]]]:
+class _Row(NamedTuple):
+    """One suite's `schema` row, as far as the registry reads it."""
+
+    name: str
+    namespace: str
+    schema_json: str
+
+
+def _read(connection: Connection, cached: int | None) -> tuple[int, list[_Row]]:
     """The counter, and every stored schema *if* the counter has moved, as one statement.
 
     One statement, so the counter and the schemas come from one snapshot. Read separately they could
@@ -165,13 +182,17 @@ def _read(connection: Connection, cached: int | None) -> tuple[int, list[tuple[s
     """
     moved = schema_version.c.version != (_NEVER_LOADED if cached is None else cached)
     rows = connection.execute(
-        select(schema_version.c.version, schema.c.name, schema.c.schema_json)
+        select(schema_version.c.version, schema.c.name, schema.c.namespace, schema.c.schema_json)
         .select_from(schema_version.outerjoin(schema, moved))
         .where(schema_version.c.id == SCHEMA_VERSION_ID)
     ).all()
     # The check constraint guarantees the counter row, so `rows` is never empty.
     version = int(rows[0].version)
-    return version, [(row.name, row.schema_json) for row in rows if row.name is not None]
+    return version, [
+        _Row(name=row.name, namespace=row.namespace, schema_json=row.schema_json)
+        for row in rows
+        if row.name is not None
+    ]
 
 
 def get_registry(request: Request) -> SuiteRegistry:

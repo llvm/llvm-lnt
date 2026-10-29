@@ -10,7 +10,7 @@ suite endpoints create and drop them at runtime.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from alembic import command
@@ -23,6 +23,7 @@ from sqlalchemy import Connection, Engine, select, text, update
 
 from lnt_v5.suites import migrations
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.store import StoredSuite
 from lnt_v5.tables import schema
 
 # Inside the package rather than beside it, because the Dockerfile copies only `server/src` and
@@ -196,7 +197,7 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
     """
     with connection.begin():
         row = connection.execute(
-            select(schema.c.schema_json, schema.c.migration_version)
+            select(schema.c.schema_json, schema.c.namespace, schema.c.migration_version)
             .where(schema.c.name == name)
             .with_for_update()
         ).one_or_none()
@@ -205,10 +206,15 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
             # it and created it again at the latest version.
             return False
 
-        suite = SuiteSchema.model_validate_json(row.schema_json)
+        suite = StoredSuite(name, SuiteSchema.model_validate_json(row.schema_json), row.namespace)
         operations = Operations(MigrationContext.configure(connection))
         for step in migrations.STEPS[row.migration_version : head]:
             step(operations, suite)
+            # A step may have moved the suite to another namespace (D6), where the next one works.
+            moved = connection.execute(
+                select(schema.c.namespace).where(schema.c.name == name)
+            ).scalar_one()
+            suite = replace(suite, namespace=moved)
         connection.execute(
             update(schema).where(schema.c.name == name).values(migration_version=head)
         )

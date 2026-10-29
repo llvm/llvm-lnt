@@ -17,8 +17,7 @@ API documentation (see E1). Instance-level routes live under `/api/`
 (`/api/suites`, `/api/admin/...`, `/api/auth`), and everything that belongs to a
 suite lives under `/api/suites/{testsuite}/`. Because suite-scoped routes sit
 one level below the suite collection, no suite name can collide with a route: a
-suite may legally be named `admin` or even `suites`. D4 still rejects a few
-suite names at creation, for reasons unrelated to routing. Every path below
+suite may legally be named `admin` or even `suites`. Every path below
 `/api/suites/` therefore starts with a suite name, which is how I5 tells which
 suite a request addresses.
 
@@ -255,7 +254,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `not_found` | 404 | No route matches the path, or an entity named by the path, a filter or the request body does not exist (except where I3 returns an empty result instead) |
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a suite name, a schema entry added to a list that already has one of that name |
-| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), a suite name already used by a database namespace |
+| `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6) |
 | `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a schema change could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |

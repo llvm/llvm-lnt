@@ -228,7 +228,7 @@ class TestSubmission:
         self, api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
     ) -> None:
         # Two metrics, so two summaries, and one statement.
-        with counting_statements("INSERT INTO nts.run_summary") as inserts:
+        with counting_statements(f"INSERT INTO {suite.namespace}.run_summary") as inserts:
             self.submit(api_client, submitter, entry("a", {"time": 1.0, "size": 2}))
 
         assert len(inserts) == 1

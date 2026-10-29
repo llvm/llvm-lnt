@@ -55,14 +55,19 @@ expect_status 201
 # old address.
 wait_for_health "$PROXY_URL"
 
+# The namespace the server chose for the suite's tables (D5).
+namespace="$(docker exec "$DB_CONTAINER" psql --no-align --tuples-only -U lnt -d lnt -c \
+    "SELECT namespace FROM schema WHERE name = 'streaming'")"
+readonly SAMPLE="\"${namespace}\".sample"
+
 # Held for at most 30 seconds, should this check die without releasing it.
 docker exec --env PGAPPNAME="$LOCKER" "$DB_CONTAINER" psql --quiet -U lnt -d lnt -c \
-    'BEGIN; LOCK TABLE streaming.sample IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(30); COMMIT;' \
+    "BEGIN; LOCK TABLE ${SAMPLE} IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(30); COMMIT;" \
     >/dev/null 2>&1 &
 granted=""
 for _ in $(seq 1 50); do
     granted="$(docker exec "$DB_CONTAINER" psql --no-align --tuples-only -U lnt -d lnt -c \
-        "SELECT count(*) FROM pg_locks WHERE relation = 'streaming.sample'::regclass
+        "SELECT count(*) FROM pg_locks WHERE relation = '${SAMPLE}'::regclass
          AND mode = 'AccessExclusiveLock' AND granted")"
     [ "$granted" = 1 ] && break
     sleep 0.2

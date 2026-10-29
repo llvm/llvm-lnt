@@ -15,8 +15,8 @@ import sys
 from click.testing import CliRunner
 
 from lnt.lnttool.v5 import action_convert_v4_mirror
-from lnt.util.convert_v4_mirror import (convert_run, make_plan, read_mirror,
-                                        read_run)
+from lnt.util.convert_v4_mirror import (check_schema, convert_run, make_plan,
+                                        read_mirror, read_run)
 
 TMP = sys.argv[1]
 URL = 'http://v4.example.com'
@@ -340,12 +340,26 @@ run_cli(ordinals, '--suite', 'nts', '--target-suite', 'target')
 # CHECK-NEXT: written: {{[0-9]+}}, exit: 1
 
 # An invalid target suite name.
-run_cli(ordinals, '--suite', 'nts', '--target-suite', 'pg_nts')
-# CHECK:      error: suite name: 'pg_nts' is reserved by v5
+run_cli(ordinals, '--suite', 'nts', '--target-suite', '-nts')
+# CHECK:      error: suite name: '-nts' is not a valid v5 name
 run_cli(ordinals, '--suite', 'nts', '--target-suite', 'nts\n')
 # CHECK:      error: suite name: 'nts\n' is not a valid v5 name
 run_cli(ordinals, '--suite', 'nts', '--target-suite', 'Target')
 # CHECK:      error: suite name: 'Target' is not a valid v5 name
+run_cli(ordinals, '--suite', 'nts', '--target-suite', 'n' * 65)
+# CHECK:      error: suite name: 'n{{n+}}' is not a valid v5 name
+
+# A suite name may have hyphens, start with a digit, and be 64 characters
+# long. Since it names nothing in v5's database, no name is reserved.
+for name in ['my-suite', '9lives', 'n' * 64, 'pg_nts', 'public']:
+    problems = []
+    check_schema({'name': name}, problems)
+    print('suite name %s: %r' % (name[:8], problems))
+# CHECK:      suite name my-suite: []
+# CHECK-NEXT: suite name 9lives: []
+# CHECK-NEXT: suite name nnnnnnnn: []
+# CHECK-NEXT: suite name pg_nts: []
+# CHECK-NEXT: suite name public: []
 
 # Unlike suite names, entry names may have capitals, and keep their case.
 capitals_schema = copy.deepcopy(SCHEMA)

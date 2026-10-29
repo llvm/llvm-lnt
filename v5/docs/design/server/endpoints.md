@@ -731,8 +731,6 @@ are few and parts of the client need every suite's metrics up front.
   `GET /api/suites/{name}`.
 - 400 if the schema fails validation (see D4).
 - 409 `duplicate` if a suite with that name already exists.
-- 409 `conflict` if a database namespace of that name exists although no suite
-  does.
 - 409 `retry` if the creation could not take the locks it needs.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,

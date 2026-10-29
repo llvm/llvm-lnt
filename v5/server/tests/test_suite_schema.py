@@ -62,8 +62,10 @@ class TestSuiteName:
     def test_accepts_the_documented_example(self) -> None:
         assert SuiteSchema.model_validate(EXAMPLE).name == "nts"
 
-    @pytest.mark.parametrize("name", ["a", "nts", "test_suite_2", "a" * 63])
-    def test_accepts_a_lowercase_identifier(self, name: str) -> None:
+    @pytest.mark.parametrize(
+        "name", ["a", "nts", "test_suite_2", "test-suite", "2fast", "9", "nts-", "a" * 64]
+    )
+    def test_accepts_lowercase_letters_digits_hyphens_and_underscores(self, name: str) -> None:
         SuiteSchema.model_validate(schema(name=name))
 
     @pytest.mark.parametrize(
@@ -72,28 +74,24 @@ class TestSuiteName:
             "",
             "NTS",  # D4 admits lowercase only
             "test suite",
-            "test-suite",
-            "2fast",  # must start with a letter
+            "-nts",  # must start with a letter or a digit
             "_private",
+            "nts.x",
+            "nts/x",
             "nts\n",  # a trailing newline must not slip past the anchors
-            "a" * 64,  # one over PostgreSQL's identifier limit
+            "a" * 65,  # one over D4's limit
         ],
     )
-    def test_rejects_anything_that_is_not_one(self, name: str) -> None:
+    def test_rejects_anything_else(self, name: str) -> None:
         with pytest.raises(ValidationError):
             SuiteSchema.model_validate(schema(name=name))
 
-    @pytest.mark.parametrize("name", ["public", "information_schema", "pg_catalog", "pg_"])
-    def test_rejects_a_name_no_namespace_can_be_created_under(self, name: str) -> None:
-        # D4: these satisfy the pattern and are rejected anyway, because the suite name is also
-        # the name of the namespace holding its tables.
-        with pytest.raises(ValidationError):
-            SuiteSchema.model_validate(schema(name=name))
-
-    @pytest.mark.parametrize("name", ["admin", "suites", "api"])
-    def test_reserves_nothing_for_routing(self, name: str) -> None:
+    @pytest.mark.parametrize(
+        "name", ["admin", "suites", "api", "public", "information_schema", "pg_catalog", "pg_"]
+    )
+    def test_reserves_no_name(self, name: str) -> None:
         # I1: suite-scoped resources live below /api/suites/, so routing reserves no suite name at
-        # all. Only the namespace collisions above are refused.
+        # all. Nor does the database, since a suite name names nothing in it (D4).
         SuiteSchema.model_validate(schema(name=name))
 
 
