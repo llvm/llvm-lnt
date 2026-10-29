@@ -310,49 +310,48 @@ hidden until the pointer moves again. It shows:
   time, its shortened UUID linking to its Run Detail page, and the values of its
   samples (GR1), in ascending order and on one line. The list scrolls when it is
   long or wide;
-- "Previous commit:", followed by two links about the previous point of the
-  same trace, the one at the nearest lower commit on the x-axis where this
+- "Compare prev", which leads to the Compare page set up to compare this point
+  with the previous point. Side A is the previous point's commit, side B this
+  point's commit, both in this suite and on this machine with all their runs,
+  with the plotted metric, and with the Graph's sample and run aggregation,
+  so that Compare's Value A and Value B are the two points' values. The
+  previous point is the one at the nearest lower commit on the x-axis where this
   trace has a value, so that unlike the previous commit of Run Detail's
-  "Compare with previous commit" (DT2), it always has data for the test. Both
-  links are disabled (see AR8) at the first point of a trace. The accessible
-  name of each is its text followed by "with previous commit". The links are:
-  - "Compare", which leads to the Compare page set up to compare this point
-    with the previous point. Side A is the previous point's commit, side B this
-    point's commit, both in this suite and on this machine with all their runs,
-    with the plotted metric, and with the Graph's sample and run aggregation,
-    so that Compare's Value A and Value B are the two points' values.
-  - "Diff on {label}" (see AR20), which leads to the changes between the two
-    commits that "Compare" compares, the previous point's filling in `{from}`
-    and this point's `{to}`.
-- in a row below them, three buttons:
-  - "Highlight commit", which adds the point's commit to the highlighted
-    commits (GR16). It is disabled, with the reason, when the maximum number of
-    commits is already highlighted. When the point's commit is already
-    highlighted, the button is "Remove highlight" instead, and removes it.
-    Either way, the popover stays open and the button keeps the focus.
-  - "Add baseline", which adds the point's suite, machine and commit as a
-    baseline (GR9). When it is already a baseline, the button is "Remove
-    baseline" instead, and removes it. Either way, the popover stays open and
-    the button keeps the focus.
-  - "Create regression", which gives way to a form below the row that creates a
-    regression in this suite, attributed to the point's commit, with a single
-    indicator naming the point's machine and test and the plotted metric. The
-    form asks only for the regression's title, which may be left empty: the
-    regression otherwise has E8's default state, and can be completed on its
-    Regression Detail page (DT4). The form opens with the focus in its empty
-    input, and is used as an inline edit is (AR12): whitespace at either end of
-    the title is ignored, so that a title of only whitespace is none; Enter or
-    its Create button creates the regression; nothing in the form can be used
-    while it is being created; and Escape or its Cancel button closes the form,
-    forgetting its title, gives the focus back to "Create regression", and
-    leaves the popover open. It is a form (see AR2 "State"). Creating the
-    regression needs `triage` scope (see AR17). Once it is created, the form
-    gives way to "Regression created: " followed by a link to its Regression
-    Detail page, whose text is its title, or its shortened UUID when it has
-    none, and which takes the focus. When regression annotations are shown, the
-    chart marks it at once (GR15), whether or not the popover is still open. If
-    creating it fails, the form says why and keeps the title typed, and the
-    focus stays where it was.
+  "Compare with previous commit" (DT2), it always has data for the test. The
+  link is disabled (see AR8) at the first point of a trace.
+- "Diff prev on {label}" (see AR20), which leads to the changes between the
+  two commits that "Compare prev" compares, the previous point's filling in
+  `{from}` and this point's `{to}`. Like that link, it is disabled at the first
+  point of a trace. The two links share a line, above a row of the three
+  buttons that follow.
+- "Highlight commit", which adds the point's commit to the highlighted
+  commits (GR16). It is disabled, with the reason, when the maximum number of
+  commits is already highlighted. When the point's commit is already
+  highlighted, the button is "Remove highlight" instead, and removes it.
+  Either way, the popover stays open and the button keeps the focus.
+- "Add baseline", which adds the point's suite, machine and commit as a
+  baseline (GR9). When it is already a baseline, the button is "Remove
+  baseline" instead, and removes it. Either way, the popover stays open and
+  the button keeps the focus.
+- "Create regression", which gives way to a form below the row that creates a
+  regression in this suite, attributed to the point's commit, with a single
+  indicator naming the point's machine and test and the plotted metric. The
+  form asks only for the regression's title, which may be left empty: the
+  regression otherwise has E8's default state, and can be completed on its
+  Regression Detail page (DT4). The form opens with the focus in its empty
+  input, and is used as an inline edit is (AR12): whitespace at either end of
+  the title is ignored, so that a title of only whitespace is none; Enter or
+  its Create button creates the regression; nothing in the form can be used
+  while it is being created; and Escape or its Cancel button closes the form,
+  forgetting its title, gives the focus back to "Create regression", and
+  leaves the popover open. It is a form (see AR2 "State"). Creating the
+  regression needs `triage` scope (see AR17). Once it is created, the form
+  gives way to "Regression created: " followed by a link to its Regression
+  Detail page, whose text is its title, or its shortened UUID when it has
+  none, and which takes the focus. When regression annotations are shown, the
+  chart marks it at once (GR15), whether or not the popover is still open. If
+  creating it fails, the form says why and keeps the title typed, and the
+  focus stays where it was.
 
 While it is open, the popover follows its point -- as more data arrives or a
 baseline changes the y-axis range, the chart is resized or the page scrolls --

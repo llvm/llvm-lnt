@@ -59,13 +59,6 @@ interface Props {
 const FIRST_POINT = 'This is the first point of its trace.'
 
 /**
- * What assistive technology reads after the text of a link about the previous point, which leans on
- * the "Previous commit:" before it. Its text comes first, as the label it is spoken by (WCAG's
- * label in name).
- */
-const ABOUT_PREVIOUS = 'with previous commit'
-
-/**
  * The details of a point clicked on the chart (GR11), in a dialog beside it: its machine, commit,
  * value, its runs with their samples; links to a comparison with the point before it and to the
  * changes since it in the repository; and a row of buttons highlighting its commit, adding it as a
@@ -94,12 +87,9 @@ export function PointDetails({
   const suite = schema.name
 
   const side = (commit: string) => ({ suite, machine, commit })
-  const compareName = `Compare ${ABOUT_PREVIOUS}`
   const compare =
     previous === null ? (
-      <DisabledLink title={FIRST_POINT} aria-label={compareName}>
-        Compare
-      </DisabledLink>
+      <DisabledLink title={FIRST_POINT}>Compare prev</DisabledLink>
     ) : (
       <Link
         to={comparePath(side(previous.commit), side(point.commit), {
@@ -107,27 +97,19 @@ export function PointDetails({
           sampleAgg: linkedAggregation(sampleAgg),
           runAgg: linkedAggregation(runAgg),
         })}
-        aria-label={compareName}
       >
-        Compare
+        Compare prev
       </Link>
     )
   // The changes since the previous point in the repository, if the suite has a usable template
   // (AR20).
   const range = usableTemplate(schema.repository, 'range_url')
-  const diffText = repositoryLinkText(schema.repository, 'Diff')
-  const diffName = `${diffText} ${ABOUT_PREVIOUS}`
+  const diffText = repositoryLinkText(schema.repository, 'Diff prev')
   const diff =
     range === null ? null : previous === null ? (
-      <DisabledLink title={FIRST_POINT} aria-label={diffName}>
-        {diffText}
-      </DisabledLink>
+      <DisabledLink title={FIRST_POINT}>{diffText}</DisabledLink>
     ) : (
-      <a
-        href={fillTemplate(range, { from: previous.commit, to: point.commit })}
-        {...NEW_TAB}
-        aria-label={diffName}
-      >
+      <a href={fillTemplate(range, { from: previous.commit, to: point.commit })} {...NEW_TAB}>
         {diffText}
       </a>
     )
@@ -159,7 +141,6 @@ export function PointDetails({
         <RunSamplesTable label="Runs" suite={suite} metric={metric} runs={runs} />
       </div>
       <p className={styles.detailsPrevious}>
-        Previous commit:{' '}
         {compare}
         {diff !== null && (
           <>
