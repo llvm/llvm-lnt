@@ -29,7 +29,7 @@ from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import NAMESPACE_PREFIX, normalized_json
 from lnt_v5.suites.tables import build
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH, namespace_sequence
 from lnt_v5.tables import schema as schema_table
 
 SUITES = SUITES_PATH
@@ -305,6 +305,22 @@ class TestCreate:
         assert create().status_code == 201
 
         assert namespace_of(db_engine, "nts") not in {old, stray}
+
+    def test_chooses_a_namespace_no_suite_records(
+        self, db_engine: Engine, create: Callable[..., Any]
+    ) -> None:
+        # D5: even one whose namespace was dropped out of band, which the server copes with.
+        dropped = f"{NAMESPACE_PREFIX}1"
+        create(name="dropped")
+        assert namespace_of(db_engine, "dropped") == dropped
+        with db_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{dropped}" CASCADE'))
+            # So that the sequence comes up with the dropped namespace's name again.
+            connection.execute(text(f"ALTER SEQUENCE {namespace_sequence.name} RESTART"))
+
+        assert create().status_code == 201
+
+        assert namespace_of(db_engine, "nts") != dropped
 
     def test_accepts_an_entry_name_at_the_identifier_limit(
         self, db_engine: Engine, create: Callable[..., Any]

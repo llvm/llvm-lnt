@@ -20,9 +20,9 @@ constraint names rather than taking them from `suites/tables.py`, which always d
 structure. A step receives two arguments:
 
 - An Alembic `Operations` object bound to the suite's transaction.
-- The suite: the namespace its tables are in, and its schema, because what the step changes may
-  depend on which dynamic columns the suite has. Pass `schema=suite.namespace` to each operation;
-  nothing qualifies table names for you. A suite's namespace is not necessarily its name (D5).
+- The suite (`store.StoredSuite`): its schema, since what a step changes may depend on its dynamic
+  columns, and the namespace its tables are in, which is not necessarily its name (D5). Pass
+  `schema=suite.namespace` to each operation; nothing qualifies table names for you.
 
 A step may update data as well as change the tables. The server doesn't start until every suite has
 been migrated, and `{suite}.sample` can hold many millions of rows. So update data with set-based
@@ -33,28 +33,16 @@ take correspondingly longer.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
 from alembic.operations import Operations
 
-from lnt_v5.suites.schema import SuiteSchema
+if TYPE_CHECKING:
+    # Only for annotations: `store` imports this module.
+    from lnt_v5.suites.store import StoredSuite
 
-
-@dataclass(frozen=True)
-class StoredSuite:
-    """A suite as its `schema` row records it: its schema, and the namespace of its tables (D5).
-
-    What a step is told about the suite it migrates, and what a write reads under the suite's lock
-    (see `store.locked_suite`).
-    """
-
-    schema: SuiteSchema
-    namespace: str
-
-
-Step = Callable[[Operations, StoredSuite], None]
+type Step = Callable[[Operations, StoredSuite], None]
 
 
 def _run_uuid_collation(op: Operations, suite: StoredSuite) -> None:

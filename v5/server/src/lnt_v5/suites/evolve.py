@@ -25,7 +25,6 @@ from sqlalchemy import Connection, update
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
 from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.migrations import StoredSuite
 from lnt_v5.suites.schema import (
     COMMIT_URL,
     RANGE_URL,
@@ -40,7 +39,7 @@ from lnt_v5.suites.schema import (
     RangeUrl,
     SuiteSchema,
 )
-from lnt_v5.suites.store import bump, normalized_json
+from lnt_v5.suites.store import StoredSuite, bump, normalized_json
 from lnt_v5.tables import schema as schema_table
 
 
@@ -382,7 +381,7 @@ def apply(connection: Connection, stored: StoredSuite, resulting: SuiteSchema) -
 
     connection.execute(
         update(schema_table)
-        .where(schema_table.c.name == current.name)
+        .where(schema_table.c.name == stored.name)
         .values(schema_json=normalized_json(resulting))
     )
     bump(connection)

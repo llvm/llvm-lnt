@@ -197,8 +197,8 @@ def db_engine(_session_engine: Engine) -> Iterator[Engine]:
     yield _session_engine
     with _session_engine.begin() as connection:
         # Every suite's namespace, whether this test created it through the API or directly (D5).
-        # The database is session-scoped, so a leaked namespace would make the next test's
-        # `CREATE SCHEMA` fail -- an order-dependent 409 where it expected a 201.
+        # The database is session-scoped, so a leaked namespace would silently change which
+        # namespace the next test's suite gets, or collide with one a test creates directly.
         for namespace in connection.execute(
             text(
                 "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\\_%' "

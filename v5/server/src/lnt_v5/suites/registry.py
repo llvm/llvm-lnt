@@ -17,7 +17,7 @@ import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import FunctionType
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NamedTuple, cast
 
 from fastapi import Depends, Request
 from pydantic import ValidationError
@@ -118,7 +118,7 @@ class SuiteRegistry:
             raise ApiError(ErrorCode.NOT_FOUND, f"Test suite '{name}' not found")
         return suite
 
-    def _parse(self, rows: list[tuple[str, str, str]]) -> Mapping[str, Suite]:
+    def _parse(self, rows: list[_Row]) -> Mapping[str, Suite]:
         """The new map, reusing what has not changed and keeping what no longer parses.
 
         Per row rather than all-or-nothing, for two reasons. The counter is global, so a change to
@@ -133,32 +133,40 @@ class SuiteRegistry:
         and the copy of the suite it replaced would address tables that are gone.
         """
         suites: dict[str, Suite] = {}
-        for name, namespace, schema_json in rows:
-            previous = self._suites.get(name)
-            if previous is not None and previous.tables.namespace != namespace:
+        for row in rows:
+            previous = self._suites.get(row.name)
+            if previous is not None and previous.tables.namespace != row.namespace:
                 previous = None
-            if previous is not None and previous.schema_json == schema_json:
-                suites[name] = previous
+            if previous is not None and previous.schema_json == row.schema_json:
+                suites[row.name] = previous
                 continue
             try:
-                parsed = SuiteSchema.model_validate_json(schema_json)
+                parsed = SuiteSchema.model_validate_json(row.schema_json)
             except ValidationError:
                 logger.warning(
                     "Could not parse the stored schema for suite %r; %s",
-                    name,
+                    row.name,
                     "keeping the copy already loaded" if previous else "skipping it",
                     exc_info=True,
                 )
                 if previous is not None:
-                    suites[name] = previous
+                    suites[row.name] = previous
                 continue
-            suites[name] = Suite(
-                schema=parsed, tables=build(parsed, namespace), schema_json=schema_json
+            suites[row.name] = Suite(
+                schema=parsed, tables=build(parsed, row.namespace), schema_json=row.schema_json
             )
         return suites
 
 
-def _read(connection: Connection, cached: int | None) -> tuple[int, list[tuple[str, str, str]]]:
+class _Row(NamedTuple):
+    """One suite's `schema` row, as far as the registry reads it."""
+
+    name: str
+    namespace: str
+    schema_json: str
+
+
+def _read(connection: Connection, cached: int | None) -> tuple[int, list[_Row]]:
     """The counter, and every stored schema *if* the counter has moved, as one statement.
 
     One statement, so the counter and the schemas come from one snapshot. Read separately they could
@@ -181,7 +189,9 @@ def _read(connection: Connection, cached: int | None) -> tuple[int, list[tuple[s
     # The check constraint guarantees the counter row, so `rows` is never empty.
     version = int(rows[0].version)
     return version, [
-        (row.name, row.namespace, row.schema_json) for row in rows if row.name is not None
+        _Row(name=row.name, namespace=row.namespace, schema_json=row.schema_json)
+        for row in rows
+        if row.name is not None
     ]
 
 

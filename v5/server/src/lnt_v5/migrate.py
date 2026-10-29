@@ -23,6 +23,7 @@ from sqlalchemy import Connection, Engine, select, text, update
 
 from lnt_v5.suites import migrations
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.store import StoredSuite
 from lnt_v5.tables import schema
 
 # Inside the package rather than beside it, because the Dockerfile copies only `server/src` and
@@ -205,9 +206,7 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
             # it and created it again at the latest version.
             return False
 
-        suite = migrations.StoredSuite(
-            SuiteSchema.model_validate_json(row.schema_json), row.namespace
-        )
+        suite = StoredSuite(name, SuiteSchema.model_validate_json(row.schema_json), row.namespace)
         operations = Operations(MigrationContext.configure(connection))
         for step in migrations.STEPS[row.migration_version : head]:
             step(operations, suite)

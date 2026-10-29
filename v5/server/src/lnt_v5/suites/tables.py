@@ -508,6 +508,7 @@ def create(connection: Connection, schema: SuiteSchema, namespace: str) -> Suite
     tables = build(schema, namespace)
     quoted = _quote(connection, namespace)
     connection.execute(text(f"CREATE SCHEMA {quoted}"))
+    # Rendered as a quoted literal rather than bound, since COMMENT takes no bind parameters.
     label = literal(f"LNT test suite {schema.name}").compile(
         dialect=connection.dialect, compile_kwargs={"literal_binds": True}
     )

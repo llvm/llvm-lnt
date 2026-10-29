@@ -1316,3 +1316,8 @@ class TestInactivityDeletion:
         with pytest.raises(ApiError) as raised:
             filling.result(timeout=BLOCK_TIMEOUT)
         assert raised.value.code is ErrorCode.RETRY
+        # Not by its namespace, which names nothing a client knows (D5).
+        assert raised.value.message == (
+            "The machine this submission names was deleted from this test suite while the "
+            "submission was being stored. Retry."
+        )

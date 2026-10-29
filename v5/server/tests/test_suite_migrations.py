@@ -24,7 +24,7 @@ from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.migrations import Step
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import normalized_json
+from lnt_v5.suites.store import StoredSuite, normalized_json
 from lnt_v5.suites.tables import SuiteTables
 from lnt_v5.tables import schema
 from migration_snapshots import NAMESPACE, reference_schema, replay, snapshot_versions
@@ -46,7 +46,7 @@ def version_of(engine: Engine, name: str) -> int:
 def adding_machine_column(column: str, calls: list[tuple[str, str]]) -> Step:
     """A stand-in step that adds a column to `{suite}.machine`, recording that it ran."""
 
-    def step(op: Operations, suite: migrations.StoredSuite) -> None:
+    def step(op: Operations, suite: StoredSuite) -> None:
         calls.append((suite.schema.name, column))
         op.add_column("machine", sa.Column(column, sa.Text()), schema=suite.namespace)
 
@@ -167,12 +167,12 @@ class TestUpgrade:
         nts = suite_named("nts")
         stored = nts.model_copy(update={"metrics": nts.metrics[:1]})
         store_suite(db_engine, stored, version=0)
-        seen: list[migrations.StoredSuite] = []
+        seen: list[StoredSuite] = []
         monkeypatch.setattr(migrations, "STEPS", (lambda op, suite: seen.append(suite),))
 
         upgrade_to_head(db_engine)
 
-        assert seen == [migrations.StoredSuite(stored, namespace_of(db_engine, "nts"))]
+        assert seen == [StoredSuite("nts", stored, namespace_of(db_engine, "nts"))]
 
     def test_does_nothing_the_second_time(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -195,7 +195,7 @@ class TestUpgrade:
         store_suite(db_engine, suite_named("a"), version=0)
         store_suite(db_engine, suite_named("b"), version=0)
 
-        def failing_on_b(op: Operations, suite: migrations.StoredSuite) -> None:
+        def failing_on_b(op: Operations, suite: StoredSuite) -> None:
             op.add_column("machine", sa.Column("added", sa.Text()), schema=suite.namespace)
             if suite.schema.name == "b":
                 raise RuntimeError("the step failed")
@@ -352,7 +352,7 @@ class TestSnapshots:
             connection.execute(text(f"ALTER TABLE {namespace}.regression DROP COLUMN created_at"))
         old = structure_of(db_engine, namespace)
 
-        def add_regression_created_at(op: Operations, suite: migrations.StoredSuite) -> None:
+        def add_regression_created_at(op: Operations, suite: StoredSuite) -> None:
             op.add_column(
                 "regression",
                 sa.Column(

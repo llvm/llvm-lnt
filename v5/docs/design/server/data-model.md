@@ -341,8 +341,8 @@ digits for each byte of its UTF-8 encoding. Since I1 rejects the commit strings
 dot segment, which would change the path.
 
 **Suite name.** `name` must match `^[a-z0-9][a-z0-9_-]*$` and be at most 64
-characters; anything else is rejected with 400. The name identifies the suite in
-URLs and on command lines, and names nothing in the database: the namespace
+characters; anything else is rejected with 400. The name identifies the suite
+in URLs and on command lines, and names nothing in the database: the namespace
 holding the suite's tables is chosen by the server (see D5). No name that
 matches the pattern is reserved.
 
@@ -350,10 +350,10 @@ matches the pattern is reserved.
 `commit_fields` and `machine_fields` is an identifier too: it must match
 `^[A-Za-z][A-Za-z0-9_]*$` and be at most 63 characters. Unlike a suite name,
 which appears in every URL of the suite, an entry name may contain capitals,
-and is case-sensitive. The rule deliberately does not
-exclude SQL reserved words (`order`, `user`, `table` are all valid entry
-names): an implementation quotes identifiers rather than restricting metric
-names, which also preserves their case.
+and is case-sensitive. The rule deliberately does not exclude SQL reserved
+words (`order`, `user`, `table` are all valid entry names): an implementation
+quotes identifiers rather than restricting metric names, which also preserves
+their case.
 
 A name must be unique within its list, but the three lists are independent: a
 metric and a machine field may have the same name, because they are columns of
@@ -404,13 +404,14 @@ namespace of their own (see below).
 - `namespace` is the PostgreSQL schema holding the suite's tables (see
   Per-Suite Tables below), and nothing but them. The server chooses it when it
   creates the suite, and nothing done to a suite after its creation changes it.
-  It is never derived from the suite's name, and nothing may assume that the
-  two are related. How the server names a namespace is up to the
-  implementation, as long as no namespace of that name exists in the database
-  already. Suites created before namespaces were recorded keep the namespace
-  they were created in. An implementation may label a namespace with its
-  suite's name, in a comment on the namespace rather than in its name, for
-  those reading the database directly.
+  The server never derives a new suite's namespace from its name, and nothing
+  may assume that the two are related. How the server names a namespace is up
+  to the implementation, as long as no namespace of that name exists in the
+  database and no suite records it. Suites created before namespaces were
+  recorded keep the namespace they were created in, the one named after the
+  suite. An implementation may label a namespace with its suite's name, in a
+  comment on the namespace rather than in its name, for those reading the
+  database directly.
 - `schema_json` holds the *normalized* schema -- the same content
   `GET /api/suites/{name}` returns, with omitted optional keys filled in --
   rather than the request body as submitted. It is stored as text rather than
@@ -873,8 +874,8 @@ that applies them must meet these requirements:
   different dynamic columns, and some changes apply to each of them -- for
   example, changing the column type used for every `integer` metric. A
   migration therefore receives the suite's schema, so that it knows which
-  columns to change, and its namespace, so that it knows where they are. A migration may also update existing rows, not only change
-  the tables.
+  columns to change, and its namespace, so that it knows where they are. A
+  migration may also update existing rows, not only change the tables.
 - **Never backwards.** If a newer build has already migrated the database, or
   any suite, past the latest migration the running build knows about, the
   running build refuses to start or to apply migrations, since its code would

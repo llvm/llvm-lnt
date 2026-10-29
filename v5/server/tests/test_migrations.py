@@ -26,7 +26,7 @@ from lnt_v5.migrate import (
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import normalized_json
+from lnt_v5.suites.store import StoredSuite, normalized_json
 from lnt_v5.tables import SCHEMA_VERSION_ID, metadata, namespace_sequence
 from migration_snapshots import reference_schema, replay
 
@@ -306,7 +306,7 @@ class TestSchemaLabels:
         """
         seen: list[str | None] = []
 
-        def step(op: Operations, suite: migrations.StoredSuite) -> None:
+        def step(op: Operations, suite: StoredSuite) -> None:
             seen.append(suite.schema.metrics[0].display_name)
 
         monkeypatch.setattr(migrations, "STEPS", (step,))
@@ -774,6 +774,10 @@ class TestSchemaNamespace:
                 {"name": name},
             )
         insert_key_row(empty_engine, "aaaaaaaa", "submit", [name])
+
+        with empty_engine.connect() as connection:
+            assert connection.execute(text("SELECT name FROM schema")).scalar_one() == name
+            assert connection.execute(text("SELECT suites FROM api_key")).scalar_one() == [name]
 
     def test_the_namespace_sequence_is_owned_by_the_namespace_column(
         self, empty_engine: Engine

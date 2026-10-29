@@ -544,8 +544,8 @@ def _locked_values(
     if row is None:
         raise ApiError(
             ErrorCode.RETRY,
-            f"The {table.name} this submission names was deleted from test suite "
-            f"'{table.schema}' while the submission was being stored. Retry.",
+            f"The {table.name} this submission names was deleted from this test suite while the "
+            "submission was being stored. Retry.",
         )
     return {column.name: row._mapping[column] for column in wanted}
 

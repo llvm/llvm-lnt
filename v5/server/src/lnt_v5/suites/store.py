@@ -10,15 +10,29 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 
-from sqlalchemy import Connection, Engine, insert, inspect, select, text, update
+from sqlalchemy import (
+    Connection,
+    Engine,
+    String,
+    cast,
+    column,
+    exists,
+    insert,
+    literal,
+    or_,
+    select,
+    table,
+    text,
+    update,
+)
 from sqlalchemy.exc import DBAPIError
 
 from lnt_v5.db import is_lock_unavailable
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.migrations import StoredSuite
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.tables import SCHEMA_VERSION_ID, namespace_sequence, schema, schema_version
 
@@ -45,6 +59,21 @@ def normalized_json(suite: SuiteSchema) -> str:
     return suite.model_dump_json()
 
 
+@dataclass(frozen=True)
+class StoredSuite:
+    """A suite as its `schema` row records it (D5): the row's key, the suite's schema, and the
+    namespace of its tables.
+
+    What a write reads under the suite's lock (see `locked_suite`), and what a per-suite migration
+    step is told about the suite it migrates (see `migrations.py`). The name is the row's, rather
+    than the copy in the schema, since the row is what a write addresses.
+    """
+
+    name: str
+    schema: SuiteSchema
+    namespace: str
+
+
 def bump(connection: Connection) -> None:
     """Tell every other worker that the suites have changed (D2).
 
@@ -63,20 +92,33 @@ def bump(connection: Connection) -> None:
 NAMESPACE_PREFIX = "suite_"
 
 
+_candidate = select(
+    (literal(NAMESPACE_PREFIX) + cast(namespace_sequence.next_value(), String)).label("name")
+).subquery()
+_pg_namespace = table("pg_namespace", column("nspname"))
+_NEXT_NAMESPACE = select(
+    _candidate.c.name,
+    or_(
+        exists().where(_pg_namespace.c.nspname == _candidate.c.name),
+        exists().where(schema.c.namespace == _candidate.c.name),
+    ),
+)
+
+
 def new_namespace(connection: Connection) -> str:
-    """A name for the namespace of a new suite: one that no namespace has (D5).
+    """A name for the namespace of a new suite: one that no namespace has, and no suite records
+    (D5).
 
     The sequence never hands out a number twice, so two suites created concurrently never get the
     same name. A name can still be taken by a namespace this sequence did not name: one of the
     suites created before namespaces were recorded, which have their suite's name, or one created
-    outside LNT. Those are skipped. Every suite's namespace exists as long as its row does, so
-    checking the namespaces covers every recorded one too.
+    outside LNT. A suite's namespace may also have been dropped out of band while its row stayed,
+    and the name is taken all the same. Each candidate is checked against both in one statement.
     """
     while True:
-        number = connection.execute(select(namespace_sequence.next_value())).scalar_one()
-        candidate = f"{NAMESPACE_PREFIX}{number}"
-        if not inspect(connection).has_schema(candidate):
-            return candidate
+        candidate, taken = connection.execute(_NEXT_NAMESPACE).one()
+        if not taken:
+            return str(candidate)
 
 
 def add_suite(connection: Connection, suite: SuiteSchema) -> None:
@@ -123,7 +165,7 @@ def locked_suite(connection: Connection, name: str) -> StoredSuite:
     ).one_or_none()
     if row is None:
         raise ApiError(ErrorCode.NOT_FOUND, f"Test suite '{name}' not found")
-    return StoredSuite(SuiteSchema.model_validate_json(row.schema_json), row.namespace)
+    return StoredSuite(name, SuiteSchema.model_validate_json(row.schema_json), row.namespace)
 
 
 @contextmanager
