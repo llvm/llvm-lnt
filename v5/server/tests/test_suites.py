@@ -27,8 +27,8 @@ from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import NAMESPACE_PREFIX, normalized_json
-from lnt_v5.suites.tables import build
+from lnt_v5.suites.store import normalized_json
+from lnt_v5.suites.tables import NAMESPACE_PREFIX, build
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH, namespace_sequence
 from lnt_v5.tables import schema as schema_table
 

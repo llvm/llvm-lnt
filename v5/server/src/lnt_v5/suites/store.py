@@ -12,21 +12,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from sqlalchemy import (
-    Connection,
-    Engine,
-    String,
-    cast,
-    column,
-    exists,
-    insert,
-    literal,
-    or_,
-    select,
-    table,
-    text,
-    update,
-)
+from sqlalchemy import Connection, Engine, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from lnt_v5.db import is_lock_unavailable
@@ -34,7 +20,7 @@ from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.tables import SCHEMA_VERSION_ID, namespace_sequence, schema, schema_version
+from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
 
 # What tables.py's NAMING_CONVENTION names `schema`'s primary key, and so the constraint a repeated
 # suite name trips. Written out because it is fixed, and checked against what PostgreSQL reports by
@@ -87,40 +73,6 @@ def bump(connection: Connection) -> None:
     )
 
 
-# What the server names the namespace of a new suite, followed by a number from
-# `namespace_sequence`. Any name would do, as long as no namespace of that name exists already (D5).
-NAMESPACE_PREFIX = "suite_"
-
-
-_candidate = select(
-    (literal(NAMESPACE_PREFIX) + cast(namespace_sequence.next_value(), String)).label("name")
-).subquery()
-_pg_namespace = table("pg_namespace", column("nspname"))
-_NEXT_NAMESPACE = select(
-    _candidate.c.name,
-    or_(
-        exists().where(_pg_namespace.c.nspname == _candidate.c.name),
-        exists().where(schema.c.namespace == _candidate.c.name),
-    ),
-)
-
-
-def new_namespace(connection: Connection) -> str:
-    """A name for the namespace of a new suite: one that no namespace has, and no suite records
-    (D5).
-
-    The sequence never hands out a number twice, so two suites created concurrently never get the
-    same name. A name can still be taken by a namespace this sequence did not name: one of the
-    suites created before namespaces were recorded, which have their suite's name, or one created
-    outside LNT. A suite's namespace may also have been dropped out of band while its row stayed,
-    and the name is taken all the same. Each candidate is checked against both in one statement.
-    """
-    while True:
-        candidate, taken = connection.execute(_NEXT_NAMESPACE).one()
-        if not taken:
-            return str(candidate)
-
-
 def add_suite(connection: Connection, suite: SuiteSchema) -> None:
     """Store a new suite and create its tables, announcing it to every worker (D2, D5).
 
@@ -132,7 +84,7 @@ def add_suite(connection: Connection, suite: SuiteSchema) -> None:
     The tables are created with this build's latest structure, so the suite is recorded at the
     latest migration version (D6).
     """
-    namespace = new_namespace(connection)
+    namespace = suite_tables.new_namespace(connection)
     connection.execute(
         insert(schema).values(
             name=suite.name,

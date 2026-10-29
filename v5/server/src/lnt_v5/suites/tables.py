@@ -40,11 +40,17 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    cast,
+    column,
     delete,
+    exists,
     false,
     func,
     insert,
     literal,
+    or_,
+    select,
+    table,
     text,
     true,
 )
@@ -55,7 +61,8 @@ from sqlalchemy.types import TypeEngine
 from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, NAMING_CONVENTION
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, NAMING_CONVENTION, namespace_sequence
+from lnt_v5.tables import schema as schema_table
 
 # D5's widths for the built-in string columns. A UUID is the 36-character hyphenated form (O1).
 # Deliberately not shared with `api_key.name`'s identical width in tables.py: D5 states these per
@@ -492,27 +499,62 @@ def _qualified(connection: Connection, table: Table) -> str:
     return str(connection.dialect.identifier_preparer.format_table(table))
 
 
+# What the server names the namespace of a suite, followed by a number from `namespace_sequence`.
+# Any name would do, as long as no namespace has it and no suite records it (D5).
+NAMESPACE_PREFIX = "suite_"
+
+_candidate = select(
+    (literal(NAMESPACE_PREFIX) + cast(namespace_sequence.next_value(), String)).label("name")
+).subquery()
+_pg_namespace = table("pg_namespace", column("nspname"))
+_NEXT_NAMESPACE = select(
+    _candidate.c.name,
+    or_(
+        exists().where(_pg_namespace.c.nspname == _candidate.c.name),
+        exists().where(schema_table.c.namespace == _candidate.c.name),
+    ),
+)
+
+
+def new_namespace(connection: Connection) -> str:
+    """A name for a suite's namespace: one that no namespace has, and no suite records (D5).
+
+    For a new suite, and for one a migration moves (see `migrations.py`). The sequence never hands
+    out a number twice, so two suites given a namespace concurrently never get the same name. A
+    name can still be taken by a namespace the sequence did not name: one created outside LNT, or
+    the namespace of a suite not yet moved off the one named after it. A suite's namespace may also
+    have been dropped out of band while its row stayed, and the name is taken all the same. Each
+    candidate is checked against both in one statement.
+    """
+    while True:
+        candidate, taken = connection.execute(_NEXT_NAMESPACE).one()
+        if not taken:
+            return str(candidate)
+
+
+def label(connection: Connection, namespace: str, suite: str) -> None:
+    """Label a suite's namespace with the suite's name, for whoever reads the database directly,
+    since nothing else about it says which suite it holds (D5)."""
+    # Rendered as a quoted literal rather than bound, since COMMENT takes no bind parameters.
+    text_ = literal(f"LNT test suite {suite}").compile(
+        dialect=connection.dialect, compile_kwargs={"literal_binds": True}
+    )
+    connection.execute(text(f"COMMENT ON SCHEMA {_quote(connection, namespace)} IS {text_}"))
+
+
 def create(connection: Connection, schema: SuiteSchema, namespace: str) -> SuiteTables:
     """Create the suite's namespace and every table in it, and return the tables.
 
     Takes the schema rather than tables already built from it because `{suite}.metric` starts out
     holding a row per declared metric, which the tables alone do not describe.
 
-    The namespace is labelled with the suite's name, for whoever reads the database directly, since
-    nothing else about it says which suite it holds (D5).
-
     The caller owns the transaction. PostgreSQL has transactional DDL, so a failure partway leaves
     nothing behind, and the `schema` row and `schema_version` bump the caller writes alongside this
     commit or roll back with it (D2).
     """
     tables = build(schema, namespace)
-    quoted = _quote(connection, namespace)
-    connection.execute(text(f"CREATE SCHEMA {quoted}"))
-    # Rendered as a quoted literal rather than bound, since COMMENT takes no bind parameters.
-    label = literal(f"LNT test suite {schema.name}").compile(
-        dialect=connection.dialect, compile_kwargs={"literal_binds": True}
-    )
-    connection.execute(text(f"COMMENT ON SCHEMA {quoted} IS {label}"))
+    connection.execute(text(f"CREATE SCHEMA {_quote(connection, namespace)}"))
+    label(connection, namespace, schema.name)
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
     # namespace exists. The default would reflect each table first, to skip the ones already there
     # -- a round trip per table that can only ever answer "no".

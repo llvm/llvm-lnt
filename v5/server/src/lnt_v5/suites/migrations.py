@@ -38,6 +38,8 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy as sa
 from alembic.operations import Operations
 
+from lnt_v5.suites import tables as suite_tables
+
 if TYPE_CHECKING:
     # Only for annotations: `store` imports this module.
     from lnt_v5.suites.store import StoredSuite
@@ -292,6 +294,34 @@ def _sample_repetition(op: Operations, suite: StoredSuite) -> None:
         )
 
 
+def _generated_namespace(op: Operations, suite: StoredSuite) -> None:
+    """Version 7: the suite's tables in a namespace the server chose, as a new suite's are (D5).
+
+    Suites from before namespaces were recorded are in the one named after them, which a later
+    rename of the suite would leave looking like its name. The namespace is renamed, which moves
+    the tables without touching them, and labelled as a new suite's is.
+
+    Unlike the other steps, this one takes its naming from `suites/tables.py` rather than spelling
+    it out: whatever names the namespaces of new suites should name these too.
+
+    The registry caches each suite's namespace, so the step bumps `schema_version` as a change to a
+    suite would (D2), so that a server running while the migrations are applied by hand reloads it.
+    """
+    connection = op.get_bind()
+    namespace = suite_tables.new_namespace(connection)
+    quote = connection.dialect.identifier_preparer.quote
+    op.execute(sa.text(f"ALTER SCHEMA {quote(suite.namespace)} RENAME TO {quote(namespace)}"))
+    suite_tables.label(connection, namespace, suite.name)
+    schema = sa.table("schema", sa.column("name"), sa.column("namespace"))
+    op.execute(schema.update().where(schema.c.name == suite.name).values(namespace=namespace))
+    schema_version = sa.table("schema_version", sa.column("id"), sa.column("version"))
+    op.execute(
+        schema_version.update()
+        .where(schema_version.c.id == 1)
+        .values(version=schema_version.c.version + 1)
+    )
+
+
 STEPS: Sequence[Step] = (
     _run_uuid_collation,
     _regression_commit_set_null,
@@ -299,6 +329,7 @@ STEPS: Sequence[Step] = (
     _run_summary_columns,
     _inactivity_columns,
     _sample_repetition,
+    _generated_namespace,
 )
 
 

@@ -4,11 +4,12 @@ Revision ID: 0008
 Revises: 0007
 Create Date: 2026-10-29
 
-D5 now has the server choose a suite's namespace when it creates the suite, and record it in
-`schema.namespace`, rather than name the namespace after the suite. Every existing suite keeps the
-namespace it was created in, which is its name: this revision records it as it is, and renames
-nothing, so it stays confined to the default namespace (D6). The sequence numbers the namespaces of
-the suites created from now on (see `lnt_v5.suites.store`).
+D5 now has the server choose a suite's namespace, and record it in `schema.namespace`, rather than
+name the namespace after the suite. This revision records each existing suite's namespace as it is,
+which is its name, and renames nothing, so that it stays confined to the default namespace (D6).
+Moving the existing suites to namespaces of the server's choosing is a step of their own migrations
+(version 7, in `lnt_v5.suites.migrations`). The sequence numbers the namespaces the server chooses
+(see `lnt_v5.suites.tables.new_namespace`).
 
 D4 also allows suite names of 64 characters now, which `schema.name` and `api_key.suites` widen to.
 
@@ -51,17 +52,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Earlier builds look for a suite's tables in the namespace named after it, and renaming a
-    # namespace would reach into a suite's namespace, which no global migration may do (D6). A
-    # restricted key may also still name a deleted suite whose name is too long for them.
+    # Earlier builds look for a suite's tables in the namespace named after it, which no suite is in
+    # once this build has migrated it (version 7 of its steps), and renaming a namespace would reach
+    # into a suite's namespace, which no global migration may do (D6). A restricted key may also
+    # still name a deleted suite whose name is too long for earlier builds.
     connection = op.get_bind()
     moved = connection.execute(
         sa.text("SELECT name FROM schema WHERE namespace <> name ORDER BY name")
     ).scalars()
     if names := list(moved):
         raise RuntimeError(
-            "cannot downgrade: these test suites are not in the namespace named after them, so "
-            f"earlier builds would not find their tables: {', '.join(names)}"
+            "cannot downgrade: earlier builds look for a test suite's tables in the namespace "
+            "named after the suite, and these test suites are in another one, as every suite is "
+            f"once this build has migrated or created it: {', '.join(names)}"
         )
     too_long = connection.execute(
         sa.text(

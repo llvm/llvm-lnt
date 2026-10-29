@@ -10,7 +10,7 @@ suite endpoints create and drop them at runtime.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from alembic import command
@@ -210,6 +210,11 @@ def _upgrade_suite(connection: Connection, name: str, head: int) -> bool:
         operations = Operations(MigrationContext.configure(connection))
         for step in migrations.STEPS[row.migration_version : head]:
             step(operations, suite)
+            # A step may have moved the suite to another namespace (D6), where the next one works.
+            moved = connection.execute(
+                select(schema.c.namespace).where(schema.c.name == name)
+            ).scalar_one()
+            suite = replace(suite, namespace=moved)
         connection.execute(
             update(schema).where(schema.c.name == name).values(migration_version=head)
         )

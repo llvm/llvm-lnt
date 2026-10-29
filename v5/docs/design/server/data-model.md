@@ -403,15 +403,14 @@ namespace of their own (see below).
 - One row per test suite, holding the suite's schema (see D4).
 - `namespace` is the PostgreSQL schema holding the suite's tables (see
   Per-Suite Tables below), and nothing but them. The server chooses it when it
-  creates the suite, and nothing done to a suite after its creation changes it.
-  The server never derives a new suite's namespace from its name, and nothing
-  may assume that the two are related. How the server names a namespace is up
-  to the implementation, as long as no namespace of that name exists in the
-  database and no suite records it. Suites created before namespaces were
-  recorded keep the namespace they were created in, the one named after the
-  suite. An implementation may label a namespace with its suite's name, in a
-  comment on the namespace rather than in its name, for those reading the
-  database directly.
+  creates the suite, and no request changes it afterwards: only a migration
+  may move a suite to another namespace (see D6). A namespace is never derived
+  from the suite's name, and nothing may assume that the two are related. How
+  the server names a namespace is up to the implementation, as long as no
+  namespace of that name exists in the database and no suite records it. An
+  implementation may label a namespace with its suite's name, in a comment on
+  the namespace rather than in its name, for those reading the database
+  directly.
 - `schema_json` holds the *normalized* schema -- the same content
   `GET /api/suites/{name}` returns, with omitted optional keys filled in --
   rather than the request body as submitted. It is stored as text rather than
@@ -435,7 +434,7 @@ namespace of their own (see below).
 - Bumped whenever a suite is created, modified or deleted, so that other
   workers can detect that their cached schemas are stale (see D2). Migrating a
   suite's tables (D6) does not change its schema, so it does not bump the
-  counter.
+  counter, unless the migration moves the suite to another namespace.
 
 #### `api_key`
 
@@ -876,6 +875,11 @@ that applies them must meet these requirements:
   migration therefore receives the suite's schema, so that it knows which
   columns to change, and its namespace, so that it knows where they are. A
   migration may also update existing rows, not only change the tables.
+- **Migrations can move a suite.** A suite's migration may move its tables to
+  another namespace, chosen as the server chooses a new suite's (see D5). It
+  records the new one in `schema.namespace`, and bumps `schema_version` so
+  that every worker reloads its copy of the suite (see D2). The suite's later
+  migrations work in the new namespace.
 - **Never backwards.** If a newer build has already migrated the database, or
   any suite, past the latest migration the running build knows about, the
   running build refuses to start or to apply migrations, since its code would

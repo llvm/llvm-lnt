@@ -27,6 +27,7 @@ from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import StoredSuite, normalized_json
+from lnt_v5.suites.tables import NAMESPACE_PREFIX
 from lnt_v5.tables import SCHEMA_VERSION_ID, metadata, namespace_sequence
 from migration_snapshots import reference_schema, replay
 
@@ -746,7 +747,8 @@ class TestSchemaNamespace:
     def test_migrates_the_suites_after_recording_their_namespaces(
         self, empty_engine: Engine
     ) -> None:
-        # The suite pass reads the namespace 0008 records, so it has to run after it.
+        # The suite pass reads the namespace 0008 records, so it has to run after it. It then moves
+        # the suite to a namespace of the server's choosing (version 7 of the suite's steps).
         upgrade_by_hand(empty_engine, "0007")
         with empty_engine.begin() as connection:
             replay(connection, 0)
@@ -759,7 +761,9 @@ class TestSchemaNamespace:
         assert result.suites_migrated == ("reference",)
         with empty_engine.connect() as connection:
             row = connection.execute(text("SELECT namespace, migration_version FROM schema")).one()
-        assert tuple(row) == ("reference", migrations.head())
+        assert row.namespace.startswith(NAMESPACE_PREFIX)
+        assert row.migration_version == migrations.head()
+        assert "reference" not in inspect(empty_engine).get_schema_names()
 
     def test_widens_suite_names_to_64_characters(self, empty_engine: Engine) -> None:
         upgrade_by_hand(empty_engine, "0008")

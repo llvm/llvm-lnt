@@ -14,18 +14,18 @@ from typing import Any
 import pytest
 import sqlalchemy as sa
 from alembic.operations import Operations
-from sqlalchemy import Connection, Engine, create_engine, insert, select, text
+from sqlalchemy import Connection, Engine, create_engine, insert, inspect, select, text
 from sqlalchemy.pool import NullPool
 
 from conftest import recent, store_suite
-from introspection import namespace_of, structure_of, suite_column_names
+from introspection import namespace_of, schema_version_of, structure_of, suite_column_names
 from lnt_v5.migrate import MIGRATION_LOCK_KEY, MigrationError, upgrade_to_head
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.migrations import Step
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import StoredSuite, normalized_json
-from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.suites.tables import NAMESPACE_PREFIX, SuiteTables
 from lnt_v5.tables import schema
 from migration_snapshots import NAMESPACE, reference_schema, replay, snapshot_versions
 
@@ -320,22 +320,26 @@ class TestSnapshots:
         with db_engine.begin() as connection:
             replay_reference(connection, version)
         upgrade_to_head(db_engine)
-        migrated = structure_of(db_engine, "reference")
+        # Version 7 moves it to a namespace of the server's choosing.
+        namespace = namespace_of(db_engine, "reference")
+        migrated = structure_of(db_engine, namespace)
 
-        assert migrated == fresh_structure(db_engine)
+        assert migrated == fresh_structure(db_engine, namespace)
 
     def test_migrating_a_suite_in_a_namespace_not_named_after_it_yields_what_the_code_creates(
         self, db_engine: Engine
     ) -> None:
         # D5: a suite's namespace is not necessarily its name, so the steps must work in the one the
-        # suite records. Every step runs from version 0.
+        # suite records, until version 7 moves it. Every step runs from version 0.
         with db_engine.begin() as connection:
             replay_reference(connection, 0, namespace="ns_ref")
         upgrade_to_head(db_engine)
-        migrated = structure_of(db_engine, "ns_ref")
+        namespace = namespace_of(db_engine, "reference")
+        migrated = structure_of(db_engine, namespace)
 
         assert version_of(db_engine, "reference") == migrations.head()
-        assert migrated == fresh_structure(db_engine, "ns_ref")
+        assert "ns_ref" not in inspect(db_engine).get_schema_names()
+        assert migrated == fresh_structure(db_engine, namespace)
 
     def test_a_step_brings_a_suite_forward_to_what_the_code_creates(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -392,9 +396,10 @@ class TestSteps:
 
         upgrade_to_head(db_engine)
 
+        run = f"{namespace_of(db_engine, 'reference')}.run"
         with db_engine.connect() as connection:
             measured = connection.scalars(
-                text("SELECT measured_at FROM reference.run ORDER BY submitted_at")
+                text(f"SELECT measured_at FROM {run} ORDER BY submitted_at")
             ).all()
         assert measured == submitted
 
@@ -431,11 +436,12 @@ class TestSteps:
 
         upgrade_to_head(db_engine)
 
+        namespace = namespace_of(db_engine, "reference")
         with db_engine.connect() as connection:
             rows = connection.execute(
                 text(
                     "SELECT run_id, name, geomean_median, geomean_mean, geomean_min, geomean_max "
-                    "FROM reference.run_summary JOIN reference.metric ON metric.id = metric_id"
+                    f"FROM {namespace}.run_summary JOIN {namespace}.metric ON metric.id = metric_id"
                 )
             ).all()
         assert {(run, metric): tuple(geomeans) for run, metric, *geomeans in rows} == {
@@ -455,10 +461,13 @@ class TestSteps:
 
         upgrade_to_head(db_engine)
 
+        namespace = namespace_of(db_engine, "reference")
         with db_engine.connect() as connection:
             for table in ("machine", "commit"):
                 first_seen_at, days = connection.execute(
-                    text(f"SELECT first_seen_at, delete_after_inactive_days FROM reference.{table}")
+                    text(
+                        f"SELECT first_seen_at, delete_after_inactive_days FROM {namespace}.{table}"
+                    )
                 ).one()
                 assert recent(first_seen_at), table
                 assert days is None, table
@@ -494,11 +503,12 @@ class TestSteps:
 
         upgrade_to_head(db_engine)
 
+        sample = f"{namespace_of(db_engine, 'reference')}.sample"
         with db_engine.connect() as connection:
             rows = connection.execute(
                 text(
                     "SELECT run_id, test_id, repetition, execution_time, code_size, hash, "
-                    "finished_at FROM reference.sample ORDER BY run_id, test_id, repetition"
+                    f"finished_at FROM {sample} ORDER BY run_id, test_id, repetition"
                 )
             ).all()
         assert [tuple(row) for row in rows] == [
@@ -509,6 +519,50 @@ class TestSteps:
             (2, 1, 0, 5.0, None, None, None),
             (2, 2, 0, None, 42, "abc", finished),
         ]
+
+    def test_a_suite_is_moved_to_a_namespace_of_the_servers_choosing(
+        self, db_engine: Engine
+    ) -> None:
+        # Version 7 (D5): its tables, data included, move to a namespace chosen as a new suite's
+        # is, which skips names already taken, and labelled as a new suite's is. The registry
+        # caches the namespace, so the counter moves (D2).
+        taken = f"{NAMESPACE_PREFIX}1"
+        with db_engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{taken}"'))
+            replay_reference(connection, 6)
+            connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
+        before = schema_version_of(db_engine)
+
+        upgrade_to_head(db_engine)
+
+        namespace = namespace_of(db_engine, "reference")
+        assert namespace.startswith(NAMESPACE_PREFIX)
+        assert namespace != taken
+        assert "reference" not in inspect(db_engine).get_schema_names()
+        assert schema_version_of(db_engine) == before + 1
+        with db_engine.connect() as connection:
+            assert connection.scalars(text(f"SELECT name FROM {namespace}.machine")).all() == ["m"]
+            label = connection.execute(
+                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
+                {"namespace": namespace},
+            ).scalar_one()
+        assert label == "LNT test suite reference"
+
+    def test_a_step_after_a_move_works_in_the_new_namespace(
+        self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # D6: the steps of one suite run in one transaction, and each is told where the suite's
+        # tables are as the previous one left them.
+        with db_engine.begin() as connection:
+            replay_reference(connection, 6)
+        calls: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            migrations, "STEPS", (*migrations.STEPS, adding_machine_column("after", calls))
+        )
+
+        upgrade_to_head(db_engine)
+
+        assert "after" in suite_column_names(db_engine, "reference", "machine")
 
     def test_a_suite_declaring_a_field_named_like_a_new_built_in_is_refused(
         self, db_engine: Engine
