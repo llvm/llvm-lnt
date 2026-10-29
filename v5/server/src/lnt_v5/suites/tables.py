@@ -534,7 +534,7 @@ def new_namespace(connection: Connection) -> str:
 
 def label(connection: Connection, namespace: str, suite: str) -> None:
     """Label a suite's namespace with the suite's name, for whoever reads the database directly,
-    since nothing else about it says which suite it holds (D5)."""
+    since nothing else about it says which suite it holds."""
     # Rendered as a quoted literal rather than bound, since COMMENT takes no bind parameters.
     text_ = literal(f"LNT test suite {suite}").compile(
         dialect=connection.dialect, compile_kwargs={"literal_binds": True}

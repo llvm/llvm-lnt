@@ -268,8 +268,8 @@ class TestCreate:
     def test_puts_the_tables_in_a_namespace_it_chooses_and_labels(
         self, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
-        # D5: the namespace is never derived from the name. The label is for whoever reads the
-        # database directly.
+        # D5: the server chooses the namespace, which is not the suite's name. The label is for
+        # whoever reads the database directly.
         create()
 
         namespace = namespace_of(db_engine, "nts")
