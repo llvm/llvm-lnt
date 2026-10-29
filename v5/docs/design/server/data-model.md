@@ -431,10 +431,10 @@ namespace of their own (see below).
 - Exactly one row, created with `version = 0` when the database is initialized
   (see D6) and never deleted. Readers may rely on it being there. `id` is fixed
   at `1` so that the row can be addressed without a search.
-- Bumped whenever a suite is created, modified or deleted, so that other
-  workers can detect that their cached schemas are stale (see D2). Migrating a
-  suite's tables (D6) does not change its schema, so it does not bump the
-  counter, unless the migration moves the suite to another namespace.
+- Bumped whenever a suite is created, modified, deleted, or moved to another
+  namespace by a migration (D6), so that other workers can detect that their
+  cached suites are stale (see D2). Migrating a suite's tables otherwise changes
+  nothing a worker caches, so it does not bump the counter.
 
 #### `api_key`
 
@@ -876,10 +876,10 @@ that applies them must meet these requirements:
   columns to change, and its namespace, so that it knows where they are. A
   migration may also update existing rows, not only change the tables.
 - **Migrations can move a suite.** A suite's migration may move its tables to
-  another namespace, chosen as the server chooses a new suite's (see D5). It
-  records the new one in `schema.namespace`, and bumps `schema_version` so
-  that every worker reloads its copy of the suite (see D2). The suite's later
-  migrations work in the new namespace.
+  another namespace, chosen, and labelled if the implementation labels them,
+  as for a new suite (see D5). It records the new one in `schema.namespace`,
+  and bumps `schema_version` so that every worker reloads its copy of the
+  suite (see D2). The suite's later migrations work in the new namespace.
 - **Never backwards.** If a newer build has already migrated the database, or
   any suite, past the latest migration the running build knows about, the
   running build refuses to start or to apply migrations, since its code would

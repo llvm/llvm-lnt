@@ -26,7 +26,7 @@ from lnt_v5.suites.migrations import Step
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import StoredSuite, normalized_json
 from lnt_v5.suites.tables import NAMESPACE_PREFIX, SuiteTables
-from lnt_v5.tables import schema
+from lnt_v5.tables import namespace_sequence, schema
 from migration_snapshots import NAMESPACE, reference_schema, replay, snapshot_versions
 
 
@@ -76,13 +76,15 @@ def migration_lock_is_free(database_url: str) -> bool:
     return taken
 
 
-def replay_reference(connection: Connection, version: int, namespace: str = NAMESPACE) -> None:
+def replay_reference(
+    connection: Connection, version: int, namespace: str = NAMESPACE, name: str = "reference"
+) -> None:
     """The reference suite as a suite at `version` is: its tables then, in `namespace`, and its row
-    in `schema`."""
+    in `schema`, under `name`."""
     replay(connection, version, namespace)
     connection.execute(
         insert(schema).values(
-            name="reference",
+            name=name,
             namespace=namespace,
             schema_json=normalized_json(reference_schema()),
             migration_version=version,
@@ -524,29 +526,56 @@ class TestSteps:
         self, db_engine: Engine
     ) -> None:
         # Version 7 (D5): its tables, data included, move to a namespace chosen as a new suite's
-        # is, which skips names already taken, and labelled as a new suite's is. The registry
-        # caches the namespace, so the counter moves (D2).
-        taken = f"{NAMESPACE_PREFIX}1"
+        # is, and labelled as a new suite's is. The registry caches the namespace, so the counter
+        # moves, once per suite (D2). Suites are migrated in name order, so `a` goes first, and
+        # must skip the name `suite_1` has, whose namespace has not been moved yet.
+        old, first, second = (f"{NAMESPACE_PREFIX}{number}" for number in (1, 2, 3))
         with db_engine.begin() as connection:
-            connection.execute(text(f'CREATE SCHEMA "{taken}"'))
-            replay_reference(connection, 6)
-            connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
+            replay_reference(connection, 6, namespace="a", name="a")
+            replay_reference(connection, 6, namespace=old, name=old)
+            connection.execute(text("INSERT INTO a.machine (name) VALUES ('m')"))
+            # So that the sequence's first name is the one `suite_1` has.
+            connection.execute(text(f"ALTER SEQUENCE {namespace_sequence.name} RESTART"))
         before = schema_version_of(db_engine)
 
         upgrade_to_head(db_engine)
 
-        namespace = namespace_of(db_engine, "reference")
-        assert namespace.startswith(NAMESPACE_PREFIX)
-        assert namespace != taken
-        assert "reference" not in inspect(db_engine).get_schema_names()
-        assert schema_version_of(db_engine) == before + 1
+        assert namespace_of(db_engine, "a") == first
+        assert namespace_of(db_engine, old) == second
+        assert not {"a", old} & set(inspect(db_engine).get_schema_names())
+        assert schema_version_of(db_engine) == before + 2
         with db_engine.connect() as connection:
-            assert connection.scalars(text(f"SELECT name FROM {namespace}.machine")).all() == ["m"]
+            assert connection.scalars(text(f"SELECT name FROM {first}.machine")).all() == ["m"]
             label = connection.execute(
                 text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
-                {"namespace": namespace},
+                {"namespace": first},
             ).scalar_one()
-        assert label == "LNT test suite reference"
+        assert label == "LNT test suite a"
+
+    def test_a_move_that_fails_leaves_the_suite_where_it_was(
+        self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # D6: a suite's migrations apply together or not at all, the move included.
+        with db_engine.begin() as connection:
+            replay_reference(connection, 6)
+            connection.execute(text("INSERT INTO reference.machine (name) VALUES ('m')"))
+        before = schema_version_of(db_engine)
+
+        def failing(op: Operations, suite: StoredSuite) -> None:
+            raise RuntimeError("the step failed")
+
+        monkeypatch.setattr(migrations, "STEPS", (*migrations.STEPS, failing))
+
+        with pytest.raises(RuntimeError, match="the step failed"):
+            upgrade_to_head(db_engine)
+
+        assert namespace_of(db_engine, "reference") == "reference"
+        assert version_of(db_engine, "reference") == 6
+        assert schema_version_of(db_engine) == before
+        namespaces = inspect(db_engine).get_schema_names()
+        assert not [name for name in namespaces if name.startswith(NAMESPACE_PREFIX)]
+        with db_engine.connect() as connection:
+            assert connection.scalars(text("SELECT name FROM reference.machine")).all() == ["m"]
 
     def test_a_step_after_a_move_works_in_the_new_namespace(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -562,6 +591,7 @@ class TestSteps:
 
         upgrade_to_head(db_engine)
 
+        assert calls == [("reference", "after")]
         assert "after" in suite_column_names(db_engine, "reference", "machine")
 
     def test_a_suite_declaring_a_field_named_like_a_new_built_in_is_refused(

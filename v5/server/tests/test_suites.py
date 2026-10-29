@@ -285,9 +285,9 @@ class TestCreate:
     def test_chooses_a_namespace_no_namespace_has(
         self, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
-        # D5: neither the namespace of a suite from before namespaces were recorded, which is its
-        # name, nor one created outside the server. The sequence restarts with each test, so these
-        # are the first names it would come up with.
+        # D5: none that a namespace has, whether or not a suite records it, even one the sequence
+        # did not name: here one created outside the server, and one a suite records. The sequence
+        # restarts with each test, so these are the first names it would come up with.
         stray, old = f"{NAMESPACE_PREFIX}1", f"{NAMESPACE_PREFIX}2"
         suite = SuiteSchema.model_validate({**NTS, "name": old})
         with db_engine.begin() as connection:

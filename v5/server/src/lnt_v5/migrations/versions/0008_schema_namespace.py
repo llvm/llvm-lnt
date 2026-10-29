@@ -63,8 +63,8 @@ def downgrade() -> None:
     if names := list(moved):
         raise RuntimeError(
             "cannot downgrade: earlier builds look for a test suite's tables in the namespace "
-            "named after the suite, and these test suites are in another one, as every suite is "
-            f"once this build has migrated or created it: {', '.join(names)}"
+            "named after it, which no suite created or migrated since revision 0008 is in: "
+            + ", ".join(names)
         )
     too_long = connection.execute(
         sa.text(

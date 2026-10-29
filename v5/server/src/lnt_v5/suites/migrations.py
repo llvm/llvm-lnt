@@ -17,12 +17,20 @@ needs its own test.
 
 Like a global revision (see `migrations/versions/`), a step is frozen: it spells out its types and
 constraint names rather than taking them from `suites/tables.py`, which always describes the latest
-structure. A step receives two arguments:
+structure of a suite's tables. The one exception is how a suite's namespace is named and labelled,
+which a step may take from `suites/tables.py` (`new_namespace` and `label`): that depends only on
+the global tables, which are always at the latest revision when steps run (D6). So those two must
+stay callable inside a suite's migration transaction, and assume nothing about the suite's tables.
+
+A step receives two arguments:
 
 - An Alembic `Operations` object bound to the suite's transaction.
 - The suite (`store.StoredSuite`): its schema, since what a step changes may depend on its dynamic
   columns, and the namespace its tables are in, which is not necessarily its name (D5). Pass
   `schema=suite.namespace` to each operation; nothing qualifies table names for you.
+
+A step may move the suite to another namespace, by renaming it and recording the new one in
+`schema.namespace` (D6). `migrate.py` then hands the later steps the new namespace.
 
 A step may update data as well as change the tables. The server doesn't start until every suite has
 been migrated, and `{suite}.sample` can hold many millions of rows. So update data with set-based
@@ -302,10 +310,13 @@ def _generated_namespace(op: Operations, suite: StoredSuite) -> None:
     the tables without touching them, and labelled as a new suite's is.
 
     Unlike the other steps, this one takes its naming from `suites/tables.py` rather than spelling
-    it out: whatever names the namespaces of new suites should name these too.
+    it out (see above): whatever names the namespaces of new suites should name these too.
 
-    The registry caches each suite's namespace, so the step bumps `schema_version` as a change to a
-    suite would (D2), so that a server running while the migrations are applied by hand reloads it.
+    The registry caches each suite's namespace, so moving it bumps `schema_version`, as any change
+    to a cached suite does (D2).
+
+    A suite whose namespace was dropped out of band while its row stayed cannot be renamed, and
+    stops the migrations, as any earlier step would on its tables.
     """
     connection = op.get_bind()
     namespace = suite_tables.new_namespace(connection)
