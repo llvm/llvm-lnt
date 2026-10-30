@@ -8,7 +8,16 @@
   gap: var(--lnt-space-3);
 }
 
-/* The commit range presets, at the top right. */
+/* The project filter and the commit range presets, together at the top right, their bottoms in line
+   since the dropdown's label is above it. */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lnt-space-3);
+}
+
+/* The commit range presets. */
 .ranges {
   display: flex;
   gap: var(--lnt-space-1);
@@ -26,6 +35,12 @@
   color: var(--lnt-muted);
 }
 
+.projectHeading {
+  margin: var(--lnt-space-3) 0 var(--lnt-space-2);
+  font-size: 1.5rem;
+}
+
+.project,
 .suite {
   margin-bottom: var(--lnt-space-4);
 }
