@@ -17,7 +17,7 @@ import {
   MACOS,
   PROFILED_TEST,
 } from '../tools/synthetic.ts'
-import { expect, json, profiledRun, test } from './fixtures.ts'
+import { BENCHMARKS, expect, json, profiledRun, test } from './fixtures.ts'
 import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
 import { rows, table } from './tables.ts'
 
@@ -35,7 +35,9 @@ function columnOf(page: Page, side: 'A' | 'B') {
 
 /** The newest commit, by ordinal, at which `machine` has profiles. */
 async function newestProfiled(request: APIRequestContext, machine: string) {
-  const path = `/api/suites/libcxx/commits?machine=${machine}&has_profiles=true&sort=-ordinal&limit=1`
+  const path =
+    `/api/projects/libcxx/suites/benchmarks/commits?machine=${machine}&has_profiles=true` +
+    '&sort=-ordinal&limit=1'
   return (await json<Schemas['CommitCursorPage']>(request, path)).items[0]
 }
 
@@ -46,7 +48,7 @@ test("shows the profile of a test that Run Detail's Profile link names", async (
 }) => {
   const commit = await newestProfiled(request, MACOS)
   const run = await profiledRun(request, MACOS, commit.value)
-  await page.goto(`/suites/libcxx/runs/${run}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${run}`)
   await page.getByRole('searchbox', { name: 'Filter tests' }).fill(PROFILED_TEST)
   const row = rows(table(page, 'Samples')).filter({ hasText: PROFILED_TEST }).first()
   await row.getByRole('link', { name: 'Profile' }).click()
@@ -57,7 +59,7 @@ test("shows the profile of a test that Run Detail's Profile link names", async (
   await expect(side.getByRole('combobox', { name: 'Test' })).toHaveValue(PROFILED_TEST)
   await expect(side.getByRole('link', { name: /^Run / })).toHaveAttribute(
     'href',
-    `/suites/libcxx/runs/${run}`,
+    `/projects/libcxx/suites/benchmarks/runs/${run}`,
   )
   // A function of the profile is shown, which a profile loading or failed would not show.
   const functionA = columnOf(page, 'A').getByRole('combobox', { name: 'Function' })
@@ -88,7 +90,8 @@ test("defaults side B's test to side A's, also on another machine", async ({ pag
   const linuxRun = await profiledRun(request, LINUX, commit.value)
   const macosRun = await profiledRun(request, MACOS, commit.value)
   const query = new URLSearchParams({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: LINUX,
     commit_a: commit.value,
     run_a: linuxRun,
@@ -99,7 +102,7 @@ test("defaults side B's test to side A's, also on another machine", async ({ pag
     PROFILED_TEST,
   )
 
-  await pickOption(sideOf(page, 'B'), 'Suite', 'libcxx')
+  await pickOption(sideOf(page, 'B'), 'Suite', 'libc++/Microbenchmarks')
   await pickSuggestion(sideOf(page, 'B'), 'Machine', LINUX)
   // The commit is searched by its commit string, and suggested by its display value.
   await pickSuggestion(sideOf(page, 'B'), 'Commit', commit.value, String(commit.fields.svn_revision))
@@ -130,7 +133,7 @@ test("defaults side B's test and function to side A's, until the user picks on s
   request,
 }) => {
   const commit = await newestProfiled(request, LINUX)
-  const side = { suite: 'libcxx', machine: LINUX }
+  const side = { suite: BENCHMARKS, machine: LINUX }
   await page.goto(
     profilesPath(
       { ...side, commit: commit.value, run: await profiledRun(request, LINUX, commit.value) },
@@ -183,7 +186,8 @@ test("shows the hottest function's instructions, as the counter and the Values s
   const commit = await newestProfiled(request, MACOS)
   const run = await profiledRun(request, MACOS, commit.value)
   const query = new URLSearchParams({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: MACOS,
     commit_a: commit.value,
     run_a: run,
@@ -224,12 +228,15 @@ test("shows the hottest function's instructions, as the counter and the Values s
 
 test('keeps the test on another run of the same commit', async ({ page, request }) => {
   // Both runs of the experiment have profiles: the page starts on the latest.
-  const path = `/api/suites/libcxx/runs?machine=${LINUX}&commit=${EXPERIMENT}&has_profiles=true`
+  const path =
+    `/api/projects/libcxx/suites/benchmarks/runs?machine=${LINUX}&commit=${EXPERIMENT}` +
+    '&has_profiles=true'
   const runs = (await json<Schemas['RunCursorPage']>(request, `${path}&sort=measured_at`)).items
   expect(runs).toHaveLength(2)
   const [first, latest] = runs.map((run) => run.uuid)
   const query = new URLSearchParams({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: LINUX,
     commit_a: EXPERIMENT,
     test_a: PROFILED_TEST,
@@ -250,7 +257,7 @@ test('keeps the test on another run of the same commit', async ({ page, request 
   await expect(side.getByRole('combobox', { name: 'Test' })).toHaveValue(PROFILED_TEST)
   await expect(side.getByRole('link', { name: /^Run / })).toHaveAttribute(
     'href',
-    `/suites/libcxx/runs/${first}`,
+    `/projects/libcxx/suites/benchmarks/runs/${first}`,
   )
   // The first run's profile of the test, with its own share of the same function.
   await expect(functionA).toHaveValue(/^std::__1::__stable_sort</)
@@ -259,7 +266,7 @@ test('keeps the test on another run of the same commit', async ({ page, request 
 })
 
 test('says when a machine has no profiles', async ({ page }) => {
-  await page.goto(`/profiles?suite_a=libcxx&machine_a=${HARDENED}`)
+  await page.goto(`/profiles?project_a=libcxx&suite_a=benchmarks&machine_a=${HARDENED}`)
 
   await expect(sideOf(page, 'A').getByRole('combobox', { name: 'Commit' })).toHaveAttribute(
     'placeholder',
@@ -276,9 +283,11 @@ test('compares the counters of two profiles, and the functions they show', async
   // function takes a share of 0.376 of each counter rather than 0.47 (see tools/synthetic.ts).
   const commit = await newestProfiled(request, LINUX)
   const linuxRun = await profiledRun(request, LINUX, commit.value)
-  const path = `/api/suites/libcxx/runs?machine=${LINUX}&commit=${EXPERIMENT}&has_profiles=true`
+  const path =
+    `/api/projects/libcxx/suites/benchmarks/runs?machine=${LINUX}&commit=${EXPERIMENT}` +
+    '&has_profiles=true'
   const [first] = (await json<Schemas['RunCursorPage']>(request, `${path}&sort=measured_at`)).items
-  const side = { suite: 'libcxx', machine: LINUX, test: PROFILED_TEST }
+  const side = { suite: BENCHMARKS, machine: LINUX, test: PROFILED_TEST }
   await page.goto(
     profilesPath(
       { ...side, commit: commit.value, run: linuxRun },
@@ -307,7 +316,7 @@ test('steps through the hottest instructions of a function', async ({ page, requ
   const run = await profiledRun(request, MACOS, commit.value)
   await page.goto(
     profilesPath({
-      suite: 'libcxx',
+      suite: BENCHMARKS,
       machine: MACOS,
       commit: commit.value,
       run,

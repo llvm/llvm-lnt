@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 #
-# Check the test suite endpoints end to end against the running image.
+# Check the project and test suite endpoints end to end against the running image.
 #
 # The point of doing this here rather than in pytest is WEB_CONCURRENCY=4: D2's registry keeps a
-# copy of every schema *per worker*, kept honest by the `schema_version` counter, and only a real
-# multi-worker deployment can show that a suite created on one worker is visible on the others.
+# copy of every project and schema *per worker*, kept honest by the `schema_version` counter, and only
+# a real multi-worker deployment can show that a suite created on one worker is visible on the
+# others.
 # Everything in-process drives a single application object, where the protocol cannot fail.
 
 source "$(dirname "$0")/lib.sh"
 
 # Not readonly: the restart below moves the server to another port.
-SUITES="${BASE_URL}/api/suites"
+PROJECTS="${BASE_URL}/api/projects"
+SUITES="${PROJECTS}/crud/suites"
 
 # Its own key: the checks are declared independent, so this cannot inherit 009's. Assigned apart
 # from `readonly`, whose own exit status would otherwise hide a failing `mint_key` from `set -e`.
@@ -21,6 +23,21 @@ readonly JSON='Content-Type: application/json'
 # Enough times that every one of the four workers has almost certainly answered.
 readonly ATTEMPTS=12
 
+echo "  creating a project reports where to find it, and every worker sees it"
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name": "crud", "display_name": "CRUD"}' "$PROJECTS"
+expect_status 201
+expect_header Location '/api/projects/crud'
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${PROJECTS}/crud"
+    expect_status 200
+    expect_body '"display_name":"CRUD"'
+done
+
+echo "  a project name is taken once"
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name": "crud"}' "$PROJECTS"
+expect_status 409
+expect_body '"code":"duplicate"'
+
 echo "  creating a suite reports where to find it"
 request -X POST -H "$AUTH" -H "$JSON" --data '{
   "name": "suite-crud",
@@ -30,7 +47,7 @@ request -X POST -H "$AUTH" -H "$JSON" --data '{
 }' "$SUITES"
 expect_status 201
 expect_body '"name":"suite-crud"'
-expect_header Location '/api/suites/suite-crud'
+expect_header Location '/api/projects/crud/suites/suite-crud'
 
 echo "  every worker sees it, and none of them 404s"
 for _ in $(seq 1 "$ATTEMPTS"); do
@@ -39,15 +56,60 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     expect_body '"git_sha"'
 done
 
-echo "  it appears in the list, with its schema"
+echo "  it appears in the lists, with its schema"
 request "$SUITES"
 expect_status 200
 expect_body '"items":\['
 expect_body '"execution_time"'
+request "$PROJECTS"
+expect_status 200
+expect_body '"name":"suite-crud"'
 
 echo "  the API index points at a list that resolves"
 request "${BASE_URL}/api"
-expect_body '"suites":"/api/suites"'
+expect_body '"projects":"/api/projects"'
+
+echo "  a suite name is taken once per project, and another project can take it too"
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name": "suite-crud", "metrics": []}' "$SUITES"
+expect_status 409
+expect_body '"code":"duplicate"'
+create_project crud-other "$AUTH"
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name": "suite-crud", "metrics": []}' \
+    "${PROJECTS}/crud-other/suites"
+expect_status 201
+request "${PROJECTS}/crud-other/suites/suite-crud"
+expect_status 200
+if printf '%s' "$BODY" | grep -q '"execution_time"'; then
+    echo "  the other project's suite has the first one's schema" >&2
+    _show_body
+    exit 1
+fi
+
+echo "  a project that still has suites cannot be deleted"
+request -X DELETE -H "$AUTH" "${PROJECTS}/crud-other"
+expect_status 409
+expect_body '"code":"conflict"'
+request -X DELETE -H "$AUTH" "${PROJECTS}/crud-other/suites/suite-crud?confirm=true"
+expect_status 204
+request -X DELETE -H "$AUTH" "${PROJECTS}/crud-other"
+expect_status 204
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${PROJECTS}/crud-other"
+    expect_status 404
+done
+
+echo "  changing a project's display name is visible on every worker, and renaming it is refused"
+request -X PATCH -H "$AUTH" -H "$JSON" --data '{"display_name": "Projects CRUD"}' \
+    "${PROJECTS}/crud"
+expect_status 200
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${PROJECTS}/crud"
+    expect_status 200
+    expect_body '"display_name":"Projects CRUD"'
+done
+request -X PATCH -H "$AUTH" -H "$JSON" --data '{"name": "renamed"}' "${PROJECTS}/crud"
+expect_status 400
+expect_body '"code":"invalid_request"'
 
 echo "  evolving it is visible on every worker"
 request -X PATCH -H "$AUTH" -H "$JSON" --data '{
@@ -90,9 +152,9 @@ request -X PATCH -H "$AUTH" -H "$JSON" \
 expect_status 400
 expect_body '"code":"invalid_request"'
 
-echo "  a key restricted to the suite manages it, and no other suite"
+echo "  a key restricted to the suite manages it, and no other suite, nor its project in full"
 # Minted only now, since the CLI only restricts a key to suites that exist.
-restricted="$(mint_key restricted manage --suite suite-crud)"
+restricted="$(mint_key restricted manage --suite crud/suite-crud)"
 request -X PATCH -H "Authorization: Bearer ${restricted}" -H "$JSON" \
     --data '{"metrics": {"update": [{"name": "code_size", "display_name": "Code size"}]}}' \
     "${SUITES}/suite-crud/schema"
@@ -113,7 +175,8 @@ expect_status 401
 
 echo "  the schema survives a restart, which is the only test of the lazy load"
 restart_server
-SUITES="${BASE_URL}/api/suites"
+PROJECTS="${BASE_URL}/api/projects"
+SUITES="${PROJECTS}/crud/suites"
 request "${SUITES}/suite-crud"
 expect_status 200
 expect_body '"code_size"'
@@ -131,7 +194,7 @@ done
 echo "  deleting it removes it from the key restricted to it, which does not cover a namesake"
 request -H "Authorization: Bearer ${restricted}" "${BASE_URL}/api/auth"
 expect_status 200
-expect_body '"suites":\[\]'
+expect_body '"restricted_to":\[\]'
 request -X POST -H "$AUTH" -H "$JSON" --data '{"name":"suite-crud","metrics":[]}' "$SUITES"
 expect_status 201
 request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
@@ -162,3 +225,12 @@ for _ in $(seq 1 "$ATTEMPTS"); do
 done
 request -X DELETE -H "$AUTH" "${SUITES}/recreated?confirm=true"
 expect_status 204
+
+echo "  deleting the project, once it has no suites, is visible on every worker"
+request -X DELETE -H "$AUTH" "${PROJECTS}/crud"
+expect_status 204
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${SUITES}"
+    expect_status 404
+    expect_body '"code":"not_found"'
+done

@@ -1,9 +1,10 @@
 /**
- * The Dashboard (DA1-DA2), against the seeded libcxx history: tracked machines with a trend on
- * every metric but `peak_memory`, which no run reports, and an untracked one left out.
+ * The Dashboard (DA1-DA2), against the seeded history of `libcxx/benchmarks`: tracked machines
+ * with a trend on every metric but `peak_memory`, which no run reports, and an untracked one left
+ * out.
  *
  * Other tests create suites of their own, which the Dashboard lists too, so every check is scoped
- * to the section of the suite it is about.
+ * to the section of the suite it is about, which its full label names (AR22).
  */
 
 import type { Locator, Page } from '@playwright/test'
@@ -20,12 +21,16 @@ const LIBCXX_METRICS = [
   'Peak Memory Footprint',
 ]
 
-function section(page: Page, suite: string) {
-  return page.getByRole('main').getByRole('region', { name: suite, exact: true })
+/** The section of the suite whose full label is `label`. */
+function section(page: Page, label: string) {
+  return page.getByRole('main').getByRole('region', { name: label, exact: true })
 }
 
+/** The full label of `libcxx/benchmarks`. */
+const BENCHMARKS = 'libc++/Microbenchmarks'
+
 function card(page: Page, name: string) {
-  return section(page, 'libcxx').getByRole('article', { name, exact: true })
+  return section(page, BENCHMARKS).getByRole('article', { name, exact: true })
 }
 
 /**
@@ -47,10 +52,10 @@ function machinesOf(url: string) {
   return new URL(url).searchParams.getAll('machine')
 }
 
-test('draws a trace per tracked machine on each libcxx card', async ({ page }) => {
+test('draws a trace per tracked machine on each card of libcxx/benchmarks', async ({ page }) => {
   await page.goto('/')
 
-  await expect(section(page, 'libcxx').getByRole('article')).toHaveText(
+  await expect(section(page, BENCHMARKS).getByRole('article')).toHaveText(
     LIBCXX_METRICS.map((name) => new RegExp(`^${name}`)),
   )
   // The real machines measured every commit of the window; the others, only a few.
@@ -78,7 +83,7 @@ test('asks for the commit range chosen, and keeps it in the URL', async ({ page 
 
   const request = page.waitForRequest(
     (request) =>
-      request.url().includes('/api/suites/libcxx/trends?') &&
+      request.url().includes('/api/projects/libcxx/suites/benchmarks/trends?') &&
       new URL(request.url()).searchParams.get('last_n') === '100',
   )
   await page.getByRole('button', { name: 'Last 100', exact: true }).click()
@@ -99,7 +104,7 @@ test("opens the Graph with a card's machines from its title", async ({ page }) =
 
   await cycles.getByRole('link', { name: 'Cycles Elapsed', exact: true }).click()
 
-  await expect(page).toHaveURL(/\/graph\?suite=libcxx&machine=.*&metric=cycles$/)
+  await expect(page).toHaveURL(/\/graph\?project=libcxx&suite=benchmarks&machine=.*&metric=cycles$/)
   const machines = machinesOf(page.url())
   expect(machines).toHaveLength(5)
   expect(machines).toEqual(expect.arrayContaining([LINUX, MACOS, HARDENED]))
@@ -153,7 +158,7 @@ test('says that a suite has no numeric metrics', async ({
 }, testInfo) => {
   const token = await tokenFor('manage')
   await withOwnSuiteName(request, token, testInfo, async (suite) => {
-    const created = await request.post('/api/suites', {
+    const created = await request.post(`/api/projects/${suite}/suites`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { name: suite, metrics: [{ name: 'hash', type: 'text' }] },
     })
@@ -161,8 +166,10 @@ test('says that a suite has no numeric metrics', async ({
 
     await page.goto('/')
 
-    await expect(section(page, suite)).toContainText('This suite has no numeric metrics.')
-    await expect(section(page, suite).getByRole('article')).toHaveCount(0)
+    // In a project of the same name, without a display name.
+    const own = section(page, `${suite}/${suite}`)
+    await expect(own).toContainText('This suite has no numeric metrics.')
+    await expect(own.getByRole('article')).toHaveCount(0)
   })
 })
 
@@ -182,14 +189,14 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite) => {
     await signIn(page, 'manage')
     await page.goto('/')
-    const own = section(page, suite)
+    const own = section(page, `${suite}/${suite}`)
     await expect(own).toContainText('This suite shows no metrics on the Dashboard.')
     await expect(own.getByRole('article')).toHaveCount(0)
 
     await own.getByRole('link', { name: 'its schema', exact: true }).click()
-    await expect(page).toHaveURL(`/suites/${suite}?tab=schema`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=schema`)
     await page.getByRole('button', { name: 'Edit schema' }).click()
-    const editor = page.getByRole('region', { name: `Editing ${suite}` })
+    const editor = page.getByRole('region', { name: `Editing ${suite}/${suite}` })
     await editor.getByRole('checkbox', { name: 'On the Dashboard of metric compile_time' }).check()
     await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
     await expect(editor).toBeHidden()

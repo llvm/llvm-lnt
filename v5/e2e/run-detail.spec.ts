@@ -26,13 +26,13 @@ async function linkQuery(page: Page, name: string) {
 async function newestRun(request: Parameters<typeof json>[0], query: string) {
   const runs = await json<Schemas['RunCursorPage']>(
     request,
-    `/api/suites/libcxx/runs?${query}&sort=-submitted_at&limit=1`,
+    `/api/projects/libcxx/suites/benchmarks/runs?${query}&sort=-submitted_at&limit=1`,
   )
   return runs.items[0]
 }
 
 test('shows the run, and its samples sorted and filtered by test name', async ({ page }) => {
-  await page.goto(`/suites/libcxx/runs/${REAL_RUN}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`)
 
   const info = page.getByRole('group', { name: 'Run', exact: true })
   await expect(info).toContainText(LINUX)
@@ -56,21 +56,25 @@ test('shows the run, and its samples sorted and filtered by test name', async ({
   await filter.fill('bm_from_sys/')
   await expect(rows(samples)).toHaveCount(2)
   await expect(page).toHaveURL(
-    `/suites/libcxx/runs/${REAL_RUN}?test_filter=${encodeURIComponent('bm_from_sys/')}`,
+    `/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}` +
+      `?test_filter=${encodeURIComponent('bm_from_sys/')}`,
   )
 })
 
 test('keeps the metric in the URL, and passes it on to the comparisons', async ({ page }) => {
-  await page.goto(`/suites/libcxx/runs/${REAL_RUN}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`)
 
   await pickOption(page, 'Metric', 'Instructions Retired')
 
-  await expect(page).toHaveURL(`/suites/libcxx/runs/${REAL_RUN}?metric=instructions`)
+  await expect(page).toHaveURL(
+    `/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}?metric=instructions`,
+  )
   await expect(table(page, 'Samples').getByRole('columnheader').nth(1)).toHaveText(
     'Instructions Retired',
   )
   expect(await linkQuery(page, 'Compare with...')).toEqual({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: LINUX,
     commit_a: '53a4e4a77bd70731320bfa82ddbe6f88ee30ea6f',
     runs_a: REAL_RUN,
@@ -80,14 +84,15 @@ test('keeps the metric in the URL, and passes it on to the comparisons', async (
 
 test('links to the profile of a test that has one', async ({ page, request }) => {
   const { uuid, commit } = await newestRun(request, `machine=${MACOS}&has_profiles=true`)
-  await page.goto(`/suites/libcxx/runs/${uuid}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${uuid}`)
 
   await page.getByRole('searchbox', { name: 'Filter tests' }).fill(PROFILED_TEST)
   const row = rows(table(page, 'Samples')).filter({ hasText: PROFILED_TEST }).first()
   await expect(row.getByRole('link', { name: 'Profile' })).toHaveAttribute(
     'href',
     `/profiles?${new URLSearchParams({
-      suite_a: 'libcxx',
+      project_a: 'libcxx',
+      suite_a: 'benchmarks',
       machine_a: MACOS,
       commit_a: commit,
       run_a: uuid,
@@ -100,17 +105,19 @@ test('compares the run with the commit before it on its machine', async ({ page,
   // The machine's newest commit, and the one before it at which it has runs.
   const commits = await json<Schemas['CommitCursorPage']>(
     request,
-    `/api/suites/libcxx/commits?machine=${MACOS}&sort=-ordinal&limit=2`,
+    `/api/projects/libcxx/suites/benchmarks/commits?machine=${MACOS}&sort=-ordinal&limit=2`,
   )
   const [newest, previous] = commits.items
   const { uuid } = await newestRun(request, `machine=${MACOS}&commit=${newest.value}`)
-  await page.goto(`/suites/libcxx/runs/${uuid}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${uuid}`)
 
   expect(await linkQuery(page, 'Compare with previous commit')).toEqual({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: MACOS,
     commit_a: previous.value,
-    suite_b: 'libcxx',
+    project_b: 'libcxx',
+    suite_b: 'benchmarks',
     machine_b: MACOS,
     commit_b: newest.value,
     runs_b: uuid,
@@ -123,7 +130,7 @@ test('cannot compare with a previous commit when the run’s commit has no ordin
   request,
 }) => {
   const { uuid } = await newestRun(request, `commit=${EXPERIMENT}`)
-  await page.goto(`/suites/libcxx/runs/${uuid}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/runs/${uuid}`)
 
   const link = page.getByRole('main').getByRole('link', { name: 'Compare with previous commit' })
   await expect(link).toHaveAttribute('aria-disabled', 'true')
@@ -140,16 +147,17 @@ test('deleting the run shows its machine', async ({ page, request, tokenFor, sig
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite, uuids) => {
     const [first, second] = uuids
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}/runs/${second}`)
+    await page.goto(`/projects/${suite}/suites/${suite}/runs/${second}`)
 
     await page.getByRole('button', { name: 'Delete run' }).click()
     await page.getByLabel(/to confirm/).fill(second.slice(0, 8))
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
-    await expect(page).toHaveURL(`/suites/${suite}/machines/m1`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/machines/m1`)
     const history = table(page, 'Run history')
     await settled(history)
     expect(await column(history, 0)).toEqual([`${first.slice(0, 8)}…`])
-    expect((await request.get(`/api/suites/${suite}/runs/${second}`)).status()).toBe(404)
+    const deleted = await request.get(`/api/projects/${suite}/suites/${suite}/runs/${second}`)
+    expect(deleted.status()).toBe(404)
   })
 })

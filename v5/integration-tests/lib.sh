@@ -31,7 +31,7 @@ _show_body() {
 }
 
 # mint_key <name> <scope> [create-key options...] -- create an API key through the CLI and echo its
-# token. Any further arguments go to `create-key`, e.g. `--suite nts` to restrict the key.
+# token. Any further arguments go to `create-key`, e.g. `--suite llvm/nts` to restrict the key.
 #
 # I5 requires an out-of-band way to create a key, and this is it. `create-key` prints the token
 # alone on stdout and everything a human reads on stderr, which is what makes this capture yield
@@ -46,6 +46,14 @@ mint_key() {
         exit 1
     fi
     printf '%s' "$token"
+}
+
+# create_project <name> <authorization header> -- create the project <name> (E13), for a check's
+# suites to go in, with a key that has instance-wide `manage` scope.
+create_project() {
+    request -X POST -H "$2" -H 'Content-Type: application/json' --data "{\"name\": \"$1\"}" \
+        "${BASE_URL}/api/projects"
+    expect_status 201
 }
 
 # wait_for_health [base URL] -- block until the server answers /healthz there (by default at

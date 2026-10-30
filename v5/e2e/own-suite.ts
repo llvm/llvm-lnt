@@ -1,6 +1,7 @@
 /**
- * A suite of a test's own, for tests that write: they leave the seeded suites alone, since what
- * they add would show in the lists other tests read at the same time (see fixtures.ts).
+ * A suite of a test's own, in a project of its own, for tests that write: they leave the seeded
+ * projects and suites alone, since what they add would show in the lists other tests read at the
+ * same time (see fixtures.ts).
  */
 
 import type { APIRequestContext, TestInfo } from '@playwright/test'
@@ -17,8 +18,10 @@ export interface OwnRun {
 }
 
 /**
- * Call `use` with the name of a suite of the test's own, one that no other test uses, and delete the
- * suite, if `use` created one, once it returns, with `manageToken`.
+ * Create a project of the test's own, one that no other test uses, and call `use` with the name of
+ * a suite of the test's own, to create in the project, which has the same name: the suite is at
+ * `/api/projects/{suite}/suites/{suite}`. Once `use` returns, delete the suite, if `use` created
+ * one, and the project, with `manageToken`, which must be instance-wide.
  */
 export async function withOwnSuiteName(
   request: APIRequestContext,
@@ -27,20 +30,23 @@ export async function withOwnSuiteName(
   use: (suite: string) => Promise<void>,
 ) {
   const suite = `e2e-${testInfo.testId.toLowerCase().replace(/[^a-z0-9]/g, '-')}`.slice(0, 64)
+  const headers = { Authorization: `Bearer ${manageToken}` }
+  const created = await request.post('/api/projects', { headers, data: { name: suite } })
+  expect(created.status(), await created.text()).toBe(201)
   try {
     await use(suite)
   } finally {
-    await request.delete(`/api/suites/${suite}?confirm=true`, {
-      headers: { Authorization: `Bearer ${manageToken}` },
-    })
+    await request.delete(`/api/projects/${suite}/suites/${suite}?confirm=true`, { headers })
+    await request.delete(`/api/projects/${suite}`, { headers })
   }
 }
 
 /**
- * Create a suite named after the test, with the metrics `execution_time` and `compile_time`, the
- * listed machine field `hardware`, and the display commit field `revision`, which no commit has a
- * value for, submit `runs` to it, and call `use` with its name and the UUIDs of the runs, in order.
- * The suite is deleted once `use` returns.
+ * Create a suite named after the test, in a project of the same name (see `withOwnSuiteName`),
+ * with the metrics `execution_time` and `compile_time`, the listed machine field `hardware`, and
+ * the display commit field `revision`, which no commit has a value for, submit `runs` to it, and
+ * call `use` with its name and the UUIDs of the runs, in order. The suite and the project are
+ * deleted once `use` returns.
  */
 export async function ownSuite(
   request: APIRequestContext,
@@ -52,7 +58,7 @@ export async function ownSuite(
   const token = await tokenFor('manage')
   const headers = { Authorization: `Bearer ${token}` }
   await withOwnSuiteName(request, token, testInfo, async (suite) => {
-    const created = await request.post('/api/suites', {
+    const created = await request.post(`/api/projects/${suite}/suites`, {
       headers,
       data: {
         name: suite,
@@ -67,7 +73,7 @@ export async function ownSuite(
     expect(created.status(), await created.text()).toBe(201)
     const uuids: string[] = []
     for (const { machine, commit, ordinal, tests } of runs) {
-      const response = await request.post(`/api/suites/${suite}/runs`, {
+      const response = await request.post(`/api/projects/${suite}/suites/${suite}/runs`, {
         headers,
         data: {
           format_version: '5',

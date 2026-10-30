@@ -19,23 +19,35 @@ const RUNS = [{ machine: 'm1', commit: 'c1', ordinal: 1, tests: [{ name: 'bench'
 test('the Machines tab links to the page of each machine, whose trail leads back', async ({
   page,
 }) => {
-  await page.goto('/suites/libcxx?tab=machines')
+  await page.goto('/projects/libcxx/suites/benchmarks?tab=machines')
   await table(page, 'Machines').getByRole('link', { name: MACOS, exact: true }).click()
 
-  await expect(page).toHaveURL(`/suites/libcxx/machines/${MACOS}`)
+  await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks/machines/${MACOS}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Machine: ${MACOS}`)
   await expect(rows(table(page, 'Run history'))).toHaveCount(25)
 
+  // The project, the suite, by their labels (AR22), and the tab.
   const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+  await expect(trail.getByRole('link')).toHaveText(['libc++', 'Microbenchmarks', 'Machines'])
   await trail.getByRole('link', { name: 'Machines', exact: true }).click()
-  await expect(page).toHaveURL('/suites/libcxx?tab=machines')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=machines')
   await expect(page.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
+
+  await page.goBack()
+  await trail.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
+  await page.goBack()
+  await trail.getByRole('link', { name: 'libc++', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx')
+  await expect(
+    page.getByRole('navigation', { name: 'Test suites' }).getByRole('heading'),
+  ).toHaveText(['libc++'])
 })
 
 test('shows the machine and its active regressions, and links to all of them', async ({
   page,
 }) => {
-  await page.goto(`/suites/libcxx/machines/${MACOS}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/machines/${MACOS}`)
 
   await expect(page.getByRole('group', { name: 'Machine', exact: true })).toContainText('Apple M4')
   await expect(page.getByRole('checkbox', { name: 'Tracked' })).toBeChecked()
@@ -46,12 +58,14 @@ test('shows the machine and its active regressions, and links to all of them', a
   await expect(regressions).not.toContainText('filesystem::path')
 
   await page.getByRole('link', { name: 'Show all regressions' }).click()
-  await expect(page).toHaveURL(`/suites/libcxx?tab=regressions&machine=${MACOS}`)
+  await expect(page).toHaveURL(
+    `/projects/libcxx/suites/benchmarks?tab=regressions&machine=${MACOS}`,
+  )
   await expect(table(page, 'Regressions')).toContainText('filesystem::path')
 })
 
 test('cannot be changed without a token', async ({ page }) => {
-  await page.goto(`/suites/libcxx/machines/${MACOS}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/machines/${MACOS}`)
 
   await expect(page.getByRole('button', { name: 'Edit Name' })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Tracked' })).toBeDisabled()
@@ -67,7 +81,7 @@ test('its name is changed by a holder of manage scope, and listed as changed', a
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}?tab=machines`)
+    await page.goto(`/projects/${suite}/suites/${suite}?tab=machines`)
     await table(page, 'Machines').getByRole('link', { name: 'm1', exact: true }).click()
     const name = page.getByRole('textbox', { name: 'Name' })
 
@@ -79,16 +93,20 @@ test('its name is changed by a holder of manage scope, and listed as changed', a
     )
     await page.getByRole('button', { name: 'OK', exact: true }).click()
 
-    await expect(page).toHaveURL(`/suites/${suite}/machines/renamed`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/machines/renamed`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: renamed')
     await expect(name).toHaveCount(0)
     await expect(rows(table(page, 'Run history'))).toHaveCount(1)
-    expect((await request.get(`/api/suites/${suite}/machines/renamed`)).status()).toBe(200)
-    expect((await request.get(`/api/suites/${suite}/machines/m1`)).status()).toBe(404)
+    expect(
+      (await request.get(`/api/projects/${suite}/suites/${suite}/machines/renamed`)).status(),
+    ).toBe(200)
+    expect((await request.get(`/api/projects/${suite}/suites/${suite}/machines/m1`)).status()).toBe(
+      404,
+    )
 
     // The page of the old name was replaced in the history by the new one's.
     await page.goBack()
-    await expect(page).toHaveURL(`/suites/${suite}?tab=machines`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=machines`)
     const machines = table(page, 'Machines')
     await expect(machines.getByRole('link', { name: 'renamed', exact: true })).toBeVisible()
     await expect(rows(machines)).toHaveCount(1)
@@ -104,7 +122,7 @@ test('its name cannot be changed to that of another machine', async ({
   const runs = [...RUNS, { ...RUNS[0], machine: 'm2' }]
   await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}/machines/m1`)
+    await page.goto(`/projects/${suite}/suites/${suite}/machines/m1`)
     const name = page.getByRole('textbox', { name: 'Name' })
 
     await page.getByRole('button', { name: 'Edit Name' }).click()
@@ -114,7 +132,7 @@ test('its name cannot be changed to that of another machine', async ({
 
     await expect(page.getByRole('alert')).toContainText("A machine named 'm2' already exists")
     await expect(name).toHaveValue('m2')
-    await expect(page).toHaveURL(`/suites/${suite}/machines/m1`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/machines/m1`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Machine: m1')
   })
 })
@@ -127,7 +145,7 @@ test('its tracked flag is changed by a holder of manage scope', async ({
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}/machines/m1`)
+    await page.goto(`/projects/${suite}/suites/${suite}/machines/m1`)
     const tracked = page.getByRole('checkbox', { name: 'Tracked' })
     await expect(tracked).toBeEnabled()
 
@@ -135,7 +153,10 @@ test('its tracked flag is changed by a holder of manage scope', async ({
     await tracked.click()
 
     await expect(tracked).not.toBeChecked()
-    const stored = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    const stored = await json<Schemas['Machine']>(
+      request,
+      `/api/projects/${suite}/suites/${suite}/machines/m1`,
+    )
     expect(stored.tracked).toBe(false)
     await page.reload()
     await expect(tracked).not.toBeChecked()
@@ -150,7 +171,7 @@ test('its deletion after inactivity is edited by a holder of manage scope', asyn
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}/machines/m1`)
+    await page.goto(`/projects/${suite}/suites/${suite}/machines/m1`)
     const info = page.getByRole('group', { name: 'Machine', exact: true })
     const days = page.getByRole('textbox', { name: 'Delete after inactivity' })
 
@@ -159,7 +180,10 @@ test('its deletion after inactivity is edited by a holder of manage scope', asyn
     await days.press('Enter')
     await expect(days).toHaveCount(0)
     await expect(info).toContainText('30 days')
-    const stored = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    const stored = await json<Schemas['Machine']>(
+      request,
+      `/api/projects/${suite}/suites/${suite}/machines/m1`,
+    )
     expect(stored.delete_after_inactive_days).toBe(30)
 
     // Emptied, it is cleared.
@@ -168,7 +192,10 @@ test('its deletion after inactivity is edited by a holder of manage scope', asyn
     await days.press('Enter')
     await expect(days).toHaveCount(0)
     await expect(info).not.toContainText('30 days')
-    const cleared = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    const cleared = await json<Schemas['Machine']>(
+      request,
+      `/api/projects/${suite}/suites/${suite}/machines/m1`,
+    )
     expect(cleared.delete_after_inactive_days).toBeNull()
   })
 })
@@ -181,7 +208,7 @@ test('its fields are edited by a holder of manage scope, and listed as changed',
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}?tab=machines`)
+    await page.goto(`/projects/${suite}/suites/${suite}?tab=machines`)
     await table(page, 'Machines').getByRole('link', { name: 'm1', exact: true }).click()
     const info = page.getByRole('group', { name: 'Machine', exact: true })
     const hardware = page.getByRole('textbox', { name: 'hardware' })
@@ -194,7 +221,10 @@ test('its fields are edited by a holder of manage scope, and listed as changed',
     await hardware.press('Control+Enter')
     await expect(hardware).toHaveCount(0)
     await expect(info).toContainText('Apple M4 Max\n16 cores')
-    const stored = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    const stored = await json<Schemas['Machine']>(
+      request,
+      `/api/projects/${suite}/suites/${suite}/machines/m1`,
+    )
     expect(stored.fields.hardware).toBe('Apple M4 Max\n16 cores')
 
     await page.goBack()
@@ -210,7 +240,10 @@ test('its fields are edited by a holder of manage scope, and listed as changed',
     await hardware.press('Control+Enter')
     await expect(hardware).toHaveCount(0)
     await expect(info.locator('dt', { hasText: 'hardware' }).locator('+ dd')).toHaveText('--Edit')
-    const cleared = await json<Schemas['Machine']>(request, `/api/suites/${suite}/machines/m1`)
+    const cleared = await json<Schemas['Machine']>(
+      request,
+      `/api/projects/${suite}/suites/${suite}/machines/m1`,
+    )
     expect(cleared.fields.hardware).toBeNull()
   })
 })
@@ -223,15 +256,17 @@ test('deleting the machine shows the machines left', async ({
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/suites/${suite}/machines/m1`)
+    await page.goto(`/projects/${suite}/suites/${suite}/machines/m1`)
 
     await page.getByRole('button', { name: 'Delete Machine' }).click()
     await page.getByLabel(/to confirm/).fill('m1')
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
-    await expect(page).toHaveURL(`/suites/${suite}?tab=machines`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=machines`)
     await expect(page.getByText('No machines yet.')).toBeVisible()
-    expect((await request.get(`/api/suites/${suite}/machines/m1`)).status()).toBe(404)
+    expect((await request.get(`/api/projects/${suite}/suites/${suite}/machines/m1`)).status()).toBe(
+      404,
+    )
   })
 })
 
@@ -245,7 +280,7 @@ test('a machine deleted is not shown again when the history leads back to its pa
     await signIn(page, 'manage')
     // The machine's page, its run's, then the machine's again. The Test Suites page is not visited,
     // so that its code is still to be loaded when the deletion leaves for it.
-    await page.goto(`/suites/${suite}/machines/m1`)
+    await page.goto(`/projects/${suite}/suites/${suite}/machines/m1`)
     await table(page, 'Run history').getByRole('link').first().click()
     await page.getByRole('group', { name: 'Run' }).getByRole('link', { name: 'm1' }).click()
     await page.getByRole('button', { name: 'Delete Machine' }).click()
@@ -258,14 +293,14 @@ test('a machine deleted is not shown again when the history leads back to its pa
     const answered = new Promise<void>((resolve) => (answer = resolve))
     let asked = () => {}
     const requested = new Promise<void>((resolve) => (asked = resolve))
-    await page.route(`**/api/suites/${suite}/machines/m1`, async (route) => {
+    await page.route(`**/api/projects/${suite}/suites/${suite}/machines/m1`, async (route) => {
       asked()
       await answered
       await route.continue()
     })
     await page.goBack()
     await page.goBack()
-    await expect(page).toHaveURL(`/suites/${suite}/machines/m1`)
+    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/machines/m1`)
     await requested
 
     await expect(page.getByRole('status')).toHaveText('Loading...')
