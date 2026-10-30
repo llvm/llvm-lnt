@@ -822,7 +822,7 @@ class TestSchemaNamespace:
     def test_downgrading_refuses_a_key_naming_a_suite_too_long_for_earlier_builds(
         self, empty_engine: Engine
     ) -> None:
-        # Keys keep the names of deleted suites (I5), so no suite need have that name any more.
+        # At 0008, keys keep the names of deleted suites, so no suite need have that name any more.
         upgrade_by_hand(empty_engine, "0008")
         insert_key_row(empty_engine, "aaaaaaaa", "submit", ["a" * 64])
 
@@ -917,6 +917,8 @@ class TestApiKeyRestriction:
             "dddddddd": (["nts"], True),
         }
         assert "id" not in column_names(keys_0008, "public", "schema")
+        unique = inspect(keys_0008).get_unique_constraints("schema")
+        assert [constraint["name"] for constraint in unique] == ["uq_schema_namespace"]
         assert "api_key_restriction" not in inspect(keys_0008).get_table_names()
         assert inspect(keys_0008).get_pk_constraint("schema")["constrained_columns"] == ["name"]
 

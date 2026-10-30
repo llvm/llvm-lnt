@@ -1,6 +1,7 @@
 """API keys: the tokens that authenticate a caller, and how one is created (I5, D5).
 
-This is the `api_key` table's access layer, shared by the CLI (which mints the first key
+This is the access layer of the `api_key` table, and of the `api_key_restriction` rows that list a
+restricted key's suites, shared by the CLI (which mints the first key
 out of band), the admin endpoints, and the authentication path. I5's HTTP semantics -- which
 failure is a 400 and which a 401 -- live in `auth.py` instead.
 """
@@ -168,8 +169,10 @@ def create_key(
     for a key that can never be valid, or its subclass `UnknownSuitesError` for suites that do not
     exist (yet).
 
-    The caller owns the transaction. Runs inside a savepoint so that a prefix collision can be
-    retried without discarding work the caller did earlier in the same transaction.
+    The caller owns the transaction, and the suites the key lists stay locked against deletion until
+    it ends (see `_checked_suites`). The key's row is inserted inside a savepoint, so that a prefix
+    collision can be retried without discarding work the caller did earlier in the same
+    transaction.
     """
     if not name:
         raise ValueError("An API key's name must not be empty.")
@@ -244,8 +247,8 @@ def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
 
     I5 resolves every authenticated request against the database rather than caching the decision,
     so that revoking a key takes effect immediately. That is affordable because this is a single
-    statement: an indexed match on a table holding one row per key, which also reads the names of
-    the key's suites, as they are now, from tables as small.
+    statement: an indexed match on a table holding one row per key, which also reads the current
+    names of the key's suites from tables just as small.
 
     A token that is not the shape I5 fixes cannot be one we issued, so it is rejected without a
     round trip -- which also means an unauthenticated caller cannot make the server query on its

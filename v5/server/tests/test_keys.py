@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import Connection, Engine, create_engine, delete, func, insert, select
 
 from conftest import TOKEN_PATTERN, UNREACHABLE_URL
+from introspection import counting_statements
 from lnt_v5 import keys
 from lnt_v5.keys import ApiKeyInfo, CreatedKey, UnknownSuitesError, create_key
 from lnt_v5.scopes import Scope
@@ -170,6 +171,18 @@ class TestCreateRestrictedKey:
         assert created.suites is None
         assert db.execute(select(api_key.c.restricted)).scalar_one() is False
         assert db.execute(select(func.count()).select_from(api_key_restriction)).scalar_one() == 0
+
+    def test_is_resolved_with_its_suites_in_one_statement(self, db: Connection) -> None:
+        # I5 looks the key up on every request: its suites must not cost a round trip of their own.
+        created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
+
+        # Every statement, whatever it names, since what is counted is round trips.
+        with counting_statements("") as statements:
+            resolved = keys.resolve_token(db, created.token)
+
+        assert resolved is not None
+        assert resolved.suites == ("libcxx", "nts")
+        assert len(statements) == 1
 
     def test_loses_a_suite_that_is_deleted(self, db: Connection) -> None:
         created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])

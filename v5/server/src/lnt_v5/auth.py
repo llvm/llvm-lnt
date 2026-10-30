@@ -202,21 +202,21 @@ class RequireScope:
         # Refused although its scope suffices, so the key is restricted to suites other than this
         # request's.
         assert key.suites is not None
-        if suite is None:
-            needs = f"This endpoint requires the '{required}' scope from an unrestricted API key"
-        else:
-            needs = f"This endpoint requires the '{required}' scope in test suite '{suite}'"
         if not key.suites:
             # I5: deleting the suites a key is restricted to leaves it restricted, to nothing.
-            restricted = (
-                "this API key is restricted to test suites that have all been deleted, so it can "
-                "only read"
+            return (
+                f"This endpoint requires the '{required}' scope, and this API key is restricted "
+                "to test suites that have all been deleted, so it can only read."
             )
-        elif suite is None:
-            restricted = f"this one is restricted to test suites: {', '.join(key.suites)}"
-        else:
-            restricted = f"this API key grants it only in: {', '.join(key.suites)}"
-        return f"{needs}, and {restricted}."
+        if suite is None:
+            return (
+                f"This endpoint requires the '{required}' scope from an unrestricted API key, and "
+                f"this one is restricted to test suites: {', '.join(key.suites)}."
+            )
+        return (
+            f"This endpoint requires the '{required}' scope in test suite '{suite}', and this API "
+            f"key grants it only in: {', '.join(key.suites)}."
+        )
 
 
 def require_scope(scope: Scope) -> Any:

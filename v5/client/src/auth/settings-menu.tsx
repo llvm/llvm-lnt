@@ -87,8 +87,7 @@ function statusText(status: TokenStatus): ReactNode {
           {suites?.length === 0 && (
             // Its suites were all deleted, which leaves it restricted to nothing (AR22, I5).
             <>
-              {' '}
-              in <strong>Nothing</strong>: {RESTRICTED_TO_NOTHING}
+              , covering <strong>Nothing</strong>: {RESTRICTED_TO_NOTHING}
             </>
           )}
           {suites !== null && suites.length > 0 && (

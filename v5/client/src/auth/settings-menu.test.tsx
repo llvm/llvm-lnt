@@ -141,7 +141,7 @@ describe('Settings panel', () => {
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        'Using key triage-key (aaaaaaaa), with triage scope in Nothing: the suites it was ' +
+        'Using key triage-key (aaaaaaaa), with triage scope, covering Nothing: the suites it was ' +
           'restricted to have been deleted, so it can only read.',
       ),
     )
