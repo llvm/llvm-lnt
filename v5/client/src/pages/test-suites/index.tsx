@@ -198,6 +198,8 @@ function SuiteTabs({ schema }: { schema: Suite }) {
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
   }, [movedFrom, queryClient, navigate, location.pathname, location.search])
   const onMoveFocused = useCallback(() => setFocusMove(false), [])
+  // Another tab, chosen before the token has been checked, keeps what it chose.
+  if (focusMove && tab !== 'schema') setFocusMove(false)
 
   // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
   // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite

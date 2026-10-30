@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import { schemaOf, suiteRef, type ProjectName, type Suite, type SuiteSchema } from '../../api/suites'
-import { apiKey, entry, mockAuth, signIn, TOKEN } from '../../test/auth'
+import { apiKey, changeInAnotherTab, entry, mockAuth, signIn, TOKEN } from '../../test/auth'
+import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
 import { mockClipboard } from '../../test/clipboard'
 import {
   BARE_SUITE,
@@ -769,6 +770,85 @@ describe('renaming or moving a suite', () => {
     expect(nameInput()).toHaveValue('benchmarks')
     expect(nameInput()).not.toHaveAttribute('readonly')
     expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
+  })
+
+  it('disables the change once the token no longer covers the project it goes to', async () => {
+    await renderMovable()
+    await change('Swift', null)
+    fireEvent.click(saveButton())
+    const ok = within(prompt()!).getByRole('button', { name: 'OK' })
+    expect(ok).toBeEnabled()
+
+    // Another tab sets a token covering the suite alone (AR17), which is checked while the prompt
+    // is open.
+    mockAuth(() => HttpResponse.json({ key: apiKey('manage', { restricted_to: [entry('libcxx')] }) }))
+    act(() => changeInAnotherTab(TOKEN_STORAGE_KEY, 'b'.repeat(64)))
+
+    const why = "Needs an API token with the 'manage' scope covering project 'Swift' in full."
+    await waitFor(() => expect(ok).toHaveAttribute('title', expect.stringContaining(why)))
+    expect(ok).toBeDisabled()
+    expect(saveButton()).toHaveAttribute('title', expect.stringContaining(why))
+  })
+
+  it('closes on Escape, except while the list of projects is open', async () => {
+    await renderMovable()
+    fireEvent.click(moveButton())
+    const user = userEvent.setup()
+
+    await user.click(selectButton('Project', panel()!))
+    await screen.findByRole('listbox')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+    expect(panel()).toBeInTheDocument()
+    await waitFor(() => expect(selectButton('Project', panel()!)).toHaveFocus())
+
+    await user.keyboard('{Escape}')
+    expect(panel()).not.toBeInTheDocument()
+  })
+
+  it('leaves the focus where the user put it while the token was checked again', async () => {
+    const { store } = await renderMovable()
+    mockMove(store)
+    const held = gate()
+    mockAuth(async () => {
+      await held.promise
+      return HttpResponse.json({ key: apiKey('manage') })
+    })
+    await change(null, 'benchmarks')
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
+
+    const copy = screen.getByRole('button', { name: 'Copy as JSON' })
+    copy.focus()
+    await act(async () => held.open())
+    await waitFor(() => expect(moveButton()).toBeEnabled())
+
+    expect(copy).toHaveFocus()
+  })
+
+  it('takes the focus to the new page once only, not when the history leads back to it', async () => {
+    signIn('manage')
+    const store = mockSuites([...SUITES, SWIFT_SUITE], { projects: [PROJECT_LLVM, SWIFT] })
+    mockRuns(() => cursorPage([]))
+    renderPage('/projects')
+    fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
+    await waitFor(() => expect(moveButton()).toBeEnabled())
+    mockMove(store)
+    await change(null, 'benchmarks')
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(moveButton()).toHaveFocus())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects'))
+    fireEvent.click(screen.getByRole('button', { name: 'Browser forward' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
+    await waitFor(() => expect(moveButton()).toBeEnabled())
+    await settle()
+
+    expect(moveButton()).not.toHaveFocus()
   })
 
   it('goes back to the panel, sending nothing, when the prompt is cancelled', async () => {

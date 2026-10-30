@@ -166,11 +166,14 @@ def relabel_project_suites(connection: Connection, project_id: int, project_name
     """Label the namespace of every suite of the project `project_id` with the suite's full name in
     the project, once it is named `project_name`.
 
-    The suites' rows are locked first, so that none of them is renamed, moved out or deleted while
-    its namespace is relabelled: a deleted namespace could not be commented on. They are locked
-    without waiting, since `lock_timeout` bounds each lock rather than all of them together, and a
-    project with many busy suites would otherwise wait for each in turn, well past D2's bound. The
-    caller has locked the project's row against suites being created in it or moved into it.
+    The caller has locked the project's row FOR UPDATE, which every writer of a suite waits for or
+    has made it wait for, since each locks the suite's project first. The suites' rows are locked
+    too, so that none of them is changed or deleted while its namespace is relabelled: a deleted
+    namespace could not be commented on. The only thing that can then hold one of them is what locks
+    a suite without its project, a migration of the suite's tables, which labels the namespace
+    itself. So they are locked without waiting: the rename gives up, with a retryable 409, rather
+    than wait for a migration, which may take long, and which would otherwise label the suite with
+    the project's old name.
     """
     try:
         rows = connection.execute(

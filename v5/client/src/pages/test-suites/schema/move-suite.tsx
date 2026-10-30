@@ -117,7 +117,9 @@ export function MoveSuite({ schema, onClose, onMoved }: Props) {
         onSubmit={save}
         onKeyDownCapture={(event) => {
           if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
-          if ((event.target as Element).getAttribute('aria-expanded') === 'true') return
+          // Not an Escape closing the Project dropdown's list, which is outside the form, though
+          // React passes its events on to the form.
+          if (!event.currentTarget.contains(event.target as Node)) return
           if (!busy) onClose()
         }}
       >

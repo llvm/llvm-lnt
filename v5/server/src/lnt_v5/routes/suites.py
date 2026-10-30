@@ -260,7 +260,8 @@ def patch_suite(
         reporting_violation(SCHEMA_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),
         suite_write(engine, project, name) as connection,
     ):
-        # Both projects at once, before the suite (see `locked_projects`).
+        # Both projects at once, before the suite (see `locked_projects`). `locked_suite` locks the
+        # suite's project again, which it already holds, at the cost of a statement.
         projects = locked_projects(connection, {project, destination})
         stored = locked_suite(connection, project, name)
         if destination not in projects:

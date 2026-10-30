@@ -53,12 +53,14 @@ export function SchemaTab({ schema, onDeleted, onMoved, focusMove, onMoveFocused
     refocus.current = null
   })
   // Once the token has been checked again after the move, which disables the gated controls
-  // meanwhile, so that the button can take the focus (AR17).
+  // meanwhile, so that the button can take the focus (AR17). Only if the focus went with the old
+  // page, so that wherever the user has put it since stays where it is.
   const checking = status.state === 'checking'
   useEffect(() => {
     if (!focusMove || checking) return
-    moveRef.current?.focus()
     onMoveFocused?.()
+    const active = document.activeElement
+    if (active === null || active === document.body) moveRef.current?.focus()
   }, [focusMove, checking, onMoveFocused])
 
   if (editing) {

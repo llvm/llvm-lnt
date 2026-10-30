@@ -222,7 +222,11 @@ class BodyRequirement:
 
 def _is_json(content_type: str | None) -> bool:
     """Whether FastAPI reads a body sent with `content_type` as JSON: `application/json`, or a
-    subtype ending in `+json`. Without a content type, it does not (its strict content types)."""
+    subtype ending in `+json`. Without a content type, it does not (its strict content types).
+
+    This must agree with FastAPI: turning off `strict_content_type` anywhere would have FastAPI
+    validate a body sent without a content type as JSON, which this would not read, so that a move
+    sent that way would be authorized as no move at all."""
     if not content_type:
         return False
     message = email.message.Message()
@@ -366,6 +370,9 @@ class RequireScopeAndBody(RequireScope):
         super().__init__(scope, coverage)
         self.body_rule = body_rule
 
+    # The base's parameters, which FastAPI reads off the signature, and the body. Overriding with
+    # one more parameter is what mypy objects to; `test_auth.py` drives every scoped route, both
+    # kinds included, so that a parameter added to one and not the other fails there.
     def __call__(  # type: ignore[override]
         self,
         request: Request,
