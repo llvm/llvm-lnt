@@ -80,6 +80,9 @@ within the UI causes a full page reload.
 /admin                                        Admin (API keys, projects, suite creation -- suite-agnostic)
 ```
 
+A path that matches no page shows a "page not found" page.
+
+
 
 ## AR4: Navigation Bar
 
@@ -243,7 +246,7 @@ to the selection than a click on a row, leaves the anchor where it is.
 
 An input whose text is invalid -- an invalid regex in a test filter, a name or a
 repository URL the schema editor rejects (TS7), a suite name the "Rename or
-move" panel rejects (TS6), a project name or display name the Projects tab
+move" panel rejects (TS6), a project name the Projects tab
 rejects (AD3), an ordinal that is not an
 integer its column can hold (DT3), a machine name that I1 rejects or an empty
 one (DT1), or a field value that its type does not allow (DT1) -- shows a red
@@ -368,14 +371,15 @@ Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry
 (an exception to AR2 "State"), so that Back from the page shown next does not
 return to it. The same goes for the page of a machine once it has been renamed
-(DT1), and for a page of a suite once the suite has been renamed or moved
-(TS6), which leave for the page of the new name. If the user has already left
-the page when the deletion or the rename completes, they stay where they are.
-Data fetched before a deletion is never used to show the deleted entity again:
-not on the page shown next while it loads, and not on the entity's own page if
-the user gets back to it through the browser history. Likewise, data fetched
-from a suite before it was renamed or moved, or before its project was renamed,
-is never shown for whatever later takes the old names.
+(DT1), and for a page of a suite once the suite has been renamed or moved (TS6),
+which leave for the page of the new name. If the user has already left the page
+when the deletion or the rename completes, they stay where they are. Data
+fetched before a deletion is never used to show the deleted entity again: not on
+the page shown next while it loads, and not on the entity's own page if the user
+gets back to it through the browser history. Likewise, once the SPA has renamed
+or moved a suite or renamed a project, data fetched from the suite, or from the
+project's suites, under their old names is never shown for whatever later takes
+those names.
 
 
 ## AR17: Authentication
@@ -397,9 +401,10 @@ set, unless a page specifies otherwise (see AD1).
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
 whenever a request sent with it gets a 401, as its key may have been revoked in
-the meantime, and once the SPA has renamed or moved a suite or renamed a
-project, so that the panel and the controls gated on the token use the new
-names.
+the meantime, and once the SPA has renamed, moved or deleted a suite or
+renamed or deleted a project, so that the panel and the controls gated on the
+token use the current names, and an entry for what was deleted cannot enable a
+control on something that later takes its name.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --
@@ -544,9 +549,10 @@ Links, URLs, API requests and the text typed to confirm a deletion (AR16) use
 names rather than labels.
 
 What an API key covers (see I5) is shown as `All` for an instance-wide key, and
-otherwise as its entries: a whole project by its label followed by `(all)`, and
-a single suite by its full label. A key whose every entry has been deleted shows
-`Nothing`.
+otherwise as its entries, each as it is: a whole project by its label followed
+by `(all)`, and a single suite by its full label, even when its project is
+listed too, as a move can leave it (see I5). A key whose every entry has been
+deleted shows `Nothing`.
 
 **Order.** Wherever the UI lists projects or suites, it orders projects by
 label, and the suites of each project by label, after the project itself when

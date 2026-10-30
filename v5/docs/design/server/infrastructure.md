@@ -243,7 +243,7 @@ spec only needs to list its keys.
 **Errors** all use one envelope, except a failure after a streaming response
 has started, which aborts the response instead (see I2):
 
-`{"error": {"code": "not_found", "message": "Machine 'foo' not found in test suite 'nts'"}}`
+`{"error": {"code": "not_found", "message": "Machine 'foo' not found in test suite 'llvm/nts'"}}`
 
 `code` is machine-readable and stable. `message` is for humans and may be
 reworded at any time, so clients must branch on `code` only and never parse
@@ -259,7 +259,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a project name, a suite name within its project, a schema entry added to a list that already has one of that name |
 | `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), the deletion of a project that still has suites (see E13) |
-| `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a schema change, a change to a suite's name or project, or a change to a project could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
+| `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a schema change, a rename or move of a suite, or a rename, display-name change or deletion of a project could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |
 
@@ -367,34 +367,37 @@ other request -- exactly what anonymous access gets, so reads are unaffected:
 | Creating, renaming or deleting a project (E13) | Nothing it can have: these require an instance-wide key |
 
 Creating, renaming and deleting projects shape the instance rather than the
-content of one project, which is why no restricted key can do them. A request
-body is read for authorization only to tell a move or a project rename from
-other changes, and to find the destination of a move.
+content of one project, which is why no restricted key can do them. A request is
+a move when its body has a `project` other than the path's, and a project rename
+when its body has a `name` other than the path's, whether or not that value is
+valid. The body is otherwise validated after authorization.
 
 - Only `submit`, `triage` and `manage` keys can be restricted. A restricted
   `read` key would grant nothing more than no key at all, and `admin` keys are
   always instance-wide, since the API key endpoints address no project or suite.
-- An entry is linked to its project or suite by identity, not by name (see
-  D5), and never changes on a rename or a move: an entry for a suite follows the
+- An entry is linked to its project or suite by identity, not by name (see D5),
+  and never changes on a rename or a move: an entry for a suite follows the
   suite. An entry for a project covers the suites that project holds now, so a
   move takes a suite from the keys listing its old project and gives it to those
   listing the new one, which is why moving needs to cover the destination in
-  full. A project or a suite created later under an old name is not covered.
+  full. A move can leave a key listing a suite along with its new project: both
+entries stay, and the suite's keeps following the suite. A project or a suite
+created later under an old name is not covered.
 - Deleting a project or a suite removes it from the keys that list it. A key
   whose last entry is removed stays restricted, to nothing, and grants only
   `read`: it never becomes instance-wide.
 
-This relies on an invariant of every endpoint: a request writes only to what
-the table checks -- one that addresses a suite only to that suite, plus the
-destination project of a move, and one that creates a suite or changes a display
-name only to that project.
+This relies on an invariant of every endpoint: a request writes only to what the
+table checks -- one that addresses a suite only to that suite, plus the
+destination project of a move, and one that creates a suite or changes a
+project's display name only to that project.
 
 Coverage is decided when the request is authorized, from the names its path
-holds at that moment. If a suite is renamed or moved while a request is being
-handled, and another suite is created under its old name meanwhile, the request
-may act on the new suite although it was authorized on the old one. Closing that
-window is not required: it takes two concurrent changes that both need `manage`,
-and lasts no longer than one request.
+holds at that moment. If a suite is renamed or moved, or a project renamed,
+while a request is being handled, and another suite or project takes the old
+name meanwhile, the request may act on it although it was authorized on the old
+one. Closing that window is not required: it takes two concurrent changes that
+both need `manage`, and lasts no longer than one request.
 
 **Unauthenticated access.** Endpoints that require `read` can be used without a
 token. Endpoints that require a higher scope require a valid Bearer token.
@@ -459,9 +462,9 @@ exists -- which parameters an endpoint accepts is public in the API document
 (I8) -- so returning them first reveals nothing.
 
 **Authorization is not cached.** Every authenticated request looks its token up
-in the database, so revoking a key takes effect immediately. The lookup is a
-single query, which reads the key and its entries (see D5) together from small
-tables that stay in memory; saving that cost is not worth delaying revocation.
+in the database, so revoking a key takes effect immediately. The lookup reads
+small tables that stay in memory; saving that cost is not worth delaying
+revocation.
 
 **Tokens.** The server generates each token from a cryptographically secure
 random source. A token is exactly 64 lowercase hexadecimal characters (256
@@ -534,8 +537,8 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
 - Each operation states the scope it requires (I5), and an operation requiring
   `read` is marked as callable without credentials. An operation requiring
   `submit`, `triage` or `manage` also states what a restricted key needs to call
-  it (see I5): to cover the suite, to cover the project in full, or nothing it
-  can have.
+  it (see I5): to cover the suite, to cover the project in full, to cover the
+suite and the destination project in full (a move), or nothing it can have.
 - `GET /api/docs` serves an interactive documentation viewer for that
   specification, as `text/html`.
 - How the viewer gets its scripts and stylesheets is up to the implementation.

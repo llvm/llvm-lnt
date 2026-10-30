@@ -14,7 +14,7 @@ show a profile on its own, and when both do, the page compares them. Layout:
 # Profiles
 
 +-- Side A -------------------------------------------+   +-- Side B -------------------------------------------+
-| Suite    [libcxx                       v]           |   | Suite    [libcxx                       v]           |
+| Suite    [libc++/Benchmarks            v]           |   | Suite    [libc++/Benchmarks            v]           |
 | Machine  [linux-x86_64                  ]           |   | Machine  [linux-x86_64                  ]           |
 | Commit   [0f985af790f8                  ]           |   | Commit   [014621ede7c1                  ]           |
 | Run      [2026-08-25, 2:22 PM 573af861 v] 573af861  |   | Run      [2026-08-31, 3:03 PM f1668bea v] f1668bea  |

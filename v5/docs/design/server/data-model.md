@@ -81,14 +81,14 @@ and creating a suite in it or moving one into it never both succeed: either the
 suite is stored and the deletion gets 409 `conflict`, or the project is deleted
 and the other request gets 404.
 
-A schema write, like a rename or a move of a suite and any change to a project,
-waits only a
-bounded time for the locks it needs, and returns a retryable 409 (`retry`, see
-I4) rather than waiting indefinitely. This wait must be shorter than the time a
-request waits for a database connection, so that schema changes queued behind a
-long-running reader cannot exhaust the connection pool. A request and a
-concurrent schema change may also deadlock. Avoiding that is not required, but
-whichever one is aborted gets the same retryable 409.
+Schema writes, renames and moves of suites, and renames, display-name changes
+and deletions of projects each wait only a bounded time for the locks they need,
+and return a retryable 409 (`retry`, see I4) rather than waiting indefinitely.
+This wait must be shorter than the time a request waits for a database
+connection, so that schema changes queued behind a long-running reader cannot
+exhaust the connection pool. A request and a concurrent schema change may also
+deadlock. Avoiding that is not required, but whichever one is aborted gets the
+same retryable 409.
 
 **A stale reader gets an answer, not a silently wrong result.** Between a
 reader's version check and its next query, another worker may remove a field,
@@ -464,10 +464,9 @@ namespace of their own (see below).
   at `1` so that the row can be addressed without a search.
 - Bumped whenever a suite or a project is created, changed (renaming and moving
   a suite included) or deleted, and whenever a migration gives a suite another
-  namespace (D6), so that other workers can detect
-  that what they cached about suites and projects is stale (see D2). Migrating a
-  suite's tables otherwise changes nothing a worker caches, so it does not bump
-  the counter.
+  namespace (D6), so that other workers can detect that what they cached about
+  suites and projects is stale (see D2). Migrating a suite's tables otherwise
+  changes nothing a worker caches, so it does not bump the counter.
 
 #### `api_key`
 
@@ -526,8 +525,7 @@ namespace of their own (see below).
   suite (see I5). Exactly one of `project_id` and `suite_id` is set; the
   database layer rejects a row with neither or both.
 - Unique constraints on `(api_key_id, project_id)` and on
-  `(api_key_id, suite_id)`: a key lists a project or a suite at most once. Their
-  leading column serves the token lookup (see I5).
+  `(api_key_id, suite_id)`: a key lists a project or a suite at most once.
 - Rows are written with their key, and never changed. Deleting a project or a
   suite deletes the rows that refer to it.
 
@@ -985,8 +983,8 @@ A project has a `name` and a `display_name`:
 A suite's name is unique only within its project, so a suite is identified by
 its project's name and its own together. Its **full name**, `project/suite`
 (e.g. `libcxx/benchmarks`), is how people and logs write it outside its
-project's context (see O10). Neither part can contain a `/`. The API itself
-always takes the two names as separate path segments (see I1).
+project's context (see O10). The API itself always takes the two names as
+separate path segments (see I1).
 
 Projects are created, changed and deleted through E13. Deleting a project is
 refused while it has suites (see D2), so it never deletes any data.

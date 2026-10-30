@@ -19,8 +19,9 @@ path:
   not found.
 - `/projects/{p}/suites/{s}` shows the suites of project `{p}`, as
   `/projects/{p}` does, with `{s}` selected, plus the tabbed content for that
-  suite. When `{s}` names no suite of the project, the page shows the picker
-  and says that the suite was not found.
+  suite. When `{p}` names no project, the page says that the project was not
+  found, as on `/projects/{p}`. When `{s}` names no suite of the project, the
+  page shows the picker and says that the suite was not found.
 
 Except on `/projects` itself, an "All projects" link above the picker leads to
 `/projects`. Only a failure to load the list of projects in the first place

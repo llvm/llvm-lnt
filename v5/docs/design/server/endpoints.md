@@ -363,10 +363,9 @@ for pagination (see I2 and O5).
 ## E7: Profiles
 
 Profiles store hardware performance counter data at the instruction level. Each
-profile has a server-generated UUID, which gives the profile data endpoints
-stable, bookmarkable identifiers, though like every URL under the suite they
-change when the suite is renamed or moved (see D7). The per-run list endpoint
-maps human-readable run and test coordinates to those UUIDs.
+profile has a server-generated UUID, which identifies it in the profile data
+endpoints. The per-run list endpoint maps human-readable run and test
+coordinates to those UUIDs.
 
 Profiles are submitted within the run submission (see O1 and O7). There is no
 separate upload endpoint. Every counter these endpoints return is a raw count
@@ -752,7 +751,8 @@ changes neither, an empty one included, is a successful no-op. Renaming and
 moving change only names (see D7).
 
 - 200 with the suite's detail body, under its new name.
-- 400 if `name` is not a valid suite name (see D4).
+- 400 if `name` or `project` is `null`, or `name` is not a valid suite name (see
+  D4).
 - 403 if the request moves the suite with a restricted key that does not cover
   the destination project in full, whether that project exists or not (see I5).
 - 404 if `project` names no project.
@@ -865,11 +865,15 @@ key object, to restrict the key to them, or null). An omitted or null
   than an identifier, so two keys may share one.
 - 400 if `restricted_to` is an empty list, has an entry without `project` or
   with a key other than `project` and `suite`, holds a name that is not a valid
-  project or suite name (see D4 and D7), lists an entry more than once, lists a
-  suite along with its whole project, or is a list on a `read` or `admin` key,
-  which cannot be restricted (see I5).
+  project or suite name (see D4 and D7) or a `null` one (a whole project is
+  written without `suite`), lists an entry more than once, lists a suite along
+  with its whole project, or is a list on a `read` or `admin` key, which cannot
+  be restricted (see I5). These are checked on creation only: a move can later
+  leave a key listing a suite along with its new project (see I5).
 - 404 if an entry names a project that does not exist, or a suite that its
-  project does not have.
+  project does not have. If a project or a suite that the new key lists is
+  deleted concurrently, either the creation gets 404, or the key is created and
+  the deletion removes the entry.
 
 **Revoke** (`DELETE /api/admin/api-keys/{prefix}`): sets `is_active` to false
 rather than deleting the row, so that the revocation stays visible and the
@@ -930,10 +934,8 @@ project's display name a key that covers the project in full (see I5).
 
 **Project object:** `name` and `display_name` (see D7), and `suites`: the
 project's suites, as E10's suite objects, ordered by name. List and detail
-responses return the same object. Whole schemas are returned rather than names
-alone, because suites are few and parts of the client need every suite's metrics
-up front, along with how the suites are grouped: `GET /api/projects` gives them
-all in one request.
+responses return the same object. Whole schemas are returned, since suites are
+few and the client needs every suite's metrics and project up front.
 
 ```json
 {"name": "libcxx", "display_name": "libc++", "suites": [{"name": "benchmarks", "display_name": null, "metrics": [...], ...}]}
@@ -945,8 +947,8 @@ envelope, ordered by `name` ascending, those without suites included.
 **Create** (`POST /api/projects`): the body has `name` (required) and
 `display_name` (optional, `null` when omitted).
 
-- 201 with the created project, and a `Location` header
-  pointing at `GET /api/projects/{name}`.
+- 201 with the created project, and a `Location` header pointing at
+  `GET /api/projects/{name}`.
 - 400 if `name` is missing or not a valid project name, or `display_name` is
   empty or too long (see D7).
 - 409 `duplicate` if a project with that name already exists.
