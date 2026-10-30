@@ -7,6 +7,7 @@
 
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import {
   EXPERIMENT,
   HARDENED,
@@ -176,7 +177,7 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/projects/${suite}/suites/${suite}/commits/c2`)
+    await page.goto(`${suitePath(suite)}/commits/c2`)
     const info = page.getByRole('group', { name: 'Commit', exact: true })
 
     const tag = page.getByRole('textbox', { name: 'Tag' })
@@ -200,12 +201,12 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
     await expect(link(page, 'Next commit →')).toHaveAttribute('aria-disabled', 'true')
     await expect(link(page, '← Previous commit')).toHaveAttribute(
       'href',
-      `/projects/${suite}/suites/${suite}/commits/c3`,
+      `${suitePath(suite)}/commits/c3`,
     )
 
     const stored = await json<Schemas['CommitDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/commits/c2`,
+      `/api${suitePath(suite)}/commits/c2`,
     )
     expect([stored.ordinal, stored.tag]).toEqual([10, 'release-1'])
 
@@ -217,7 +218,7 @@ test('its ordinal and tag are edited by a holder of manage scope', async ({
     await expect(info).not.toContainText('release-1')
     const cleared = await json<Schemas['CommitDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/commits/c2`,
+      `/api${suitePath(suite)}/commits/c2`,
     )
     expect(cleared.tag).toBeNull()
   })
@@ -231,7 +232,7 @@ test('its display field is edited by a holder of manage scope, and shows the com
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/projects/${suite}/suites/${suite}?tab=commits`)
+    await page.goto(`${suitePath(suite)}?tab=commits`)
     await table(page, 'Commits').getByRole('link', { name: 'c2', exact: true }).click()
     const revision = page.getByRole('textbox', { name: 'revision' })
 
@@ -244,7 +245,7 @@ test('its display field is edited by a holder of manage scope, and shows the com
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Commit: c2')
     const stored = await json<Schemas['CommitDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/commits/c2`,
+      `/api${suitePath(suite)}/commits/c2`,
     )
     expect(stored.fields.revision).toBe('r2')
 
@@ -273,7 +274,7 @@ test('its deletion after inactivity is edited, and has no effect while it has an
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     await signIn(page, 'manage')
-    await page.goto(`/projects/${suite}/suites/${suite}/commits/c2`)
+    await page.goto(`${suitePath(suite)}/commits/c2`)
     const info = page.getByRole('group', { name: 'Commit', exact: true })
     const days = page.getByRole('textbox', { name: 'Delete after inactivity' })
 
@@ -284,7 +285,7 @@ test('its deletion after inactivity is edited, and has no effect while it has an
     await expect(info).toContainText('7 days (No effect while the commit has an ordinal.)')
     const stored = await json<Schemas['CommitDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/commits/c2`,
+      `/api${suitePath(suite)}/commits/c2`,
     )
     expect(stored.delete_after_inactive_days).toBe(7)
 
@@ -307,28 +308,26 @@ test('deleting a commit shows the commits left, and keeps its regressions withou
 }, testInfo) => {
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     const token = await signIn(page, 'manage')
-    const created = await request.post(`/api/projects/${suite}/suites/${suite}/regressions`, {
+    const created = await request.post(`/api${suitePath(suite)}/regressions`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { title: 'At c2', commit: 'c2' },
     })
     expect(created.status(), await created.text()).toBe(201)
     const { uuid } = (await created.json()) as Schemas['RegressionDetail']
-    await page.goto(`/projects/${suite}/suites/${suite}/commits/c2`)
+    await page.goto(`${suitePath(suite)}/commits/c2`)
 
     await page.getByRole('button', { name: 'Delete commit' }).click()
     await page.getByLabel(/to confirm/).fill('c2')
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
-    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=commits`)
+    await expect(page).toHaveURL(`${suitePath(suite)}?tab=commits`)
     const commits = table(page, 'Commits')
     await expect(rows(commits)).toHaveCount(2)
     await expect(commits).not.toContainText('c2')
-    expect((await request.get(`/api/projects/${suite}/suites/${suite}/commits/c2`)).status()).toBe(
-      404,
-    )
+    expect((await request.get(`/api${suitePath(suite)}/commits/c2`)).status()).toBe(404)
     const regression = await json<Schemas['RegressionDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/regressions/${uuid}`,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
     )
     expect([regression.title, regression.commit]).toEqual(['At c2', null])
   })

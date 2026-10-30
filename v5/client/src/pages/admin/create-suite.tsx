@@ -33,7 +33,6 @@ import {
   SchemaEditorTables,
 } from '../test-suites/schema/schema-editor-tables'
 import { EditorFooter } from '../test-suites/schema/editor-footer'
-import { projectsProblem, type Projects } from './projects'
 import styles from './admin.module.css'
 
 interface Props {
@@ -90,7 +89,12 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
 
   const nameProblem = suiteNameProblem(name, picked?.suites.map((suite) => suite.name) ?? [])
   // Until the projects have loaded, none can be picked, and the name cannot be checked.
-  const listProblem = projectsProblem(projects)
+  const listProblem =
+    list !== undefined
+      ? undefined
+      : projects.isError
+        ? 'The projects could not be loaded.'
+        : 'Loading the projects...'
   // What the project picked, if any, keeps from creating a suite in it, as the editor and "Import
   // JSON" both need one.
   const projectProblem =
@@ -189,7 +193,13 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
           </ActionButton>
         </div>
       </form>
-      <ProjectsError projects={projects} />
+      {list === undefined && projects.isError && (
+        <ErrorMessage
+          error={projects.error}
+          context="The projects could not be loaded"
+          onRetry={() => void projects.refetch()}
+        />
+      )}
       {importing ? (
         <ImportJson
           text={text}
@@ -216,18 +226,6 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
       </EditorFooter>
       {!importing && create.isError && <ErrorMessage error={create.error} />}
     </section>
-  )
-}
-
-/** Says that the projects could not be listed, and offers to try again, while none are shown. */
-export function ProjectsError({ projects }: { projects: Projects }) {
-  if (projects.data !== undefined || !projects.isError) return null
-  return (
-    <ErrorMessage
-      error={projects.error}
-      context="The projects could not be loaded"
-      onRetry={() => void projects.refetch()}
-    />
   )
 }
 

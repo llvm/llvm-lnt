@@ -146,6 +146,8 @@ describe('routing', () => {
     // The paths of before projects (D7) are no more.
     ['/suites', 'Page not found'],
     ['/suites/nts', 'Page not found'],
+    // A project's suites are listed on its own page.
+    ['/projects/llvm/suites', 'Page not found'],
   ])('renders %s as the %s page', async (path, heading) => {
     renderAt(path)
 

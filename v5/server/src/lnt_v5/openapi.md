@@ -69,7 +69,7 @@ the body too.
 All errors have the same body:
 
 ```json
-{"error": {"code": "not_found", "message": "No machine named 'foo' in test suite 'libcxx/libcxx'"}}
+{"error": {"code": "not_found", "message": "No machine named 'foo' in test suite 'llvm/nts'"}}
 ```
 
 Check `code` in your code. `message` is meant for people and may change.

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
 import {
   refetchProjects,
-    removeSuite,
+  removeSuite,
   updateSuite,
   useSuiteLabel,
   type SuiteRef,

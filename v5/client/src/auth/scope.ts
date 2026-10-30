@@ -177,18 +177,22 @@ export function refusal(
 /**
  * Why the token, as `status` has it, grants `required` on none of `projects` in full, or undefined
  * if it grants it on one of them: for a control starting an action on a project picked among them,
- * such as "New suite", which is enabled as long as one of them is allowed (AR17).
+ * such as "New suite", which is enabled as long as one of them is allowed (AR17). Until the
+ * projects are listed (undefined), only a token without the scope is known to be refused.
  */
 export function refusalInEvery(
   required: Scope,
-  projects: readonly ProjectName[],
+  projects: readonly ProjectName[] | undefined,
   status: TokenStatus,
   known: readonly Project[] | undefined,
 ): string | undefined {
   const key = acceptedKey(status) ?? null
-  if (projects.some((project) => grants(key, required, { project: project.name }))) {
-    return undefined
-  }
+  const allowed =
+    projects === undefined
+      ? key !== null && scopeRank(key.scope) >= scopeRank(required)
+      : projects.some((project) => grants(key, required, { project: project.name }))
+  if (allowed) return undefined
+  if (projects === undefined) return reason(required, SOME_PROJECT, status, known)
   const target = projects.length === 1 ? { project: projects[0].name } : SOME_PROJECT
   return reason(required, target, status, known)
 }

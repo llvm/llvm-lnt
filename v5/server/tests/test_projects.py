@@ -182,16 +182,44 @@ class TestUpdate:
         assert response.json()["display_name"] == "LLVM"
         assert schema_version_of(db_engine) == before
 
-    @pytest.mark.parametrize("name", ["llvm", "other"])
+    @pytest.mark.parametrize("name", ["other", None, 1])
     def test_does_not_rename_a_project(
-        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str], name: str
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        name: Any,
     ) -> None:
         create()
 
-        response = api_client.patch(f"{PROJECTS_PATH}/llvm", json={"name": name}, headers=manage)
+        response = api_client.patch(
+            f"{PROJECTS_PATH}/llvm", json={"name": name, "display_name": "LLVM"}, headers=manage
+        )
 
         assert code_of(response) == "invalid_request"
-        assert "cannot be renamed" in response.json()["error"]["message"]
+        assert "not supported yet" in response.json()["error"]["message"]
+        assert api_client.get(f"{PROJECTS_PATH}/llvm").json()["display_name"] is None
+
+    def test_accepts_the_current_name(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        db_engine: Engine,
+    ) -> None:
+        create()
+        before = schema_version_of(db_engine)
+
+        response = api_client.patch(f"{PROJECTS_PATH}/llvm", json={"name": "llvm"}, headers=manage)
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "llvm"
+        assert schema_version_of(db_engine) == before
+
+    def test_does_not_document_a_name(self, api_client: TestClient) -> None:
+        document = api_client.get("/api/openapi.json").json()
+        update = document["components"]["schemas"]["ProjectUpdate"]
+        assert "name" not in update["properties"]
 
     @pytest.mark.parametrize("display_name", ["", "x" * (DISPLAY_NAME_MAX_LENGTH + 1)])
     def test_refuses_a_bad_display_name(
@@ -353,3 +381,24 @@ class TestDeletionRacingSuiteCreation:
         assert raised.value.code is ErrorCode.CONFLICT
         with db_engine.connect() as connection:
             assert connection.execute(select(project.c.name)).scalars().all() == ["llvm"]
+
+
+class TestSuiteCreationInABusyProject:
+    def test_is_retryable_while_the_project_is_locked(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        db_engine: Engine,
+    ) -> None:
+        # E10, D2: creating a suite waits only a bounded time for its project's row, which a
+        # change to the project holds, and nothing is created.
+        create()
+        with db_engine.connect() as holder, holder.begin():
+            holder.execute(select(project.c.id).with_for_update())
+
+            response = api_client.post(SUITES_PATH.format(project="llvm"), json=NTS, headers=manage)
+
+        assert response.status_code == 409
+        assert code_of(response) == "retry"
+        assert api_client.get(SUITES_PATH.format(project="llvm")).json()["items"] == []

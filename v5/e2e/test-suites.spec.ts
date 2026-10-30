@@ -8,9 +8,10 @@
 import { readFileSync } from 'node:fs'
 import type { Dialog } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { EXPERIMENT, HARDENED, MACOS, TAG, TAGGED_INFO, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
-import { ownSuite, withOwnSuiteName } from './own-suite.ts'
+import { ownSuite, withOwnSuite } from './own-suite.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 /** The accessible name of the Runs tab's search. */
@@ -328,8 +329,8 @@ test.describe('the Schema tab', () => {
     tokenFor,
   }, testInfo) => {
     await ownSuite(request, tokenFor, testInfo, [], async (suite) => {
-      await signIn(page, 'manage', [{ project: suite, suite }])
-      await page.goto(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await signIn(page, 'manage', [suite])
+      await page.goto(`${suitePath(suite)}?tab=schema`)
       await expect(page.getByRole('button', { name: 'Edit schema' })).toBeEnabled()
       await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeEnabled()
 
@@ -348,29 +349,29 @@ test.describe('the Schema tab', () => {
   }, testInfo) => {
     await ownSuite(request, tokenFor, testInfo, [], async (suite) => {
       await signIn(page, 'manage')
-      await page.goto(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
       await expect(table(page, 'Metrics')).toBeVisible()
 
       const [download] = await Promise.all([
         page.waitForEvent('download'),
         page.getByRole('button', { name: 'Download JSON' }).click(),
       ])
-      expect(download.suggestedFilename()).toBe(`${suite}.json`)
+      expect(download.suggestedFilename()).toBe(`${suite.suite}.json`)
       const downloaded = JSON.parse(readFileSync(await download.path(), 'utf8'))
-      expect(downloaded).toEqual(await json(request, `/api/projects/${suite}/suites/${suite}`))
+      expect(downloaded).toEqual(await json(request, `/api${suitePath(suite)}`))
 
       await page.getByRole('button', { name: 'Delete This Suite' }).click()
       const prompt = page.getByRole('form', { name: 'Confirmation' })
-      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('textbox').fill(suite.suite)
       await prompt.getByRole('button', { name: 'Delete' }).click()
 
       // The page leaves for the suites of the project, which has none left.
-      await expect(page).toHaveURL(`/projects/${suite}`)
+      await expect(page).toHaveURL(`/projects/${suite.project}`)
       const picker = page.getByRole('navigation', { name: 'Test suites' })
-      await expect(picker.getByRole('region', { name: suite, exact: true })).toContainText(
+      await expect(picker.getByRole('region', { name: suite.project, exact: true })).toContainText(
         'No test suites.',
       )
-      expect((await request.get(`/api/projects/${suite}/suites/${suite}`)).status()).toBe(404)
+      expect((await request.get(`/api${suitePath(suite)}`)).status()).toBe(404)
     })
   })
 
@@ -381,11 +382,11 @@ test.describe('the Schema tab', () => {
     tokenFor,
   }, testInfo) => {
     const token = await tokenFor('manage')
-    await withOwnSuiteName(request, token, testInfo, async (suite) => {
-      const created = await request.post(`/api/projects/${suite}/suites`, {
+    await withOwnSuite(request, token, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
         headers: { Authorization: `Bearer ${token}` },
         data: {
-          name: suite,
+          name: suite.suite,
           metrics: [
             { name: 'execution_time', type: 'real' },
             { name: 'compile_time', type: 'real' },
@@ -398,11 +399,11 @@ test.describe('the Schema tab', () => {
       })
       expect(created.status(), await created.text()).toBe(201)
       await signIn(page, 'manage')
-      await page.goto(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
 
       await page.getByRole('button', { name: 'Edit schema' }).click()
       // Named by its full label (AR22).
-      const editor = page.getByRole('region', { name: `Editing ${suite}/${suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')
@@ -418,7 +419,7 @@ test.describe('the Schema tab', () => {
         .fill('kernel')
       await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
       const prompt = page.getByRole('form', { name: 'Confirmation' })
-      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('textbox').fill(suite.suite)
       await prompt.getByRole('button', { name: 'Save' }).click()
 
       await expect(editor).toBeHidden()
@@ -432,7 +433,7 @@ test.describe('the Schema tab', () => {
       ])
       const schema = await json<components['schemas']['SuiteSchema']>(
         request,
-        `/api/projects/${suite}/suites/${suite}`,
+        `/api${suitePath(suite)}`,
       )
       expect(schema.metrics.map((metric) => [metric.name, metric.dashboard])).toEqual([
         ['execution_time', true],
@@ -452,17 +453,17 @@ test.describe('the Schema tab', () => {
     tokenFor,
   }, testInfo) => {
     const token = await tokenFor('manage')
-    await withOwnSuiteName(request, token, testInfo, async (suite) => {
-      const created = await request.post(`/api/projects/${suite}/suites`, {
+    await withOwnSuite(request, token, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
         headers: { Authorization: `Bearer ${token}` },
-        data: { name: suite, repository: { label: 'Forge' } },
+        data: { name: suite.suite, repository: { label: 'Forge' } },
       })
       expect(created.status(), await created.text()).toBe(201)
       await signIn(page, 'manage')
-      await page.goto(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
 
       await page.getByRole('button', { name: 'Edit schema' }).click()
-      const editor = page.getByRole('region', { name: `Editing ${suite}/${suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
       const save = editor.getByRole('button', { name: 'Save', exact: true })
       const commitUrl = editor.getByRole('textbox', { name: 'Commit URL' })
       // Refused while the host is not written out.
@@ -476,7 +477,7 @@ test.describe('the Schema tab', () => {
 
       await expect(editor).toBeHidden()
       await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
-        `Project${suite}Name${suite}Display nameForge suite`,
+        `Project${suite.project}Name${suite.suite}Display nameForge suite`,
       )
       // The suite's card is named by its display name (AR22).
       await expect(
@@ -489,7 +490,7 @@ test.describe('the Schema tab', () => {
       )
       const schema = await json<components['schemas']['SuiteSchema']>(
         request,
-        `/api/projects/${suite}/suites/${suite}`,
+        `/api${suitePath(suite)}`,
       )
       expect(schema.display_name).toBe('Forge suite')
       expect(schema.repository).toEqual({

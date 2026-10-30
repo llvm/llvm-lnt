@@ -82,19 +82,17 @@ export function AddToRegression({
   const [report, setReport] = useState<Report | null>(null)
 
   const create = useMutation({
-    mutationFn: ({ suite: testsuite, ...body }: CreateVariables) =>
-      createRegression(testsuite, body),
-    onSuccess: (created, { suite: testsuite }) =>
-      regressionCreated(queryClient, testsuite, created),
+    mutationFn: ({ suite, ...body }: CreateVariables) => createRegression(suite, body),
+    onSuccess: (created, { suite }) => regressionCreated(queryClient, suite, created),
   })
   const add = useMutation({
-    mutationFn: ({ suite: testsuite, regression, indicators }: AddVariables) =>
-      addIndicators(testsuite, regression.uuid, indicators),
+    mutationFn: ({ suite, regression, indicators }: AddVariables) =>
+      addIndicators(suite, regression.uuid, indicators),
     // A fetch of the regression under way could land after the answer, and show it as it was.
-    onMutate: ({ suite: testsuite, regression }) =>
-      queryClient.cancelQueries({ queryKey: regressionKey(testsuite, regression.uuid) }),
-    onSuccess: (result, { suite: testsuite, regression }) =>
-      regressionChanged(queryClient, testsuite, regression.uuid, (stored) =>
+    onMutate: ({ suite, regression }) =>
+      queryClient.cancelQueries({ queryKey: regressionKey(suite, regression.uuid) }),
+    onSuccess: (result, { suite, regression }) =>
+      regressionChanged(queryClient, suite, regression.uuid, (stored) =>
         withIndicators(result, stored),
       ),
   })

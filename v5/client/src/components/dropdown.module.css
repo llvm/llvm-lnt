@@ -48,9 +48,17 @@
   color: var(--lnt-accent);
 }
 
-.option[data-disabled] {
+/* An option that cannot be picked (see `Select`): focusable, so that it says why. */
+.refused {
   color: var(--lnt-muted);
   cursor: default;
+}
+
+/* Over the whole option, padding included, so that its hover says why wherever it is. */
+.refusedText {
+  display: block;
+  margin: calc(-1 * var(--lnt-space-1)) calc(-1 * var(--lnt-space-2));
+  padding: var(--lnt-space-1) var(--lnt-space-2);
 }
 
 .option[data-selected] {

@@ -62,8 +62,8 @@ class RestrictionEntry(BaseModel):
     suite: SuiteNameStr | None = Field(
         default=None,
         description=(
-            "The name of the test suite, in the project. Required: a key can only be restricted "
-            "to single test suites."
+            "The name of the test suite, in the project. A key is restricted to single test "
+            "suites, so every entry names one."
         ),
         examples=[examples.SUITE],
     )

@@ -2,9 +2,8 @@
 
 Separate from `registry.py`, which is strictly the cache and knows nothing about requests. This is
 the request layer over it: resolving `{project}` and `{suite}` inside the endpoint's own unit of
-work, and
-answering the failures a concurrent schema change can cause: the cache lagging behind it, and a
-request contending with it for the suite's tables.
+work, and answering the failures a concurrent schema change can cause: the cache lagging behind it,
+and a request contending with it for the suite's tables.
 """
 
 from __future__ import annotations

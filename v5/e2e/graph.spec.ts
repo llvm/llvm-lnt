@@ -6,6 +6,7 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { escapeHtml } from '../client/src/format.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { LINUX, MACOS, uuidFor } from '../tools/synthetic.ts'
 import { cardOf } from './cards.ts'
 import { expect, json, test } from './fixtures.ts'
@@ -327,8 +328,8 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1, 1), run('c2', 2, 2)], async (suite) => {
     await signIn(page, 'triage')
     await page.goto(
-      `/graph?project=${suite}&suite=${suite}&machine=m1&metric=execution_time&test=bench` +
-        '&regressions=all',
+      `/graph?project=${suite.project}&suite=${suite.suite}&machine=m1&metric=execution_time` +
+        '&test=bench&regressions=all',
     )
     await expect(tracesOf(page)).toHaveCount(1)
 
@@ -344,7 +345,7 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
     const uuid = (await link.getAttribute('href'))!.split('/').at(-1)!
     const created = await json<components['schemas']['RegressionDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/regressions/${uuid}`,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
     )
     expect(created).toMatchObject({
       title: 'bench slowed down',
@@ -357,7 +358,7 @@ test('creates a regression from a point, and marks it at once (GR11, GR15)', asy
     await expect.poll(() => draws(page, `regression ${uuid}`)).toBe(true)
     await expect(details).toBeVisible()
     await link.click()
-    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/regressions/${uuid}`)
+    await expect(page).toHaveURL(`${suitePath(suite)}/regressions/${uuid}`)
   })
 })
 
@@ -375,8 +376,8 @@ test("shows a test's name as it is in the tooltip, even with Plotly's template s
   }
   await ownSuite(request, tokenFor, testInfo, [run], async (suite) => {
     const query = new URLSearchParams({
-      project: suite,
-      suite,
+      project: suite.project,
+      suite: suite.suite,
       machine: 'm1',
       metric: 'execution_time',
       test: name,
@@ -483,12 +484,12 @@ test("draws a long history's points without markers until zoomed in, and they ke
   await ownSuite(request, tokenFor, testInfo, runs, async (suite) => {
     // With a baseline at the commit of the point, whose line runs through it.
     const query = new URLSearchParams({
-      project: suite,
-      suite,
+      project: suite.project,
+      suite: suite.suite,
       machine: 'm1',
       metric: 'execution_time',
       test: 'bench',
-      baseline: `${suite}/${suite}/m1/c100`,
+      baseline: `${suite.project}/${suite.suite}/m1/c100`,
     })
     await page.goto(`/graph?${query}`)
     await expect(tracesOf(page)).toHaveCount(2)

@@ -231,10 +231,10 @@ def _print_openapi() -> int:
 def _suite(value: str) -> keys.Entry:
     """Read `--suite`: a suite by its full name (D7), `project/suite`. Raising here makes a value
     without a project a usage error, like any other bad argument."""
-    project, slash, suite = value.partition("/")
-    if not slash or not project or not suite:
+    parts = value.split("/")
+    if len(parts) != 2 or not all(parts):
         raise argparse.ArgumentTypeError(f"not a test suite's full name, PROJECT/SUITE: {value!r}")
-    return keys.Entry(project, suite)
+    return keys.Entry(*parts)
 
 
 def _port(value: str) -> int:

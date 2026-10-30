@@ -414,7 +414,7 @@ class TestCreateRestrictedKey:
             (key,) = keys.list_keys(connection)
         assert key.restricted_to == (Entry("libcxx", "benchmarks"), Entry("llvm", "nts"))
 
-    @pytest.mark.parametrize("suite", ["nts", "/nts", "llvm/"])
+    @pytest.mark.parametrize("suite", ["nts", "/nts", "llvm/", "llvm/nts/x", "llvm//nts"])
     def test_refuses_a_suite_not_named_by_its_full_name(
         self, configured_database: Engine, capsys: pytest.CaptureFixture[str], suite: str
     ) -> None:

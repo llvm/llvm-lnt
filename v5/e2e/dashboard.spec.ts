@@ -8,9 +8,10 @@
  */
 
 import type { Locator, Page } from '@playwright/test'
+import { suitePath } from '../client/src/paths.ts'
 import { HARDENED, LINUX, MACOS, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
-import { ownSuite, withOwnSuiteName, type OwnRun } from './own-suite.ts'
+import { ownSuite, withOwnSuite, type OwnRun } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf } from './plot.ts'
 
 const LIBCXX_METRICS = [
@@ -157,17 +158,17 @@ test('says that a suite has no numeric metrics', async ({
   tokenFor,
 }, testInfo) => {
   const token = await tokenFor('manage')
-  await withOwnSuiteName(request, token, testInfo, async (suite) => {
-    const created = await request.post(`/api/projects/${suite}/suites`, {
+  await withOwnSuite(request, token, testInfo, async (suite) => {
+    const created = await request.post(`/api/projects/${suite.project}/suites`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { name: suite, metrics: [{ name: 'hash', type: 'text' }] },
+      data: { name: suite.suite, metrics: [{ name: 'hash', type: 'text' }] },
     })
     expect(created.status(), await created.text()).toBe(201)
 
     await page.goto('/')
 
     // In a project of the same name, without a display name.
-    const own = section(page, `${suite}/${suite}`)
+    const own = section(page, `${suite.project}/${suite.suite}`)
     await expect(own).toContainText('This suite has no numeric metrics.')
     await expect(own.getByRole('article')).toHaveCount(0)
   })
@@ -189,14 +190,14 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite) => {
     await signIn(page, 'manage')
     await page.goto('/')
-    const own = section(page, `${suite}/${suite}`)
+    const own = section(page, `${suite.project}/${suite.suite}`)
     await expect(own).toContainText('This suite shows no metrics on the Dashboard.')
     await expect(own.getByRole('article')).toHaveCount(0)
 
     await own.getByRole('link', { name: 'its schema', exact: true }).click()
-    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=schema`)
+    await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
     await page.getByRole('button', { name: 'Edit schema' }).click()
-    const editor = page.getByRole('region', { name: `Editing ${suite}/${suite}` })
+    const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
     await editor.getByRole('checkbox', { name: 'On the Dashboard of metric compile_time' }).check()
     await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
     await expect(editor).toBeHidden()

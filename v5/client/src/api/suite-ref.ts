@@ -59,8 +59,11 @@ export function fullName(ref: SuiteRef): string {
   return `${ref.project}/${ref.suite}`
 }
 
-/** The suite whose full name is `name` (see `fullName`). */
+/**
+ * The suite whose full name is `name` (see `fullName`), or `NO_SUITE` if `name` is no full name: a
+ * suite that is in no list of suites.
+ */
 export function suiteOfFullName(name: string): SuiteRef {
-  const slash = name.indexOf('/')
-  return suiteRef(name.slice(0, slash), name.slice(slash + 1))
+  const parts = name.split('/')
+  return parts.length === 2 ? suiteRef(parts[0], parts[1]) : NO_SUITE
 }

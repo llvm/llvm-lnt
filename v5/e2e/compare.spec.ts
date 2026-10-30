@@ -5,6 +5,7 @@
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.ts'
 import { cardOf } from './cards.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
@@ -559,8 +560,9 @@ test('adds the comparison to a new regression, then to that one', async ({
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1, 1), run('c2', 2, 2)], async (suite) => {
     await signIn(page, 'triage')
     await page.goto(
-      `/compare?project_a=${suite}&suite_a=${suite}&machine_a=m1&commit_a=c1` +
-        `&project_b=${suite}&suite_b=${suite}&machine_b=m1&commit_b=c2&metric=execution_time`,
+      `/compare?project_a=${suite.project}&suite_a=${suite.suite}&machine_a=m1&commit_a=c1` +
+        `&project_b=${suite.project}&suite_b=${suite.suite}&machine_b=m1&commit_b=c2` +
+        '&metric=execution_time',
     )
     await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
 
@@ -574,7 +576,7 @@ test('adds the comparison to a new regression, then to that one', async ({
     const uuid = (await link.getAttribute('href'))!.split('/').at(-1)!
     const created = await json<Schemas['RegressionDetail']>(
       request,
-      `/api/projects/${suite}/suites/${suite}/regressions/${uuid}`,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
     )
     expect(created.commit).toBe('c2')
     expect(created.indicators).toMatchObject([

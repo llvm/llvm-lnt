@@ -60,7 +60,7 @@ describe('Select', () => {
     expect(selectButton('Metric')).toHaveTextContent('Code Size')
   })
 
-  it('disables an option with a reason, saying why on hover and to assistive technology', async () => {
+  it('refuses an option with a reason, saying why on hover and to assistive technology', async () => {
     const onChange = vi.fn()
     render(
       <Select
@@ -77,13 +77,18 @@ describe('Select', () => {
     const user = userEvent.setup()
 
     await user.click(selectButton('Project'))
-    const refused = screen.getByRole('option', { name: /^Swift\b.*: Needs a token covering it\.$/ })
-    expect(refused).toHaveAttribute('aria-disabled', 'true')
+    const refused = screen.getByRole('option', { name: 'Swift: Needs a token covering it.' })
     expect(screen.getByTitle('Needs a token covering it.')).toHaveTextContent(/^Swift/)
-    expect(screen.getByRole('option', { name: 'LLVM' })).not.toHaveAttribute('aria-disabled')
 
-    await user.click(refused)
+    // It can be reached from the keyboard, so that its reason can be read, but not picked.
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(refused).toHaveFocus()
+    await user.keyboard('{Enter}')
     expect(onChange).not.toHaveBeenCalled()
+    await user.click(selectButton('Project'))
+    await user.click(screen.getByRole('option', { name: 'Swift: Needs a token covering it.' }))
+    expect(onChange).not.toHaveBeenCalled()
+    await user.click(selectButton('Project'))
     await user.click(screen.getByRole('option', { name: 'LLVM' }))
     expect(onChange).toHaveBeenCalledExactlyOnceWith('llvm')
   })

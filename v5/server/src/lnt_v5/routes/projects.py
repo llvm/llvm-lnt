@@ -2,7 +2,7 @@
 
 A project's suites are managed through E10, under the project's path. Here are the projects
 themselves: listing them with their suites, creating them, changing their display names and deleting
-them. Renaming a project comes later.
+them. Renaming a project is not supported yet.
 """
 
 from __future__ import annotations
@@ -10,13 +10,20 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Response
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
+    model_validator,
+)
 from sqlalchemy import insert, select, update
 
 from lnt_v5 import examples
 from lnt_v5.auth import Coverage, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
-from lnt_v5.errors import ErrorCode, ErrorEnvelope
+from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.patching import omit_defaults
 from lnt_v5.responses import Items
 from lnt_v5.routes.suites import PROJECTS_PATH, sorted_schemas
@@ -86,6 +93,10 @@ class ProjectCreate(BaseModel):
     )
 
 
+# What `ProjectUpdate` holds as its name when the request gives none.
+_NO_NAME = object()
+
+
 class ProjectUpdate(BaseModel):
     """Changes to a project. Only include the keys you want to change."""
 
@@ -96,13 +107,21 @@ class ProjectUpdate(BaseModel):
         default=None, description=f"{_DISPLAY_NAME} Null removes it."
     )
 
-    @model_validator(mode="before")
+    # A `name`, which only the project's current name may be for now (see `patch_project`). Not a
+    # field, so that the document leaves it out until a project can be renamed.
+    _name: Any = PrivateAttr(default=_NO_NAME)
+
+    @model_validator(mode="wrap")
     @classmethod
-    def _reject_rename(cls, data: Any) -> Any:
-        # Before validation, so that this wins over `extra="forbid"` and can say why.
+    def _take_name(cls, data: Any, handler: ModelWrapValidatorHandler[ProjectUpdate]) -> Any:
+        # Taken out before validation, so that `extra="forbid"` does not refuse it.
+        name = _NO_NAME
         if isinstance(data, dict) and "name" in data:
-            raise ValueError("a project cannot be renamed: 'name' cannot be changed")
-        return data
+            data = dict(data)
+            name = data.pop("name")
+        model = handler(data)
+        model._name = name
+        return model
 
 
 _CREATE_EXAMPLES = {
@@ -199,6 +218,8 @@ def patch_project(
         ).one_or_none()
         if stored is None:
             raise project_not_found(project)
+        if body._name is not _NO_NAME and body._name != project:
+            raise ApiError(ErrorCode.INVALID_REQUEST, "Renaming a project is not supported yet.")
         if "display_name" in changes and changes["display_name"] != stored.display_name:
             connection.execute(
                 update(project_table)

@@ -299,7 +299,7 @@ function entryOf(list: ListName, entry: DraftEntry) {
 }
 
 /**
- * The body of `POST /api/suites` creating the suite `name`, with the display name its input shows
+ * The body of `POST /api/projects/{project}/suites` creating the suite `name`, with the display name its input shows
  * as `displayName`, and `draft`'s entries and repository (E10).
  */
 export function schemaOf(
@@ -357,7 +357,7 @@ function isEntryChanged(entry: DraftEntry, original: AnyEntry, key: Presentation
 }
 
 /**
- * The part of `PATCH /api/suites/{name}/schema` changing the suite's display name, stored as
+ * The part of `PATCH /api/projects/{project}/suites/{suite}/schema` changing the suite's display name, stored as
  * `stored`, to what its input shows, `text`: nothing unless the user changed it (TS7).
  */
 export function displayNameChange(text: string, stored: string | null): Schemas['SchemaPatch'] {
@@ -365,7 +365,7 @@ export function displayNameChange(text: string, stored: string | null): Schemas[
 }
 
 /**
- * The body of `PATCH /api/suites/{name}/schema` making the changes in `draft` (E10): an entry added
+ * The body of `PATCH /api/projects/{project}/suites/{suite}/schema` making the changes in `draft` (E10): an entry added
  * in full, an existing one updated with only the keys the user changed, a removed one by its name,
  * and the repository with only the keys the user changed. It says nothing of what the user left
  * alone, so that saving does not undo changes others made since the editor opened (TS7). Empty

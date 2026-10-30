@@ -7,6 +7,7 @@
 
 import type { Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { EXPERIMENT, LINUX, MACOS, PROFILED_TEST } from '../tools/synthetic.ts'
 import { expect, json, REAL_RUN, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
@@ -147,17 +148,17 @@ test('deleting the run shows its machine', async ({ page, request, tokenFor, sig
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite, uuids) => {
     const [first, second] = uuids
     await signIn(page, 'manage')
-    await page.goto(`/projects/${suite}/suites/${suite}/runs/${second}`)
+    await page.goto(`${suitePath(suite)}/runs/${second}`)
 
     await page.getByRole('button', { name: 'Delete run' }).click()
     await page.getByLabel(/to confirm/).fill(second.slice(0, 8))
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
-    await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/machines/m1`)
+    await expect(page).toHaveURL(`${suitePath(suite)}/machines/m1`)
     const history = table(page, 'Run history')
     await settled(history)
     expect(await column(history, 0)).toEqual([`${first.slice(0, 8)}…`])
-    const deleted = await request.get(`/api/projects/${suite}/suites/${suite}/runs/${second}`)
+    const deleted = await request.get(`/api${suitePath(suite)}/runs/${second}`)
     expect(deleted.status()).toBe(404)
   })
 })

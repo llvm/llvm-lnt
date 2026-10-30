@@ -2764,7 +2764,7 @@ export interface components {
             project: string;
             /**
              * Suite
-             * @description The name of the test suite, in the project. Required: a key can only be restricted to single test suites.
+             * @description The name of the test suite, in the project. A key is restricted to single test suites, so every entry names one.
              * @example libcxx
              */
             suite: string;
@@ -2783,7 +2783,7 @@ export interface components {
             project: string;
             /**
              * Suite
-             * @description The name of the test suite, in the project. Required: a key can only be restricted to single test suites.
+             * @description The name of the test suite, in the project. A key is restricted to single test suites, so every entry names one.
              * @example libcxx
              */
             suite?: string;

@@ -1394,3 +1394,18 @@ class TestKeyCreationRacingSuiteDeletion:
             key = resolve_token(creating, token)
         assert key is not None
         assert key.restricted_to == (Entry("libcxx", "libcxx"),)
+
+    def test_keys_listing_the_same_suite_do_not_wait_for_each_other(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        # The suites a key lists are locked FOR KEY SHARE, which conflicts with deleting them but
+        # not with another key's creation taking the same lock.
+        def create_second() -> str:
+            with db_engine.begin() as connection:
+                return create_key(connection, "other", Scope.SUBMIT, [Entry("nts", "nts")]).prefix
+
+        with db_engine.connect() as creating, creating.begin():
+            create_key(creating, "bot", Scope.SUBMIT, [Entry("nts", "nts")])
+            second = background(create_second)
+            # Completes while the first key's transaction is still open.
+            assert second.result(timeout=BLOCK_TIMEOUT)

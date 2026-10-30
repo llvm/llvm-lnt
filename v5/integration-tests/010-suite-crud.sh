@@ -168,6 +168,15 @@ request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
     --data '{"name":"m"}' "${SUITES}/elsewhere/machines"
 expect_status 403
 expect_body '"code":"forbidden"'
+# Nor the suite of the same name in another project: a suite is its project's name and its own.
+request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
+    --data '{"name":"m"}' "${PROJECTS}/crud-other/suites/suite-crud/machines"
+expect_status 403
+expect_body '"code":"forbidden"'
+request -X PATCH -H "Authorization: Bearer ${restricted}" -H "$JSON" \
+    --data '{"display_name": "Mine"}' "${PROJECTS}/crud"
+expect_status 403
+expect_body '"code":"forbidden"'
 
 echo "  writes need a credential of their own"
 request -X POST -H "$JSON" --data '{"name":"denied","metrics":[]}' "$SUITES"

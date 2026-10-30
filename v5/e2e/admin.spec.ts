@@ -8,8 +8,9 @@
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
-import { withOwnSuiteName } from './own-suite.ts'
+import { withOwnSuite } from './own-suite.ts'
 import { pickOption, selectButton } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -131,13 +132,13 @@ test.describe('the API Keys tab', () => {
   }, testInfo) => {
     const manage = await tokenFor('manage')
     let token = ''
-    await withOwnSuiteName(request, manage, testInfo, async (suite) => {
-      const created = await request.post(`/api/projects/${suite}/suites`, {
+    await withOwnSuite(request, manage, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
         headers: { Authorization: `Bearer ${manage}` },
-        data: { name: suite, metrics: [] },
+        data: { name: suite.suite, metrics: [] },
       })
       expect(created.status(), await created.text()).toBe(201)
-      token = await tokenFor('submit', [{ project: suite, suite }])
+      token = await tokenFor('submit', [suite])
     })
 
     // Deleting the suite removed it from the key (I5).
@@ -215,13 +216,13 @@ test.describe('the Test Suites tab', () => {
     signIn,
     tokenFor,
   }, testInfo) => {
-    await withOwnSuiteName(request, await tokenFor('manage'), testInfo, async (suite) => {
+    await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
       await signIn(page, 'manage')
       await page.goto('/admin?tab=suites')
       await page.getByRole('button', { name: 'New suite' }).click()
       const editor = page.getByRole('region', { name: 'New suite' })
-      await pickOption(editor, 'Project', suite)
-      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      await pickOption(editor, 'Project', suite.project)
+      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
       await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill(' E2E suite ')
       await pickOption(editor, 'Start from', 'libc++/Microbenchmarks')
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
@@ -231,9 +232,9 @@ test.describe('the Test Suites tab', () => {
         .fill('kernel')
       await editor.getByRole('button', { name: 'Create', exact: true }).click()
 
-      await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
       await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
-        `Project${suite}Name${suite}Display nameE2E suite`,
+        `Project${suite.project}Name${suite.suite}Display nameE2E suite`,
       )
       await expect(rows(table(page, 'Machine fields')).last().locator('td')).toHaveText([
         'kernel',
@@ -248,11 +249,11 @@ test.describe('the Test Suites tab', () => {
       )
       const created = await json<components['schemas']['SuiteSchema']>(
         request,
-        `/api/projects/${suite}/suites/${suite}`,
+        `/api${suitePath(suite)}`,
       )
       expect(created).toEqual({
         ...libcxx,
-        name: suite,
+        name: suite.suite,
         display_name: 'E2E suite',
         machine_fields: [
           ...libcxx.machine_fields,
@@ -268,21 +269,21 @@ test.describe('the Test Suites tab', () => {
     signIn,
     tokenFor,
   }, testInfo) => {
-    await withOwnSuiteName(request, await tokenFor('manage'), testInfo, async (suite) => {
+    await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
       await signIn(page, 'manage')
       await page.goto('/admin?tab=suites')
       await page.getByRole('button', { name: 'New suite' }).click()
       const editor = page.getByRole('region', { name: 'New suite' })
       // The document goes to the project picked, which comes first.
       await expect(editor.getByRole('button', { name: 'Import JSON' })).toBeDisabled()
-      await pickOption(editor, 'Project', suite)
+      await pickOption(editor, 'Project', suite.project)
       await editor.getByRole('button', { name: 'Import JSON' }).click()
       await editor
         .getByRole('textbox', { name: /^Schema document/ })
-        .fill(JSON.stringify({ name: suite, metrics: [{ name: 'size', type: 'integer' }] }))
+        .fill(JSON.stringify({ name: suite.suite, metrics: [{ name: 'size', type: 'integer' }] }))
       await editor.getByRole('button', { name: 'Create from JSON' }).click()
 
-      await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
       await expect(rows(table(page, 'Metrics')).locator('td')).toHaveText([
         'size',
         'integer',
@@ -301,13 +302,13 @@ test.describe('the Test Suites tab', () => {
     tokenFor,
   }, testInfo) => {
     const token = await tokenFor('manage')
-    await withOwnSuiteName(request, token, testInfo, async (suite) => {
+    await withOwnSuite(request, token, testInfo, async (suite) => {
       await signIn(page, 'manage')
       await page.goto('/admin?tab=suites')
       await page.getByRole('button', { name: 'New suite' }).click()
       const creator = page.getByRole('region', { name: 'New suite' })
-      await pickOption(creator, 'Project', suite)
-      await creator.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      await pickOption(creator, 'Project', suite.project)
+      await creator.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
       for (const metric of ['execution_time', 'compile_time']) {
         await creator.getByRole('button', { name: '+ Add metric' }).click()
         await creator.getByRole('textbox', { name: /^Name of metric \d+$/ }).last().fill(metric)
@@ -317,9 +318,9 @@ test.describe('the Test Suites tab', () => {
         .getByRole('textbox', { name: 'Name of machine field 1', exact: true })
         .fill('hardware')
       await creator.getByRole('button', { name: 'Create', exact: true }).click()
-      await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}?tab=schema`)
+      await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
 
-      const submitted = await request.post(`/api/projects/${suite}/suites/${suite}/runs`, {
+      const submitted = await request.post(`/api${suitePath(suite)}/runs`, {
         headers: { Authorization: `Bearer ${token}` },
         data: {
           format_version: '5',
@@ -333,13 +334,13 @@ test.describe('the Test Suites tab', () => {
 
       // The pages of the suite, visited before its schema changes, and again after, without the
       // page being loaded again. No field is listed yet.
-      await page.goto(`/projects/${suite}/suites/${suite}?tab=machines`)
+      await page.goto(`${suitePath(suite)}?tab=machines`)
       await page.evaluate(() => Object.assign(window, { notReloaded: true }))
       const machines = table(page, 'Machines')
       await expect(machines.getByRole('columnheader')).toHaveText(['Name'])
       await machines.getByRole('link', { name: 'm1', exact: true }).click()
       await table(page, 'Run history').getByRole('link').first().click()
-      await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/runs/${run}`)
+      await expect(page).toHaveURL(`${suitePath(suite)}/runs/${run}`)
       await pickOption(page, 'Metric', 'compile_time')
       await expect(table(page, 'Samples').locator('td').nth(1)).toHaveText('0.25')
       await page.getByRole('main').getByRole('link', { name: 'm1', exact: true }).click()
@@ -347,14 +348,17 @@ test.describe('the Test Suites tab', () => {
       await expect(machine).toContainText('Apple M4')
       await expect(machine).not.toContainText('kernel')
 
-      // The project, of the same name, then the suite.
+      // The project, then the suite, each by its name, which is its label.
       const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
-      const suiteLink = trail.getByRole('listitem').nth(1).getByRole('link')
-      await expect(suiteLink).toHaveText(suite)
+      await expect(trail.getByRole('link', { name: suite.project, exact: true })).toHaveAttribute(
+        'href',
+        `/projects/${suite.project}`,
+      )
+      const suiteLink = trail.getByRole('link', { name: suite.suite, exact: true })
       await suiteLink.click()
       await page.getByRole('tab', { name: 'Schema' }).click()
       await page.getByRole('button', { name: 'Edit schema' }).click()
-      const editor = page.getByRole('region', { name: `Editing ${suite}/${suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')
@@ -366,20 +370,20 @@ test.describe('the Test Suites tab', () => {
         .fill('kernel')
       await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
       const prompt = page.getByRole('form', { name: 'Confirmation' })
-      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('textbox').fill(suite.suite)
       await prompt.getByRole('button', { name: 'Save' }).click()
       await expect(editor).toBeHidden()
 
       // The machine has the new field, without a value yet, and keeps the value it had.
       await page.goBack()
-      await expect(page).toHaveURL(new RegExp(`/projects/${suite}/suites/${suite}/machines/m1$`))
+      await expect(page).toHaveURL(new RegExp(`${suitePath(suite)}/machines/m1$`))
       await expect(machine).toContainText('kernel')
       await expect(machine).toContainText('Apple M4')
 
       // The run no longer offers the metric removed, whose selection is dropped, and names the
       // other one as the schema now does.
       await page.goBack()
-      await expect(page).toHaveURL(`/projects/${suite}/suites/${suite}/runs/${run}`)
+      await expect(page).toHaveURL(`${suitePath(suite)}/runs/${run}`)
       const metric = page.getByRole('button', { name: / Metric$/ })
       await expect(metric).toHaveText(/Execution Time/)
       await metric.click()
