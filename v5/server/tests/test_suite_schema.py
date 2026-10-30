@@ -92,8 +92,9 @@ class TestSuiteName:
         "name", ["admin", "suites", "api", "public", "information_schema", "pg_catalog", "pg_"]
     )
     def test_reserves_no_name(self, name: str) -> None:
-        # I1: suite-scoped resources live below /api/suites/, so routing reserves no suite name at
-        # all. Nor does the database, since a suite name names nothing in it (D4).
+        # I1: suite-scoped resources live below `/api/projects/{project}/suites/{suite}`, so routing
+        # reserves no suite name at all. Nor does the database, since a suite name names nothing in
+        # it (D4).
         SuiteSchema.model_validate(schema(name=name))
 
 

@@ -17,7 +17,7 @@ from alembic.operations import Operations
 from sqlalchemy import Connection, Engine, create_engine, insert, inspect, select, text
 from sqlalchemy.pool import NullPool
 
-from conftest import recent, store_suite
+from conftest import ensure_project, recent, store_suite
 from introspection import namespace_of, schema_version_of, structure_of, suite_column_names
 from lnt_v5.migrate import MIGRATION_LOCK_KEY, MigrationError, upgrade_to_head
 from lnt_v5.suites import migrations
@@ -39,6 +39,17 @@ def version_of(engine: Engine, name: str) -> int:
         return int(
             connection.execute(
                 select(schema.c.migration_version).where(schema.c.name == name)
+            ).scalar_one()
+        )
+
+
+def label_of(engine: Engine, namespace: str) -> str:
+    """What a namespace is labelled with (see `suites/tables.py`)."""
+    with engine.connect() as connection:
+        return str(
+            connection.execute(
+                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
+                {"namespace": namespace},
             ).scalar_one()
         )
 
@@ -77,13 +88,18 @@ def migration_lock_is_free(database_url: str) -> bool:
 
 
 def replay_reference(
-    connection: Connection, version: int, namespace: str = NAMESPACE, name: str = "reference"
+    connection: Connection,
+    version: int,
+    namespace: str = NAMESPACE,
+    name: str = "reference",
+    project_name: str | None = None,
 ) -> None:
     """The reference suite as a suite at `version` is: its tables then, in `namespace`, and its row
-    in `schema`, under `name`."""
+    in `schema`, under `name`, in the project `project_name`, by default the one named after it."""
     replay(connection, version, namespace)
     connection.execute(
         insert(schema).values(
+            project_id=ensure_project(connection, project_name or name),
             name=name,
             namespace=namespace,
             schema_json=normalized_json(reference_schema()),
@@ -117,7 +133,7 @@ def fresh_structure(engine: Engine, namespace: str = NAMESPACE) -> dict[str, lis
     """
     with engine.begin() as connection:
         suite_tables.drop(connection, namespace)
-        suite_tables.create(connection, reference_schema(), namespace)
+        suite_tables.create(connection, reference_schema(), namespace, "reference/reference")
     return structure_of(engine, namespace)
 
 
@@ -141,7 +157,8 @@ class TestUpgrade:
             "first",
             "second",
         ]
-        assert result.suites_migrated == ("nts",)
+        # By its full name (D7).
+        assert result.suites_migrated == ("nts/nts",)
         assert result.applied
 
     def test_runs_only_the_steps_a_suite_has_not_had(
@@ -174,7 +191,8 @@ class TestUpgrade:
 
         upgrade_to_head(db_engine)
 
-        assert seen == [StoredSuite("nts", stored, namespace_of(db_engine, "nts"))]
+        (suite,) = seen
+        assert suite == StoredSuite(suite.id, "nts", "nts", stored, namespace_of(db_engine, "nts"))
 
     def test_does_nothing_the_second_time(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -224,7 +242,7 @@ class TestUpgrade:
         calls: list[tuple[str, str]] = []
         monkeypatch.setattr(migrations, "STEPS", (adding_machine_column("first", calls),))
 
-        with pytest.raises(MigrationError, match="'b' is at migration version 2"):
+        with pytest.raises(MigrationError, match="'b/b' is at migration version 2"):
             upgrade_to_head(db_engine)
 
         assert calls == []
@@ -239,6 +257,7 @@ class TestUpgrade:
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
+                    project_id=ensure_project(connection, "bad"),
                     name="bad",
                     namespace="bad",
                     schema_json='{"name": "bad", "nonsense": 1}',
@@ -248,7 +267,7 @@ class TestUpgrade:
         calls: list[tuple[str, str]] = []
         monkeypatch.setattr(migrations, "STEPS", (adding_machine_column("first", calls),))
 
-        with pytest.raises(MigrationError, match=r"'bad'.*stored schema is invalid"):
+        with pytest.raises(MigrationError, match=r"'bad/bad'.*stored schema is invalid"):
             upgrade_to_head(db_engine)
 
         assert calls == []
@@ -546,11 +565,8 @@ class TestSteps:
         assert schema_version_of(db_engine) == before + 2
         with db_engine.connect() as connection:
             assert connection.scalars(text(f"SELECT name FROM {first}.machine")).all() == ["m"]
-            label = connection.execute(
-                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
-                {"namespace": first},
-            ).scalar_one()
-        assert label == "LNT test suite a"
+        # By its full name (D7), as version 8 relabels it too.
+        assert label_of(db_engine, first) == "LNT test suite a/a"
 
     def test_a_move_that_fails_leaves_the_suite_where_it_was(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -605,6 +621,7 @@ class TestSteps:
         with db_engine.begin() as connection:
             connection.execute(
                 insert(schema).values(
+                    project_id=ensure_project(connection, "clash"),
                     name="clash",
                     namespace="clash",
                     schema_json=json.dumps(clashing),
@@ -613,8 +630,39 @@ class TestSteps:
             )
 
         with pytest.raises(
-            MigrationError, match=r"(?s)'clash'.*'first_seen_at' is already a built-in column"
+            MigrationError, match=r"(?s)'clash/clash'.*'first_seen_at' is already a built-in column"
         ):
             upgrade_to_head(db_engine)
 
         assert version_of(db_engine, "a") == 4
+
+
+class TestFullNameLabel:
+    """Version 8 labels a suite's namespace with the suite's full name (D7), as a new suite's is."""
+
+    def test_relabels_the_namespace_without_telling_the_workers(self, db_engine: Engine) -> None:
+        with db_engine.begin() as connection:
+            replay_reference(connection, 7, name="nts", project_name="llvm")
+            suite_tables.label(connection, NAMESPACE, "nts")
+        before = schema_version_of(db_engine)
+
+        upgrade_to_head(db_engine)
+
+        assert label_of(db_engine, NAMESPACE) == "LNT test suite llvm/nts"
+        # Nothing a worker caches has changed (D2).
+        assert schema_version_of(db_engine) == before
+
+    def test_migrates_suites_of_the_same_name_in_two_projects(self, db_engine: Engine) -> None:
+        # Each by its identity: a name is unique only within its project (D7).
+        with db_engine.begin() as connection:
+            replay_reference(connection, 7, namespace="first", name="nts", project_name="llvm")
+            replay_reference(connection, 7, namespace="second", name="nts", project_name="other")
+
+        result = upgrade_to_head(db_engine)
+
+        assert result.suites_migrated == ("llvm/nts", "other/nts")
+        assert label_of(db_engine, "first") == "LNT test suite llvm/nts"
+        assert label_of(db_engine, "second") == "LNT test suite other/nts"
+        with db_engine.connect() as connection:
+            versions = connection.execute(select(schema.c.migration_version)).scalars().all()
+        assert versions == [migrations.head()] * 2

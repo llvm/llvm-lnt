@@ -11,19 +11,18 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from conftest import code_of, entry, ndjson_lines, run_payload, vary
+from conftest import code_of, entry, ndjson_lines, run_payload, suite_path, vary
 from lnt_v5.routes import series as series_module
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.series import NDJSON, SERIES_PATH, SeriesInterruptedError
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.tables import SuiteTables
 
-SERIES = SERIES_PATH.format(testsuite="nts")
-RUNS = RUNS_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
-MACHINES = MACHINES_PATH.format(testsuite="nts")
+SERIES = SERIES_PATH.format(project="nts", suite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
+MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
 
 # What every request below sends, unless it says otherwise.
 PARAMS = {"metric": "execution_time", "machine": "linux"}
@@ -448,7 +447,8 @@ class TestSeriesErrors:
 
     def test_an_unknown_suite_is_404(self, api_client: TestClient) -> None:
         response = api_client.get(
-            SERIES_PATH.format(testsuite="nope"), params={"metric": "m", "machine": "linux"}
+            SERIES_PATH.format(project="nope", suite="nope"),
+            params={"metric": "m", "machine": "linux"},
         )
 
         assert response.status_code == 404
@@ -594,7 +594,7 @@ class TestSeriesStreaming:
         next(body)
         next(body)
 
-        schema = f"{SUITES_PATH}/nts/schema"
+        schema = f"{suite_path('nts')}/schema"
         removed = api_client.patch(
             f"{schema}?confirm=true",
             json={"metrics": {"remove": ["execution_time"]}},

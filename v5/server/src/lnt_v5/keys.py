@@ -1,7 +1,7 @@
 """API keys: the tokens that authenticate a caller, and how one is created (I5, D5).
 
-This is the access layer of the `api_key` table, and of the `api_key_restriction` rows that list a
-restricted key's suites, shared by the CLI (which mints the first key
+This is the access layer of the `api_key` table, and of the `api_key_restriction` rows that list
+what a restricted key is restricted to, shared by the CLI (which mints the first key
 out of band), the admin endpoints, and the authentication path. I5's HTTP semantics -- which
 failure is a 400 and which a 401 -- live in `auth.py` instead.
 """
@@ -16,19 +16,21 @@ from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from datetime import datetime
 from time import monotonic
-from typing import Any
+from typing import Any, NamedTuple
 
-from sqlalchemy import Connection, Engine, Row, func, insert, select, update
+from sqlalchemy import Connection, Engine, Row, func, insert, select, tuple_, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.sql.elements import ColumnElement
 
 from .db import unique_violation_constraint
 from .scopes import UNRESTRICTABLE_SCOPES, Scope
+from .suites.store import full_name
 from .tables import (
     KEY_NAME_MAX_LENGTH,
     TOKEN_PREFIX_LENGTH,
     api_key,
     api_key_restriction,
+    project,
     schema,
 )
 
@@ -57,6 +59,17 @@ PREFIX_CONSTRAINT = "uq_api_key_prefix"
 LAST_USED_INTERVAL = 60.0
 
 
+class Entry(NamedTuple):
+    """An entry of a restricted key's list (I5), under the current names of what it lists: a single
+    suite, or a whole project when `suite` is None."""
+
+    project: str
+    suite: str | None
+
+    def __str__(self) -> str:
+        return self.project if self.suite is None else full_name(self.project, self.suite)
+
+
 @dataclass(frozen=True)
 class ApiKeyInfo:
     """Everything about a key that may be shown (D5). The token and its hash are not here."""
@@ -64,22 +77,34 @@ class ApiKeyInfo:
     prefix: str
     name: str
     scope: Scope
-    # None for a key valid across the instance, or the current names of the suites it is restricted
-    # to, sorted (I5). Empty once every one of them has been deleted.
-    suites: tuple[str, ...] | None
+    # None for a key valid across the instance, or the entries it is restricted to, ordered as E11
+    # lists them (I5). Empty once everything they listed has been deleted.
+    restricted_to: tuple[Entry, ...] | None
     created_at: datetime
     last_used_at: datetime | None
     is_active: bool
 
-    def grants(self, required: Scope, suite: str | None) -> bool:
-        """Whether this key satisfies an endpoint requiring `required`, on a request addressing
-        `suite` (None for one that addresses no suite).
-
-        I5: a restricted key has its scope only on a request addressing one of its suites, and
-        only `read` -- what anonymous access gets -- on any other. A key whose suites were all
-        deleted therefore grants only `read`, anywhere.
+    def covers(self, project: str | None, suite: str | None) -> bool:
+        """Whether this key covers what a request addresses (I5): the suite `suite` of the project
+        `project`, the project `project` in full when `suite` is None, or, with neither, the
+        instance, which only an instance-wide key covers.
         """
-        if self.suites is None or suite in self.suites:
+        if self.restricted_to is None:
+            return True
+        return project is not None and any(
+            entry.project == project and entry.suite in (None, suite)
+            for entry in self.restricted_to
+        )
+
+    def grants(self, required: Scope, project: str | None, suite: str | None) -> bool:
+        """Whether this key satisfies an endpoint requiring `required`, on a request addressing
+        what `covers` takes `project` and `suite` for.
+
+        I5: a restricted key has its scope only on a request addressing what it covers, and only
+        `read` -- what anonymous access gets -- on any other. A key whose entries were all deleted
+        therefore grants only `read`, anywhere.
+        """
+        if self.covers(project, suite):
             return self.scope.grants(required)
         return Scope.READ.grants(required)
 
@@ -102,29 +127,37 @@ class ResolvedKey(ApiKeyInfo):
     id: int
 
 
-def _suite_names() -> ColumnElement[Any]:
-    """The current names of the suites a key's restriction rows list, sorted, as an array.
+def _entries() -> ColumnElement[Any]:
+    """The entries a key's restriction rows list, under the current names of what they list, as an
+    array of full names (D7), ordered as E11 lists them.
 
-    Correlated with the `api_key` row being read, so that a key is read together with its suites
-    in one statement (I5 looks the key up on every request). The names come from `schema` rather
-    than being stored with the key, so that a restriction follows its suite (I5). Sorted by code
-    point, rather than by the database's collation, which may ignore `-` and `_`.
+    Correlated with the `api_key` row being read, so that a key is read together with its entries
+    in one statement (I5 looks the key up on every request). The names come from `schema` and
+    `project` rather than being stored with the key, so that an entry follows what it lists (I5).
+    Sorted by code point, rather than by the database's collation, which may ignore `-` and `_`.
+    Neither name can contain the `/` between them (D4, D7), so each splits back exactly.
     """
     return func.array(
-        select(schema.c.name)
-        .select_from(api_key_restriction.join(schema))
+        select(project.c.name + "/" + schema.c.name)
+        .select_from(api_key_restriction.join(schema).join(project))
         .where(api_key_restriction.c.api_key_id == api_key.c.id)
-        .order_by(schema.c.name.collate("C"))
+        .order_by(project.c.name.collate("C"), schema.c.name.collate("C"))
         .scalar_subquery()
-    ).label("suites")
+    ).label("restricted_to")
+
+
+def _entry(text: str) -> Entry:
+    """The entry whose full name is `text` (see `_entries`)."""
+    project_name, _, suite = text.partition("/")
+    return Entry(project_name, suite or None)
 
 
 # The columns an `ApiKeyInfo` is read from, named as its fields are, and how to read one back out of
 # a row selecting them.
 _SHOWN_COLUMNS = (
-    *(api_key.c[field.name] for field in fields(ApiKeyInfo) if field.name != "suites"),
+    *(api_key.c[field.name] for field in fields(ApiKeyInfo) if field.name != "restricted_to"),
     api_key.c.restricted,
-    _suite_names(),
+    _entries(),
 )
 
 
@@ -132,17 +165,14 @@ def _shown(row: Row[Any]) -> dict[str, Any]:
     values = {field.name: row._mapping[field.name] for field in fields(ApiKeyInfo)}
     return values | {
         "scope": Scope(values["scope"]),
-        "suites": tuple(values["suites"]) if row.restricted else None,
+        "restricted_to": (
+            tuple(_entry(text) for text in values["restricted_to"]) if row.restricted else None
+        ),
     }
 
 
-class UnknownSuitesError(ValueError):
-    """A key was to be restricted to suites that do not exist (a 404, per E11)."""
-
-    def __init__(self, names: Sequence[str]) -> None:
-        self.names = tuple(names)
-        listed = ", ".join(f"'{name}'" for name in self.names)
-        super().__init__(f"No test suite is named {listed}.")
+class UnknownEntriesError(ValueError):
+    """A key was to be restricted to projects or suites that do not exist (a 404, per E11)."""
 
 
 def generate_token() -> str:
@@ -160,14 +190,14 @@ def hash_token(token: str) -> str:
 
 
 def create_key(
-    connection: Connection, name: str, scope: Scope, suites: Sequence[str] | None = None
+    connection: Connection, name: str, scope: Scope, restricted_to: Sequence[Entry] | None = None
 ) -> CreatedKey:
     """Mint a key and store it, returning the raw token to show the operator once.
 
-    `suites` restricts the key to those suites, or None makes it valid across the instance (I5).
-    E11's rules for a key are checked here, so that the API and the CLI share them: a `ValueError`
-    for a key that can never be valid, or its subclass `UnknownSuitesError` for suites that do not
-    exist (yet).
+    `restricted_to` restricts the key to those entries, or None makes it valid across the instance
+    (I5). E11's rules for a key are checked here, so that the API and the CLI share them: a
+    `ValueError` for a key that can never be valid, or its subclass `UnknownEntriesError` for
+    projects or suites that do not exist (yet).
 
     The caller owns the transaction, and the suites the key lists stay locked against deletion until
     it ends (see `_checked_suites`). The key's row is inserted inside a savepoint, so that a prefix
@@ -178,7 +208,7 @@ def create_key(
         raise ValueError("An API key's name must not be empty.")
     if len(name) > KEY_NAME_MAX_LENGTH:
         raise ValueError(f"An API key's name must be at most {KEY_NAME_MAX_LENGTH} characters.")
-    suite_ids = None if suites is None else _checked_suites(connection, scope, suites)
+    suite_ids = None if restricted_to is None else _checked_suites(connection, scope, restricted_to)
 
     for _ in range(_MAX_ATTEMPTS):
         token = generate_token()
@@ -215,7 +245,7 @@ def create_key(
     )
 
 
-def _checked_suites(connection: Connection, scope: Scope, suites: Sequence[str]) -> list[int]:
+def _checked_suites(connection: Connection, scope: Scope, entries: Sequence[Entry]) -> list[int]:
     """The ids of the suites a key is to be restricted to, once E11's rules are checked.
 
     The suites' rows are locked against deletion until the caller's transaction ends, so that a
@@ -224,21 +254,38 @@ def _checked_suites(connection: Connection, scope: Scope, suites: Sequence[str])
     this read and the insert of the key's rows would fail that insert on its foreign key instead.
     """
     if scope in UNRESTRICTABLE_SCOPES:
+        raise ValueError(f"A key with the '{scope.value}' scope cannot be restricted.")
+    if not entries:
+        raise ValueError("A restricted key must list at least one entry.")
+    if len(set(entries)) != len(entries):
+        raise ValueError("A restricted key must not list an entry more than once.")
+    if whole := [str(entry) for entry in entries if entry.suite is None]:
         raise ValueError(
-            f"A key with the '{scope.value}' scope cannot be restricted to test suites."
+            "A key can only be restricted to single test suites, so every entry names a suite: "
+            + ", ".join(whole)
         )
-    if not suites:
-        raise ValueError("A key restricted to test suites must name at least one.")
-    if len(set(suites)) != len(suites):
-        raise ValueError("A key's test suites must not name a suite more than once.")
     rows = connection.execute(
-        select(schema.c.name, schema.c.id)
-        .where(schema.c.name.in_(suites))
-        .with_for_update(key_share=True)
+        select(project.c.name.label("project"), schema.c.name, schema.c.id)
+        .select_from(schema.join(project))
+        .where(tuple_(project.c.name, schema.c.name).in_([tuple(entry) for entry in entries]))
+        .with_for_update(of=schema, read=True, key_share=True)
     )
-    existing = {row.name: row.id for row in rows}
-    if missing := [name for name in suites if name not in existing]:
-        raise UnknownSuitesError(missing)
+    existing = {Entry(row.project, row.name): row.id for row in rows}
+    if missing := [entry for entry in entries if entry not in existing]:
+        projects = set(
+            connection.execute(
+                select(project.c.name).where(
+                    project.c.name.in_({entry.project for entry in missing})
+                )
+            ).scalars()
+        )
+        problems = [
+            f"Project '{entry.project}' has no test suite named '{entry.suite}'."
+            if entry.project in projects
+            else f"No project is named '{entry.project}'."
+            for entry in missing
+        ]
+        raise UnknownEntriesError(" ".join(dict.fromkeys(problems)))
     return list(existing.values())
 
 

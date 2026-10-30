@@ -63,6 +63,7 @@ from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import MachineField
 from lnt_v5.suites.scope import (
     SUITE_SCHEMA_CHANGED,
+    ProjectName,
     SuiteName,
     suite_responses,
     suite_scope,
@@ -70,7 +71,7 @@ from lnt_v5.suites.scope import (
 from lnt_v5.suites.submission import SubmittedMachine
 from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT
 
-MACHINES_PATH = f"{SUITES_PATH}/{{testsuite}}/machines"
+MACHINES_PATH = f"{SUITES_PATH}/{{suite}}/machines"
 
 router = APIRouter(prefix=MACHINES_PATH, tags=["Machines"])
 
@@ -234,10 +235,10 @@ class Machines:
 
     def missing(self, name: str) -> ApiError:
         """The 404 for a machine that is not there, worded in one place for all three callers."""
-        return _missing(self.schema.name, name)
+        return _missing(self.suite.full_name, name)
 
     def taken(self, name: str) -> str:
-        return f"A machine named '{name}' already exists in test suite '{self.schema.name}'"
+        return f"A machine named '{name}' already exists in test suite '{self.suite.full_name}'"
 
     def get_or_create(self, connection: Connection, submitted: SubmittedMachine) -> int:
         """The id of the machine a run submission names, creating it if it is not there (O2, O8).
@@ -279,7 +280,7 @@ class Machines:
         def error(key: str, stored: Any, submitted: Any) -> ApiError:
             return ApiError(
                 ErrorCode.CONFLICT,
-                f"Machine '{name}' in test suite '{self.schema.name}' already has "
+                f"Machine '{name}' in test suite '{self.suite.full_name}' already has "
                 f"{key}={stored!r}, but this submission says {submitted!r}. A submission never "
                 f"overwrites stored metadata; use PATCH to change it.",
             )
@@ -287,9 +288,9 @@ class Machines:
         return error
 
 
-def _missing(testsuite: str, name: str) -> ApiError:
+def _missing(suite: str, name: str) -> ApiError:
     """The 404 for a machine no suite holds, shared by the routes and by the `machine=` filter."""
-    return ApiError(ErrorCode.NOT_FOUND, f"No machine named '{name}' in test suite '{testsuite}'")
+    return ApiError(ErrorCode.NOT_FOUND, f"No machine named '{name}' in test suite '{suite}'")
 
 
 def machine_search(suite: Suite, term: str) -> ColumnElement[bool]:
@@ -312,7 +313,7 @@ def machine_id(connection: Connection, suite: Suite, name: str) -> int:
     """
     machine = suite.tables.machine
     return identifier(
-        connection, machine.c.name, name, lambda missed: _missing(suite.schema.name, missed)
+        connection, machine.c.name, name, lambda missed: _missing(suite.full_name, missed)
     )
 
 
@@ -325,7 +326,7 @@ def machine_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> d
     """
     machine = suite.tables.machine
     return identifiers(
-        connection, machine.c.name, names, lambda missed: _missing(suite.schema.name, missed)
+        connection, machine.c.name, names, lambda missed: _missing(suite.full_name, missed)
     )
 
 
@@ -336,6 +337,7 @@ def machine_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> d
     responses=suite_responses(),
 )
 def list_machines(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -366,8 +368,11 @@ def list_machines(
     ] = "name",
 ) -> Items[Machine]:
     """Every machine in the suite that matches the filters. To list a machine's runs, use
-    `GET /api/suites/{testsuite}/runs?machine={name}`."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    `GET /api/projects/{project}/suites/{suite}/runs?machine={name}`."""
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         machines = Machines(suite)
         conditions: list[ColumnElement[bool]] = []
         if search is not None:
@@ -388,6 +393,7 @@ def list_machines(
     responses=suite_responses(conflict=_NAME_TAKEN),
 )
 def create_machine(
+    project: ProjectName,
     testsuite: SuiteName,
     body: Annotated[MachineObject, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
@@ -400,7 +406,10 @@ def create_machine(
     You don't need to do this before submitting runs: submitting a run creates its machine if it
     doesn't exist yet.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         machines = Machines(suite)
         values = validate_fields(suite.schema, MachineField, body.fields)
         with reporting_violation(
@@ -416,7 +425,7 @@ def create_machine(
             )
         created = machines.one(connection, body.name)
 
-    response.headers["Location"] = location_of(MACHINES_PATH, testsuite, body.name)
+    response.headers["Location"] = location_of(MACHINES_PATH, project, testsuite, body.name)
     return created
 
 
@@ -427,10 +436,17 @@ def create_machine(
     responses=suite_responses(not_found=NO_MACHINE),
 )
 def get_machine(
-    testsuite: SuiteName, machine_name: MachineKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    machine_name: MachineKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> Machine:
     """Get a machine."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         return Machines(suite).one(connection, machine_name)
 
 
@@ -441,6 +457,7 @@ def get_machine(
     responses=suite_responses(not_found=NO_MACHINE, conflict=_NAME_TAKEN),
 )
 def update_machine(
+    project: ProjectName,
     testsuite: SuiteName,
     machine_name: MachineKey,
     body: Annotated[MachineUpdate, Body(openapi_examples=_UPDATE_EXAMPLES)],
@@ -454,7 +471,10 @@ def update_machine(
     still send the old value are rejected with a 409 `conflict` until they are updated. If you
     rename a machine, later run submissions that still use the old name create a new machine.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         machines = Machines(suite)
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
@@ -491,7 +511,11 @@ def update_machine(
     responses=suite_responses(not_found=NO_MACHINE),
 )
 def delete_machine(
-    testsuite: SuiteName, machine_name: MachineKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    machine_name: MachineKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> None:
     """Delete a machine, along with its runs (and their samples and profiles) and the regression
     indicators that refer to it. Regressions left without indicators are kept."""
@@ -499,7 +523,10 @@ def delete_machine(
     # an `ON DELETE CASCADE`, and the runs take their samples and profiles with them in turn. A
     # regression left with no indicators keeps its title, bug, notes and commit, and an empty
     # indicator set is a legal state.
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         machines = Machines(suite)
         removed = connection.execute(
             delete(machines.table).where(machines.table.c.name == machine_name)

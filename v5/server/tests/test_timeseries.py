@@ -9,16 +9,15 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import code_of, entry, run_payload
+from conftest import code_of, entry, run_payload, suite_path
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.timeseries import TRENDS_PATH
 from lnt_v5.suites.tables import SuiteTables
 
-TRENDS = TRENDS_PATH.format(testsuite="nts")
-RUNS = RUNS_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
+TRENDS = TRENDS_PATH.format(project="nts", suite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
 
 # A `real` and an `integer` are numeric (D3), so a trend may be taken of either, and a `text` is
 # not.
@@ -333,7 +332,7 @@ class TestTrendsFilters:
         submit("retired", "abc", entry("t", {"execution_time": 1.0}))
         place("abc", ordinal=1)
         patched = api_client.patch(
-            f"{SUITES_PATH}/nts/machines/retired", json={"tracked": False}, headers=manage
+            f"{suite_path('nts')}/machines/retired", json={"tracked": False}, headers=manage
         )
         assert patched.status_code == 200, patched.text
 

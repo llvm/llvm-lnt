@@ -79,7 +79,7 @@ class TestList:
             "prefix",
             "name",
             "scope",
-            "suites",
+            "restricted_to",
             "created_at",
             "last_used_at",
             "is_active",
@@ -183,45 +183,54 @@ class TestCreate:
         assert response.json()["name"] == name
 
 
+NTS = {"project": "llvm", "suite": "nts"}
+BENCHMARKS = {"project": "libcxx", "suite": "benchmarks"}
+
+
 class TestCreateRestricted:
     """A key restricted to some suites (E11, I5)."""
 
     @pytest.fixture(autouse=True)
-    def suites(self, make_api_suite: Callable[[dict[str, Any]], Any]) -> None:
-        for name in ("nts", "libcxx"):
-            make_api_suite({"name": name})
+    def suites(self, make_api_suite: Callable[..., Any]) -> None:
+        make_api_suite({"name": "nts"}, "llvm")
+        make_api_suite({"name": "benchmarks"}, "libcxx")
+        # The same name in another project, which is another suite (D7).
+        make_api_suite({"name": "nts"}, "other")
 
-    def test_lists_its_suites_sorted(self, api_client: TestClient, admin: dict[str, str]) -> None:
-        body = {"name": "bot", "scope": "submit", "suites": ["nts", "libcxx"]}
+    def test_lists_its_entries_in_order(
+        self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        body = {"name": "bot", "scope": "submit", "restricted_to": [NTS, BENCHMARKS]}
 
         created = api_client.post(KEYS, headers=admin, json=body)
 
         assert created.status_code == 201
-        assert created.json()["suites"] == ["libcxx", "nts"]
+        assert created.json()["restricted_to"] == [BENCHMARKS, NTS]
         (listed,) = [
             key
             for key in api_client.get(KEYS, headers=admin).json()["items"]
             if key["prefix"] == created.json()["prefix"]
         ]
-        assert listed["suites"] == ["libcxx", "nts"]
+        assert listed["restricted_to"] == [BENCHMARKS, NTS]
 
-    def test_can_name_a_suite_of_the_longest_name(
+    def test_can_name_a_suite_and_a_project_of_the_longest_names(
         self,
         api_client: TestClient,
         admin: dict[str, str],
-        make_api_suite: Callable[[dict[str, Any]], Any],
+        make_api_suite: Callable[..., Any],
     ) -> None:
         name = "a-" * (SUITE_NAME_MAX_LENGTH // 2)
-        make_api_suite({"name": name})
-        body = {"name": "bot", "scope": "submit", "suites": [name]}
+        make_api_suite({"name": name}, name)
+        entry = {"project": name, "suite": name}
+        body = {"name": "bot", "scope": "submit", "restricted_to": [entry]}
 
         created = api_client.post(KEYS, headers=admin, json=body)
 
         assert created.status_code == 201, created.text
-        assert created.json()["suites"] == [name]
+        assert created.json()["restricted_to"] == [entry]
 
-    @pytest.mark.parametrize("body", [{}, {"suites": None}])
-    def test_is_not_restricted_without_suites(
+    @pytest.mark.parametrize("body", [{}, {"restricted_to": None}])
+    def test_is_not_restricted_without_entries(
         self, api_client: TestClient, admin: dict[str, str], body: dict[str, Any]
     ) -> None:
         response = api_client.post(
@@ -229,45 +238,67 @@ class TestCreateRestricted:
         )
 
         assert response.status_code == 201
-        assert response.json()["suites"] is None
+        assert response.json()["restricted_to"] is None
 
     @pytest.mark.parametrize(
-        ("scope", "suites", "why"),
+        ("scope", "entries", "why"),
         [
             ("submit", [], "an empty list, which would grant nothing anywhere"),
-            ("read", ["nts"], "a read key, which a restriction would leave as anonymous"),
-            ("admin", ["nts"], "an admin key, whose endpoints address no suite"),
-            ("submit", ["nts", "nts"], "a suite named twice"),
-            ("submit", [None], "a null name"),
-            ("submit", [1], "a name that is not a string"),
-            ("submit", "nts", "a string rather than a list"),
-            ("submit", ["x" * (SUITE_NAME_MAX_LENGTH + 1)], "a name longer than any suite's"),
-            ("submit", ["NTS"], "a name D4 does not accept for a suite"),
-            ("submit", ["a\x00b"], "a name PostgreSQL cannot store (D5)"),
+            ("read", [NTS], "a read key, which a restriction would leave as anonymous"),
+            ("admin", [NTS], "an admin key, whose endpoints address no suite"),
+            ("submit", [NTS, NTS], "an entry listed twice"),
+            ("submit", [{"suite": "nts"}], "an entry without a project"),
+            ("submit", [{**NTS, "machine": "m"}], "a key other than project and suite"),
+            ("submit", [{"project": "llvm", "suite": None}], "a null suite"),
+            ("submit", [{"project": None, "suite": "nts"}], "a null project"),
+            ("submit", [{"project": "llvm", "suite": 1}], "a name that is not a string"),
+            ("submit", ["llvm/nts"], "a full name rather than an entry"),
+            ("submit", NTS, "an entry rather than a list"),
+            ("submit", [{**NTS, "suite": "x" * (SUITE_NAME_MAX_LENGTH + 1)}], "a name too long"),
+            ("submit", [{**NTS, "project": "LLVM"}], "a name D7 does not accept for a project"),
+            ("submit", [{**NTS, "suite": "a\x00b"}], "a name PostgreSQL cannot store (D5)"),
         ],
     )
     def test_rejects_a_bad_restriction(
-        self, api_client: TestClient, admin: dict[str, str], scope: str, suites: Any, why: str
+        self, api_client: TestClient, admin: dict[str, str], scope: str, entries: Any, why: str
     ) -> None:
-        body = {"name": "bot", "scope": scope, "suites": suites}
+        body = {"name": "bot", "scope": scope, "restricted_to": entries}
 
         response = api_client.post(KEYS, headers=admin, json=body)
 
         assert response.status_code == 400, why
         assert code_of(response) == "invalid_request"
 
-    def test_refuses_a_suite_that_does_not_exist(
+    def test_refuses_a_whole_project_for_now(
         self, api_client: TestClient, admin: dict[str, str]
+    ) -> None:
+        body = {"name": "bot", "scope": "submit", "restricted_to": [{"project": "llvm"}]}
+
+        response = api_client.post(KEYS, headers=admin, json=body)
+
+        assert code_of(response) == "invalid_request"
+        assert "single test suites" in response.json()["error"]["message"]
+
+    @pytest.mark.parametrize(
+        ("entry", "says"),
+        [
+            ({"project": "llvm", "suite": "ntss"}, "Project 'llvm' has no test suite named 'ntss'"),
+            ({"project": "libcxx", "suite": "nts"}, "Project 'libcxx' has no test suite named"),
+            ({"project": "swift", "suite": "nts"}, "No project is named 'swift'"),
+        ],
+    )
+    def test_refuses_what_does_not_exist(
+        self, api_client: TestClient, admin: dict[str, str], entry: dict[str, str], says: str
     ) -> None:
         # I3: a body naming an entity that does not exist is a 404 -- which also catches a typo
         # that would otherwise mint a key granting nothing.
-        body = {"name": "bot", "scope": "submit", "suites": ["nts", "libcx"]}
+        body = {"name": "bot", "scope": "submit", "restricted_to": [NTS, entry]}
 
         response = api_client.post(KEYS, headers=admin, json=body)
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
-        assert "'libcx'" in response.json()["error"]["message"]
+        assert says in response.json()["error"]["message"]
         listed = api_client.get(KEYS, headers=admin).json()["items"]
         assert "bot" not in [key["name"] for key in listed]
 

@@ -12,11 +12,13 @@ so an endpoint that resolves what it addresses *in its body* gets that order for
 that instead resolves through a dependency of its own must make that dependency depend on this
 one, or it will resolve first and answer 404 where I5 requires 403.
 
-A key restricted to some suites is checked against the suite the request addresses, which is read
-off the route's path (see `suite_parameter`). That is only sound because of an invariant no test can
-check: a request that addresses a suite writes only to that suite, never to another (I5). An
-endpoint that reached into another suite would let a restricted key write where it has only
-`read`.
+A restricted key is checked against what the request addresses, which is read off the route's path:
+a suite, for every route under `/api/projects/{project}/suites/{suite}` (see `suite_parameters`), or
+a project, for a route that declares so (see `Coverage`). Any other request needs an instance-wide
+key, so a route that declares nothing fails closed. That is only sound because of an invariant no
+test can check: a request that addresses a suite writes only to that suite, and one that addresses
+a project only to that project (I5). An endpoint that reached elsewhere would let a restricted key
+write where it has only `read`.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterator, Sequence
+from enum import Enum
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
@@ -39,6 +42,7 @@ from .errors import ApiError, ErrorCode
 from .keys import LastUseRecorder, ResolvedKey
 from .querying import reject_unknown_query_parameters
 from .scopes import Scope
+from .suites.store import full_name
 
 logger = logging.getLogger(__name__)
 
@@ -48,32 +52,60 @@ UNAUTHENTICATED_HEADERS = {"WWW-Authenticate": "Bearer"}
 # What I8's document calls the scheme, and so what every operation's security requirement names.
 SECURITY_SCHEME = "ApiKey"
 
-# A path template whose first segment below the suite collection is a parameter: `{testsuite}` on
-# every suite-scoped route, and `{name}` on E10's routes for one suite.
-_SUITE_PATH = re.compile(r"\A/api/suites/\{(\w+)\}(/|\Z)")
+# A path template whose first segments below the project collection and below its suite collection
+# are parameters: every suite-scoped route, and E10's routes for one suite.
+_SUITE_PATH = re.compile(r"\A/api/projects/\{(\w+)\}/suites/\{(\w+)\}(/|\Z)")
+
+# A path template whose first segment below the project collection is a parameter.
+_PROJECT_PATH = re.compile(r"\A/api/projects/\{(\w+)\}(/|\Z)")
 
 
-def suite_parameter(path_format: str) -> str | None:
-    """The path parameter naming the suite a route addresses (I5), or None if it addresses none.
+def suite_parameters(path_format: str) -> tuple[str, str] | None:
+    """The path parameters naming the project and the suite a route addresses (I5), or None if it
+    addresses no suite.
 
-    Rests on I1's layout: everything below `/api/suites/` starts with a suite name, so no route has
-    a literal segment directly under it. A route that did (`/api/suites/import`, say) would not be
-    seen as addressing a suite, and a restricted key would get only `read` on it.
+    Rests on I1's layout: everything below `/api/projects/` starts with a project name, and
+    everything below its `suites/` with a suite name, so no route has a literal segment directly
+    under either. A route that did (`/api/projects/{project}/suites/import`, say) would not be seen
+    as addressing a suite, and a restricted key would get only `read` on it.
     """
     match = _SUITE_PATH.match(path_format)
+    return (match.group(1), match.group(2)) if match else None
+
+
+def project_parameter(path_format: str) -> str | None:
+    """The path parameter naming the project a route is under, or None if it is under none."""
+    match = _PROJECT_PATH.match(path_format)
     return match.group(1) if match else None
 
 
-def _addressed_suite(request: Request) -> str | None:
-    """The suite a request addresses, read off the route it matched.
+class Coverage(Enum):
+    """What a restricted key must cover to be granted its scope on a route (I5), when the route
+    addresses no suite: the project its path names, in full, or (by default) the whole instance,
+    which only an instance-wide key covers. A route that addresses a suite needs the suite covered,
+    whatever it declares."""
+
+    INSTANCE = "instance"
+    PROJECT = "project"
+
+
+def _addressed(request: Request, coverage: Coverage) -> tuple[str | None, str | None]:
+    """The project and the suite a request addresses, read off the route it matched: both for a
+    suite, the project alone for a project, and neither for the instance (see `ApiKeyInfo.covers`).
 
     `path_format` is the route's whole path only because no router is included with a prefix of
     its own (see `create_app`). The test that drives every scoped operation with a restricted key
     is what notices if that changes.
     """
     route = request.scope.get("route")
-    parameter = suite_parameter(getattr(route, "path_format", ""))
-    return None if parameter is None else request.path_params[parameter]
+    path_format = getattr(route, "path_format", "")
+    if (parameters := suite_parameters(path_format)) is not None:
+        project, suite = parameters
+        return request.path_params[project], request.path_params[suite]
+    parameter = project_parameter(path_format)
+    if coverage is Coverage.PROJECT and parameter is not None:
+        return request.path_params[parameter], None
+    return None, None
 
 
 class BearerToken(SecurityBase):
@@ -135,8 +167,9 @@ class RequireScope:
     needs to know who is calling can depend on this directly rather than resolve the token twice.
     """
 
-    def __init__(self, scope: Scope) -> None:
+    def __init__(self, scope: Scope, coverage: Coverage = Coverage.INSTANCE) -> None:
         self.scope = scope
+        self.coverage = coverage
 
     # Declared before the token, since dependencies are solved in order: I5 lets I3's refusal of a
     # query parameter come before authentication, and the header may itself be a 401.
@@ -184,48 +217,58 @@ class RequireScope:
         # a key turned away by authorization was still presented and still resolved.
         last_use.record(engine, key.id)
 
-        # Only a restricted key depends on the suite.
-        suite = None if key.suites is None else _addressed_suite(request)
-        if not key.grants(self.scope, suite):
-            raise ApiError(ErrorCode.FORBIDDEN, self._refusal(key, suite))
+        # Only a restricted key depends on what the request addresses.
+        project, suite = (
+            (None, None) if key.restricted_to is None else _addressed(request, self.coverage)
+        )
+        if not key.grants(self.scope, project, suite):
+            raise ApiError(ErrorCode.FORBIDDEN, self._refusal(key, project, suite))
 
         return key
 
-    def _refusal(self, key: ResolvedKey, suite: str | None) -> str:
-        """Why `key` is refused, on a request addressing `suite`."""
+    def _refusal(self, key: ResolvedKey, project: str | None, suite: str | None) -> str:
+        """Why `key` is refused, on a request addressing `project` and `suite` (`_addressed`)."""
         required = self.scope.value
         if not key.scope.grants(self.scope):
             return (
                 f"This endpoint requires the '{required}' scope, and this API key grants "
                 f"'{key.scope.value}'."
             )
-        # Refused although its scope suffices, so the key is restricted to suites other than this
-        # request's.
-        assert key.suites is not None
-        if not key.suites:
-            # I5: deleting the suites a key is restricted to leaves it restricted, to nothing.
+        # Refused although its scope suffices, so the key is restricted to something other than
+        # what this request addresses.
+        assert key.restricted_to is not None
+        if not key.restricted_to:
+            # I5: deleting what a key is restricted to leaves it restricted, to nothing.
             return (
                 f"This endpoint requires the '{required}' scope, and this API key is restricted "
-                "to test suites that have all been deleted, so it can only read."
+                "to projects and test suites that have all been deleted, so it can only read."
+            )
+        covered = ", ".join(str(entry) for entry in key.restricted_to)
+        if project is None:
+            return (
+                f"This endpoint requires the '{required}' scope from an instance-wide API key, and "
+                f"this one is restricted to: {covered}."
             )
         if suite is None:
             return (
-                f"This endpoint requires the '{required}' scope from an unrestricted API key, and "
-                f"this one is restricted to test suites: {', '.join(key.suites)}."
+                f"This endpoint requires the '{required}' scope covering project '{project}' in "
+                f"full, and this API key is restricted to: {covered}."
             )
         return (
-            f"This endpoint requires the '{required}' scope in test suite '{suite}', and this API "
-            f"key grants it only in: {', '.join(key.suites)}."
+            f"This endpoint requires the '{required}' scope in test suite "
+            f"'{full_name(project, suite)}', and "
+            f"this API key grants it only in: {covered}."
         )
 
 
-def require_scope(scope: Scope) -> Any:
-    """Declare the scope an endpoint requires, for its `dependencies=[...]`.
+def require_scope(scope: Scope, coverage: Coverage = Coverage.INSTANCE) -> Any:
+    """Declare the scope an endpoint requires, for its `dependencies=[...]`, and what a restricted
+    key must cover to be granted it there, unless the endpoint addresses a suite (see `Coverage`).
 
     Returns `Any` because that is how FastAPI types `Depends` -- it has to be assignable to a
     parameter of any annotated type.
     """
-    return Depends(RequireScope(scope))
+    return Depends(RequireScope(scope, coverage))
 
 
 def iter_routes(routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:
@@ -240,7 +283,13 @@ def iter_routes(routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:
 
 
 def required_scope(route: RouteContext) -> Scope | None:
-    """The scope a route requires, or None if it declares none (or is not an endpoint).
+    """The scope a route requires, or None if it declares none (or is not an endpoint)."""
+    requirement = route_requirement(route)
+    return None if requirement is None else requirement.scope
+
+
+def route_requirement(route: RouteContext) -> RequireScope | None:
+    """What a route requires, or None if it declares nothing (or is not an endpoint).
 
     Walks the whole dependency tree rather than only its top level, so that a scope declared
     through a dependency of a dependency is still found -- a guard that reports "unprotected"
@@ -255,6 +304,6 @@ def required_scope(route: RouteContext) -> Scope | None:
         dependency = pending.pop()
         call = dependency.call
         if isinstance(call, RequireScope):
-            return call.scope
+            return call
         pending.extend(dependency.dependencies)
     return None

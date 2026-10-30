@@ -162,8 +162,8 @@ class TestApplicationWiring:
         [
             # Two routes serve this path; RFC 9110 has `Allow` name both, where Starlette's own 405
             # would name only whichever matched first. It names HEAD too, served wherever GET is.
-            ("put", "/api/suites", "GET, HEAD, POST"),
-            ("delete", "/api/suites/nts/runs", "GET, HEAD, POST"),
+            ("put", "/api/projects", "GET, HEAD, POST"),
+            ("delete", "/api/projects/nts/suites/nts/runs", "GET, HEAD, POST"),
         ],
     )
     def test_a_method_mismatch_on_the_api_is_405_naming_every_allowed_method(
@@ -212,7 +212,7 @@ class TestApplicationWiring:
 
     def test_head_on_a_path_without_get_is_a_method_mismatch(self, client: TestClient) -> None:
         # HEAD is served wherever GET is, and nowhere else.
-        response = client.head("/api/suites/nts/regressions/indicators/query")
+        response = client.head("/api/projects/nts/suites/nts/regressions/indicators/query")
 
         assert response.status_code == 405
         assert response.headers["allow"] == "POST"

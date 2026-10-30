@@ -63,7 +63,7 @@ def add(connection: Connection, suite: Suite, run_id: int, summaries: Sequence[S
         connection,
         suite.tables.metric.c.name,
         sorted(name for name, _ in summaries),
-        lambda _: schema_changed(suite.schema.name),
+        lambda _: schema_changed(suite),
     )
     connection.execute(
         suite.derived(_insert),

@@ -49,9 +49,9 @@ class TestWithoutTheDatabase:
         ("method", "path", "status"),
         [
             ("GET", "/api/nope", 404),
-            ("PUT", "/api/suites", 405),
+            ("PUT", "/api/projects", 405),
             ("GET", "/api/", 307),
-            ("GET", "/api/suites/x/commits/a%00b", 400),
+            ("GET", "/api/projects/x/suites/x/commits/a%00b", 400),
             ("GET", "/favicon.ico", 404),
             # AR2 "Caching": a missing asset may exist after the next deploy, so it is not cached
             # forever.
@@ -95,7 +95,7 @@ class TestWithoutTheDatabase:
         # there is no engine, so the first endpoint that needs one fails with an unhandled error.
         client = TestClient(app, raise_server_exceptions=False)
 
-        response = client.get("/api/suites", headers=headers)
+        response = client.get("/api/projects", headers=headers)
 
         assert response.status_code == 500
         assert_cache_headers(response, cache_control)

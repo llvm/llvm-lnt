@@ -1,6 +1,6 @@
 """O1's submission payload, and the pure validation that turns it into what a run write stores.
 
-Two things live here: the shape of the body `POST /api/suites/{testsuite}/runs` accepts, and the
+Two things live here: the shape of the body `POST .../runs` accepts, and the
 step that resolves it against a suite's schema. Neither touches a database. A submission is the one
 request whose meaning depends on the suite -- the keys of its samples are columns the schema
 declares -- so the work of reading it is worth doing once, in front of the write, rather than
@@ -123,8 +123,9 @@ class TestEntry(BaseModel):
         default=None,
         description=(
             "The test's profile: a profile document (the JSON returned by "
-            "`GET /api/suites/{testsuite}/profiles/{uuid}/document`), gzip-compressed and then "
-            f"base64-encoded. Limits: {MAX_COMPRESSED_SIZE // _MIB} MiB compressed, "
+            "`GET /api/projects/{project}/suites/{suite}/profiles/{uuid}/document`), "
+            "gzip-compressed and then base64-encoded. "
+            f"Limits: {MAX_COMPRESSED_SIZE // _MIB} MiB compressed, "
             f"{MAX_DOCUMENT_SIZE // _MIB} MiB uncompressed, {MAX_FUNCTIONS} functions, "
             f"{MAX_INSTRUCTIONS} instructions per function, and {MAX_FUNCTION_NAME_BYTES} bytes "
             "per function name (in UTF-8). Null is the same as leaving it out."

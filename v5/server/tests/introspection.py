@@ -27,7 +27,7 @@ from sqlalchemy import (
 from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
 
 from lnt_v5.suites.tables import SuiteTables
-from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
+from lnt_v5.tables import SCHEMA_VERSION_ID, project, schema, schema_version
 
 
 def composed_names(table: Table) -> set[str]:
@@ -110,14 +110,16 @@ def sql_type_of(engine: Engine, schema: str, table: str, column: str) -> str:
         ).upper()
 
 
-def namespace_of(engine: Engine, suite: str) -> str:
-    """The namespace the server recorded for a suite's tables (D5), which is not its name."""
+def namespace_of(engine: Engine, suite: str, project_name: str | None = None) -> str:
+    """The namespace the server recorded for the tables of the suite `suite` (D5), which is not its
+    name: the one of the project `project_name`, or the only suite of that name if not given."""
+    query = (
+        select(schema.c.namespace).select_from(schema.join(project)).where(schema.c.name == suite)
+    )
+    if project_name is not None:
+        query = query.where(project.c.name == project_name)
     with engine.connect() as connection:
-        return str(
-            connection.execute(
-                select(schema.c.namespace).where(schema.c.name == suite)
-            ).scalar_one()
-        )
+        return str(connection.execute(query).scalar_one())
 
 
 def columns_of(inspector: Inspector, namespace: str, table: str) -> dict[str, ReflectedColumn]:

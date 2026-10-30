@@ -70,6 +70,7 @@ from lnt_v5.suites.entities import DatetimeValue, UuidKey, identifier, location_
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import (
     SUITE_SCHEMA_CHANGED,
+    ProjectName,
     SuiteName,
     schema_changed,
     suite_responses,
@@ -78,7 +79,7 @@ from lnt_v5.suites.scope import (
 from lnt_v5.suites.submission import RunSubmission, SubmittedTest, validate_submission
 from lnt_v5.suites.tables import RUN_COMMIT_CONSTRAINT, RUN_MACHINE_CONSTRAINT, RUN_UUID_CONSTRAINT
 
-RUNS_PATH = f"{SUITES_PATH}/{{testsuite}}/runs"
+RUNS_PATH = f"{SUITES_PATH}/{{suite}}/runs"
 
 router = APIRouter(prefix=RUNS_PATH, tags=["Runs"])
 
@@ -310,7 +311,7 @@ class Runs:
 
     def missing(self, uuid: str) -> ApiError:
         """The 404 for a run that is not there, worded in one place for all its callers."""
-        return _missing(self.schema.name, uuid)
+        return _missing(self.suite.full_name, uuid)
 
     def create(
         self,
@@ -334,12 +335,12 @@ class Runs:
         default, so it equals `submitted_at` exactly. Both are read back through `select`
         afterwards.
         """
-        taken = f"A run '{uuid}' already exists in test suite '{self.schema.name}'"
+        taken = f"A run '{uuid}' already exists in test suite '{self.suite.full_name}'"
 
         def deleted(noun: str) -> str:
             return (
-                f"The {noun} of this run was deleted from test suite '{self.schema.name}' while "
-                "the run was being stored. Retry."
+                f"The {noun} of this run was deleted from test suite '{self.suite.full_name}' "
+                "while the run was being stored. Retry."
             )
 
         with (
@@ -462,9 +463,9 @@ def _function_insert(suite: Suite) -> Insert:
     )
 
 
-def _missing(testsuite: str, uuid: str) -> ApiError:
+def _missing(suite: str, uuid: str) -> ApiError:
     """The 404 for a run no suite holds, shared by the run routes and by its sub-resources."""
-    return ApiError(ErrorCode.NOT_FOUND, f"No run '{uuid}' in test suite '{testsuite}'")
+    return ApiError(ErrorCode.NOT_FOUND, f"No run '{uuid}' in test suite '{suite}'")
 
 
 def run_id(connection: Connection, suite: Suite, uuid: str) -> int:
@@ -476,7 +477,7 @@ def run_id(connection: Connection, suite: Suite, uuid: str) -> int:
     """
     run = suite.tables.run
     return identifier(
-        connection, run.c.uuid, uuid, lambda missed: _missing(suite.schema.name, missed)
+        connection, run.c.uuid, uuid, lambda missed: _missing(suite.full_name, missed)
     )
 
 
@@ -491,6 +492,7 @@ def run_id(connection: Connection, suite: Suite, uuid: str) -> int:
     responses=suite_responses(not_found=NO_MACHINE_FILTERED),
 )
 def list_runs(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -568,8 +570,11 @@ def list_runs(
     limit: Limit = DEFAULT_LIMIT,
 ) -> CursorPage[Run]:
     """The runs in the suite, one page at a time. To get a run's measurements, use
-    `GET /api/suites/{testsuite}/runs/{uuid}/samples`."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    `GET /api/projects/{project}/suites/{suite}/runs/{uuid}/samples`."""
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         runs = Runs(suite)
         conditions = [
             *exclusive_range(runs.table.c.submitted_at, submitted_after, submitted_before),
@@ -621,6 +626,7 @@ def list_runs(
     ),
 )
 def submit_run(
+    project: ProjectName,
     testsuite: SuiteName,
     body: Annotated[RunSubmission, Body(openapi_examples=_SUBMIT_EXAMPLES)],
     engine: EngineDep,
@@ -636,7 +642,10 @@ def submit_run(
     # carrying tens of thousands of samples and tens of megabytes of base64 profile it is real
     # work, and doing it inside `engine.begin()` would hold one of the pool's connections and an
     # `idle in transaction` backend -- which pins the xmin horizon against VACUUM -- for all of it.
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         validated_against = suite
     validated = validate_submission(validated_against.schema, body)
     # Pure too, and real work for a large submission, so likewise kept out of the transaction.
@@ -647,9 +656,12 @@ def submit_run(
     # *write* transaction resolved. The payload was typed against the first resolution, though, so
     # a schema someone changed in between is answered with D2's retryable 409 rather than written:
     # a removed metric would otherwise be dropped silently, and a removed field would be a 500.
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         if suite.schema_json != validated_against.schema_json:
-            raise schema_changed(testsuite)
+            raise schema_changed(suite)
         runs = Runs(suite)
 
         # The machine before the commit, and that order is load-bearing rather than incidental.
@@ -686,7 +698,7 @@ def submit_run(
         # and this is the same reader the detail endpoint uses, so the two cannot disagree.
         created = runs.one(connection, validated.uuid)
 
-    response.headers["Location"] = location_of(RUNS_PATH, testsuite, validated.uuid)
+    response.headers["Location"] = location_of(RUNS_PATH, project, testsuite, validated.uuid)
     return created
 
 
@@ -697,10 +709,17 @@ def submit_run(
     responses=suite_responses(not_found=NO_RUN),
 )
 def get_run(
-    testsuite: SuiteName, uuid: RunKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: RunKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> RunDetail:
     """Get a run."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         return Runs(suite).one(connection, uuid)
 
 
@@ -712,13 +731,20 @@ def get_run(
     responses=suite_responses(not_found=NO_RUN),
 )
 def delete_run(
-    testsuite: SuiteName, uuid: RunKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: RunKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> None:
     """Delete a run, along with its samples and profiles."""
     # One statement: D5 gives `{suite}.sample.run_id` and `{suite}.profile.run_id` an
     # `ON DELETE CASCADE`. The tests the samples named are deliberately left behind -- nothing
     # deletes a test (D5).
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         runs = Runs(suite)
         removed = connection.execute(delete(runs.table).where(runs.table.c.uuid == uuid))
         if removed.rowcount == 0:

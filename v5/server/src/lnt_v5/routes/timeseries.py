@@ -38,12 +38,12 @@ from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.entities import DeclaredValue, declared_entry
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import NUMERIC_TYPES, Metric
-from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
+from lnt_v5.suites.scope import ProjectName, SuiteName, suite_responses, suite_scope
 from lnt_v5.suites.tables import geomean_column
 
-TRENDS_PATH = f"{SUITES_PATH}/{{testsuite}}/trends"
+TRENDS_PATH = f"{SUITES_PATH}/{{suite}}/trends"
 
-router = APIRouter(prefix=f"{SUITES_PATH}/{{testsuite}}", tags=["Time Series"])
+router = APIRouter(prefix=f"{SUITES_PATH}/{{suite}}", tags=["Time Series"])
 
 # `GET /trends` is unpaginated, so an omitted window must still be bounded. 500 is the Dashboard's
 # default range.
@@ -249,7 +249,7 @@ def _numeric(suite: Suite, name: str) -> Metric:
         raise ApiError(
             ErrorCode.INVALID_REQUEST,
             f"Metric '{name}' is declared '{metric.type.value}' in test suite "
-            f"'{suite.schema.name}', and a geomean is defined only over the numeric types: "
+            f"'{suite.full_name}', and a geomean is defined only over the numeric types: "
             f"{', '.join(sorted(NUMERIC_TYPES))}",
         )
     return metric
@@ -264,6 +264,7 @@ def _numeric(suite: Suite, name: str) -> Metric:
     responses=suite_responses(not_found=_NO_TREND_ENTITY),
 )
 def query_trends(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -315,7 +316,10 @@ def query_trends(
 
     Machines and commits without any positive value are left out.
     """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         trends = Trends(suite, _numeric(suite, metric), sample_agg)
         machines = machine_ids(connection, suite, machine).values()
         rows = connection.execute(trends.select(machines, last_n)).all()

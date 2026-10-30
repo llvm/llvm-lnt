@@ -18,10 +18,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
-from conftest import code_of, encoded_profile, entry, run_payload
+from conftest import code_of, encoded_profile, entry, run_payload, suite_path
 from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.profile_document import MAX_FUNCTION_NAME_BYTES
 from lnt_v5.suites.tables import SuiteTables
@@ -86,12 +85,12 @@ EXOTIC = encoded_profile(
 
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
 
-RUNS = RUNS_PATH.format(testsuite="nts")
-PROFILES = PROFILES_PATH.format(testsuite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+PROFILES = PROFILES_PATH.format(project="nts", suite="nts")
 
 
 def run_profiles(run: str) -> str:
-    return RUN_PROFILES_PATH.format(testsuite="nts", uuid=run)
+    return RUN_PROFILES_PATH.format(project="nts", suite="nts", uuid=run)
 
 
 def disassembly(uuid: str) -> str:
@@ -219,7 +218,7 @@ class TestRunListing:
         assert code_of(response) == "not_found"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        response = api_client.get(f"{SUITES_PATH}/nope/runs/{uuid4()}/profiles")
+        response = api_client.get(f"{suite_path('nope')}/runs/{uuid4()}/profiles")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
@@ -600,7 +599,7 @@ class TestAddressingSomethingThatIsNotThere:
     @pytest.mark.parametrize("suffix", PROFILE_DATA)
     def test_a_suite_that_does_not_exist_is_404(self, api_client: TestClient, suffix: str) -> None:
         # Before the profile is looked for at all: I1 scopes every one of these to a suite.
-        response = api_client.get(f"{SUITES_PATH}/nope/profiles/{uuid4()}{suffix}")
+        response = api_client.get(f"{suite_path('nope')}/profiles/{uuid4()}{suffix}")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"

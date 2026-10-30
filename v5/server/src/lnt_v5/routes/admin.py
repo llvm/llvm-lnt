@@ -7,10 +7,11 @@ unauthenticated access never reaches.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Path
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.config import JsonDict
 
 from lnt_v5 import examples, keys
 from lnt_v5.auth import require_scope
@@ -32,6 +33,53 @@ router = APIRouter(
 # gives them, so they are written for API users.
 
 
+def _suite_is_never_null(schema: JsonDict) -> None:
+    """Describe `suite` as the string it is when present, rather than as nullable: it is left out
+    rather than null when there is none, and a null one is refused."""
+    properties = schema.get("properties")
+    suite = properties.get("suite") if isinstance(properties, dict) else None
+    if isinstance(suite, dict) and isinstance(branches := suite.pop("anyOf", None), list):
+        suite.pop("default", None)
+        suite.update(next(b for b in branches if isinstance(b, dict) and b.get("type") != "null"))
+
+
+class RestrictionEntry(BaseModel):
+    """What a restricted API key is restricted to: a single test suite, named by its project's name
+    and its own."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+        # As for a schema's entries: `suite` may be left out of a request, where it is refused for
+        # now, and is in every response.
+        json_schema_serialization_defaults_required=True,
+        json_schema_extra=_suite_is_never_null,
+    )
+
+    project: SuiteNameStr = Field(
+        description="The name of the project.", examples=[examples.PROJECT["name"]]
+    )
+    suite: SuiteNameStr | None = Field(
+        default=None,
+        description=(
+            "The name of the test suite, in the project. Required: a key can only be restricted "
+            "to single test suites."
+        ),
+        examples=[examples.SUITE],
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_suite(cls, data: Any) -> Any:
+        # E11: a whole project is written without `suite`, rather than with a null one.
+        if isinstance(data, dict) and "suite" in data and data["suite"] is None:
+            raise ValueError("'suite' must be the name of a test suite, not null")
+        return data
+
+    def entry(self) -> keys.Entry:
+        return keys.Entry(self.project, self.suite)
+
+
 class ApiKey(BaseModel):
     """An API key. The token itself is never shown."""
 
@@ -46,14 +94,15 @@ class ApiKey(BaseModel):
         examples=[examples.API_KEY_NAME],
     )
     scope: Scope
-    suites: list[str] | None = Field(
+    restricted_to: list[RestrictionEntry] | None = Field(
         description=(
-            "The test suites the key is restricted to, sorted by name. Null if it isn't "
-            "restricted. A restricted key has its scope only in these suites, and can only read "
-            "everywhere else. A suite that is deleted is removed from the list, so the list is "
-            "empty once all of them are: the key then can only read."
+            "What the key is restricted to, under their current names, sorted by project name, "
+            "then by suite name. Null if it isn't restricted. A restricted key has its scope only "
+            "in these test suites, and can only read everywhere else. A suite that is deleted is "
+            "removed from the list, so the list is empty once all of them are: the key then can "
+            "only read."
         ),
-        examples=[[examples.SUITE]],
+        examples=[[{"project": examples.PROJECT["name"], "suite": examples.SUITE}]],
     )
     created_at: datetime = Field(description="When the key was created.")
     last_used_at: datetime | None = Field(
@@ -87,14 +136,14 @@ class ApiKeyCreate(BaseModel):
     scope: Scope
     # Only the shape is checked here. Which keys can be restricted, and to which existing suites,
     # is checked by `keys.create_key`, which the CLI shares.
-    suites: list[SuiteNameStr] | None = Field(
+    restricted_to: list[RestrictionEntry] | None = Field(
         default=None,
         min_length=1,
         description=(
-            "The test suites to restrict the key to. It then has its scope only in these suites, "
-            "and can only read everywhere else, which includes creating a test suite. Only "
-            "`submit`, `triage` and `manage` keys can be restricted, and every suite must exist. "
-            "Leave out, or set to null, for an unrestricted key."
+            "The test suites to restrict the key to, each listed once. It then has its scope only "
+            "in these suites, and can only read everywhere else, which includes creating a test "
+            "suite or a project. Only `submit`, `triage` and `manage` keys can be restricted, and "
+            "every suite must exist. Leave out, or set to null, for an unrestricted key."
         ),
     )
 
@@ -109,7 +158,7 @@ _CREATE_EXAMPLES = {
         "value": {
             "name": examples.API_KEY_NAME,
             "scope": "submit",
-            "suites": [examples.SUITE],
+            "restricted_to": [{"project": examples.PROJECT["name"], "suite": examples.SUITE}],
         },
     },
 }
@@ -134,7 +183,10 @@ def list_api_keys(engine: EngineDep) -> Items[ApiKey]:
     status_code=201,
     summary="Create an API key",
     responses={
-        404: {"model": ErrorEnvelope, "description": "A test suite in `suites` doesn't exist."}
+        404: {
+            "model": ErrorEnvelope,
+            "description": "A project or a test suite in `restricted_to` doesn't exist.",
+        }
     },
 )
 def create_api_key(
@@ -142,19 +194,22 @@ def create_api_key(
 ) -> ApiKeyCreated:
     """Create an API key. The response is the only time its token is shown.
 
-    Keys can't be changed and don't expire. To change a key's scope or test suites, create a new key
-    and revoke the old one.
+    Keys can't be changed and don't expire. To change a key's scope or what it is restricted to,
+    create a new key and revoke the old one.
 
-    The test suites in `suites` must exist when the key is created. A suite that is deleted later
-    is removed from the key, and a suite created again with the same name is a different suite,
-    which the key doesn't cover. A key whose suites have all been deleted stays restricted, and can
-    only read.
+    The test suites in `restricted_to` must exist when the key is created. A suite that is deleted
+    later is removed from the key, and a suite created again with the same name is a different
+    suite, which the key doesn't cover. A key whose suites have all been deleted stays restricted,
+    and can only read.
     """
+    restricted_to = (
+        None if body.restricted_to is None else [entry.entry() for entry in body.restricted_to]
+    )
     try:
         with engine.begin() as connection:
-            created = keys.create_key(connection, body.name, body.scope, body.suites)
-    # The subclass first: a suite that does not exist is a 404 (I3), any other refusal a 400.
-    except keys.UnknownSuitesError as error:
+            created = keys.create_key(connection, body.name, body.scope, restricted_to)
+    # The subclass first: what does not exist is a 404 (I3), any other refusal a 400.
+    except keys.UnknownEntriesError as error:
         raise ApiError(ErrorCode.NOT_FOUND, str(error)) from error
     except ValueError as error:
         raise ApiError(ErrorCode.INVALID_REQUEST, str(error)) from error

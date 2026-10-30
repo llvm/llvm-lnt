@@ -27,10 +27,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, delete, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
-from conftest import code_of, entry, run_payload
+from conftest import code_of, ensure_project, entry, run_payload
 from introspection import counted, counting_statements, namespace_of
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.keys import UnknownSuitesError, create_key, resolve_token
+from lnt_v5.keys import Entry, UnknownEntriesError, create_key, resolve_token
 from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
@@ -69,9 +69,9 @@ NTS: dict[str, Any] = {
 BLOCK_TIMEOUT = 20.0
 
 # The suite's routes, for the tests that race a request rather than a function.
-RUNS = RUNS_PATH.format(testsuite=NTS["name"])
-COMMITS = COMMITS_PATH.format(testsuite=NTS["name"])
-REGRESSIONS = REGRESSIONS_PATH.format(testsuite=NTS["name"])
+RUNS = RUNS_PATH.format(project=NTS["name"], suite=NTS["name"])
+COMMITS = COMMITS_PATH.format(project=NTS["name"], suite=NTS["name"])
+REGRESSIONS = REGRESSIONS_PATH.format(project=NTS["name"], suite=NTS["name"])
 
 
 @pytest.fixture
@@ -83,8 +83,10 @@ def suite(db_engine: Engine) -> Suite:
     """
     schema = SuiteSchema.model_validate(NTS)
     with db_engine.begin() as connection:
-        tables = suite_tables.create(connection, schema, "nts")
-    return Suite(schema=schema, tables=tables, schema_json=schema.model_dump_json())
+        tables = suite_tables.create(connection, schema, "nts", "nts/nts")
+    return Suite(
+        id=0, project="nts", schema=schema, tables=tables, schema_json=schema.model_dump_json()
+    )
 
 
 @pytest.fixture
@@ -1196,7 +1198,7 @@ class TestContendingWithASchemaChange:
             with (
                 pytest.raises(ApiError) as raised,
                 db_engine.connect() as connection,
-                suite_scope(SuiteRegistry(), connection, "nts"),
+                suite_scope(SuiteRegistry(), connection, "nts", "nts"),
             ):
                 connection.execute(text("SET LOCAL lock_timeout = '10ms'"))
                 connection.execute(text(f"SELECT 1 FROM {sample}"))
@@ -1209,7 +1211,7 @@ class TestContendingWithASchemaChange:
         with (
             pytest.raises(DBAPIError),
             db_engine.connect() as connection,
-            suite_scope(SuiteRegistry(), connection, "nts"),
+            suite_scope(SuiteRegistry(), connection, "nts", "nts"),
         ):
             connection.execute(text("SELEC 1"))
 
@@ -1327,6 +1329,9 @@ class TestInactivityDeletion:
         )
 
 
+ENTRIES = [Entry("libcxx", "libcxx"), Entry("nts", "nts")]
+
+
 class TestKeyCreationRacingSuiteDeletion:
     """E11: a key created while a suite it lists is deleted either gets 404, or is created and
     loses the suite with the deletion -- never a 500, and never a key listing a deleted suite."""
@@ -1339,6 +1344,7 @@ class TestKeyCreationRacingSuiteDeletion:
                 schema = SuiteSchema.model_validate({"name": name})
                 connection.execute(
                     insert(schema_table).values(
+                        project_id=ensure_project(connection, name),
                         name=name,
                         namespace=name,
                         schema_json=schema.model_dump_json(),
@@ -1349,7 +1355,7 @@ class TestKeyCreationRacingSuiteDeletion:
     @staticmethod
     def delete_nts(connection: Connection) -> None:
         """What deleting a suite does to its row (see `routes/suites.py`)."""
-        locked_suite(connection, "nts")
+        locked_suite(connection, "nts", "nts")
         connection.execute(delete(schema_table).where(schema_table.c.name == "nts"))
 
     def test_a_key_created_during_the_deletion_is_refused(
@@ -1361,18 +1367,18 @@ class TestKeyCreationRacingSuiteDeletion:
             db_engine,
             background,
             self.delete_nts,
-            lambda connection: create_key(connection, "bot", Scope.SUBMIT, ["libcxx", "nts"]),
+            lambda connection: create_key(connection, "bot", Scope.SUBMIT, ENTRIES),
         )
 
-        with pytest.raises(UnknownSuitesError) as raised:
+        with pytest.raises(UnknownEntriesError) as raised:
             losing.result(timeout=BLOCK_TIMEOUT)
-        assert raised.value.names == ("nts",)
+        assert str(raised.value) == "Project 'nts' has no test suite named 'nts'."
 
     def test_a_deletion_during_the_creation_removes_the_suite_from_the_key(
         self, db_engine: Engine, background: Callable[..., Future[Any]]
     ) -> None:
         def delete_nts() -> None:
-            with suite_write(db_engine, "nts") as connection:
+            with suite_write(db_engine, "nts", "nts") as connection:
                 self.delete_nts(connection)
 
         # The deletion waits for the key to be stored, well within its lock timeout, and then
@@ -1380,11 +1386,11 @@ class TestKeyCreationRacingSuiteDeletion:
         # route does, under `suite_write`'s lock timeout, which the wait must not exceed.
         with db_engine.connect() as creating:
             with creating.begin():
-                token = create_key(creating, "bot", Scope.SUBMIT, ["libcxx", "nts"]).token
+                token = create_key(creating, "bot", Scope.SUBMIT, ENTRIES).token
                 deleting = background(delete_nts)
                 until_blocked(db_engine)
             deleting.result(timeout=BLOCK_TIMEOUT)
 
             key = resolve_token(creating, token)
         assert key is not None
-        assert key.suites == ("libcxx",)
+        assert key.restricted_to == (Entry("libcxx", "libcxx"),)

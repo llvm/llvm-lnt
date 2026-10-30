@@ -18,15 +18,17 @@ from lnt_v5.spa import (
 
 # Both predicates read a request path, never a URL, so cases carry no query string. `is_api_path`
 # gets `scope["path"]` as is. `is_static_asset_path` gets it normalized, with `.` and `..` segments
-# resolved (`/suites/../favicon.ico` arrives as `/favicon.ico`), and the rule relies on that.
+# resolved (`/projects/../favicon.ico` arrives as `/favicon.ico`), and the rule relies on that.
 
 
 class TestIsApiPath:
-    @pytest.mark.parametrize("path", ["/api", "/api/", "/api/suites/nts/runs", "/api/suites"])
+    @pytest.mark.parametrize(
+        "path", ["/api", "/api/", "/api/projects/nts/suites/nts/runs", "/api/projects"]
+    )
     def test_treats_as_an_api_path(self, path: str) -> None:
         assert is_api_path(path) is True
 
-    @pytest.mark.parametrize("path", ["/", "/suites/nts", "/apiary", "/graph"])
+    @pytest.mark.parametrize("path", ["/", "/projects/llvm/suites/nts", "/apiary", "/graph"])
     def test_treats_as_a_client_path(self, path: str) -> None:
         assert is_api_path(path) is False
 
@@ -56,17 +58,17 @@ class TestIsStaticAssetPath:
         "path",
         [
             "/",
-            "/suites/nts",
-            "/suites/nts/machines/macos-26.5-arm64",
-            "/suites/nts/machines/results.json",
-            "/suites/nts/machines/node.js",
-            "/suites/nts/machines/Results.JSON",
-            "/suites/nts/commits/v1.2.map",
+            "/projects/llvm/suites/nts",
+            "/projects/llvm/suites/nts/machines/macos-26.5-arm64",
+            "/projects/llvm/suites/nts/machines/results.json",
+            "/projects/llvm/suites/nts/machines/node.js",
+            "/projects/llvm/suites/nts/machines/Results.JSON",
+            "/projects/llvm/suites/nts/commits/v1.2.map",
             # The build puts nothing outside /assets/ but its top-level files.
             "/fonts/inter.woff2",
-            "/suites/nts/machines/linux-x86_64",
-            "/suites/nts/commits/014621ede7c1",
-            "/suites/nts/runs/573af861-8303-4a5b-a643-b8321e0142c4",
+            "/projects/llvm/suites/nts/machines/linux-x86_64",
+            "/projects/llvm/suites/nts/commits/014621ede7c1",
+            "/projects/llvm/suites/nts/runs/573af861-8303-4a5b-a643-b8321e0142c4",
             "/graph",
             "/compare",
             "/profiles",
@@ -79,7 +81,7 @@ class TestIsStaticAssetPath:
 
 class TestSpaServing:
     def test_serves_index_html_for_an_unknown_deep_link(self, client: TestClient) -> None:
-        response = client.get("/suites/nts/runs/abc")
+        response = client.get("/projects/llvm/suites/nts/runs/abc")
 
         assert response.status_code == 200
         assert "<title>LNT</title>" in response.text
@@ -88,9 +90,9 @@ class TestSpaServing:
     @pytest.mark.parametrize(
         "path",
         [
-            "/suites/nts/machines/macos-26.5-arm64",
-            "/suites/nts/machines/results.json",
-            "/suites/nts/commits/v1.2.map",
+            "/projects/llvm/suites/nts/machines/macos-26.5-arm64",
+            "/projects/llvm/suites/nts/machines/results.json",
+            "/projects/llvm/suites/nts/commits/v1.2.map",
         ],
     )
     def test_still_serves_the_spa_for_a_route_whose_last_segment_contains_dots(
@@ -107,7 +109,7 @@ class TestSpaServing:
         assert response.status_code == 200
         assert response.text == "body{}"
 
-    @pytest.mark.parametrize("url", ["/", "/suites/nts", "/real.css"])
+    @pytest.mark.parametrize("url", ["/", "/projects/llvm/suites/nts", "/real.css"])
     def test_head_is_answered_like_get(self, client: TestClient, url: str) -> None:
         get = client.get(url)
         head = client.head(url)
@@ -118,7 +120,7 @@ class TestSpaServing:
     def test_returns_the_json_error_envelope_for_an_unmatched_api_route(
         self, client: TestClient
     ) -> None:
-        response = client.get("/api/suites/nts/nope")
+        response = client.get("/api/projects/nts/suites/nts/nope")
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
@@ -129,7 +131,7 @@ class TestSpaServing:
         self, client: TestClient, method: str
     ) -> None:
         # Starlette's StaticFiles answers these with 405, which I4 gives to the API alone.
-        response = getattr(client, method)("/suites/nts")
+        response = getattr(client, method)("/projects/llvm/suites/nts")
 
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
@@ -184,7 +186,7 @@ class TestSpaCacheControl:
     @pytest.mark.parametrize(
         ("url", "expected"),
         [
-            ("/suites/nts/runs/abc", "no-cache, max-age=0"),
+            ("/projects/llvm/suites/nts/runs/abc", "no-cache, max-age=0"),
             ("/assets/index-DcWSbQGc.js", "public, max-age=31536000, immutable"),
         ],
     )
@@ -208,7 +210,7 @@ class TestCanonicalServerPath:
         [
             ("/api/", "/api"),
             ("/api//", "/api"),
-            ("/api/suites/", "/api/suites"),
+            ("/api/projects/", "/api/projects"),
             ("/api/admin/api-keys/", "/api/admin/api-keys"),
             ("/api/openapi.json/", "/api/openapi.json"),
             ("/healthz/", "/healthz"),
@@ -228,7 +230,7 @@ class TestCanonicalServerPath:
             "/robots.txt",
             "/",  # the client's own root, not a stray slash
             "//",
-            "/suites/nts/",  # a client route: the SPA answers both forms itself
+            "/projects/llvm/suites/nts/",  # a client route: the SPA answers both forms itself
             "/graph/",
             "/apiary/",  # not the API despite the prefix
         ],
@@ -259,12 +261,12 @@ class TestRedirectTrailingSlash:
         # Behind the TLS-terminating proxy the request reaches the server as plain http, and the
         # Host header is the client's to choose: neither belongs in the target (I1).
         response = client.get(
-            "https://lnt.example/api/suites/",
+            "https://lnt.example/api/projects/",
             headers={"Host": "evil.example"},
             follow_redirects=False,
         )
 
-        assert response.headers["location"] == "/api/suites"
+        assert response.headers["location"] == "/api/projects"
 
     def test_redirects_a_path_that_exists_under_neither_spelling(self, client: TestClient) -> None:
         # Purely syntactic, so a miss costs one extra round trip before its 404 rather than
@@ -297,18 +299,20 @@ class TestRedirectTrailingSlash:
     )
     def test_keeps_a_segment_encoded(self, client: TestClient, segment: str) -> None:
         # I1 allows all of these in a machine name or a commit value.
-        response = client.get(f"/api/suites/nts/machines/{segment}/", follow_redirects=False)
+        response = client.get(
+            f"/api/projects/nts/suites/nts/machines/{segment}/", follow_redirects=False
+        )
 
-        assert response.headers["location"] == f"/api/suites/nts/machines/{segment}"
+        assert response.headers["location"] == f"/api/projects/nts/suites/nts/machines/{segment}"
 
     def test_does_not_redirect_an_encoded_slash_to_itself(self, client: TestClient) -> None:
         # `%2F` is decoded before routing, so this does end in a slash -- but only once decoded,
         # and a target built from the raw path would be the very URL requested.
-        response = client.get("/api/suites/x%2F", follow_redirects=False)
+        response = client.get("/api/projects/x/suites/x%2F", follow_redirects=False)
 
-        assert response.headers["location"] == "/api/suites/x"
+        assert response.headers["location"] == "/api/projects/x/suites/x"
 
-    @pytest.mark.parametrize("path", ["/api/admin/api-keys/", "/api/suites/"])
+    @pytest.mark.parametrize("path", ["/api/admin/api-keys/", "/api/projects/"])
     def test_preserves_the_method_and_body(self, client: TestClient, path: str) -> None:
         # 307 rather than 301 or 308, so a misspelled write arrives intact rather than as a GET.
         response = client.post(path, json={"name": "x"}, follow_redirects=False)
@@ -316,7 +320,7 @@ class TestRedirectTrailingSlash:
         assert response.status_code == 307
         assert response.headers["location"] == path.rstrip("/")
 
-    @pytest.mark.parametrize("path", ["/api/suites/", "/api/suites/nts/"])
+    @pytest.mark.parametrize("path", ["/api/projects/", "/api/projects/nts/suites/nts/"])
     def test_redirects_a_suite_path_to_its_canonical_form(
         self, client: TestClient, path: str
     ) -> None:
@@ -334,7 +338,7 @@ class TestRedirectTrailingSlash:
         assert response.status_code == 307
         assert response.headers["location"] == "/healthz"
 
-    @pytest.mark.parametrize("path", ["/", "/suites/nts/", "/graph/"])
+    @pytest.mark.parametrize("path", ["/", "/projects/llvm/suites/nts/", "/graph/"])
     def test_leaves_client_routes_alone(self, client: TestClient, path: str) -> None:
         # The SPA answers both spellings, so bouncing the browser between them would be noise.
         response = client.get(path, follow_redirects=False)
@@ -356,12 +360,15 @@ class TestRejectNulInUrl:
     @pytest.mark.parametrize(
         ("path", "why"),
         [
-            ("/api/suites/nosuch/commits/a%00b", "a path segment"),
-            ("/api/suites/nosuch/commits?search=a%00b", "a query filter"),
-            ("/api/suites/nosuch/machines/a%00b", "a path segment on a route already on main"),
+            ("/api/projects/nosuch/suites/nosuch/commits/a%00b", "a path segment"),
+            ("/api/projects/nosuch/suites/nosuch/commits?search=a%00b", "a query filter"),
+            (
+                "/api/projects/nosuch/suites/nosuch/machines/a%00b",
+                "a path segment on a route already on main",
+            ),
             ("/api/admin/api-keys/a%00b", "a path segment on an admin-scoped route"),
             ("/healthz%00", "a route outside the REST API"),
-            ("/suites/a%00b", "a client route"),
+            ("/projects/llvm/suites/a%00b", "a client route"),
         ],
     )
     def test_refuses_a_url_carrying_one(self, client: TestClient, path: str, why: str) -> None:
@@ -381,7 +388,7 @@ class TestRejectNulInUrl:
 
     def test_leaves_an_ordinary_url_alone(self, client: TestClient) -> None:
         assert client.get("/llms.txt").status_code == 200
-        assert client.get("/suites/nts?search=abc").status_code == 200
+        assert client.get("/projects/llvm/suites/nts?search=abc").status_code == 200
 
 
 class TestAnswerHeadLikeGet:

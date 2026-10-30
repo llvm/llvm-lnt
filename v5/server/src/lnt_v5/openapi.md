@@ -1,8 +1,11 @@
 LNT is LLVM's performance-monitoring server. Build bots submit benchmark results to it, and it
 stores them as time series so that performance changes can be found, investigated and tracked.
-This page documents its REST API. For an introduction to the concepts (test suites, machines,
-commits, runs, samples, profiles and regressions) and to common workflows, see
+This page documents its REST API. For an introduction to the concepts (projects, test suites,
+machines, commits, runs, samples, profiles and regressions) and to common workflows, see
 [/llms.txt](/llms.txt).
+
+Test suites are grouped into projects. A suite's name is unique within its project, so every path
+of a suite names both: `/api/projects/{project}/suites/{suite}/...`.
 
 ## Authentication
 
@@ -13,12 +16,14 @@ Reading data doesn't require an API key. Everything else does: send the key's to
 Each operation lists the scope it requires, and the `Scope` schema describes what each scope
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
 everything its scope and the scopes below it allow. A key can also be restricted to some test
-suites, and then has its scope only in those. Keys are created with `POST /api/admin/api-keys`,
-which requires the `admin` scope; ask the instance's administrator for your first key.
+suites, and then has its scope only in those: it can't create a test suite or change a project
+then, and creating or deleting a project always needs an unrestricted key. Keys are created with
+`POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
+your first key.
 
 If you do send a key, it must be valid: a malformed, unknown or revoked key gets a 401, even on
 operations that don't need a key. A valid key without the required scope, or that has it only in
-other test suites, gets a 403.
+other projects or test suites, gets a 403.
 
 ## Lists and pagination
 
@@ -64,7 +69,7 @@ the body too.
 All errors have the same body:
 
 ```json
-{"error": {"code": "not_found", "message": "No machine named 'foo' in test suite 'libcxx'"}}
+{"error": {"code": "not_found", "message": "No machine named 'foo' in test suite 'libcxx/libcxx'"}}
 ```
 
 Check `code` in your code. `message` is meant for people and may change.
@@ -74,12 +79,12 @@ Check `code` in your code. `message` is meant for people and may change.
 | `invalid_request` | 400 | The request is malformed or invalid. |
 | `invalid_cursor` | 400 | The `cursor` is malformed, was issued for other filters, sort or path parameters, or is no longer accepted, for example because the suite's schema changed. Start over from the first page. |
 | `unauthorized` | 401 | The operation needs an API key and none was sent, or the key is malformed, unknown or revoked. |
-| `forbidden` | 403 | The API key doesn't have the required scope, or has it only in other test suites. |
+| `forbidden` | 403 | The API key doesn't have the required scope, or has it only in other projects or test suites. |
 | `not_found` | 404 | The path doesn't exist, or something the request refers to doesn't exist. |
 | `method_not_allowed` | 405 | The path exists, but not with this HTTP method. The `Allow` header lists the methods it supports. |
 | `duplicate` | 409 | The thing you are creating already exists. If you chose the UUID of a run or a regression yourself, a previous attempt probably succeeded: don't resend it with a new UUID, or you'll store it twice. |
-| `conflict` | 409 | The request contradicts data that is already stored. Sending it again won't help: change the request or the stored data first. |
-| `retry` | 409 | The suite's schema was being changed at the same time, or the suite was too busy for a schema change to start. Nothing was saved: send the same request again. |
+| `conflict` | 409 | The request contradicts data that is already stored, such as deleting a project that still has test suites. Sending it again won't help: change the request or the stored data first. |
+| `retry` | 409 | The suite's schema was being changed at the same time, or the suite or the project was too busy for a change to start. Nothing was saved: send the same request again. |
 | `unsupported_encoding` | 415 | The request body is compressed in a way the server doesn't accept. The `Accept-Encoding` header lists what it accepts: `gzip`. |
 | `internal_error` | 500 | Something went wrong on the server. |
 
@@ -97,8 +102,8 @@ without one, such as one sent by plain `curl`, gets an uncompressed response.
 
 ## Conventions
 
-- Things are identified by name (test suites, machines, tests), by value (commits), by UUID
-  (runs, regressions, indicators and profiles), or by prefix (API keys). Responses refer to
+- Things are identified by name (projects, test suites, machines, tests), by value (commits), by
+  UUID (runs, regressions, indicators and profiles), or by prefix (API keys). Responses refer to
   related things by that identifier, as in `"machine": "linux-x86_64"`, rather than nesting them.
 - Timestamps are ISO 8601 strings, returned in UTC with a `Z` suffix. A timestamp sent without a
   time zone is treated as UTC.

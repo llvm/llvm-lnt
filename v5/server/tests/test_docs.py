@@ -11,6 +11,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from conftest import suite_path
 from lnt_v5 import examples
 from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.errors import ErrorCode
@@ -27,7 +28,7 @@ from lnt_v5.routes.regressions import (
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
 from lnt_v5.routes.series import NDJSON, SERIES_PATH
-from lnt_v5.routes.suites import SUITES_PATH
+from lnt_v5.routes.suites import PROJECTS_PATH, SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
 from lnt_v5.routes.timeseries import DEFAULT_LAST_N, TRENDS_PATH
 from lnt_v5.scopes import Scope
@@ -76,9 +77,12 @@ class TestOpenApiDocument:
         and the code is the only thing a client can branch on. Every suite-scoped operation can
         answer `retry` (D2); the writes listed here add cases of their own.
         """
+        # Creating a project takes no lock to wait for, so it is never a `retry` (D2, E13).
+        exactly = {("/api/projects", "post"): {"duplicate"}}
         beyond_retry = {
-            ("/api/suites", "post"): {"duplicate"},
-            ("/api/suites/{name}/schema", "patch"): {"duplicate"},
+            ("/api/projects/{project}", "delete"): {"conflict"},
+            ("/api/projects/{project}/suites", "post"): {"duplicate"},
+            ("/api/projects/{project}/suites/{suite}/schema", "patch"): {"duplicate"},
             (MACHINES_PATH, "post"): {"duplicate"},
             (f"{MACHINES_PATH}/{{machine_name}}", "patch"): {"duplicate"},
             (COMMITS_PATH, "post"): {"duplicate", "conflict"},
@@ -93,7 +97,9 @@ class TestOpenApiDocument:
                 if response is None:
                     continue
                 named = set(re.findall(r"`([a-z_]+)`", response["description"]))
-                expected = {"retry"} | beyond_retry.get((path, method), set())
+                expected = exactly.get(
+                    (path, method), {"retry"} | beyond_retry.get((path, method), set())
+                )
                 assert named == expected, f"{method.upper()} {path}"
 
     @pytest.mark.parametrize("path", ["/healthz", "/llms.txt", "/robots.txt"])
@@ -145,7 +151,7 @@ class TestOpenApiDocument:
             for changes in patch.values()
         ]
 
-        assert len(bodies) == 8
+        assert len(bodies) == 9
         for name in bodies:
             for key, property in schemas[name]["properties"].items():
                 assert "default" not in property, f"{name}.{key} publishes a default"
@@ -317,10 +323,18 @@ class TestDocumentedAuthentication:
             (
                 RUNS_PATH,
                 "post",
-                "requires an API key with the `submit` scope, for all test suites or for this one.",
+                "requires an API key with the `submit` scope, unrestricted or covering this test "
+                "suite.",
             ),
-            # One that addresses no suite, which no restricted key may make.
-            (SUITES_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
+            # One that addresses a project, which a key covering it in full may make.
+            (
+                SUITES_PATH,
+                "post",
+                "requires an API key with the `manage` scope, unrestricted or covering this "
+                "project in full.",
+            ),
+            # One that addresses neither, which no restricted key may make.
+            (PROJECTS_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
             # `admin` keys cannot be restricted, so there is nothing to add.
             ("/api/admin/api-keys", "get", "requires an API key with the `admin` scope."),
         ],
@@ -359,11 +373,11 @@ class TestSuiteOperations:
     @pytest.mark.parametrize(
         ("path", "method"),
         [
-            ("/api/suites", "get"),
-            ("/api/suites", "post"),
-            ("/api/suites/{name}", "get"),
-            ("/api/suites/{name}/schema", "patch"),
-            ("/api/suites/{name}", "delete"),
+            ("/api/projects/{project}/suites", "get"),
+            ("/api/projects/{project}/suites", "post"),
+            ("/api/projects/{project}/suites/{suite}", "get"),
+            ("/api/projects/{project}/suites/{suite}/schema", "patch"),
+            ("/api/projects/{project}/suites/{suite}", "delete"),
         ],
     )
     def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
@@ -374,11 +388,11 @@ class TestSuiteOperations:
     @pytest.mark.parametrize(
         ("path", "method", "status"),
         [
-            ("/api/suites", "post", "409"),
-            ("/api/suites/{name}", "get", "404"),
-            ("/api/suites/{name}", "delete", "404"),
-            ("/api/suites/{name}/schema", "patch", "404"),
-            ("/api/suites/{name}/schema", "patch", "409"),
+            ("/api/projects/{project}/suites", "post", "409"),
+            ("/api/projects/{project}/suites/{suite}", "get", "404"),
+            ("/api/projects/{project}/suites/{suite}", "delete", "404"),
+            ("/api/projects/{project}/suites/{suite}/schema", "patch", "404"),
+            ("/api/projects/{project}/suites/{suite}/schema", "patch", "409"),
         ],
     )
     def test_documents_the_failures_endpoints_md_specifies(
@@ -397,8 +411,8 @@ class TestSuiteOperations:
         paths = client.get("/api/openapi.json").json()["paths"]
 
         for path, method in (
-            ("/api/suites/{name}", "delete"),
-            ("/api/suites/{name}/schema", "patch"),
+            ("/api/projects/{project}/suites/{suite}", "delete"),
+            ("/api/projects/{project}/suites/{suite}/schema", "patch"),
         ):
             names = {p["name"] for p in paths[path][method].get("parameters", [])}
             assert "confirm" in names, f"{method.upper()} {path} does not document ?confirm="
@@ -416,7 +430,7 @@ class TestSuiteOperations:
         posted = document["paths"][SUITES_PATH]["post"]["requestBody"]["content"][
             "application/json"
         ]["schema"]
-        returned = document["paths"][f"{SUITES_PATH}/{{name}}"]["get"]["responses"]["200"][
+        returned = document["paths"][f"{SUITES_PATH}/{{suite}}"]["get"]["responses"]["200"][
             "content"
         ]["application/json"]["schema"]
 
@@ -913,7 +927,7 @@ class TestReadOperations:
             segment
             for path in paths
             for segment in path.split("/")
-            if segment.startswith("{") and "test" in segment and segment != "{testsuite}"
+            if segment.startswith("{") and "test" in segment
         }
 
         assert not named_after_a_test, sorted(paths)
@@ -1013,7 +1027,7 @@ class TestProfileOperations:
         operation = client.get("/api/openapi.json").json()["paths"][DISASSEMBLY]["get"]
         parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
 
-        assert set(parameters) == {"testsuite", "uuid", "function"}
+        assert set(parameters) == {"project", "suite", "uuid", "function"}
         assert parameters["function"]["in"] == "query"
         assert parameters["function"]["required"] is True
 
@@ -1095,7 +1109,8 @@ class TestRegressionOperations:
         names = {parameter["name"] for parameter in operation["parameters"]}
 
         assert names == {
-            "testsuite",
+            "project",
+            "suite",
             "search",
             "state",
             "machine",
@@ -1220,7 +1235,7 @@ class TestRegressionOperations:
         operation = client.get("/api/openapi.json").json()["paths"][LOOKUP]["post"]
 
         assert "requestBody" in operation
-        assert {p["name"] for p in operation.get("parameters", [])} == {"testsuite"}
+        assert {p["name"] for p in operation.get("parameters", [])} == {"project", "suite"}
 
     def test_the_lookup_body_carries_exactly_the_keys_endpoints_md_gives_it(
         self, client: TestClient
@@ -1611,6 +1626,8 @@ class TestResponseSamples:
 # in from the examples' own names, and `{uuid}` names the regression the first regression example
 # creates.
 EXAMPLE_SEQUENCE = [
+    (PROJECTS_PATH, "post"),
+    (f"{PROJECTS_PATH}/{{project}}", "patch"),
     (SUITES_PATH, "post"),
     (RUNS_PATH, "post"),
     (MACHINES_PATH, "post"),
@@ -1624,7 +1641,7 @@ EXAMPLE_SEQUENCE = [
     (INDICATORS_PATH, "delete"),
     (INDICATOR_LOOKUP_PATH, "post"),
     # Last among the suite's operations, since one of its examples removes a field.
-    (f"{SUITES_PATH}/{{name}}/schema", "patch"),
+    (f"{SUITES_PATH}/{{suite}}/schema", "patch"),
     ("/api/admin/api-keys", "post"),
 ]
 
@@ -1674,8 +1691,8 @@ class TestRequestExamples:
         headers = bearer(make_key(Scope.ADMIN))
         document = api_client.get("/api/openapi.json").json()
         names = {
-            "testsuite": examples.SUITE,
-            "name": examples.SUITE,
+            "project": examples.PROJECT["name"],
+            "suite": examples.SUITE,
             "machine_name": examples.OTHER_MACHINE,
             "value": examples.NEXT_COMMIT,
         }
@@ -1699,7 +1716,7 @@ class TestRequestExamples:
                     names["uuid"] = response.json()["uuid"]
 
         # The examples that clear a value with an explicit null did clear it.
-        suite = f"{SUITES_PATH}/{names['testsuite']}"
+        suite = suite_path(names["suite"], names["project"])
         machine = api_client.get(f"{suite}/machines/{names['machine_name']}").json()
         assert machine["fields"]["sdk"] is None
         assert api_client.get(f"{suite}/commits/{names['value']}").json()["tag"] is None

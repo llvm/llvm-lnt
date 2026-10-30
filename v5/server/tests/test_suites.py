@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, inspect, select, text
 from sqlalchemy.exc import ProgrammingError
 
-from conftest import code_of, entry, ndjson_lines, run_payload
+from conftest import code_of, ensure_project, entry, ndjson_lines, run_payload
 from introspection import namespace_of, schema_version_of, suite_column_names
 from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
@@ -35,9 +35,12 @@ from lnt_v5.tables import (
     SUITE_NAME_MAX_LENGTH,
     namespace_sequence,
 )
+from lnt_v5.tables import project as project_table
 from lnt_v5.tables import schema as schema_table
 
-SUITES = SUITES_PATH
+# The project the suites of these tests are created in.
+PROJECT = "llvm"
+SUITES = SUITES_PATH.format(project=PROJECT)
 
 # The schema from D4, trimmed to what these tests need to see move.
 NTS: dict[str, Any] = {
@@ -56,6 +59,13 @@ NTS: dict[str, Any] = {
     "commit_fields": [{"name": "git_sha", "type": "text", "searchable": True, "display": True}],
     "machine_fields": [{"name": "hardware", "type": "text", "searchable": True}],
 }
+
+
+@pytest.fixture(autouse=True)
+def llvm(db_engine: Engine) -> None:
+    """The project the suites of these tests are created in."""
+    with db_engine.begin() as connection:
+        ensure_project(connection, PROJECT)
 
 
 @pytest.fixture
@@ -168,7 +178,7 @@ class TestCreate:
     def test_stores_the_normalized_schema_rather_than_the_request_body(
         self, api_client: TestClient, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
-        # D5: `schema_json` holds the same content `GET /api/suites/{name}` returns.
+        # D5: `schema_json` holds the same content `GET .../suites/{suite}` returns.
         create(metrics=[{"name": "execution_time", "type": "real"}])
 
         assert stored_schema(db_engine, "nts") == api_client.get(f"{SUITES}/nts").json()
@@ -292,7 +302,8 @@ class TestCreate:
                 text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
                 {"namespace": namespace},
             ).scalar_one()
-        assert label == "LNT test suite nts"
+        # By its full name (D7).
+        assert label == "LNT test suite llvm/nts"
 
     def test_chooses_a_namespace_no_namespace_has(
         self, db_engine: Engine, create: Callable[..., Any]
@@ -304,9 +315,12 @@ class TestCreate:
         suite = SuiteSchema.model_validate({**NTS, "name": old})
         with db_engine.begin() as connection:
             connection.execute(text(f'CREATE SCHEMA "{stray}"'))
-            suite_tables.create(connection, suite, old)
+            suite_tables.create(connection, suite, old, f"{PROJECT}/{old}")
             connection.execute(
                 insert(schema_table).values(
+                    project_id=select(project_table.c.id)
+                    .where(project_table.c.name == PROJECT)
+                    .scalar_subquery(),
                     name=old,
                     namespace=old,
                     schema_json=normalized_json(suite),
@@ -341,6 +355,91 @@ class TestCreate:
 
         assert create(metrics=[{"name": metric, "type": "real"}]).status_code == 201
         assert metric in suite_column_names(db_engine, "nts", "sample")
+
+
+class TestProjects:
+    """A suite belongs to a project, and its name is unique within it (D7)."""
+
+    def test_a_name_is_unique_within_its_project_only(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        db_engine: Engine,
+    ) -> None:
+        create()
+        with db_engine.begin() as connection:
+            ensure_project(connection, "other")
+
+        again = create()
+        elsewhere = api_client.post(SUITES_PATH.format(project="other"), json=NTS, headers=manage)
+
+        assert code_of(again) == "duplicate"
+        assert f"'{PROJECT}/nts'" in again.json()["error"]["message"]
+        assert elsewhere.status_code == 201
+        assert elsewhere.headers["Location"] == "/api/projects/other/suites/nts"
+        assert namespace_of(db_engine, "nts", "other") != namespace_of(db_engine, "nts", PROJECT)
+
+    def test_suites_of_the_same_name_hold_data_of_their_own(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        db_engine: Engine,
+    ) -> None:
+        create()
+        with db_engine.begin() as connection:
+            ensure_project(connection, "other")
+        api_client.post(SUITES_PATH.format(project="other"), json=NTS, headers=manage)
+        ours = f"{SUITES}/nts/machines"
+
+        api_client.post(ours, json={"name": "linux"}, headers=manage)
+
+        assert [m["name"] for m in api_client.get(ours).json()["items"]] == ["linux"]
+        theirs = api_client.get("/api/projects/other/suites/nts/machines").json()["items"]
+        assert theirs == []
+
+    def test_lists_the_suites_of_its_project_only(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        db_engine: Engine,
+    ) -> None:
+        create()
+        with db_engine.begin() as connection:
+            ensure_project(connection, "other")
+        api_client.post(
+            SUITES_PATH.format(project="other"), json={**NTS, "name": "elsewhere"}, headers=manage
+        )
+
+        assert [item["name"] for item in api_client.get(SUITES).json()["items"]] == ["nts"]
+
+    def test_cannot_be_created_in_a_project_that_does_not_exist(
+        self, api_client: TestClient, manage: dict[str, str]
+    ) -> None:
+        response = api_client.post(SUITES_PATH.format(project="nope"), json=NTS, headers=manage)
+
+        assert response.status_code == 404
+        assert response.json()["error"]["message"] == "Project 'nope' not found"
+
+    def test_appears_in_its_project(
+        self, api_client: TestClient, create: Callable[..., Any]
+    ) -> None:
+        create()
+
+        found = api_client.get(f"/api/projects/{PROJECT}").json()
+
+        assert found["suites"] == [api_client.get(f"{SUITES}/nts").json()]
+
+    @pytest.mark.parametrize("name", ["schema", "suites"])
+    def test_reserves_no_name(
+        self, api_client: TestClient, create: Callable[..., Any], name: str
+    ) -> None:
+        # I1: what belongs to a suite sits below its name, so no route collides with one.
+        assert create(name=name).status_code == 201
+        assert api_client.get(f"{SUITES}/{name}").json()["name"] == name
+        assert api_client.get(f"{SUITES}/{name}/machines").status_code == 200
 
 
 class TestDetail:
@@ -1335,7 +1434,7 @@ class TestDelete:
     def test_resolves_the_suite_before_asking_for_confirmation(
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:
-        # Deliberate and observable: suite existence is public through `GET /api/suites`, so
+        # Deliberate and observable: suite existence is public through `GET /api/projects`, so
         # answering 404 first leaks nothing and tells the caller the more useful thing.
         response = api_client.delete(f"{SUITES}/nope", headers=manage)
 
@@ -1362,6 +1461,7 @@ class TestConcurrentWrites:
     @staticmethod
     def add_metric(engine: Engine, name: str, metric: str) -> Any:
         return patch_schema(
+            PROJECT,
             name,
             SchemaPatch.model_validate({"metrics": {"add": [{"name": metric, "type": "real"}]}}),
             engine,
@@ -1378,7 +1478,7 @@ class TestConcurrentWrites:
             barrier.wait()
             try:
                 body = SuiteSchema.model_validate({**NTS, "name": names[index]})
-                outcomes[index] = create_suite(body, engine, Response())
+                outcomes[index] = create_suite(PROJECT, body, engine, Response())
             except BaseException as error:
                 outcomes[index] = error
 
@@ -1475,7 +1575,7 @@ class TestConcurrentWrites:
         def remove() -> None:
             barrier.wait()
             try:
-                delete_suite("nts", db_engine, confirm=True)
+                delete_suite(PROJECT, "nts", db_engine, confirm=True)
                 outcomes.append("deleted")
             except ApiError as error:
                 outcomes.append(f"delete:{error.code.value}")
@@ -1502,10 +1602,11 @@ class TestConcurrentWrites:
         exists, because the `UPDATE` simply matches no rows.
         """
         create()
-        delete_suite("nts", db_engine, confirm=True)
+        delete_suite(PROJECT, "nts", db_engine, confirm=True)
 
         with pytest.raises(ApiError) as raised:
             patch_schema(
+                PROJECT,
                 "nts",
                 SchemaPatch.model_validate(
                     {"metrics": {"update": [{"name": "compile_time", "unit": "ms"}]}}

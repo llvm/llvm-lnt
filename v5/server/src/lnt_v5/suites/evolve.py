@@ -295,7 +295,7 @@ def _apply(
             raise ApiError(ErrorCode.NOT_FOUND, f"{of.attribute} has no entry named '{name}'")
 
     # `exclude_unset`, so a key the request left out keeps its stored value while one sent as null
-    # clears it -- the same convention as `PATCH /api/suites/{testsuite}/commits/{value}`.
+    # clears it -- the same convention as `PATCH .../commits/{value}`.
     patches = {
         entry.name: entry.model_dump(exclude_unset=True, exclude={"name"})
         for entry in changes.update
@@ -394,7 +394,7 @@ def apply(connection: Connection, stored: StoredSuite, resulting: SuiteSchema) -
 
     connection.execute(
         update(schema_table)
-        .where(schema_table.c.name == stored.name)
+        .where(schema_table.c.id == stored.id)
         .values(schema_json=normalized_json(resulting))
     )
     bump(connection)

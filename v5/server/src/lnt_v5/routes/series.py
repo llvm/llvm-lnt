@@ -53,14 +53,14 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import DatetimeValue, declared_entry
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
-from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
+from lnt_v5.suites.scope import ProjectName, SuiteName, suite_responses, suite_scope
 from lnt_v5.tables import SCHEMA_VERSION_ID, schema_version
 
-SERIES_PATH = f"{SUITES_PATH}/{{testsuite}}/series"
+SERIES_PATH = f"{SUITES_PATH}/{{suite}}/series"
 
 NDJSON = "application/x-ndjson"
 
-router = APIRouter(prefix=f"{SUITES_PATH}/{{testsuite}}", tags=["Time Series"])
+router = APIRouter(prefix=f"{SUITES_PATH}/{{suite}}", tags=["Time Series"])
 
 # About how many samples each statement returns. The tests in a batch are chosen from the number of
 # runs that match, so that a statement sorts a bounded number of rows however long the machine's
@@ -258,6 +258,7 @@ def stream(
     },
 )
 def get_series(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -385,7 +386,7 @@ def get_series(
         # Before the suite is resolved, so that a schema change after this point is one the
         # batches see as a different version, even if it came before the suite was read.
         version = connection.execute(_VERSION).scalar_one()
-        with suite_scope(registry, connection, testsuite) as suite:
+        with suite_scope(registry, connection, project, testsuite) as suite:
             series = Series(
                 suite,
                 declared_entry(suite.schema, Metric, metric),

@@ -10,16 +10,22 @@
 - [OpenAPI specification](/api/openapi.json): every parameter, request body,
   response body and status code. Consult it for anything this file leaves out.
 - [Interactive documentation](/api/docs): the same specification, for humans.
-- [API index](/api): links to the suite list endpoint and to both of the above,
-  and the commit of LNT the server was built from.
+- [API index](/api): links to the project list endpoint and to both of the
+  above, and the commit of LNT the server was built from.
 
 ## Concepts
 
+- **Project** -- groups the test suites of one software project, such as
+  libc++ or Swift. Every suite belongs to exactly one project. A project has a
+  `name` and an optional `display_name`. `GET /api/projects` returns every
+  project with its suites and their schemas.
 - **Test suite** -- a self-contained collection of machines, commits, runs and
-  regressions, with a schema of its own. Nearly every endpoint
-  lives under `/api/suites/{testsuite}/`, and nothing is shared between suites:
-  two suites may hold machines of the same name and they are different machines.
-  `GET /api/suites` returns every suite with its schema.
+  regressions, with a schema of its own. A suite's name is unique within its
+  project, so it is identified by both names together, written
+  `project/suite` outside the API. Nearly every endpoint lives under
+  `/api/projects/{project}/suites/{suite}/`, and nothing is shared between
+  suites: two suites may hold machines of the same name and they are different
+  machines.
 - **Schema** -- a suite declares its `metrics`, `machine_fields` and
   `commit_fields` up front. Each entry has a `name` and a `type`: `real`,
   `integer`, `text` or `datetime`. Nothing undeclared can be stored: a metric or
@@ -70,60 +76,67 @@
 Every operation, with the scope it requires (see Authentication).
 
 ```
-GET    /api                                                   read    API index
-GET    /api/auth                                              read    The API key the request authenticated with
-GET    /api/suites                                            read    Every suite, with its schema
-POST   /api/suites                                            manage  Create a suite from a schema
-GET    /api/suites/{name}                                     read    One suite's schema
-PATCH  /api/suites/{name}/schema                              manage  Add, update or remove metrics and fields, or change the display name or the repository
-DELETE /api/suites/{name}                                     manage  Delete a suite and all its data
+GET    /api                                                                  read    API index
+GET    /api/auth                                                             read    The API key the request authenticated with
+GET    /api/projects                                                         read    Every project, with its suites and their schemas
+POST   /api/projects                                                         manage  Create a project (an unrestricted key only)
+GET    /api/projects/{project}                                               read    One project, with its suites
+PATCH  /api/projects/{project}                                               manage  Change its display name
+DELETE /api/projects/{project}                                               manage  Delete a project that has no suites (an unrestricted key only)
 
-GET    /api/suites/{testsuite}/machines                       read    List machines (search=, tracked=, sort=)
-POST   /api/suites/{testsuite}/machines                       manage  Create a machine
-GET    /api/suites/{testsuite}/machines/{machine_name}        read    One machine
-PATCH  /api/suites/{testsuite}/machines/{machine_name}        manage  Update or rename a machine
-DELETE /api/suites/{testsuite}/machines/{machine_name}        manage  Delete a machine and its runs
+GET    /api/projects/{project}/suites                                        read    The project's suites, with their schemas
+POST   /api/projects/{project}/suites                                        manage  Create a suite in the project from a schema
+GET    /api/projects/{project}/suites/{suite}                                read    One suite's schema
+PATCH  /api/projects/{project}/suites/{suite}/schema                         manage  Add, update or remove metrics and fields, or change the display name or the repository
+DELETE /api/projects/{project}/suites/{suite}                                manage  Delete a suite and all its data
 
-GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, commit=, has_ordinal=, before_commit=, sort=, ...)
-POST   /api/suites/{testsuite}/commits                        submit  Create a commit
-POST   /api/suites/{testsuite}/commits/resolve                read    Look up many commits by value at once
-GET    /api/suites/{testsuite}/commits/{value}                read    One commit, with its previous/next by ordinal
-PATCH  /api/suites/{testsuite}/commits/{value}                manage  Set or clear its ordinal, tag or fields
-DELETE /api/suites/{testsuite}/commits/{value}                manage  Delete a commit and its runs
+GET    /api/projects/{project}/suites/{suite}/machines                       read    List machines (search=, tracked=, sort=)
+POST   /api/projects/{project}/suites/{suite}/machines                       manage  Create a machine
+GET    /api/projects/{project}/suites/{suite}/machines/{machine_name}        read    One machine
+PATCH  /api/projects/{project}/suites/{suite}/machines/{machine_name}        manage  Update or rename a machine
+DELETE /api/projects/{project}/suites/{suite}/machines/{machine_name}        manage  Delete a machine and its runs
 
-GET    /api/suites/{testsuite}/runs                           read    List runs (machine=, commit=, search=, sort=, ...)
-POST   /api/suites/{testsuite}/runs                           submit  Submit a run
-GET    /api/suites/{testsuite}/runs/{uuid}                    read    One run
-DELETE /api/suites/{testsuite}/runs/{uuid}                    manage  Delete a run
-GET    /api/suites/{testsuite}/runs/{uuid}/samples            read    A run's samples (test=)
-GET    /api/suites/{testsuite}/runs/{uuid}/profiles           read    A run's profiles, as {test, uuid}
+GET    /api/projects/{project}/suites/{suite}/commits                        read    List commits (search=, machine=, commit=, has_ordinal=, before_commit=, sort=, ...)
+POST   /api/projects/{project}/suites/{suite}/commits                        submit  Create a commit
+POST   /api/projects/{project}/suites/{suite}/commits/resolve                read    Look up many commits by value at once
+GET    /api/projects/{project}/suites/{suite}/commits/{value}                read    One commit, with its previous/next by ordinal
+PATCH  /api/projects/{project}/suites/{suite}/commits/{value}                manage  Set or clear its ordinal, tag or fields
+DELETE /api/projects/{project}/suites/{suite}/commits/{value}                manage  Delete a commit and its runs
 
-GET    /api/suites/{testsuite}/tests                          read    List tests (search=, machine=, metric=)
+GET    /api/projects/{project}/suites/{suite}/runs                           read    List runs (machine=, commit=, search=, sort=, ...)
+POST   /api/projects/{project}/suites/{suite}/runs                           submit  Submit a run
+GET    /api/projects/{project}/suites/{suite}/runs/{uuid}                    read    One run
+DELETE /api/projects/{project}/suites/{suite}/runs/{uuid}                    manage  Delete a run
+GET    /api/projects/{project}/suites/{suite}/runs/{uuid}/samples            read    A run's samples (test=)
+GET    /api/projects/{project}/suites/{suite}/runs/{uuid}/profiles           read    A run's profiles, as {test, uuid}
 
-GET    /api/suites/{testsuite}/series                         read    A machine's series for one metric, as NDJSON
-GET    /api/suites/{testsuite}/trends                         read    Per-commit geomeans, per machine
+GET    /api/projects/{project}/suites/{suite}/tests                          read    List tests (search=, machine=, metric=)
 
-GET    /api/suites/{testsuite}/profiles/{uuid}                read    A profile's top-level counters
-GET    /api/suites/{testsuite}/profiles/{uuid}/functions      read    Its functions, with their counters
-GET    /api/suites/{testsuite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
-GET    /api/suites/{testsuite}/profiles/{uuid}/document       read    The whole profile, as the document a submission carries
+GET    /api/projects/{project}/suites/{suite}/series                         read    A machine's series for one metric, as NDJSON
+GET    /api/projects/{project}/suites/{suite}/trends                         read    Per-commit geomeans, per machine
 
-GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, search=, sort=, ...)
-POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
-GET    /api/suites/{testsuite}/regressions/{uuid}             read    One regression, with its indicators
-PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit
-DELETE /api/suites/{testsuite}/regressions/{uuid}             triage  Delete a regression
-POST   /api/suites/{testsuite}/regressions/{uuid}/indicators  triage  Add indicators
-DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators  triage  Remove indicators, by UUID
-POST   /api/suites/{testsuite}/regressions/indicators/query   read    Indicators across regressions (machine, test, metric, state, commit)
+GET    /api/projects/{project}/suites/{suite}/profiles/{uuid}                read    A profile's top-level counters
+GET    /api/projects/{project}/suites/{suite}/profiles/{uuid}/functions      read    Its functions, with their counters
+GET    /api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
+GET    /api/projects/{project}/suites/{suite}/profiles/{uuid}/document       read    The whole profile, as the document a submission carries
 
-GET    /api/admin/api-keys                                    admin   List API keys
-POST   /api/admin/api-keys                                    admin   Create an API key
-DELETE /api/admin/api-keys/{prefix}                           admin   Revoke an API key
+GET    /api/projects/{project}/suites/{suite}/regressions                    read    List regressions (state=, machine=, search=, sort=, ...)
+POST   /api/projects/{project}/suites/{suite}/regressions                    triage  Create a regression
+GET    /api/projects/{project}/suites/{suite}/regressions/{uuid}             read    One regression, with its indicators
+PATCH  /api/projects/{project}/suites/{suite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit
+DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}             triage  Delete a regression
+POST   /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators  triage  Add indicators
+DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators  triage  Remove indicators, by UUID
+POST   /api/projects/{project}/suites/{suite}/regressions/indicators/query   read    Indicators across regressions (machine, test, metric, state, commit)
+
+GET    /api/admin/api-keys                                                   admin   List API keys
+POST   /api/admin/api-keys                                                   admin   Create an API key
+DELETE /api/admin/api-keys/{prefix}                                          admin   Revoke an API key
 ```
 
 Deleting a suite, or removing entries from its schema, destroys data and needs
-`?confirm=true`.
+`?confirm=true`. Deleting a project destroys nothing, and is refused (409
+`conflict`) while it has suites.
 
 ## Conventions
 
@@ -154,8 +167,8 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   - `conflict`: the request contradicts stored state -- metadata a submission
     disagrees with, or an ordinal another commit holds. Do not retry as sent;
     change the request or the state first.
-  - `retry`: a concurrent change to the suite's schema got in the way. Nothing
-    was written; send the same request again.
+  - `retry`: a concurrent change to the suite's schema, or to the project, got
+    in the way. Nothing was written; send the same request again.
 - **Names that match nothing**: a run submission creates the machine, commit
   and tests it names. Everywhere else, an unknown machine or test is 404, an
   unknown metric or regression state is 400, and an unknown commit used as a
@@ -184,16 +197,23 @@ Send `Authorization: Bearer <token>`. Scopes form a hierarchy -- `read` <
 every lower one. `read` endpoints allow anonymous access, so send no header if
 you only read. A header that carries no usable Bearer token, or an unknown or
 revoked one, is 401 even on a `read` endpoint, and too little scope is 403. A
-key may be restricted to some suites (its `suites` list), and then has its scope
-only in those. Deleting a suite removes it from the keys restricted to it, and a
-suite created later under its name is not covered. To check a token before
-relying on it, `GET /api/auth` returns the key it belongs to, including the
-scope it grants and its `suites`.
+key may be restricted to some suites (its `restricted_to` list of
+`{"project": ..., "suite": ...}` entries), and then has its scope only in those:
+it can neither create a suite nor change a project. Creating and deleting
+projects need an unrestricted key. Deleting a suite removes it from the keys
+restricted to it, and a suite created later under its name is not covered. To
+check a token before relying on it, `GET /api/auth` returns the key it belongs
+to, including the scope it grants and its `restricted_to`.
 
 ## Workflows
 
-Paths below are relative to `/api/suites/{testsuite}`. Metric and field names
-in the examples are placeholders: use the ones the suite's schema declares.
+**Create a suite** in a project, which must exist: create the project first if
+need be, with `POST /api/projects` and a body such as `{"name": "llvm"}`, then
+post the suite's schema to `POST /api/projects/{project}/suites`.
+
+Paths below are relative to `/api/projects/{project}/suites/{suite}`. Metric and
+field names in the examples are placeholders: use the ones the suite's schema
+declares.
 
 **Submit a run** with `POST /runs`:
 
@@ -233,7 +253,7 @@ send it with `--data-binary`, which sends it byte for byte:
 ```
 gzip -c run.json | curl --data-binary @- -H 'Content-Type: application/json' \
   -H 'Content-Encoding: gzip' -H "Authorization: Bearer $TOKEN" \
-  "$LNT_URL/api/suites/nts/runs"
+  "$LNT_URL/api/projects/llvm/suites/nts/runs"
 ```
 
 **Submit a throwaway experiment**, such as the A/B runs of a pull request, on a

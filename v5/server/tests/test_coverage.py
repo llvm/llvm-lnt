@@ -18,19 +18,18 @@ from psycopg.errors import LockNotAvailable
 from sqlalchemy import Engine, func, select, text
 from sqlalchemy.exc import DBAPIError
 
-from conftest import entry, run_payload
+from conftest import entry, run_payload, suite_path
 from introspection import counting_statements, namespace_of
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.tables import SuiteTables, build
 from test_concurrency import BLOCK_TIMEOUT, until_blocked
 
-RUNS = RUNS_PATH.format(testsuite="nts")
-COMMITS = COMMITS_PATH.format(testsuite="nts")
-MACHINES = MACHINES_PATH.format(testsuite="nts")
+RUNS = RUNS_PATH.format(project="nts", suite="nts")
+COMMITS = COMMITS_PATH.format(project="nts", suite="nts")
+MACHINES = MACHINES_PATH.format(project="nts", suite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -286,7 +285,7 @@ class TestSubmission:
         # No flag to set, so a repeated test has nothing to update -- which the upsert must not
         # trip over.
         tables = make_api_suite({"name": "bare"})
-        runs = RUNS_PATH.format(testsuite="bare")
+        runs = RUNS_PATH.format(project="bare", suite="bare")
         for commit in ("abc", "def"):
             body = run_payload(commit={"value": commit}, tests=[entry("a")])
             assert api_client.post(runs, json=body, headers=submitter).status_code == 201
@@ -361,7 +360,7 @@ class TestSchemaChange:
     ) -> None:
         submit(entry("a", {"execution_time": 1.0}), entry("b"))
         patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
-        response = api_client.patch(f"{SUITES_PATH}/nts/schema", json=patch, headers=manage)
+        response = api_client.patch(f"{suite_path('nts')}/schema", json=patch, headers=manage)
         assert response.status_code == 200, response.text
         grown = build(SuiteSchema.model_validate(response.json()), suite.namespace).test_coverage
         read = select(grown.c.test_id, grown.c.size).order_by(grown.c.test_id)
@@ -385,7 +384,7 @@ class TestSchemaChange:
         patch = {"metrics": {"remove": ["compile_time"]}}
 
         response = api_client.patch(
-            f"{SUITES_PATH}/nts/schema?confirm=true", json=patch, headers=manage
+            f"{suite_path('nts')}/schema?confirm=true", json=patch, headers=manage
         )
 
         assert response.status_code == 200, response.text

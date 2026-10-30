@@ -29,6 +29,7 @@ from .routes.llms import router as llms_router
 from .routes.machines import router as machines_router
 from .routes.profiles import router as profiles_router
 from .routes.profiles import run_profiles_router
+from .routes.projects import router as projects_router
 from .routes.regressions import router as regressions_router
 from .routes.robots import router as robots_router
 from .routes.runs import router as runs_router
@@ -155,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(index_router)
     app.include_router(admin_router)
     app.include_router(auth_router)
+    app.include_router(projects_router)
     app.include_router(suites_router)
     app.include_router(machines_router)
     app.include_router(commits_router)

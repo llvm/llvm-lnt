@@ -81,7 +81,7 @@ class TestContent:
 
         The document spells a suite-scoped path in full the first time and abbreviates it
         afterwards -- `/runs/{uuid}/samples` for what is really
-        `/api/suites/{testsuite}/runs/{uuid}/samples` -- because a reader that has got that far
+        `/api/projects/{project}/suites/{suite}/runs/{uuid}/samples` -- because a reader that has
         knows the prefix and the full form is unreadable six times in a paragraph. Accepting
         exactly those two readings, rather than any route that merely ends the same way, keeps a
         relative path from passing on the strength of a route somewhere else in the tree.
@@ -109,7 +109,7 @@ _INDEX_ENTRY = re.compile(r"^(GET|POST|PATCH|DELETE) +(/\S+) +(\w+)", re.MULTILI
 _PATH = re.compile(r"(?<![\w/.-])/[A-Za-z0-9_{}/.-]+")
 
 # What the document's suite-relative paths are relative to, as `_shape` writes it.
-_SUITE_PREFIX = "/api/suites/{}"
+_SUITE_PREFIX = "/api/projects/{}/suites/{}"
 
 # Path parameters are named for the reader rather than for the router, so the document may write
 # `{name}` where the route says `{machine_name}`.
