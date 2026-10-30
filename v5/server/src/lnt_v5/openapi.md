@@ -5,7 +5,8 @@ machines, commits, runs, samples, profiles and regressions) and to common workfl
 [/llms.txt](/llms.txt).
 
 Test suites are grouped into projects. A suite's name is unique within its project, so every path
-of a suite names both: `/api/projects/{project}/suites/{suite}/...`.
+of a suite names both: `/api/projects/{project}/suites/{suite}/...`. Suites can be renamed and
+moved to other projects, and projects renamed: every URL under the old names then answers 404.
 
 ## Authentication
 
@@ -17,8 +18,10 @@ Each operation lists the scope it requires, and the `Scope` schema describes wha
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
 everything its scope and the scopes below it allow. A key can also be restricted to some whole
 projects and some single test suites, and then has its scope only in the suites it covers. A key
-covering a project as a whole can also create test suites in it and change its display name.
-Creating or deleting a project always needs an unrestricted key. Keys are created with
+covering a project as a whole can also create test suites in it, move test suites into it, and
+change its display name. Creating, renaming or deleting a project always needs an unrestricted key.
+Restrictions follow renames: a key listing a suite keeps covering it under its new names, and a key
+listing a project covers the suites the project holds now. Keys are created with
 `POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
 your first key.
 

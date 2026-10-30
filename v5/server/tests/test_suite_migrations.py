@@ -18,7 +18,13 @@ from sqlalchemy import Connection, Engine, create_engine, insert, inspect, selec
 from sqlalchemy.pool import NullPool
 
 from conftest import ensure_project, recent, store_suite
-from introspection import namespace_of, schema_version_of, structure_of, suite_column_names
+from introspection import (
+    label_of,
+    namespace_of,
+    schema_version_of,
+    structure_of,
+    suite_column_names,
+)
 from lnt_v5.migrate import MIGRATION_LOCK_KEY, MigrationError, upgrade_to_head
 from lnt_v5.suites import migrations
 from lnt_v5.suites import tables as suite_tables
@@ -39,17 +45,6 @@ def version_of(engine: Engine, name: str) -> int:
         return int(
             connection.execute(
                 select(schema.c.migration_version).where(schema.c.name == name)
-            ).scalar_one()
-        )
-
-
-def label_of(engine: Engine, namespace: str) -> str:
-    """What a namespace is labelled with (see `suites/tables.py`)."""
-    with engine.connect() as connection:
-        return str(
-            connection.execute(
-                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
-                {"namespace": namespace},
             ).scalar_one()
         )
 

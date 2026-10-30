@@ -1,11 +1,20 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
-import { schemaOf, type Suite, type SuiteSchema } from '../../api/suites'
+import { schemaOf, suiteRef, type ProjectName, type Suite, type SuiteSchema } from '../../api/suites'
 import { apiKey, entry, mockAuth, signIn, TOKEN } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
-import { BARE_SUITE, NO_REPOSITORY, REF, SUITE, cursorPage, inProject } from '../../test/fixtures'
+import {
+  BARE_SUITE,
+  NO_REPOSITORY,
+  PROJECT as PROJECT_LLVM,
+  REF,
+  SUITE,
+  cursorPage,
+  inProject,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -20,6 +29,7 @@ import {
   table,
   type SuiteStore,
 } from '../../test/page'
+import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import { downloadFile } from './schema/download'
 
@@ -499,5 +509,311 @@ describe('deleting a suite', () => {
     await settle()
     expect(currentUrl()).toBe('/projects')
     await waitFor(() => expect(cards()).toEqual(['nts', 'units']))
+  })
+})
+
+describe('renaming or moving a suite', () => {
+  const SWIFT: ProjectName = { name: 'swift', display_name: 'Swift' }
+  const SWIFT_SUITE = inProject({ ...BARE_SUITE, name: 'bench' }, SWIFT)
+
+  /**
+   * Answer `PATCH /api/projects/{project}/suites/{suite}` by renaming or moving the suite in `store`
+   * once `wait` resolves, or with `fail`; returns each request's project, suite and body.
+   */
+  function mockMove(
+    store: SuiteStore,
+    { fail, wait }: { fail?: () => Failure; wait?: () => Promise<void> } = {},
+  ) {
+    const sent: { project: string; suite: string; body: unknown; auth: string | null }[] = []
+    server.use(
+      mockApi('patch', '/api/projects/{project}/suites/{suite}', async ({ request, params }) => {
+        const body = (await request.json()) as { name?: string; project?: string }
+        sent.push({
+          project: params.project,
+          suite: params.suite,
+          body,
+          auth: request.headers.get('Authorization'),
+        })
+        await wait?.()
+        if (fail) return fail()
+        const index = store.suites.findIndex(
+          (suite) => (suite as Suite).project.name === params.project && suite.name === params.suite,
+        )
+        const suite = store.suites[index] as Suite
+        const project = store.projects.find((p) => p.name === (body.project ?? params.project))!
+        const moved = { ...suite, name: body.name ?? suite.name, project }
+        store.suites[index] = moved
+        return HttpResponse.json(schemaOf(moved))
+      }),
+    )
+    return sent
+  }
+
+  function moveButton() {
+    return screen.getByRole('button', { name: 'Rename or move' })
+  }
+
+  function panel() {
+    return screen.queryByRole('form', { name: 'Rename or move' })
+  }
+
+  function nameInput() {
+    return within(panel()!).getByRole('textbox', { name: 'Name' })
+  }
+
+  function saveButton() {
+    return within(panel()!).getByRole('button', { name: /^Save/ })
+  }
+
+  /** Libcxx's Schema tab, with SWIFT beside llvm, to a holder of `restrictedTo`'s `manage`. */
+  async function renderMovable(
+    restrictedTo: Parameters<typeof signIn>[1] = null,
+    url = '/projects/llvm/suites/libcxx?tab=schema',
+  ) {
+    signIn('manage', restrictedTo)
+    const store = mockSuites([...SUITES, SWIFT_SUITE], { projects: [PROJECT_LLVM, SWIFT] })
+    mockRuns(() => cursorPage([]))
+    const rendered = renderPage(url)
+    await waitFor(() => expect(moveButton()).toBeEnabled())
+    return { ...rendered, store }
+  }
+
+  /** Open the panel, and change the project to `project` and the name to `name`, unless null. */
+  async function change(project: string | null, name: string | null) {
+    fireEvent.click(moveButton())
+    if (project !== null) await pickOption('Project', project, panel()!)
+    if (name !== null) fireEvent.change(nameInput(), { target: { value: name } })
+  }
+
+  it("opens on the suite's project and name, and closes on Cancel, refocusing its button", async () => {
+    await renderMovable()
+
+    fireEvent.click(moveButton())
+
+    expect(moveButton()).toHaveAttribute('aria-expanded', 'true')
+    expect(selectButton('Project', panel()!)).toHaveTextContent('llvm')
+    expect(nameInput()).toHaveValue('libcxx')
+    expect(nameInput()).toHaveFocus()
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Cancel' }))
+    expect(panel()).not.toBeInTheDocument()
+    expect(moveButton()).toHaveFocus()
+  })
+
+  it('needs manage in the suite', async () => {
+    signIn('manage', [entry('nts')])
+    mockSuites(SUITES)
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
+    await table('Metrics')
+
+    await waitFor(() =>
+      expect(moveButton()).toHaveAttribute(
+        'title',
+        expect.stringContaining("Needs an API token with the 'manage' scope in suite"),
+      ),
+    )
+    expect(moveButton()).toBeDisabled()
+  })
+
+  it('closes without sending anything when nothing changes', async () => {
+    const { store } = await renderMovable()
+    const sent = mockMove(store)
+    await change('llvm', 'libcxx')
+
+    fireEvent.click(saveButton())
+
+    expect(panel()).not.toBeInTheDocument()
+    expect(prompt()).not.toBeInTheDocument()
+    expect(moveButton()).toHaveFocus()
+    expect(sent).toEqual([])
+  })
+
+  it('checks the name as it is typed, against the other suites of the project picked', async () => {
+    await renderMovable()
+    fireEvent.click(moveButton())
+
+    fireEvent.change(nameInput(), { target: { value: 'nts' } })
+    expect(nameInput()).toHaveAttribute('aria-invalid', 'true')
+    expect(saveButton()).toHaveAttribute('title', "There is already a suite named 'nts'.")
+    fireEvent.change(nameInput(), { target: { value: 'Bad Name' } })
+    expect(nameInput()).toHaveAttribute('aria-invalid', 'true')
+    fireEvent.change(nameInput(), { target: { value: '' } })
+    expect(saveButton()).toHaveAttribute('title', 'Give the suite a name.')
+    expect(saveButton()).toBeDisabled()
+    // In another project, its own name is free, and the other suites there are what count.
+    fireEvent.change(nameInput(), { target: { value: 'nts' } })
+    await pickOption('Project', 'Swift', panel()!)
+    expect(nameInput()).not.toHaveAttribute('aria-invalid')
+    fireEvent.change(nameInput(), { target: { value: 'bench' } })
+    expect(nameInput()).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('disables the other projects the token does not cover in full (AR17)', async () => {
+    await renderMovable([entry('libcxx')])
+    fireEvent.click(moveButton())
+
+    await userEvent.setup().click(selectButton('Project', panel()!))
+    const options = await screen.findAllByRole('option')
+
+    // Its own project, where it can be renamed, is allowed.
+    expect(options[0]).toHaveAccessibleName('llvm')
+    expect(options[1]).toHaveAccessibleName(
+      "Swift: Needs an API token with the 'manage' scope covering project 'Swift' in full. The " +
+        "token in Settings has the 'manage' scope, covering only 'llvm/libcxx'.",
+    )
+  })
+
+  it('renames it once confirmed, and goes to its new Schema tab in place of the old', async () => {
+    signIn('manage')
+    const store = mockSuites([...SUITES, SWIFT_SUITE], { projects: [PROJECT_LLVM, SWIFT] })
+    mockRuns(() => cursorPage([]))
+    renderPage('/projects')
+    fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
+    await waitFor(() => expect(moveButton()).toBeEnabled())
+    const sent = mockMove(store)
+    await change(null, 'benchmarks')
+
+    fireEvent.click(saveButton())
+    expect(prompt()).toHaveTextContent(
+      'Rename the test suite llvm/libcxx to llvm/benchmarks? Every URL, bookmark and bot that ' +
+        'uses the name llvm/libcxx will get a 404 until it is updated.',
+    )
+    expect(prompt()).toHaveTextContent('API keys are unaffected.')
+    // The panel cannot change while the change is confirmed.
+    expect(nameInput()).toHaveAttribute('readonly')
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
+    expect(sent).toEqual([
+      { project: 'llvm', suite: 'libcxx', body: { name: 'benchmarks' }, auth: `Bearer ${TOKEN}` },
+    ])
+    expect(cards()).toEqual(['benchmarks', 'nts', 'units'])
+    // Once the token has been checked again, the button takes the focus back.
+    await waitFor(() => expect(moveButton()).toHaveFocus())
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects'))
+  })
+
+  it("moves it, saying what that means for the API keys, by the projects' labels", async () => {
+    const { store } = await renderMovable()
+    const sent = mockMove(store)
+    await change('Swift', null)
+
+    fireEvent.click(saveButton())
+    expect(prompt()).toHaveTextContent(
+      'Move the test suite llvm/libcxx to swift/libcxx? Every URL, bookmark and bot that uses ' +
+        'the name llvm/libcxx will get a 404 until it is updated.',
+    )
+    expect(prompt()).toHaveTextContent(
+      "API keys listing the project 'llvm' as a whole will no longer cover the suite, those " +
+        "listing the project 'Swift' as a whole will, and those listing the suite itself still " +
+        'will.',
+    )
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/libcxx?tab=schema'))
+    expect(sent.map(({ body }) => body)).toEqual([{ project: 'swift' }])
+    expect(cards()).toEqual(['bench', 'libcxx'])
+  })
+
+  it('never shows the old names as not found on the way', async () => {
+    const { store } = await renderMovable()
+    mockMove(store)
+    const seen: string[] = []
+    const observer = new MutationObserver(() => seen.push(document.body.textContent ?? ''))
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    await change(null, 'benchmarks')
+
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
+    await waitFor(() => expect(moveButton()).toHaveFocus())
+    observer.disconnect()
+
+    expect(seen.filter((text) => text.includes('not found'))).toEqual([])
+  })
+
+  it('forgets what was read under both names, and the API keys, and checks the token', async () => {
+    const { store, queryClient } = await renderMovable()
+    const to = suiteRef('swift', 'libcxx')
+    // Something read from inside the suite under its old names, which a suite created later
+    // under them must not find, and from inside an earlier suite of the new names.
+    queryClient.setQueryData([...queryKeys.machines(REF), 'detail', 'm'], { name: 'm' })
+    queryClient.setQueryData([...queryKeys.machines(to), 'detail', 'm'], { name: 'old' })
+    queryClient.setQueryData(queryKeys.apiKeys, { items: [apiKey('manage')] })
+    mockMove(store)
+    const rechecks = mockAuth(() => HttpResponse.json({ key: apiKey('manage') }))
+    await change('Swift', null)
+
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/libcxx?tab=schema'))
+    await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
+    await settle()
+    expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite(REF) })).toEqual([])
+    expect(queryClient.getQueryData([...queryKeys.machines(to), 'detail', 'm'])).toBeUndefined()
+    expect(queryClient.getQueryData(queryKeys.apiKeys)).toBeUndefined()
+  })
+
+  it('shows why the change failed, in the panel, which can then be changed again', async () => {
+    const { store } = await renderMovable()
+    mockMove(store, { fail: () => errorResponse(409, 'duplicate', 'Taken meanwhile.') })
+    await change(null, 'benchmarks')
+
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Taken meanwhile.')
+    expect(prompt()).not.toBeInTheDocument()
+    expect(nameInput()).toHaveValue('benchmarks')
+    expect(nameInput()).not.toHaveAttribute('readonly')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
+  })
+
+  it('goes back to the panel, sending nothing, when the prompt is cancelled', async () => {
+    const { store } = await renderMovable()
+    const sent = mockMove(store)
+    await change(null, 'benchmarks')
+
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'Cancel' }))
+
+    expect(prompt()).not.toBeInTheDocument()
+    expect(nameInput()).toHaveFocus()
+    expect(nameInput()).toHaveValue('benchmarks')
+    expect(sent).toEqual([])
+  })
+
+  it('goes to the new Schema tab when the user is on another of its tabs', async () => {
+    const { store } = await renderMovable()
+    const held = gate()
+    mockMove(store, { wait: () => held.promise })
+    await change(null, 'benchmarks')
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
+    await act(async () => held.open())
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
+  })
+
+  it('stays where the user went, if they have left the page meanwhile', async () => {
+    const { store } = await renderMovable()
+    const held = gate()
+    mockMove(store, { wait: () => held.promise })
+    await change(null, 'benchmarks')
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    fireEvent.click(card('units'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/units'))
+    await act(async () => held.open())
+
+    await waitFor(() => expect(cards()).toEqual(['benchmarks', 'nts', 'units']))
+    await settle()
+    expect(currentUrl()).toBe('/projects/llvm/suites/units')
   })
 })
