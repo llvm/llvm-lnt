@@ -35,6 +35,7 @@
   color: var(--lnt-muted);
 }
 
+/* A project's heading, bigger than those of its suites. */
 .projectHeading {
   margin: var(--lnt-space-3) 0 var(--lnt-space-2);
   font-size: 1.5rem;

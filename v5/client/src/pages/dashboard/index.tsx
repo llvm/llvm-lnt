@@ -37,14 +37,15 @@ export default function Dashboard() {
   // A project the list does not hold is dropped (AR2 "State"); every project is shown meanwhile.
   useDropUnusable(
     projects,
-    () => project === '' || picked !== undefined,
+    (list) => project === '' || list.some((entry) => entry.name === project),
     () => update({ project: '' }),
   )
-  // Until the projects are listed, the project of the URL is named by its name (AR22).
-  const named = data ?? (project === '' ? [] : [projectNamed(undefined, project)])
+  // The projects the dropdown offers: until they are listed, the project of the URL, by its name
+  // (AR22).
+  const offered = data ?? (project === '' ? [] : [projectNamed(undefined, project)])
   const options = [
     ALL_PROJECTS,
-    ...named.map((entry) => ({ value: entry.name, label: projectLabel(entry) })),
+    ...offered.map((entry) => ({ value: entry.name, label: projectLabel(entry) })),
   ]
 
   let content

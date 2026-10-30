@@ -246,8 +246,10 @@ test('shows one project alone, fetching nothing for the others', async ({ page }
     'No tracked machine has runs yet.',
   )
   await expect(tracesOf(card(page, 'Cycles Elapsed'))).toHaveCount(5)
-  expect(asked.filter((path) => path.startsWith('/api/projects/libcxx/'))).not.toEqual([])
-  expect(asked.filter((path) => path.startsWith('/api/projects/llvm/'))).toEqual([])
+  // Everything asked of a project is asked of libcxx, the list of projects aside.
+  const inProjects = asked.filter((path) => path.startsWith('/api/projects/'))
+  expect(inProjects).not.toEqual([])
+  expect(inProjects.filter((path) => !path.startsWith('/api/projects/libcxx/'))).toEqual([])
 
   await pickOption(page, 'Project', 'All projects')
   await expect(page).toHaveURL('/')

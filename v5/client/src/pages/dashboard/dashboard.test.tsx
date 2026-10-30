@@ -390,8 +390,10 @@ describe('the Dashboard', () => {
       await chartOf('Execution Time', 'benchmarks', 'libc++')
       expect(selectButton('Project')).toHaveTextContent('libc++')
       expect(projectHeadings()).toEqual(['libc++'])
-      expect(paths.filter((path) => path.startsWith('/api/projects/libcxx/'))).not.toEqual([])
-      expect(paths.filter((path) => path.startsWith('/api/projects/llvm/'))).toEqual([])
+      // Everything asked of a project is asked of libcxx, the list of projects aside.
+      const inProjects = paths.filter((path) => path.startsWith('/api/projects/'))
+      expect(inProjects).not.toEqual([])
+      expect(inProjects.filter((path) => !path.startsWith('/api/projects/libcxx/'))).toEqual([])
     })
 
     it('keeps the project picked in the URL, in place of the history entry', async () => {
@@ -416,11 +418,12 @@ describe('the Dashboard', () => {
     it('keeps the sections of the project picked as they are', async () => {
       const { machines } = mockProjects()
       renderPage('/')
-      const { element } = await chartOf('Execution Time', 'benchmarks', 'libc++')
+      // The second project, whose sections move to the top of the page.
+      const { element } = await chartOf('Execution Time', 'nts', 'llvm')
       const asked = machines.length
 
-      await pickOption('Project', 'libc++')
-      await waitFor(() => expect(projectHeadings()).toEqual(['libc++']))
+      await pickOption('Project', 'llvm')
+      await waitFor(() => expect(projectHeadings()).toEqual(['llvm']))
 
       // The same chart, rather than one drawn again in a section mounted again.
       expect(element).toBeInTheDocument()
