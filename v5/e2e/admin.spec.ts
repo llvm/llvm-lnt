@@ -135,7 +135,7 @@ test.describe('the API Keys tab', () => {
     })
   })
 
-  test('shows a key whose suites were all deleted as covering nothing', async ({
+  test('shows a key whose entries were all deleted as covering nothing', async ({
     page,
     request,
     signIn,

@@ -62,7 +62,7 @@ describe('grants', () => {
     expect(granted(null)).toEqual(['read'])
   })
 
-  it('grants only read to a key whose suites were all deleted', () => {
+  it('grants only read to a key whose entries were all deleted', () => {
     const key = { scope: 'manage' as const, restricted_to: [] }
 
     expect(SCOPES.filter((scope) => grants(key, scope, NTS))).toEqual(['read'])
@@ -212,7 +212,7 @@ describe('useScopeGate', () => {
     )
   })
 
-  it('enables no control above read for a token whose suites were all deleted', async () => {
+  it('enables no control above read for a token whose entries were all deleted', async () => {
     signIn('triage', [])
     const { result } = renderHook(
       () => ({ auth: useAuth(), gate: useScopeGate('triage', NTS) }),
@@ -274,6 +274,18 @@ describe('refusalInEvery', () => {
   it('allows it to a token covering one of them in full', () => {
     const token = valid([entry('nts'), { project: 'swift' }]) as never
     expect(refusalInEvery('manage', projects, token, projects)).toBeUndefined()
+  })
+
+  it('refuses it to a token restricted to single suites while the projects load', () => {
+    const suites = valid([entry('nts')]) as never
+    expect(refusalInEvery('manage', undefined, suites, undefined)).toBe(
+      "Needs an API token with the 'manage' scope covering a project in full. The token in " +
+        "Settings has the 'manage' scope, covering only 'llvm/nts'.",
+    )
+    // Unlike one listing a whole project, which may well cover one of them in full.
+    const whole = valid([entry('nts'), { project: 'swift' }]) as never
+    expect(refusalInEvery('manage', undefined, whole, undefined)).toBeUndefined()
+    expect(refusalInEvery('manage', undefined, valid(null) as never, undefined)).toBeUndefined()
   })
 
   it('says why the token covers none of them in full', () => {

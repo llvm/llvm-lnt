@@ -177,15 +177,32 @@ describe('opening the editor', () => {
   })
 
   it('opens the editor while the projects load, which says that they are loading', async () => {
+    signIn('manage', [entry('nts'), { project: 'swift' }])
+    const list = gate()
+    mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
+    renderPage('/admin?tab=suites')
+
+    // A token listing a whole project may cover a project in full, which only the list can tell.
+    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
+    fireEvent.click(newSuiteButton())
+    expect(createButton()).toHaveAccessibleDescription('Loading the projects...')
+    await act(async () => list.open())
+  })
+
+  it('is disabled while the projects load for a token restricted to single suites', async () => {
     signIn('manage', [entry('nts')])
     const list = gate()
     mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
     renderPage('/admin?tab=suites')
 
-    // A restricted token may cover a project in full, which only the list can tell.
-    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
-    fireEvent.click(newSuiteButton())
-    expect(createButton()).toHaveAccessibleDescription('Loading the projects...')
+    // It covers no project in full, whatever the list holds.
+    await waitFor(() =>
+      expect(newSuiteButton()).toHaveAccessibleDescription(
+        "Needs an API token with the 'manage' scope covering a project in full. The token in " +
+          "Settings has the 'manage' scope, covering only 'llvm/nts'.",
+      ),
+    )
+    expect(newSuiteButton()).toBeDisabled()
     await act(async () => list.open())
   })
 

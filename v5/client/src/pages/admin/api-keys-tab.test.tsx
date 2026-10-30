@@ -392,7 +392,7 @@ describe('sorting the keys', () => {
     expect(store.requests).toHaveLength(1)
   })
 
-  it('shows Nothing for a key whose suites were all deleted, and sorts it last', async () => {
+  it('shows Nothing for a key whose entries were all deleted, and sorts it last', async () => {
     const orphan = apiKey('submit', {
       prefix: '7d1e40aa',
       name: 'swift-bot',
@@ -761,6 +761,25 @@ describe('creating a key', () => {
     expect(sent.map(({ body }) => body)).toEqual([
       { name: 'ci-bot', scope: 'submit', restricted_to: [entry('libcxx')] },
     ])
+  })
+
+  it('drops a whole project checked once it is deleted, which leaves nothing checked', async () => {
+    const swift = { name: 'swift', display_name: null }
+    mockSuites([SUITE], { projects: [PROJECT, swift] })
+    const { queryClient } = await renderKeys()
+    fireEvent.change(nameInput(), { target: { value: 'swift-bot' } })
+    await pickOption('Scope', 'submit', createForm())
+    fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
+    await toggleOptions('Projects and suites to restrict to', ['swift (no suites)'], createForm())
+    expect(suitesButton()).toHaveTextContent('swift (all)')
+
+    // swift is deleted meanwhile.
+    mockSuites([SUITE], { projects: [PROJECT] })
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects }))
+
+    await waitFor(() => expect(suitesButton()).toHaveTextContent('Select projects or suites'))
+    expect(createButton()).toBeDisabled()
+    expect(createButton()).toHaveAccessibleDescription('Pick at least one project or suite.')
   })
 
   it('creates an instance-wide key while the suites cannot be listed', async () => {

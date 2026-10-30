@@ -90,10 +90,10 @@ export const test = base.extend<Fixtures>({
       const token = await tokenFor(scope, restrictedTo)
       // Storage belongs to an origin, so the page needs one first: the cheapest the server serves.
       await page.goto('/healthz')
-      await page.evaluate(
-        ([key, value]) => localStorage.setItem(key, value),
-        [TOKEN_STORAGE_KEY, token],
-      )
+      await page.evaluate(([key, value]) => localStorage.setItem(key, value), [
+        TOKEN_STORAGE_KEY,
+        token,
+      ])
       return token
     })
   },

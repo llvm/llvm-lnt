@@ -1466,24 +1466,20 @@ class TestKeyCreationRacingProjectDeletion:
         assert key.restricted_to == (Entry("libcxx", None),)
 
     def test_a_display_name_change_does_not_wait_for_the_creation(
-        self, db_engine: Engine, background: Callable[..., Future[Any]]
+        self,
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        api_client: TestClient,
+        manage: dict[str, str],
     ) -> None:
         # The key locks the project FOR KEY SHARE, which conflicts with deleting it, but not with
-        # the FOR NO KEY UPDATE of a display-name change (see `routes/projects.py`).
-        def rename() -> None:
-            with project_write(db_engine, "swift") as connection:
-                connection.execute(
-                    select(project_table.c.id)
-                    .where(project_table.c.name == "swift")
-                    .with_for_update(key_share=True)
-                )
-                connection.execute(
-                    update(project_table)
-                    .where(project_table.c.name == "swift")
-                    .values(display_name="Swift")
-                )
+        # the lock a display-name change takes. Through the route itself, so that a change to that
+        # lock is caught: had it to wait, it would answer a 409 `retry` once its wait ran out.
+        def change_display_name() -> int:
+            body = {"display_name": "Swift"}
+            return api_client.patch("/api/projects/swift", json=body, headers=manage).status_code
 
         with db_engine.connect() as creating, creating.begin():
             create_key(creating, "bot", Scope.MANAGE, self.WHOLE)
             # Completes while the key's transaction is still open.
-            background(rename).result(timeout=BLOCK_TIMEOUT)
+            assert background(change_display_name).result(timeout=BLOCK_TIMEOUT) == 200

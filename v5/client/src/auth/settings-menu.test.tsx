@@ -191,7 +191,7 @@ describe('Settings panel', () => {
     )
   })
 
-  it('says that a key whose suites were all deleted covers nothing', async () => {
+  it('says that a key whose entries were all deleted covers nothing', async () => {
     signIn('triage', [])
     renderMenu()
     openPanel()

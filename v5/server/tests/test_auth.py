@@ -24,7 +24,7 @@ from fastapi._compat import field_annotation_is_sequence
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, update
 
-from conftest import ensure_project
+from conftest import code_of, ensure_project
 from lnt_v5 import keys
 from lnt_v5.auth import Coverage, iter_routes, required_scope, route_requirement, suite_parameters
 from lnt_v5.querying import _takes_several
@@ -201,8 +201,8 @@ class TestScopeEnforcement:
 
 
 class TestSuiteRestriction:
-    """I5: a key restricted to some suites has its scope on requests addressing one of them, and
-    only `read` on any other."""
+    """I5: a key restricted to some single suites has its scope on requests addressing one of them,
+    and only `read` on any other (`TestProjectRestriction` covers whole projects)."""
 
     def test_every_operation_above_read_honours_a_restriction(
         self,
@@ -498,6 +498,18 @@ class TestProjectRestriction:
         assert mine.status_code == 201
         assert theirs.status_code == 403
         assert "only in: libcxx (all)" in theirs.json()["error"]["message"]
+
+    def test_a_write_to_a_suite_the_project_lacks_is_a_404(
+        self, api_client: TestClient, libcxx: dict[str, str]
+    ) -> None:
+        # The key covers whatever the project holds, so authorization lets the request through,
+        # and the missing suite is found next (I5's order of checks).
+        response = api_client.post(
+            "/api/projects/libcxx/suites/missing/machines", json={"name": "m"}, headers=libcxx
+        )
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
 
     def test_creates_suites_in_the_project_and_manages_them(
         self, api_client: TestClient, libcxx: dict[str, str]
