@@ -632,6 +632,22 @@ describe('saving', () => {
     expect(rowsOf(await table('Metrics'))).toHaveLength(1)
   })
 
+  it('names the suite by its label in the prompt, which asks for its name (AR22, AR16)', async () => {
+    signIn('manage')
+    const named = { ...SUITE, display_name: 'Micro' }
+    mockFresh(mockSuites([named, BARE_SUITE]))
+    renderPage('/suites/libcxx?tab=schema')
+    await waitFor(() => expect(editButton()).toBeEnabled())
+    fireEvent.click(editButton())
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove metric execution_time' }))
+
+    const region = screen.getByRole('region', { name: 'Editing Micro' })
+    fireEvent.click(within(region).getAllByRole('button', { name: 'Save' })[0])
+
+    expect(prompt()).toHaveTextContent('Saving removes these entries from the suite Micro:')
+    expect(prompt()).toHaveTextContent('Type libcxx to confirm')
+  })
+
   it('changes nothing in the editor while the removal is being confirmed', async () => {
     await openEditor()
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric code_size' }))

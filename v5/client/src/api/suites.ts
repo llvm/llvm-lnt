@@ -29,6 +29,8 @@ export function useSuites() {
 /**
  * The suites as far as they have been listed already, without listing them: for what names a suite
  * by its label (AR22) without needing the list otherwise, which names it by its name until then.
+ * It deliberately never fetches the list, which AR22 allows ("including until its display name is
+ * known"), so that a gated control or the Settings panel costs no request of its own.
  */
 export function useKnownSuites(): SuiteSchema[] | undefined {
   return useQuery({ ...suitesQuery, enabled: false }).data

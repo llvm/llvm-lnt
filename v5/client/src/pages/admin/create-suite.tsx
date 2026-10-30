@@ -88,7 +88,9 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (reason === undefined && !busy) create.mutate(JSON.stringify(schemaOf(name, displayName, draft)), created)
+    if (reason === undefined && !busy) {
+      create.mutate(JSON.stringify(schemaOf(name, displayName, draft)), created)
+    }
   }
 
   // An action rather than a setting: it shows no suite, so that any suite can be picked, again.

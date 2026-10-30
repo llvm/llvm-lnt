@@ -51,6 +51,7 @@ Schema
 The target suite's schema is derived from the v4 schema and the suite's
 machines:
 
+- **Display name**: none, since v4 has no notion of one.
 - **Metrics**: one per v4 metric, with the same name. ``Real`` becomes ``real``,
   ``Status`` becomes ``integer``, and ``Hash`` becomes ``text``; any other type
   is an error. ``bigger_is_better``, ``unit`` and ``unit_abbrev`` are kept,

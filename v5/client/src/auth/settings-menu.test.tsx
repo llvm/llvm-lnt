@@ -140,7 +140,10 @@ describe('Settings panel', () => {
     signIn('triage', ['libcxx', 'nts'])
     const { queryClient } = renderMenu()
     queryClient.setQueryData(queryKeys.suites, {
-      items: [{ ...SUITE, display_name: 'Microbenchmarks' }, { ...BARE_SUITE, display_name: 'LLVM' }],
+      items: [
+        { ...SUITE, display_name: 'Microbenchmarks' },
+        { ...BARE_SUITE, display_name: 'LLVM' },
+      ],
     })
     openPanel()
 

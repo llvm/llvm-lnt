@@ -26,8 +26,8 @@
   a field the schema does not name is rejected with 400 rather than ignored.
   An optional `repository` block holds URL templates of the repository's
   commits (`{commit}`) and of the changes between two commits (`{from}`,
-  `{to}`), for clients to link to. An optional `display_name` is how user
-  interfaces name the suite; the API addresses it by `name` alone.
+  `{to}`), for clients to link to. An optional `display_name` is how the web
+  UI names the suite; the API addresses it by `name` alone.
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
   declared `machine_fields` under `fields`, and a built-in `tracked` flag
   marking whether it takes part in *automatic* machine selection, such as a

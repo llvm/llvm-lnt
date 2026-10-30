@@ -322,6 +322,19 @@ describe('deleting a suite', () => {
     expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite('libcxx') })).toEqual([])
   })
 
+  it('names the suite by its label, and asks for its name (AR22, AR16)', async () => {
+    const suites = [{ ...SUITE, display_name: 'Microbenchmarks' }, BARE_SUITE, UNITLESS]
+    const { store } = await renderSuite('libcxx', { manage: true, suites })
+    const sent = mockDelete(store)
+
+    fireEvent.click(deleteButton())
+    expect(prompt()).toHaveTextContent('Deleting the test suite Microbenchmarks permanently')
+    expect(prompt()).toHaveTextContent('Type libcxx to confirm')
+    confirmDeletion('libcxx')
+
+    await waitFor(() => expect(sent).toHaveLength(1))
+  })
+
   it('checks the token again, and forgets the API keys, which may have listed it', async () => {
     signIn('manage', ['libcxx'])
     const store = mockSuites(SUITES)

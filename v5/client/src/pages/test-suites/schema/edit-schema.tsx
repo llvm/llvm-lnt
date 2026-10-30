@@ -9,6 +9,7 @@ import {
   type SuiteSchema,
 } from '../../../api/suites'
 import { useScopeGate } from '../../../auth/scope'
+import { suiteLabel } from '../../../labels'
 import { ActionButton } from '../../../components/action-button'
 import { Confirmation } from '../../../components/confirmation'
 import { ErrorMessage, Loaded } from '../../../components/feedback'
@@ -174,7 +175,7 @@ function EditForm({ schema, onClose }: FormProps) {
                 saveRef.current?.focus()
               }}
             >
-              <p>Saving removes these entries from the suite {name}:</p>
+              <p>Saving removes these entries from the suite {suiteLabel(schema)}:</p>
               <ul>
                 {removed.map((entry) => (
                   <li key={`${entry.list}-${entry.name}`}>

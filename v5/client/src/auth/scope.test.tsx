@@ -130,7 +130,10 @@ describe('useScopeGate', () => {
     signIn('triage', ['libcxx', 'nts'])
     const wrapper = providers()
     wrapper.queryClient.setQueryData(queryKeys.suites, {
-      items: [{ ...SUITE, display_name: 'Microbenchmarks' }, { ...BARE_SUITE, display_name: 'LLVM' }],
+      items: [
+        { ...SUITE, display_name: 'Microbenchmarks' },
+        { ...BARE_SUITE, display_name: 'LLVM' },
+      ],
     })
     const { result } = renderHook(
       () => ({ auth: useAuth(), other: useScopeGate('manage', 'libcxx') }),

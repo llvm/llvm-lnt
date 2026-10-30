@@ -2789,7 +2789,7 @@ export interface components {
          *           "type": "text"
          *         }
          *       ],
-         *       "display_name": null,
+         *       "display_name": "Microbenchmarks",
          *       "machine_fields": [
          *         {
          *           "display_name": null,
@@ -2938,7 +2938,7 @@ export interface components {
          *           "type": "text"
          *         }
          *       ],
-         *       "display_name": null,
+         *       "display_name": "Microbenchmarks",
          *       "machine_fields": [
          *         {
          *           "display_name": null,
