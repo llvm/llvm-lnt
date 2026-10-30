@@ -4,7 +4,15 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import { schemaOf, suiteRef, type ProjectName, type Suite, type SuiteSchema } from '../../api/suites'
-import { apiKey, changeInAnotherTab, entry, mockAuth, signIn, TOKEN } from '../../test/auth'
+import {
+  apiKey,
+  changeInAnotherTab,
+  entry,
+  mockAuth,
+  signIn,
+  TOKEN,
+  unknownToken,
+} from '../../test/auth'
 import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
 import { mockClipboard } from '../../test/clipboard'
 import {
@@ -454,16 +462,19 @@ describe('deleting a suite', () => {
   })
 
   it('neither leaves for the suite deleted nor brings it back from a list on its way', async () => {
-    const { store, queryClient } = await renderSuite('libcxx', { manage: true })
+    const { queryClient } = await renderSuite('libcxx', { manage: true })
     const stale = gate()
+    // Each list is made when asked for, and sent once `stale` opens.
     const refetched = mockSuites(SUITES, { wait: () => stale.promise })
     void queryClient.refetchQueries({ queryKey: queryKeys.projects })
     await waitFor(() => expect(refetched.requests).toBe(1))
-    mockDelete(store)
+    mockDelete(refetched)
     fireEvent.click(deleteButton())
 
     confirmDeletion('libcxx')
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    // The list on its way, which may have held more than the cache, is asked for again.
+    await waitFor(() => expect(refetched.requests).toBe(2))
     await act(async () => stale.open())
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
@@ -825,6 +836,21 @@ describe('renaming or moving a suite', () => {
     await waitFor(() => expect(moveButton()).toBeEnabled())
 
     expect(copy).toHaveFocus()
+  })
+
+  it("focuses the tab's actions when the check leaves the button disabled", async () => {
+    const { store } = await renderMovable()
+    mockMove(store)
+    // The key was revoked meanwhile.
+    mockAuth(() => unknownToken())
+    await change(null, 'benchmarks')
+
+    fireEvent.click(saveButton())
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
+    await waitFor(() => expect(screen.getByRole('group', { name: 'Schema actions' })).toHaveFocus())
+    expect(moveButton()).toBeDisabled()
   })
 
   it('takes the focus to the new page once only, not when the history leads back to it', async () => {
