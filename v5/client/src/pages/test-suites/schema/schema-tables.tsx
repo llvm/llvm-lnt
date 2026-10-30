@@ -116,12 +116,30 @@ export function RepositoryBox({ value }: { value(key: RepositoryKey): ReactNode 
 }
 
 /**
- * A schema's three lists, each with exactly the presentation keys it accepts, and its repository,
- * whose templates are text rather than links: they are not URLs until filled in (D4, TS6).
+ * The suite a schema is of, by its name and its display name, `--` when it has none, rather than
+ * repeating the name (TS6).
+ */
+function SuiteBox({ schema }: { schema: SuiteSchema }) {
+  return (
+    <>
+      <h2 className={styles.heading}>Suite</h2>
+      <InfoBox label="Suite">
+        <InfoRow label="Name">{schema.name}</InfoRow>
+        <InfoRow label="Display name">{schema.display_name ?? MISSING}</InfoRow>
+      </InfoBox>
+    </>
+  )
+}
+
+/**
+ * A schema's suite, its three lists, each with exactly the presentation keys it accepts, and its
+ * repository, whose templates are text rather than links: they are not URLs until filled in (D4,
+ * TS6).
  */
 export function SchemaTables({ schema }: { schema: SuiteSchema }) {
   return (
     <>
+      <SuiteBox schema={schema} />
       <SchemaList
         list="metrics"
         columns={METRIC_COLUMNS}

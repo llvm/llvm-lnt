@@ -103,6 +103,7 @@ REPOSITORY: dict[str, Any] = {
 }
 SUITE_SCHEMA: dict[str, Any] = {
     "name": SUITE,
+    "display_name": None,
     "metrics": METRICS,
     "commit_fields": COMMIT_FIELDS,
     "machine_fields": MACHINE_FIELDS,

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { PERMISSION_DENIED, authedApi, errorMessage, unwrap } from '../api/client'
+import { queryKeys } from '../api/keys'
+import { BARE_SUITE, SUITE } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { TOKEN, apiKey, changeInAnotherTab, mockAuth, signIn, unknownToken } from '../test/auth'
 import { renderWithProviders } from '../test/render'
@@ -132,6 +134,19 @@ describe('Settings panel', () => {
     mockAuth(() => HttpResponse.json({ key: apiKey('submit', { suites: ['nts'] }) }))
     enterToken(OTHER)
     await waitFor(() => expect(status()).toHaveTextContent(/with submit scope in suite nts\.$/))
+  })
+
+  it('names those suites by their labels, in their order, once the suites are listed', async () => {
+    signIn('triage', ['libcxx', 'nts'])
+    const { queryClient } = renderMenu()
+    queryClient.setQueryData(queryKeys.suites, {
+      items: [{ ...SUITE, display_name: 'Microbenchmarks' }, { ...BARE_SUITE, display_name: 'LLVM' }],
+    })
+    openPanel()
+
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(/with triage scope in suites LLVM, Microbenchmarks\.$/),
+    )
   })
 
   it('says that a key whose suites were all deleted covers nothing', async () => {

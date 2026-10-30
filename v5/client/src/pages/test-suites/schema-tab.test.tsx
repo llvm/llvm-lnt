@@ -28,6 +28,7 @@ vi.mock('./schema/download', () => ({ downloadFile: vi.fn() }))
 /** A suite whose only metric has no unit at all. */
 const UNITLESS: SuiteSchema = {
   name: 'units',
+  display_name: null,
   metrics: [
     {
       name: 'neither',
@@ -191,11 +192,16 @@ describe('the Schema tab', () => {
     ])
 
     expect(main().getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+      'Suite',
       'Metrics',
       'Commit Fields',
       'Machine Fields',
       'Repository',
     ])
+    // The suite by its name, and its display name, which it has none of.
+    expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
+      'Name' + 'libcxx' + 'Display name' + '--',
+    )
     // The templates as text, not links: they are not URLs until filled in.
     const repository = screen.getByRole('group', { name: 'Repository' })
     expect(repository).toHaveTextContent(

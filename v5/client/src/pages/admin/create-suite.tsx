@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
 import { addSuite, refetchSuites, useSuites, type SuiteSchema } from '../../api/suites'
+import { suiteOption } from '../../labels'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ErrorMessage } from '../../components/feedback'
@@ -12,10 +13,15 @@ import {
   EMPTY_DRAFT,
   draftProblem,
   hasContent,
+  isSet,
   schemaOf,
   suiteNameProblem,
 } from '../test-suites/schema/schema-editor-model'
-import { NameInput, SchemaEditorTables } from '../test-suites/schema/schema-editor-tables'
+import {
+  DisplayNameInput,
+  NameInput,
+  SchemaEditorTables,
+} from '../test-suites/schema/schema-editor-tables'
 import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
 
@@ -38,7 +44,9 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
   const titleId = useId()
   const nameId = useId()
   const formId = useId()
+  // The suite's own, like its name, and so neither part of the draft nor copied by Start from.
   const [name, setName] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   // Whether the document to import shows in place of the editor, which keeps what it holds.
   const [importing, setImporting] = useState(false)
@@ -51,7 +59,9 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
   const send = useCreateSuite()
   const busy = create.isPending || send.isPending
   // Anything entered, until the suite is created (TS7).
-  const allowLeaving = useUnsavedChanges(name !== '' || hasContent(draft) || text.trim() !== '')
+  const allowLeaving = useUnsavedChanges(
+    name !== '' || isSet(displayName) || hasContent(draft) || text.trim() !== '',
+  )
   // Only once the suite is created, and only if the editor is still shown: a user who has left the
   // tab meanwhile is not taken to the new suite (TanStack Query skips `mutate`'s callbacks then).
   const created = {
@@ -78,7 +88,7 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (reason === undefined && !busy) create.mutate(JSON.stringify(schemaOf(name, draft)), created)
+    if (reason === undefined && !busy) create.mutate(JSON.stringify(schemaOf(name, displayName, draft)), created)
   }
 
   // An action rather than a setting: it shows no suite, so that any suite can be picked, again.
@@ -110,11 +120,19 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
                   onValue={setName}
                 />
               </div>
+              <div className={styles.control}>
+                <DisplayNameInput
+                  className={styles.nameInput}
+                  value={displayName}
+                  readOnly={busy}
+                  onValue={setDisplayName}
+                />
+              </div>
               <Select
                 label="Start from"
                 options={[
                   { value: '', label: 'Select a suite' },
-                  ...(list ?? []).map((suite) => ({ value: suite.name, label: suite.name })),
+                  ...(list ?? []).map(suiteOption),
                 ]}
                 value=""
                 onChange={startFrom}

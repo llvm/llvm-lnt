@@ -11,6 +11,7 @@ import type { Schemas } from '../../api/client'
 import type { Failures } from '../../api/failures'
 import { commitRunsQuery, runRefKey, uniqueRuns, useRunSamples } from '../../api/runs'
 import type { SuiteSchema } from '../../api/suites'
+import { suiteLabelOf } from '../../labels'
 import {
   distinctCommits,
   formatCommitOfMachine,
@@ -136,11 +137,11 @@ export function useShadows(
         return {
           key: keys[i],
           schema,
-          label: `${spec.suite}/${spec.machine}/${display}${subset}`,
+          label: `${suiteLabelOf(suites, spec.suite)}/${spec.machine}/${display}${subset}`,
           runSamples: samplesOfRuns(chosen, states),
         }
       }),
-    [specs, keys, checked.states, runs, states],
+    [specs, keys, suites, checked.states, runs, states],
   )
 
   const side = shadowOf(b.settings)

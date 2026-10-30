@@ -71,6 +71,9 @@ IDENTIFIER_MAX_LENGTH = 63
 # it is not bound by the identifier limit above.
 SUITE_NAME_MAX_LENGTH = 64
 
+# D4's limit on a suite's display name.
+DISPLAY_NAME_MAX_LENGTH = 256
+
 # I5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
 # the stored hash is a hex SHA-256. These widths are the authority; keys.py reads them from here.
 TOKEN_PREFIX_LENGTH = 8

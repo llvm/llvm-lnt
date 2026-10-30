@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/use-auth'
 import { Alert, ErrorMessage, Loading } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
 import { useMounted } from '../../components/use-mounted'
+import { suiteLabel } from '../../labels'
 import { suitePath } from '../../paths'
 import { useUrlState } from '../../url-state'
 import { CommitsTab } from './commits-tab'
@@ -88,14 +89,14 @@ function SuitePicker({ suites, selected }: { suites: SuiteSchema[]; selected?: s
   if (suites.length === 0) return <p className={styles.note}>There are no test suites yet.</p>
   return (
     <nav className={styles.suitePicker} aria-label="Test suites">
-      {suites.map(({ name }) => (
+      {suites.map((suite) => (
         <Link
-          key={name}
-          to={suitePath(name)}
+          key={suite.name}
+          to={suitePath(suite.name)}
           className={styles.suiteCard}
-          aria-current={name === selected ? 'page' : undefined}
+          aria-current={suite.name === selected ? 'page' : undefined}
         >
-          {name}
+          {suiteLabel(suite)}
         </Link>
       ))}
     </nav>

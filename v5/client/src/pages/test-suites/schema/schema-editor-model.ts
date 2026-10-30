@@ -299,17 +299,27 @@ function entryOf(list: ListName, entry: DraftEntry) {
 }
 
 /**
- * The body of `POST /api/suites` creating the suite `name` with `draft`'s entries and repository
- * (E10).
+ * The body of `POST /api/suites` creating the suite `name`, with the display name its input shows
+ * as `displayName`, and `draft`'s entries and repository (E10).
  */
-export function schemaOf(name: string, draft: Draft): Schemas['SuiteSchemaInput'] {
+export function schemaOf(
+  name: string,
+  displayName: string,
+  draft: Draft,
+): Schemas['SuiteSchemaInput'] {
   const lists = LISTS.map((list) => [list, draft[list].map((entry) => entryOf(list, entry))])
   const repository = REPOSITORY_KEYS.map((key) => [key, sent(draft.repository[key])])
   return {
     name,
+    display_name: sent(displayName),
     ...Object.fromEntries(lists),
     repository: Object.fromEntries(repository),
   } as Schemas['SuiteSchemaInput']
+}
+
+/** Whether `text`, as an input of the editor shows it, sets a value: what it sends is not null. */
+export function isSet(text: string): boolean {
+  return sent(text) !== null
 }
 
 /** Whether a suite's `draft` holds anything the user entered: an entry, or a repository value. */
@@ -347,10 +357,19 @@ function isEntryChanged(entry: DraftEntry, original: AnyEntry, key: Presentation
 }
 
 /**
+ * The part of `PATCH /api/suites/{name}/schema` changing the suite's display name, stored as
+ * `stored`, to what its input shows, `text`: nothing unless the user changed it (TS7).
+ */
+export function displayNameChange(text: string, stored: string | null): Schemas['SchemaPatch'] {
+  return isChanged(text, stored) ? { display_name: sent(text) } : {}
+}
+
+/**
  * The body of `PATCH /api/suites/{name}/schema` making the changes in `draft` (E10): an entry added
  * in full, an existing one updated with only the keys the user changed, a removed one by its name,
- * and the repository with only the keys the user changed. It says nothing of what the user left alone, so that saving does not undo changes others
- * made since the editor opened (TS7). Empty when the user changed nothing.
+ * and the repository with only the keys the user changed. It says nothing of what the user left
+ * alone, so that saving does not undo changes others made since the editor opened (TS7). Empty
+ * when the user changed nothing.
  */
 export function patchOf(draft: Draft): Schemas['SchemaPatch'] {
   const patch: Record<string, Record<string, unknown>> = {}

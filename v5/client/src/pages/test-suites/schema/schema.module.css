@@ -9,6 +9,19 @@
   margin-top: var(--lnt-space-4);
 }
 
+/* The suite's display name, above the editor's tables when editing a suite's schema (TS7). */
+.displayName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lnt-space-2);
+  margin-bottom: var(--lnt-space-3);
+}
+
+.displayNameInput {
+  width: 24rem;
+}
+
 /* The editor's buttons, and its heading when editing a suite, below its tables (TS7). */
 .editorFooter {
   display: flex;

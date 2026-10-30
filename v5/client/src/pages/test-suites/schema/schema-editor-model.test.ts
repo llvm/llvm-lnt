@@ -5,6 +5,7 @@ import {
   changeEntry,
   changeRepository,
   copyOf,
+  displayNameChange,
   draftOf,
   EMPTY_DRAFT,
   draftProblem,
@@ -226,10 +227,21 @@ describe('addEntry and removeEntry', () => {
   })
 })
 
+describe('displayNameChange', () => {
+  it('changes the display name only if the user changed it', () => {
+    expect(displayNameChange('Micro', 'Micro')).toEqual({})
+    expect(displayNameChange(' Micro ', 'Micro')).toEqual({})
+    expect(displayNameChange('', null)).toEqual({})
+    expect(displayNameChange(' Macro ', 'Micro')).toEqual({ display_name: 'Macro' })
+    expect(displayNameChange('  ', 'Micro')).toEqual({ display_name: null })
+    expect(displayNameChange('Micro', null)).toEqual({ display_name: 'Micro' })
+  })
+})
+
 describe('copyOf and schemaOf', () => {
   it('copy a schema, keys and all, as a new suite', () => {
     expect(copyOf(SUITE).metrics.every((entry) => entry.original === null)).toBe(true)
-    expect(schemaOf('copy', copyOf(SUITE))).toEqual({
+    expect(schemaOf('copy', '', copyOf(SUITE))).toEqual({
       ...SUITE,
       name: 'copy',
     })
@@ -240,8 +252,9 @@ describe('copyOf and schemaOf', () => {
     for (const list of ['metrics', 'commit_fields', 'machine_fields'] as const) {
       draft = withEntry(draft, list, 'x').draft
     }
-    expect(schemaOf('new', draft)).toEqual({
+    expect(schemaOf('new', '', draft)).toEqual({
       name: 'new',
+      display_name: null,
       metrics: [
         {
           name: 'x',
@@ -277,16 +290,22 @@ describe('copyOf and schemaOf', () => {
       unit: '   ',
       unit_abbrev: 's',
     })
-    expect(schemaOf('new', changed).metrics![0]).toMatchObject({
+    expect(schemaOf('new', '', changed).metrics![0]).toMatchObject({
       display_name: 'Time',
       unit: null,
       unit_abbrev: 's',
     })
   })
 
+  it('send the display name without surrounding whitespace, and only whitespace as null', () => {
+    expect(schemaOf('new', ' Fresh suite ', EMPTY_DRAFT).display_name).toBe('Fresh suite')
+    expect(schemaOf('new', '  ', EMPTY_DRAFT).display_name).toBeNull()
+  })
+
   it('send a suite without entries', () => {
-    expect(schemaOf('empty', EMPTY_DRAFT)).toEqual({
+    expect(schemaOf('empty', '', EMPTY_DRAFT)).toEqual({
       name: 'empty',
+      display_name: null,
       metrics: [],
       commit_fields: [],
       machine_fields: [],
@@ -297,7 +316,7 @@ describe('copyOf and schemaOf', () => {
   it('send the repository without surrounding whitespace, and only whitespace as null', () => {
     let draft = changeRepository(EMPTY_DRAFT, 'label', ' GitHub ')
     draft = changeRepository(draft, 'commit_url', '  ')
-    expect(schemaOf('new', draft).repository).toEqual({ ...NO_REPOSITORY, label: 'GitHub' })
+    expect(schemaOf('new', '', draft).repository).toEqual({ ...NO_REPOSITORY, label: 'GitHub' })
   })
 })
 

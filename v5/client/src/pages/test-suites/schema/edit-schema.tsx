@@ -1,16 +1,29 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
-import { refetchSuites, removeSuite, updateSuite, type SuiteSchema } from '../../../api/suites'
+import {
+  refetchSuites,
+  removeSuite,
+  updateSuite,
+  useSuiteLabel,
+  type SuiteSchema,
+} from '../../../api/suites'
 import { useScopeGate } from '../../../auth/scope'
 import { ActionButton } from '../../../components/action-button'
 import { Confirmation } from '../../../components/confirmation'
 import { ErrorMessage, Loaded } from '../../../components/feedback'
 import { useUnsavedChanges } from '../../../components/use-unsaved-changes'
 import { EditorFooter } from './editor-footer'
-import { draftOf, draftProblem, patchOf, removedEntries } from './schema-editor-model'
+import {
+  displayNameChange,
+  draftOf,
+  draftProblem,
+  patchOf,
+  removedEntries,
+} from './schema-editor-model'
 import { LIST_INFO } from './schema-lists'
-import { SchemaEditorTables } from './schema-editor-tables'
+import { DisplayNameInput, SchemaEditorTables } from './schema-editor-tables'
+import styles from './schema.module.css'
 
 /** How many times an editor has been opened, so that each opening has a query of its own. */
 let openings = 0
@@ -80,10 +93,11 @@ function Frame({
   below?: ReactNode
 }) {
   const titleId = useId()
+  const label = useSuiteLabel(name)
   return (
     <section aria-labelledby={titleId}>
       {children}
-      <EditorFooter title={<strong id={titleId}>Editing {name}</strong>}>{buttons}</EditorFooter>
+      <EditorFooter title={<strong id={titleId}>Editing {label}</strong>}>{buttons}</EditorFooter>
       {below}
     </section>
   )
@@ -99,6 +113,8 @@ function EditForm({ schema, onClose }: FormProps) {
   const gate = useScopeGate('manage', name)
   const saveRef = useRef<HTMLButtonElement>(null)
   const [draft, setDraft] = useState(() => draftOf(schema))
+  // The suite's own, and so not part of what the tables edit.
+  const [displayName, setDisplayName] = useState(schema.display_name ?? '')
   // Removing destroys data, which the user confirms first (AR16). Meanwhile, the draft cannot
   // change, so that what is confirmed is what is sent.
   const [confirming, setConfirming] = useState(false)
@@ -107,7 +123,7 @@ function EditForm({ schema, onClose }: FormProps) {
 
   const removed = removedEntries(draft)
   const reason = gate.title ?? draftProblem(draft)
-  const patch = patchOf(draft)
+  const patch = { ...displayNameChange(displayName, schema.display_name), ...patchOf(draft) }
   // The changes Save would send, until it closes the editor (TS7).
   const changed = Object.keys(patch).length > 0
   useUnsavedChanges(changed)
@@ -178,6 +194,14 @@ function EditForm({ schema, onClose }: FormProps) {
         </>
       }
     >
+      <div className={styles.displayName}>
+        <DisplayNameInput
+          className={styles.displayNameInput}
+          value={displayName}
+          readOnly={busy || confirming}
+          onValue={setDisplayName}
+        />
+      </div>
       <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy || confirming} />
     </Frame>
   )

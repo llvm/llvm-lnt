@@ -471,6 +471,51 @@ describe('the repository', () => {
   })
 })
 
+describe("the suite's display name", () => {
+  function displayNameInput() {
+    return within(editor()!).getByRole('textbox', { name: 'Display name' })
+  }
+
+  it('starts as stored, and is sent alone once changed, then shown saved', async () => {
+    const store = await openEditor()
+    expect(displayNameInput()).toHaveValue('')
+    const sent = mockPatch(store, (schema) => ({ ...schema, display_name: 'Microbenchmarks' }))
+
+    typeInto(displayNameInput(), ' Microbenchmarks ')
+    expect(unloadAsks()).toBe(true)
+    fireEvent.click(saveButton())
+
+    await waitFor(() => expect(editor()).not.toBeInTheDocument())
+    expect(sent).toEqual([{ body: { display_name: 'Microbenchmarks' }, confirm: null }])
+    expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
+      'NamelibcxxDisplay nameMicrobenchmarks',
+    )
+  })
+
+  it('is cleared by emptying it, and left alone when only its spaces change', async () => {
+    signIn('manage')
+    const named = { ...SUITE, display_name: 'Micro' }
+    const store = mockSuites([named, BARE_SUITE])
+    mockFresh(store)
+    renderPage('/suites/libcxx?tab=schema')
+    await waitFor(() => expect(editButton()).toBeEnabled())
+    fireEvent.click(editButton())
+    const input = await screen.findByRole('textbox', { name: 'Display name' })
+    // Named by the suite's label (AR22).
+    const region = screen.getByRole('region', { name: 'Editing Micro' })
+    expect(input).toHaveValue('Micro')
+    const sent = mockPatch(store, (schema) => ({ ...schema, display_name: null }))
+
+    typeInto(input, ' Micro ')
+    expect(unloadAsks()).toBe(false)
+    typeInto(input, '  ')
+    fireEvent.click(within(region).getAllByRole('button', { name: 'Save' })[0])
+
+    await waitFor(() => expect(region).not.toBeInTheDocument())
+    expect(sent).toEqual([{ body: { display_name: null }, confirm: null }])
+  })
+})
+
 describe('saving', () => {
   it('sends only what changed, then shows the schema saved', async () => {
     const store = await openEditor()
