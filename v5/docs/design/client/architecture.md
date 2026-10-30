@@ -83,7 +83,6 @@ within the UI causes a full page reload.
 A path that matches no page shows a "page not found" page.
 
 
-
 ## AR4: Navigation Bar
 
 ```
