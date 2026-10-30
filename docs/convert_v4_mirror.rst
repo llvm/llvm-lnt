@@ -11,21 +11,25 @@ submit to a test suite of an LNT v5 instance (see :ref:`v5_submit`).
 Example
 -------
 
-To import the ``nts`` suite of a mirror into the ``nts`` suite of a v5
-instance, convert it, and then submit the converted runs, creating the suite
-with the schema the conversion derived::
+To import the ``nts`` suite of a mirror into the ``nts`` suite of the ``llvm``
+project of a v5 instance, create the project, unless the instance has it
+already (see :ref:`v5_submit`), convert the suite, and then submit the
+converted runs, creating the suite with the schema the conversion derived::
 
+    curl -X POST https://lnt.example.com/api/projects \
+        -H 'Authorization: Bearer <token>' \
+        -H 'Content-Type: application/json' -d '{"name": "llvm"}'
     lnt v5 convert-v4-mirror ./lnt-mirror --suite nts \
         --schema-out nts-schema.json > nts.jsonl
-    lnt v5 submit https://lnt.example.com --suite nts \
+    lnt v5 submit https://lnt.example.com --project llvm --suite nts \
         --create-suite nts-schema.json --token <token> nts.jsonl
 
 Once the mirror has been refreshed, converting it again and submitting the
 result submits the runs that the v5 instance does not have yet::
 
     lnt v5 convert-v4-mirror ./lnt-mirror --suite nts | \
-        lnt v5 submit https://lnt.example.com --suite nts --token <token> \
-            --skip-existing
+        lnt v5 submit https://lnt.example.com --project llvm --suite nts \
+            --token <token> --skip-existing
 
 See ``lnt v5 convert-v4-mirror --help`` for the other options.
 
