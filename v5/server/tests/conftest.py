@@ -26,7 +26,6 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
 from introspection import namespace_of
-from lnt_v5 import keys
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
 from lnt_v5.keys import create_key
@@ -38,7 +37,6 @@ from lnt_v5.suites.store import add_suite
 from lnt_v5.suites.tables import SuiteTables, build
 from lnt_v5.tables import (
     SCHEMA_VERSION_ID,
-    TOKEN_PREFIX_LENGTH,
     api_key,
     metadata,
     schema,
@@ -305,23 +303,23 @@ def make_key(db_engine: Engine) -> Callable[..., str]:
 
 
 @pytest.fixture
-def restricted_key(store_key: Callable[..., None]) -> Callable[..., str]:
-    """Store a key restricted to `suites`, whether or not they exist, and return its token.
+def restricted_key(db_engine: Engine, make_key: Callable[..., str]) -> Callable[..., str]:
+    """Mint a key restricted to `suites`, creating those that do not exist yet with no metrics or
+    fields, and return its token.
 
-    `create_key` only accepts existing suites, but a key is not linked to them, so one whose suites
-    were deleted since is a key like any other (I5). That is what this stores, without having to
-    create and delete the suites first.
+    A key can only be restricted to suites that exist, and follows them (I5), so the suites a test
+    restricts a key to have to be there for as long as the key is meant to be restricted to them.
     """
 
     def make(scope: Scope, *suites: str) -> str:
-        token = keys.generate_token()
-        store_key(
-            prefix=token[:TOKEN_PREFIX_LENGTH],
-            key_hash=keys.hash_token(token),
-            scope=scope.value,
-            suites=list(suites),
-        )
-        return token
+        with db_engine.begin() as connection:
+            existing = set(
+                connection.execute(select(schema.c.name).where(schema.c.name.in_(suites))).scalars()
+            )
+            for name in suites:
+                if name not in existing:
+                    add_suite(connection, SuiteSchema.model_validate({"name": name}))
+        return make_key(scope, "restricted key", list(suites))
 
     return make
 

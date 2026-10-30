@@ -9,13 +9,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy import Connection, Engine, create_engine, func, insert, select
+from sqlalchemy import Connection, Engine, create_engine, delete, func, insert, select
 
 from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from lnt_v5 import keys
 from lnt_v5.keys import ApiKeyInfo, CreatedKey, UnknownSuitesError, create_key
 from lnt_v5.scopes import Scope
-from lnt_v5.tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key, schema
+from lnt_v5.tables import (
+    KEY_NAME_MAX_LENGTH,
+    TOKEN_PREFIX_LENGTH,
+    api_key,
+    api_key_restriction,
+    schema,
+)
 
 
 def stub_tokens(monkeypatch: pytest.MonkeyPatch, *tokens: str) -> None:
@@ -129,7 +135,7 @@ class TestCreateRestrictedKey:
     @pytest.fixture(autouse=True)
     def suites(self, db: Connection) -> None:
         # Rows alone: `create_key` only checks that the suites exist.
-        for name in ("nts", "libcxx"):
+        for name in ("nts", "libcxx", "a-b", "a_c", "ab"):
             db.execute(
                 insert(schema).values(
                     name=name, namespace=name, schema_json="{}", migration_version=0
@@ -140,16 +146,46 @@ class TestCreateRestrictedKey:
         created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
 
         assert created.suites == ("libcxx", "nts")
-        assert db.execute(select(api_key.c.suites)).scalar_one() == ["libcxx", "nts"]
+        assert db.execute(select(api_key.c.restricted)).scalar_one() is True
+        # By identity rather than by name (I5).
+        stored = db.execute(
+            select(schema.c.name).join(api_key_restriction).order_by(schema.c.name)
+        ).scalars()
+        assert list(stored) == ["libcxx", "nts"]
         resolved = keys.resolve_token(db, created.token)
         assert resolved is not None
         assert resolved.suites == ("libcxx", "nts")
+
+    def test_sorts_its_suites_by_code_point(self, db: Connection) -> None:
+        # Not by the database's collation, which may ignore `-` and `_`.
+        created = create_key(db, "bot", Scope.SUBMIT, ["ab", "a_c", "a-b"])
+
+        assert created.suites == ("a-b", "a_c", "ab")
+        (listed,) = keys.list_keys(db)
+        assert listed.suites == ("a-b", "a_c", "ab")
 
     def test_is_not_restricted_by_default(self, db: Connection) -> None:
         created = create_key(db, "bot", Scope.SUBMIT)
 
         assert created.suites is None
-        assert db.execute(select(api_key.c.suites)).scalar_one() is None
+        assert db.execute(select(api_key.c.restricted)).scalar_one() is False
+        assert db.execute(select(func.count()).select_from(api_key_restriction)).scalar_one() == 0
+
+    def test_loses_a_suite_that_is_deleted(self, db: Connection) -> None:
+        created = create_key(db, "bot", Scope.SUBMIT, ["nts", "libcxx"])
+
+        db.execute(delete(schema).where(schema.c.name == "nts"))
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.suites == ("libcxx",)
+
+        # Restricted to nothing, rather than valid across the instance (I5).
+        db.execute(delete(schema).where(schema.c.name == "libcxx"))
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.suites == ()
+        (listed,) = keys.list_keys(db)
+        assert listed.suites == ()
 
     @pytest.mark.parametrize(
         ("scope", "suites", "why"),
@@ -198,8 +234,8 @@ class TestSuiteRestriction:
             (("libcxx", "nts"), "nts", True),
             (("libcxx",), "nts", False),
             (("libcxx",), None, False),
-            # Only None is "valid across the instance". An empty list cannot be stored, but would
-            # not be mistaken for it if it were.
+            # Only None is "valid across the instance". A key whose suites have all been deleted
+            # lists none, and is not mistaken for it.
             ((), "nts", False),
             ((), None, False),
         ],

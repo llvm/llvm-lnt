@@ -19,10 +19,17 @@ from typing import Any
 
 from sqlalchemy import Connection, Engine, Row, func, insert, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.sql.elements import ColumnElement
 
 from .db import unique_violation_constraint
 from .scopes import UNRESTRICTABLE_SCOPES, Scope
-from .tables import KEY_NAME_MAX_LENGTH, TOKEN_PREFIX_LENGTH, api_key, schema
+from .tables import (
+    KEY_NAME_MAX_LENGTH,
+    TOKEN_PREFIX_LENGTH,
+    api_key,
+    api_key_restriction,
+    schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +63,8 @@ class ApiKeyInfo:
     prefix: str
     name: str
     scope: Scope
-    # None for a key valid across the instance, or the suites it is restricted to, sorted (I5).
+    # None for a key valid across the instance, or the current names of the suites it is restricted
+    # to, sorted (I5). Empty once every one of them has been deleted.
     suites: tuple[str, ...] | None
     created_at: datetime
     last_used_at: datetime | None
@@ -67,7 +75,8 @@ class ApiKeyInfo:
         `suite` (None for one that addresses no suite).
 
         I5: a restricted key has its scope only on a request addressing one of its suites, and
-        only `read` -- what anonymous access gets -- on any other.
+        only `read` -- what anonymous access gets -- on any other. A key whose suites were all
+        deleted therefore grants only `read`, anywhere.
         """
         if self.suites is None or suite in self.suites:
             return self.scope.grants(required)
@@ -92,17 +101,37 @@ class ResolvedKey(ApiKeyInfo):
     id: int
 
 
+def _suite_names() -> ColumnElement[Any]:
+    """The current names of the suites a key's restriction rows list, sorted, as an array.
+
+    Correlated with the `api_key` row being read, so that a key is read together with its suites
+    in one statement (I5 looks the key up on every request). The names come from `schema` rather
+    than being stored with the key, so that a restriction follows its suite (I5). Sorted by code
+    point, rather than by the database's collation, which may ignore `-` and `_`.
+    """
+    return func.array(
+        select(schema.c.name)
+        .select_from(api_key_restriction.join(schema))
+        .where(api_key_restriction.c.api_key_id == api_key.c.id)
+        .order_by(schema.c.name.collate("C"))
+        .scalar_subquery()
+    ).label("suites")
+
+
 # The columns an `ApiKeyInfo` is read from, named as its fields are, and how to read one back out of
 # a row selecting them.
-_SHOWN_COLUMNS = tuple(api_key.c[field.name] for field in fields(ApiKeyInfo))
+_SHOWN_COLUMNS = (
+    *(api_key.c[field.name] for field in fields(ApiKeyInfo) if field.name != "suites"),
+    api_key.c.restricted,
+    _suite_names(),
+)
 
 
 def _shown(row: Row[Any]) -> dict[str, Any]:
     values = {field.name: row._mapping[field.name] for field in fields(ApiKeyInfo)}
-    suites = values["suites"]
     return values | {
         "scope": Scope(values["scope"]),
-        "suites": None if suites is None else tuple(suites),
+        "suites": tuple(values["suites"]) if row.restricted else None,
     }
 
 
@@ -146,43 +175,50 @@ def create_key(
         raise ValueError("An API key's name must not be empty.")
     if len(name) > KEY_NAME_MAX_LENGTH:
         raise ValueError(f"An API key's name must be at most {KEY_NAME_MAX_LENGTH} characters.")
-    if suites is not None:
-        suites = _checked_suites(connection, scope, suites)
+    suite_ids = None if suites is None else _checked_suites(connection, scope, suites)
 
     for _ in range(_MAX_ATTEMPTS):
         token = generate_token()
         prefix = token[:TOKEN_PREFIX_LENGTH]
         try:
             with connection.begin_nested():
-                # Read the row back rather than assuming its defaults: `created_at` is the
-                # database's clock, and `last_used_at` and `is_active` are column defaults (D5).
-                row = connection.execute(
+                key_id = connection.execute(
                     insert(api_key)
                     .values(
                         prefix=prefix,
                         key_hash=hash_token(token),
                         name=name,
                         scope=scope.value,
-                        suites=suites,
+                        restricted=suite_ids is not None,
                     )
-                    .returning(*_SHOWN_COLUMNS)
-                ).one()
+                    .returning(api_key.c.id)
+                ).scalar_one()
         except IntegrityError as error:
             if unique_violation_constraint(error) != PREFIX_CONSTRAINT:
                 raise
             continue
-        return CreatedKey(token=token, **_shown(row))
+        if suite_ids:
+            connection.execute(
+                insert(api_key_restriction),
+                [{"api_key_id": key_id, "suite_id": suite_id} for suite_id in suite_ids],
+            )
+        # Read back rather than assembled from what was sent: `created_at` is the database's clock,
+        # and `last_used_at` and `is_active` are column defaults (D5).
+        shown = connection.execute(select(*_SHOWN_COLUMNS).where(api_key.c.id == key_id)).one()
+        return CreatedKey(token=token, **_shown(shown))
 
     raise RuntimeError(
         f"Could not generate a token with an unused prefix in {_MAX_ATTEMPTS} attempts."
     )
 
 
-def _checked_suites(connection: Connection, scope: Scope, suites: Sequence[str]) -> list[str]:
-    """The suites a key is to be restricted to, sorted, once E11's rules are checked.
+def _checked_suites(connection: Connection, scope: Scope, suites: Sequence[str]) -> list[int]:
+    """The ids of the suites a key is to be restricted to, once E11's rules are checked.
 
-    Existence is checked only here, at creation: a key is not linked to its suites, so one deleted
-    later stays on the key (I5).
+    The suites' rows are locked against deletion until the caller's transaction ends, so that a
+    suite deleted concurrently is either gone already, and refused here, or deleted once the key is
+    stored, which removes it from the key (E11). Without the lock, a deletion committed between
+    this read and the insert of the key's rows would fail that insert on its foreign key instead.
     """
     if scope in UNRESTRICTABLE_SCOPES:
         raise ValueError(
@@ -192,12 +228,15 @@ def _checked_suites(connection: Connection, scope: Scope, suites: Sequence[str])
         raise ValueError("A key restricted to test suites must name at least one.")
     if len(set(suites)) != len(suites):
         raise ValueError("A key's test suites must not name a suite more than once.")
-    existing = set(
-        connection.execute(select(schema.c.name).where(schema.c.name.in_(suites))).scalars()
+    rows = connection.execute(
+        select(schema.c.name, schema.c.id)
+        .where(schema.c.name.in_(suites))
+        .with_for_update(key_share=True)
     )
+    existing = {row.name: row.id for row in rows}
     if missing := [name for name in suites if name not in existing]:
         raise UnknownSuitesError(missing)
-    return sorted(suites)
+    return list(existing.values())
 
 
 def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
@@ -205,7 +244,8 @@ def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
 
     I5 resolves every authenticated request against the database rather than caching the decision,
     so that revoking a key takes effect immediately. That is affordable because this is a single
-    indexed match on a table holding one row per key.
+    statement: an indexed match on a table holding one row per key, which also reads the names of
+    the key's suites, as they are now, from tables as small.
 
     A token that is not the shape I5 fixes cannot be one we issued, so it is rejected without a
     round trip -- which also means an unauthenticated caller cannot make the server query on its

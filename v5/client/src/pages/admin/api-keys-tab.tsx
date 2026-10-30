@@ -8,6 +8,7 @@ import { useSuites } from '../../api/suites'
 import {
   grants,
   RESTRICTABLE_SCOPES,
+  RESTRICTED_TO_NOTHING,
   scopeRank,
   SCOPES,
   useScopeGate,
@@ -274,6 +275,9 @@ function SuitesChoice({
 
 type SortColumn = (typeof KEY_SORT_COLUMNS)[number]
 
+/** What the hover of a key restricted to nothing says (AD1). */
+const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING[0].toUpperCase()}${RESTRICTED_TO_NOTHING.slice(1)}.`
+
 /** Every column but the last, which holds each active key's Revoke button. */
 const COLUMNS: (Column<ApiKey> & { id: SortColumn })[] = [
   {
@@ -294,9 +298,20 @@ const COLUMNS: (Column<ApiKey> & { id: SortColumn })[] = [
   {
     id: 'suites',
     header: 'Suites',
-    cell: (key) => (key.suites === null ? 'All' : key.suites.join(', ')),
-    // All first, then by the names in order (AD1): a comma sorts before any character of a name.
-    sortKey: (key) => (key.suites === null ? '' : key.suites.join(',')),
+    cell: (key) => {
+      if (key.suites === null) return 'All'
+      if (key.suites.length > 0) return key.suites.join(', ')
+      // Its suites were all deleted, which leaves it restricted to nothing (AD1, I5).
+      return (
+        <span className={styles.nothing} title={NOTHING_HOVER}>
+          Nothing
+        </span>
+      )
+    },
+    // All first, then by the names in order, and Nothing last (AD1): a comma sorts before any
+    // character of a name, and every name before the last code unit there is.
+    sortKey: (key) =>
+      key.suites === null ? '' : key.suites.length > 0 ? key.suites.join(',') : '\uffff',
   },
   {
     id: 'created_at',

@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from introspection import assert_names_survived, stored_names
 from lnt_v5.keys import PREFIX_CONSTRAINT
 from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
-from lnt_v5.tables import api_key, metadata, schema, schema_version
+from lnt_v5.tables import api_key, api_key_restriction, metadata, schema, schema_version
 
 
 class TestNamingConvention:
@@ -24,7 +24,7 @@ class TestNamingConvention:
             "uq_api_key_prefix",
             "uq_api_key_key_hash",
             "ck_api_key_scope",
-            "ck_api_key_suites",
+            "ck_api_key_restricted",
         } <= stored_names(inspect(db_engine))["api_key"]
 
     def test_gives_the_prefix_constraint_the_name_keys_py_retries_on(
@@ -88,32 +88,19 @@ class TestApiKey:
             insert_key(scope=scope)
 
     @pytest.mark.parametrize("scope", sorted(set(Scope) - set(UNRESTRICTABLE_SCOPES)))
-    def test_accepts_suites_on_a_restrictable_scope(
+    def test_can_restrict_a_restrictable_scope(
         self, insert_key: Callable[..., None], scope: Scope
     ) -> None:
-        insert_key(scope=scope.value, suites=["nts"])
+        insert_key(scope=scope.value, restricted=True)
 
-    @pytest.mark.parametrize(
-        ("scope", "suites", "why"),
-        [
-            (Scope.SUBMIT, [], "an empty list"),
-            (Scope.SUBMIT, ["nts", None], "a null name"),
-            (Scope.READ, ["nts"], "a read key"),
-            (Scope.ADMIN, ["nts"], "an admin key"),
-        ],
-    )
-    def test_rejects_suites_that_d5_rules_out(
-        self,
-        db: Connection,
-        insert_key: Callable[..., None],
-        scope: Scope,
-        suites: list[str | None],
-        why: str,
+    @pytest.mark.parametrize("scope", UNRESTRICTABLE_SCOPES)
+    def test_cannot_restrict_another_scope(
+        self, db: Connection, insert_key: Callable[..., None], scope: Scope
     ) -> None:
         # Alembic does not compare check constraints, so this is what shows that the migration
-        # created this one. `create_key` checks all of these first.
+        # created this one. `create_key` checks it first.
         with pytest.raises(IntegrityError), db.begin_nested():
-            insert_key(scope=scope.value, suites=suites)
+            insert_key(scope=scope.value, restricted=True)
 
     def test_starts_active_and_never_used(
         self, db: Connection, insert_key: Callable[..., None]
@@ -127,6 +114,34 @@ class TestApiKey:
         assert row.is_active is True
         assert row.last_used_at is None
         assert row.created_at is not None
+
+
+class TestApiKeyRestriction:
+    @pytest.fixture
+    def ids(self, db: Connection, insert_key: Callable[..., None]) -> tuple[int, int]:
+        """The ids of a restricted key and of a suite."""
+        insert_key(scope=Scope.SUBMIT.value, restricted=True)
+        suite = db.execute(
+            insert(schema)
+            .values(name="nts", namespace="nts", schema_json="{}", migration_version=0)
+            .returning(schema.c.id)
+        ).scalar_one()
+        return db.execute(select(api_key.c.id)).scalar_one(), suite
+
+    def test_lists_a_suite_once_per_key(self, db: Connection, ids: tuple[int, int]) -> None:
+        key, suite = ids
+        db.execute(insert(api_key_restriction).values(api_key_id=key, suite_id=suite))
+
+        with pytest.raises(IntegrityError), db.begin_nested():
+            db.execute(insert(api_key_restriction).values(api_key_id=key, suite_id=suite))
+
+    def test_goes_with_its_suite(self, db: Connection, ids: tuple[int, int]) -> None:
+        key, suite = ids
+        db.execute(insert(api_key_restriction).values(api_key_id=key, suite_id=suite))
+
+        db.execute(schema.delete())
+
+        assert db.execute(select(api_key_restriction)).all() == []
 
 
 class TestTimestamps:

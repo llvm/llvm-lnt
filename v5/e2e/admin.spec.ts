@@ -122,6 +122,33 @@ test.describe('the API Keys tab', () => {
     })
   })
 
+  test('shows a key whose suites were all deleted as covering nothing', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const manage = await tokenFor('manage')
+    let token = ''
+    await withOwnSuiteName(request, manage, testInfo, async (suite) => {
+      const created = await request.post('/api/suites', {
+        headers: { Authorization: `Bearer ${manage}` },
+        data: { name: suite, metrics: [] },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+      token = await tokenFor('submit', [suite])
+    })
+
+    // Deleting the suite removed it from the key (I5).
+    await signIn(page, 'admin')
+    await page.goto('/admin')
+    const row = rows(table(page, 'API keys')).filter({ hasText: token.slice(0, 8) })
+    const covers = row.locator('td').nth(3)
+    await expect(covers).toHaveText('Nothing')
+    await expect(covers.getByText('Nothing')).toHaveAttribute('title', /have been deleted/)
+    expect(await keyOf(request, token)).toMatchObject({ suites: [] })
+  })
+
   test('sorts the keys by when they were last used', async ({ page, signIn }) => {
     // The seeded keys have never been used, and the key signing in has.
     await signIn(page, 'admin')

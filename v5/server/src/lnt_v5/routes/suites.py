@@ -208,10 +208,14 @@ def patch_schema(
 )
 def delete_suite(name: SuiteName, engine: EngineDep, confirm: Confirm = False) -> None:
     """Delete a test suite and all its data: machines, commits, runs, samples, profiles and
-    regressions. This can't be undone, so the request must include `confirm=true`."""
+    regressions. This can't be undone, so the request must include `confirm=true`.
+
+    The suite is also removed from the API keys restricted to it. A test suite created later with
+    the same name is a different suite, which those keys don't cover."""
     with suite_write(engine, name) as connection:
         stored = locked_suite(connection, name)
         _confirmed(confirm, f"Deleting '{name}' permanently destroys all of its data.")
+        # Takes the suite's API key restriction rows with it (I5).
         connection.execute(schema_table.delete().where(schema_table.c.name == name))
         suite_tables.drop(connection, stored.namespace)
         bump(connection)

@@ -832,6 +832,95 @@ class TestSchemaNamespace:
         assert "namespace" in column_names(empty_engine, "public", "schema")
 
 
+def store_suite_row_0008(engine: Engine, name: str) -> None:
+    """A `schema` row as 0008 has it, with no tables: the global revisions read nothing else."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO schema (name, namespace, schema_json, migration_version) "
+                "VALUES (:name, :name, '{}', :version)"
+            ),
+            {"name": name, "version": migrations.head()},
+        )
+
+
+def restrictions(engine: Engine) -> dict[str, Any]:
+    """Each key's prefix, mapped to None if it is not restricted, or to the names of its suites."""
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT prefix, restricted, ARRAY("
+                "SELECT schema.name FROM api_key_restriction JOIN schema "
+                "ON schema.id = api_key_restriction.suite_id "
+                "WHERE api_key_restriction.api_key_id = api_key.id ORDER BY schema.name"
+                ") AS suites FROM api_key"
+            )
+        ).all()
+    return {row.prefix: row.suites if row.restricted else None for row in rows}
+
+
+class TestApiKeyRestriction:
+    """0009 gives suites an identity, and links key restrictions to suites by it (D5, I5)."""
+
+    @pytest.fixture
+    def keys_0008(self, empty_engine: Engine) -> Engine:
+        """A database at 0008 with two suites, and keys naming them and suites deleted since."""
+        upgrade_by_hand(empty_engine, "0008")
+        for name in ("libcxx", "nts"):
+            store_suite_row_0008(empty_engine, name)
+        insert_key_row(empty_engine, "aaaaaaaa", "submit", ["nts", "gone", "libcxx"])
+        insert_key_row(empty_engine, "bbbbbbbb", "triage", ["gone"])
+        insert_key_row(empty_engine, "cccccccc", "manage")
+        # Only the code creating keys refused a suite named twice.
+        insert_key_row(empty_engine, "dddddddd", "submit", ["nts", "nts"])
+        return empty_engine
+
+    def test_restricts_each_key_to_the_suites_it_names_that_still_exist(
+        self, keys_0008: Engine
+    ) -> None:
+        upgrade_by_hand(keys_0008, "0009")
+
+        assert restrictions(keys_0008) == {
+            "aaaaaaaa": ["libcxx", "nts"],
+            # Restricted to nothing, rather than valid across the instance (D7).
+            "bbbbbbbb": [],
+            "cccccccc": None,
+            "dddddddd": ["nts"],
+        }
+        assert "suites" not in column_names(keys_0008, "public", "api_key")
+
+    def test_gives_each_suite_an_identity_that_later_suites_do_not_reuse(
+        self, keys_0008: Engine
+    ) -> None:
+        upgrade_to_head(keys_0008)
+        store_suite(keys_0008, SuiteSchema.model_validate({"name": "new"}), migrations.head())
+
+        with keys_0008.connect() as connection:
+            ids = connection.execute(text("SELECT id FROM schema")).scalars().all()
+        assert len(set(ids)) == 3
+
+    def test_downgrading_names_the_suites_again(self, keys_0008: Engine) -> None:
+        upgrade_by_hand(keys_0008, "0009")
+        with keys_0008.begin() as connection:
+            connection.execute(text("DELETE FROM schema WHERE name = 'libcxx'"))
+
+        downgrade_by_hand(keys_0008, "0008")
+
+        with keys_0008.connect() as connection:
+            rows = connection.execute(text("SELECT prefix, suites, is_active FROM api_key")).all()
+        assert {row.prefix: (row.suites, row.is_active) for row in rows} == {
+            "aaaaaaaa": (["nts"], True),
+            # Earlier builds cannot store a key restricted to nothing, and would read it as valid
+            # across the instance. It is revoked instead, so its token is refused even for reads.
+            "bbbbbbbb": (None, False),
+            "cccccccc": (None, True),
+            "dddddddd": (["nts"], True),
+        }
+        assert "id" not in column_names(keys_0008, "public", "schema")
+        assert "api_key_restriction" not in inspect(keys_0008).get_table_names()
+        assert inspect(keys_0008).get_pk_constraint("schema")["constrained_columns"] == ["name"]
+
+
 class TestConcurrentUpgrade:
     def test_waits_for_whoever_holds_the_migration_lock(
         self, empty_engine: Engine, empty_database_url: str
