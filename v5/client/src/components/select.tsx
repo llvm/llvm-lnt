@@ -2,14 +2,18 @@ import { useId, useMemo, useRef, type Ref } from 'react'
 import clsx from 'clsx'
 import {
   Button,
+  Collection,
+  Header,
   ListBox,
   ListBoxItem,
+  ListBoxSection,
   Select as AriaSelect,
   SelectValue,
   VisuallyHidden,
 } from 'react-aria-components'
 import { FieldLabel } from './field-label'
 import { Popover } from './popover'
+import { sectioned } from './sectioned'
 import shared from './dropdown.module.css'
 import styles from './select.module.css'
 
@@ -22,6 +26,38 @@ export interface Option<Value extends string> {
    * from the keyboard too, so that the reason can be read, but picking it changes nothing.
    */
   reason?: string
+  /**
+   * The group the option is listed under, if it is in one: its heading, which is not an option, and
+   * what tells it apart from another group with the same heading. The options in no group come
+   * first, then each group, in the order the options give them, as a combobox lists its groups
+   * (AR14).
+   */
+  section?: { key: string; heading: string }
+  /**
+   * What the closed dropdown shows once the option is picked, if not its label: a suite's full label,
+   * say, where its project's heading is not shown beside it (AR22).
+   */
+  selectedLabel?: string
+}
+
+/** An option as the list shows it. */
+function optionItem<Value extends string>(option: Option<Value>) {
+  return (
+    <ListBoxItem
+      id={option.value}
+      className={clsx(shared.option, option.reason !== undefined && shared.refused)}
+      textValue={option.label}
+    >
+      {option.reason === undefined ? (
+        option.label
+      ) : (
+        <span className={shared.refusedText} title={option.reason}>
+          {option.label}
+          <VisuallyHidden elementType="span">: {option.reason}</VisuallyHidden>
+        </span>
+      )}
+    </ListBoxItem>
+  )
 }
 
 interface Props<Value extends string> {
@@ -74,6 +110,10 @@ export function Select<Value extends string>({
   const titleId = useId()
   // Whether the list is open. React Aria reports a pick before it closes the list.
   const open = useRef(false)
+  const { unsectioned, sections } = useMemo(
+    () => sectioned(options, (option) => option.section?.key),
+    [options],
+  )
   return (
     // On an element of its own, since React Aria does not pass a title on to the button. Always
     // there, so that the dropdown is not mounted again, losing the focus, when the title goes.
@@ -100,28 +140,27 @@ export function Select<Value extends string>({
           isPending={isPending}
           aria-describedby={title === undefined ? undefined : titleId}
         >
-          <SelectValue />
+          {/* An option picked under a heading shows what names it without the heading. */}
+          <SelectValue<Option<Value>>>
+            {({ selectedItems, defaultChildren }) =>
+              selectedItems[0]?.selectedLabel ?? defaultChildren
+            }
+          </SelectValue>
           <span aria-hidden="true">▾</span>
         </Button>
         {title !== undefined && <VisuallyHidden id={titleId}>{title}</VisuallyHidden>}
         <Popover className={shared.popover} maxHeight={320}>
-          <ListBox className={shared.list} items={options}>
-            {(option) => (
-              <ListBoxItem
-                id={option.value}
-                className={clsx(shared.option, option.reason !== undefined && shared.refused)}
-                textValue={option.label}
-              >
-                {option.reason === undefined ? (
-                  option.label
-                ) : (
-                  <span className={shared.refusedText} title={option.reason}>
-                    {option.label}
-                    <VisuallyHidden elementType="span">: {option.reason}</VisuallyHidden>
-                  </span>
-                )}
-              </ListBoxItem>
-            )}
+          <ListBox className={shared.list}>
+            <Collection items={unsectioned}>{optionItem}</Collection>
+            {/* Groups and options share one space of ids. A group's starts with `/section/`, which
+                no option's value may start with: only suite dropdowns have groups (AR22), whose
+                values are full names, `project/suite`, and a name holds no `/` (D7, I1). */}
+            {sections.map(([key, grouped]) => (
+              <ListBoxSection key={key} id={`/section/${key}`}>
+                <Header className={shared.sectionHeader}>{grouped[0].section!.heading}</Header>
+                <Collection items={grouped}>{optionItem}</Collection>
+              </ListBoxSection>
+            ))}
           </ListBox>
         </Popover>
       </AriaSelect>

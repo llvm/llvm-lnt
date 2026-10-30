@@ -18,7 +18,7 @@ import {
   PROFILED_TEST,
 } from '../tools/synthetic.ts'
 import { BENCHMARKS, expect, json, profiledRun, test } from './fixtures.ts'
-import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
+import { clickSuggestion, pickOption, pickSuggestion, pickSuite, typeInto } from './select.ts'
 import { rows, table } from './tables.ts'
 
 type Schemas = components['schemas']
@@ -102,7 +102,7 @@ test("defaults side B's test to side A's, also on another machine", async ({ pag
     PROFILED_TEST,
   )
 
-  await pickOption(sideOf(page, 'B'), 'Suite', 'libc++/Microbenchmarks')
+  await pickSuite(sideOf(page, 'B'), 'Suite', 'libc++', 'Microbenchmarks')
   await pickSuggestion(sideOf(page, 'B'), 'Machine', LINUX)
   // The commit is searched by its commit string, and suggested by its display value.
   await pickSuggestion(sideOf(page, 'B'), 'Commit', commit.value, String(commit.fields.svn_revision))

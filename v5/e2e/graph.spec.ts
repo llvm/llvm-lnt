@@ -12,7 +12,14 @@ import { cardOf } from './cards.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf, zoomAround, type PlotDiv } from './plot.ts'
-import { clickSuggestion, pickOption, pickSuggestion } from './select.ts'
+import {
+  clickSuggestion,
+  openSelect,
+  optionGroup,
+  pickOption,
+  pickSuggestion,
+  pickSuite,
+} from './select.ts'
 import { table } from './tables.ts'
 
 /** A page of a cursor-paginated list (I2). */
@@ -73,10 +80,29 @@ function testBox(page: Page, name: string) {
   return table(page, 'Tests').getByRole('checkbox', { name, exact: true })
 }
 
+test("lists the suites under their projects' headings, without the projects that have none", async ({
+  page,
+}) => {
+  await page.goto('/graph')
+
+  // Other tests create projects of their own meanwhile, so only the seeded ones are checked.
+  await openSelect(page, 'Suite', optionGroup(page, 'libc++'))
+  await expect(optionGroup(page, 'libc++').getByRole('option')).toHaveText([
+    'header-sizes',
+    'Microbenchmarks',
+  ])
+  await expect(optionGroup(page, 'LLVM').getByRole('option')).toHaveText(['nts'])
+  await expect(optionGroup(page, 'swift')).toHaveCount(0)
+  await optionGroup(page, 'LLVM').getByRole('option', { name: 'nts', exact: true }).click()
+
+  await expect(page).toHaveURL(/\/graph\?project=llvm&suite=nts$/)
+  await expect(page.getByRole('button', { name: 'LLVM/nts Suite', exact: true })).toBeVisible()
+})
+
 test('plots a test chosen from scratch', async ({ page }) => {
   await page.goto('/graph')
 
-  await pickOption(page, 'Suite', 'libc++/Microbenchmarks')
+  await pickSuite(page, 'Suite', 'libc++', 'Microbenchmarks')
   await pickSuggestion(page, 'Machines', LINUX)
   await pickOption(page, 'Metric', 'Execution Time')
   // Found with the filter, which then only narrows the table: the test stays drawn under a filter
@@ -401,7 +427,7 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
   await expect(tracesOf(page)).toHaveCount(1)
 
   await page.getByRole('button', { name: 'Add a baseline' }).click()
-  await pickOption(page, 'Baseline suite', 'libc++/Microbenchmarks')
+  await pickSuite(page, 'Baseline suite', 'libc++', 'Microbenchmarks')
   await pickSuggestion(page, 'Baseline machine', MACOS)
   const commit = page.getByRole('combobox', { name: 'Baseline commit' })
   await commit.click()

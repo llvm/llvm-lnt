@@ -55,8 +55,19 @@ describe('labels', () => {
     expect(projectNamed(undefined, 'llvm')).toEqual(project('llvm'))
   })
 
-  it('show an option by its full label, standing for its names', () => {
-    expect(suiteOption(suite('nts', 'Tests'))).toEqual({ value: 'llvm/nts', label: 'LLVM/Tests' })
+  it('show an option by its own label under its project, and by its full label once picked', () => {
+    expect(suiteOption(suite('nts', 'Tests'))).toEqual({
+      value: 'llvm/nts',
+      label: 'Tests',
+      selectedLabel: 'LLVM/Tests',
+      section: { key: 'llvm', heading: 'LLVM' },
+    })
+    expect(suiteOption(suite('nts', null, project('swift')))).toEqual({
+      value: 'swift/nts',
+      label: 'nts',
+      selectedLabel: 'swift/nts',
+      section: { key: 'swift', heading: 'swift' },
+    })
   })
 })
 

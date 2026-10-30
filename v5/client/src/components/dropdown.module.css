@@ -61,6 +61,20 @@
   padding: var(--lnt-space-1) var(--lnt-space-2);
 }
 
+/* The heading of a group of options (AR14), which is not one itself. */
+.sectionHeader {
+  padding: var(--lnt-space-1) var(--lnt-space-2) 0;
+  border-top: 1px solid var(--lnt-border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lnt-muted);
+}
+
+/* Nothing to set apart from at the top of the list. */
+.list > section:first-child > .sectionHeader {
+  border-top: none;
+}
+
 .option[data-selected] {
   font-weight: 600;
 }

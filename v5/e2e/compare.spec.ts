@@ -10,7 +10,7 @@ import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/
 import { cardOf } from './cards.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
 import { ownSuite } from './own-suite.ts'
-import { pickOption, pickSuggestion, typeInto } from './select.ts'
+import { pickOption, pickSuggestion, pickSuite, typeInto } from './select.ts'
 import { plotOf, pointOf, type PlotDiv } from './plot.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -398,7 +398,7 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
     ['B', newer],
   ] as const) {
     const controls = sideOf(page, side)
-    await pickOption(controls, 'Suite', 'libc++/Microbenchmarks')
+    await pickSuite(controls, 'Suite', 'libc++', 'Microbenchmarks')
     await pickSuggestion(controls, 'Machine', LINUX)
     // The commit is searched by its commit string, and suggested by its display value.
     await pickSuggestion(controls, 'Commit', commit.value, String(commit.fields.svn_revision))
