@@ -12,8 +12,8 @@ The following hold for every route in this document except the two
 documentation routes of E1, which are outside the REST API (see I5), and are
 not repeated in each section:
 
-- A route returns 404 if the suite, or the entity its path addresses, does not
-  exist.
+- A route returns 404 if the project, the suite, or the entity its path
+  addresses does not exist.
 - A UUID in a path is matched case-insensitively. A path segment that is not a
   well-formed UUID names no entity, and is a 404 like any other unknown UUID.
 - Deleting a machine, commit, run or regression does not require
@@ -29,7 +29,7 @@ not repeated in each section:
 ## E1: Discovery
 
 ```
-GET    /api                       -- API index: links to the suite list endpoint and API documentation
+GET    /api                       -- API index: links to the project list endpoint and API documentation
 GET    /api/openapi.json          -- OpenAPI 3.x specification for this instance
 GET    /api/docs                  -- Interactive API documentation viewer
 ```
@@ -38,28 +38,28 @@ GET    /api/docs                  -- Interactive API documentation viewer
 the scope system and never authenticate (see I5 and I8).
 
 `GET /api` returns `{"links": {...}, "revision": ...}`, where `links` holds
-`suites` (the path of the test suite list endpoint), `openapi` (the path of the
+`projects` (the path of the project list endpoint), `openapi` (the path of the
 OpenAPI specification) and `docs` (the path of the interactive documentation
 viewer), and `revision` is the commit of LNT the server was built from, as a
 lowercase hexadecimal commit hash, possibly abbreviated, or `null` when the
-server does not know it.
-The index does not list the suites itself: `GET /api/suites` is the way to do
-that.
+server does not know it. The index does not list the projects and their suites
+itself: `GET /api/projects` is the way to do that.
 
 
 ## E2: Machines
 
 ```
-GET    /api/suites/{testsuite}/machines                     -- List (searchable)
-POST   /api/suites/{testsuite}/machines                     -- Create machine independently
-GET    /api/suites/{testsuite}/machines/{machine_name}      -- Detail
-PATCH  /api/suites/{testsuite}/machines/{machine_name}      -- Update fields/tracked (including rename)
-DELETE /api/suites/{testsuite}/machines/{machine_name}      -- Delete machine, its runs, and its regression indicators
+GET    /api/projects/{project}/suites/{suite}/machines                     -- List (searchable)
+POST   /api/projects/{project}/suites/{suite}/machines                     -- Create machine independently
+GET    /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Detail
+PATCH  /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Update fields/tracked (including rename)
+DELETE /api/projects/{project}/suites/{suite}/machines/{machine_name}      -- Delete machine, its runs, and its regression indicators
 ```
 
 Machines are also created implicitly when a run is submitted for a machine that
 does not exist yet (see O2). A machine's runs are listed by
-`GET /api/suites/{testsuite}/runs?machine={machine_name}` (see E4).
+`GET /api/projects/{project}/suites/{suite}/runs?machine={machine_name}` (see
+E4).
 
 **Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE.
 
@@ -123,12 +123,12 @@ has few machines; see D5).
 ## E3: Commits
 
 ```
-GET    /api/suites/{testsuite}/commits                      -- List (cursor-paginated, searchable)
-POST   /api/suites/{testsuite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal and a tag
-GET    /api/suites/{testsuite}/commits/{value}              -- Detail (includes previous/next commit by ordinal)
-PATCH  /api/suites/{testsuite}/commits/{value}              -- Update ordinal, tag, and/or fields
-DELETE /api/suites/{testsuite}/commits/{value}              -- Delete commit (cascades to runs/samples; keeps regressions, with no commit)
-POST   /api/suites/{testsuite}/commits/resolve              -- Batch resolve commit strings to summaries
+GET    /api/projects/{project}/suites/{suite}/commits                      -- List (cursor-paginated, searchable)
+POST   /api/projects/{project}/suites/{suite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal and a tag
+GET    /api/projects/{project}/suites/{suite}/commits/{value}              -- Detail (includes previous/next commit by ordinal)
+PATCH  /api/projects/{project}/suites/{suite}/commits/{value}              -- Update ordinal, tag, and/or fields
+DELETE /api/projects/{project}/suites/{suite}/commits/{value}              -- Delete commit (cascades to runs/samples; keeps regressions, with no commit)
+POST   /api/projects/{project}/suites/{suite}/commits/resolve              -- Batch resolve commit strings to summaries
 ```
 
 The `{value}` in a path is the commit's identity string. Commits are also
@@ -213,10 +213,10 @@ the commit bounds do.
 
 ### Batch Resolve
 
-`POST /api/suites/{testsuite}/commits/resolve` looks up many commits at once.
-The body is `{"commits": ["abc", "def", ...]}`, with at least one commit string
-and no more than I2's maximum page size. Duplicates in the request are
-ignored: each commit appears at most once in the response.
+`POST /api/projects/{project}/suites/{suite}/commits/resolve` looks up many
+commits at once. The body is `{"commits": ["abc", "def", ...]}`, with at least
+one commit string and no more than I2's maximum page size. Duplicates in the
+request are ignored: each commit appears at most once in the response.
 
 ```json
 {
@@ -241,10 +241,10 @@ Not paginated: the response is bounded by the size of the request.
 ## E4: Runs
 
 ```
-GET    /api/suites/{testsuite}/runs                         -- List (cursor-paginated, searchable, filterable by machine=, commit=, submitted_after=, submitted_before=, measured_after=, measured_before=, has_profiles=; sortable by sort=)
-POST   /api/suites/{testsuite}/runs                         -- Submit run (accepts optional client UUID or generates one, returns it)
-GET    /api/suites/{testsuite}/runs/{uuid}                  -- Detail
-DELETE /api/suites/{testsuite}/runs/{uuid}                  -- Delete run
+GET    /api/projects/{project}/suites/{suite}/runs                         -- List (cursor-paginated, searchable, filterable by machine=, commit=, submitted_after=, submitted_before=, measured_after=, measured_before=, has_profiles=; sortable by sort=)
+POST   /api/projects/{project}/suites/{suite}/runs                         -- Submit run (accepts optional client UUID or generates one, returns it)
+GET    /api/projects/{project}/suites/{suite}/runs/{uuid}                  -- Detail
+DELETE /api/projects/{project}/suites/{suite}/runs/{uuid}                  -- Delete run
 ```
 
 **Auth scope:** `read` for GET, `submit` for POST, `manage` for DELETE.
@@ -307,7 +307,7 @@ results come in an arbitrary but deterministic order suitable for pagination
 ## E5: Tests
 
 ```
-GET    /api/suites/{testsuite}/tests                        -- List (cursor-paginated, filterable)
+GET    /api/projects/{project}/suites/{suite}/tests                        -- List (cursor-paginated, filterable)
 ```
 
 Read-only: tests are created implicitly by run submission.
@@ -335,7 +335,7 @@ for pagination (see I2 and O5).
 ## E6: Samples
 
 ```
-GET    /api/suites/{testsuite}/runs/{uuid}/samples   -- Samples for a run (cursor-paginated, filterable by test=)
+GET    /api/projects/{project}/suites/{suite}/runs/{uuid}/samples   -- Samples for a run (cursor-paginated, filterable by test=)
 ```
 
 Samples have no external identifier of their own, so they are always read through their
@@ -362,10 +362,11 @@ for pagination (see I2 and O5).
 
 ## E7: Profiles
 
-Profiles store hardware performance counter data at the instruction level.
-Each profile has a server-generated UUID, which gives the profile data
-endpoints stable, bookmarkable identifiers. The per-run list endpoint maps
-human-readable run and test coordinates to those UUIDs.
+Profiles store hardware performance counter data at the instruction level. Each
+profile has a server-generated UUID, which gives the profile data endpoints
+stable, bookmarkable identifiers, though like every URL under the suite they
+change when the suite is renamed or moved (see D7). The per-run list endpoint
+maps human-readable run and test coordinates to those UUIDs.
 
 Profiles are submitted within the run submission (see O1 and O7). There is no
 separate upload endpoint. Every counter these endpoints return is a raw count
@@ -376,7 +377,7 @@ separate upload endpoint. Every counter these endpoints return is a raw count
 ### Listing (per run)
 
 ```
-GET  /api/suites/{testsuite}/runs/{uuid}/profiles              -- List profiles for a run
+GET  /api/projects/{project}/suites/{suite}/runs/{uuid}/profiles              -- List profiles for a run
 ```
 
 Returns `{test, uuid}` objects for all the profiles attached to the run,
@@ -386,25 +387,27 @@ tests of one run).
 ### Profile Data (by UUID)
 
 ```
-GET  /api/suites/{testsuite}/profiles/{uuid}                       -- Metadata + top-level counters
-GET  /api/suites/{testsuite}/profiles/{uuid}/functions             -- Function list with counters
-GET  /api/suites/{testsuite}/profiles/{uuid}/disassembly           -- Disassembly + per-instruction counters
-GET  /api/suites/{testsuite}/profiles/{uuid}/document              -- The whole profile, as one profile document
+GET  /api/projects/{project}/suites/{suite}/profiles/{uuid}                       -- Metadata + top-level counters
+GET  /api/projects/{project}/suites/{suite}/profiles/{uuid}/functions             -- Function list with counters
+GET  /api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly           -- Disassembly + per-instruction counters
+GET  /api/projects/{project}/suites/{suite}/profiles/{uuid}/document              -- The whole profile, as one profile document
 ```
 
-**Metadata** (`GET /api/suites/{testsuite}/profiles/{uuid}`): `uuid`, `test`
-(the test's name), `run_uuid`, `counters` (counter name to integer: the
-profile's top-level counters), and `disassembly_format` (string).
+**Metadata** (`GET /api/projects/{project}/suites/{suite}/profiles/{uuid}`):
+`uuid`, `test` (the test's name), `run_uuid`, `counters` (counter name to
+integer: the profile's top-level counters), and `disassembly_format` (string).
 
-**Functions** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`): I2's
+**Functions**
+(`GET /api/projects/{project}/suites/{suite}/profiles/{uuid}/functions`): I2's
 unpaginated envelope over `{name, counters, length}` objects. `counters` maps
 each counter that at least one of the function's instructions has to a number:
 the function's counter, summed over the instructions that have it (see O7).
-`length` is the function's number of instructions. Sorted by name, in
-ascending code-point order. How hot a function is depends on which counter the
-user picks, so the client sorts by that itself (see PF4).
+`length` is the function's number of instructions. Sorted by name, in ascending
+code-point order. How hot a function is depends on which counter the user picks,
+so the client sorts by that itself (see PF4).
 
-**Disassembly** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
+**Disassembly**
+(`GET /api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly?function={name}`):
 
 - `function` is required, and is the function's name as given in the functions
   response. It is a query parameter because a name can contain `/` (see I1). A
@@ -415,7 +418,8 @@ user picks, so the client sorts by that itself (see PF4).
   document listed them. `address` is an integer, and `counters` maps each
   counter the instruction was submitted with to a number.
 
-**Document** (`GET /api/suites/{testsuite}/profiles/{uuid}/document`): the
+**Document**
+(`GET /api/projects/{project}/suites/{suite}/profiles/{uuid}/document`): the
 whole profile in one response, as the profile document defined in O7:
 `disassembly_format`, the top-level `counters`, and `functions`, each with its
 `name` and `instructions`.
@@ -436,14 +440,14 @@ whole profile in one response, as the profile document defined in O7:
 ## E8: Regressions
 
 ```
-GET    /api/suites/{testsuite}/regressions                              -- List (cursor-paginated, searchable, filterable by state=, machine=, test=, metric=, commit=, has_commit=; sortable by sort=)
-POST   /api/suites/{testsuite}/regressions                              -- Create (accepts uuid, title, bug, notes, state, commit, indicators)
-GET    /api/suites/{testsuite}/regressions/{uuid}                       -- Detail (indicators embedded)
-PATCH  /api/suites/{testsuite}/regressions/{uuid}                       -- Update title, bug, notes, state, commit
-DELETE /api/suites/{testsuite}/regressions/{uuid}                       -- Delete (cascades indicators)
-POST   /api/suites/{testsuite}/regressions/{uuid}/indicators            -- Add indicator(s) (batch)
-DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators            -- Remove indicator(s) (batch, UUIDs in body)
-POST   /api/suites/{testsuite}/regressions/indicators/query             -- Look up indicators across regressions (cursor-paginated, filterable by machine, test, metric, state, commit)
+GET    /api/projects/{project}/suites/{suite}/regressions                              -- List (cursor-paginated, searchable, filterable by state=, machine=, test=, metric=, commit=, has_commit=; sortable by sort=)
+POST   /api/projects/{project}/suites/{suite}/regressions                              -- Create (accepts uuid, title, bug, notes, state, commit, indicators)
+GET    /api/projects/{project}/suites/{suite}/regressions/{uuid}                       -- Detail (indicators embedded)
+PATCH  /api/projects/{project}/suites/{suite}/regressions/{uuid}                       -- Update title, bug, notes, state, commit
+DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}                       -- Delete (cascades indicators)
+POST   /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators            -- Add indicator(s) (batch)
+DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators            -- Remove indicator(s) (batch, UUIDs in body)
+POST   /api/projects/{project}/suites/{suite}/regressions/indicators/query             -- Look up indicators across regressions (cursor-paginated, filterable by machine, test, metric, state, commit)
 ```
 
 Regressions and their indicators are identified by UUIDs. A regression's UUID
@@ -475,13 +479,13 @@ state to any other.
 A `title` or `bug`, here or on update, is a non-empty string of at most 256
 characters (see D5).
 
-**Updating.** `PATCH` accepts `title`, `bug`, `notes`, `state`, and `commit`.
-An omitted key is left unchanged, and sending `title`, `bug`, `notes`, or
-`commit` as `null` clears a previously set value -- the same convention as
-`PATCH /api/suites/{testsuite}/commits/{value}`. `state` is not nullable, so
-`state: null` is rejected with 400. `commit` is resolved by value, with 404 if
-no commit has that value. `PATCH` does not touch indicators, which are managed
-through the indicator routes below.
+**Updating.** `PATCH` accepts `title`, `bug`, `notes`, `state`, and `commit`. An
+omitted key is left unchanged, and sending `title`, `bug`, `notes`, or `commit`
+as `null` clears a previously set value -- the same convention as
+`PATCH /api/projects/{project}/suites/{suite}/commits/{value}`. `state` is not
+nullable, so `state: null` is rejected with 400. `commit` is resolved by value,
+with 404 if no commit has that value. `PATCH` does not touch indicators, which
+are managed through the indicator routes below.
 
 **Detail response:**
 
@@ -514,7 +518,7 @@ them.
   400.
 - `machine=`, `test=` and `metric=`: only regressions with an indicator naming
   it. Given together, they must match the *same* indicator, as with
-  `GET /api/suites/{testsuite}/tests`.
+  `GET /api/projects/{project}/suites/{suite}/tests`.
 - `commit=` and `has_commit=`.
 
 An unknown machine or test is 404, an unknown metric is 400, and an unknown
@@ -526,7 +530,7 @@ suitable for pagination (see I2 and O5).
 
 ### Adding indicators
 
-`POST /api/suites/{testsuite}/regressions/{uuid}/indicators`
+`POST /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators`
 
 - The body is `{"indicators": [{machine, test, metric}, ...]}`, with at least
   one indicator and no more than I2's maximum page size, as for
@@ -542,7 +546,7 @@ suitable for pagination (see I2 and O5).
 
 ### Removing indicators
 
-`DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators`
+`DELETE /api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators`
 
 - The body is `{"indicator_uuids": ["...", "..."]}`, bounded like the add
   request. UUIDs are matched case-insensitively.
@@ -554,13 +558,13 @@ suitable for pagination (see I2 and O5).
 
 ### Looking up indicators across regressions
 
-`POST /api/suites/{testsuite}/regressions/indicators/query` lists indicators
-across every regression of the suite. A client holding many (machine, test,
-metric) combinations can learn which regressions cover which of them without
-one request per combination -- for the Graph page's regression annotations
-(GR15), or for a detector checking whether what it found is already tracked
-(O3). It is a `read`-scoped POST because its lists of names, which may be long
-and whose names may contain any character, do not fit in a query string.
+`POST /api/projects/{project}/suites/{suite}/regressions/indicators/query` lists
+indicators across every regression of the suite. A client holding many (machine,
+test, metric) combinations can learn which regressions cover which of them
+without one request per combination -- for the Graph page's regression
+annotations (GR15), or for a detector checking whether what it found is already
+tracked (O3). It is a `read`-scoped POST because its lists of names, which may
+be long and whose names may contain any character, do not fit in a query string.
 
 - The body is `{machine, test, metric, state, commit, limit, cursor}`, and
   every key is optional. `machine`, `test` and `state` are lists of names, each
@@ -585,7 +589,7 @@ and whose names may contain any character, do not fit in a query string.
 ### Series
 
 ```
-GET    /api/suites/{testsuite}/series
+GET    /api/projects/{project}/suites/{suite}/series
 ```
 
 Returns the values of one metric on one machine: its whole time series, for
@@ -660,7 +664,7 @@ client then requests it again.
 ### Trends (Aggregated)
 
 ```
-GET    /api/suites/{testsuite}/trends
+GET    /api/projects/{project}/suites/{suite}/trends
 ```
 
 Returns one aggregated value per machine and commit.
@@ -703,39 +707,62 @@ line of the series, an item does not repeat `metric`.
 ## E10: Test Suites
 
 ```
-GET    /api/suites               -- List test suites defined on this instance
-POST   /api/suites               -- Create a test suite from a schema definition
-GET    /api/suites/{name}        -- Detail
-PATCH  /api/suites/{name}/schema -- Add, update, or remove metrics and fields; change the repository
-DELETE /api/suites/{name}        -- Delete a test suite and all its data
+GET    /api/projects/{project}/suites                -- List the project's test suites
+POST   /api/projects/{project}/suites                -- Create a test suite in the project from a schema definition
+GET    /api/projects/{project}/suites/{suite}        -- Detail
+PATCH  /api/projects/{project}/suites/{suite}        -- Rename, or move to another project
+PATCH  /api/projects/{project}/suites/{suite}/schema -- Add, update, or remove metrics and fields; change the display name or the repository
+DELETE /api/projects/{project}/suites/{suite}        -- Delete a test suite and all its data
 ```
 
+Every suite belongs to a project (see D7). `GET /api/projects` lists every suite
+of the instance along with its project (see E13).
+
 **Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. POST
-addresses no suite, so it requires an instance-wide key (see I5).
+addresses the project, so a restricted key must cover the project in full. The
+other writes address the suite, and a move needs the destination project covered
+in full as well (see I5).
 
 **Suite object:** a suite's detail body is its normalized schema: the body
-`POST /api/suites` accepts, with omitted optional keys filled in (see D4 for the
-format and its normalization). Request and response are therefore the same
-document, and a suite fetched from one instance can be posted unchanged to
-another. There are no separate schema or metric-metadata endpoints.
+`POST /api/projects/{project}/suites` accepts, with omitted optional keys filled
+in (see D4 for the format and its normalization). Request and response are
+therefore the same document, and a suite fetched from one instance or project
+can be posted unchanged to another (see D4). There are no separate schema or
+metric-metadata endpoints.
 
-**List** (`GET /api/suites`): the same objects, in I2's unpaginated envelope,
-ordered by `name` ascending -- an order that is stable because suites cannot be
-renamed. Whole schemas are returned rather than names alone, because suites
-are few and parts of the client need every suite's metrics up front.
+**List** (`GET /api/projects/{project}/suites`): the same objects, in I2's
+unpaginated envelope, ordered by `name` ascending. A project with no suites
+gives an empty list.
 
-**Create** (`POST /api/suites`): the body is the schema itself: `name`,
-`metrics`, `commit_fields`, `machine_fields`, `repository` (see D4).
+**Create** (`POST /api/projects/{project}/suites`): the body is the schema
+itself: `name`, `display_name`, `metrics`, `commit_fields`, `machine_fields`,
+`repository` (see D4).
 
 - 201 with the created suite's detail body, and a `Location` header pointing at
-  `GET /api/suites/{name}`.
+  `GET /api/projects/{project}/suites/{name}`.
 - 400 if the schema fails validation (see D4).
-- 409 `duplicate` if a suite with that name already exists.
+- 409 `duplicate` if the project already has a suite with that name.
 - 409 `retry` if the creation could not take the locks it needs.
 
-**Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
-`commit_fields`, `machine_fields` and/or `repository` after creation. D2 gives
-the semantics; this is the wire format.
+**Rename or move** (`PATCH /api/projects/{project}/suites/{suite}`): the body
+has `name`, the suite's new name, and `project`, the name of the project to move
+it to. Both are optional, and an omitted key is left unchanged; neither can be
+`null`. A `project` other than the suite's own moves the suite. A body that
+changes neither, an empty one included, is a successful no-op. Renaming and
+moving change only names (see D7).
+
+- 200 with the suite's detail body, under its new name.
+- 400 if `name` is not a valid suite name (see D4).
+- 403 if the request moves the suite with a restricted key that does not cover
+  the destination project in full, whether that project exists or not (see I5).
+- 404 if `project` names no project.
+- 409 `duplicate` if the project the suite ends up in already has another suite
+  with its new name.
+- 409 `retry` if the change could not take the locks it needs.
+
+**Evolve** (`PATCH /api/projects/{project}/suites/{suite}/schema`): changes the
+suite's `display_name`, `metrics`, `commit_fields`, `machine_fields` and/or
+`repository` after creation. D2 gives the semantics; this is the wire format.
 
 For each of the three lists, the body may supply any of `add`, `update`, and
 `remove`:
@@ -755,17 +782,18 @@ For each of the three lists, the body may supply any of `add`, `update`, and
   changed.
 - `remove` is a list of names.
 
-The body may also supply `repository`, with only the keys being changed, `null`
-clearing one:
+The body may also supply `display_name`, a string or `null`, and `repository`,
+with only the keys being changed, `null` clearing one:
 
 ```json
-{"repository": {"commit_url": "https://github.com/llvm/llvm-project/commit/{commit}", "label": null}}
+{"display_name": "LLVM test-suite", "repository": {"commit_url": "https://github.com/llvm/llvm-project/commit/{commit}", "label": null}}
 ```
 
 Because `remove` destroys data, a request with a non-empty `remove` list
 requires `?confirm=true`. Without it, or with `confirm=false`, the request is
 rejected with 400. An empty `remove` list requires nothing, and neither does a
-change to `repository`. This mirrors `DELETE /api/suites/{name}`.
+change to `display_name` or `repository`. This mirrors
+`DELETE /api/projects/{project}/suites/{suite}`.
 
 - 200 with the suite's detail body. A request that asks for no change is a
   successful no-op.
@@ -777,8 +805,9 @@ change to `repository`. This mirrors `DELETE /api/suites/{name}`.
 - 409 `duplicate` if `add` names an entry that already exists in that list.
 - 409 `retry` if the change could not take the locks it needs.
 
-**Delete** (`DELETE /api/suites/{name}`): permanently deletes the suite and all
-of its data (machines, runs, commits, samples, regressions). Requires
+**Delete** (`DELETE /api/projects/{project}/suites/{suite}`): permanently
+deletes the suite and all of its data (machines, runs, commits, samples,
+regressions), and removes it from the API keys that list it (see I5). Requires
 `?confirm=true`: without it, or with `confirm=false`, the request is rejected
 with 400.
 
@@ -803,12 +832,17 @@ DELETE /api/admin/api-keys/{prefix}  -- Revoke key
 GET endpoints in the API that require more than `read`, and so the only ones
 that anonymous access never reaches (see I5).
 
-**Key object:** `prefix`, `name`, `scope`, `suites`, `created_at`,
-`last_used_at`, `is_active`. `suites` is null for an instance-wide key, and
-otherwise the names of the suites the key is restricted to, in ascending order
-(see I5). `last_used_at` is null until the key is first used, and approximate
-after that (see D5). Neither the raw token nor its hash ever appears, except for
-the raw token in the create response below.
+**Key object:** `prefix`, `name`, `scope`, `restricted_to`, `created_at`,
+`last_used_at`, `is_active`. `restricted_to` is null for an instance-wide key,
+and otherwise the list of the entries the key is restricted to (see I5): each is
+`{"project": "swift"}` for a whole project, or
+`{"project": "swift", "suite": "benchmarks"}` for a single suite, under the
+current names of what it lists. Entries are ordered by project name, a whole
+project before the suites of that project, then by suite name. The list is empty
+once every project and suite it listed has been deleted. `last_used_at` is null
+until the key is first used, and approximate after that (see D5). Neither the
+raw token nor its hash ever appears, except for the raw token in the create
+response below.
 
 **List** (`GET /api/admin/api-keys`): key objects in I2's unpaginated envelope,
 newest first (`created_at` descending), with `prefix` as a tiebreaker. Since
@@ -819,9 +853,9 @@ nullable, and only approximate (see D5). Revoked keys are included, with
 
 **Create** (`POST /api/admin/api-keys`): the body has `name` (string, required),
 `scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
-`admin`), and `suites` (optional: a non-empty list of suite names, to restrict
-the key to those suites, or null). An omitted or null `suites` makes the key
-instance-wide.
+`admin`), and `restricted_to` (optional: a non-empty list of entries, as in the
+key object, to restrict the key to them, or null). An omitted or null
+`restricted_to` makes the key instance-wide.
 
 - 201 with the key object plus a `token` field holding the raw token. The token
   is shown only this once and cannot be retrieved afterwards (see I5). No
@@ -829,12 +863,13 @@ instance-wide.
 - 400 if `name` is missing, empty, or longer than 256 characters (see D5), or
   if `scope` is missing or not one of the five values. `name` is a label rather
   than an identifier, so two keys may share one.
-- 400 if `suites` is an empty list, holds a name that does not match D4's
-  pattern or length for a suite name, names a suite more than once, or is a
-  list on a `read` or `admin` key, which cannot be restricted (see I5).
-- 404 if `suites` names a suite that does not exist. This is checked only when
-  the key is created: a key is not linked to its suites, so deleting a suite
-  later leaves its name on the key (see I5).
+- 400 if `restricted_to` is an empty list, has an entry without `project` or
+  with a key other than `project` and `suite`, holds a name that is not a valid
+  project or suite name (see D4 and D7), lists an entry more than once, lists a
+  suite along with its whole project, or is a list on a `read` or `admin` key,
+  which cannot be restricted (see I5).
+- 404 if an entry names a project that does not exist, or a suite that its
+  project does not have.
 
 **Revoke** (`DELETE /api/admin/api-keys/{prefix}`): sets `is_active` to false
 rather than deleting the row, so that the revocation stays visible and the
@@ -850,8 +885,9 @@ access means creating a new key. No `?confirm=true` is required, unlike the
 destructive suite operations, because revoking a key destroys no data.
 
 A key is otherwise immutable: there is no PATCH route, and changing a key's
-scope or suites means creating a replacement and revoking the original. Keys do
-not expire.
+scope or restrictions means creating a replacement and revoking the original.
+Its entries change only when a project or a suite they list is deleted (see I5).
+Keys do not expire.
 
 Any `admin` key may revoke any key, including the one authenticating the
 request and the last remaining active `admin` key. There is deliberately no
@@ -873,5 +909,66 @@ Returns `{"key": ...}`, where `key` is the API key the request's credential
 belongs to, as an object with E11's key fields, or `null` when the request has
 no `Authorization` header. A credential that does not authenticate is a 401, as
 on every endpoint under `/api/` (see I5). This makes the endpoint a way for a
-client to check a token: whether it is usable, which scope it grants, and in
-which suites.
+client to check a token: whether it is usable, which scope it grants, and where.
+
+
+## E13: Projects
+
+```
+GET    /api/projects              -- List projects, each with its test suites
+POST   /api/projects              -- Create a project
+GET    /api/projects/{project}    -- Detail
+PATCH  /api/projects/{project}    -- Change the display name, or rename
+DELETE /api/projects/{project}    -- Delete a project that has no suites
+```
+
+A project groups test suites (see D7), which are managed through E10.
+
+**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. Creating,
+renaming and deleting a project require an instance-wide key, and changing a
+project's display name a key that covers the project in full (see I5).
+
+**Project object:** `name` and `display_name` (see D7), and `suites`: the
+project's suites, as E10's suite objects, ordered by name. List and detail
+responses return the same object. Whole schemas are returned rather than names
+alone, because suites are few and parts of the client need every suite's metrics
+up front, along with how the suites are grouped: `GET /api/projects` gives them
+all in one request.
+
+```json
+{"name": "libcxx", "display_name": "libc++", "suites": [{"name": "benchmarks", "display_name": null, "metrics": [...], ...}]}
+```
+
+**List** (`GET /api/projects`): the project objects, in I2's unpaginated
+envelope, ordered by `name` ascending, those without suites included.
+
+**Create** (`POST /api/projects`): the body has `name` (required) and
+`display_name` (optional, `null` when omitted).
+
+- 201 with the created project, and a `Location` header
+  pointing at `GET /api/projects/{name}`.
+- 400 if `name` is missing or not a valid project name, or `display_name` is
+  empty or too long (see D7).
+- 409 `duplicate` if a project with that name already exists.
+
+**Update** (`PATCH /api/projects/{project}`): the body has `name` and
+`display_name`, both optional. An omitted key is left unchanged, and
+`display_name: null` clears the display name. A `name` other than the project's
+own renames it (see D7). A body that changes nothing, an empty one included, is
+a successful no-op.
+
+- 200 with the project.
+- 400 if `name` is `null` or not a valid project name, or `display_name` is
+  empty or too long (see D7).
+- 403 if the request renames the project with a restricted key, even one that
+  covers the project in full (see I5).
+- 409 `duplicate` if another project has the new name.
+- 409 `retry` if the change could not take the locks it needs.
+
+**Delete** (`DELETE /api/projects/{project}`): deletes a project that has no
+suites, and removes it from the API keys that list it (see I5). Since it
+destroys no data, it does not require `?confirm=true`.
+
+- 204 on success.
+- 409 `conflict` if the project has suites (see D2).
+- 409 `retry` if the deletion could not take the locks it needs.

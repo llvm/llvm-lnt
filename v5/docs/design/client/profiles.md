@@ -3,7 +3,7 @@
 Page specification for the Profiles page at `/profiles`.
 
 
-## Profiles -- `/profiles?suite_a={ts}&...`
+## Profiles -- `/profiles?project_a={p}&suite_a={s}&...`
 
 A/B viewer of profiles: the hardware performance counters of one test in one
 run, per instruction (see O7). This page is suite-agnostic: each side selects
@@ -65,7 +65,8 @@ two sides are independent: they may select different suites, machines, commits
 or tests. The exception is that the test and the function on side B default to
 those on side A (see below and PF4).
 
-- **Suite**: a dropdown over the test suites defined on the instance. Changing
+- **Suite**: a dropdown over the test suites defined on the instance, grouped by
+  project (see AR22). Changing
   the suite clears the side's machine, commit, run and test.
 - **Machine**: a combobox (see AR14) over the selected suite's machines (see
   AR18). The suite's full machine list is fetched once and filtered locally
@@ -287,8 +288,8 @@ profile, the page says that a test is to be selected on either side.
 
 ### PF8: Data Flow
 
-- Each side's suite list comes from `GET suites`. A suite's machines come from
-  `GET machines`, fetched once per suite and shared by both sides.
+- Each side's suite list comes from `GET /api/projects`. A suite's machines come
+  from `GET machines`, fetched once per suite and shared by both sides.
 - A side's commit picker searches
   `GET commits?machine={name}&has_profiles=true&sort=-ordinal` (see AR15).
 - A side's runs come from `GET runs?machine={name}&commit={value}&has_profiles=true`,
@@ -327,8 +328,8 @@ the profiles whose counters have loaded.
 ### PF9: URL State
 
 All selection state is encoded as query parameters for shareability:
-- `suite_a`, `machine_a`, `commit_a`, `run_a`, `test_a`, `function_a`
-- `suite_b`, `machine_b`, `commit_b`, `run_b`, `test_b`, `function_b`
+- `project_a`, `suite_a`, `machine_a`, `commit_a`, `run_a`, `test_a`, `function_a`
+- `project_b`, `suite_b`, `machine_b`, `commit_b`, `run_b`, `test_b`, `function_b`
 - `counter`
 - `values`: `absolute` or `cumulative`
 

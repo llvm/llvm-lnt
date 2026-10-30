@@ -4,28 +4,38 @@ Page specifications for the Test Suites page (suite picker + tabs), including th
 the schema editor.
 
 
-## TS1: Test Suites -- `/suites` and `/suites/{ts}`
+## TS1: Test Suites -- `/projects`, `/projects/{p}` and `/projects/{p}/suites/{s}`
 
 The primary entry point for browsing test suite data, and for maintaining a
-suite's schema (see TS6). `/suites/{ts}` shows the
-suite picker with `{ts}` selected, plus the tabbed content for that suite.
-`/suites` shows the first suite of the picker: once the suites have loaded, the
-page goes to `/suites/{first}` with the same query parameters, which takes the
-place of `/suites` in the history rather than adding an entry (an exception to
-AR2 "State"), so that Back does not return to it. When there are no suites, the
-picker says so. Only a failure to load the list of suites in the first place takes
-the place of the page, with a way to try again; when the list is fetched again and
-that fails, the page keeps showing what it shows (see AR7).
+suite's schema (see TS6). The page shows a suite picker, which depends on the
+path:
+
+- `/projects` shows the suites of every project, each project under a heading
+  with its label, linking to `/projects/{p}` (see AR22). A project without
+  suites says that it has none. When there are no projects, the page says so.
+- `/projects/{p}` shows the suites of that project alone, under its heading,
+  with no suite selected and no tabs. When the project has no suites, it says
+  so instead. When `{p}` names no project, the page says that the project was
+  not found.
+- `/projects/{p}/suites/{s}` shows the suites of project `{p}`, as
+  `/projects/{p}` does, with `{s}` selected, plus the tabbed content for that
+  suite. When `{s}` names no suite of the project, the page shows the picker
+  and says that the suite was not found.
+
+Except on `/projects` itself, an "All projects" link above the picker leads to
+`/projects`. Only a failure to load the list of projects in the first place
+takes the place of the page, with a way to try again; when the list is fetched
+again and that fails, the page keeps showing what it shows (see AR7).
 
 **Suite picker**: A row of prominent card/button elements, one per test suite,
-ordered by name. Clicking a card selects it (highlighted) and shows the tab bar
-below, navigating to `/suites/{name}`. When `{ts}` names no suite, the page
-shows the suite picker and says that the suite was not found.
+labelled and ordered as AR22 says. Clicking a card selects it (highlighted) and
+shows the tab bar below, navigating to `/projects/{p}/suites/{name}`.
 
 **Tabs**: [Runs] [Machines] [Commits] [Regressions] [Schema]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
 
-**URL state**: the suite is a path segment (`/suites/{ts}`); the remaining state
+**URL state**: the project and the suite are path segments
+(`/projects/{p}/suites/{s}`); the remaining state
 is in query params (`?tab=machines&search=foo`). On mount, reads the
 path and params to restore state. On changes, updates the URL.
 
@@ -35,7 +45,7 @@ path and params to restore state. On changes, updates the URL.
 | Machines | Every machine, by name | `GET machines?search=...` | Substring match on machine name and searchable machine fields |
 | Commits | Commit list with cursor pagination, most recently seen first | `GET commits?search=...&sort=-first_seen&limit=25` | Substring match on commit, tag and searchable commit fields |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&machine=...&metric=...&has_commit=...&search=...&sort=-created_at&limit=25` | State chips, machine combobox, metric selector, "No commit set" checkbox, title or UUID prefix search |
-| Schema | The suite's schema, its export, editing and deletion (see TS6) | `GET /api/suites` (E10); writes in TS6 and TS7 | -- |
+| Schema | The suite's schema, its export, editing, renaming, moving and deletion (see TS6) | `GET /api/projects` (E13); writes in TS6 and TS7 | -- |
 
 ## TS2: Runs tab
 
@@ -174,6 +184,13 @@ characters is cut short, and shown whole on hover and to assistive technology.
 This tab shows the suite's schema, as follows:
 
 ```
+Suite (subtitle font)
+
+Project         libc++
+Name            benchmarks
+Display name    Microbenchmarks
+
+
 Metrics (subtitle font)
 
 Name              Type        Display Name              Unit                    Bigger is Better    Dashboard
@@ -208,8 +225,11 @@ Label         GitHub
 Commit URL    https://github.com/llvm/llvm-project/commit/{commit}
 Range URL     --
 
-[Edit schema] [Copy as JSON] [Download JSON]                            [Delete This Suite]
+[Edit schema] [Rename or move] [Copy as JSON] [Download JSON]           [Delete This Suite]
 ```
+
+"Suite" shows the label of the suite's project (see AR22), and the suite's name and display
+name, `--` when it has none.
 
 Each table shows exactly the presentation keys its list accepts (see D4), so the three
 tables deliberately differ in their columns. Entries are shown by their `name`, with their
@@ -227,14 +247,32 @@ suite from it unchanged (see D4).
 
 Clicking the red "Delete This Suite" button shows an inline panel warning that deleting a
 suite permanently destroys all its machines, runs, commits, samples, and regressions, with
-the confirmation prompt AR16 describes. Once the suite is deleted (`DELETE /api/suites/{name}`,
-see E10), the page leaves for `/suites`, without query parameters, in place of itself in the
-history (see AR16), which selects the first suite left, or says that there is none (see TS1).
-It does so even if the user has gone to another of the suite's tabs meanwhile: only a user who
-has left the suite's page since confirming stays where they are.
+the confirmation prompt AR16 describes. Once the suite is deleted
+(`DELETE /api/projects/{project}/suites/{suite}`, see E10), the page leaves for `/projects/{p}`,
+without query parameters, in place of itself in the history (see AR16), which shows the suites
+left in the project, or says that there is none (see TS1). It does so even if the user has gone
+to another of the suite's tabs meanwhile: only a user who has left the suite's page since
+confirming stays where they are.
 
-Anyone can view and export a schema. Editing it or deleting the suite requires `manage` in
-the suite, which a key restricted to it grants (see I5).
+"Rename or move" shows an inline panel below the buttons, with a Project dropdown listing every
+project (see AR22), which starts on the suite's own, a Name input, which starts on the suite's
+name, and Save and Cancel buttons. As the user types, the name is checked as the schema editor
+checks a suite's name (see TS7), against the other suites of the project picked. Saving the same
+project and name closes the panel without sending anything. Otherwise, Save first asks for a
+plain confirmation (see AR16), which names the suite's old and new full names (see D7) and
+warns that every URL, bookmark and bot that uses the old name gets a 404 until it is updated.
+For a move, it also says that API keys listing the old project no longer cover the suite, that
+those listing the new project do, and that those listing the suite itself still do (see I5); for
+a rename within the project, it says that API keys are unaffected. Once confirmed, the change is
+sent (`PATCH /api/projects/{project}/suites/{suite}`, see E10). On success, the page goes to the
+suite's Schema tab under its new names, in place of itself in the history (see AR16), unless the
+user has left the suite's page meanwhile. If it fails, the panel stays open with its contents and
+says why.
+
+Anyone can view and export a schema. Editing it, or renaming, moving or deleting the suite, requires
+`manage` on the suite, which a key covering it grants (see I5). Moving it to another project also
+requires the project to be covered in full, so the panel's Project dropdown disables the other
+projects the token does not cover in full (see AR17).
 
 
 ## TS7: Schema editor
@@ -244,11 +282,11 @@ suite's schema, from its Schema tab (see TS6). It takes the place of what the ta
 whole content in the Admin page, and the schema viewer, buttons included, in the Schema tab.
 "Cancel" closes it and discards its changes, without asking, and the tab shows what it showed
 before again. Leaving the tab with unsaved changes asks first (see AR19): when editing a schema,
-the changes "Save" would send; when creating a suite, a suite name, any entry, a repository value,
-or a document to import that is not blank.
+the changes "Save" would send; when creating a suite, a project picked, a suite name or display
+name, any entry, a repository value, or a document to import that is not blank.
 
 ```
-New suite    Suite name [________]    Start from [suite v]    [Import JSON]
+New suite    Project [libc++ v]    Suite name [________]    Display name [________]    Start from [suite v]    [Import JSON]
 
 Metrics
 Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
@@ -277,19 +315,23 @@ Range URL     [                                                          ]
 
                                                                            [Cancel] [Create]
 
-Editing nts                                                                  [Cancel] [Save]
+Display name [LLVM test-suite]                       (the header, when editing a schema)
+Editing LLVM/LLVM test-suite                                                 [Cancel] [Save]
 ```
 
-When creating a suite, the header above the tables holds its name, "Start from" and "Import JSON".
-The editor's buttons are below the tables: "Cancel" and "Create" when creating a suite, and its
-heading, "Cancel" and "Save" when editing one, where the viewer has its own buttons. The tables
+When creating a suite, the header above the tables holds its project, its name, its display name,
+"Start from" and "Import JSON". When editing one, it holds the suite's display name alone. The
+editor's buttons are below the tables: "Cancel" and "Create" when creating a suite, and its
+heading, "Editing" followed by the suite's full label (see AR22), "Cancel" and "Save" when
+editing one, where the viewer has its own buttons. The tables
 are the same in both modes.
 
 The editor shows the same entries and keys as the viewer, with an input for each value, and the
 same repository keys, with an input for each. Each URL's input says which placeholders it
 accepts (see D4). Each table has a button to add an entry, and each entry a button (×) to remove
-it. An added entry goes at the end of its list, and entries cannot be reordered. The display name,
-unit and abbreviation, and the repository's keys, are sent without whitespace at either end, and
+it. An added entry goes at the end of its list, and entries cannot be reordered. The suite's
+display name, the entries' display name, unit and abbreviation, and the repository's keys, are
+sent without whitespace at either end, and
 an input that is empty, or holds only whitespace, sets its key to `null` (see D2).
 
 `searchable` and `display` are only valid on a `text` entry, and `dashboard` only on a numeric
@@ -306,20 +348,25 @@ hover. When editing a schema, a URL the user has not changed is not checked, so 
 stored with one the editor would refuse can still be saved. The server validates everything else
 when the schema is submitted.
 
-**Creating a suite**: The editor starts empty, with an extra input for the suite's name, which
-is also checked against the names of the existing suites. A "Start from" dropdown replaces the
-editor's entries and repository with a copy of an existing suite's. It does not copy the suite's
-name. Until the existing suites have loaded, "Start from" is disabled, and so is "Create", saying
-why. If they cannot be loaded, the editor says so and offers to try again (see AR7).
+**Creating a suite**: The editor starts empty, with a Project dropdown and an extra input for the
+suite's name. The Project dropdown lists every project (see AR22), those the token does not cover in
+full disabled (see AR17), and starts with none picked. The name is also checked against the names of
+the suites of the project picked. A "Start from" dropdown, over every suite (see AR22), replaces the
+editor's entries and repository with a copy of an existing suite's. It copies neither the suite's
+name nor its display name. Until the projects and their suites have loaded, the Project dropdown and
+"Start from" are disabled, and so is "Create", saying why. If they cannot be loaded, the editor says
+so and offers to try again (see AR7). "Create" is also disabled, saying why, while no project is
+picked.
 
-"Create" creates the suite. On success, the page goes to the new suite's Schema tab
-(`/suites/{name}?tab=schema`), unless the user has left the tab meanwhile. If the name was
-taken meanwhile, the name check says so once "Create" fails.
+"Create" creates the suite in the project picked. On success, the page goes to the new suite's
+Schema tab (`/projects/{p}/suites/{name}?tab=schema`), unless the user has left the tab
+meanwhile. If the name was taken meanwhile, the name check says so once "Create" fails.
 
 "Import JSON" creates a suite from a schema document instead, without going through the editor. It
 opens a text area, where the user pastes the document or loads it from a file, and a button that
-sends the document unchanged to `POST /api/suites`, where the server validates it. They take the
-place of the suite name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
+sends the document unchanged to `POST /api/projects/{project}/suites` for the project picked, which
+must be picked first, where the server validates it. They take the place of the suite name, the
+display name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
 which goes back to the editor as the user left it, and keeps the document. On success, the page
 goes to the new suite's Schema tab, as with "Create". On failure, the text area keeps its
 contents, and the API's error message is shown.
@@ -331,15 +378,14 @@ marks it as removed, with an undo button, and its name stays taken until the sch
 the reason given for refusing an added entry with that name is that an entry removed in this edit
 cannot be added again in the same edit.
 
-"Save" applies every change in one `PATCH /api/suites/{name}/schema`. It sends only the keys
-the user changed, of the entries and of the repository alike, so that it does not overwrite changes
-made by others since the editor opened.
-When the user changed nothing, "Save" closes the editor without sending anything.
-If any entry was removed, "Save" first asks the user to type the suite name to confirm (see AR16),
-and the editor's contents cannot change until the user does, or cancels.
-The prompt lists the removed entries and warns that every value stored for them will be
-permanently destroyed, along with the regression indicators of any removed metric (see D2). On
-success, the editor closes and the viewer shows the schema the API returned.
+"Save" applies every change in one `PATCH /api/projects/{project}/suites/{suite}/schema`. It sends
+only the keys the user changed, of the entries and of the repository alike, so that it does not
+overwrite changes made by others since the editor opened. When the user changed nothing, "Save"
+closes the editor without sending anything. If any entry was removed, "Save" first asks the user to
+type the suite name to confirm (see AR16), and the editor's contents cannot change until the user
+does, or cancels. The prompt lists the removed entries and warns that every value stored for them
+will be permanently destroyed, along with the regression indicators of any removed metric (see D2).
+On success, the editor closes and the viewer shows the schema the API returned.
 
 In both modes, if "Create" or "Save" fails, the editor stays open with its contents and shows
 the API's error message. If the suite being edited no longer exists, the editor closes, and the

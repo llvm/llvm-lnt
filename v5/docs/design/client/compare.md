@@ -3,7 +3,7 @@
 Page specification for the Compare page at `/compare`.
 
 
-## Compare -- `/compare?suite_a={ts}&...`
+## Compare -- `/compare?project_a={p}&suite_a={s}&...`
 
 Side-by-side comparison of two commits, or of some of their runs. This page is
 suite-agnostic: each side selects its own suite. Layout:
@@ -30,8 +30,8 @@ Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [media
 > Add to regression
 
 <progress and errors>
-[● Shadow: libcxx/linux-x86_64/0f69d2804b9b · 298 tests  x]
-[▲ Shadow: libcxx/linux-x86_64/014621ede7c1 (llvmorg-21.1.0) · 1 of 2 runs · 301 tests  x]
+[● Shadow: libc++/Benchmarks/linux-x86_64/0f69d2804b9b · 298 tests  x]
+[▲ Shadow: libc++/Benchmarks/linux-x86_64/014621ede7c1 (llvmorg-21.1.0) · 1 of 2 runs · 301 tests  x]
 <chart>
 
 o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o Zero baseline 1
@@ -48,7 +48,8 @@ o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%
 
 Each side has its own controls:
 
-- **Suite**: a dropdown over the test suites defined on the instance. Changing
+- **Suite**: a dropdown over the test suites defined on the instance, grouped by
+  project (see AR22). Changing
   the suite clears the side's machine, commit and runs.
 - **Machine**: a combobox (see AR14) over the selected suite's machines (see
   AR18). The suite's full machine list is fetched once and filtered locally (see
@@ -437,7 +438,8 @@ page or the table.
 
 ### CP6: Data Flow
 
-- Each side's metrics come from its suite's schema, as listed by `GET suites`.
+- Each side's metrics come from its suite's schema, as listed by
+  `GET /api/projects`.
 - A suite's machines come from `GET machines`. They are fetched once per suite,
   and shared by both sides and the shadows. A side's commit picker
   searches `GET commits?machine={name}&sort=-ordinal` (see AR15).
@@ -498,8 +500,8 @@ row the filter keeps.
 ### CP7: URL State
 
 All selection state is encoded as query parameters for shareability:
-- `suite_a`, `machine_a`, `commit_a`, `runs_a`
-- `suite_b`, `machine_b`, `commit_b`, `runs_b`
+- `project_a`, `suite_a`, `machine_a`, `commit_a`, `runs_a`
+- `project_b`, `suite_b`, `machine_b`, `commit_b`, `runs_b`
 - `metric`, `run_agg`, `sample_agg`
 - `noise_pct`, `noise_pval`, `noise_floor`: present only while the knob is
   enabled, holding the value the knob uses (see CP1). A disabled knob's value
@@ -560,18 +562,19 @@ unreadable. A shadow just pinned gives the focus to its chip's dismiss button.
 
 **Chips.** Each shadow has a chip above the chart, in the order they were
 pinned. It names the shadow as "Shadow: {suite}/{machine}/{commit}", where
-`{commit}` is the commit's display value (see AR6), or the commit string until
-it is known, followed by " · {k} of {n} runs" when the shadow selects only some
-of its commit's runs, once they are listed. While there is a comparison and all
-the shadow's samples have loaded, the name is followed by " · {N} tests" in
-muted text, where N is the number of tests its line plots (see "Rendering"),
-even 0. The tests of a line may differ from the bars' (see "Rendering"), and the
-count lets the user notice. The chip shows the shadow's color and marker (see
-"Rendering"), and has a dismiss (×) button. Dismissing a shadow gives the focus
-to the dismiss button of the chip after it, or else before it, or to the pin
-button once none is left; while there is no comparison, and so no pin button,
-it goes back to the page. Chips are shown whether or not there is a comparison,
-so that shadows can always be dismissed.
+`{suite}` is the suite's full label (see AR22) and `{commit}` the commit's
+display value (see AR6), or the commit string until it is known, followed by " ·
+{k} of {n} runs" when the shadow selects only some of its commit's runs, once
+they are listed. While there is a comparison and all the shadow's samples have
+loaded, the name is followed by " · {N} tests" in muted text, where N is the
+number of tests its line plots (see "Rendering"), even 0. The tests of a line
+may differ from the bars' (see "Rendering"), and the count lets the user notice.
+The chip shows the shadow's color and marker (see "Rendering"), and has a
+dismiss (×) button. Dismissing a shadow gives the focus to the dismiss button of
+the chip after it, or else before it, or to the pin button once none is left;
+while there is no comparison, and so no pin button, it goes back to the page.
+Chips are shown whether or not there is a comparison, so that shadows can always
+be dismissed.
 
 **Rendering:**
 - Each shadow's comparison is computed the same way as the main one, between
@@ -620,11 +623,12 @@ that a shadow could not be loaded, offering to try again everything that failed
 the side's.
 
 **URL encoding:** the URL holds each shadow as a `shadow` parameter (see CP7),
-in the order they were pinned: `{suite}/{machine}/{commit}`, followed by
-`/{run},{run}...` when it selects only some of its commit's runs, named by
-their UUIDs, each once, in ascending order. None of the names can contain a `/`
-(see I1), and only the runs are told apart by commas, which a machine or a
-commit may contain. A value with fewer than three parts or more than four, or
+in the order they were pinned: `{project}/{suite}/{machine}/{commit}`, by name,
+followed by `/{run},{run}...` when it selects only some of its commit's runs,
+named by their UUIDs, each once, in ascending order. None of the names can
+contain a `/` (see D4, D7 and I1), and only the runs are told apart by commas,
+which a machine or a commit may contain. A value with fewer than four parts or
+more than five, or
 with an empty part or run, is malformed. As soon as the URL is read, malformed
 values are dropped, then repeated ones, then any beyond the first 5. A shadow is
 dropped once its suite or machine turns out not to exist, or its commit to be
@@ -652,7 +656,8 @@ E8). While it is expanded, the header collapses it, except while a request is
 under way.
 
 When expanded, the box first lists what the indicators are, a line each: how
-many tests compared they cover (Covers), side B's suite (Test Suite), the
+many tests compared they cover (Covers), side B's suite by its full label (Test
+Suite, see AR22), the
 metric, side B's machine, and side B's commit, shown by its display value (see
 AR6), which a new regression is attributed to. Below, it says how many tests
 compared are left out for having no value on side B, if any are. It follows

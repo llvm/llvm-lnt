@@ -26,12 +26,12 @@ within the UI causes a full page reload.
 - **Serving**: The server returns the SPA's `index.html` for any path that is
   not `/api/...`, `/llms.txt`, `/robots.txt`, `/healthz`, or a static asset.
   This catch-all is what makes deep links and hard refreshes work -- pasting
-  `/suites/nts/runs/{uuid}` or reloading on it must resolve to that route rather
-  than 404. A static asset is a path under `/assets/` (see Caching) or whose
-  first segment contains a `.`; one the build does not contain is a 404. Every
-  page in AR3 must start with a segment containing no `.`. Unmatched `/api/...`
-  paths are a genuine 404 and must answer with the API's JSON error envelope
-  (see I4) rather than falling through to the SPA.
+  `/projects/llvm/suites/nts/runs/{uuid}` or reloading on it must resolve to
+  that route rather than 404. A static asset is a path under `/assets/` (see
+  Caching) or whose first segment contains a `.`; one the build does not contain
+  is a 404. Every page in AR3 must start with a segment containing no `.`.
+  Unmatched `/api/...` paths are a genuine 404 and must answer with the API's
+  JSON error envelope (see I4) rather than falling through to the SPA.
 - **Caching**: The client build gives every file under `/assets/` a
   content-hashed name, so these files are served as immutable
   (`public, max-age=31536000, immutable`). Everything else served for the SPA,
@@ -66,17 +66,18 @@ within the UI causes a full page reload.
 ## AR3: Page Hierarchy
 
 ```
-/                                     Dashboard (landing page -- sparkline trend overview)
-/suites                               Test Suites (selects the first suite; see TS1)
-/suites/{ts}                          Test Suites (browsing tabs and schema of the selected suite)
-/suites/{ts}/machines/{name}          Machine Detail
-/suites/{ts}/runs/{uuid}              Run Detail
-/suites/{ts}/commits/{value}          Commit Detail
-/suites/{ts}/regressions/{uuid}       Regression Detail
-/graph?suite={ts}&machine=...         Graph (time series) -- suite-agnostic
-/compare?suite_a={ts}&...             Compare -- suite-agnostic
-/profiles?suite_a={ts}&...            Profiles (A/B profile viewer) -- suite-agnostic
-/admin                                Admin (API keys, suite creation -- suite-agnostic)
+/                                             Dashboard (landing page -- sparkline trend overview)
+/projects                                     Test Suites (every project's suites; see TS1)
+/projects/{p}                                 Test Suites (the suites of one project)
+/projects/{p}/suites/{s}                      Test Suites (browsing tabs and schema of the selected suite)
+/projects/{p}/suites/{s}/machines/{name}      Machine Detail
+/projects/{p}/suites/{s}/runs/{uuid}          Run Detail
+/projects/{p}/suites/{s}/commits/{value}      Commit Detail
+/projects/{p}/suites/{s}/regressions/{uuid}   Regression Detail
+/graph?project={p}&suite={s}&machine=...      Graph (time series) -- suite-agnostic
+/compare?project_a={p}&suite_a={s}&...        Compare -- suite-agnostic
+/profiles?project_a={p}&suite_a={s}&...       Profiles (A/B profile viewer) -- suite-agnostic
+/admin                                        Admin (API keys, projects, suite creation -- suite-agnostic)
 ```
 
 
@@ -93,10 +94,11 @@ one is an ordinary client-side transition. The single exception is [API],
 which opens the interactive API documentation viewer at `/api/docs` (see I8) in
 a new tab -- that is a separate document, not an SPA route.
 
-Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when
-navigated from a suite-scoped page, pre-filling the current suite. The Test
-Suites link targets `/suites/{ts}` to preserve the suite context, and `/suites`
-otherwise (see TS1).
+Graph, Compare, and Profiles links append `?project={p}&suite={s}` /
+`?project_a={p}&suite_a={s}` when navigated from a suite-scoped page,
+pre-filling the current suite. The Test Suites link targets
+`/projects/{p}/suites/{s}` when followed from a page of that suite, to preserve
+the suite context, and `/projects` otherwise (see TS1).
 
 Every page ends with a footer in small, muted text, `LNT v5 · {revision}`, where
 the revision is the API index's `revision` (E1), linking to
@@ -240,7 +242,9 @@ to the selection than a click on a row, leaves the anchor where it is.
 ## AR11: Invalid Input
 
 An input whose text is invalid -- an invalid regex in a test filter, a name or a
-repository URL the schema editor rejects (TS7), an ordinal that is not an
+repository URL the schema editor rejects (TS7), a suite name the "Rename or
+move" panel rejects (TS6), a project name or display name the Projects tab
+rejects (AD3), an ordinal that is not an
 integer its column can hold (DT3), a machine name that I1 rejects or an empty
 one (DT1), or a field value that its type does not allow (DT1) -- shows a red
 halo (red border and glow) for as long as its text stays invalid.
@@ -351,21 +355,27 @@ typing its identifier -- the name of a suite or a machine, the commit string of
 a commit, the first 8 characters of the UUID of a run or a regression -- before
 the request is sent; the prompt shows the text to type. Saving a schema change
 that removes entries (TS7) is confirmed the same way, by typing the suite name,
-since it destroys their stored values. Revoking an API key (AD1), which destroys
-nothing, asks for a plain confirmation instead, as does renaming a machine
-(DT1), since run submissions that still use the old name create a new machine.
-Removing indicators from a regression (DT4) is not confirmed at all: it destroys
-no measured data, and the indicators can be added again.
+since it destroys their stored values. Revoking an API key (AD1) and deleting a
+project (AD3), which destroy nothing, ask for a plain confirmation instead, as
+does renaming a machine (DT1), since run submissions that still use the old
+name create a new machine. So do renaming a project (AD3) and renaming or
+moving a suite (TS6), since every URL, bookmark and bot that uses the old name
+gets a 404 until it is updated (see D7). Removing indicators from a regression
+(DT4) is not confirmed at all: it destroys no measured data, and the indicators
+can be added again.
 
 Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry
 (an exception to AR2 "State"), so that Back from the page shown next does not
 return to it. The same goes for the page of a machine once it has been renamed
-(DT1), which leaves for the page of the new name. If the user has already left
+(DT1), and for a page of a suite once the suite has been renamed or moved
+(TS6), which leave for the page of the new name. If the user has already left
 the page when the deletion or the rename completes, they stay where they are.
 Data fetched before a deletion is never used to show the deleted entity again:
 not on the page shown next while it loads, and not on the entity's own page if
-the user gets back to it through the browser history.
+the user gets back to it through the browser history. Likewise, data fetched
+from a suite before it was renamed or moved, or before its project was renamed,
+is never shown for whatever later takes the old names.
 
 
 ## AR17: Authentication
@@ -378,7 +388,7 @@ requests that need more than `read` scope, and with the check below.
 The navigation bar includes a Settings panel with a Bearer token input. The
 token is checked through `GET /api/auth` (see E12) when it is entered and
 whenever the SPA loads: the panel shows the name and scope of the key it
-belongs to, and its suites when it is restricted to some (see I5), that it is
+belongs to, and what it covers when it is restricted (see AR22), that it is
 not valid (the API refuses it with a 401, or it cannot be sent at all), or that
 the check failed (any other error), which it offers to retry. It can also
 clear the token. Until a check succeeds, the SPA behaves as if no token were
@@ -387,17 +397,21 @@ set, unless a page specifies otherwise (see AD1).
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
 whenever a request sent with it gets a 401, as its key may have been revoked in
-the meantime.
+the meantime, and once the SPA has renamed or moved a suite or renamed a
+project, so that the panel and the controls gated on the token use the new
+names.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --
 is disabled, and hovering it says which scope it needs. A token whose key is
-restricted to some suites (see I5) grants its scope only for actions on those
-suites, and an action on no suite, such as creating one (AD2), needs an
-instance-wide token. The hover of a control whose action is on no suite says
-that it needs an instance-wide token, and for a restricted token, that of a
-control on a suite says in which suite. A request the API nevertheless refuses
-with 401 or 403 is reported as
+restricted (see I5) grants its scope only where I5's restrictions allow it. For
+a restricted token, the hover of a control says what it needs: a token covering
+the suite, one covering the project in full, or an instance-wide token, naming
+the suite or the project as AR22 says. Where an action depends on a choice, such
+as the project a suite is created in or moved to, the options that the token
+does not allow are disabled, saying why on hover, and the control that starts
+the action is enabled as long as one of them is allowed. A request the API
+nevertheless refuses with 401 or 403 is reported as
 `Permission denied. Set an API token with the required scope in Settings.`
 
 
@@ -508,3 +522,40 @@ with many such links does not fetch their commits in advance. Until it has, the
 card says that it is loading, with the commit string at its top. If the commit
 cannot be fetched, the card says so and offers to try again (see AR7), and if it
 no longer exists, the card says so.
+
+
+## AR22: Projects and Suites
+
+Every suite belongs to a project (see D7), and the UI takes the pair of their
+names as the suite's identity everywhere: a page passes both to another page,
+keeps both in its URL, compares suites by both (as when Compare checks whether
+the two sides have the same suite, or the Graph whether a baseline is in the
+suite plotted), and keeps what it fetched from a suite under both. A URL naming
+a suite without its project, or a project without a suite where a suite is
+expected, names no usable suite (see AR2 "State").
+
+**Labels.** A project or a suite is labelled with its `display_name` when it
+has one (see D4 and D7), and with its `name` otherwise, including until its
+display name is known. A suite's *full label* is its project's label and its
+own, separated by a `/` (`libc++/Benchmarks`). It names the suite wherever its
+project is not named beside it, such as a dropdown's selected suite, a chip or a
+prompt. Under the heading of its project, a suite is named by its own label.
+Links, URLs, API requests and the text typed to confirm a deletion (AR16) use
+names rather than labels.
+
+What an API key covers (see I5) is shown as `All` for an instance-wide key, and
+otherwise as its entries: a whole project by its label followed by `(all)`, and
+a single suite by its full label. A key whose every entry has been deleted shows
+`Nothing`.
+
+**Order.** Wherever the UI lists projects or suites, it orders projects by
+label, and the suites of each project by label, after the project itself when
+both are listed (as in what a key covers). Labels are compared
+case-insensitively and in the order of the browser's language, and ties are
+broken by name.
+
+**Grouping.** A control that picks a suite lists the suites under a heading for
+each project, which cannot be picked, and leaves out the projects without
+suites. A control or a page that picks, lists or manages projects shows every
+project, including those without suites, which say that they have none where
+the page shows a project's suites.
