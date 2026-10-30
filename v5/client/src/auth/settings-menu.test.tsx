@@ -4,9 +4,18 @@ import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { PERMISSION_DENIED, authedApi, errorMessage, unwrap } from '../api/client'
 import { queryKeys } from '../api/keys'
-import { BARE_SUITE, SUITE } from '../test/fixtures'
+import { BARE_SUITE, PROJECT, SUITE } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
-import { TOKEN, apiKey, changeInAnotherTab, mockAuth, signIn, unknownToken } from '../test/auth'
+import {
+  TOKEN,
+  apiKey,
+  changeInAnotherTab,
+  entry,
+  mockAuth,
+  signIn,
+  unknownToken,
+} from '../test/auth'
+import { projectList } from '../test/page'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 import { SettingsMenu } from './settings-menu'
@@ -46,8 +55,10 @@ function changeTokenInAnotherTab(token: string | null) {
 }
 
 function deleteRun() {
-  return authedApi.DELETE('/api/suites/{testsuite}/runs/{uuid}', {
-    params: { path: { testsuite: 'nts', uuid: '573af861-8303-4a5b-a643-b8321e0142c4' } },
+  return authedApi.DELETE('/api/projects/{project}/suites/{suite}/runs/{uuid}', {
+    params: {
+      path: { project: 'llvm', suite: 'nts', uuid: '573af861-8303-4a5b-a643-b8321e0142c4' },
+    },
   })
 }
 
@@ -121,34 +132,40 @@ describe('Settings panel', () => {
   })
 
   it('shows the suites of a key restricted to some', async () => {
-    signIn('triage', ['libcxx', 'nts'])
+    signIn('triage', [entry('libcxx'), entry('nts')])
     renderMenu()
     openPanel()
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        'Using key triage-key (aaaaaaaa), with triage scope in suites libcxx, nts.',
+        'Using key triage-key (aaaaaaaa), with triage scope in suites llvm/libcxx, llvm/nts.',
       ),
     )
 
-    mockAuth(() => HttpResponse.json({ key: apiKey('submit', { suites: ['nts'] }) }))
+    mockAuth(() => HttpResponse.json({ key: apiKey('submit', { restricted_to: [entry('nts')] }) }))
     enterToken(OTHER)
-    await waitFor(() => expect(status()).toHaveTextContent(/with submit scope in suite nts\.$/))
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(/with submit scope in suite llvm\/nts\.$/),
+    )
   })
 
   it('names those suites by their labels, in their order, once the suites are listed', async () => {
-    signIn('triage', ['libcxx', 'nts'])
+    signIn('triage', [entry('libcxx'), entry('nts')])
     const { queryClient } = renderMenu()
-    queryClient.setQueryData(queryKeys.suites, {
-      items: [
-        { ...SUITE, display_name: 'Microbenchmarks' },
-        { ...BARE_SUITE, display_name: 'LLVM' },
-      ],
-    })
+    const project = { ...PROJECT, display_name: 'LLVM' }
+    queryClient.setQueryData(
+      queryKeys.projects,
+      projectList([
+        { ...SUITE, project, display_name: 'Microbenchmarks' },
+        { ...BARE_SUITE, project, display_name: 'Test suite' },
+      ]),
+    )
     openPanel()
 
     await waitFor(() =>
-      expect(status()).toHaveTextContent(/with triage scope in suites LLVM, Microbenchmarks\.$/),
+      expect(status()).toHaveTextContent(
+        /with triage scope in suites LLVM\/Microbenchmarks, LLVM\/Test suite\.$/,
+      ),
     )
   })
 
@@ -302,7 +319,7 @@ describe('Settings panel', () => {
       revoked ? unknownToken() : HttpResponse.json({ key: apiKey('manage') }),
     )
     server.use(
-      mockApi('delete', '/api/suites/{testsuite}/runs/{uuid}', () => unknownToken()),
+      mockApi('delete', '/api/projects/{project}/suites/{suite}/runs/{uuid}', () => unknownToken()),
     )
     renderMenu()
     openPanel()
@@ -319,7 +336,7 @@ describe('Settings panel', () => {
   it('does not check the token again when a request sent with it gets a 403', async () => {
     const checks = signIn('submit')
     server.use(
-      mockApi('delete', '/api/suites/{testsuite}/runs/{uuid}', () =>
+      mockApi('delete', '/api/projects/{project}/suites/{suite}/runs/{uuid}', () =>
         errorResponse(403, 'forbidden', "This endpoint requires the 'manage' scope"),
       ),
     )

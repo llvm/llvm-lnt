@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PAGE_SIZE } from '../api/client'
 import { fetchCommitPage, type CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
-import type { SuiteSchema } from '../api/suites'
+import { refOf, type Suite } from '../api/suites'
 import type { Commit } from '../schema'
 import { useDropUnusable } from '../url-state'
 import { Combobox } from './combobox'
@@ -20,7 +20,7 @@ import styles from './commit-picker.module.css'
 interface CommonProps {
   label: string
   /** The suite to pick from, whose schema gives the commits' display values. */
-  schema: SuiteSchema
+  schema: Suite
   /** Which of the suite's commits the picker offers. Pass the same object while they are alike. */
   filters?: CommitFilters
   placeholder?: string
@@ -107,7 +107,7 @@ export function CommitPicker({
   onPendingChange,
   reportsLookupFailure = true,
 }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const toSuggestion = useCallback((commit: Commit) => suggestionOf(commit, schema), [schema])
   const suggestions = useServerSuggestions({
     queryKey: [...queryKeys.commits(suite), 'suggestions', filters],

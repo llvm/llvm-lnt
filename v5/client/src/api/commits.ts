@@ -3,19 +3,20 @@ import { api, unwrap, type Schemas } from './client'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
 import type { Commit } from '../schema'
+import type { SuiteRef } from './suites'
 
 type CommitListParameters = NonNullable<
-  paths['/api/suites/{testsuite}/commits']['get']['parameters']['query']
+  paths['/api/projects/{project}/suites/{suite}/commits']['get']['parameters']['query']
 >
 
 /** A `GET /commits` query (E3). It always gives a sort, since the lists that use it differ in that. */
 type CommitListQuery = CommitListParameters & Required<Pick<CommitListParameters, 'sort'>>
 
 /** One page of `GET /commits` (E3). */
-export function fetchCommitPage(suite: string, query: CommitListQuery, signal?: AbortSignal) {
+export function fetchCommitPage(suite: SuiteRef, query: CommitListQuery, signal?: AbortSignal) {
   return unwrap(
-    api.GET('/api/suites/{testsuite}/commits', {
-      params: { path: { testsuite: suite }, query },
+    api.GET('/api/projects/{project}/suites/{suite}/commits', {
+      params: { path: suite, query },
       signal,
     }),
   )
@@ -27,15 +28,15 @@ export function fetchCommitPage(suite: string, query: CommitListQuery, signal?: 
  * A value no commit has, deleted since the list was read, say, is absent from the map.
  */
 async function resolveCommits(
-  suite: string,
+  suite: SuiteRef,
   values: string[],
   signal?: AbortSignal,
 ): Promise<Map<string, Commit>> {
   const commits = [...new Set(values)]
   if (commits.length === 0) return new Map()
   const resolved = await unwrap(
-    api.POST('/api/suites/{testsuite}/commits/resolve', {
-      params: { path: { testsuite: suite } },
+    api.POST('/api/projects/{project}/suites/{suite}/commits/resolve', {
+      params: { path: suite },
       body: { commits },
       signal,
     }),
@@ -60,7 +61,7 @@ export interface CommitFilters {
  * (E3).
  */
 export async function lookUpCommit(
-  suite: string,
+  suite: SuiteRef,
   filters: CommitFilters,
   value: string,
   signal?: AbortSignal,
@@ -69,7 +70,7 @@ export async function lookUpCommit(
 }
 
 /** The first commit `GET /commits` lists for `query` (E3), or null if it lists none. */
-async function firstCommit(suite: string, query: CommitListQuery, signal?: AbortSignal) {
+async function firstCommit(suite: SuiteRef, query: CommitListQuery, signal?: AbortSignal) {
   const page = await fetchCommitPage(suite, { ...query, limit: 1 }, signal)
   return page.items[0] ?? null
 }
@@ -80,7 +81,7 @@ async function firstCommit(suite: string, query: CommitListQuery, signal?: Abort
  * shows the commit strings instead, rather than fail for want of a way to display them.
  */
 export async function withCommits<Page>(
-  suite: string,
+  suite: SuiteRef,
   page: Page,
   values: string[],
   signal?: AbortSignal,
@@ -112,7 +113,7 @@ function holdsCommits(query: Query): boolean {
  * only by its value is left alone, such as a run's samples, which never change and would otherwise
  * all be fetched again when next shown.
  */
-export async function commitChanged(queryClient: QueryClient, suite: string): Promise<void> {
+export async function commitChanged(queryClient: QueryClient, suite: SuiteRef): Promise<void> {
   await queryClient.invalidateQueries({
     queryKey: queryKeys.suite(suite),
     predicate: (query) =>
@@ -124,12 +125,12 @@ export async function commitChanged(queryClient: QueryClient, suite: string): Pr
 }
 
 /** The query key of the commit `value`'s detail, with its neighbours (E3). */
-export function commitKey(suite: string, value: string) {
+export function commitKey(suite: SuiteRef, value: string) {
   return [...queryKeys.commits(suite), 'detail', value] as const
 }
 
 /** The query key of the commit `value` resolved on its own (see `useResolvedCommit`). */
-export function resolvedCommitKey(suite: string, value: string) {
+export function resolvedCommitKey(suite: SuiteRef, value: string) {
   return [...queryKeys.commits(suite), 'resolve', value] as const
 }
 
@@ -140,14 +141,14 @@ export function withoutNeighbours(detail: Schemas['CommitDetail']): Commit {
 }
 
 /** Store `detail` as the commit resolved, which a page about it then need not ask for again. */
-function storeResolved(queryClient: QueryClient, suite: string, detail: Schemas['CommitDetail']) {
+function storeResolved(queryClient: QueryClient, suite: SuiteRef, detail: Schemas['CommitDetail']) {
   queryClient.setQueryData(resolvedCommitKey(suite, detail.value), withoutNeighbours(detail))
 }
 
 /** Store `detail`, as the API returned it, as both the commit's detail and its resolution. */
 export function storeCommit(
   queryClient: QueryClient,
-  suite: string,
+  suite: SuiteRef,
   detail: Schemas['CommitDetail'],
 ): void {
   queryClient.setQueryData(commitKey(suite, detail.value), detail)
@@ -155,7 +156,7 @@ export function storeCommit(
 }
 
 /** Cancel the fetches of the commit `value` under way, whose answers could replace a newer one. */
-export async function cancelCommit(queryClient: QueryClient, suite: string, value: string) {
+export async function cancelCommit(queryClient: QueryClient, suite: SuiteRef, value: string) {
   await Promise.all(
     [commitKey(suite, value), resolvedCommitKey(suite, value)].map((queryKey) =>
       queryClient.cancelQueries({ queryKey }),
@@ -167,13 +168,13 @@ export async function cancelCommit(queryClient: QueryClient, suite: string, valu
  * The commit `value` (E3), with the commits before and after it in ordinal order. The commit is
  * also stored as resolved (see `useResolvedCommit`), which a page about it need not ask for again.
  */
-export function useCommit(suite: string, value: string) {
+export function useCommit(suite: SuiteRef, value: string) {
   return useQuery({
     queryKey: commitKey(suite, value),
     queryFn: async ({ client, signal }) => {
       const commit = await unwrap(
-        api.GET('/api/suites/{testsuite}/commits/{value}', {
-          params: { path: { testsuite: suite, value } },
+        api.GET('/api/projects/{project}/suites/{suite}/commits/{value}', {
+          params: { path: { ...suite, value } },
           signal,
         }),
       )
@@ -187,7 +188,7 @@ export function useCommit(suite: string, value: string) {
  * The commit `value`, resolved on its own for its display value and ordinal (E3), or null once it
  * shows that no commit has that value. Nothing is asked unless `enabled`.
  */
-export function useResolvedCommit(suite: string, value: string, enabled = true) {
+export function useResolvedCommit(suite: SuiteRef, value: string, enabled = true) {
   return useQuery({
     queryKey: resolvedCommitKey(suite, value),
     queryFn: async ({ signal }) =>
@@ -216,7 +217,7 @@ export type PreviousCommit =
  * the others). The lookup is cached per machine, commit and ordinal, so that runs of the same
  * machine at the same commit share it, and a new ordinal looks it up again.
  */
-export function usePreviousCommit(suite: string, value: string, machine: string): PreviousCommit {
+export function usePreviousCommit(suite: SuiteRef, value: string, machine: string): PreviousCommit {
   const commit = useResolvedCommit(suite, value)
   const ordinal = commit.data?.ordinal
   const ordered = ordinal != null

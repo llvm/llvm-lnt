@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite, SuiteSchema } from '../../api/suites'
 import { BARE_SUITE, metric } from '../../test/fixtures'
 import { offeredMetrics } from './metrics'
 
-const suite = (name: string, metrics: SuiteSchema['metrics']): SuiteSchema => ({
+const suite = (name: string, metrics: SuiteSchema['metrics']): Suite => ({
   ...BARE_SUITE,
   name,
   metrics,
 })
 
-const names = (a?: SuiteSchema, b?: SuiteSchema) => offeredMetrics(a, b).map((entry) => entry.name)
+const names = (a?: Suite, b?: Suite) => offeredMetrics(a, b).map((entry) => entry.name)
 
 describe('offeredMetrics', () => {
   it('offers nothing without a suite', () => {

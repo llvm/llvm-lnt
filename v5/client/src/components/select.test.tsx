@@ -60,11 +60,37 @@ describe('Select', () => {
     expect(selectButton('Metric')).toHaveTextContent('Code Size')
   })
 
+  it('disables an option with a reason, saying why on hover and to assistive technology', async () => {
+    const onChange = vi.fn()
+    render(
+      <Select
+        label="Project"
+        options={[
+          { value: 'llvm', label: 'LLVM' },
+          { value: 'swift', label: 'Swift', reason: 'Needs a token covering it.' },
+        ]}
+        value={null}
+        placeholder="Select a project"
+        onChange={onChange}
+      />,
+    )
+    const user = userEvent.setup()
+
+    await user.click(selectButton('Project'))
+    const refused = screen.getByRole('option', { name: /^Swift\b.*: Needs a token covering it\.$/ })
+    expect(refused).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByTitle('Needs a token covering it.')).toHaveTextContent(/^Swift/)
+    expect(screen.getByRole('option', { name: 'LLVM' })).not.toHaveAttribute('aria-disabled')
+
+    await user.click(refused)
+    expect(onChange).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('option', { name: 'LLVM' }))
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('llvm')
+  })
+
   it('gives its button to a ref, to focus it from script', () => {
     const ref = createRef<HTMLButtonElement>()
-    render(
-      <Select label="Metric" options={OPTIONS} value="" onChange={() => {}} ref={ref} />,
-    )
+    render(<Select label="Metric" options={OPTIONS} value="" onChange={() => {}} ref={ref} />)
 
     ref.current!.focus()
 

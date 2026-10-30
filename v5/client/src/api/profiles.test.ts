@@ -11,6 +11,9 @@ import {
   profileKey,
   profileQuery,
 } from './profiles'
+import { suiteRef } from './suites'
+
+const LIBCXX = suiteRef('llvm', 'libcxx')
 
 const UUID = '6f1c2a9e-3b7d-4e58-9a1f-0c8d2e4b7a63'
 
@@ -18,13 +21,17 @@ describe('profileFunctionsQuery', () => {
   it('gives the functions of the profile', async () => {
     const functions = [{ name: 'main', counters: { cycles: 10 }, length: 2 }]
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}/functions', ({ params }) => {
-        expect(params).toEqual({ testsuite: 'libcxx', uuid: UUID })
-        return HttpResponse.json({ items: functions })
-      }),
+      mockApi(
+        'get',
+        '/api/projects/{project}/suites/{suite}/profiles/{uuid}/functions',
+        ({ params }) => {
+          expect(params).toEqual({ project: 'llvm', suite: 'libcxx', uuid: UUID })
+          return HttpResponse.json({ items: functions })
+        },
+      ),
     )
 
-    const data = await createQueryClient().fetchQuery(profileFunctionsQuery('libcxx', UUID))
+    const data = await createQueryClient().fetchQuery(profileFunctionsQuery(LIBCXX, UUID))
 
     expect(data).toEqual(functions)
   })
@@ -41,13 +48,17 @@ describe('disassemblyQuery', () => {
       instructions: [{ address: 4096, counters: { cycles: 5 }, text: 'ret' }],
     }
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}/disassembly', ({ request }) => {
-        expect(new URL(request.url).searchParams.getAll('function')).toEqual([name])
-        return HttpResponse.json(disassembly)
-      }),
+      mockApi(
+        'get',
+        '/api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly',
+        ({ request }) => {
+          expect(new URL(request.url).searchParams.getAll('function')).toEqual([name])
+          return HttpResponse.json(disassembly)
+        },
+      ),
     )
 
-    const data = await createQueryClient().fetchQuery(disassemblyQuery('libcxx', UUID, name))
+    const data = await createQueryClient().fetchQuery(disassemblyQuery(LIBCXX, UUID, name))
 
     expect(data).toEqual(disassembly)
   })
@@ -57,12 +68,12 @@ describe('forgetProfiles', () => {
   const unsubscribes: (() => void)[] = []
   afterEach(() => unsubscribes.splice(0).forEach((unsubscribe) => unsubscribe()))
 
-  const SHOWN = disassemblyQuery('libcxx', UUID, 'main').queryKey
+  const SHOWN = disassemblyQuery(LIBCXX, UUID, 'main').queryKey
   const HIDDEN = [
-    profileQuery('libcxx', UUID).queryKey,
-    profileFunctionsQuery('nts', 'other-uuid').queryKey,
+    profileQuery(LIBCXX, UUID).queryKey,
+    profileFunctionsQuery(suiteRef('llvm', 'nts'), 'other-uuid').queryKey,
   ]
-  const KEPT = [['suite', 'libcxx', 'runs'], ['suites']]
+  const KEPT = [['suite', 'llvm', 'libcxx', 'runs'], ['projects']]
 
   function observe(
     queryClient: ReturnType<typeof createQueryClient>,
@@ -74,11 +85,11 @@ describe('forgetProfiles', () => {
 
   it('keeps profile data for good until it is forgotten', () => {
     for (const options of [
-      profileQuery('libcxx', UUID),
-      profileFunctionsQuery('libcxx', UUID),
-      disassemblyQuery('libcxx', UUID, 'main'),
+      profileQuery(LIBCXX, UUID),
+      profileFunctionsQuery(LIBCXX, UUID),
+      disassemblyQuery(LIBCXX, UUID, 'main'),
     ]) {
-      expect(options.queryKey.slice(0, 4)).toEqual(profileKey('libcxx', UUID))
+      expect(options.queryKey.slice(0, 5)).toEqual(profileKey(LIBCXX, UUID))
       expect(options.staleTime).toBe(Infinity)
       expect(options.gcTime).toBe(Infinity)
     }

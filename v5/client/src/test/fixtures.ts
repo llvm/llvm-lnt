@@ -4,7 +4,7 @@
  */
 
 import type { Schemas } from '../api/client'
-import type { SuiteSchema } from '../api/suites'
+import { suiteRef, type ProjectName, type Suite, type SuiteSchema } from '../api/suites'
 import type { Commit, Metric } from '../schema'
 
 /** The repository of a suite that sets none of its keys (D4). */
@@ -14,11 +14,20 @@ export const NO_REPOSITORY: SuiteSchema['repository'] = {
   range_url: null,
 }
 
+/** The project the suites of tests are in, unless they say otherwise. */
+export const PROJECT: ProjectName = { name: 'llvm', display_name: null }
+
+/** `schema`, as a suite of `project`. */
+export function inProject(schema: SuiteSchema, project: ProjectName = PROJECT): Suite {
+  return { ...schema, project }
+}
+
 /**
  * A suite like libcxx: a display field, labelled and unlabelled fields, a non-text one, listed and
  * unlisted ones, and a repository.
  */
-export const SUITE: SuiteSchema = {
+export const SUITE: Suite = {
+  project: PROJECT,
   name: 'libcxx',
   display_name: null,
   metrics: [
@@ -63,7 +72,8 @@ export const SUITE: SuiteSchema = {
 }
 
 /** A suite with no fields at all, and so no display field, and no repository. */
-export const BARE_SUITE: SuiteSchema = {
+export const BARE_SUITE: Suite = {
+  project: PROJECT,
   name: 'nts',
   display_name: null,
   metrics: [],
@@ -71,6 +81,12 @@ export const BARE_SUITE: SuiteSchema = {
   commit_fields: [],
   repository: NO_REPOSITORY,
 }
+
+/** The identity of `SUITE`. */
+export const REF = suiteRef(PROJECT.name, SUITE.name)
+
+/** The identity of `BARE_SUITE`. */
+export const BARE_REF = suiteRef(PROJECT.name, BARE_SUITE.name)
 
 /** A metric (D4), `real`, without a label or a unit, and not on the Dashboard unless given. */
 export function metric(name: string, overrides: Partial<Metric> = {}): Metric {

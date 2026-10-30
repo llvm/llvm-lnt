@@ -14,32 +14,44 @@ const SUITE = {
   repository: { label: null, commit_url: null, range_url: null },
 }
 
+const PROJECTS = { items: [{ name: 'llvm', display_name: null, suites: [SUITE] }] }
+
 describe('unwrap', () => {
   it('returns the body of a successful response', async () => {
-    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: [SUITE] })))
+    server.use(mockApi('get', '/api/projects', () => HttpResponse.json(PROJECTS)))
 
-    expect(await unwrap(api.GET('/api/suites'))).toEqual({ items: [SUITE] })
+    expect(await unwrap(api.GET('/api/projects'))).toEqual(PROJECTS)
   })
 
   it('returns nothing for a 204', async () => {
     server.use(
-      mockApi('delete', '/api/suites/{testsuite}/runs/{uuid}', () => new HttpResponse(null, { status: 204 })),
+      mockApi(
+        'delete',
+        '/api/projects/{project}/suites/{suite}/runs/{uuid}',
+        () => new HttpResponse(null, { status: 204 }),
+      ),
     )
 
-    const deleted = authedApi.DELETE('/api/suites/{testsuite}/runs/{uuid}', {
-      params: { path: { testsuite: 'nts', uuid: '573af861-8303-4a5b-a643-b8321e0142c4' } },
+    const deleted = authedApi.DELETE('/api/projects/{project}/suites/{suite}/runs/{uuid}', {
+      params: {
+        path: { project: 'llvm', suite: 'nts', uuid: '573af861-8303-4a5b-a643-b8321e0142c4' },
+      },
     })
     expect(await unwrap(deleted)).toBeUndefined()
   })
 
   it("turns the API's error envelope into an ApiError", async () => {
     server.use(
-      mockApi('get', '/api/suites/{name}', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}', () =>
         errorResponse(404, 'not_found', "Test suite 'nope' not found"),
       ),
     )
 
-    const request = unwrap(api.GET('/api/suites/{name}', { params: { path: { name: 'nope' } } }))
+    const request = unwrap(
+      api.GET('/api/projects/{project}/suites/{suite}', {
+        params: { path: { project: 'llvm', suite: 'nope' } },
+      }),
+    )
     await expect(request).rejects.toMatchObject({
       name: 'ApiError',
       status: 404,
@@ -50,10 +62,19 @@ describe('unwrap', () => {
 
   it('tells the three 409s apart by their code', async () => {
     server.use(
-      mockApi('post', '/api/suites', () => errorResponse(409, 'retry', 'Try again')),
+      mockApi('post', '/api/projects/{project}/suites', () =>
+        errorResponse(409, 'retry', 'Try again'),
+      ),
     )
 
-    await expect(unwrap(authedApi.POST('/api/suites', { body: SUITE }))).rejects.toMatchObject({
+    await expect(
+      unwrap(
+        authedApi.POST('/api/projects/{project}/suites', {
+          params: { path: { project: 'llvm' } },
+          body: SUITE,
+        }),
+      ),
+    ).rejects.toMatchObject({
       name: 'ApiError',
       status: 409,
       code: 'retry',
@@ -62,10 +83,20 @@ describe('unwrap', () => {
 
   it('reports a 413, which carries no envelope, with a message of its own', async () => {
     server.use(
-      http.post('/api/suites', () => new HttpResponse('Content Too Large', { status: 413 })),
+      http.post(
+        '/api/projects/llvm/suites',
+        () => new HttpResponse('Content Too Large', { status: 413 }),
+      ),
     )
 
-    await expect(unwrap(authedApi.POST('/api/suites', { body: SUITE }))).rejects.toMatchObject({
+    await expect(
+      unwrap(
+        authedApi.POST('/api/projects/{project}/suites', {
+          params: { path: { project: 'llvm' } },
+          body: SUITE,
+        }),
+      ),
+    ).rejects.toMatchObject({
       name: 'ApiError',
       status: 413,
       code: null,
@@ -75,10 +106,10 @@ describe('unwrap', () => {
 
   it('does not take a JSON body for an envelope unless it is one', async () => {
     server.use(
-      http.get('/api/suites', () => HttpResponse.json({ error: 'Bad gateway' }, { status: 502 })),
+      http.get('/api/projects', () => HttpResponse.json({ error: 'Bad gateway' }, { status: 502 })),
     )
 
-    await expect(unwrap(api.GET('/api/suites'))).rejects.toMatchObject({
+    await expect(unwrap(api.GET('/api/projects'))).rejects.toMatchObject({
       name: 'ApiError',
       status: 502,
       code: null,
@@ -87,9 +118,9 @@ describe('unwrap', () => {
   })
 
   it('reports a request that got no response', async () => {
-    server.use(http.get('/api/suites', () => HttpResponse.error()))
+    server.use(http.get('/api/projects', () => HttpResponse.error()))
 
-    await expect(unwrap(api.GET('/api/suites'))).rejects.toMatchObject({
+    await expect(unwrap(api.GET('/api/projects'))).rejects.toMatchObject({
       name: 'ApiError',
       status: 0,
       code: null,
@@ -108,16 +139,16 @@ describe('query parameters', () => {
   it('repeats a parameter that takes several values', async () => {
     let query = ''
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/regressions', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/regressions', ({ request }) => {
         query = new URL(request.url).search
         return HttpResponse.json({ items: [], cursor: { next: null, previous: null } })
       }),
     )
 
     await unwrap(
-      api.GET('/api/suites/{testsuite}/regressions', {
+      api.GET('/api/projects/{project}/suites/{suite}/regressions', {
         params: {
-          path: { testsuite: 'nts' },
+          path: { project: 'llvm', suite: 'nts' },
           query: { state: ['detected', 'active'], sort: '-created_at' },
         },
       }),
@@ -128,15 +159,18 @@ describe('query parameters', () => {
   it('leaves out a parameter that is null or undefined', async () => {
     let query: string | null = null
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', ({ request }) => {
         query = new URL(request.url).search
         return HttpResponse.json({ items: [] })
       }),
     )
 
     await unwrap(
-      api.GET('/api/suites/{testsuite}/machines', {
-        params: { path: { testsuite: 'nts' }, query: { search: null, tracked: undefined } },
+      api.GET('/api/projects/{project}/suites/{suite}/machines', {
+        params: {
+          path: { project: 'llvm', suite: 'nts' },
+          query: { search: null, tracked: undefined },
+        },
       }),
     )
     expect(query).toBe('')
@@ -145,15 +179,15 @@ describe('query parameters', () => {
   it('encodes a value that is not URL-safe', async () => {
     let search: string | null = null
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/tests', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/tests', ({ request }) => {
         search = new URL(request.url).searchParams.get('search')
         return HttpResponse.json({ items: [], cursor: { next: null, previous: null } })
       }),
     )
 
     await unwrap(
-      api.GET('/api/suites/{testsuite}/tests', {
-        params: { path: { testsuite: 'nts' }, query: { search: 'a&b=c/d e' } },
+      api.GET('/api/projects/{project}/suites/{suite}/tests', {
+        params: { path: { project: 'llvm', suite: 'nts' }, query: { search: 'a&b=c/d e' } },
       }),
     )
     expect(search).toBe('a&b=c/d e')
@@ -162,10 +196,10 @@ describe('query parameters', () => {
 
 describe('aborting', () => {
   it('rejects with the abort rather than an ApiError', async () => {
-    server.use(mockApi('get', '/api/suites', () => new Promise<never>(() => {})))
+    server.use(mockApi('get', '/api/projects', () => new Promise<never>(() => {})))
     const controller = new AbortController()
 
-    const request = unwrap(api.GET('/api/suites', { signal: controller.signal }))
+    const request = unwrap(api.GET('/api/projects', { signal: controller.signal }))
     controller.abort()
 
     await expect(request).rejects.toHaveProperty('name', 'AbortError')

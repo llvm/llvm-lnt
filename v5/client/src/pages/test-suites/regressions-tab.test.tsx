@@ -53,7 +53,7 @@ function renderTab(query = '', respond?: Respond<Page<Regression>>) {
   const machines = mockMachineNames()
   const regressions = mockRegressions(respond)
   const resolved = mockResolve([TAGGED])
-  renderPage(`/suites/libcxx?tab=regressions${query}`)
+  renderPage(`/projects/llvm/suites/libcxx?tab=regressions${query}`)
   return { machines, regressions, resolved }
 }
 
@@ -99,11 +99,11 @@ describe('the Regressions tab', () => {
 
     expect(within(list).getByRole('link', { name: '(untitled)' })).toHaveAttribute(
       'href',
-      `/suites/libcxx/regressions/${uuidOf('b')}`,
+      `/projects/llvm/suites/libcxx/regressions/${uuidOf('b')}`,
     )
     expect(within(list).getByRole('link', { name: 'r100 (v1)' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/abc123',
+      '/projects/llvm/suites/libcxx/commits/abc123',
     )
     const url = 'https://github.com/llvm/llvm-project/issues/1234'
     const bug = within(list).getByRole('link', { name: url })
@@ -126,7 +126,7 @@ describe('the Regressions tab', () => {
     expect(header).not.toHaveClass('mono')
     for (const hex of ['a', 'b']) {
       const link = within(list).getByRole('link', { name: `${hex.repeat(8)}…` })
-      expect(link).toHaveAttribute('href', `/suites/libcxx/regressions/${uuidOf(hex)}`)
+      expect(link).toHaveAttribute('href', `/projects/llvm/suites/libcxx/regressions/${uuidOf(hex)}`)
       expect(link).toHaveAttribute('title', uuidOf(hex))
       expect(link.closest('td')).toHaveClass('mono')
     }
@@ -153,7 +153,7 @@ describe('the Regressions tab', () => {
       items: [machine('a-retired', { tracked: false }), ...MACHINES.map((name) => machine(name))],
     }))
     mockRegressions()
-    renderPage('/suites/libcxx?tab=regressions')
+    renderPage('/projects/llvm/suites/libcxx?tab=regressions')
     const user = userEvent.setup()
 
     await user.type(await screen.findByRole('combobox', { name: 'Machine' }), '-')
@@ -166,7 +166,7 @@ describe('the Regressions tab', () => {
     )
     const group = screen.getByRole('group', { name: 'Untracked' })
     await user.click(within(group).getByRole('option', { name: 'a-retired' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=a-retired'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions&machine=a-retired'))
   })
 
   it('filters by state, machine, metric, commit and title, each from the first page', async () => {
@@ -187,7 +187,7 @@ describe('the Regressions tab', () => {
 
     await waitFor(() =>
       expect(currentUrl()).toBe(
-        '/suites/libcxx?tab=regressions&state=active&state=fixed&machine=macos-arm64' +
+        '/projects/llvm/suites/libcxx?tab=regressions&state=active&state=fixed&machine=macos-arm64' +
           '&metric=execution_time&has_commit=false&search=slow',
       ),
     )
@@ -228,7 +228,7 @@ describe('the Regressions tab', () => {
 
     await userEvent.setup().clear(machineInput())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions'))
     await waitFor(() => expect(regressions.at(-1)?.has('machine')).toBe(false))
   })
 
@@ -238,7 +238,7 @@ describe('the Regressions tab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear Machine' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions'))
     await waitFor(() => expect(regressions.at(-1)?.has('machine')).toBe(false))
     expect(machineInput()).toHaveValue('')
   })
@@ -246,7 +246,7 @@ describe('the Regressions tab', () => {
   it('drops a metric the suite does not have, without asking for it', async () => {
     const { regressions } = renderTab('&metric=nope')
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions'))
     await table('Regressions')
     expect(regressions.every((query) => !query.has('metric'))).toBe(true)
     expect(selectButton('Metric')).toHaveTextContent('Any metric')
@@ -256,19 +256,19 @@ describe('the Regressions tab', () => {
     mockSuites()
     const list = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', async () => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', async () => {
         await list.promise
         return HttpResponse.json({ items: [machine('linux-x86_64')] })
       }),
     )
     const regressions = mockRegressions()
-    renderPage('/suites/libcxx?tab=regressions&machine=gone')
+    renderPage('/projects/llvm/suites/libcxx?tab=regressions&machine=gone')
     await screen.findByRole('tab', { name: 'Regressions' })
-    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=gone')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions&machine=gone')
 
     act(() => list.open())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions'))
     await table('Regressions')
     // Never asked for with the machine, which the API would answer with a 404.
     expect(regressions.map((query) => query.has('machine'))).toEqual([false])
@@ -277,15 +277,15 @@ describe('the Regressions tab', () => {
   it('keeps the machine when the machine list fails, and says so', async () => {
     mockSuites()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', () =>
         errorResponse(500, 'internal_error', 'The server failed'),
       ),
     )
     const regressions = mockRegressions()
-    renderPage('/suites/libcxx?tab=regressions&machine=linux-x86_64')
+    renderPage('/projects/llvm/suites/libcxx?tab=regressions&machine=linux-x86_64')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server failed')
-    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&machine=linux-x86_64')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions&machine=linux-x86_64')
     await table('Regressions')
     expect(regressions[0].get('machine')).toBe('linux-x86_64')
 
@@ -300,15 +300,15 @@ describe('the Regressions tab', () => {
     mockRegressions()
     mockMachineNames()
     mockRuns(() => cursorPage([]))
-    renderPage('/suites/libcxx?state=fixed&has_commit=false')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    renderPage('/projects/llvm/suites/libcxx?state=fixed&has_commit=false')
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
 
     fireEvent.click(screen.getByRole('tab', { name: 'Regressions' }))
     fireEvent.click(await screen.findByRole('button', { name: 'fixed' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions&state=fixed'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions&state=fixed'))
 
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
   })
 
   it('opens a regression by a click on its row, but not on the links it holds', async () => {
@@ -318,15 +318,15 @@ describe('the Regressions tab', () => {
     await table('Regressions')
 
     fireEvent.click(within(rowOf('slow')).getByRole('link', { name: 'https://bugs/1' }))
-    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions')
 
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/regressions/{uuid}', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', () =>
         HttpResponse.json(regressionDetail('a', { title: 'slow' })),
       ),
     )
     fireEvent.click(within(rowOf('slow')).getAllByRole('cell')[3])
-    await waitFor(() => expect(currentUrl()).toBe(`/suites/libcxx/regressions/${uuidOf('a')}`))
+    await waitFor(() => expect(currentUrl()).toBe(`/projects/llvm/suites/libcxx/regressions/${uuidOf('a')}`))
     expect(await screen.findByRole('heading', { name: 'Regression: slow' })).toBeInTheDocument()
   })
 
@@ -340,7 +340,7 @@ describe('the Regressions tab', () => {
     expect(card).toHaveAccessibleName('r100 (v1)')
     expect(resolved).toEqual([['abc123']])
     await userEvent.click(within(card).getByText('r100 (v1)'))
-    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions')
   })
 
   it('leaves a modified click on a row, or one ending a text selection, to the browser', async () => {
@@ -358,7 +358,7 @@ describe('the Regressions tab', () => {
     fireEvent.click(cell)
     selection.mockRestore()
 
-    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions')
   })
 
   it('pages with Previous and Next', async () => {
@@ -428,7 +428,7 @@ describe('creating a regression', () => {
     const bodies: Schemas['RegressionCreate'][] = []
     const headers: (string | null)[] = []
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/regressions', async ({ request }) => {
+      mockApi('post', '/api/projects/{project}/suites/{suite}/regressions', async ({ request }) => {
         bodies.push(await request.json())
         headers.push(request.headers.get('Authorization'))
         return HttpResponse.json(regressionDetail('c'), { status: 201 })
@@ -451,7 +451,7 @@ describe('creating a regression', () => {
     expect(picker).toHaveValue('r100 (v1)')
     await user.click(within(form).getByRole('button', { name: 'Create' }))
 
-    await waitFor(() => expect(currentUrl()).toBe(`/suites/libcxx/regressions/${uuidOf('c')}`))
+    await waitFor(() => expect(currentUrl()).toBe(`/projects/llvm/suites/libcxx/regressions/${uuidOf('c')}`))
     expect(bodies).toEqual([
       { title: 'find_if slow', bug: 'https://bugs/1', state: 'active', commit: 'abc123' },
     ])
@@ -551,7 +551,7 @@ describe('creating a regression', () => {
   it('stays open with what was entered when the creation fails', async () => {
     const { form } = await openForm()
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/regressions', () =>
+      mockApi('post', '/api/projects/{project}/suites/{suite}/regressions', () =>
         errorResponse(400, 'invalid_request', 'The bug is too long'),
       ),
     )
@@ -561,7 +561,7 @@ describe('creating a regression', () => {
 
     expect(await within(form).findByRole('alert')).toHaveTextContent('The bug is too long')
     expect(within(form).getByLabelText('Title')).toHaveValue('slow')
-    expect(currentUrl()).toBe('/suites/libcxx?tab=regressions')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions')
   })
 
   it('closes with Cancel, or the button that opened it', async () => {
@@ -595,7 +595,7 @@ describe('deleting a regression', () => {
     const { regressions, machines, checks, markDeleted } = await openPrompt()
     const requests: string[] = []
     server.use(
-      mockApi('delete', '/api/suites/{testsuite}/regressions/{uuid}', ({ params, request }) => {
+      mockApi('delete', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', ({ params, request }) => {
         requests.push(`${params.uuid} ${request.headers.get('Authorization')}`)
         markDeleted()
         return new HttpResponse(null, { status: 204 })
@@ -624,12 +624,12 @@ describe('deleting a regression', () => {
     let deleted = false
     const answer = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/regressions/{uuid}', async () => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', async () => {
         if (!deleted) return HttpResponse.json(regressionDetail('5', { title: 'slow' }))
         await answer.promise
         return errorResponse(404, 'not_found', 'Regression not found')
       }),
-      mockApi('delete', '/api/suites/{testsuite}/regressions/{uuid}', () => {
+      mockApi('delete', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', () => {
         deleted = true
         markDeleted()
         return new HttpResponse(null, { status: 204 })
@@ -658,7 +658,7 @@ describe('deleting a regression', () => {
   it('reports a refusal in the prompt, which stays open', async () => {
     await openPrompt()
     server.use(
-      mockApi('delete', '/api/suites/{testsuite}/regressions/{uuid}', () =>
+      mockApi('delete', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', () =>
         errorResponse(403, 'forbidden', 'Insufficient scope'),
       ),
     )
@@ -692,7 +692,7 @@ describe('deleting a regression', () => {
     await openPrompt()
     const done = gate()
     server.use(
-      mockApi('delete', '/api/suites/{testsuite}/regressions/{uuid}', async () => {
+      mockApi('delete', '/api/projects/{project}/suites/{suite}/regressions/{uuid}', async () => {
         await done.promise
         return new HttpResponse(null, { status: 204 })
       }),

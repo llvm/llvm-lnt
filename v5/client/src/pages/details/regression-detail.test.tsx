@@ -48,8 +48,8 @@ vi.mock('../../api/regressions', async (importOriginal) => ({
 }))
 
 const UUID = uuidOf('a')
-const PAGE = `/suites/libcxx/regressions/${UUID}`
-const ROUTE = '/api/suites/{testsuite}/regressions/{uuid}'
+const PAGE = `/projects/llvm/suites/libcxx/regressions/${UUID}`
+const ROUTE = '/api/projects/{project}/suites/{suite}/regressions/{uuid}'
 
 type Regression = Schemas['RegressionDetail']
 
@@ -157,7 +157,7 @@ describe('the Regression Detail page', () => {
     )
     expect(main().getByRole('link', { name: 'r100 (v1)' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/abc123',
+      '/projects/llvm/suites/libcxx/commits/abc123',
     )
   })
 
@@ -201,7 +201,10 @@ describe('the Regression Detail page', () => {
     expect(screen.queryByRole('group', { name: 'Regression' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     expect(heading()).toHaveTextContent('Regression: aaaaaaaa…')
-    expect(trailLink('Regressions')).toHaveAttribute('href', '/suites/libcxx?tab=regressions')
+    expect(trailLink('Regressions')).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx?tab=regressions',
+    )
   })
 
   it('offers to fetch the regression again when it could not be', async () => {
@@ -229,7 +232,7 @@ describe('the Regression Detail page', () => {
     )
     renderPage(PAGE)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'libcxx' not found")
+    expect(await screen.findByRole('alert')).toHaveTextContent("Test suite 'llvm/libcxx' not found")
     expect(calls.count).toBe(0)
   })
 
@@ -377,7 +380,7 @@ describe('the Regression Detail page', () => {
       renderRegression()
       // Registered after `renderRegression`, so that it answers before the world's commits.
       server.use(
-        mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+        mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
           if (new URL(request.url).searchParams.has('commit') && fail)
             return errorResponse(500, 'internal_error', 'Boom') as never
         }),
@@ -559,7 +562,7 @@ describe('the Regression Detail page', () => {
       stored = { ...stored, ...body }
       return HttpResponse.json(stored)
     })
-    renderRegression({ url: '/suites/libcxx?tab=regressions' })
+    renderRegression({ url: '/projects/llvm/suites/libcxx?tab=regressions' })
     mockMachines(() => ({ items: [] }))
     const lists = mockRegressions(() => cursorPage([{ ...regression('a'), title: stored.title }]))
     fireEvent.click(await screen.findByRole('link', { name: 'find_if slowdown' }))
@@ -598,7 +601,7 @@ describe('the Regression Detail page', () => {
       fireEvent.click(within(prompt).getByRole('button', { name: 'Delete' }))
       act(() => deletion.open())
 
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=regressions'))
+      await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=regressions'))
       expect(deleted).toEqual([`Bearer ${TOKEN}`])
       expect(await screen.findByText('No regressions yet.')).toBeInTheDocument()
       // The deleted regression is not asked for again on the way out.
@@ -777,7 +780,7 @@ describe('the Add indicators panel', () => {
     signIn('triage')
     mockMachineTests()
     mockSent('post', `${ROUTE}/indicators`, () =>
-      errorResponse(404, 'not_found', "Machine 'linux' not found in test suite 'libcxx'"),
+      errorResponse(404, 'not_found', "Machine 'linux' not found in test suite 'llvm/libcxx'"),
     )
     renderRegression()
     await waitFor(() => expect(namesIn('Machines')).toEqual(['linux', 'macos']))
@@ -796,7 +799,7 @@ describe('the Add indicators panel', () => {
   it('deselects the tests no longer offered, once the tests are listed', async () => {
     const linux = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/tests', async ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/tests', async ({ request }) => {
         const machine = new URL(request.url).searchParams.get('machine')!
         if (machine === 'linux') await linux.promise
         return HttpResponse.json(cursorPage(TESTS[machine].map((name) => ({ name }))))
@@ -892,7 +895,7 @@ describe('the Add indicators panel', () => {
     let fail = true
     const tests: Record<string, string[]> = { linux: ['a', 'b', 'c'], macos: ['a', 'c'] }
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/tests', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/tests', ({ request }) => {
         const machine = new URL(request.url).searchParams.get('machine')!
         if (machine === 'linux' && fail) return errorResponse(500, 'internal_error', 'Boom')
         return HttpResponse.json(cursorPage(tests[machine].map((name) => ({ name }))))
@@ -1015,12 +1018,12 @@ describe('the Indicators table', () => {
     ])
     expect(within(indicators).getAllByRole('link', { name: 'linux' })[0]).toHaveAttribute(
       'href',
-      '/suites/libcxx/machines/linux',
+      '/projects/llvm/suites/libcxx/machines/linux',
     )
     const graphs = within(indicators).getAllByRole('link', { name: 'View on graph' })
     expect(graphs[1]).toHaveAttribute(
       'href',
-      '/graph?suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
+      '/graph?project=llvm&suite=libcxx&machine=linux&metric=execution_time&test=BM_sort&regressions=all',
     )
     // The Graph page plots only numeric metrics.
     expect(graphs[3]).not.toHaveAttribute('href')

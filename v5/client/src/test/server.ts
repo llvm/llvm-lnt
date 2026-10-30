@@ -7,7 +7,7 @@ import { mockApi } from './mock-api'
  * (AR4), and no test of anything else is about it.
  */
 export const INDEX = {
-  links: { suites: '/api/suites', openapi: '/api/openapi.json', docs: '/api/docs' },
+  links: { projects: '/api/projects', openapi: '/api/openapi.json', docs: '/api/docs' },
   revision: null,
 }
 

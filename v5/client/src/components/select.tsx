@@ -15,6 +15,11 @@ import styles from './select.module.css'
 export interface Option<Value extends string> {
   value: Value
   label: string
+  /**
+   * Why the option cannot be picked, if it cannot, such as one the token does not allow (AR17):
+   * shown on hover, and given to assistive technology.
+   */
+  reason?: string
 }
 
 interface Props<Value extends string> {
@@ -97,8 +102,20 @@ export function Select<Value extends string>({
         <Popover className={shared.popover} maxHeight={320}>
           <ListBox className={shared.list} items={options}>
             {(option) => (
-              <ListBoxItem id={option.value} className={shared.option}>
-                {option.label}
+              <ListBoxItem
+                id={option.value}
+                className={shared.option}
+                textValue={option.label}
+                isDisabled={option.reason !== undefined}
+              >
+                {option.reason === undefined ? (
+                  option.label
+                ) : (
+                  <span title={option.reason}>
+                    {option.label}
+                    <VisuallyHidden elementType="span">: {option.reason}</VisuallyHidden>
+                  </span>
+                )}
               </ListBoxItem>
             )}
           </ListBox>

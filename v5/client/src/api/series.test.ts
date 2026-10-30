@@ -4,6 +4,7 @@ import type { Schemas } from './client'
 import { fetchSeries } from './series'
 import { errorResponse, mockSeries, ndjsonResponse } from '../test/mock-api'
 import { server } from '../test/server'
+import { REF } from '../test/fixtures'
 
 const signal = () => new AbortController().signal
 
@@ -32,8 +33,8 @@ describe('fetchSeries', () => {
     )
 
     const query = { metric: 'execution_time', machine: 'm1', test: ['a', 'b/c'], has_ordinal: true }
-    expect(await fetchSeries('libcxx', query, signal())).toEqual(points)
-    expect(url?.pathname).toBe('/api/suites/libcxx/series')
+    expect(await fetchSeries(REF, query, signal())).toEqual(points)
+    expect(url?.pathname).toBe('/api/projects/llvm/suites/libcxx/series')
     expect(url?.search).toBe('?metric=execution_time&machine=m1&test=a&test=b%2Fc&has_ordinal=true')
   })
 
@@ -49,14 +50,14 @@ describe('fetchSeries', () => {
     )
 
     const query = { metric: 'execution_time', machine: 'm1' }
-    expect(await fetchSeries('libcxx', query, signal())).toEqual([])
+    expect(await fetchSeries(REF, query, signal())).toEqual([])
   })
 
   it('fails with the error the API answered with', async () => {
     server.use(mockSeries(() => errorResponse(404, 'not_found', "Machine 'm9' not found")))
 
     const query = { metric: 'execution_time', machine: 'm9' }
-    await expect(fetchSeries('libcxx', query, signal())).rejects.toMatchObject({
+    await expect(fetchSeries(REF, query, signal())).rejects.toMatchObject({
       status: 404,
       code: 'not_found',
       message: "Machine 'm9' not found",

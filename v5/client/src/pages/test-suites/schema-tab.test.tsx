@@ -2,10 +2,10 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
-import type { SuiteSchema } from '../../api/suites'
-import { apiKey, mockAuth, signIn, TOKEN } from '../../test/auth'
+import { schemaOf, type Suite, type SuiteSchema } from '../../api/suites'
+import { apiKey, entry, mockAuth, signIn, TOKEN } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
-import { BARE_SUITE, NO_REPOSITORY, SUITE, cursorPage } from '../../test/fixtures'
+import { BARE_SUITE, NO_REPOSITORY, REF, SUITE, cursorPage, inProject } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -26,7 +26,7 @@ import { downloadFile } from './schema/download'
 vi.mock('./schema/download', () => ({ downloadFile: vi.fn() }))
 
 /** A suite whose only metric has no unit at all. */
-const UNITLESS: SuiteSchema = {
+const UNITLESS: Suite = inProject({
   name: 'units',
   display_name: null,
   metrics: [
@@ -43,41 +43,46 @@ const UNITLESS: SuiteSchema = {
   commit_fields: [],
   machine_fields: [],
   repository: NO_REPOSITORY,
-}
+})
 
 const SUITES = [SUITE, BARE_SUITE, UNITLESS]
 
 type Failure = ReturnType<typeof errorResponse>
 
 /**
- * Answer `DELETE /api/suites/{name}` by deleting the suite from `store` once `wait` resolves, or
- * with `fail`; returns each request's suite, `confirm` and `Authorization`.
+ * Answer `DELETE /api/projects/{project}/suites/{suite}` by deleting the suite from `store` once
+ * `wait` resolves, or with `fail`; returns each request's project, suite, `confirm` and
+ * `Authorization`.
  */
 function mockDelete(
   store: SuiteStore,
   { fail, wait }: { fail?: () => Failure; wait?: () => Promise<void> } = {},
 ) {
-  const sent: { name: string; confirm: string | null; auth: string | null }[] = []
+  const sent: { project: string; suite: string; confirm: string | null; auth: string | null }[] =
+    []
   server.use(
-    mockApi('delete', '/api/suites/{name}', async ({ request, params }) => {
+    mockApi('delete', '/api/projects/{project}/suites/{suite}', async ({ request, params }) => {
       sent.push({
-        name: params.name,
+        project: params.project,
+        suite: params.suite,
         confirm: new URL(request.url).searchParams.get('confirm'),
         auth: request.headers.get('Authorization'),
       })
       await wait?.()
       if (fail) return fail()
-      store.suites = store.suites.filter((suite) => suite.name !== params.name)
+      // Every suite of these tests is in the project 'llvm'.
+      store.suites = store.suites.filter((suite) => suite.name !== params.suite)
       return new HttpResponse(null, { status: 204 })
     }),
   )
   return sent
 }
 
-/** The names of the suite picker's cards. */
+/** The names of the suite picker's cards, without the links of the projects' headings. */
 function cards() {
   return within(screen.getByRole('navigation', { name: 'Test suites' }))
     .getAllByRole('link')
+    .filter((link) => link.closest('h2') === null)
     .map((card) => card.textContent)
 }
 
@@ -108,27 +113,27 @@ function confirmDeletion(name: string) {
  */
 async function renderSuite(
   name = 'libcxx',
-  { manage = false, suites = SUITES }: { manage?: boolean; suites?: SuiteSchema[] } = {},
+  { manage = false, suites = SUITES }: { manage?: boolean; suites?: (Suite | SuiteSchema)[] } = {},
 ) {
   if (manage) signIn('manage')
   const store = mockSuites(suites)
   mockRuns(() => cursorPage([]))
-  const rendered = renderPage(`/suites/${name}?tab=schema`)
+  const rendered = renderPage(`/projects/llvm/suites/${name}?tab=schema`)
   await table('Metrics')
   if (manage) await waitFor(() => expect(deleteButton()).toBeEnabled())
   return { ...rendered, store }
 }
 
 /**
- * Show libcxx's Schema tab to a holder of a `manage` token, reached from `/nope` through the
- * navbar, so that Back leaves the page.
+ * Show libcxx's Schema tab to a holder of a `manage` token, reached from `/projects` through its
+ * card, so that Back leaves the page.
  */
 async function renderFromElsewhere() {
   signIn('manage')
   const store = mockSuites(SUITES)
   mockRuns(() => cursorPage([]))
-  renderPage('/nope')
-  fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+  renderPage('/projects')
+  fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
   fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
   await waitFor(() => expect(deleteButton()).toBeEnabled())
   return store
@@ -147,7 +152,7 @@ async function startDeleting(name: string, store: SuiteStore) {
 describe('the Schema tab', () => {
   it('shows the schema of the suite, each list with its own columns', async () => {
     mockSuites(SUITES)
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
 
     const metrics = await table('Metrics')
     expect(screen.getByRole('tab', { name: 'Schema' })).toHaveAttribute('aria-selected', 'true')
@@ -191,16 +196,18 @@ describe('the Schema tab', () => {
       'core_count | integer | Cores | No | Yes',
     ])
 
+    // The project's heading, above its suites, then the tab's.
     expect(main().getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+      'llvm',
       'Suite',
       'Metrics',
       'Commit Fields',
       'Machine Fields',
       'Repository',
     ])
-    // The suite by its name, and its display name, which it has none of.
+    // The suite by its project's label, its name, and its display name, which it has none of.
     expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
-      'Name' + 'libcxx' + 'Display name' + '--',
+      'Project' + 'llvm' + 'Name' + 'libcxx' + 'Display name' + '--',
     )
     // The templates as text, not links: they are not URLs until filled in.
     const repository = screen.getByRole('group', { name: 'Repository' })
@@ -215,16 +222,27 @@ describe('the Schema tab', () => {
     expect(within(repository).queryByRole('link')).toBeNull()
   })
 
+  it("shows the suite's project by its label, and the suite's display name", async () => {
+    const project = { name: 'llvm', display_name: 'LLVM' }
+    mockSuites([inProject({ ...SUITE, display_name: 'Microbenchmarks' }, project)])
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
+
+    await table('Metrics')
+    expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
+      'Project' + 'LLVM' + 'Name' + 'libcxx' + 'Display name' + 'Microbenchmarks',
+    )
+  })
+
   it('writes -- for a metric with no unit, as for an unset display name', async () => {
     mockSuites(SUITES)
-    renderPage('/suites/units?tab=schema')
+    renderPage('/projects/llvm/suites/units?tab=schema')
 
     expect(rowsOf(await table('Metrics'))).toEqual(['neither | datetime | -- | -- | No | No'])
   })
 
   it('says when a list of the schema is empty', async () => {
     mockSuites(SUITES)
-    renderPage('/suites/nts?tab=schema')
+    renderPage('/projects/llvm/suites/nts?tab=schema')
 
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
     expect(rowsOf(await table('Commit fields'))).toEqual(['No commit fields.'])
@@ -237,9 +255,9 @@ describe('the Schema tab', () => {
 
 describe('a manage token restricted to some suites', () => {
   async function renderRestricted(name: string) {
-    signIn('manage', ['nts'])
+    signIn('manage', [entry('nts')])
     mockSuites(SUITES)
-    renderPage(`/suites/${name}?tab=schema`)
+    renderPage(`/projects/llvm/suites/${name}?tab=schema`)
     await table('Metrics')
   }
 
@@ -256,8 +274,8 @@ describe('a manage token restricted to some suites', () => {
     await waitFor(() =>
       expect(deleteButton()).toHaveAttribute(
         'title',
-        "Needs an API token with the 'manage' scope in suite 'libcxx'. The token in Settings " +
-          "has the 'manage' scope only in suite 'nts'.",
+        "Needs an API token with the 'manage' scope in suite 'llvm/libcxx'. The token in " +
+          "Settings has the 'manage' scope only in suite 'llvm/nts'.",
       ),
     )
     expect(screen.getByRole('button', { name: 'Edit schema' })).toBeDisabled()
@@ -266,7 +284,9 @@ describe('a manage token restricted to some suites', () => {
 })
 
 describe('exporting a schema', () => {
-  const JSON_TEXT = JSON.stringify(SUITE, null, 2)
+  // Without the project, which the UI adds to the schema the API returns.
+  const SCHEMA = schemaOf(SUITE)
+  const JSON_TEXT = JSON.stringify(SCHEMA, null, 2)
 
   it('is allowed to anyone, unlike deleting the suite', async () => {
     await renderSuite('libcxx')
@@ -285,7 +305,7 @@ describe('exporting a schema', () => {
 
     expect(await main().findByRole('button', { name: 'Copied.' })).toBeInTheDocument()
     expect(writeText).toHaveBeenCalledWith(JSON_TEXT)
-    expect(JSON.parse(writeText.mock.calls[0][0])).toEqual(SUITE)
+    expect(JSON.parse(writeText.mock.calls[0][0])).toEqual(SCHEMA)
   })
 
   it('downloads it as a file named after the suite', async () => {
@@ -298,28 +318,29 @@ describe('exporting a schema', () => {
 })
 
 describe('deleting a suite', () => {
-  it('asks for its name, deletes it, forgets it, and leaves for the first suite left', async () => {
+  it("asks for its name, deletes it, forgets it, and leaves for its project's suites", async () => {
     const { store, queryClient } = await renderSuite('libcxx', { manage: true })
     // Something read from inside the suite, which a suite created later under its name must not
     // find.
-    queryClient.setQueryData([...queryKeys.machines('libcxx'), 'detail', 'm'], { name: 'm' })
+    queryClient.setQueryData([...queryKeys.machines(REF), 'detail', 'm'], { name: 'm' })
     const sent = mockDelete(store)
 
     fireEvent.click(deleteButton())
     expect(deleteButton()).toHaveAttribute('aria-expanded', 'true')
     expect(prompt()).toHaveTextContent(
-      'Deleting the test suite libcxx permanently destroys all of its machines, runs, commits, ' +
-        'samples and regressions. This cannot be undone.',
+      'Deleting the test suite llvm/libcxx permanently destroys all of its machines, runs, ' +
+        'commits, samples and regressions. This cannot be undone.',
     )
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
     confirmDeletion('libcxx')
 
-    // `/suites`, without the tab, gives way to the first suite left.
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
-    expect(sent).toEqual([{ name: 'libcxx', confirm: 'true', auth: `Bearer ${TOKEN}` }])
-    expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    expect(sent).toEqual([
+      { project: 'llvm', suite: 'libcxx', confirm: 'true', auth: `Bearer ${TOKEN}` },
+    ])
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(cards()).toEqual(['nts', 'units'])
-    expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite('libcxx') })).toEqual([])
+    expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite(REF) })).toEqual([])
   })
 
   it('names the suite by its label, and asks for its name (AR22, AR16)', async () => {
@@ -328,7 +349,7 @@ describe('deleting a suite', () => {
     const sent = mockDelete(store)
 
     fireEvent.click(deleteButton())
-    expect(prompt()).toHaveTextContent('Deleting the test suite Microbenchmarks permanently')
+    expect(prompt()).toHaveTextContent('Deleting the test suite llvm/Microbenchmarks permanently')
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
     confirmDeletion('libcxx')
 
@@ -336,22 +357,24 @@ describe('deleting a suite', () => {
   })
 
   it('checks the token again, and forgets the API keys, which may have listed it', async () => {
-    signIn('manage', ['libcxx'])
+    signIn('manage', [entry('libcxx')])
     const store = mockSuites(SUITES)
     mockRuns(() => cursorPage([]))
-    const { queryClient } = renderPage('/suites/libcxx?tab=schema')
+    const { queryClient } = renderPage('/projects/llvm/suites/libcxx?tab=schema')
     await waitFor(() => expect(deleteButton()).toBeEnabled())
     queryClient.setQueryData(queryKeys.apiKeys, {
-      items: [apiKey('manage', { suites: ['libcxx'] })],
+      items: [apiKey('manage', { restricted_to: [entry('libcxx')] })],
     })
     mockDelete(store)
     // The suite is gone from the key once deleted (I5).
-    const rechecks = mockAuth(() => HttpResponse.json({ key: apiKey('manage', { suites: [] }) }))
+    const rechecks = mockAuth(() =>
+      HttpResponse.json({ key: apiKey('manage', { restricted_to: [] }) }),
+    )
 
     fireEvent.click(deleteButton())
     confirmDeletion('libcxx')
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
     await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
     expect(queryClient.getQueryData(queryKeys.apiKeys)).toBeUndefined()
   })
@@ -362,10 +385,10 @@ describe('deleting a suite', () => {
 
     fireEvent.click(deleteButton())
     confirmDeletion('libcxx')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects'))
   })
 
   it('says that deleting may take a while, while it does', async () => {
@@ -381,8 +404,8 @@ describe('deleting a suite', () => {
 
     confirmDeletion('nts')
 
-    expect(await main().findByText('There are no test suites yet.')).toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites')
+    expect(await main().findByText('No test suites.')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/projects/llvm')
   })
 
   it('sends nothing when cancelled, and gives the focus back to its button', async () => {
@@ -405,7 +428,7 @@ describe('deleting a suite', () => {
     confirmDeletion('libcxx')
 
     expect(await within(prompt()!).findByRole('alert')).toHaveTextContent('Try again.')
-    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
   })
 
   it('reports a suite that is not found, in the prompt, as other deletions do', async () => {
@@ -416,37 +439,36 @@ describe('deleting a suite', () => {
     confirmDeletion('libcxx')
 
     expect(await within(prompt()!).findByRole('alert')).toHaveTextContent("No suite 'libcxx'.")
-    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
   })
 
   it('neither leaves for the suite deleted nor brings it back from a list on its way', async () => {
     const { store, queryClient } = await renderSuite('libcxx', { manage: true })
     const stale = gate()
     const refetched = mockSuites(SUITES, { wait: () => stale.promise })
-    void queryClient.refetchQueries({ queryKey: queryKeys.suites })
+    void queryClient.refetchQueries({ queryKey: queryKeys.projects })
     await waitFor(() => expect(refetched.requests).toBe(1))
     mockDelete(store)
     fireEvent.click(deleteButton())
 
     confirmDeletion('libcxx')
-    // The suite deleted, first of the list on its way, is not the first suite left.
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
     await act(async () => stale.open())
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
     expect(cards()).toEqual(['nts', 'units'])
-    expect(currentUrl()).toBe('/suites/nts')
+    expect(currentUrl()).toBe('/projects/llvm')
   })
 
-  it("leaves for /suites when the user is on another of the suite's tabs meanwhile", async () => {
+  it("leaves for the project's suites when the user is on another of its tabs", async () => {
     const { store } = await renderSuite('libcxx', { manage: true })
     const deletion = await startDeleting('libcxx', store)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     await act(async () => deletion.open())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
     expect(cards()).toEqual(['nts', 'units'])
   })
 
@@ -455,13 +477,13 @@ describe('deleting a suite', () => {
     const deletion = await startDeleting('libcxx', store)
 
     fireEvent.click(card('units'))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/units'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/units'))
     const runs = screen.getByRole('tab', { name: 'Runs' })
     runs.focus()
     await act(async () => deletion.open())
 
     await waitFor(() => expect(cards()).toEqual(['nts', 'units']))
-    expect(currentUrl()).toBe('/suites/units')
+    expect(currentUrl()).toBe('/projects/llvm/suites/units')
     expect(runs).toHaveFocus()
   })
 
@@ -470,14 +492,12 @@ describe('deleting a suite', () => {
     const deletion = await startDeleting('libcxx', store)
 
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects'))
     await act(async () => deletion.open())
 
     await waitFor(() => expect(store.suites.map((suite) => suite.name)).toEqual(['nts', 'units']))
     await settle()
-    expect(currentUrl()).toBe('/nope')
-    fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
-    expect(cards()).toEqual(['nts', 'units'])
+    expect(currentUrl()).toBe('/projects')
+    await waitFor(() => expect(cards()).toEqual(['nts', 'units']))
   })
 })

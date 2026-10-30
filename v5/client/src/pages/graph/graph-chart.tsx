@@ -5,7 +5,7 @@ import type { Aggregation } from '../../aggregation'
 import type { MarkedRegression } from '../../api/regressions'
 import type { Scaffold } from '../../api/scaffold'
 import type { Measurement, Series } from '../../api/series'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import { colorOfName } from '../../chart-colors'
 import { Chart, type PlotGeometry } from '../../components/chart'
 import dialog from '../../components/chart-dialog.module.css'
@@ -41,7 +41,7 @@ import { SampleCloud, type Pinned } from './sample-cloud'
 import styles from './graph.module.css'
 
 interface Props {
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   metric: Metric | undefined
   /** The machines plotted, in the order of their chips. */
   machines: readonly string[]

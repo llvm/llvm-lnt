@@ -3,6 +3,9 @@ import { commitChanged, commitKey, resolvedCommitKey } from './commits'
 import { queryKeys } from './keys'
 import { createQueryClient } from './query-client'
 import { runKey } from './runs'
+import { suiteRef } from './suites'
+
+const LIBCXX = suiteRef('llvm', 'libcxx')
 
 const PAGE = { items: [], cursor: { next: null, previous: null } }
 /** A page of a list that `withCommits` resolved the commits of. */
@@ -10,24 +13,29 @@ const PAGE_WITH_COMMITS = { ...PAGE, commits: new Map() }
 
 /** Cached queries, by what they hold, with their key and data. */
 const SHOWING_COMMITS: [string, readonly unknown[], unknown][] = [
-  ['the commit', commitKey('libcxx', 'abc'), PAGE],
-  ['its resolution', resolvedCommitKey('libcxx', 'abc'), PAGE],
-  ['a list of commits', [...queryKeys.commits('libcxx'), { sort: '-first_seen' }], PAGE],
-  ['a page of runs', [...queryKeys.runs('libcxx'), { sort: '-submitted_at' }], PAGE_WITH_COMMITS],
-  ['a page of regressions', [...queryKeys.regressions('libcxx'), {}], PAGE_WITH_COMMITS],
+  ['the commit', commitKey(LIBCXX, 'abc'), PAGE],
+  ['its resolution', resolvedCommitKey(LIBCXX, 'abc'), PAGE],
+  ['a list of commits', [...queryKeys.commits(LIBCXX), { sort: '-first_seen' }], PAGE],
+  ['a page of runs', [...queryKeys.runs(LIBCXX), { sort: '-submitted_at' }], PAGE_WITH_COMMITS],
+  ['a page of regressions', [...queryKeys.regressions(LIBCXX), {}], PAGE_WITH_COMMITS],
   // Placed and windowed by ordinals, whether or not it holds its commits.
-  ['a trend', [...queryKeys.trends('libcxx'), { metric: 'm' }], { items: [] }],
+  ['a trend', [...queryKeys.trends(LIBCXX), { metric: 'm' }], { items: [] }],
 ]
 const NOT_SHOWING_COMMITS: [string, readonly unknown[], unknown][] = [
-  ['a run', runKey('libcxx', 'r1'), {}],
-  ['a run’s samples', [...runKey('libcxx', 'r1'), 'samples'], { pages: [PAGE] }],
+  ['a run', runKey(LIBCXX, 'r1'), {}],
+  ['a run’s samples', [...runKey(LIBCXX, 'r1'), 'samples'], { pages: [PAGE] }],
   [
     'a page of regressions without commits',
-    [...queryKeys.regressions('libcxx'), 'without commits', {}],
+    [...queryKeys.regressions(LIBCXX), 'without commits', {}],
     PAGE,
   ],
-  ['the machines', [...queryKeys.machines('libcxx'), {}], []],
-  ['a commit of another suite', commitKey('nts', 'abc'), PAGE],
+  ['the machines', [...queryKeys.machines(LIBCXX), {}], []],
+  ['a commit of another suite', commitKey(suiteRef('llvm', 'nts'), 'abc'), PAGE],
+  [
+    'a commit of a suite of the same name in another project',
+    commitKey(suiteRef('other', 'libcxx'), 'abc'),
+    PAGE,
+  ],
 ]
 
 /** Whether the query `key` is stale once a commit of libcxx has changed, all of them cached. */
@@ -36,7 +44,7 @@ async function staleAfterChange(key: readonly unknown[]) {
   for (const [, cached, data] of [...SHOWING_COMMITS, ...NOT_SHOWING_COMMITS]) {
     queryClient.setQueryData(cached, data)
   }
-  await commitChanged(queryClient, 'libcxx')
+  await commitChanged(queryClient, LIBCXX)
   return queryClient.getQueryState(key)?.isInvalidated
 }
 

@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../../api/keys'
-import type { SuiteSchema } from '../../../api/suites'
+import type { Suite, SuiteSchema } from '../../../api/suites'
 import { signIn } from '../../../test/auth'
-import { BARE_SUITE, SUITE, cursorPage } from '../../../test/fixtures'
+import { BARE_SUITE, PROJECT, REF, SUITE, cursorPage } from '../../../test/fixtures'
 import { answerLeaving, unloadAsks } from '../../../test/leave'
 import { errorResponse, mockApi } from '../../../test/mock-api'
 import {
@@ -27,14 +27,26 @@ import { server } from '../../../test/server'
 type Failure = ReturnType<typeof errorResponse>
 
 /** SUITE as it is stored now, changed since the list of suites was fetched. */
-const FRESH: SuiteSchema = {
+const FRESH: Suite = {
   ...SUITE,
   metrics: [...SUITE.metrics, { ...SUITE.metrics[0], name: 'code_size', display_name: 'Size' }],
 }
 
+/** `suite`, as the API returns it: without the project the UI adds. */
+function schemaOf(suite: Suite | SuiteSchema): SuiteSchema {
+  const { project, ...schema } = suite as Suite
+  void project
+  return schema
+}
+
+/** The suite named `name` that `store` holds in the project 'llvm', which holds them all. */
+function stored(store: SuiteStore, project: string, name: string) {
+  return project === PROJECT.name ? store.suites.find((suite) => suite.name === name) : undefined
+}
+
 /**
- * Answer `GET /api/suites/{name}` with the suite as `store` holds it, once `wait` resolves, or with
- * `fail`; returns how many times it was asked.
+ * Answer `GET /api/projects/{project}/suites/{suite}` with the suite as `store` holds it, once
+ * `wait` resolves, or with `fail`; returns how many times it was asked.
  */
 function mockFresh(
   store: SuiteStore,
@@ -42,40 +54,45 @@ function mockFresh(
 ) {
   const requests = { count: 0 }
   server.use(
-    mockApi('get', '/api/suites/{name}', async ({ params }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}', async ({ params }) => {
       requests.count++
       await wait?.()
       if (fail) return fail()
-      const schema = store.suites.find((suite) => suite.name === params.name)
-      if (!schema) return errorResponse(404, 'not_found', `No suite '${params.name}'`)
-      return HttpResponse.json(schema)
+      const schema = stored(store, params.project, params.suite)
+      if (!schema) return errorResponse(404, 'not_found', `No suite '${params.suite}'`)
+      return HttpResponse.json(schemaOf(schema))
     }),
   )
   return requests
 }
 
 /**
- * Answer `PATCH /api/suites/{name}/schema` with `respond`'s schema, which replaces the suite in
- * `store`, once `wait` resolves, or with `fail`; returns each request's body and `confirm`.
+ * Answer `PATCH /api/projects/{project}/suites/{suite}/schema` with `respond`'s schema, which
+ * replaces the suite in `store`, once `wait` resolves, or with `fail`; returns each request's body
+ * and `confirm`.
  */
 function mockPatch(
   store: SuiteStore,
-  respond: (schema: SuiteSchema) => SuiteSchema,
+  respond: (schema: Suite | SuiteSchema) => Suite | SuiteSchema,
   { fail, wait }: { fail?: () => Failure; wait?: () => Promise<void> } = {},
 ) {
   const sent: { body: unknown; confirm: string | null }[] = []
   server.use(
-    mockApi('patch', '/api/suites/{name}/schema', async ({ request, params }) => {
-      sent.push({
-        body: await request.json(),
-        confirm: new URL(request.url).searchParams.get('confirm'),
-      })
-      await wait?.()
-      if (fail) return fail()
-      const schema = respond(store.suites.find((suite) => suite.name === params.name)!)
-      store.suites = store.suites.map((suite) => (suite.name === schema.name ? schema : suite))
-      return HttpResponse.json(schema)
-    }),
+    mockApi(
+      'patch',
+      '/api/projects/{project}/suites/{suite}/schema',
+      async ({ request, params }) => {
+        sent.push({
+          body: await request.json(),
+          confirm: new URL(request.url).searchParams.get('confirm'),
+        })
+        await wait?.()
+        if (fail) return fail()
+        const schema = respond(stored(store, params.project, params.suite)!)
+        store.suites = store.suites.map((suite) => (suite.name === schema.name ? schema : suite))
+        return HttpResponse.json(schemaOf(schema))
+      },
+    ),
   )
   return sent
 }
@@ -85,7 +102,7 @@ function editButton() {
 }
 
 function editor() {
-  return screen.queryByRole('region', { name: 'Editing libcxx' })
+  return screen.queryByRole('region', { name: 'Editing llvm/libcxx' })
 }
 
 /** The editor's Save, rather than the one of the prompt confirming a removal. */
@@ -105,7 +122,7 @@ async function openEditor() {
   signIn('manage')
   const store = mockSuites([SUITE, BARE_SUITE])
   const fresh = mockFresh({ ...store, suites: [FRESH, BARE_SUITE] })
-  const { queryClient } = renderPage('/suites/libcxx?tab=schema')
+  const { queryClient } = renderPage('/projects/llvm/suites/libcxx?tab=schema')
   await waitFor(() => expect(editButton()).toBeEnabled())
   fireEvent.click(editButton())
   await screen.findByRole('textbox', { name: 'Display name of metric code_size' })
@@ -117,7 +134,7 @@ describe('opening the editor on a suite', () => {
   it('needs the manage scope', async () => {
     signIn('submit')
     mockSuites()
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
 
     await table('Metrics')
     await waitFor(() =>
@@ -150,7 +167,7 @@ describe('opening the editor on a suite', () => {
       wait: () => reply.promise,
       fail: () => errorResponse(500, 'internal_error', 'The database is down.'),
     })
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     fireEvent.click(editButton())
 
@@ -169,16 +186,18 @@ describe('opening the editor on a suite', () => {
     signIn('manage')
     const store = mockSuites([SUITE, BARE_SUITE])
     mockFresh({ ...store, suites: [BARE_SUITE] })
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     store.suites = [BARE_SUITE]
 
     fireEvent.click(editButton())
 
-    expect(await main().findByRole('alert')).toHaveTextContent("Test suite 'libcxx' not found.")
+    expect(await main().findByRole('alert')).toHaveTextContent(
+      "Test suite 'llvm/libcxx' not found.",
+    )
     expect(editor()).not.toBeInTheDocument()
     expect(main().queryByRole('link', { name: 'libcxx' })).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
   })
 })
 
@@ -212,7 +231,7 @@ describe('leaving the tab', () => {
 
   /** Whether the editor is still open on the Schema tab, with its changes. */
   function expectEditor() {
-    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
     expect(codeSize()).toHaveValue('Changed')
   }
 
@@ -227,7 +246,7 @@ describe('leaving the tab', () => {
     // The tab refused can be asked for again, and asks again.
     confirm.mockReturnValue(true)
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(confirm).toHaveBeenCalledTimes(2)
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
 
@@ -271,10 +290,10 @@ describe('leaving the tab', () => {
     await openChanged()
     const confirm = answerLeaving(true)
     fireEvent.click(card('nts'))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     expect(confirm).toHaveBeenCalledOnce()
     browser('back')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
     await changeAgain()
 
     confirm.mockReturnValue(false)
@@ -283,7 +302,7 @@ describe('leaving the tab', () => {
     expectEditor()
     confirm.mockReturnValue(true)
     browser('forward')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     expect(confirm).toHaveBeenCalledTimes(3)
 
     fireEvent.click(card('libcxx'))
@@ -295,10 +314,10 @@ describe('leaving the tab', () => {
     expectEditor()
     confirm.mockReturnValue(true)
     browser('back')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     expect(confirm).toHaveBeenCalledTimes(5)
     browser('forward')
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema'))
 
     await expectViewer()
   })
@@ -314,7 +333,7 @@ describe('leaving the tab', () => {
 
     confirm.mockReturnValue(true)
     fireEvent.click(navbarLink('Test Suites'))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(editor()).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Schema' }))
 
@@ -354,7 +373,7 @@ describe('leaving the tab', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(confirm).not.toHaveBeenCalled()
   })
 
@@ -366,7 +385,7 @@ describe('leaving the tab', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
 
     expect(confirm).toHaveBeenCalledOnce()
-    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
   })
 
   it('asks nothing once the changes are discarded by Cancel, or saved', async () => {
@@ -383,7 +402,7 @@ describe('leaving the tab', () => {
     expect(unloadAsks()).toBe(false)
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(confirm).not.toHaveBeenCalled()
   })
 })
@@ -431,7 +450,7 @@ describe('the repository', () => {
     signIn('manage')
     const store = mockSuites([{ ...SUITE, repository: odd }])
     mockFresh(store)
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     fireEvent.click(editButton())
     const url = await screen.findByRole('textbox', { name: 'Commit URL' })
@@ -488,7 +507,7 @@ describe("the suite's display name", () => {
     await waitFor(() => expect(editor()).not.toBeInTheDocument())
     expect(sent).toEqual([{ body: { display_name: 'Microbenchmarks' }, confirm: null }])
     expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
-      'NamelibcxxDisplay nameMicrobenchmarks',
+      'ProjectllvmNamelibcxxDisplay nameMicrobenchmarks',
     )
   })
 
@@ -497,12 +516,12 @@ describe("the suite's display name", () => {
     const named = { ...SUITE, display_name: 'Micro' }
     const store = mockSuites([named, BARE_SUITE])
     mockFresh(store)
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     fireEvent.click(editButton())
     const input = await screen.findByRole('textbox', { name: 'Display name' })
     // Named by the suite's label (AR22).
-    const region = screen.getByRole('region', { name: 'Editing Micro' })
+    const region = screen.getByRole('region', { name: 'Editing llvm/Micro' })
     expect(input).toHaveValue('Micro')
     const sent = mockPatch(store, (schema) => ({ ...schema, display_name: null }))
 
@@ -534,7 +553,7 @@ describe('saving', () => {
       ],
     }))
     // Read from inside the suite, before its schema changed.
-    store.queryClient.setQueryData([...queryKeys.machines('libcxx'), 'list'], { items: [] })
+    store.queryClient.setQueryData([...queryKeys.machines(REF), 'list'], { items: [] })
 
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric code_size' }), 'Code size')
     fireEvent.click(screen.getByRole('checkbox', { name: 'On the Dashboard of metric code_size' }))
@@ -577,7 +596,7 @@ describe('saving', () => {
     ])
     expect(editButton()).toHaveFocus()
     expect(
-      store.queryClient.getQueryData([...queryKeys.machines('libcxx'), 'list']),
+      store.queryClient.getQueryData([...queryKeys.machines(REF), 'list']),
     ).toBeUndefined()
   })
 
@@ -636,15 +655,15 @@ describe('saving', () => {
     signIn('manage')
     const named = { ...SUITE, display_name: 'Micro' }
     mockFresh(mockSuites([named, BARE_SUITE]))
-    renderPage('/suites/libcxx?tab=schema')
+    renderPage('/projects/llvm/suites/libcxx?tab=schema')
     await waitFor(() => expect(editButton()).toBeEnabled())
     fireEvent.click(editButton())
     fireEvent.click(await screen.findByRole('button', { name: 'Remove metric execution_time' }))
 
-    const region = screen.getByRole('region', { name: 'Editing Micro' })
+    const region = screen.getByRole('region', { name: 'Editing llvm/Micro' })
     fireEvent.click(within(region).getAllByRole('button', { name: 'Save' })[0])
 
-    expect(prompt()).toHaveTextContent('Saving removes these entries from the suite Micro:')
+    expect(prompt()).toHaveTextContent('Saving removes these entries from the suite llvm/Micro:')
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
   })
 
@@ -732,10 +751,10 @@ describe('saving', () => {
     fireEvent.click(saveButton())
 
     // The page says so in place of the editor, and takes the focus the editor had.
-    const notFound = await main().findByText("Test suite 'libcxx' not found.")
+    const notFound = await main().findByText("Test suite 'llvm/libcxx' not found.")
     expect(editor()).not.toBeInTheDocument()
     expect(notFound).toHaveFocus()
-    expect(currentUrl()).toBe('/suites/libcxx?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?tab=schema')
   })
 
   it('leaves the focus where it is, if elsewhere, once the suite turns out deleted', async () => {
@@ -757,7 +776,7 @@ describe('saving', () => {
 
     await act(async () => reply.open())
 
-    expect(await main().findByText("Test suite 'libcxx' not found.")).not.toHaveFocus()
+    expect(await main().findByText("Test suite 'llvm/libcxx' not found.")).not.toHaveFocus()
     expect(card).toHaveFocus()
   })
 
@@ -784,7 +803,7 @@ describe('saving', () => {
     })
     const lists = { count: 0 }
     server.use(
-      mockApi('get', '/api/suites', () => {
+      mockApi('get', '/api/projects', () => {
         lists.count++
         return errorResponse(500, 'internal_error', 'The database is down.')
       }),
@@ -846,7 +865,7 @@ describe('saving', () => {
     const confirm = answerLeaving(true)
     mockRuns(() => cursorPage([]))
     fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
-    await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(confirm).toHaveBeenCalledOnce()
     await act(async () => reply.open())
     await waitFor(() => expect(store.queryClient.isMutating()).toBe(0))

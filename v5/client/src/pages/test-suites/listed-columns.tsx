@@ -1,9 +1,9 @@
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import type { Column } from '../../components/data-table'
 import { LinkableText } from '../../components/linkable-text'
 import { formatFieldValue, isNumeric, labelOf, type FieldValue } from '../../schema'
 
-type Field = SuiteSchema['commit_fields' | 'machine_fields'][number]
+type Field = Suite['commit_fields' | 'machine_fields'][number]
 
 /** How long a field's value may be in a cell before it is cut short (TS3). */
 const VALUE_LENGTH = 50

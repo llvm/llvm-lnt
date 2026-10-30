@@ -2,6 +2,7 @@ import { queryOptions, useQuery } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
 import { queryKeys } from './keys'
 import type { paths } from './schema'
+import type { SuiteRef } from './suites'
 
 type Machine = Schemas['Machine']
 
@@ -9,20 +10,20 @@ type Machine = Schemas['Machine']
 export const MACHINE_NAME_LENGTH = 256
 
 type MachineListQuery = NonNullable<
-  paths['/api/suites/{testsuite}/machines']['get']['parameters']['query']
+  paths['/api/projects/{project}/suites/{suite}/machines']['get']['parameters']['query']
 >
 
 /**
  * The machines of the suite that `query` lists (E2): with no filter, every machine, by name. One
  * query for every page that needs them, so that the same list is fetched and cached once.
  */
-export function machinesQuery(suite: string, query: MachineListQuery = {}) {
+export function machinesQuery(suite: SuiteRef, query: MachineListQuery = {}) {
   return queryOptions({
     queryKey: [...queryKeys.machines(suite), query],
     queryFn: async ({ signal }) => {
       const { items } = await unwrap(
-        api.GET('/api/suites/{testsuite}/machines', {
-          params: { path: { testsuite: suite }, query },
+        api.GET('/api/projects/{project}/suites/{suite}/machines', {
+          params: { path: suite, query },
           signal,
         }),
       )
@@ -46,7 +47,7 @@ const RECENTLY_ACTIVE: MachineListQuery = { tracked: true, sort: '-last_run_at' 
  * machines the user did not pick (D5), such as the Dashboard's (DA2). Machines without runs are
  * left out.
  */
-export function useRecentlyActiveMachines(suite: string, count: number, enabled = true) {
+export function useRecentlyActiveMachines(suite: SuiteRef, count: number, enabled = true) {
   return useQuery({
     ...machinesQuery(suite, RECENTLY_ACTIVE),
     enabled,
@@ -59,23 +60,23 @@ export function useRecentlyActiveMachines(suite: string, count: number, enabled 
  * The suite's machines, by name (E2), fetched once for a picker to filter locally (AR18): a suite
  * has few machines (D5), unlike commits, which a commit picker searches on the server (AR15).
  */
-export function useMachineList(suite: string, enabled = true) {
+export function useMachineList(suite: SuiteRef, enabled = true) {
   return useQuery({ ...machinesQuery(suite), enabled })
 }
 
 /** The query key of the machine `name`, which a change to it updates. */
-export function machineKey(suite: string, name: string) {
+export function machineKey(suite: SuiteRef, name: string) {
   return [...queryKeys.machines(suite), 'detail', name] as const
 }
 
 /** The machine `name` (E2). */
-export function useMachine(suite: string, name: string) {
+export function useMachine(suite: SuiteRef, name: string) {
   return useQuery({
     queryKey: machineKey(suite, name),
     queryFn: ({ signal }) =>
       unwrap(
-        api.GET('/api/suites/{testsuite}/machines/{machine_name}', {
-          params: { path: { testsuite: suite, machine_name: name } },
+        api.GET('/api/projects/{project}/suites/{suite}/machines/{machine_name}', {
+          params: { path: { ...suite, machine_name: name } },
           signal,
         }),
       ),

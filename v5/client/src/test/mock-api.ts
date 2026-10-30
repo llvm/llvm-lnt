@@ -27,7 +27,7 @@ type PathParams<O> = O extends { parameters: { path: infer Params } }
   ? { [K in keyof Params]: string }
   : Record<string, never>
 
-/** `/api/suites/{testsuite}` in MSW's spelling, `/api/suites/:testsuite`. */
+/** `/api/projects/{project}` in MSW's spelling, `/api/projects/:project`. */
 function mswPath(path: string): string {
   return path.replace(/\{([^}]+)\}/g, ':$1')
 }
@@ -57,8 +57,8 @@ export function errorResponse(status: number, code: string, message: string) {
  * A handler for `GET /series` (E9). Its success is newline-delimited JSON, which `mockApi` cannot
  * type: answer with `ndjsonResponse`, or with `errorResponse`.
  */
-export function mockSeries(resolver: HttpResponseResolver<{ testsuite: string }>) {
-  const path: PathWith<'get'> = '/api/suites/{testsuite}/series'
+export function mockSeries(resolver: HttpResponseResolver<{ project: string; suite: string }>) {
+  const path: PathWith<'get'> = '/api/projects/{project}/suites/{suite}/series'
   return http.get(mswPath(path), resolver)
 }
 

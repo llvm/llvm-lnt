@@ -8,8 +8,17 @@ import { HttpResponse } from 'msw'
 import { screen, waitFor, within } from '@testing-library/react'
 import { expect } from 'vitest'
 import type { Schemas } from '../../api/client'
-import type { SuiteSchema } from '../../api/suites'
-import { BARE_SUITE, SUITE, commit, cursorPage, machine, run, uuidOf } from '../../test/fixtures'
+import type { Suite } from '../../api/suites'
+import {
+  BARE_SUITE,
+  REF,
+  SUITE,
+  commit,
+  cursorPage,
+  machine,
+  run,
+  uuidOf,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { gate, mockCommits, mockMachines, mockRuns, mockSuites } from '../../test/page'
 import { profilesPath } from '../../paths'
@@ -18,7 +27,7 @@ import { pick } from '../../test/select'
 import { server } from '../../test/server'
 
 /** A suite of its own, holding the same world as libcxx. */
-export const OTHER_SUITE: SuiteSchema = { ...BARE_SUITE, name: 'other' }
+export const OTHER_SUITE: Suite = { ...BARE_SUITE, name: 'other' }
 
 /** The tests, each with the hex digit that marks its profiles' UUIDs. */
 const TESTS: Record<string, string> = { alpha: 'a', beta: 'b', gamma: 'c', delta: 'd' }
@@ -75,7 +84,7 @@ export function profileUuid(hex: string, test: string): string {
 type Answer<Key> = (key: Key) => Response | undefined | Promise<Response | undefined>
 
 interface World {
-  suites?: SuiteSchema[]
+  suites?: Suite[]
   /** How `GET runs` answers a query. */
   runsAnswer?: Answer<URLSearchParams>
   /** How `GET runs/{uuid}/profiles` answers a run, by its UUID's hex. */
@@ -146,26 +155,30 @@ export function mockWorld({
       .flat()
       .find(([runHex]) => runHex === hex)?.[1]
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
       const name = new URL(request.url).searchParams.get('machine')
       if (name !== null && !MACHINES.includes(name)) {
         return errorResponse(404, 'not_found', 'No such machine') as never
       }
     }),
-    mockApi('get', '/api/suites/{testsuite}/runs', async ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs', async ({ request }) => {
       const answer = await runsAnswer?.(new URL(request.url).searchParams)
       if (answer !== undefined) return answer as never
     }),
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', async ({ params }) => {
-      const hex = params.uuid[0]
-      const answer = await profilesAnswer?.(hex)
-      if (answer !== undefined) return answer as never
-      const tests = [...(testsOf(hex) ?? [])].sort()
-      return HttpResponse.json({
-        items: tests.map((test) => ({ test, uuid: profileUuid(hex, test) })),
-      })
-    }),
-    mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}', async ({ params }) => {
+    mockApi(
+      'get',
+      '/api/projects/{project}/suites/{suite}/runs/{uuid}/profiles',
+      async ({ params }) => {
+        const hex = params.uuid[0]
+        const answer = await profilesAnswer?.(hex)
+        if (answer !== undefined) return answer as never
+        const tests = [...(testsOf(hex) ?? [])].sort()
+        return HttpResponse.json({
+          items: tests.map((test) => ({ test, uuid: profileUuid(hex, test) })),
+        })
+      },
+    ),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/profiles/{uuid}', async ({ params }) => {
       metadata.push(params.uuid)
       const answer = await metadataAnswer?.(params.uuid)
       if (answer !== undefined) return answer as never
@@ -178,20 +191,24 @@ export function mockWorld({
       }
       return HttpResponse.json(body)
     }),
-    mockApi('get', '/api/suites/{testsuite}/profiles/{uuid}/functions', async ({ params }) => {
-      listed.push(params.uuid)
-      const answer = await functionsAnswer?.(params.uuid)
-      if (answer !== undefined) return answer as never
-      const items = Object.entries(functionsOf(params.uuid)).map(([name, fn]) => ({
-        name,
-        counters: fn,
-        length: 2,
-      }))
-      return HttpResponse.json({ items })
-    }),
     mockApi(
       'get',
-      '/api/suites/{testsuite}/profiles/{uuid}/disassembly',
+      '/api/projects/{project}/suites/{suite}/profiles/{uuid}/functions',
+      async ({ params }) => {
+        listed.push(params.uuid)
+        const answer = await functionsAnswer?.(params.uuid)
+        if (answer !== undefined) return answer as never
+        const items = Object.entries(functionsOf(params.uuid)).map(([name, fn]) => ({
+          name,
+          counters: fn,
+          length: 2,
+        }))
+        return HttpResponse.json({ items })
+      },
+    ),
+    mockApi(
+      'get',
+      '/api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly',
       async ({ params, request }) => {
         const name = new URL(request.url).searchParams.get('function')!
         disassembled.push(`${params.uuid}/${name}`)
@@ -235,7 +252,7 @@ export function heldBack<Key>(when: (key: Key) => boolean = () => true) {
  * B shows its default test, side A's.
  */
 export function sideAt(machine: string, commit: string, hex: string, test?: string) {
-  return { suite: 'libcxx', machine, commit, run: uuidOf(hex), test }
+  return { suite: REF, machine, commit, run: uuidOf(hex), test }
 }
 
 /** The URL of side A showing alpha in run 1 of m1 at c1, as Run Detail links to it (PF1). */

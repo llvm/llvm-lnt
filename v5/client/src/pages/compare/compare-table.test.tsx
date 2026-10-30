@@ -481,6 +481,7 @@ describe('the Profile column (CP2)', () => {
    */
   function profilesUrl(test: string, a: string, b: string) {
     const side = (letter: string, hex: string) => [
+      [`project_${letter}`, 'llvm'],
       [`suite_${letter}`, 'libcxx'],
       [`machine_${letter}`, 'm1'],
       [`commit_${letter}`, COMMITS[hex]],
@@ -631,11 +632,11 @@ describe('the Profile column (CP2)', () => {
     })
     // Hold the machines back, so that the page cannot know yet that the machine does not exist.
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', async () => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', async () => {
         await held
       }),
     )
-    renderPage('/compare?suite_a=libcxx&machine_a=bogus&commit_a=c1')
+    renderPage('/compare?project_a=llvm&suite_a=libcxx&machine_a=bogus&commit_a=c1')
 
     await waitFor(() => expect(profiled).toBe(true))
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)))

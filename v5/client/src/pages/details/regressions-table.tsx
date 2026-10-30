@@ -6,6 +6,7 @@ import { StateBadge } from '../../components/regression-state'
 import { uuidColumn } from '../../components/uuid-column'
 import { regressionTitle, truncate } from '../../format'
 import { regressionPath } from '../../paths'
+import type { SuiteRef } from '../../api/suites'
 
 type Regression = Schemas['Regression']
 
@@ -13,7 +14,7 @@ type Regression = Schemas['Regression']
 const TITLE_LENGTH = 50
 
 interface Props {
-  suite: string
+  suite: SuiteRef
   /** The table's accessible name. */
   label: string
   regressions: Regression[]
@@ -43,7 +44,7 @@ export function RegressionsTable({ suite, label, regressions, empty, busy }: Pro
   )
 }
 
-function regressionColumns(suite: string): Column<Regression>[] {
+function regressionColumns(suite: SuiteRef): Column<Regression>[] {
   return [
     uuidColumn('uuid', 'UUID', (uuid) => regressionPath(suite, uuid)),
     {

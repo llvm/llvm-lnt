@@ -2,10 +2,10 @@ import { Fragment, useId, useState, type FormEvent, type ReactNode } from 'react
 import { Button, Dialog, DialogTrigger } from 'react-aria-components'
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
-import { useKnownSuites, type SuiteSchema } from '../api/suites'
+import { refOf, fullName, useKnownProjects, type Project } from '../api/suites'
 import { Popover } from '../components/popover'
-import { suiteLabel, suitesNamed } from '../labels'
-import { RESTRICTED_TO_NOTHING } from './scope'
+import { fullLabel } from '../labels'
+import { coveredSuites, RESTRICTED_TO_NOTHING } from './scope'
 import { useAuth, type TokenStatus } from './use-auth'
 import styles from './settings-menu.module.css'
 
@@ -75,15 +75,16 @@ function SettingsPanel() {
   )
 }
 
-/** What `status` says, naming suites by their labels as `known` has them (AR22). */
-function statusText(status: TokenStatus, known: SuiteSchema[] | undefined): ReactNode {
+/** What `status` says, naming suites by their full labels as `known` has them (AR22). */
+function statusText(status: TokenStatus, known: Project[] | undefined): ReactNode {
   switch (status.state) {
     case 'none':
       return 'No token set.'
     case 'checking':
       return 'Checking the token...'
     case 'valid': {
-      const { name, prefix, scope, suites } = status.key
+      const { name, prefix, scope, restricted_to } = status.key
+      const suites = restricted_to && coveredSuites(restricted_to, known)
       return (
         <>
           Using key <strong>{name}</strong> ({prefix}), with <strong>{scope}</strong> scope
@@ -97,10 +98,10 @@ function statusText(status: TokenStatus, known: SuiteSchema[] | undefined): Reac
             <>
               {' '}
               in {suites.length === 1 ? 'suite' : 'suites'}{' '}
-              {suitesNamed(known, suites).map((suite, i) => (
-                <Fragment key={suite.name}>
+              {suites.map((suite, i) => (
+                <Fragment key={fullName(refOf(suite))}>
                   {i > 0 && ', '}
-                  <strong>{suiteLabel(suite)}</strong>
+                  <strong>{fullLabel(suite)}</strong>
                 </Fragment>
               ))}
             </>
@@ -117,7 +118,7 @@ function statusText(status: TokenStatus, known: SuiteSchema[] | undefined): Reac
 }
 
 function StatusLine({ status }: { status: TokenStatus }) {
-  const known = useKnownSuites()
+  const known = useKnownProjects()
   const failed = status.state === 'invalid' || status.state === 'failed'
   return (
     <p className={clsx(styles.status, failed && styles.error)} role="status">

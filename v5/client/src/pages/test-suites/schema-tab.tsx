@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { authedApi, unwrap } from '../../api/client'
-import type { SuiteSchema } from '../../api/suites'
-import { suiteLabel } from '../../labels'
+import { refOf, schemaOf, type Suite } from '../../api/suites'
+import { fullLabel } from '../../labels'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ActionRow } from '../../components/action-row'
@@ -12,7 +12,7 @@ import { SchemaTables } from './schema/schema-tables'
 import styles from './schema/schema.module.css'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   /** The suite has been deleted: forget it, and leave its page if the user is still on it. */
   onDeleted(): Promise<void>
 }
@@ -24,7 +24,8 @@ interface Props {
  */
 export function SchemaTab({ schema, onDeleted }: Props) {
   const { name } = schema
-  const gate = useScopeGate('manage', name)
+  const suite = refOf(schema)
+  const gate = useScopeGate('manage', suite)
   const [editing, setEditing] = useState(false)
   const editRef = useRef<HTMLButtonElement>(null)
   // Whether "Edit schema" takes the focus once rendered: when the editor has just closed. In the
@@ -39,7 +40,7 @@ export function SchemaTab({ schema, onDeleted }: Props) {
   if (editing) {
     return (
       <EditSchema
-        name={name}
+        suite={suite}
         onClose={() => {
           setEditing(false)
           refocus.current = true
@@ -48,8 +49,9 @@ export function SchemaTab({ schema, onDeleted }: Props) {
     )
   }
 
-  // The schema as the API returned it, which another instance can create the suite from (D4).
-  const json = JSON.stringify(schema, null, 2)
+  // The schema as the API returned it, which another project or instance can create the suite from
+  // (D4).
+  const json = JSON.stringify(schemaOf(schema), null, 2)
   return (
     <>
       <SchemaTables schema={schema} />
@@ -59,19 +61,19 @@ export function SchemaTab({ schema, onDeleted }: Props) {
           deletion={{
             label: 'Delete This Suite',
             scope: 'manage',
-            suite: name,
+            suite,
             expected: name,
             message: (
               <p>
-                Deleting the test suite <strong>{suiteLabel(schema)}</strong> permanently destroys
+                Deleting the test suite <strong>{fullLabel(schema)}</strong> permanently destroys
                 all of its machines, runs, commits, samples and regressions. This cannot be undone.
               </p>
             ),
             busyMessage: 'Deleting a suite with much data may take a while.',
             onDelete: () =>
               unwrap(
-                authedApi.DELETE('/api/suites/{name}', {
-                  params: { path: { name }, query: { confirm: true } },
+                authedApi.DELETE('/api/projects/{project}/suites/{suite}', {
+                  params: { path: suite, query: { confirm: true } },
                 }),
               ),
             onDeleted,

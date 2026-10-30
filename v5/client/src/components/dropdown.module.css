@@ -48,6 +48,11 @@
   color: var(--lnt-accent);
 }
 
+.option[data-disabled] {
+  color: var(--lnt-muted);
+  cursor: default;
+}
+
 .option[data-selected] {
   font-weight: 600;
 }

@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * API index
-         * @description The starting point of the API, with links to the test suites and to this page, and the
+         * @description The starting point of the API, with links to the projects and to this page, and the
          *     commit of LNT the server was built from.
          *
          *     **Authorization:** no API key needed.
@@ -46,13 +46,13 @@ export interface paths {
          * Create an API key
          * @description Create an API key. The response is the only time its token is shown.
          *
-         *     Keys can't be changed and don't expire. To change a key's scope or test suites, create a new key
-         *     and revoke the old one.
+         *     Keys can't be changed and don't expire. To change a key's scope or what it is restricted to,
+         *     create a new key and revoke the old one.
          *
-         *     The test suites in `suites` must exist when the key is created. A suite that is deleted later
-         *     is removed from the key, and a suite created again with the same name is a different suite,
-         *     which the key doesn't cover. A key whose suites have all been deleted stays restricted, and can
-         *     only read.
+         *     The test suites in `restricted_to` must exist when the key is created. A suite that is deleted
+         *     later is removed from the key, and a suite created again with the same name is a different
+         *     suite, which the key doesn't cover. A key whose suites have all been deleted stays restricted,
+         *     and can only read.
          *
          *     **Authorization:** requires an API key with the `admin` scope.
          */
@@ -114,7 +114,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites": {
+    "/api/projects": {
         parameters: {
             query?: never;
             header?: never;
@@ -122,8 +122,77 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List test suites
-         * @description All test suites on this instance, with their schemas, sorted by name.
+         * List projects
+         * @description Every project, with its test suites and their schemas, sorted by name. Projects without test
+         *     suites are included.
+         *
+         *     **Authorization:** no API key needed.
+         */
+        get: operations["list_projects"];
+        put?: never;
+        /**
+         * Create a project
+         * @description Create a project, without test suites. Its `Location` header points to the new project.
+         *
+         *     Requires an unrestricted API key, since a project shapes the instance.
+         *
+         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
+         */
+        post: operations["create_project"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a project
+         * @description A project, with its test suites and their schemas.
+         *
+         *     **Authorization:** no API key needed.
+         */
+        get: operations["get_project"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a project
+         * @description Delete a project that has no test suites. It destroys no data, so it doesn't need
+         *     `confirm=true`.
+         *
+         *     Requires an unrestricted API key, since a project shapes the instance.
+         *
+         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
+         */
+        delete: operations["delete_project"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a project
+         * @description Change a project's display name, or remove it with null. A body that changes nothing, an
+         *     empty one included, changes nothing.
+         *
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full.
+         */
+        patch: operations["patch_project"];
+        trace?: never;
+    };
+    "/api/projects/{project}/suites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a project's test suites
+         * @description The project's test suites, with their schemas, sorted by name.
          *
          *     **Authorization:** no API key needed.
          */
@@ -131,12 +200,12 @@ export interface paths {
         put?: never;
         /**
          * Create a test suite
-         * @description Create a test suite from a schema.
+         * @description Create a test suite in the project, from a schema.
          *
          *     The response is the schema with all optional keys filled in. Its `Location` header points to
          *     the new suite.
          *
-         *     **Authorization:** requires an unrestricted API key with the `manage` scope.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full.
          */
         post: operations["create_suite"];
         delete?: never;
@@ -145,7 +214,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{name}": {
+    "/api/projects/{project}/suites/{suite}": {
         parameters: {
             query?: never;
             header?: never;
@@ -155,7 +224,7 @@ export interface paths {
         /**
          * Get a test suite
          * @description A test suite's schema, with all optional keys filled in. It can be used as-is to create the
-         *     same suite on another instance.
+         *     same suite in another project or on another instance.
          *
          *     **Authorization:** no API key needed.
          */
@@ -170,7 +239,7 @@ export interface paths {
          *     The suite is also removed from the API keys restricted to it. A test suite created later with
          *     the same name is a different suite, which those keys don't cover.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         delete: operations["delete_suite"];
         options?: never;
@@ -178,7 +247,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{name}/schema": {
+    "/api/projects/{project}/suites/{suite}/schema": {
         parameters: {
             query?: never;
             header?: never;
@@ -200,12 +269,12 @@ export interface paths {
          *     add it again. Removing a metric or field permanently deletes its data, so the request must
          *     include `confirm=true`.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         patch: operations["patch_schema"];
         trace?: never;
     };
-    "/api/suites/{testsuite}/machines": {
+    "/api/projects/{project}/suites/{suite}/machines": {
         parameters: {
             query?: never;
             header?: never;
@@ -215,7 +284,7 @@ export interface paths {
         /**
          * List machines
          * @description Every machine in the suite that matches the filters. To list a machine's runs, use
-         *     `GET /api/suites/{testsuite}/runs?machine={name}`.
+         *     `GET /api/projects/{project}/suites/{suite}/runs?machine={name}`.
          *
          *     **Authorization:** no API key needed.
          */
@@ -229,7 +298,7 @@ export interface paths {
          *     You don't need to do this before submitting runs: submitting a run creates its machine if it
          *     doesn't exist yet.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         post: operations["create_machine"];
         delete?: never;
@@ -238,7 +307,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/machines/{machine_name}": {
+    "/api/projects/{project}/suites/{suite}/machines/{machine_name}": {
         parameters: {
             query?: never;
             header?: never;
@@ -259,7 +328,7 @@ export interface paths {
          * @description Delete a machine, along with its runs (and their samples and profiles) and the regression
          *     indicators that refer to it. Regressions left without indicators are kept.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         delete: operations["delete_machine"];
         options?: never;
@@ -273,12 +342,12 @@ export interface paths {
          *     still send the old value are rejected with a 409 `conflict` until they are updated. If you
          *     rename a machine, later run submissions that still use the old name create a new machine.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         patch: operations["update_machine"];
         trace?: never;
     };
-    "/api/suites/{testsuite}/commits": {
+    "/api/projects/{project}/suites/{suite}/commits": {
         parameters: {
             query?: never;
             header?: never;
@@ -305,7 +374,7 @@ export interface paths {
          *     doesn't exist yet. Creating a commit yourself is useful to give it an ordinal or a tag before
          *     any run arrives.
          *
-         *     **Authorization:** requires an API key with the `submit` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `submit` scope, unrestricted or covering this test suite.
          */
         post: operations["create_commit"];
         delete?: never;
@@ -314,7 +383,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/commits/resolve": {
+    "/api/projects/{project}/suites/{suite}/commits/resolve": {
         parameters: {
             query?: never;
             header?: never;
@@ -338,7 +407,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/commits/{value}": {
+    "/api/projects/{project}/suites/{suite}/commits/{value}": {
         parameters: {
             query?: never;
             header?: never;
@@ -359,7 +428,7 @@ export interface paths {
          * @description Delete a commit, along with its runs and their samples and profiles. The regressions
          *     attributed to the commit are kept, with no commit.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         delete: operations["delete_commit"];
         options?: never;
@@ -372,12 +441,12 @@ export interface paths {
          *     to change. If you change the ordinal, the tag or a field here, later run submissions that still
          *     send the old value are rejected with a 409 `conflict` until they are updated.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         patch: operations["update_commit"];
         trace?: never;
     };
-    "/api/suites/{testsuite}/runs": {
+    "/api/projects/{project}/suites/{suite}/runs": {
         parameters: {
             query?: never;
             header?: never;
@@ -387,7 +456,7 @@ export interface paths {
         /**
          * List runs
          * @description The runs in the suite, one page at a time. To get a run's measurements, use
-         *     `GET /api/suites/{testsuite}/runs/{uuid}/samples`.
+         *     `GET /api/projects/{project}/suites/{suite}/runs/{uuid}/samples`.
          *
          *     **Authorization:** no API key needed.
          */
@@ -400,7 +469,7 @@ export interface paths {
          *     The machine, the commit and the tests are created if they don't exist yet. Either the whole
          *     submission is saved or, if it is rejected, none of it is.
          *
-         *     **Authorization:** requires an API key with the `submit` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `submit` scope, unrestricted or covering this test suite.
          */
         post: operations["submit_run"];
         delete?: never;
@@ -409,7 +478,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/runs/{uuid}": {
+    "/api/projects/{project}/suites/{suite}/runs/{uuid}": {
         parameters: {
             query?: never;
             header?: never;
@@ -429,7 +498,7 @@ export interface paths {
          * Delete a run
          * @description Delete a run, along with its samples and profiles.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
         delete: operations["delete_run"];
         options?: never;
@@ -437,7 +506,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/runs/{uuid}/samples": {
+    "/api/projects/{project}/suites/{suite}/runs/{uuid}/samples": {
         parameters: {
             query?: never;
             header?: never;
@@ -459,7 +528,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/runs/{uuid}/profiles": {
+    "/api/projects/{project}/suites/{suite}/runs/{uuid}/profiles": {
         parameters: {
             query?: never;
             header?: never;
@@ -482,7 +551,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/profiles/{uuid}": {
+    "/api/projects/{project}/suites/{suite}/profiles/{uuid}": {
         parameters: {
             query?: never;
             header?: never;
@@ -504,7 +573,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/profiles/{uuid}/functions": {
+    "/api/projects/{project}/suites/{suite}/profiles/{uuid}/functions": {
         parameters: {
             query?: never;
             header?: never;
@@ -527,7 +596,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/profiles/{uuid}/disassembly": {
+    "/api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly": {
         parameters: {
             query?: never;
             header?: never;
@@ -550,7 +619,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/profiles/{uuid}/document": {
+    "/api/projects/{project}/suites/{suite}/profiles/{uuid}/document": {
         parameters: {
             query?: never;
             header?: never;
@@ -576,7 +645,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/tests": {
+    "/api/projects/{project}/suites/{suite}/tests": {
         parameters: {
             query?: never;
             header?: never;
@@ -601,7 +670,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/regressions": {
+    "/api/projects/{project}/suites/{suite}/regressions": {
         parameters: {
             query?: never;
             header?: never;
@@ -624,7 +693,7 @@ export interface paths {
          *
          *     LNT doesn't detect regressions itself: people or external tools record them here.
          *
-         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `triage` scope, unrestricted or covering this test suite.
          */
         post: operations["create_regression"];
         delete?: never;
@@ -633,7 +702,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/regressions/{uuid}": {
+    "/api/projects/{project}/suites/{suite}/regressions/{uuid}": {
         parameters: {
             query?: never;
             header?: never;
@@ -654,7 +723,7 @@ export interface paths {
          * @description Delete a regression and its indicators. The machines, tests and commit it refers to are not
          *     affected.
          *
-         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `triage` scope, unrestricted or covering this test suite.
          */
         delete: operations["delete_regression"];
         options?: never;
@@ -665,12 +734,12 @@ export interface paths {
          *
          *     Only include what you want to change. A regression can move from any state to any other.
          *
-         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `triage` scope, unrestricted or covering this test suite.
          */
         patch: operations["update_regression"];
         trace?: never;
     };
-    "/api/suites/{testsuite}/regressions/{uuid}/indicators": {
+    "/api/projects/{project}/suites/{suite}/regressions/{uuid}/indicators": {
         parameters: {
             query?: never;
             header?: never;
@@ -684,7 +753,7 @@ export interface paths {
          * @description Add indicators to a regression. Indicators it already has are ignored. The response lists
          *     all of its indicators afterwards.
          *
-         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `triage` scope, unrestricted or covering this test suite.
          */
         post: operations["add_indicators"];
         /**
@@ -695,7 +764,7 @@ export interface paths {
          *     UUIDs that don't match an indicator of this regression are ignored, so it is safe to retry a
          *     removal. A regression left without indicators is kept.
          *
-         *     **Authorization:** requires an API key with the `triage` scope, for all test suites or for this one.
+         *     **Authorization:** requires an API key with the `triage` scope, unrestricted or covering this test suite.
          */
         delete: operations["remove_indicators"];
         options?: never;
@@ -703,7 +772,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/regressions/indicators/query": {
+    "/api/projects/{project}/suites/{suite}/regressions/indicators/query": {
         parameters: {
             query?: never;
             header?: never;
@@ -728,7 +797,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/trends": {
+    "/api/projects/{project}/suites/{suite}/trends": {
         parameters: {
             query?: never;
             header?: never;
@@ -761,7 +830,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/suites/{testsuite}/series": {
+    "/api/projects/{project}/suites/{suite}/series": {
         parameters: {
             query?: never;
             header?: never;
@@ -805,7 +874,7 @@ export interface components {
     schemas: {
         /**
          * ApiIndex
-         * @description Links to the test suite list and to the API documentation, and the server's revision.
+         * @description Links to the project list and to the API documentation, and the server's revision.
          */
         ApiIndex: {
             links: components["schemas"]["ApiLinks"];
@@ -835,13 +904,16 @@ export interface components {
             name: string;
             scope: components["schemas"]["Scope"];
             /**
-             * Suites
-             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
+             * Restricted To
+             * @description What the key is restricted to, under their current names, sorted by project name, then by suite name. Null if it isn't restricted. A restricted key has its scope only in these test suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
              * @example [
-             *       "libcxx"
+             *       {
+             *         "project": "libcxx",
+             *         "suite": "libcxx"
+             *       }
              *     ]
              */
-            suites: string[] | null;
+            restricted_to: components["schemas"]["RestrictionEntry"][] | null;
             /**
              * Created At
              * Format: date-time
@@ -871,10 +943,10 @@ export interface components {
             name: string;
             scope: components["schemas"]["Scope"];
             /**
-             * Suites
-             * @description The test suites to restrict the key to. It then has its scope only in these suites, and can only read everywhere else, which includes creating a test suite. Only `submit`, `triage` and `manage` keys can be restricted, and every suite must exist. Leave out, or set to null, for an unrestricted key.
+             * Restricted To
+             * @description The test suites to restrict the key to, each listed once. It then has its scope only in these suites, and can only read everywhere else, which includes creating a test suite or a project. Only `submit`, `triage` and `manage` keys can be restricted, and every suite must exist. Leave out, or set to null, for an unrestricted key.
              */
-            suites?: string[] | null;
+            restricted_to?: components["schemas"]["RestrictionEntryInput"][] | null;
         };
         /**
          * ApiKeyCreated
@@ -895,13 +967,16 @@ export interface components {
             name: string;
             scope: components["schemas"]["Scope"];
             /**
-             * Suites
-             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
+             * Restricted To
+             * @description What the key is restricted to, under their current names, sorted by project name, then by suite name. Null if it isn't restricted. A restricted key has its scope only in these test suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
              * @example [
-             *       "libcxx"
+             *       {
+             *         "project": "libcxx",
+             *         "suite": "libcxx"
+             *       }
              *     ]
              */
-            suites: string[] | null;
+            restricted_to: components["schemas"]["RestrictionEntry"][] | null;
             /**
              * Created At
              * Format: date-time
@@ -942,11 +1017,11 @@ export interface components {
          */
         ApiLinks: {
             /**
-             * Suites
-             * @description The list of test suites. All other data is under it.
-             * @example /api/suites
+             * Projects
+             * @description The list of projects, with their test suites. All other data is under it.
+             * @example /api/projects
              */
-            suites: string;
+            projects: string;
             /**
              * Openapi
              * @description The API's OpenAPI specification.
@@ -2144,6 +2219,175 @@ export interface components {
             disassembly_format: string;
         };
         /**
+         * Project
+         * @description A project, which groups test suites, with its suites.
+         * @example {
+         *       "display_name": "libc++",
+         *       "name": "libcxx",
+         *       "suites": [
+         *         {
+         *           "commit_fields": [
+         *             {
+         *               "display": true,
+         *               "listed": false,
+         *               "name": "svn_revision",
+         *               "searchable": true,
+         *               "type": "text"
+         *             },
+         *             {
+         *               "display": false,
+         *               "listed": true,
+         *               "name": "commit_info",
+         *               "searchable": false,
+         *               "type": "text"
+         *             }
+         *           ],
+         *           "display_name": "Microbenchmarks",
+         *           "machine_fields": [
+         *             {
+         *               "listed": true,
+         *               "name": "hardware",
+         *               "searchable": true,
+         *               "type": "text"
+         *             },
+         *             {
+         *               "listed": true,
+         *               "name": "os",
+         *               "searchable": true,
+         *               "type": "text"
+         *             },
+         *             {
+         *               "listed": false,
+         *               "name": "test_suite_commit",
+         *               "searchable": false,
+         *               "type": "text"
+         *             },
+         *             {
+         *               "listed": true,
+         *               "name": "compiler",
+         *               "searchable": false,
+         *               "type": "text"
+         *             },
+         *             {
+         *               "listed": false,
+         *               "name": "sdk",
+         *               "searchable": false,
+         *               "type": "text"
+         *             }
+         *           ],
+         *           "metrics": [
+         *             {
+         *               "bigger_is_better": false,
+         *               "dashboard": true,
+         *               "display_name": "Execution Time",
+         *               "name": "execution_time",
+         *               "type": "real",
+         *               "unit": "seconds",
+         *               "unit_abbrev": "s"
+         *             },
+         *             {
+         *               "bigger_is_better": false,
+         *               "dashboard": true,
+         *               "display_name": "Instructions Retired",
+         *               "name": "instructions",
+         *               "type": "real",
+         *               "unit": "instructions",
+         *               "unit_abbrev": "instr"
+         *             },
+         *             {
+         *               "bigger_is_better": false,
+         *               "dashboard": true,
+         *               "display_name": "Maximum Resident Set Size",
+         *               "name": "max_rss",
+         *               "type": "real",
+         *               "unit": "megabytes",
+         *               "unit_abbrev": "mb"
+         *             },
+         *             {
+         *               "bigger_is_better": false,
+         *               "dashboard": true,
+         *               "display_name": "Cycles Elapsed",
+         *               "name": "cycles",
+         *               "type": "real",
+         *               "unit": "cycles",
+         *               "unit_abbrev": "cycles"
+         *             },
+         *             {
+         *               "bigger_is_better": false,
+         *               "dashboard": true,
+         *               "display_name": "Peak Memory Footprint",
+         *               "name": "peak_memory",
+         *               "type": "real",
+         *               "unit": "megabytes",
+         *               "unit_abbrev": "mb"
+         *             }
+         *           ],
+         *           "name": "libcxx",
+         *           "repository": {
+         *             "commit_url": "https://github.com/llvm/llvm-project/commit/{commit}",
+         *             "label": "GitHub",
+         *             "range_url": "https://github.com/llvm/llvm-project/compare/{from}...{to}"
+         *           }
+         *         }
+         *       ]
+         *     }
+         */
+        Project: {
+            /**
+             * Name
+             * @description The project's name. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters.
+             */
+            name: string;
+            /**
+             * Display Name
+             * @description How the web UI names the project, instead of its `name`. At most 256 characters. Only the name addresses the project in the API. Null if there is none.
+             */
+            display_name: string | null;
+            /**
+             * Suites
+             * @description The project's test suites, sorted by name.
+             */
+            suites: components["schemas"]["SuiteSchema"][];
+        };
+        /**
+         * ProjectCreate
+         * @description The name and display name of a new project.
+         */
+        ProjectCreate: {
+            /**
+             * Name
+             * @description The project's name. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters.
+             */
+            name: string;
+            /**
+             * Display Name
+             * @description How the web UI names the project, instead of its `name`. At most 256 characters. Only the name addresses the project in the API. Null, or left out, if there is none.
+             */
+            display_name?: string | null;
+        };
+        /**
+         * ProjectList
+         * @description All the results.
+         */
+        ProjectList: {
+            /**
+             * Items
+             * @description The results.
+             */
+            items: components["schemas"]["Project"][];
+        };
+        /**
+         * ProjectUpdate
+         * @description Changes to a project. Only include the keys you want to change.
+         */
+        ProjectUpdate: {
+            /**
+             * Display Name
+             * @description How the web UI names the project, instead of its `name`. At most 256 characters. Only the name addresses the project in the API. Null removes it.
+             */
+            display_name?: string | null;
+        };
+        /**
          * Regression
          * @description A performance regression being investigated. In the list, notes and indicators are left
          *     out, and the number of machines and tests involved is given instead.
@@ -2507,6 +2751,44 @@ export interface components {
             not_found: string[];
         };
         /**
+         * RestrictionEntry
+         * @description What a restricted API key is restricted to: a single test suite, named by its project's name
+         *     and its own.
+         */
+        RestrictionEntry: {
+            /**
+             * Project
+             * @description The name of the project.
+             * @example libcxx
+             */
+            project: string;
+            /**
+             * Suite
+             * @description The name of the test suite, in the project. Required: a key can only be restricted to single test suites.
+             * @example libcxx
+             */
+            suite: string;
+        };
+        /**
+         * RestrictionEntryInput
+         * @description What a restricted API key is restricted to: a single test suite, named by its project's name
+         *     and its own.
+         */
+        RestrictionEntryInput: {
+            /**
+             * Project
+             * @description The name of the project.
+             * @example libcxx
+             */
+            project: string;
+            /**
+             * Suite
+             * @description The name of the test suite, in the project. Required: a key can only be restricted to single test suites.
+             * @example libcxx
+             */
+            suite?: string;
+        };
+        /**
          * Run
          * @description A run: one set of results, for one machine at one commit.
          */
@@ -2753,12 +3035,12 @@ export interface components {
          *     - `submit`: submit runs and create commits.
          *     - `triage`: create, update and delete regressions and their indicators.
          *     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-         *       change and delete test suites.
+         *       change and delete test suites and projects.
          *     - `admin`: list, create and revoke API keys.
          *
          *     A `submit`, `triage` or `manage` key can be restricted to some test suites. It then has its
          *     scope only in those suites, and only `read` everywhere else -- including for creating a test
-         *     suite.
+         *     suite or changing a project. Creating and deleting a project always need an unrestricted key.
          * @enum {string}
          */
         Scope: "read" | "submit" | "triage" | "manage" | "admin";
@@ -3122,7 +3404,7 @@ export interface components {
             }[];
             /**
              * Profile
-             * @description The test's profile: a profile document (the JSON returned by `GET /api/suites/{testsuite}/profiles/{uuid}/document`), gzip-compressed and then base64-encoded. Limits: 4 MiB compressed, 32 MiB uncompressed, 10000 functions, 100000 instructions per function, and 2048 bytes per function name (in UTF-8). Null is the same as leaving it out.
+             * @description The test's profile: a profile document (the JSON returned by `GET /api/projects/{project}/suites/{suite}/profiles/{uuid}/document`), gzip-compressed and then base64-encoded. Limits: 4 MiB compressed, 32 MiB uncompressed, 10000 functions, 100000 instructions per function, and 2048 bytes per function name (in UTF-8). Null is the same as leaving it out.
              */
             profile?: string | null;
         };
@@ -3262,7 +3544,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3313,7 +3595,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3322,7 +3604,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description A test suite in `suites` doesn't exist. */
+            /** @description A project or a test suite in `restricted_to` doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3370,7 +3652,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3428,11 +3710,300 @@ export interface operations {
             };
         };
     };
-    list_suites: {
+    list_projects: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectList"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `duplicate`: a project has this name. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The project doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The project doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `conflict`: the project still has test suites. `retry`: the project was busy, for example because a test suite was being created in it, so the change couldn't start. Nothing was saved: send the request again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patch_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The project doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `retry`: the project was busy, for example because a test suite was being created in it, so the change couldn't start. Nothing was saved: send the request again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_suites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -3464,13 +4035,25 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The project doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     create_suite: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+            };
             cookie?: never;
         };
         requestBody: {
@@ -3506,7 +4089,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3515,7 +4098,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `duplicate`: a suite with this name already exists. `retry`: the suite was busy, for example because another request was reading it, so the change couldn't start. Nothing was saved: send the request again. */
+            /** @description The project doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `duplicate`: the project already has a suite with this name. `retry`: the suite was busy, for example because another request was reading it, so the change couldn't start. Nothing was saved: send the request again. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3531,8 +4123,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                name: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -3565,7 +4159,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3584,8 +4178,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                name: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -3616,7 +4212,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3625,7 +4221,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3653,8 +4249,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                name: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -3691,7 +4289,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3732,8 +4330,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -3766,7 +4366,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3791,8 +4391,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -3829,7 +4431,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3838,7 +4440,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3863,8 +4465,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The name of the machine. */
                 machine_name: string;
             };
@@ -3924,8 +4528,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The name of the machine. */
                 machine_name: string;
             };
@@ -3958,7 +4564,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3992,8 +4598,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The name of the machine. */
                 machine_name: string;
             };
@@ -4032,7 +4640,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4087,8 +4695,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -4146,8 +4756,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -4184,7 +4796,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4193,7 +4805,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4218,8 +4830,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -4256,7 +4870,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4281,8 +4895,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The commit's value, such as a Git SHA. */
                 value: string;
             };
@@ -4342,8 +4958,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The commit's value, such as a Git SHA. */
                 value: string;
             };
@@ -4376,7 +4994,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4410,8 +5028,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The commit's value, such as a Git SHA. */
                 value: string;
             };
@@ -4450,7 +5070,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4507,8 +5127,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -4566,8 +5188,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -4604,7 +5228,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4613,7 +5237,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The test suite doesn't exist. */
+            /** @description The project or the test suite doesn't exist. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4638,8 +5262,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The run's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -4699,8 +5325,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The run's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -4733,7 +5361,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4774,8 +5402,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The run's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -4835,8 +5465,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The run's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -4896,8 +5528,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The profile's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -4957,8 +5591,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The profile's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5021,8 +5657,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The profile's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5082,8 +5720,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The profile's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5154,8 +5794,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -5234,8 +5876,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -5293,8 +5937,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -5331,7 +5977,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5365,8 +6011,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The regression's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5426,8 +6074,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The regression's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5460,7 +6110,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5494,8 +6144,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The regression's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5534,7 +6186,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5568,8 +6220,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The regression's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5608,7 +6262,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5642,8 +6296,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
                 /** @description The regression's UUID (not case-sensitive). */
                 uuid: string;
             };
@@ -5682,7 +6338,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The API key doesn't have the scope this operation requires, or has it only in other test suites. */
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5716,8 +6372,10 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -5788,8 +6446,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };
@@ -5870,8 +6530,10 @@ export interface operations {
             };
             header?: never;
             path: {
+                /** @description The name of the project. */
+                project: string;
                 /** @description The name of the test suite. */
-                testsuite: string;
+                suite: string;
             };
             cookie?: never;
         };

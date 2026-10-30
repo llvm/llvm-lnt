@@ -8,35 +8,36 @@ import { useMemo } from 'react'
 import { skipToken, useQueries } from '@tanstack/react-query'
 import { combineResults, type Failures } from '../api/failures'
 import { machinesQuery } from '../api/machines'
-import type { SuiteSchema } from '../api/suites'
+import { findSuite, fullName, suiteRef, type Suite, type SuiteRef } from '../api/suites'
 import { commitLookupKey, commitLookupQuery } from './commit-lookup'
 
 /** A commit of a machine, in a suite. */
 export interface CommitOfMachine {
-  suite: string
+  suite: SuiteRef
   machine: string
   commit: string
 }
 
 /**
  * The commit of a machine that `parts` name, a URL's value split on `/` (GR9, CP8), or null unless
- * they are three, none empty: no name can contain a `/` (D4, I1).
+ * they are four, none empty: its suite's project, its suite, its machine and itself. No name can
+ * contain a `/` (D4, D7, I1).
  */
 export function parseCommitOfMachine(parts: readonly string[]): CommitOfMachine | null {
-  if (parts.length !== 3 || parts.some((part) => part === '')) return null
-  const [suite, machine, commit] = parts
-  return { suite, machine, commit }
+  if (parts.length !== 4 || parts.some((part) => part === '')) return null
+  const [project, suite, machine, commit] = parts
+  return { suite: suiteRef(project, suite), machine, commit }
 }
 
-/** `entry`, as a URL spells it: `{suite}/{machine}/{commit}`. */
+/** `entry`, as a URL spells it: `{project}/{suite}/{machine}/{commit}`. */
 export function formatCommitOfMachine({ suite, machine, commit }: CommitOfMachine): string {
-  return `${suite}/${machine}/${commit}`
+  return `${fullName(suite)}/${machine}/${commit}`
 }
 
 /** What is known of such a commit (see `useCheckedCommits`). */
 export interface CheckedCommit {
   /** Its suite, once the suites are known to hold it. */
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   /** Whether its machine is among its suite's, once they are listed. */
   machineKnown: boolean | undefined
   /** Whether the machine has runs at the commit, once that is known. */
@@ -62,17 +63,18 @@ export interface CheckedCommit {
  */
 export function useCheckedCommits(
   commits: readonly CommitOfMachine[],
-  suites: readonly SuiteSchema[] | undefined,
+  suites: readonly Suite[] | undefined,
 ): Failures & { states: CheckedCommit[] } {
   // Each commit checked once, however many entries name it, so that no query is asked for twice.
   const { distinct, at } = useMemo(() => distinctCommits(commits), [commits])
   const schemas = useMemo(
-    () => distinct.map((entry) => suites?.find((schema) => schema.name === entry.suite)),
+    () => distinct.map((entry) => findSuite(suites, entry.suite)),
     [distinct, suites],
   )
+  // Each suite that exists once: the same object for every entry of one suite (see `suiteRef`).
   const named = useMemo(
-    () => [...new Set(schemas.flatMap((schema) => schema?.name ?? []))],
-    [schemas],
+    () => [...new Set(distinct.flatMap((entry, i) => (schemas[i] ? [entry.suite] : [])))],
+    [distinct, schemas],
   )
   const machineLists = useQueries({
     queries: named.map((suite) => ({ ...machinesQuery(suite), staleTime: Infinity })),

@@ -1,9 +1,9 @@
 import { useId } from 'react'
 import { Link } from 'react-router'
-import { useSuites, type SuiteSchema } from '../../api/suites'
+import { refOf, fullName, useSuites, type Suite } from '../../api/suites'
 import { useRecentlyActiveMachines } from '../../api/machines'
 import { Loaded } from '../../components/feedback'
-import { suiteLabel } from '../../labels'
+import { fullLabel } from '../../labels'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
@@ -49,7 +49,7 @@ export default function Dashboard() {
           <p className={styles.note}>There are no test suites yet.</p>
         ) : (
           suites.data?.map((schema) => (
-            <SuiteSection key={schema.name} schema={schema} range={Number(range)} />
+            <SuiteSection key={fullName(refOf(schema))} schema={schema} range={Number(range)} />
           ))
         )}
       </Loaded>
@@ -61,15 +61,15 @@ export default function Dashboard() {
  * A suite's section (DA1): a card per metric the schema marks for the Dashboard, all over the same
  * machines (DA2).
  */
-function SuiteSection({ schema, range }: { schema: SuiteSchema; range: number }) {
+function SuiteSection({ schema, range }: { schema: Suite; range: number }) {
   const metrics = schema.metrics.filter((metric) => metric.dashboard)
-  const machines = useRecentlyActiveMachines(schema.name, MACHINES_SHOWN, metrics.length > 0)
+  const machines = useRecentlyActiveMachines(refOf(schema), MACHINES_SHOWN, metrics.length > 0)
   const headingId = useId()
 
   return (
     <section className={styles.suite} aria-labelledby={headingId}>
       <h2 id={headingId} className={styles.suiteHeading}>
-        {suiteLabel(schema)}
+        {fullLabel(schema)}
       </h2>
       {metrics.length === 0 ? (
         <NoCards schema={schema} />
@@ -90,20 +90,20 @@ function SuiteSection({ schema, range }: { schema: SuiteSchema; range: number })
 }
 
 /** Why a suite has no card (DA1): it has nothing to chart, or charts nothing it has. */
-function NoCards({ schema }: { schema: SuiteSchema }) {
+function NoCards({ schema }: { schema: Suite }) {
   if (!schema.metrics.some(isNumeric)) {
     return <p className={styles.note}>This suite has no numeric metrics.</p>
   }
   return (
     <p className={styles.note}>
       This suite shows no metrics on the Dashboard. Choose which ones to show in{' '}
-      <Link to={suiteTabPath(schema.name, 'schema')}>its schema</Link>.
+      <Link to={suiteTabPath(refOf(schema), 'schema')}>its schema</Link>.
     </p>
   )
 }
 
 interface SuiteCardsProps {
-  schema: SuiteSchema
+  schema: Suite
   /** The metrics the suite shows on the Dashboard. */
   metrics: Metric[]
   machines: string[]

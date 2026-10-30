@@ -1,17 +1,29 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useScopeGate } from '../../auth/scope'
+import { useProjects } from '../../api/suites'
+import { refusalInEvery } from '../../auth/scope'
+import { useAuth } from '../../auth/use-auth'
 import { ActionButton } from '../../components/action-button'
 import { suiteTabPath } from '../test-suites/settings'
-import { CreateSuite } from './create-suite'
+import { CreateSuite, ProjectsError } from './create-suite'
+import { projectsProblem } from './projects'
 
 /**
  * The Test Suites tab (AD2): "New suite", which opens the schema editor in its place to create a
  * suite (TS7). A suite is otherwise maintained from its Schema tab (TS6).
  */
 export function SuitesTab() {
-  // Creating a suite addresses none, so it needs an instance-wide token (AD2).
-  const gate = useScopeGate('manage', null)
+  const projects = useProjects()
+  const { status } = useAuth()
+  // A suite is created in a project, which the token must cover in full: "New suite" needs one
+  // such project at least (AD2).
+  const list = projects.data
+  const reason =
+    list === undefined
+      ? projectsProblem(projects)
+      : list.length === 0
+        ? 'There are no projects to create a suite in.'
+        : refusalInEvery('manage', list, status, list)
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const newSuiteRef = useRef<HTMLButtonElement>(null)
@@ -30,13 +42,16 @@ export function SuitesTab() {
           setCreating(false)
           refocus.current = true
         }}
-        onCreated={(name) => navigate(suiteTabPath(name, 'schema'))}
+        onCreated={(suite) => navigate(suiteTabPath(suite, 'schema'))}
       />
     )
   }
   return (
-    <ActionButton ref={newSuiteRef} reason={gate.title} onClick={() => setCreating(true)}>
-      New suite
-    </ActionButton>
+    <>
+      <ActionButton ref={newSuiteRef} reason={reason} onClick={() => setCreating(true)}>
+        New suite
+      </ActionButton>
+      <ProjectsError projects={projects} />
+    </>
   )
 }

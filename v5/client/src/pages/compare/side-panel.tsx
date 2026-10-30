@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import { ErrorMessage, Loading } from '../../components/feedback'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
 import { SideControls, SideFields } from '../../components/side-fields'
@@ -16,7 +16,7 @@ interface Props {
   side: Side
   /** The side's heading: "Side A (Baseline)" or "Side B (New)". */
   title: string
-  suites: SuiteSchema[]
+  suites: Suite[]
   /** What the heading offers to do with the side, if anything, such as pinning it (CP8). */
   action?: ReactNode
 }
@@ -39,7 +39,7 @@ export function SidePanel({ side, title, suites, action }: Props) {
         machine={machine}
         commit={commit}
         commitAside={<SideCommitCard side={side} />}
-        onSuite={(name) => onChange({ suite: name, ...CLEARED_WITH.suite })}
+        onSuite={(suite) => onChange({ suite, ...CLEARED_WITH.suite })}
         onMachine={(picked) =>
           // Another machine keeps the commit if it has runs at it, as the commit picker checks.
           onChange(

@@ -8,23 +8,24 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap } from './client'
 import { forgetEverySuiteLater, queryKeys } from './keys'
+import type { SuiteRef } from './suites'
 
 /** Kept as it is for as long as the Profiles page is open, which forgets it once it has left. */
 const KEPT = { staleTime: Infinity, gcTime: Infinity } as const
 
 /** The query key of the profile `uuid`, under which everything read about it is cached. */
-export function profileKey(suite: string, uuid: string) {
+export function profileKey(suite: SuiteRef, uuid: string) {
   return [...queryKeys.profiles(suite), uuid] as const
 }
 
 /** The profile `uuid`: its test, its run and its top-level counters. */
-export function profileQuery(suite: string, uuid: string) {
+export function profileQuery(suite: SuiteRef, uuid: string) {
   return queryOptions({
     queryKey: profileKey(suite, uuid),
     queryFn: ({ signal }) =>
       unwrap(
-        api.GET('/api/suites/{testsuite}/profiles/{uuid}', {
-          params: { path: { testsuite: suite, uuid } },
+        api.GET('/api/projects/{project}/suites/{suite}/profiles/{uuid}', {
+          params: { path: { ...suite, uuid } },
           signal,
         }),
       ),
@@ -33,13 +34,13 @@ export function profileQuery(suite: string, uuid: string) {
 }
 
 /** The functions of the profile `uuid`, each with its counters, sorted by name. */
-export function profileFunctionsQuery(suite: string, uuid: string) {
+export function profileFunctionsQuery(suite: SuiteRef, uuid: string) {
   return queryOptions({
     queryKey: [...profileKey(suite, uuid), 'functions'],
     queryFn: async ({ signal }) => {
       const { items } = await unwrap(
-        api.GET('/api/suites/{testsuite}/profiles/{uuid}/functions', {
-          params: { path: { testsuite: suite, uuid } },
+        api.GET('/api/projects/{project}/suites/{suite}/profiles/{uuid}/functions', {
+          params: { path: { ...suite, uuid } },
           signal,
         }),
       )
@@ -50,13 +51,13 @@ export function profileFunctionsQuery(suite: string, uuid: string) {
 }
 
 /** The instructions of the function `name` of the profile `uuid`, in order, with its counters. */
-export function disassemblyQuery(suite: string, uuid: string, name: string) {
+export function disassemblyQuery(suite: SuiteRef, uuid: string, name: string) {
   return queryOptions({
     queryKey: [...profileKey(suite, uuid), 'disassembly', name],
     queryFn: ({ signal }) =>
       unwrap(
-        api.GET('/api/suites/{testsuite}/profiles/{uuid}/disassembly', {
-          params: { path: { testsuite: suite, uuid }, query: { function: name } },
+        api.GET('/api/projects/{project}/suites/{suite}/profiles/{uuid}/disassembly', {
+          params: { path: { ...suite, uuid }, query: { function: name } },
           signal,
         }),
       ),

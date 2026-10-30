@@ -2,14 +2,14 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
 import {
-  refetchSuites,
-  removeSuite,
+  refetchProjects,
+    removeSuite,
   updateSuite,
   useSuiteLabel,
+  type SuiteRef,
   type SuiteSchema,
 } from '../../../api/suites'
 import { useScopeGate } from '../../../auth/scope'
-import { suiteLabel } from '../../../labels'
 import { ActionButton } from '../../../components/action-button'
 import { Confirmation } from '../../../components/confirmation'
 import { ErrorMessage, Loaded } from '../../../components/feedback'
@@ -31,7 +31,7 @@ let openings = 0
 
 interface Props {
   /** The suite whose schema to edit. */
-  name: string
+  suite: SuiteRef
   onClose(): void
 }
 
@@ -39,21 +39,23 @@ interface Props {
  * The schema editor changing a suite's schema (TS7). It starts from the schema as it is when the
  * editor opens, fetched afresh rather than taken from the list of suites, which may be older.
  */
-export function EditSchema({ name, onClose }: Props) {
+export function EditSchema({ suite, onClose }: Props) {
   const queryClient = useQueryClient()
   // Each opening of the editor fetches the schema afresh, and keeps it while open.
   const [opening] = useState(() => ++openings)
   const fresh = useQuery({
     // Not under the suite's own key, which a save invalidates while the editor still shows.
-    queryKey: ['schema-editor', name, opening],
+    queryKey: ['schema-editor', suite.project, suite.suite, opening],
     queryFn: async ({ signal }) => {
       try {
-        return await unwrap(api.GET('/api/suites/{name}', { params: { path: { name } }, signal }))
+        return await unwrap(
+          api.GET('/api/projects/{project}/suites/{suite}', { params: { path: suite }, signal }),
+        )
       } catch (error) {
         // The suite was deleted elsewhere: it goes from the list of suites, and the page says that
         // it was not found, in place of its tabs and the editor (TS1).
         if (error instanceof ApiError && error.code === 'not_found') {
-          await removeSuite(queryClient, name)
+          await removeSuite(queryClient, suite)
         }
         throw error
       }
@@ -62,9 +64,11 @@ export function EditSchema({ name, onClose }: Props) {
     staleTime: Infinity,
   })
 
-  if (fresh.data) return <EditForm schema={fresh.data} onClose={onClose} />
+  if (fresh.data) {
+    return <EditForm suite={suite} schema={fresh.data} onClose={onClose} />
+  }
   return (
-    <Frame name={name} buttons={<ActionButton onClick={onClose}>Cancel</ActionButton>}>
+    <Frame suite={suite} buttons={<ActionButton onClick={onClose}>Cancel</ActionButton>}>
       <Loaded
         isPending={fresh.isPending}
         error={fresh.error}
@@ -82,19 +86,19 @@ export function EditSchema({ name, onClose }: Props) {
  * buttons, and what they lead to.
  */
 function Frame({
-  name,
+  suite,
   buttons,
   children,
   below,
 }: {
-  name: string
+  suite: SuiteRef
   buttons: ReactNode
   children: ReactNode
   /** What the buttons lead to: a confirmation, or why a save failed. */
   below?: ReactNode
 }) {
   const titleId = useId()
-  const label = useSuiteLabel(name)
+  const label = useSuiteLabel(suite)
   return (
     <section aria-labelledby={titleId}>
       {children}
@@ -105,13 +109,14 @@ function Frame({
 }
 
 interface FormProps {
+  suite: SuiteRef
   schema: SuiteSchema
   onClose(): void
 }
 
-function EditForm({ schema, onClose }: FormProps) {
-  const { name } = schema
-  const gate = useScopeGate('manage', name)
+function EditForm({ suite, schema, onClose }: FormProps) {
+  const gate = useScopeGate('manage', suite)
+  const label = useSuiteLabel(suite)
   const saveRef = useRef<HTMLButtonElement>(null)
   const [draft, setDraft] = useState(() => draftOf(schema))
   // The suite's own, and so not part of what the tables edit.
@@ -119,7 +124,7 @@ function EditForm({ schema, onClose }: FormProps) {
   // Removing destroys data, which the user confirms first (AR16). Meanwhile, the draft cannot
   // change, so that what is confirmed is what is sent.
   const [confirming, setConfirming] = useState(false)
-  const save = useSaveSchema(name)
+  const save = useSaveSchema(suite)
   const busy = save.isPending
 
   const removed = removedEntries(draft)
@@ -144,7 +149,7 @@ function EditForm({ schema, onClose }: FormProps) {
 
   return (
     <Frame
-      name={name}
+      suite={suite}
       buttons={
         <>
           <ActionButton busy={busy} onClick={onClose}>
@@ -165,7 +170,7 @@ function EditForm({ schema, onClose }: FormProps) {
         <>
           {confirming && (
             <Confirmation
-              expected={name}
+              expected={suite.suite}
               confirmLabel="Save"
               gate={gate}
               busyMessage="Removing entries from a suite with much data may take a while."
@@ -175,7 +180,7 @@ function EditForm({ schema, onClose }: FormProps) {
                 saveRef.current?.focus()
               }}
             >
-              <p>Saving removes these entries from the suite {suiteLabel(schema)}:</p>
+              <p>Saving removes these entries from the suite {label}:</p>
               <ul>
                 {removed.map((entry) => (
                   <li key={`${entry.list}-${entry.name}`}>
@@ -209,7 +214,7 @@ function EditForm({ schema, onClose }: FormProps) {
 }
 
 /**
- * Apply a change to the schema of the suite `name`, then put the schema the API returned in the
+ * Apply a change to the schema of `suite`, then put the schema the API returned in the
  * list of suites, and forget what was read from inside the suite, whether or not the editor is
  * still shown. A 404 or a 409 `duplicate` says that the schema changed elsewhere since the editor
  * opened -- the suite was deleted, or an entry added or removed -- and has the list fetched again:
@@ -217,20 +222,20 @@ function EditForm({ schema, onClose }: FormProps) {
  * as it is once the editor closes. (A 404 does not say which: an entry can be gone rather than the
  * suite.)
  */
-function useSaveSchema(name: string) {
+function useSaveSchema(suite: SuiteRef) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ patch, confirm }: { patch: Schemas['SchemaPatch']; confirm: boolean }) =>
       unwrap(
-        authedApi.PATCH('/api/suites/{name}/schema', {
-          params: { path: { name }, query: confirm ? { confirm: true } : {} },
+        authedApi.PATCH('/api/projects/{project}/suites/{suite}/schema', {
+          params: { path: suite, query: confirm ? { confirm: true } : {} },
           body: patch,
         }),
       ),
-    onSuccess: (schema) => updateSuite(queryClient, schema),
+    onSuccess: (schema) => updateSuite(queryClient, suite.project, schema),
     onError: (error) => {
       if (error instanceof ApiError && (error.code === 'not_found' || error.code === 'duplicate')) {
-        refetchSuites(queryClient)
+        refetchProjects(queryClient)
       }
     },
   })
