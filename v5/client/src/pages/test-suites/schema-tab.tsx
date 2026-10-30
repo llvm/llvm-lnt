@@ -1,12 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { authedApi, unwrap } from '../../api/client'
 import { refOf, schemaOf, type Suite, type SuiteRef, type SuiteSchema } from '../../api/suites'
 import { fullLabel } from '../../labels'
 import { useScopeGate } from '../../auth/scope'
-import { useAuth } from '../../auth/use-auth'
 import { ActionButton } from '../../components/action-button'
 import { ActionRow } from '../../components/action-row'
 import { CopyButton } from '../../components/copy-button'
+import { useFocusOnceChecked } from '../../components/use-focus-once-checked'
 import { downloadFile } from './schema/download'
 import { EditSchema } from './schema/edit-schema'
 import { MoveSuite } from './schema/move-suite'
@@ -24,7 +24,8 @@ interface Props {
   onMoved(schema: SuiteSchema, to: SuiteRef): Promise<void>
   /**
    * The page has just come from the suite's old names (see `onMoved`): "Rename or move" takes the
-   * focus once the token has been checked again, and enables it, and `onMoveFocused` is called.
+   * focus once the token has been checked again, or the tab's actions do if it stays disabled, and
+   * `onMoveFocused` is called.
    */
   focusMove?: boolean
   onMoveFocused?(): void
@@ -39,11 +40,11 @@ export function SchemaTab({ schema, onDeleted, onMoved, focusMove, onMoveFocused
   const { name } = schema
   const suite = refOf(schema)
   const gate = useScopeGate('manage', suite)
-  const { status } = useAuth()
   const [editing, setEditing] = useState(false)
   const [moving, setMoving] = useState(false)
   const editRef = useRef<HTMLButtonElement>(null)
   const moveRef = useRef<HTMLButtonElement>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
   // The button whose action has just closed, which takes the focus back once rendered: "Edit
   // schema" once the editor has closed, "Rename or move" once its panel has. In the commit, so that
   // what they changed never shows without the focus where it goes.
@@ -52,16 +53,8 @@ export function SchemaTab({ schema, onDeleted, onMoved, focusMove, onMoveFocused
     refocus.current?.current?.focus()
     refocus.current = null
   })
-  // Once the token has been checked again after the move, which disables the gated controls
-  // meanwhile, so that the button can take the focus (AR17). Only if the focus went with the old
-  // page, so that wherever the user has put it since stays where it is.
-  const checking = status.state === 'checking'
-  useEffect(() => {
-    if (!focusMove || checking) return
-    onMoveFocused?.()
-    const active = document.activeElement
-    if (active === null || active === document.body) moveRef.current?.focus()
-  }, [focusMove, checking, onMoveFocused])
+  // Once the token has been checked again after the move, only if the focus went with the old page.
+  useFocusOnceChecked(focusMove ?? false, onMoveFocused, moveRef, actionsRef)
 
   if (editing) {
     return (
@@ -81,7 +74,13 @@ export function SchemaTab({ schema, onDeleted, onMoved, focusMove, onMoveFocused
   return (
     <>
       <SchemaTables schema={schema} />
-      <div className={styles.actions}>
+      <div
+        ref={actionsRef}
+        className={styles.actions}
+        role="group"
+        aria-label="Schema actions"
+        tabIndex={-1}
+      >
         <ActionRow
           deleteAtEnd
           deletion={{
