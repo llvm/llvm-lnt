@@ -5,7 +5,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { suiteRef, type ProjectName, type Suite } from '../../api/suites'
-import { apiKey, mockAuth, signIn, TOKEN, unknownToken } from '../../test/auth'
+import { apiKey, entry, mockAuth, signIn, TOKEN, unknownToken } from '../../test/auth'
 import { BARE_SUITE, PROJECT, SUITE } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -249,6 +249,25 @@ describe('gating (AR17)', () => {
   })
 })
 
+describe('gating with a key restricted to a suite', () => {
+  it('disables the display names, which need the project covered in full', async () => {
+    signIn('manage', [entry('libcxx')])
+    mockSuites([SUITE, BARE_SUITE], { projects: PROJECTS })
+    renderPage('/admin?tab=projects')
+    await projectsTable()
+
+    const edit = screen.getByRole('button', { name: 'Edit Display name of llvm' })
+    await waitFor(() =>
+      expect(edit).toHaveAttribute(
+        'title',
+        "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token " +
+          "in Settings has the 'manage' scope, covering only 'llvm/libcxx'.",
+      ),
+    )
+    expect(edit).toBeDisabled()
+  })
+})
+
 describe('creating a project', () => {
   it('checks the name as it is typed, saying why it cannot be created', async () => {
     await renderTab()
@@ -287,6 +306,33 @@ describe('creating a project', () => {
     expect(nameInput()).toHaveFocus()
     // Without fetching the list again.
     expect(store.requests).toBe(1)
+  })
+
+  it('drops what was read from inside the suites of an earlier project of its name', async () => {
+    const { store, list, queryClient } = await renderTab()
+    mockWrites(store)
+    const earlier = [...queryKeys.machines(suiteRef('lldb', 'x')), 'detail', 'm']
+    queryClient.setQueryData(earlier, { name: 'm' })
+
+    fireEvent.change(nameInput(), { target: { value: 'lldb' } })
+    fireEvent.click(createButton())
+
+    await waitFor(() => expect(rowsOf(list)).toHaveLength(4))
+    expect(queryClient.getQueryData(earlier)).toBeUndefined()
+  })
+
+  it('cannot create one until the projects have loaded', async () => {
+    signIn('manage')
+    const loaded = gate()
+    mockSuites([SUITE, BARE_SUITE], { projects: PROJECTS, wait: () => loaded.promise })
+    renderPage('/admin?tab=projects')
+
+    await waitFor(() =>
+      expect(createButton()).toHaveAccessibleDescription('Loading the projects...'),
+    )
+    await act(async () => loaded.open())
+    await projectsTable()
+    expect(createButton()).toHaveAccessibleDescription('Give the project a name first.')
   })
 
   it('sends an empty display name as null', async () => {
@@ -510,6 +556,66 @@ describe('renaming a project', () => {
   })
 })
 
+describe('renaming a project, racing', () => {
+  it('checks the token again even when the user has left the page meanwhile', async () => {
+    const { store, queryClient } = await renderTab()
+    queryClient.setQueryData(queryKeys.apiKeys, { items: [apiKey('manage')] })
+    const held = gate()
+    mockWrites(store, { wait: () => held.promise })
+    const rechecks = mockAuth(() => HttpResponse.json({ key: apiKey('manage') }))
+    save('Name of swift', 'apple')
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+
+    fireEvent.click(screen.getByRole('link', { name: '2 suites of llvm' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await act(async () => held.open())
+
+    await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
+    expect(cachedProjects(queryClient)).toEqual(['aaa', 'apple', 'llvm'])
+    expect(queryClient.getQueryData(queryKeys.apiKeys)).toBeUndefined()
+  })
+
+  it('does not bring the old name back from a list fetched before, and asks again', async () => {
+    const { list, queryClient } = await renderTab()
+    const held = gate()
+    // Each list is made when asked for, and sent once `held` opens.
+    const refetched = mockSuites([SUITE, BARE_SUITE], {
+      projects: PROJECTS,
+      wait: () => held.promise,
+    })
+    mockWrites(refetched)
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+    await waitFor(() => expect(refetched.requests).toBe(1))
+
+    save('Name of swift', 'apple')
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+    await screen.findByRole('button', { name: 'Edit Name of apple' })
+    await waitFor(() => expect(refetched.requests).toBe(2))
+    await act(async () => held.open())
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+
+    expect(cachedProjects(queryClient)).toEqual(['aaa', 'apple', 'llvm'])
+    expect(within(list).queryByRole('button', { name: 'Edit Name of swift' })).toBeNull()
+  })
+
+  it('asks for the list again when it no longer holds the project once renamed', async () => {
+    const { store, queryClient } = await renderTab()
+    const held = gate()
+    mockWrites(store, { wait: () => held.promise })
+    save('Name of swift', 'apple')
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Saving...' })).toBeVisible())
+    // A list fetched meanwhile no longer held it.
+    queryClient.setQueryData(queryKeys.projects, projectList([SUITE, BARE_SUITE], [PROJECT, ZED]))
+    const requests = store.requests
+
+    await act(async () => held.open())
+
+    await waitFor(() => expect(store.requests).toBe(requests + 1))
+    await waitFor(() => expect(cachedProjects(queryClient)).toEqual(['aaa', 'apple', 'llvm']))
+  })
+})
+
 describe('changing a display name', () => {
   it('saves it without asking, and orders the row by its new label', async () => {
     const { store, list } = await renderTab()
@@ -621,25 +727,84 @@ describe('deleting a project', () => {
   })
 
   it('does not show it again when a list fetched before the deletion arrives after', async () => {
-    const { store, list, queryClient } = await renderTab()
-    mockWrites(store)
+    const { list, queryClient } = await renderTab()
     const held = gate()
-    const before = projectList(store.suites, store.projects)
-    server.use(
-      mockApi('get', '/api/projects', async () => {
-        await held.promise
-        return HttpResponse.json(before)
-      }),
-    )
+    // Each list is made when asked for, and sent once `held` opens.
+    const refetched = mockSuites([SUITE, BARE_SUITE], {
+      projects: PROJECTS,
+      wait: () => held.promise,
+    })
+    mockWrites(refetched)
     void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+    await waitFor(() => expect(refetched.requests).toBe(1))
 
     fireEvent.click(deleteButton('swift'))
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(rowsOf(list)).toHaveLength(2))
+    // The list on its way, which may have held more than the cache, is asked for again.
+    await waitFor(() => expect(refetched.requests).toBe(2))
     await act(async () => held.open())
-    await settle()
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
     expect(rowsOf(list)).toHaveLength(2)
     expect(cachedProjects(queryClient)).toEqual(['aaa', 'llvm'])
+  })
+
+  it('closes the prompt once its project is deleted elsewhere, focusing the table', async () => {
+    const { store, list, queryClient } = await renderTab()
+    fireEvent.click(deleteButton('swift'))
+    expect(within(prompt()!).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+
+    store.projects = store.projects.filter((project) => project.name !== 'swift')
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.projects }))
+
+    await waitFor(() => expect(prompt()).not.toBeInTheDocument())
+    expect(list).toHaveFocus()
+  })
+
+  it('leaves the focus where the user put it when the prompt closes so', async () => {
+    const { store, queryClient } = await renderTab()
+    fireEvent.click(deleteButton('swift'))
+    nameInput().focus()
+
+    store.projects = store.projects.filter((project) => project.name !== 'swift')
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.projects }))
+
+    await waitFor(() => expect(prompt()).not.toBeInTheDocument())
+    expect(nameInput()).toHaveFocus()
+  })
+
+  it("closes the prompt of a project renamed, focusing the project's new name", async () => {
+    const { store } = await renderTab()
+    mockWrites(store)
+    fireEvent.click(deleteButton('swift'))
+
+    save('Name of swift', 'apple')
+    const prompts = screen.getAllByRole('form', { name: 'Confirmation' })
+    expect(prompts).toHaveLength(2)
+    fireEvent.click(within(prompts[1]).getByRole('button', { name: 'OK' }))
+
+    await waitFor(() => expect(prompt()).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Edit Name of apple' })).toHaveFocus(),
+    )
+  })
+
+  it('checks the token again even when the user has left the page meanwhile', async () => {
+    const { store, queryClient } = await renderTab()
+    queryClient.setQueryData(queryKeys.apiKeys, { items: [apiKey('manage')] })
+    const held = gate()
+    mockWrites(store, { wait: () => held.promise })
+    const rechecks = mockAuth(() => HttpResponse.json({ key: apiKey('manage') }))
+    fireEvent.click(deleteButton('swift'))
+    fireEvent.click(within(prompt()!).getByRole('button', { name: 'Delete' }))
+
+    fireEvent.click(screen.getByRole('link', { name: '2 suites of llvm' }))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await act(async () => held.open())
+
+    await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
+    expect(cachedProjects(queryClient)).toEqual(['aaa', 'llvm'])
+    expect(queryClient.getQueryData(queryKeys.apiKeys)).toBeUndefined()
   })
 })

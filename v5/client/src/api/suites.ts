@@ -258,26 +258,19 @@ type ProjectSchema = Schemas['Project']
 
 /**
  * Put `project`, as the API returned it after a write, in the list of projects: in place of the
- * project `from`, its old name, or as a new project without `from`. An entry already under its
- * name, a project deleted elsewhere since the list was fetched, goes. A list on its way is cancelled, and
- * asked for again, since it may have held more than the cache does, such as a project created
- * elsewhere. So is a list that does not hold `from`, deleted elsewhere since it was fetched.
+ * project `from`, its old name, or as a new project without `from` (see `editProjects`). An entry
+ * already under its name, a project deleted elsewhere since the list was fetched, goes. A list that
+ * does not hold `from`, deleted elsewhere since it was fetched, is asked for again.
  */
 async function putProject(
   queryClient: QueryClient,
   project: ProjectSchema,
   from?: string,
 ): Promise<void> {
-  const fetching = queryClient.isFetching({ queryKey: queryKeys.projects, exact: true }) > 0
-  await queryClient.cancelQueries({ queryKey: queryKeys.projects, exact: true })
-  let found = from === undefined
-  queryClient.setQueryData<Schemas['ProjectList']>(queryKeys.projects, (list) => {
-    if (list === undefined) return list
-    found ||= list.items.some((entry) => entry.name === from)
-    const others = list.items.filter((entry) => entry.name !== project.name && entry.name !== from)
-    return { items: [...others, project] }
-  })
-  if (fetching || !found) refetchProjects(queryClient)
+  await editProjects(queryClient, (list) => ({
+    items: [...list.filter((entry) => entry.name !== project.name && entry.name !== from), project],
+    outdated: from !== undefined && !list.some((entry) => entry.name === from),
+  }))
 }
 
 /**
@@ -319,15 +312,14 @@ export async function renameProject(
 }
 
 /**
- * Forget the deleted project `name`: cancel a list of projects on its way, which may still hold it,
- * and drop it from the cached list. The list of API keys goes too, since the project is gone from
- * the keys that listed it (I5), which would otherwise still show it.
+ * Forget the deleted project `name`: drop it from the cached list of projects, once a list on its
+ * way, which may still hold it, is cancelled (see `editProjects`). The list of API keys goes too,
+ * since the project is gone from the keys that listed it (I5), which would otherwise still show it.
  */
 export async function removeProject(queryClient: QueryClient, name: string): Promise<void> {
-  await queryClient.cancelQueries({ queryKey: queryKeys.projects })
-  queryClient.setQueryData<Schemas['ProjectList']>(
-    queryKeys.projects,
-    (list) => list && { items: list.items.filter((entry) => entry.name !== name) },
-  )
+  await editProjects(queryClient, (list) => ({
+    items: list.filter((entry) => entry.name !== name),
+    outdated: false,
+  }))
   forgetApiKeys(queryClient)
 }

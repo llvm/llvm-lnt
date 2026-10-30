@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ApiError, authedApi, unwrap } from '../../../api/client'
+import { authedApi, unwrap } from '../../../api/client'
 import {
   fullName,
-  refetchProjects,
+  refetchProjectsIfOutdated,
   refOf,
   suiteRef,
   useProjects,
@@ -101,9 +101,7 @@ export function MoveSuite({ schema, onClose, onMoved }: Props) {
     } catch (failure) {
       setError(failure)
       // A name taken, or a project deleted, meanwhile: the list says so once fetched again.
-      if (failure instanceof ApiError && (failure.status === 404 || failure.status === 409)) {
-        refetchProjects(queryClient)
-      }
+      refetchProjectsIfOutdated(queryClient, failure)
     } finally {
       setSaving(false)
     }

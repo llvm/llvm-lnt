@@ -30,6 +30,7 @@ import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage, Loaded } from '../../components/feedback'
 import { InlineEdit } from '../../components/inline-edit'
+import { useFocusOnceChecked } from '../../components/use-focus-once-checked'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { plural } from '../../format'
 import { projectLabel } from '../../labels'
@@ -192,15 +193,26 @@ function ProjectsTable({ projects }: { projects: Project[] }) {
   // The project whose deletion is being confirmed, as listed now: once gone, deleted elsewhere,
   // there is nothing left to confirm.
   const deleting = projects.find((project) => project.name === rowConfirm.item?.name)
-  const { open, done } = rowConfirm
-  const gone = rowConfirm.item !== null && deleting === undefined
-  useEffect(() => {
-    if (gone) done()
-  }, [gone, done])
+  const { open, done, close } = rowConfirm
   // The project just renamed, whose row is a new one, and whose name's Edit button takes the focus
-  // once the token has been checked again.
+  // once the token has been checked again. A list without it, renamed again or deleted elsewhere
+  // first, means that it is gone, so that a project of that name created later takes nothing.
   const [renamed, setRenamed] = useState<string | null>(null)
+  // The prompt of a project renamed is gone with its old name, and the focus with the project's
+  // name, rather than to the table.
+  const gone = rowConfirm.item !== null && deleting === undefined
+  const renaming = renamed !== null
+  useEffect(() => {
+    if (gone) close(!renaming)
+  }, [gone, renaming, close])
   const onFocused = useCallback(() => setRenamed(null), [])
+  const [listed, setListed] = useState(projects)
+  if (projects !== listed) {
+    setListed(projects)
+    if (renamed !== null && !projects.some((project) => project.name === renamed)) {
+      setRenamed(null)
+    }
+  }
 
   const names = useMemo(() => projects.map((project) => project.name), [projects])
   const columns = useMemo(
@@ -320,22 +332,11 @@ interface NameCellProps {
 function NameCell({ project, names, focus, onRenamed, onFocused, tableRef }: NameCellProps) {
   const queryClient = useQueryClient()
   const gate = useScopeGate('manage', null)
-  const { status, recheck } = useAuth()
+  const { recheck } = useAuth()
   const editRef = useRef<HTMLButtonElement>(null)
-
   // The row of a project just renamed is a new one, which the focus did not go to: its Edit button
-  // takes it once the token has been checked again, and enables it, unless the user has put it
-  // elsewhere meanwhile. If the check leaves it disabled, the table takes it instead.
-  const checking = status.state === 'checking'
-  useEffect(() => {
-    if (!focus || checking) return
-    onFocused()
-    const active = document.activeElement
-    if (active !== null && active !== document.body) return
-    const button = editRef.current
-    if (button !== null && !button.disabled) button.focus()
-    else tableRef.current?.focus()
-  }, [focus, checking, onFocused, tableRef])
+  // takes it once the token has been checked again, or the table does if it stays disabled.
+  useFocusOnceChecked(focus, onFocused, editRef, tableRef)
 
   const rename = async (name: string) => {
     const renamed = await patchProject(queryClient, project.name, { name })
