@@ -49,6 +49,19 @@ describe('grants', () => {
     expect(granted(null)).toEqual(['read'])
   })
 
+  it('grants a key restricted to a whole project its scope in every suite of it, and on it', () => {
+    const key = { scope: 'manage' as const, restricted_to: [{ project: 'llvm' }] }
+    const granted = (target: Target) => SCOPES.filter((scope) => grants(key, scope, target))
+
+    expect(granted(NTS)).toEqual(['read', 'submit', 'triage', 'manage'])
+    expect(granted(OTHER)).toEqual(['read', 'submit', 'triage', 'manage'])
+    // Covering the project in full, as creating a suite in it needs.
+    expect(granted(LLVM)).toEqual(['read', 'submit', 'triage', 'manage'])
+    expect(granted(suiteRef('other', 'nts'))).toEqual(['read'])
+    expect(granted({ project: 'other' })).toEqual(['read'])
+    expect(granted(null)).toEqual(['read'])
+  })
+
   it('grants only read to a key whose suites were all deleted', () => {
     const key = { scope: 'manage' as const, restricted_to: [] }
 
@@ -125,19 +138,19 @@ describe('useScopeGate', () => {
       disabled: true,
       title:
         "Needs an API token with the 'triage' scope in suite 'llvm/other'. The token in Settings " +
-        "has the 'triage' scope only in suites 'llvm/libcxx', 'llvm/nts'.",
+        "has the 'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
     })
     expect(result.current.higher.title).toBe(
       "Needs an API token with the 'manage' scope in suite 'llvm/nts'. The token in Settings has " +
-        "the 'triage' scope only in suites 'llvm/libcxx', 'llvm/nts'.",
+        "the 'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
     )
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'triage' scope covering project 'llvm' in full. The token in " +
-        "Settings has the 'triage' scope only in suites 'llvm/libcxx', 'llvm/nts'.",
+        "Settings has the 'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
     )
     expect(result.current.none.title).toBe(
       "Needs an instance-wide API token with the 'triage' scope. The token in Settings has the " +
-        "'triage' scope only in suites 'llvm/libcxx', 'llvm/nts'.",
+        "'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
     )
   })
 
@@ -166,11 +179,36 @@ describe('useScopeGate', () => {
     await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
     expect(result.current.other.title).toBe(
       "Needs an API token with the 'manage' scope in suite 'LLVM/Microbenchmarks'. The token in " +
-        "Settings has the 'triage' scope only in suites 'LLVM/Microbenchmarks', 'LLVM/Test suite'.",
+        "Settings has the 'triage' scope, covering only 'LLVM/Microbenchmarks', 'LLVM/Test suite'.",
     )
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'manage' scope covering project 'LLVM' in full. The token in " +
-        "Settings has the 'triage' scope only in suites 'LLVM/Microbenchmarks', 'LLVM/Test suite'.",
+        "Settings has the 'triage' scope, covering only 'LLVM/Microbenchmarks', 'LLVM/Test suite'.",
+    )
+  })
+
+  it('names a whole project of a restricted token by its label, followed by (all)', async () => {
+    signIn('manage', [{ project: 'swift' }, entry('libcxx'), entry('gone')])
+    const wrapper = providers()
+    wrapper.queryClient.setQueryData(
+      queryKeys.projects,
+      projectList(
+        [SUITE],
+        [
+          { ...PROJECT, display_name: 'LLVM' },
+          { name: 'swift', display_name: 'Swift' },
+        ],
+      ),
+    )
+    const { result } = renderHook(
+      () => ({ auth: useAuth(), project: useScopeGate('manage', LLVM) }),
+      wrapper,
+    )
+
+    await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
+    expect(result.current.project.title).toBe(
+      "Needs an API token with the 'manage' scope covering project 'LLVM' in full. The token in " +
+        "Settings has the 'manage' scope, covering only 'LLVM/gone', 'LLVM/libcxx', 'Swift' (all).",
     )
   })
 
@@ -186,7 +224,7 @@ describe('useScopeGate', () => {
       disabled: true,
       title:
         "Needs an API token with the 'triage' scope in suite 'llvm/nts'. The token in Settings " +
-        "has the 'triage' scope in no suite: the suites it was restricted to have been deleted, so it " +
+        "has the 'triage' scope, covering nothing: what it was restricted to has been deleted, so it " +
         'can only read.',
     })
   })
@@ -226,22 +264,27 @@ describe('refusalInEvery', () => {
     { ...PROJECT, suites: [] },
     { name: 'swift', display_name: 'Swift', suites: [] },
   ]
-  const valid = (restricted_to: { project: string; suite: string }[] | null) =>
+  const valid = (restricted_to: { project: string; suite?: string }[] | null) =>
     ({ state: 'valid', key: { scope: 'manage', restricted_to } }) as const
 
   it('allows an action on a project picked among some to an instance-wide token', () => {
     expect(refusalInEvery('manage', projects, valid(null) as never, projects)).toBeUndefined()
   })
 
+  it('allows it to a token covering one of them in full', () => {
+    const token = valid([entry('nts'), { project: 'swift' }]) as never
+    expect(refusalInEvery('manage', projects, token, projects)).toBeUndefined()
+  })
+
   it('says why the token covers none of them in full', () => {
     expect(refusalInEvery('manage', projects, valid([entry('nts')]) as never, projects)).toBe(
       "Needs an API token with the 'manage' scope covering a project in full. The token in " +
-        "Settings has the 'manage' scope only in suite 'llvm/nts'.",
+        "Settings has the 'manage' scope, covering only 'llvm/nts'.",
     )
     // Naming the project when there is only one.
     expect(refusalInEvery('manage', [PROJECT], valid([]) as never, projects)).toBe(
       "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token in " +
-        "Settings has the 'manage' scope in no suite: the suites it was restricted to have been " +
+        "Settings has the 'manage' scope, covering nothing: what it was restricted to has been " +
         'deleted, so it can only read.',
     )
   })

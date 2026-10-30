@@ -197,11 +197,14 @@ Send `Authorization: Bearer <token>`. Scopes form a hierarchy -- `read` <
 every lower one. `read` endpoints allow anonymous access, so send no header if
 you only read. A header that carries no usable Bearer token, or an unknown or
 revoked one, is 401 even on a `read` endpoint, and too little scope is 403. A
-key may be restricted to some suites (its `restricted_to` list of
-`{"project": ..., "suite": ...}` entries), and then has its scope only in those:
-it can neither create a suite nor change a project. Creating and deleting
-projects need an unrestricted key. Deleting a suite removes it from the keys
-restricted to it, and a suite created later under its name is not covered. To
+key may be restricted (its `restricted_to` list) to whole projects, each
+`{"project": ...}`, and single suites, each `{"project": ..., "suite": ...}`,
+and then has its scope only in the suites it covers: those it lists, and every
+suite of the projects it lists, including suites created there later. Only a key
+covering a project as a whole can create a suite in it or change its display
+name. Creating and deleting projects need an unrestricted key. Deleting a
+project or a suite removes it from the keys that list it, and one created later
+under its name is not covered; a key left with nothing listed can only read. To
 check a token before relying on it, `GET /api/auth` returns the key it belongs
 to, including the scope it grants and its `restricted_to`.
 

@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { suiteRef, type ProjectName } from './api/suites'
 import {
+  compareEntryLists,
   compareProjects,
-  compareSuiteLists,
   compareSuites,
+  entriesNamed,
+  entryLabel,
   fullLabel,
   fullLabelOf,
   projectLabel,
   projectNamed,
   suiteLabel,
   suiteOption,
-  suitesNamed,
+  type NamedEntry,
 } from './labels'
 
 const project = (name: string, display_name: string | null = null): ProjectName => ({
@@ -99,24 +101,51 @@ describe('compareSuites', () => {
   })
 })
 
-describe('suitesNamed', () => {
-  it('names the suites as listed, or by their names alone, in order', () => {
-    const suites = [suite('nts', 'LLVM test-suite'), suite('libcxx', 'libc++')]
-    const refs = [suiteRef('llvm', 'nts'), suiteRef('llvm', 'gone'), suiteRef('llvm', 'libcxx')]
-    expect(suitesNamed(suites, refs)).toEqual([
-      suite('gone', null, project('llvm')),
-      suite('libcxx', 'libc++'),
-      suite('nts', 'LLVM test-suite'),
+describe('entriesNamed', () => {
+  const EXTRA = project('llvm-extra', 'LLVM Extra')
+  const projects = [
+    { ...EXTRA, suites: [suite('alpha', null, EXTRA)] },
+    { ...LLVM, suites: [suite('nts', 'LLVM test-suite'), suite('libcxx', 'libc++')] },
+  ]
+
+  it('names whole projects and suites as listed, or by their names where not, in order', () => {
+    const refs = [
+      { project: 'llvm', suite: 'nts' },
+      { project: 'llvm-extra' },
+      { project: 'llvm', suite: 'gone' },
+      { project: 'swift' },
+      { project: 'llvm' },
+      { project: 'llvm', suite: 'libcxx' },
+    ]
+    // By project label, the whole project before its suites, then by suite label (AR22).
+    expect(entriesNamed(projects, refs)).toEqual([
+      { project: LLVM, suite: null },
+      // A suite not listed is named by its own name, under its project's label.
+      { project: LLVM, suite: suite('gone') },
+      { project: LLVM, suite: suite('libcxx', 'libc++') },
+      { project: LLVM, suite: suite('nts', 'LLVM test-suite') },
+      { project: EXTRA, suite: null },
+      { project: project('swift'), suite: null },
     ])
+  })
+
+  it('shows a whole project as its label followed by (all), and a suite by its full label', () => {
+    const named = entriesNamed(projects, [
+      { project: 'llvm' },
+      { project: 'llvm-extra', suite: 'alpha' },
+    ])
+    expect(named.map(entryLabel)).toEqual(['LLVM (all)', 'LLVM Extra/alpha'])
   })
 })
 
-describe('compareSuiteLists', () => {
-  it('compares the suites in turn, a list before those it starts', () => {
-    const [a, b, c] = [suite('a'), suite('b'), suite('c')]
-    expect(compareSuiteLists([a, c], [b])).toBeLessThan(0)
-    expect(compareSuiteLists([a], [a, b])).toBeLessThan(0)
-    expect(compareSuiteLists([a, b], [a, b])).toBe(0)
-    expect(compareSuiteLists([b], [a, c])).toBeGreaterThan(0)
+describe('compareEntryLists', () => {
+  it('compares the entries in turn, a list before those it starts', () => {
+    const whole: NamedEntry = { project: LLVM, suite: null }
+    const [a, b] = [suite('a'), suite('b')].map((s): NamedEntry => ({ project: LLVM, suite: s }))
+    expect(compareEntryLists([whole], [a])).toBeLessThan(0)
+    expect(compareEntryLists([a, b], [b])).toBeLessThan(0)
+    expect(compareEntryLists([a], [a, b])).toBeLessThan(0)
+    expect(compareEntryLists([whole, a], [whole, a])).toBe(0)
+    expect(compareEntryLists([b], [whole, b])).toBeGreaterThan(0)
   })
 })

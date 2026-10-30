@@ -6,6 +6,7 @@
  * API requests and the text typed to confirm a deletion use the names.
  */
 
+import type { Schemas } from './api/client'
 import type { ProjectName } from './api/suites'
 import { findSuite, fullName, type SuiteRef } from './api/suite-ref'
 import { compareStrings } from './format'
@@ -83,21 +84,60 @@ export function suiteOption(suite: Labelled): { value: string; label: string } {
   }
 }
 
-/**
- * The suites `refs` name, as `suites` has them, or by their names alone while `suites` does not
- * hold them, in AR22's order: what an API key covers, say.
- */
-export function suitesNamed(
-  suites: readonly Labelled[] | undefined,
-  refs: readonly SuiteRef[],
-): Labelled[] {
-  return refs.map((ref) => suiteNamed(suites, ref)).sort(compareSuites)
+/** An entry of what an API key covers (I5): a whole project, without `suite`, or one suite. */
+export type EntryRef = Schemas['RestrictionEntry']
+
+/** An entry of what an API key covers, as the UI names it: a whole project, or a single suite. */
+export interface NamedEntry {
+  project: ProjectName
+  /** Null for the whole project. */
+  suite: Labelled | null
 }
 
-/** Two lists of suites, each in AR22's order, compared suite by suite in that order. */
-export function compareSuiteLists(a: readonly Labelled[], b: readonly Labelled[]): number {
+/**
+ * The entries `refs` list, named as `projects` has them, or by their names alone while `projects`
+ * does not hold them, in AR22's order: by project, a whole project before the suites of that
+ * project, then by suite.
+ */
+export function entriesNamed(
+  projects: readonly (ProjectName & { suites: readonly Labelled[] })[] | undefined,
+  refs: readonly EntryRef[],
+): NamedEntry[] {
+  const suites = projects?.flatMap((project) => project.suites)
+  return refs
+    .map((ref) => {
+      // What names the project, without its suites.
+      const { name, display_name } = projectNamed(projects, ref.project)
+      const project = { name, display_name }
+      if (ref.suite === undefined) return { project, suite: null }
+      const listed = findSuite(suites, { project: ref.project, suite: ref.suite })
+      return { project, suite: listed ?? { name: ref.suite, display_name: null, project } }
+    })
+    .sort(compareEntries)
+}
+
+/**
+ * How `entry` is shown (AR22): a whole project by its label followed by `(all)`, and a single suite
+ * by its full label.
+ */
+export function entryLabel(entry: NamedEntry): string {
+  return entry.suite === null ? `${projectLabel(entry.project)} (all)` : fullLabel(entry.suite)
+}
+
+/** AR22's order of two entries: by project, the whole project first, then by suite. */
+function compareEntries(a: NamedEntry, b: NamedEntry): number {
+  return (
+    compareProjects(a.project, b.project) ||
+    (a.suite === null || b.suite === null
+      ? Number(b.suite === null) - Number(a.suite === null)
+      : compareLabelled(a.suite, b.suite))
+  )
+}
+
+/** Two lists of entries, each in AR22's order, compared entry by entry in that order. */
+export function compareEntryLists(a: readonly NamedEntry[], b: readonly NamedEntry[]): number {
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
-    const order = compareSuites(a[i], b[i])
+    const order = compareEntries(a[i], b[i])
     if (order !== 0) return order
   }
   return a.length - b.length

@@ -15,9 +15,10 @@ Reading data doesn't require an API key. Everything else does: send the key's to
 
 Each operation lists the scope it requires, and the `Scope` schema describes what each scope
 allows. Scopes are ordered `read` < `submit` < `triage` < `manage` < `admin`, and a key can do
-everything its scope and the scopes below it allow. A key can also be restricted to some test
-suites, and then has its scope only in those: it can't create a test suite or change a project
-then, and creating or deleting a project always needs an unrestricted key. Keys are created with
+everything its scope and the scopes below it allow. A key can also be restricted to some whole
+projects and some single test suites, and then has its scope only in the suites it covers. A key
+covering a project as a whole can also create test suites in it and change its display name.
+Creating or deleting a project always needs an unrestricted key. Keys are created with
 `POST /api/admin/api-keys`, which requires the `admin` scope; ask the instance's administrator for
 your first key.
 

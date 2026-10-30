@@ -144,7 +144,7 @@ describe('opening the editor', () => {
     await waitFor(() =>
       expect(newSuiteButton()).toHaveAccessibleDescription(
         "Needs an API token with the 'manage' scope covering a project in full. The token in " +
-          "Settings has the 'manage' scope only in suite 'llvm/nts'.",
+          "Settings has the 'manage' scope, covering only 'llvm/nts'.",
       ),
     )
     expect(newSuiteButton()).toBeDisabled()
@@ -158,7 +158,7 @@ describe('opening the editor', () => {
     await waitFor(() =>
       expect(newSuiteButton()).toHaveAccessibleDescription(
         "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token " +
-          "in Settings has the 'manage' scope only in suite 'llvm/nts'.",
+          "in Settings has the 'manage' scope, covering only 'llvm/nts'.",
       ),
     )
   })
@@ -444,7 +444,7 @@ describe('the Project dropdown', () => {
     await userEvent.setup().click(selectButton('Project'))
     const why =
       "Needs an API token with the 'manage' scope covering project 'Swift' in full. The token " +
-      "in Settings has the 'manage' scope only in suite 'llvm/nts'."
+      "in Settings has the 'manage' scope, covering only 'llvm/nts'."
     const options = await screen.findAllByRole('option')
     // Saying why on hover, and to assistive technology.
     expect(options[1]).toHaveAccessibleName(`Swift: ${why}`)
@@ -452,6 +452,32 @@ describe('the Project dropdown', () => {
     // Picking one changes nothing.
     fireEvent.click(options[1])
     expect(createButton()).toHaveAccessibleDescription('Pick a project first.')
+  })
+
+  it('enables exactly the projects a token covers in full, and creates a suite in one', async () => {
+    // A key restricted to a whole project covers it in full (AD2), and only it.
+    signIn('manage', [{ project: 'swift' }, entry('nts')])
+    const store = mockSuites([SUITE, BARE_SUITE], { projects: [PROJECT, SWIFT] })
+    renderPage('/admin?tab=suites')
+    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
+    fireEvent.click(newSuiteButton())
+    await waitFor(() => expect(selectButton('Project')).toBeEnabled())
+
+    await userEvent.setup().click(selectButton('Project'))
+    const options = await screen.findAllByRole('option')
+    expect(options[0]).toHaveAccessibleName(
+      "llvm: Needs an API token with the 'manage' scope covering project 'llvm' in full. The " +
+        "token in Settings has the 'manage' scope, covering only 'llvm/nts', 'Swift' (all).",
+    )
+    expect(options[1]).toHaveAccessibleName('Swift')
+    fireEvent.click(options[1])
+    await waitFor(() => expect(selectButton('Project')).toHaveTextContent('Swift'))
+    const sent = mockCreate(store)
+    typeInto(suiteNameInput(), 'fresh')
+    fireEvent.click(createButton())
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/fresh?tab=schema'))
+    expect(sent.map(({ project }) => project)).toEqual(['swift'])
   })
 
   it('checks the name against the suites of the project picked alone', async () => {

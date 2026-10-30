@@ -178,6 +178,46 @@ request -X PATCH -H "Authorization: Bearer ${restricted}" -H "$JSON" \
 expect_status 403
 expect_body '"code":"forbidden"'
 
+echo "  a key restricted to the whole project creates and manages its suites, and nothing else"
+whole="$(mint_key whole manage --project crud)"
+readonly WHOLE="Authorization: Bearer ${whole}"
+request -H "$WHOLE" "${BASE_URL}/api/auth"
+expect_status 200
+# Without a `suite` key at all (E11).
+expect_body '"restricted_to":\[\{"project":"crud"\}\]'
+request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"whole","metrics":[]}' "$SUITES"
+expect_status 201
+request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"whole-m"}' "${SUITES}/suite-crud/machines"
+expect_status 201
+request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"display_name": "CRUD"}' "${PROJECTS}/crud"
+expect_status 200
+request -X DELETE -H "$WHOLE" "${SUITES}/whole?confirm=true"
+expect_status 204
+request -X POST -H "$WHOLE" -H "$JSON" \
+    --data '{"name":"m"}' "${PROJECTS}/crud-other/suites/suite-crud/machines"
+expect_status 403
+expect_body '"code":"forbidden"'
+request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"crud-whole"}' "$PROJECTS"
+expect_status 403
+expect_body '"code":"forbidden"'
+
+echo "  a key restricted over the API lists a whole project as such, and not with its own suites"
+admin="$(mint_key crud-admin admin)"
+readonly ADMIN="Authorization: Bearer ${admin}"
+request -X POST -H "$ADMIN" -H "$JSON" \
+    --data '{"name":"whole","scope":"submit","restricted_to":[{"project":"crud"}]}' \
+    "${BASE_URL}/api/admin/api-keys"
+expect_status 201
+expect_body '"restricted_to":\[\{"project":"crud"\}\]'
+for entries in '[{"project":"crud"},{"project":"crud","suite":"suite-crud"}]' \
+    '[{"project":"crud","suite":null}]'; do
+    request -X POST -H "$ADMIN" -H "$JSON" \
+        --data "{\"name\":\"bad\",\"scope\":\"submit\",\"restricted_to\":${entries}}" \
+        "${BASE_URL}/api/admin/api-keys"
+    expect_status 400
+    expect_body '"code":"invalid_request"'
+done
+
 echo "  writes need a credential of their own"
 request -X POST -H "$JSON" --data '{"name":"denied","metrics":[]}' "$SUITES"
 expect_status 401
@@ -243,3 +283,8 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     expect_status 404
     expect_body '"code":"not_found"'
 done
+
+echo "  deleting it removes it from the key restricted to it, which then lists nothing"
+request -H "$WHOLE" "${BASE_URL}/api/auth"
+expect_status 200
+expect_body '"restricted_to":\[\]'

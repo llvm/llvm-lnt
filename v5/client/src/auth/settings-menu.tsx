@@ -2,10 +2,10 @@ import { Fragment, useId, useState, type FormEvent, type ReactNode } from 'react
 import { Button, Dialog, DialogTrigger } from 'react-aria-components'
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
-import { refOf, fullName, useKnownProjects, type Project } from '../api/suites'
+import { useKnownProjects, type Project } from '../api/suites'
 import { Popover } from '../components/popover'
-import { fullLabel } from '../labels'
-import { coveredSuites, RESTRICTED_TO_NOTHING } from './scope'
+import { entriesNamed, entryLabel } from '../labels'
+import { RESTRICTED_TO_NOTHING } from './scope'
 import { useAuth, type TokenStatus } from './use-auth'
 import styles from './settings-menu.module.css'
 
@@ -75,7 +75,7 @@ function SettingsPanel() {
   )
 }
 
-/** What `status` says, naming suites by their full labels as `known` has them (AR22). */
+/** What `status` says, naming what a key covers by its labels as `known` has them (AR22). */
 function statusText(status: TokenStatus, known: Project[] | undefined): ReactNode {
   switch (status.state) {
     case 'none':
@@ -84,24 +84,23 @@ function statusText(status: TokenStatus, known: Project[] | undefined): ReactNod
       return 'Checking the token...'
     case 'valid': {
       const { name, prefix, scope, restricted_to } = status.key
-      const suites = restricted_to && coveredSuites(restricted_to, known)
+      const entries = restricted_to && entriesNamed(known, restricted_to).map(entryLabel)
       return (
         <>
           Using key <strong>{name}</strong> ({prefix}), with <strong>{scope}</strong> scope
-          {suites?.length === 0 && (
-            // Its suites were all deleted, which leaves it restricted to nothing (AR22, I5).
+          {entries?.length === 0 && (
+            // What it listed was all deleted, which leaves it restricted to nothing (AR22, I5).
             <>
               , covering <strong>Nothing</strong>: {RESTRICTED_TO_NOTHING}
             </>
           )}
-          {suites !== null && suites.length > 0 && (
+          {entries !== null && entries.length > 0 && (
             <>
-              {' '}
-              in {suites.length === 1 ? 'suite' : 'suites'}{' '}
-              {suites.map((suite, i) => (
-                <Fragment key={fullName(refOf(suite))}>
+              , covering{' '}
+              {entries.map((label, i) => (
+                <Fragment key={i}>
                   {i > 0 && ', '}
-                  <strong>{fullLabel(suite)}</strong>
+                  <strong>{label}</strong>
                 </Fragment>
               ))}
             </>

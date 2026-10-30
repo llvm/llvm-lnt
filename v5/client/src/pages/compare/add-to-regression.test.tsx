@@ -94,7 +94,7 @@ describe('Add to Regression (CP9)', () => {
       expect(toggle()).toHaveAttribute(
         'title',
         "Needs an API token with the 'triage' scope in suite 'llvm/libcxx'. The token in " +
-          "Settings has the 'triage' scope only in suite 'llvm/other'.",
+          "Settings has the 'triage' scope, covering only 'llvm/other'.",
       ),
     )
     expect(toggle()).toBeDisabled()

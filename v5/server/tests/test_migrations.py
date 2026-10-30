@@ -884,6 +884,101 @@ class TestProjects:
         assert "project" in inspect(empty_engine).get_table_names()
 
 
+class TestProjectRestrictions:
+    """0012 lets a key's restriction list a whole project (D5, I5)."""
+
+    @staticmethod
+    def stage(engine: Engine) -> None:
+        """At 0012: projects `llvm` (suites `nts`, `zeta`), `libcxx` (suite `benchmarks`) and
+        `swift` (no suite), and keys restricted to some of them, as whole projects or not:
+
+        - `aaaaaaaa`: `llvm` as a whole, and `llvm/nts` too, which a move can leave (I5);
+        - `bbbbbbbb`: `swift` as a whole, alone;
+        - `cccccccc`: `libcxx/benchmarks`, alone.
+        """
+        upgrade_by_hand(engine, "0012")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO project (name) VALUES ('llvm'), ('libcxx'), ('swift'); "
+                    "INSERT INTO schema "
+                    "(project_id, name, namespace, schema_json, migration_version) "
+                    "SELECT project.id, suite, suite, '{}', 0 FROM project JOIN (VALUES "
+                    "('llvm', 'nts'), ('llvm', 'zeta'), ('libcxx', 'benchmarks')) AS s(p, suite) "
+                    "ON s.p = project.name"
+                )
+            )
+        for prefix in ("aaaaaaaa", "bbbbbbbb", "cccccccc"):
+            insert_key_row(engine, prefix, "manage")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE api_key SET restricted = true; "
+                    "INSERT INTO api_key_restriction (api_key_id, project_id, suite_id) "
+                    "SELECT api_key.id, project.id, NULL FROM api_key, project "
+                    "WHERE (prefix, project.name) IN "
+                    "(('aaaaaaaa', 'llvm'), ('bbbbbbbb', 'swift')); "
+                    "INSERT INTO api_key_restriction (api_key_id, project_id, suite_id) "
+                    "SELECT api_key.id, NULL, schema.id FROM api_key, schema "
+                    "WHERE (prefix, schema.name) IN "
+                    "(('aaaaaaaa', 'nts'), ('cccccccc', 'benchmarks'))"
+                )
+            )
+
+    def test_keeps_the_suites_keys_list(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0010")
+        store_schema_json(empty_engine, {"nts": "{}"})
+        upgrade_by_hand(empty_engine, "0011")
+        insert_key_row(empty_engine, "aaaaaaaa", "submit")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE api_key SET restricted = true; "
+                    "INSERT INTO api_key_restriction (api_key_id, suite_id) "
+                    "SELECT api_key.id, schema.id FROM api_key, schema"
+                )
+            )
+
+        upgrade_by_hand(empty_engine, "0012")
+
+        assert restrictions(empty_engine) == {"aaaaaaaa": ["nts"]}
+        with empty_engine.connect() as connection:
+            projects = connection.execute(
+                text("SELECT count(*) FROM api_key_restriction WHERE project_id IS NOT NULL")
+            ).scalar_one()
+        assert projects == 0
+
+    def test_downgrading_lists_the_suites_of_each_whole_project(self, empty_engine: Engine) -> None:
+        self.stage(empty_engine)
+
+        downgrade_by_hand(empty_engine, "0011")
+
+        # `llvm/nts` once, though listed both alone and through its project; `swift` held no suite,
+        # so its key is left restricted to nothing, which earlier builds store.
+        assert restrictions(empty_engine) == {
+            "aaaaaaaa": ["nts", "zeta"],
+            "bbbbbbbb": [],
+            "cccccccc": ["benchmarks"],
+        }
+        assert "project_id" not in column_names(empty_engine, "public", "api_key_restriction")
+        (suite_id,) = [
+            column
+            for column in inspect(empty_engine).get_columns("api_key_restriction")
+            if column["name"] == "suite_id"
+        ]
+        assert suite_id["nullable"] is False
+        checks = inspect(empty_engine).get_check_constraints("api_key_restriction")
+        assert checks == []
+
+    def test_downgrading_and_upgrading_again_matches_the_code(self, empty_engine: Engine) -> None:
+        self.stage(empty_engine)
+        downgrade_by_hand(empty_engine, "0011")
+
+        upgrade_by_hand(empty_engine, "0012")
+
+        assert_no_pending_revision(empty_engine)
+
+
 class TestSchemaNamespace:
     """0008 records each suite's namespace (D5), and widens suite names to 64 characters (D4)."""
 

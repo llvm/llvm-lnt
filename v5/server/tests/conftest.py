@@ -12,7 +12,7 @@ import base64
 import gzip
 import json
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -291,9 +291,12 @@ def api_client(api_app: FastAPI) -> Iterator[TestClient]:
         yield client
 
 
-def entry_of(name: str) -> Entry:
-    """The suite a test names: `project/suite`, or a bare name for the suite of that name in the
-    project of that name, as migrating an instance that predates projects leaves it (D7)."""
+def entry_of(name: str | Entry) -> Entry:
+    """What a test restricts a key to: an `Entry` as it is, such as a whole project, or the suite a
+    test names: `project/suite`, or a bare name for the suite of that name in the project of that
+    name, as migrating an instance that predates projects leaves it (D7)."""
+    if isinstance(name, Entry):
+        return name
     project_name, _, suite = name.partition("/")
     return Entry(project_name, suite or project_name)
 
@@ -308,13 +311,15 @@ def ensure_project(connection: Connection, name: str) -> int:
 
 @pytest.fixture
 def make_key(db_engine: Engine) -> Callable[..., str]:
-    """Mint a real key and return its token, committed so the server can resolve it. Its `suites`
-    are named as `entry_of` reads them."""
+    """Mint a real key and return its token, committed so the server can resolve it. What it is
+    restricted to, `restricted_to`, is read as `entry_of` reads it."""
 
     def make(
-        scope: Scope = Scope.ADMIN, name: str = "test key", suites: list[str] | None = None
+        scope: Scope = Scope.ADMIN,
+        name: str = "test key",
+        restricted_to: Sequence[str | Entry] | None = None,
     ) -> str:
-        entries = None if suites is None else [entry_of(suite) for suite in suites]
+        entries = None if restricted_to is None else [entry_of(entry) for entry in restricted_to]
         with db_engine.begin() as connection:
             return create_key(connection, name, scope, entries).token
 
@@ -323,21 +328,24 @@ def make_key(db_engine: Engine) -> Callable[..., str]:
 
 @pytest.fixture
 def restricted_key(db_engine: Engine, make_key: Callable[..., str]) -> Callable[..., str]:
-    """Mint a key restricted to `suites`, named as `entry_of` reads them, creating those that do
-    not exist yet with no metrics or fields, and return its token.
+    """Mint a key restricted to `entries`, read as `entry_of` reads them, creating the projects and
+    suites that do not exist yet, the suites with no metrics or fields, and return its token.
 
-    A key can only be restricted to suites that exist, and follows them (I5), so the suites a test
-    restricts a key to have to be there for as long as the key is meant to be restricted to them.
+    A key can only be restricted to projects and suites that exist, and follows them (I5), so what a
+    test restricts a key to has to be there for as long as the key is meant to be restricted to it.
     """
 
-    def make(scope: Scope, *suites: str) -> str:
-        for name in suites:
+    def make(scope: Scope, *entries: str | Entry) -> str:
+        for name in entries:
             entry = entry_of(name)
-            assert entry.suite is not None
-            ensure_suite(
-                db_engine, SuiteSchema.model_validate({"name": entry.suite}), entry.project
-            )
-        return make_key(scope, "restricted key", list(suites))
+            if entry.suite is None:
+                with db_engine.begin() as connection:
+                    ensure_project(connection, entry.project)
+            else:
+                ensure_suite(
+                    db_engine, SuiteSchema.model_validate({"name": entry.suite}), entry.project
+                )
+        return make_key(scope, "restricted key", list(entries))
 
     return make
 

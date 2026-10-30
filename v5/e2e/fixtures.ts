@@ -1,9 +1,9 @@
 /**
  * What every end-to-end test imports instead of `@playwright/test`:
  *
- * - `tokenFor(scope, restrictedTo?)`: a token for a new key of that scope, restricted to the suites
- *   `restrictedTo` names (each by its project's name and its own) if given, to act as a user who
- *   holds it.
+ * - `tokenFor(scope, restrictedTo?)`: a token for a new key of that scope, restricted to the entries
+ *   of `restrictedTo` if given (a whole project by its name, a suite by its project's name and its
+ *   own), to act as a user who holds it.
  * - `signIn(page, scope, restrictedTo?)`: store such a token in `page`'s browser, as the Settings
  *   panel does, so that the pages it loads from then on use it. Returns the token.
  * - The log of the app and of Nginx while a test ran, attached to it when it fails.
@@ -23,6 +23,9 @@ import { stackLog } from './global-setup.ts'
 export { expect }
 
 export type Scope = components['schemas']['Scope']
+
+/** An entry of a key's restriction (E11): a whole project, without `suite`, or a single suite. */
+export type Entry = components['schemas']['RestrictionEntry']
 
 export type { SuiteRef }
 export { BENCHMARKS, NTS }
@@ -65,8 +68,8 @@ export async function profiledRun(request: APIRequestContext, machine: string, c
 }
 
 interface Fixtures {
-  tokenFor: (scope: Scope, restrictedTo?: SuiteRef[]) => Promise<string>
-  signIn: (page: Page, scope: Scope, restrictedTo?: SuiteRef[]) => Promise<string>
+  tokenFor: (scope: Scope, restrictedTo?: Entry[]) => Promise<string>
+  signIn: (page: Page, scope: Scope, restrictedTo?: Entry[]) => Promise<string>
   serverLog: void
 }
 
@@ -87,10 +90,10 @@ export const test = base.extend<Fixtures>({
       const token = await tokenFor(scope, restrictedTo)
       // Storage belongs to an origin, so the page needs one first: the cheapest the server serves.
       await page.goto('/healthz')
-      await page.evaluate(([key, value]) => localStorage.setItem(key, value), [
-        TOKEN_STORAGE_KEY,
-        token,
-      ])
+      await page.evaluate(
+        ([key, value]) => localStorage.setItem(key, value),
+        [TOKEN_STORAGE_KEY, token],
+      )
       return token
     })
   },

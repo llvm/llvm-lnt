@@ -246,7 +246,7 @@ def patch_project(
 )
 def delete_project(project: ProjectName, engine: EngineDep) -> None:
     """Delete a project that has no test suites. It destroys no data, so it doesn't need
-    `confirm=true`.
+    `confirm=true`. The project is also removed from the API keys that list it.
 
     Requires an unrestricted API key, since a project shapes the instance."""
     has_suites = (

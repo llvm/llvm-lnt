@@ -1,6 +1,14 @@
 import type { Schemas } from '../api/client'
 import { useKnownProjects, type Project, type ProjectName } from '../api/suites'
-import { fullLabel, fullLabelOf, projectLabel, projectNamed, suitesNamed } from '../labels'
+import {
+  entriesNamed,
+  fullLabel,
+  fullLabelOf,
+  projectLabel,
+  projectNamed,
+  type EntryRef,
+  type NamedEntry,
+} from '../labels'
 import type { ApiKey } from './credentials'
 import { acceptedKey, useAuth, type TokenStatus } from './use-auth'
 
@@ -9,7 +17,7 @@ export type Scope = Schemas['Scope']
 /** I5's hierarchy, lowest first: a key grants its own scope and every lower one. */
 export const SCOPES = ['read', 'submit', 'triage', 'manage', 'admin'] as const satisfies Scope[]
 
-/** The scopes a key can be restricted to some suites with (I5). */
+/** The scopes a key can be restricted with (I5). */
 export const RESTRICTABLE_SCOPES: readonly Scope[] = ['submit', 'triage', 'manage']
 
 /** Where `scope` stands in the hierarchy: 0 for `read`, and one more for each scope above it. */
@@ -17,8 +25,8 @@ export function scopeRank(scope: Scope): number {
   return SCOPES.indexOf(scope)
 }
 
-/** An entry of a restricted key's list (I5): a single suite. */
-export type Entry = Schemas['RestrictionEntry']
+/** An entry of a restricted key's list (I5): a whole project, without `suite`, or one suite. */
+export type Entry = EntryRef
 
 /**
  * What an action writes to (I5): a suite; a project, in full, when `suite` is left out, such as when
@@ -27,14 +35,16 @@ export type Entry = Schemas['RestrictionEntry']
 export type Target = { project: string; suite?: string } | null
 
 /**
- * Whether a key restricted to `restrictedTo`, unless null, covers `target` (I5): a suite it lists.
- * Since a key lists single suites, only an instance-wide key covers a project in full.
+ * Whether a key restricted to `restrictedTo`, unless null, covers `target` (I5): a suite it lists,
+ * or whose project it lists, and a project in full only when it lists that project.
  */
 function covers(restrictedTo: readonly Entry[] | null, target: Target): boolean {
   if (restrictedTo === null) return true
-  return (
-    target?.suite !== undefined &&
-    restrictedTo.some((entry) => entry.project === target.project && entry.suite === target.suite)
+  if (target === null) return false
+  return restrictedTo.some(
+    (entry) =>
+      entry.project === target.project &&
+      (entry.suite === undefined || entry.suite === target.suite),
   )
 }
 
@@ -59,27 +69,27 @@ export interface ScopeGate {
   title: string | undefined
 }
 
-/** What happened to a key whose suites were all deleted, which leaves it restricted to nothing. */
+/**
+ * What happened to a key whose projects and suites were all deleted, which leaves it restricted to
+ * nothing.
+ */
 export const RESTRICTED_TO_NOTHING =
-  'the suites it was restricted to have been deleted, so it can only read'
+  'what it was restricted to has been deleted, so it can only read'
 
-/** The suites `entries` list, as the projects `known` hold them (AR22), in AR22's order. */
-export function coveredSuites(entries: readonly Entry[], known: readonly Project[] | undefined) {
-  return suitesNamed(
-    known?.flatMap((project) => project.suites),
-    entries,
-  )
+/** `entry` as a sentence names it: `'libc++' (all)` for a whole project, `'LLVM/nts'` a suite. */
+function quoted(entry: NamedEntry): string {
+  if (entry.suite === null) return `'${projectLabel(entry.project)}' (all)`
+  return `'${fullLabel(entry.suite)}'`
 }
 
 /**
- * Where a key restricted to `entries` has its scope, as a sentence says it, naming the suites by
- * their full labels as `known` has them (AR22): `only in suite 'a/b'`, `only in suites 'a/b', 'c/d'`,
- * or in none once they have all been deleted (I5).
+ * What a key restricted to `entries` covers, as a sentence says it, naming what it lists by their
+ * labels as `known` has them (AR22): `covering only 'libc++' (all), 'LLVM/nts'`, or nothing once
+ * they have all been deleted (I5).
  */
 function restrictionText(entries: readonly Entry[], known: readonly Project[] | undefined): string {
-  if (entries.length === 0) return `in no suite: ${RESTRICTED_TO_NOTHING}`
-  const labels = coveredSuites(entries, known).map((suite) => `'${fullLabel(suite)}'`)
-  return `only in ${labels.length === 1 ? 'suite' : 'suites'} ${labels.join(', ')}`
+  if (entries.length === 0) return `covering nothing: ${RESTRICTED_TO_NOTHING}`
+  return `covering only ${entriesNamed(known, entries).map(quoted).join(', ')}`
 }
 
 /** What a reason can be about: a target, or any one project in full, picked among several. */
@@ -125,7 +135,7 @@ function reason(
     case 'checking':
       return `${needs} The token in Settings is still being checked.`
     case 'valid': {
-      const where = restricted === null ? '' : ` ${restrictionText(restricted, known)}`
+      const where = restricted === null ? '' : `, ${restrictionText(restricted, known)}`
       return `${needs} The token in Settings has the '${status.key.scope}' scope${where}.`
     }
     case 'invalid':

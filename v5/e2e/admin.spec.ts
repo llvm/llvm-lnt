@@ -90,7 +90,11 @@ test.describe('the API Keys tab', () => {
     await expect(created).toBeHidden()
   })
 
-  test('creates a key restricted to some suites', async ({ page, request, signIn }, testInfo) => {
+  test('creates a key restricted to a whole project and a suite', async ({
+    page,
+    request,
+    signIn,
+  }, testInfo) => {
     await signIn(page, 'admin')
     await page.goto('/admin')
     const keys = table(page, 'API keys')
@@ -100,27 +104,34 @@ test.describe('the API Keys tab', () => {
     const form = page.getByRole('form', { name: 'Create API Key' })
     await form.getByLabel('Name').fill(name)
     await pickOption(form, 'Scope', 'submit')
-    await form.getByRole('radio', { name: 'Only these suites:' }).check()
-    // The list of suites stays open while they are checked.
-    const suites = selectButton(form, 'Suites to restrict to')
-    await expect(suites).toHaveText(/Select suites/)
-    await suites.click()
+    await form.getByRole('radio', { name: 'Only these:' }).check()
+    // The tree stays open while its boxes are checked.
+    const covers = selectButton(form, 'Projects and suites to restrict to')
+    await expect(covers).toHaveText(/Select projects or suites/)
+    await covers.click()
+    // Every project, those without suites included, saying so (AD1).
+    await expect(page.getByRole('option', { name: 'swift (no suites)', exact: true })).toBeVisible()
+    await page.getByRole('option', { name: 'libc++', exact: true }).click()
+    // The project's suites are then checked, and stay so.
+    const benchmarks = page.getByRole('option', { name: /^libc\+\+\/Microbenchmarks: Covered/ })
+    await expect(benchmarks).toHaveAttribute('aria-selected', 'true')
+    await benchmarks.click()
+    await expect(benchmarks).toHaveAttribute('aria-selected', 'true')
     // Each suite by its full label (AR22).
     await page.getByRole('option', { name: 'LLVM/nts', exact: true }).click()
-    await page.getByRole('option', { name: 'libc++/Microbenchmarks', exact: true }).click()
     await page.keyboard.press('Escape')
-    await expect(suites).toHaveText(/libc\+\+\/Microbenchmarks, LLVM\/nts/)
-    await expect(suites).toBeFocused()
+    await expect(covers).toHaveText(/libc\+\+ \(all\), LLVM\/nts/)
+    await expect(covers).toBeFocused()
     await form.getByRole('button', { name: 'Create key' }).click()
 
     const created = page.getByRole('region', { name: 'Created key' })
     const token = (await created.locator('code').textContent()) ?? ''
     const row = rows(keys).filter({ hasText: token.slice(0, 8) })
-    await expect(row.locator('td').nth(3)).toHaveText('libc++/Microbenchmarks, LLVM/nts')
+    await expect(row.locator('td').nth(3)).toHaveText('libc++ (all), LLVM/nts')
     expect(await keyOf(request, token)).toMatchObject({
       name,
       scope: 'submit',
-      restricted_to: [BENCHMARKS, NTS],
+      restricted_to: [{ project: 'libcxx' }, NTS],
     })
   })
 
@@ -147,7 +158,7 @@ test.describe('the API Keys tab', () => {
     const row = rows(table(page, 'API keys')).filter({ hasText: token.slice(0, 8) })
     const covers = row.locator('td').nth(3)
     await expect(covers).toHaveText('Nothing')
-    await expect(covers.getByText('Nothing')).toHaveAttribute('title', /have been deleted/)
+    await expect(covers.getByText('Nothing')).toHaveAttribute('title', /has been deleted/)
     expect(await keyOf(request, token)).toMatchObject({ restricted_to: [] })
   })
 
@@ -197,6 +208,32 @@ test.describe('the API Keys tab', () => {
 })
 
 test.describe('the Test Suites tab', () => {
+  test('creates a suite in the project a manage token covers in full, and only there', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
+      await signIn(page, 'manage', [{ project: suite.project }])
+      await page.goto('/admin?tab=suites')
+      await page.getByRole('button', { name: 'New suite' }).click()
+      const editor = page.getByRole('region', { name: 'New suite' })
+
+      // The other projects are refused, saying why (AD2, TS7).
+      await selectButton(editor, 'Project').click()
+      await expect(page.getByRole('option', { name: /^libc\+\+/ })).toContainText(
+        "Needs an API token with the 'manage' scope covering project 'libc++' in full.",
+      )
+      await page.keyboard.press('Escape')
+      await pickOption(editor, 'Project', suite.project)
+      await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
+      await editor.getByRole('button', { name: 'Create', exact: true }).click()
+
+      await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
+    })
+  })
+
   test('creates no suite with a manage token restricted to a suite', async ({ page, signIn }) => {
     await signIn(page, 'manage', [BENCHMARKS])
     await page.goto('/admin?tab=suites')
