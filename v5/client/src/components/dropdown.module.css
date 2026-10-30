@@ -70,7 +70,8 @@
   color: var(--lnt-muted);
 }
 
-/* Nothing to set apart from at the top of the list. */
+/* Nothing to set apart from at the top of the list, a combobox's included. Not in a virtualized
+   list, where React Aria wraps each section in a positioned element of its own. */
 .list > section:first-child > .sectionHeader {
   border-top: none;
 }

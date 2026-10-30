@@ -995,9 +995,7 @@ describe('Start from', () => {
     const user = userEvent.setup()
     await user.click(selectButton('Start from'))
     // Only suites, under the heading of the one project that has any (AR22).
-    expect(screen.getAllByRole('group').map((group) => group.textContent)).toEqual([
-      'llvmalphaMicrobenchmarks',
-    ])
+    expect(screen.getAllByRole('group')).toHaveLength(1)
     const group = screen.getByRole('group', { name: 'llvm' })
     expect(optionsIn(group)).toEqual(['alpha', 'Microbenchmarks'])
     expect(screen.getAllByRole('option')).toHaveLength(2)

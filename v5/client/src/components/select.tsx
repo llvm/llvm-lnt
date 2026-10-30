@@ -30,7 +30,9 @@ export interface Option<Value extends string> {
    * The group the option is listed under, if it is in one: its heading, which is not an option, and
    * what tells it apart from another group with the same heading. The options in no group come
    * first, then each group, in the order the options give them, as a combobox lists its groups
-   * (AR14).
+   * (AR14). Groups and options share one space of ids, where a group's starts with `/section/`, so
+   * an option in a dropdown with groups must not have a value starting with it. A suite's, its full
+   * name `project/suite`, starts with a project name, which is never empty (D7).
    */
   section?: { key: string; heading: string }
   /**
@@ -152,11 +154,9 @@ export function Select<Value extends string>({
         <Popover className={shared.popover} maxHeight={320}>
           <ListBox className={shared.list}>
             <Collection items={unsectioned}>{optionItem}</Collection>
-            {/* Groups and options share one space of ids. A group's starts with `/section/`, which
-                no option's value may start with: only suite dropdowns have groups (AR22), whose
-                values are full names, `project/suite`, and a name holds no `/` (D7, I1). */}
+            {/* A group's id starts with `/section/` (see `Option.section`). */}
             {sections.map(([key, grouped]) => (
-              <ListBoxSection key={key} id={`/section/${key}`}>
+              <ListBoxSection key={`/section/${key}`} id={`/section/${key}`}>
                 <Header className={shared.sectionHeader}>{grouped[0].section!.heading}</Header>
                 <Collection items={grouped}>{optionItem}</Collection>
               </ListBoxSection>
