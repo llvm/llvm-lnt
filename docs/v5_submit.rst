@@ -39,7 +39,8 @@ or in the ``LNT_TOKEN`` environment variable.
 
    The project must exist in either case: the command never creates one.
    Creating a project requires an instance-wide token with ``manage`` scope,
-   through the REST API, e.g.::
+   from the Projects tab of the web UI's Admin page, or through the REST API,
+   e.g.::
 
        curl -X POST https://lnt.example.com/api/projects \
            -H 'Authorization: Bearer <token>' \

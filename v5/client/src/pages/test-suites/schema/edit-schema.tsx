@@ -2,7 +2,7 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, authedApi, unwrap, type Schemas } from '../../../api/client'
 import {
-  refetchProjects,
+  refetchProjectsIfOutdated,
   removeSuite,
   updateSuite,
   useSuiteLabel,
@@ -233,10 +233,6 @@ function useSaveSchema(suite: SuiteRef) {
         }),
       ),
     onSuccess: (schema) => updateSuite(queryClient, suite.project, schema),
-    onError: (error) => {
-      if (error instanceof ApiError && (error.code === 'not_found' || error.code === 'duplicate')) {
-        refetchProjects(queryClient)
-      }
-    },
+    onError: (error) => refetchProjectsIfOutdated(queryClient, error),
   })
 }

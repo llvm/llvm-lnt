@@ -170,7 +170,7 @@ describe('opening the editor', () => {
 
     await waitFor(() =>
       expect(newSuiteButton()).toHaveAccessibleDescription(
-        'There are no projects to create a suite in.',
+        'There are no projects to create a suite in. Create one in the Projects tab.',
       ),
     )
     expect(newSuiteButton()).toBeDisabled()

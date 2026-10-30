@@ -18,6 +18,7 @@ import {
   removeEntry,
   repositoryProblems,
   schemaOf,
+  projectNameProblem,
   suiteNameProblem,
   type Draft,
 } from './schema-editor-model'
@@ -149,6 +150,19 @@ describe('suiteNameProblem', () => {
 
   it('leaves an empty name alone', () => {
     expect(suiteNameProblem('', [])).toBeUndefined()
+  })
+})
+
+describe('projectNameProblem', () => {
+  it("follows a suite name's rule (D7), and refuses a name a project has", () => {
+    expect(projectNameProblem('libcxx-2', ['libcxx'])).toBeUndefined()
+    expect(projectNameProblem('a'.repeat(64), [])).toBeUndefined()
+    expect(projectNameProblem('LibCxx', [])).toMatch(/lowercase letters/)
+    expect(projectNameProblem('a'.repeat(65), [])).toMatch(/at most 64/)
+    expect(projectNameProblem('libcxx', ['libcxx'])).toBe(
+      "There is already a project named 'libcxx'.",
+    )
+    expect(projectNameProblem('', ['libcxx'])).toBeUndefined()
   })
 })
 

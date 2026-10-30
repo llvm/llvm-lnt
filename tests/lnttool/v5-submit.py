@@ -205,7 +205,7 @@ submit('--project', 'nope', '--suite', 'nts', '--create-suite', SCHEMA,
        '--token', 'admin-token', RUNS)
 # CHECK-NEXT: error: there is no suite 'nope/nts': 404 no such project
 # CHECK-NEXT: exit: 1, posted: 0, listed: 0
-# CHECK-NEXT: error: there is no project 'nope'; create it first, with POST /api/projects
+# CHECK-NEXT: error: there is no project 'nope'; create it first, from the Admin page's Projects tab or with POST /api/projects
 # CHECK-NEXT: exit: 1, posted: 0, listed: 0
 
 # The suite is named by its project and its own name, which are both required.

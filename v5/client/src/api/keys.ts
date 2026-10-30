@@ -18,6 +18,8 @@ export const queryKeys = {
   projects: ['projects'] as const,
   apiKeys: ['api-keys'] as const,
   suite: ({ project, suite }: SuiteRef) => ['suite', project, suite] as const,
+  /** Everything read from inside every suite of the project `project` (see `suite`). */
+  projectSuites: (project: string) => ['suite', project] as const,
   /** Everything read about the suite's machines: lists, whatever their filters, and details. */
   machines: (suite: SuiteRef) => [...queryKeys.suite(suite), 'machines'] as const,
   /**
