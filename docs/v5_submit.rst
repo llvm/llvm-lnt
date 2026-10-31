@@ -12,9 +12,11 @@ run submission per line (the JSON Lines format), such as
 Example
 -------
 
-To submit the runs in ``runs.jsonl`` to the ``nts`` suite of a v5 instance::
+To submit the runs in ``runs.jsonl`` to the ``nts`` suite of the ``llvm``
+project of a v5 instance::
 
-    lnt v5 submit https://lnt.example.com --suite nts --token <token> runs.jsonl
+    lnt v5 submit https://lnt.example.com --project llvm --suite nts \
+        --token <token> runs.jsonl
 
 See ``lnt v5 submit --help`` for the other options.
 
@@ -29,7 +31,7 @@ or in the ``LNT_TOKEN`` environment variable.
    schema in ``FILE``, which requires a token with ``manage`` scope. The
    schema's ``name`` must be the suite's. It is an error if the suite already
    exists, and nothing is submitted. Without ``--create-suite``, the suite must
-   already exist.
+   already exist. The project must always already exist.
 2. With ``--skip-existing``, the command lists the runs the suite already has,
    and skips the submissions whose ``uuid`` is among them. Submitting the same
    runs again therefore only submits those that are missing, e.g. after an

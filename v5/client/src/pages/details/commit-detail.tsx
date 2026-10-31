@@ -13,7 +13,7 @@ import {
 import { queryKeys } from '../../api/keys'
 import { fetchRegressions } from '../../api/regressions'
 import { fetchRuns } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
+import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useCursorPages, type CursorPages } from '../../api/use-cursor-pages'
 import { useScopeGate } from '../../auth/scope'
@@ -42,6 +42,7 @@ import { CompareWithPrevious, NO_ORDINAL } from './compare-with-previous'
 import { RegressionsTable } from './regressions-table'
 import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
+import { useSuiteParams } from '../../suite-params'
 
 type CommitDetail = Schemas['CommitDetail']
 type Run = Schemas['Run']
@@ -58,7 +59,8 @@ const PARAMS = { machine_filter: trimmedStringParam() }
 
 /** The Commit Detail page (DT3). */
 export default function CommitDetailPage() {
-  const { suite = '', value = '' } = useParams()
+  const suite = useSuiteParams()
+  const { value = '' } = useParams()
   return (
     <section>
       <SuiteTrail suite={suite} tab="commits" />
@@ -66,14 +68,20 @@ export default function CommitDetailPage() {
       <h1>Commit: {value}</h1>
       <WithSchema suite={suite}>
         {/* Keyed, so that nothing of a commit's page, an open editor say, stays on another's. */}
-        {(schema) => <CommitContent key={`${suite}/${value}`} schema={schema} value={value} />}
+        {(schema) => (
+          <CommitContent
+            key={`${fullName(suite)}/${value}`}
+            schema={schema}
+            value={value}
+          />
+        )}
       </WithSchema>
     </section>
   )
 }
 
 /** Every run at the commit `value` (E4), fetched page after page. */
-function useRuns(suite: string, value: string) {
+function useRuns(suite: SuiteRef, value: string) {
   // I2's largest page: a commit can have runs on many machines.
   const query = { commit: value, sort: '-measured_at', limit: MAX_PAGE_SIZE } as const
   return useCursorPages({
@@ -83,8 +91,8 @@ function useRuns(suite: string, value: string) {
   })
 }
 
-function CommitContent({ schema, value }: { schema: SuiteSchema; value: string }) {
-  const suite = schema.name
+function CommitContent({ schema, value }: { schema: Suite; value: string }) {
+  const suite = refOf(schema)
   const commit = useCommit(suite, value)
   // Fetched alongside the commit rather than once it has loaded, since they may take the longest.
   // The page shows them once the commit has loaded, so that one that does not exist shows only
@@ -109,7 +117,7 @@ function CommitContent({ schema, value }: { schema: SuiteSchema; value: string }
  * Changes are sent one after the other, so that the answer to an earlier one, arriving late, does
  * not replace a later one's.
  */
-function useUpdateCommit(suite: string, value: string) {
+function useUpdateCommit(suite: SuiteRef, value: string) {
   const queryClient = useQueryClient()
   const update = useMutation({
     scope: { id: JSON.stringify(commitKey(suite, value)) },
@@ -117,8 +125,8 @@ function useUpdateCommit(suite: string, value: string) {
     onMutate: () => cancelCommit(queryClient, suite, value),
     mutationFn: (body: Schemas['CommitUpdate']) =>
       unwrap(
-        authedApi.PATCH('/api/suites/{testsuite}/commits/{value}', {
-          params: { path: { testsuite: suite, value } },
+        authedApi.PATCH('/api/projects/{project}/suites/{suite}/commits/{value}', {
+          params: { path: { ...suite, value } },
           body,
         }),
       ),
@@ -149,9 +157,9 @@ function invalidOrdinal(text: string): string | undefined {
  * The commit, and its ordinal, tag and fields, which a holder of `manage` scope can edit, the
  * display field marked as such.
  */
-function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
-  const update = useUpdateCommit(schema.name, commit.value)
-  const manage = useScopeGate('manage', schema.name)
+function CommitInfo({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
+  const update = useUpdateCommit(refOf(schema), commit.value)
+  const manage = useScopeGate('manage', refOf(schema))
   return (
     <InfoBox label="Commit">
       <InfoRow label="Commit" mono>
@@ -209,8 +217,8 @@ function CommitInfo({ schema, commit }: { schema: SuiteSchema; commit: CommitDet
  * Previous commit, Next commit, the commit in the repository, and Delete commit, with its
  * confirmation below them (DT3).
  */
-function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail }) {
-  const suite = schema.name
+function Actions({ schema, commit }: { schema: Suite; commit: CommitDetail }) {
+  const suite = refOf(schema)
   const { value } = commit
   const unordered = commit.ordinal === null
   // A link to `neighbour`, which it names on hover, or why there is none.
@@ -239,8 +247,8 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
         busyMessage: 'Deleting a commit with many runs may take a while.',
         onDelete: () =>
           unwrap(
-            authedApi.DELETE('/api/suites/{testsuite}/commits/{value}', {
-              params: { path: { testsuite: suite, value } },
+            authedApi.DELETE('/api/projects/{project}/suites/{suite}/commits/{value}', {
+              params: { path: { ...suite, value } },
             }),
           ),
         leaveTo: suiteTabPath(suite, 'commits'),
@@ -254,7 +262,7 @@ function Actions({ schema, commit }: { schema: SuiteSchema; commit: CommitDetail
 }
 
 /** The regressions attributed to the commit, newest first, a page at a time (DT3). */
-function CommitRegressions({ suite, value }: { suite: string; value: string }) {
+function CommitRegressions({ suite, value }: { suite: SuiteRef; value: string }) {
   const query = { commit: value, sort: '-created_at', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
     // Apart from the Regressions tab's lists, which hold the same pages, with their commits
@@ -298,7 +306,7 @@ function machineCount(runs: Run[]): number {
  * name locally, each with a link comparing it with the commit before on its machine (DT3). They
  * are shown as they arrive, page after page.
  */
-function CommitRuns({ schema, runs }: { schema: SuiteSchema; runs: CursorPages<Run> }) {
+function CommitRuns({ schema, runs }: { schema: Suite; runs: CursorPages<Run> }) {
   const [settings, update] = useUrlState(PARAMS)
   // Stable, so that each machine's runs stay most recently measured first, as the API gave them.
   const rows = useMemo(
@@ -363,7 +371,7 @@ function CommitRuns({ schema, runs }: { schema: SuiteSchema; runs: CursorPages<R
 /** Every run has the same commit, which the table does not show, so none is resolved. */
 const NO_COMMITS = new Map<string, Commit>()
 
-function runsColumns(schema: SuiteSchema): Column<Run>[] {
+function runsColumns(schema: Suite): Column<Run>[] {
   const { machine, run, measured } = runColumns(schema, NO_COMMITS)
   // This page has no metric selector, so the link compares Run Detail's default metric (DT3).
   const metric = defaultMetric(schema)?.name

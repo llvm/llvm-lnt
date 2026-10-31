@@ -22,12 +22,17 @@ which a step may take from `suites/tables.py` (`new_namespace` and `label`): tha
 the global tables, which are always at the latest revision when steps run (D6). So those two must
 stay callable inside a suite's migration transaction, and assume nothing about the suite's tables.
 
+For the same reason, what a step reads or writes in the global tables follows their latest
+structure, not the structure they had when the step was written: a step addresses the suite's
+`schema` row by its id, say, since a name is unique only within its project (D7).
+
 A step receives two arguments:
 
 - An Alembic `Operations` object bound to the suite's transaction.
-- The suite (`store.StoredSuite`): its schema, since what a step changes may depend on its dynamic
-  columns, and the namespace its tables are in, which is not necessarily its name (D5). Pass
-  `schema=suite.namespace` to each operation; nothing qualifies table names for you.
+- The suite (`store.StoredSuite`): its identity and names, its schema, since what a step changes
+  may depend on its dynamic columns, and the namespace its tables are in, which is not necessarily
+  its name (D5). Pass `schema=suite.namespace` to each operation; nothing qualifies table names for
+  you.
 
 A step may move the suite to another namespace, by renaming it and recording the new one in
 `schema.namespace` (D6). `migrate.py` then hands the later steps the new namespace.
@@ -322,15 +327,26 @@ def _generated_namespace(op: Operations, suite: StoredSuite) -> None:
     namespace = suite_tables.new_namespace(connection)
     quote = connection.dialect.identifier_preparer.quote
     op.execute(sa.text(f"ALTER SCHEMA {quote(suite.namespace)} RENAME TO {quote(namespace)}"))
-    suite_tables.label(connection, namespace, suite.name)
-    schema = sa.table("schema", sa.column("name"), sa.column("namespace"))
-    op.execute(schema.update().where(schema.c.name == suite.name).values(namespace=namespace))
+    suite_tables.label(connection, namespace, suite.full_name)
+    schema = sa.table("schema", sa.column("id"), sa.column("namespace"))
+    op.execute(schema.update().where(schema.c.id == suite.id).values(namespace=namespace))
     schema_version = sa.table("schema_version", sa.column("id"), sa.column("version"))
     op.execute(
         schema_version.update()
         .where(schema_version.c.id == 1)
         .values(version=schema_version.c.version + 1)
     )
+
+
+def _full_name_label(op: Operations, suite: StoredSuite) -> None:
+    """Version 8: the suite's namespace labelled with the suite's full name (D7), `project/suite`,
+    as a new suite's is.
+
+    The label is for whoever reads the database directly, and changes nothing a worker caches, so
+    unlike version 7 this does not bump `schema_version`. Like version 7, it takes the label from
+    `suites/tables.py`.
+    """
+    suite_tables.label(op.get_bind(), suite.namespace, suite.full_name)
 
 
 STEPS: Sequence[Step] = (
@@ -341,6 +357,7 @@ STEPS: Sequence[Step] = (
     _inactivity_columns,
     _sample_repetition,
     _generated_namespace,
+    _full_name_label,
 )
 
 

@@ -6,7 +6,15 @@ import type { ApiKey } from '../../api/api-keys'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
-import { apiKey, changeInAnotherTab, mockAuth, signIn, TOKEN, unknownToken } from '../../test/auth'
+import {
+  apiKey,
+  changeInAnotherTab,
+  entry,
+  mockAuth,
+  signIn,
+  TOKEN,
+  unknownToken,
+} from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -21,7 +29,7 @@ import {
   table,
 } from '../../test/page'
 import { pickOption, selectButton, toggleOptions } from '../../test/select'
-import { BARE_SUITE, SUITE } from '../../test/fixtures'
+import { BARE_SUITE, PROJECT, SUITE } from '../../test/fixtures'
 import { server } from '../../test/server'
 
 /** The key of the token `signIn` stores, among the others. */
@@ -42,7 +50,7 @@ const KEYS: ApiKey[] = [
   apiKey('manage', {
     prefix: '135f502b',
     name: 'test-key',
-    suites: ['libcxx', 'nts'],
+    restricted_to: [entry('libcxx'), entry('nts')],
     created_at: '2026-08-11T13:04:23Z',
     last_used_at: '2026-08-18T03:49:26Z',
   }),
@@ -50,7 +58,7 @@ const KEYS: ApiKey[] = [
   apiKey('submit', {
     prefix: '3f0ac112',
     name: 'old-bot',
-    suites: ['nts'],
+    restricted_to: [entry('nts')],
     created_at: '2026-07-02T09:12:44Z',
     last_used_at: '2026-08-01T18:20:11Z',
     is_active: false,
@@ -59,9 +67,9 @@ const KEYS: ApiKey[] = [
 
 const ROWS = [
   '229d78c5 | test-key2 | read | All | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
-  '135f502b | test-key | manage | libcxx, nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
+  '135f502b | test-key | manage | llvm/libcxx, llvm/nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
   'aaaaaaaa | my-admin | admin | All | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | Revoke',
-  '3f0ac112 | old-bot | submit | nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
+  '3f0ac112 | old-bot | submit | llvm/nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
 ]
 
 /** The keys the mocked API holds, as it lists them, and the `Authorization` of each listing. */
@@ -376,7 +384,7 @@ describe('sorting the keys', () => {
     // All first, then by the suites' names in order.
     fireEvent.click(within(list).getByRole('button', { name: 'Suites' }))
     expect(prefixes(list)).toEqual(['229d78c5', 'aaaaaaaa', '135f502b', '3f0ac112'])
-    await waitFor(() => expect(currentUrl()).toBe('/admin?sort=suites'))
+    await waitFor(() => expect(currentUrl()).toBe('/admin?sort=restricted_to'))
     fireEvent.click(within(list).getByRole('button', { name: /Suites/ }))
     expect(prefixes(list)).toEqual(['3f0ac112', '135f502b', '229d78c5', 'aaaaaaaa'])
 
@@ -388,7 +396,7 @@ describe('sorting the keys', () => {
     const orphan = apiKey('submit', {
       prefix: '7d1e40aa',
       name: 'swift-bot',
-      suites: [],
+      restricted_to: [],
       created_at: '2026-08-02T16:40:10Z',
     })
     const { list } = await renderKeys({ keys: [...KEYS.slice(0, 3), orphan, KEYS[3]] })
@@ -409,16 +417,41 @@ describe('sorting the keys', () => {
 
   it('names the suites of a key by their labels, sorted by them (AR22)', async () => {
     mockSuites([{ ...SUITE, display_name: 'zeta' }, BARE_SUITE])
-    const both = apiKey('triage', { prefix: 'bbbbbbbb', suites: ['libcxx', 'nts'] })
-    const libcxx = apiKey('triage', { prefix: 'cccccccc', suites: ['libcxx'] })
-    const nts = apiKey('triage', { prefix: 'dddddddd', suites: ['nts'] })
+    const both = apiKey('triage', {
+      prefix: 'bbbbbbbb',
+      restricted_to: [entry('libcxx'), entry('nts')],
+    })
+    const libcxx = apiKey('triage', { prefix: 'cccccccc', restricted_to: [entry('libcxx')] })
+    const nts = apiKey('triage', { prefix: 'dddddddd', restricted_to: [entry('nts')] })
     const { list } = await renderKeys({ keys: [libcxx, both, nts] })
 
-    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('zeta'))
-    expect(rowsOf(list)[1].split(' | ')[3]).toBe('nts, zeta')
+    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('llvm/zeta'))
+    expect(rowsOf(list)[1].split(' | ')[3]).toBe('llvm/nts, llvm/zeta')
 
     fireEvent.click(within(list).getByRole('button', { name: 'Suites' }))
     expect(prefixes(list)).toEqual(['dddddddd', 'bbbbbbbb', 'cccccccc'])
+  })
+
+  it("names suites of several projects by full labels, a project's together (AR22)", async () => {
+    const extra = { name: 'extra', display_name: 'LLVM Extra' }
+    const llvm = { ...PROJECT, display_name: 'LLVM' }
+    mockSuites([
+      { ...SUITE, project: llvm, name: 'zeta' },
+      { ...BARE_SUITE, project: extra, name: 'alpha' },
+    ])
+    const key = apiKey('triage', {
+      prefix: 'bbbbbbbb',
+      restricted_to: [
+        { project: 'extra', suite: 'alpha' },
+        { project: 'llvm', suite: 'zeta' },
+      ],
+    })
+    const { list } = await renderKeys({ keys: [key] })
+
+    // By project, then by suite, rather than by the full labels as strings.
+    await waitFor(() =>
+      expect(rowsOf(list)[0].split(' | ')[3]).toBe('LLVM/zeta, LLVM Extra/alpha'),
+    )
   })
 
   it('keeps the sort in the URL, leaving out the default one', async () => {
@@ -477,7 +510,7 @@ describe('creating a key', () => {
 
     const created = await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'ci-bot', scope: 'submit', suites: null },
+      { name: 'ci-bot', scope: 'submit', restricted_to: null },
     ])
     expect(created).toHaveTextContent(
       'Key created. Copy the token now — it will not be shown again:',
@@ -516,13 +549,13 @@ describe('creating a key', () => {
     expect(suitesButton()).toHaveTextContent('Select suites')
     expect(createButton()).toHaveAccessibleDescription('Pick at least one suite.')
 
-    await toggleOptions('Suites to restrict to', ['nts'], createForm())
-    expect(suitesButton()).toHaveTextContent('nts')
+    await toggleOptions('Suites to restrict to', ['llvm/nts'], createForm())
+    expect(suitesButton()).toHaveTextContent('llvm/nts')
     fireEvent.click(createButton())
 
     await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'ci-bot', scope: 'triage', suites: ['nts'] },
+      { name: 'ci-bot', scope: 'triage', restricted_to: [entry('nts')] },
     ])
   })
 
@@ -540,14 +573,14 @@ describe('creating a key', () => {
     const list = await screen.findByRole('listbox')
     expect(list).toHaveAttribute('aria-multiselectable', 'true')
     expect(within(list).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'libcxx',
-      'nts',
-      'zorg',
+      'llvm/libcxx',
+      'llvm/nts',
+      'llvm/zorg',
     ])
     // Space checks the option focused, and the list stays open for more.
     await user.keyboard(' ')
     await user.keyboard('{ArrowDown} ')
-    expect(within(list).getByRole('option', { name: 'nts' })).toHaveAttribute(
+    expect(within(list).getByRole('option', { name: 'llvm/nts' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -555,7 +588,7 @@ describe('creating a key', () => {
     expect(within(list).queryAllByRole('checkbox')).toHaveLength(0)
     const boxes = within(list).getAllByRole<HTMLInputElement>('checkbox', { hidden: true })
     expect(boxes.map((box) => box.checked)).toEqual([true, true, false])
-    expect(button).toHaveTextContent('libcxx, nts')
+    expect(button).toHaveTextContent('llvm/libcxx, llvm/nts')
     await user.keyboard('{ArrowDown} ')
     // Too many to name.
     expect(button).toHaveTextContent('3 selected')
@@ -571,7 +604,7 @@ describe('creating a key', () => {
     const form = within(createForm())
     await pickOption('Scope', 'manage', createForm())
     fireEvent.click(form.getByRole('radio', { name: 'Only these suites:' }))
-    await toggleOptions('Suites to restrict to', ['libcxx'], createForm())
+    await toggleOptions('Suites to restrict to', ['llvm/libcxx'], createForm())
 
     await pickOption('Scope', 'admin', createForm())
 
@@ -582,12 +615,14 @@ describe('creating a key', () => {
     await pickOption('Scope', 'triage', createForm())
     expect(form.getByRole('radio', { name: 'All suites (instance-wide)' })).toBeChecked()
     expect(suitesButton()).toBeDisabled()
-    expect(suitesButton()).toHaveTextContent('libcxx')
+    expect(suitesButton()).toHaveTextContent('llvm/libcxx')
 
     await pickOption('Scope', 'admin', createForm())
     createKey('root')
     await findCreatedKey()
-    expect(sent.map(({ body }) => body)).toEqual([{ name: 'root', scope: 'admin', suites: null }])
+    expect(sent.map(({ body }) => body)).toEqual([
+      { name: 'root', scope: 'admin', restricted_to: null },
+    ])
   })
 
   it('sends only the suites checked that are still listed', async () => {
@@ -595,24 +630,24 @@ describe('creating a key', () => {
     const sent = mockCreate(store)
     await pickOption('Scope', 'submit', createForm())
     fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these suites:' }))
-    await toggleOptions('Suites to restrict to', ['libcxx', 'nts'], createForm())
+    await toggleOptions('Suites to restrict to', ['llvm/libcxx', 'llvm/nts'], createForm())
 
     // nts is deleted meanwhile.
     const suites = mockSuites([SUITE])
-    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.suites }))
-    await waitFor(() => expect(suitesButton()).not.toHaveTextContent('nts'))
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects }))
+    await waitFor(() => expect(suitesButton()).not.toHaveTextContent('llvm/nts'))
     expect(suites.requests).toBe(1)
     createKey('ci-bot')
 
     await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'ci-bot', scope: 'submit', suites: ['libcxx'] },
+      { name: 'ci-bot', scope: 'submit', restricted_to: [entry('libcxx')] },
     ])
   })
 
   it('creates an instance-wide key while the suites cannot be listed', async () => {
     const failure = () => errorResponse(500, 'internal_error', 'The server failed')
-    server.use(mockApi('get', '/api/suites', failure))
+    server.use(mockApi('get', '/api/projects', failure))
     const { store } = await renderKeys()
     const sent = mockCreate(store)
     const form = within(createForm())
@@ -625,7 +660,7 @@ describe('creating a key', () => {
     createKey('ci-bot')
     await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'ci-bot', scope: 'submit', suites: null },
+      { name: 'ci-bot', scope: 'submit', restricted_to: null },
     ])
 
     mockSuites()
@@ -790,7 +825,7 @@ describe('revoking a key', () => {
     await waitFor(() => expect(prompt()).toBeNull())
     expect(prefixes).toEqual(['135f502b'])
     expect(rowsOf(list)[1]).toBe(
-      '135f502b | test-key | manage | libcxx, nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
+      '135f502b | test-key | manage | llvm/libcxx, llvm/nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
     )
     expect(list).toHaveFocus()
     // The keys are asked for again, but not the token, whose key is another.

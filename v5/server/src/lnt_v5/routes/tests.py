@@ -34,9 +34,9 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import declared_entry, identifier, identifiers
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
-from lnt_v5.suites.scope import SuiteName, suite_responses, suite_scope
+from lnt_v5.suites.scope import ProjectName, SuiteName, suite_responses, suite_scope
 
-TESTS_PATH = f"{SUITES_PATH}/{{testsuite}}/tests"
+TESTS_PATH = f"{SUITES_PATH}/{{suite}}/tests"
 
 router = APIRouter(prefix=TESTS_PATH, tags=["Tests"])
 
@@ -97,9 +97,9 @@ class Tests:
         return Test.model_construct(name=row._mapping[self.table.c.name])
 
 
-def _missing(testsuite: str, name: str) -> ApiError:
+def _missing(suite: str, name: str) -> ApiError:
     """The 404 for a test no suite holds, shared by every request that names one."""
-    return ApiError(ErrorCode.NOT_FOUND, f"No test named '{name}' in test suite '{testsuite}'")
+    return ApiError(ErrorCode.NOT_FOUND, f"No test named '{name}' in test suite '{suite}'")
 
 
 def test_id(connection: Connection, suite: Suite, name: str) -> int:
@@ -111,7 +111,7 @@ def test_id(connection: Connection, suite: Suite, name: str) -> int:
     """
     test = suite.tables.test
     return identifier(
-        connection, test.c.name, name, lambda missed: _missing(suite.schema.name, missed)
+        connection, test.c.name, name, lambda missed: _missing(suite.full_name, missed)
     )
 
 
@@ -123,7 +123,7 @@ def test_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> dict
     """
     test = suite.tables.test
     return identifiers(
-        connection, test.c.name, names, lambda missed: _missing(suite.schema.name, missed)
+        connection, test.c.name, names, lambda missed: _missing(suite.full_name, missed)
     )
 
 
@@ -134,6 +134,7 @@ def test_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> dict
     responses=suite_responses(not_found=NO_MACHINE_FILTERED),
 )
 def list_tests(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -167,7 +168,10 @@ def list_tests(
     The `machine` and `metric` filters look at every result ever submitted: a test still matches
     after the runs that matched are deleted, but not after the machine is deleted.
     """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         tests = Tests(suite)
         conditions: list[ColumnElement[bool]] = []
         if search is not None:

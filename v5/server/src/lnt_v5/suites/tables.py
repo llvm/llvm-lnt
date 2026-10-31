@@ -532,18 +532,21 @@ def new_namespace(connection: Connection) -> str:
             return str(candidate)
 
 
-def label(connection: Connection, namespace: str, suite: str) -> None:
-    """Label a suite's namespace with the suite's name, for whoever reads the database directly,
-    since nothing else about it says which suite it holds."""
+def label(connection: Connection, namespace: str, full_name: str) -> None:
+    """Label a suite's namespace with the suite's full name (D7), `project/suite`, for whoever
+    reads the database directly, since nothing else about it says which suite it holds."""
     # Rendered as a quoted literal rather than bound, since COMMENT takes no bind parameters.
-    text_ = literal(f"LNT test suite {suite}").compile(
+    text_ = literal(f"LNT test suite {full_name}").compile(
         dialect=connection.dialect, compile_kwargs={"literal_binds": True}
     )
     connection.execute(text(f"COMMENT ON SCHEMA {_quote(connection, namespace)} IS {text_}"))
 
 
-def create(connection: Connection, schema: SuiteSchema, namespace: str) -> SuiteTables:
-    """Create the suite's namespace and every table in it, and return the tables.
+def create(
+    connection: Connection, schema: SuiteSchema, namespace: str, full_name: str
+) -> SuiteTables:
+    """Create the suite's namespace, labelled with the suite's `full_name`, and every table in it,
+    and return the tables.
 
     Takes the schema rather than tables already built from it because `{suite}.metric` starts out
     holding a row per declared metric, which the tables alone do not describe.
@@ -554,7 +557,7 @@ def create(connection: Connection, schema: SuiteSchema, namespace: str) -> Suite
     """
     tables = build(schema, namespace)
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, namespace)}"))
-    label(connection, namespace, schema.name)
+    label(connection, namespace, full_name)
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
     # namespace exists. The default would reflect each table first, to skip the ones already there
     # -- a round trip per table that can only ever answer "no".

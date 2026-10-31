@@ -1,19 +1,38 @@
 import type { components } from '../client/src/api/schema.d.ts'
-import { KEYS, seed } from '../tools/seed.ts'
+import { KEYS, PROJECTS, seed } from '../tools/seed.ts'
 import { adminToken, expect, json, test } from './fixtures.ts'
 
+type Schemas = components['schemas']
+
+type Ref = { project: string; suite: string }
+
+/** By code point, compared explicitly, rather than in the order the API happens to list. */
+const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+const byName = (a: { name: string }, b: { name: string }) => byCodePoint(a.name, b.name)
+const byNames = (a: Ref, b: Ref) =>
+  byCodePoint(a.project, b.project) || byCodePoint(a.suite, b.suite)
+
 test('the stack is seeded, and seeding it again writes nothing', async ({ request, baseURL }) => {
-  const suites = await (await request.get('/api/suites')).json()
-  const names = suites.items.map((suite: { name: string }) => suite.name)
-  expect(names).toEqual(expect.arrayContaining(['libcxx', 'nts']))
-  const keys = await json<components['schemas']['ApiKeyList']>(request, '/api/admin/api-keys', {
+  const projects = await json<Schemas['ProjectList']>(request, '/api/projects')
+  for (const project of PROJECTS) {
+    const listed = projects.items.find((entry) => entry.name === project.name)
+    expect(listed?.display_name).toBe(project.display_name ?? null)
+    const names = (suites: { name: string; display_name?: string | null }[]) =>
+      [...suites].sort(byName).map((suite) => [suite.name, suite.display_name ?? null])
+    expect(names(listed?.suites ?? [])).toEqual(names(project.suites))
+  }
+  const keys = await json<Schemas['ApiKeyList']>(request, '/api/admin/api-keys', {
     Authorization: `Bearer ${adminToken()}`,
   })
-  for (const { name, scope, suites, revoked } of KEYS) {
+  const sorted = (entries: readonly Ref[] | null | undefined) =>
+    entries ? [...entries].sort(byNames) : null
+  for (const { name, scope, restricted_to, revoked } of KEYS) {
     const seeded = keys.items.filter((key) => key.name === name)
-    expect(seeded.map((key) => [key.scope, key.suites, key.is_active, key.last_used_at])).toEqual([
-      // The API returns a key's suites sorted, and null for an instance-wide key.
-      [scope, suites ? [...suites].sort() : null, !revoked, null],
+    expect(
+      seeded.map((key) => [key.scope, sorted(key.restricted_to), key.is_active, key.last_used_at]),
+    ).toEqual([
+      // Null for an instance-wide key.
+      [scope, sorted(restricted_to), !revoked, null],
     ])
   }
 
@@ -22,7 +41,8 @@ test('the stack is seeded, and seeding it again writes nothing', async ({ reques
     throw new Error('Seeding again asked for a token')
   }
   expect(await seed({ url: baseURL!, token, log: () => {} })).toEqual({
+    created: [],
     seeded: [],
-    skipped: ['libcxx', 'nts'],
+    skipped: ['libcxx/benchmarks', 'libcxx/header-sizes', 'llvm/nts'],
   })
 })

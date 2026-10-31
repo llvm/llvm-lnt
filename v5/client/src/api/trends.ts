@@ -2,6 +2,7 @@ import { replaceEqualDeep, useQuery } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
 import { withCommits } from './commits'
 import { queryKeys } from './keys'
+import type { SuiteRef } from './suites'
 
 export type TrendPoint = Schemas['TrendPoint']
 
@@ -17,13 +18,13 @@ interface TrendQuery {
  * call, to show their display values (AR6): trend items carry no commit fields.
  */
 async function fetchTrend(
-  suite: string,
+  suite: SuiteRef,
   { metric, machines, lastN }: TrendQuery,
   signal: AbortSignal,
 ) {
   const trend = await unwrap(
-    api.GET('/api/suites/{testsuite}/trends', {
-      params: { path: { testsuite: suite }, query: { metric, machine: machines, last_n: lastN } },
+    api.GET('/api/projects/{project}/suites/{suite}/trends', {
+      params: { path: suite, query: { metric, machine: machines, last_n: lastN } },
       signal,
     }),
   )
@@ -51,7 +52,7 @@ function keepUnchanged(previous: Trend | undefined, next: Trend): Trend {
 }
 
 /** The trend of `metric` on `machines` (E9), with the commits it names resolved. */
-export function useTrends(suite: string, query: TrendQuery) {
+export function useTrends(suite: SuiteRef, query: TrendQuery) {
   return useQuery({
     queryKey: [...queryKeys.trends(suite), query],
     queryFn: ({ signal }) => fetchTrend(suite, query, signal),

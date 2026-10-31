@@ -275,7 +275,7 @@ describe('the details of a bar (CP3)', () => {
     ])
     expect(details().getByRole('link', { name: shortUuid(uuidOf('3')) })).toHaveAttribute(
       'href',
-      `/suites/libcxx/runs/${uuidOf('3')}`,
+      `/projects/llvm/suites/libcxx/runs/${uuidOf('3')}`,
     )
     // The samples were all fetched for the comparison already.
     expect(sampled).toHaveLength(asked)
@@ -308,7 +308,7 @@ describe('the details of a bar (CP3)', () => {
     await waitFor(() =>
       expect(details().getByRole('link', { name: 'View on graph' })).toHaveAttribute(
         'href',
-        '/graph?suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
+        '/graph?project=llvm&suite=libcxx&machine=m2&metric=execution_time&test=a&run_agg=min&sample_agg=max' +
           '&highlight=c2',
       ),
     )
@@ -319,14 +319,14 @@ describe('the details of a bar (CP3)', () => {
     const link = details().getByRole('link', { name: 'View on graph' })
     return link.getAttribute('href') ?? `disabled: ${link.getAttribute('title')}`
   }
-  const GRAPH = '/graph?suite=libcxx&machine=m1&metric=execution_time&test=a'
+  const GRAPH = '/graph?project=llvm&suite=libcxx&machine=m1&metric=execution_time&test=a'
 
   it("highlights side A's commit too on side B's machine, each once it has an ordinal", async () => {
     const looked = gate()
     mockWorld(WORLD)
     server.use(
       // Held, then answered by the world.
-      mockApi('post', '/api/suites/{testsuite}/commits/resolve', async () => {
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', async () => {
         await looked.promise
         return undefined
       }),
@@ -373,7 +373,7 @@ describe('the details of a bar (CP3)', () => {
   it('leads to the Graph without highlights once looking the commits up failed', async () => {
     mockWorld(WORLD)
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', () =>
         errorResponse(500, 'internal_error', 'The lookup broke.'),
       ),
     )
@@ -388,7 +388,7 @@ describe('the details of a bar (CP3)', () => {
     const listed = gate()
     mockWorld({ ...WORLD, profiles: { '1': ['a'], '3': ['a'] } })
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', async () => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/profiles', async () => {
         await listed.promise
       }),
     )
@@ -473,13 +473,13 @@ describe('the details of a bar (CP3)', () => {
     const arrived = gate()
     mockWorld(WORLD)
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', async ({ params }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/samples', async ({ params }) => {
         if (params.uuid !== uuidOf('4')) return
         await arrived.promise
         return HttpResponse.json(cursorPage([sample('a', { execution_time: 1 })]))
       }),
     )
-    await shown(`${COMPARED}&shadow=libcxx/m2/c2`)
+    await shown(`${COMPARED}&shadow=llvm/libcxx/m2/c2`)
     expect(chart().data).toHaveLength(1)
 
     click(0)

@@ -1,9 +1,9 @@
 """What a suite-scoped request does with the suite it addresses (D2).
 
 Separate from `registry.py`, which is strictly the cache and knows nothing about requests. This is
-the request layer over it: resolving `{testsuite}` inside the endpoint's own unit of work, and
-answering the failures a concurrent schema change can cause: the cache lagging behind it, and a
-request contending with it for the suite's tables.
+the request layer over it: resolving `{project}` and `{suite}` inside the endpoint's own unit of
+work, and answering the failures a concurrent schema change can cause: the cache lagging behind it,
+and a request contending with it for the suite's tables.
 """
 
 from __future__ import annotations
@@ -31,23 +31,31 @@ logger = logging.getLogger(__name__)
 #
 # OpenAPI keys responses by status alone, so every case an operation answers with 409 shares one
 # description. Each case is therefore introduced by its I4 code, which is what a client branches on.
-SUITE_NOT_FOUND = "The test suite doesn't exist."
+SUITE_NOT_FOUND = "The project or the test suite doesn't exist."
 SUITE_SCHEMA_CHANGED = (
     "`retry`: the suite's schema changed while the request was being handled. Send it again."
 )
 
-# The path segment naming a suite, described once for I8's document: `{testsuite}` on every
-# suite-scoped route, and `{name}` on the suite routes themselves.
-SuiteName = Annotated[str, Path(description="The name of the test suite.")]
+# The path segments naming a project and a suite of it (I1), described once for I8's document. The
+# suite's is `{suite}` in every path, but the parameter carrying it is called `testsuite` (or `name`
+# on the suite routes themselves), since the endpoints call the suite it resolves to `suite`.
+ProjectName = Annotated[str, Path(description="The name of the project.")]
+SuiteName = Annotated[str, Path(alias="suite", description="The name of the test suite.")]
 
 
 @contextmanager
-def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> Iterator[Suite]:
-    """The suite a request addresses, and D2's answer for one that changes underneath it.
+def suite_scope(
+    registry: SuiteRegistry, connection: Connection, project: str, name: str
+) -> Iterator[Suite]:
+    """The suite `name` of the project `project`, which a request addresses, and D2's answer for one
+    that changes underneath it.
 
     What every suite-scoped endpoint opens its unit of work with:
 
-        with engine.connect() as connection, suite_scope(registry, connection, name) as suite:
+        with (
+            engine.connect() as connection,
+            suite_scope(registry, connection, project, testsuite) as suite,
+        ):
             ...
 
     Three obligations, all D2's. The freshness check happens on the endpoint's own connection, as
@@ -67,12 +75,12 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
     here on can only be one of the suite's own -- whereas one raised while resolving would mean an
     unmigrated database, which is a fault and must not be reported as something to retry.
     """
-    suite = registry.resolve(connection, name)
+    suite = registry.resolve(connection, project, name)
     try:
         yield suite
     except DBAPIError as error:
         if is_missing_relation(error):
-            raise schema_changed(name) from error
+            raise schema_changed(suite) from error
         if not is_lock_unavailable(error):
             raise
         # Expected when a request races a schema change, but any other deadlock is a bug (O8 rules
@@ -82,21 +90,22 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
             logger.warning(
                 "A request on test suite '%s' was aborted by a deadlock and answered with a "
                 "retryable 409: %s",
-                name,
+                suite.full_name,
                 error.orig,
             )
         raise ApiError(
             ErrorCode.RETRY,
-            f"Test suite '{name}' is busy: this request conflicted with a concurrent change. "
-            "Retry.",
+            f"Test suite '{suite.full_name}' is busy: this request conflicted with a concurrent "
+            "change. Retry.",
         ) from error
 
 
-def schema_changed(name: str) -> ApiError:
+def schema_changed(suite: Suite) -> ApiError:
     """D2's retryable 409 for a request whose suite changed while it was running."""
     return ApiError(
         ErrorCode.RETRY,
-        f"The schema of test suite '{name}' changed while this request was running. Retry.",
+        f"The schema of test suite '{suite.full_name}' changed while this request was running. "
+        "Retry.",
     )
 
 

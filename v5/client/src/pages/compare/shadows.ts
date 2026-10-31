@@ -10,8 +10,8 @@ import { useQueries } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import type { Failures } from '../../api/failures'
 import { commitRunsQuery, runRefKey, uniqueRuns, useRunSamples } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
-import { suiteLabelOf } from '../../labels'
+import type { Suite } from '../../api/suites'
+import { fullLabelOf } from '../../labels'
 import {
   distinctCommits,
   formatCommitOfMachine,
@@ -43,7 +43,7 @@ export interface ShadowState {
   /** As the URL spells it, which tells it apart from the other shadows. */
   key: string
   /** Its suite, once the suites are known to hold it. */
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   /** What names it, on its chip and in its points' tooltips (CP8). */
   label: string
   /** The samples of each of its selected runs, once they have all arrived. */
@@ -84,7 +84,7 @@ const runLists = (results: RunList[]): RunList[] =>
 export function useShadows(
   specs: ShadowSpec[],
   { a, b }: { a: Side; b: Side },
-  suites: readonly SuiteSchema[] | undefined,
+  suites: readonly Suite[] | undefined,
   update: (changes: Partial<Settings>) => void,
 ): Shadows {
   const keys = useMemo(() => specs.map(formatShadow), [specs])
@@ -137,7 +137,7 @@ export function useShadows(
         return {
           key: keys[i],
           schema,
-          label: `${suiteLabelOf(suites, spec.suite)}/${spec.machine}/${display}${subset}`,
+          label: `${fullLabelOf(suites, spec.suite)}/${spec.machine}/${display}${subset}`,
           runSamples: samplesOfRuns(chosen, states),
         }
       }),
@@ -202,7 +202,7 @@ export interface ShadowLine {
  */
 export function useShadowLines(
   shadows: readonly ShadowState[],
-  schemaA: SuiteSchema | undefined,
+  schemaA: Suite | undefined,
   metric: Metric | undefined,
   { sample_agg: sampleAgg, run_agg: runAgg }: Pick<Settings, 'sample_agg' | 'run_agg'>,
   { tests, valuesA, biggerIsBetter }: Comparison,

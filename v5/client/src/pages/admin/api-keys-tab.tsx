@@ -4,7 +4,14 @@ import { VisuallyHidden } from 'react-aria-components'
 import { NAME_LENGTH, useApiKeys, type ApiKey, type ApiKeyList } from '../../api/api-keys'
 import { authedApi, PERMISSION_DENIED, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import { useKnownSuites, useSuites, type SuiteSchema } from '../../api/suites'
+import {
+  refOf,
+  fullName,
+  suiteOfFullName,
+  useKnownSuites,
+  useSuites,
+  type Suite,
+} from '../../api/suites'
 import {
   grants,
   RESTRICTABLE_SCOPES,
@@ -25,7 +32,13 @@ import { MultiSelect, Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { formatTimestamp, yesNo } from '../../format'
-import { compareSuiteLists, suiteLabel, suiteOption, suitesNamed } from '../../labels'
+import {
+  compareSuiteLists,
+  fullLabel,
+  suiteOption,
+  suitesNamed,
+  type Labelled,
+} from '../../labels'
 import { CopyButton } from '../../components/copy-button'
 import type { KEY_SORT_COLUMNS } from './settings'
 import tableStyles from '../../components/data-table.module.css'
@@ -119,8 +132,10 @@ function CreateKey() {
   // scope cannot be restricted (see the Scope dropdown), and until the suites are listed otherwise.
   const restricting = restrict && unrestrictable === undefined
   // Only the suites still listed, should one checked have gone since.
-  const listed = new Set(suites.data?.map((suite) => suite.name))
-  const restrictedTo = restricting ? checked.filter((suite) => listed.has(suite)) : null
+  const listed = new Set(suites.data?.map((suite) => fullName(refOf(suite))))
+  const restrictedTo = restricting
+    ? checked.filter((suite) => listed.has(suite)).map(suiteOfFullName)
+    : null
   const reason =
     gate.title ??
     (trimmed === '' ? 'Give the key a name first.' : undefined) ??
@@ -128,7 +143,7 @@ function CreateKey() {
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (reason === undefined && !create.isPending) {
-      create.mutate({ name: trimmed, scope, suites: restrictedTo })
+      create.mutate({ name: trimmed, scope, restricted_to: restrictedTo })
     }
   }
 
@@ -284,8 +299,15 @@ const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING[0].toUpperCase()}${RESTRICTED_TO_
  * suites by their labels as `known` has them, in AR22's order, and sorts `All` first, then by the
  * suites shown, compared in turn, and `Nothing` last (AD1).
  */
-function columns(known: SuiteSchema[] | undefined): (Column<ApiKey> & { id: SortColumn })[] {
-  const coveredBy = (key: ApiKey) => key.suites && suitesNamed(known, key.suites)
+function columns(known: Suite[] | undefined): (Column<ApiKey> & { id: SortColumn })[] {
+  // Once per key, rather than at each comparison of a sort.
+  const covered = new WeakMap<ApiKey, Labelled[] | null>()
+  const coveredBy = (key: ApiKey) => {
+    if (!covered.has(key)) {
+      covered.set(key, key.restricted_to && suitesNamed(known, key.restricted_to))
+    }
+    return covered.get(key) as Labelled[] | null
+  }
   return [
     {
       id: 'prefix',
@@ -303,12 +325,12 @@ function columns(known: SuiteSchema[] | undefined): (Column<ApiKey> & { id: Sort
       sortKey: (key) => scopeRank(key.scope),
     },
     {
-      id: 'suites',
+      id: 'restricted_to',
       header: 'Suites',
       cell: (key) => {
         const suites = coveredBy(key)
         if (suites === null) return 'All'
-        if (suites.length > 0) return suites.map(suiteLabel).join(', ')
+        if (suites.length > 0) return suites.map(fullLabel).join(', ')
         // Its suites were all deleted, which leaves it restricted to nothing (AD1, I5).
         return (
           <span className={styles.nothing} title={NOTHING_HOVER}>

@@ -2,9 +2,17 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
-import type { SuiteSchema } from '../../api/suites'
+import type { Suite } from '../../api/suites'
 import type { ChartProps } from '../../components/chart'
-import { BARE_SUITE, SUITE, commit, machine, metric, trendPoint } from '../../test/fixtures'
+import {
+  BARE_SUITE,
+  SUITE,
+  commit,
+  inProject,
+  machine,
+  metric,
+  trendPoint,
+} from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
@@ -28,7 +36,7 @@ vi.mock('../../components/chart', () => import('../../test/chart'))
  * whose unit is its abbreviation, and a numeric one with neither; and off it, a numeric one and
  * one that is not numeric.
  */
-const DASH_SUITE: SuiteSchema = {
+const DASH_SUITE: Suite = {
   ...SUITE,
   metrics: [
     SUITE.metrics[0],
@@ -45,14 +53,14 @@ const DASH_SUITE: SuiteSchema = {
 }
 
 /** A suite whose only metric is not numeric. */
-const TEXT_SUITE: SuiteSchema = {
+const TEXT_SUITE: Suite = {
   ...BARE_SUITE,
   name: 'text_only',
   metrics: [metric('hash', { type: 'text' })],
 }
 
 /** A suite with numeric metrics, none of them on the Dashboard. */
-const UNCHOSEN_SUITE: SuiteSchema = {
+const UNCHOSEN_SUITE: Suite = {
   ...BARE_SUITE,
   name: 'unchosen',
   metrics: [metric('size', { type: 'integer' }), metric('hash', { type: 'text' })],
@@ -88,13 +96,13 @@ function section(suite: string) {
   return within(main().getByRole('region', { name: suite }))
 }
 
-async function card(name: string, suite = 'libcxx') {
+async function card(name: string, suite = 'llvm/libcxx') {
   const region = await main().findByRole('region', { name: suite })
   return within(await within(region).findByRole('article', { name }))
 }
 
 /** The chart of the card `name`, once drawn, and the props it was last rendered with. */
-async function chartOf(name: string, suite = 'libcxx') {
+async function chartOf(name: string, suite = 'llvm/libcxx') {
   const element = await (await card(name, suite)).findByRole('img', { hidden: true })
   return { element, props: () => chartProps(element) }
 }
@@ -110,8 +118,13 @@ function hoverEvent(curveNumber: number) {
 }
 
 describe('the Dashboard', () => {
-  it('heads the section of each suite by its label, in their order (AR22)', async () => {
-    mockSuites([DASH_SUITE, { ...TEXT_SUITE, display_name: 'A text suite' }])
+  it('heads the section of each suite by its full label, in their order (AR22)', async () => {
+    const extra = { name: 'extra', display_name: 'LLVM Extra' }
+    mockSuites([
+      DASH_SUITE,
+      { ...TEXT_SUITE, display_name: 'A text suite' },
+      inProject({ ...UNCHOSEN_SUITE, name: 'alpha' }, extra),
+    ])
     mockMachineNames(['m1'])
     mockTrends(() => POINTS)
     mockResolve()
@@ -119,7 +132,12 @@ describe('the Dashboard', () => {
 
     await chartOf('compile_status')
     const headings = main().getAllByRole('heading', { level: 2 })
-    expect(headings.map((h) => h.textContent)).toEqual(['A text suite', 'libcxx'])
+    // A level at a time: the project 'llvm' before 'LLVM Extra', whatever its suites are called.
+    expect(headings.map((h) => h.textContent)).toEqual([
+      'llvm/A text suite',
+      'llvm/libcxx',
+      'LLVM Extra/alpha',
+    ])
   })
 
   it('shows a section per suite, and a card per metric on the Dashboard, in schema order', async () => {
@@ -131,8 +149,8 @@ describe('the Dashboard', () => {
 
     await chartOf('compile_status')
     const headings = main().getAllByRole('heading', { level: 2 })
-    expect(headings.map((h) => h.textContent)).toEqual(['libcxx', 'text_only'])
-    const cards = section('libcxx').getAllByRole('article')
+    expect(headings.map((h) => h.textContent)).toEqual(['llvm/libcxx', 'llvm/text_only'])
+    const cards = section('llvm/libcxx').getAllByRole('article')
     expect(cards.map((article) => article.getAttribute('aria-label'))).toEqual([
       'Execution Time',
       'Cycles',
@@ -140,7 +158,7 @@ describe('the Dashboard', () => {
     ])
     // The title is the metric's label, then its unit as AR6 writes it, when it has one.
     expect(
-      section('libcxx')
+      section('llvm/libcxx')
         .getAllByRole('heading', { level: 3 })
         .map((h) => h.textContent),
     ).toEqual(['Execution Time — seconds (s)', 'Cycles — cycles', 'compile_status'])
@@ -152,8 +170,8 @@ describe('the Dashboard', () => {
     renderPage('/')
 
     expect(await main().findByText('This suite has no numeric metrics.')).toBeInTheDocument()
-    expect(section('text_only').queryByRole('article')).not.toBeInTheDocument()
-    expect(section('text_only').queryByRole('link')).not.toBeInTheDocument()
+    expect(section('llvm/text_only').queryByRole('article')).not.toBeInTheDocument()
+    expect(section('llvm/text_only').queryByRole('link')).not.toBeInTheDocument()
     expect(asked).toEqual([])
   })
 
@@ -165,10 +183,10 @@ describe('the Dashboard', () => {
     expect(
       await main().findByText(/^This suite shows no metrics on the Dashboard\./),
     ).toBeInTheDocument()
-    expect(section('unchosen').queryByRole('article')).not.toBeInTheDocument()
-    expect(section('unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(
+    expect(section('llvm/unchosen').queryByRole('article')).not.toBeInTheDocument()
+    expect(section('llvm/unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(
       'href',
-      '/suites/unchosen?tab=schema',
+      '/projects/llvm/suites/unchosen?tab=schema',
     )
     expect(asked).toEqual([])
   })
@@ -225,7 +243,7 @@ describe('the Dashboard', () => {
   it("shows why the suite's machines could not be loaded, and tries again", async () => {
     mockSuites([DASH_SUITE])
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/machines', () =>
+      mockApi('get', '/api/projects/{project}/suites/{suite}/machines', () =>
         errorResponse(500, 'internal_error', 'The machines broke.'),
       ),
     )
@@ -248,7 +266,7 @@ describe('the Dashboard', () => {
 
   it('shows why the suites could not be loaded, and tries again', async () => {
     server.use(
-      mockApi('get', '/api/suites', () => errorResponse(500, 'internal_error', 'No suites.')),
+      mockApi('get', '/api/projects', () => errorResponse(500, 'internal_error', 'No suites.')),
     )
     renderPage('/')
 
@@ -334,7 +352,7 @@ describe('the Dashboard', () => {
       mockMachineNames(['m1', 'm2'])
       let broken = true
       server.use(
-        mockApi('get', '/api/suites/{testsuite}/trends', () =>
+        mockApi('get', '/api/projects/{project}/suites/{suite}/trends', () =>
           broken
             ? errorResponse(500, 'internal_error', 'No trend.')
             : HttpResponse.json({ items: POINTS }),
@@ -371,10 +389,7 @@ describe('the Dashboard', () => {
     it("labels each point with its machine, its commit's display value and its value", async () => {
       mockSuites([DASH_SUITE])
       mockMachineNames(['m1'])
-      mockTrends(() => [
-        trendPoint('m1', 10, 1.5, { tag: 'llvm-22' }),
-        trendPoint('m1', 20, 1.6),
-      ])
+      mockTrends(() => [trendPoint('m1', 10, 1.5, { tag: 'llvm-22' }), trendPoint('m1', 20, 1.6)])
       const revision = (svn_revision: string) => ({ svn_revision, commit_info: null })
       mockResolve([
         commit('commit-10', { tag: 'llvm-22', fields: revision('r10') }),
@@ -398,12 +413,9 @@ describe('the Dashboard', () => {
     it('shows commit strings, with their tags, when the commits cannot be resolved', async () => {
       mockSuites([DASH_SUITE])
       mockMachineNames(['m1'])
-      mockTrends(() => [
-        trendPoint('m1', 10, 1.5, { tag: 'llvm-22' }),
-        trendPoint('m1', 20, 1.6),
-      ])
+      mockTrends(() => [trendPoint('m1', 10, 1.5, { tag: 'llvm-22' }), trendPoint('m1', 20, 1.6)])
       server.use(
-        mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+        mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', () =>
           errorResponse(500, 'internal_error', 'No commits.'),
         ),
       )
@@ -425,7 +437,7 @@ describe('the Dashboard', () => {
       mockResolve()
       renderPage('/')
 
-      const graph = '/graph?suite=libcxx&machine=m1&machine=m2&metric=cycles'
+      const graph = '/graph?project=llvm&suite=libcxx&machine=m1&machine=m2&metric=cycles'
       expect(await chartLink('Cycles')).toHaveAttribute('href', graph)
       const title = (await card('Cycles')).getByRole('link', { name: 'Cycles' })
       expect(title).toHaveAttribute('href', graph)
@@ -455,7 +467,7 @@ describe('the Dashboard', () => {
       })
 
       await waitFor(() =>
-        expect(currentUrl()).toBe('/graph?suite=libcxx&machine=m2&metric=cycles'),
+        expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx&machine=m2&metric=cycles'),
       )
     })
 

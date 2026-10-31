@@ -1,13 +1,21 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
-import { removeSuite, useSuites, type SuiteSchema } from '../../api/suites'
+import { Link, useNavigate, useParams } from 'react-router'
+import {
+  fullName,
+  refOf,
+  removeSuite,
+  suiteRef,
+  useProjects,
+  type Project,
+  type Suite,
+} from '../../api/suites'
 import { useAuth } from '../../auth/use-auth'
 import { Alert, ErrorMessage, Loading } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
 import { useMounted } from '../../components/use-mounted'
-import { suiteLabel } from '../../labels'
-import { suitePath } from '../../paths'
+import { projectLabel, suiteLabel } from '../../labels'
+import { projectPath, PROJECTS_PATH, suitePath } from '../../paths'
 import { useUrlState } from '../../url-state'
 import { CommitsTab } from './commits-tab'
 import { MachinesTab } from './machines-tab'
@@ -19,40 +27,41 @@ import styles from './test-suites.module.css'
 
 /** The Test Suites page (TS1): the suite picker, and the selected suite's tabs. */
 export default function TestSuites() {
-  const { suite } = useParams()
-  const { search } = useLocation()
-  const suites = useSuites()
-  const schema = suites.data?.find((entry) => entry.name === suite)
-  const notFound = useNotFoundFocus(suite, schema !== undefined)
+  const { project, suite } = useParams()
+  const projects = useProjects()
+  const shown = projects.data?.find((entry) => entry.name === project)
+  const schema = shown?.suites.find((entry) => entry.name === suite)
+  const named = project === undefined || suite === undefined ? undefined : suiteRef(project, suite)
+  const notFound = useNotFoundFocus(named && fullName(named), schema !== undefined)
 
   let content
   // A list fetched again that fails leaves the one the page shows, and the tabs with it: an open
   // schema editor, say, which has the list fetched again when a save finds it out of date (TS7).
-  if (suites.data === undefined) {
-    content = suites.isError ? (
-      <ErrorMessage error={suites.error} onRetry={() => void suites.refetch()} />
+  if (projects.data === undefined) {
+    content = projects.isError ? (
+      <ErrorMessage error={projects.error} onRetry={() => void projects.refetch()} />
     ) : (
       <Loading label="Loading test suites..." />
     )
-  } else if (suite === undefined) {
-    // `/suites` gives way to the first suite, which takes its place in the history (TS1).
-    const first = suites.data.at(0)
+  } else if (project === undefined) {
     content =
-      first === undefined ? (
-        <SuitePicker suites={suites.data} />
+      projects.data.length === 0 ? (
+        <p className={styles.note}>There are no projects yet.</p>
       ) : (
-        <Navigate to={{ pathname: suitePath(first.name), search }} replace />
+        <SuitePicker projects={projects.data} />
       )
+  } else if (shown === undefined) {
+    content = <Alert>Project '{project}' not found.</Alert>
   } else {
     content = (
       <>
-        <SuitePicker suites={suites.data} selected={suite} />
-        {schema === undefined ? (
+        <SuitePicker projects={[shown]} selected={suite} />
+        {named === undefined ? null : schema === undefined ? (
           <Alert ref={notFound} tabIndex={-1}>
-            Test suite '{suite}' not found.
+            Test suite '{fullName(named)}' not found.
           </Alert>
         ) : (
-          <SuiteTabs key={suite} schema={schema} />
+          <SuiteTabs key={fullName(named)} schema={schema} />
         )}
       </>
     )
@@ -61,15 +70,21 @@ export default function TestSuites() {
   return (
     <section>
       <h1>Test Suites</h1>
+      {/* Everywhere but on the list of every project (TS1). */}
+      {project !== undefined && (
+        <Link to={PROJECTS_PATH} className={styles.allProjects}>
+          All projects
+        </Link>
+      )}
       {content}
     </section>
   )
 }
 
 /**
- * The ref of the message saying that `suite` was not found, which takes the focus when it replaces
- * the suite's tabs -- once the suite has gone from the list, deleted elsewhere -- if the focus went
- * with them, so that it is not left nowhere.
+ * The ref of the message saying that `suite`, by its full name, was not found, which takes the focus
+ * when it replaces the suite's tabs -- once the suite has gone from the list, deleted elsewhere -- if
+ * the focus went with them, so that it is not left nowhere.
  */
 function useNotFoundFocus(suite: string | undefined, found: boolean) {
   const ref = useRef<HTMLDivElement>(null)
@@ -85,25 +100,49 @@ function useNotFoundFocus(suite: string | undefined, found: boolean) {
   return ref
 }
 
-function SuitePicker({ suites, selected }: { suites: SuiteSchema[]; selected?: string }) {
-  if (suites.length === 0) return <p className={styles.note}>There are no test suites yet.</p>
+/**
+ * The suite picker (TS1): the suites of each of `projects`, under a heading with the project's
+ * label, linking to the project's suites, each by its own label (AR22). A project without suites
+ * says so.
+ */
+function SuitePicker({ projects, selected }: { projects: Project[]; selected?: string }) {
   return (
-    <nav className={styles.suitePicker} aria-label="Test suites">
-      {suites.map((suite) => (
-        <Link
-          key={suite.name}
-          to={suitePath(suite.name)}
-          className={styles.suiteCard}
-          aria-current={suite.name === selected ? 'page' : undefined}
-        >
-          {suiteLabel(suite)}
-        </Link>
+    <nav aria-label="Test suites">
+      {projects.map((project) => (
+        <ProjectSuites key={project.name} project={project} selected={selected} />
       ))}
     </nav>
   )
 }
 
-function SuiteTabs({ schema }: { schema: SuiteSchema }) {
+function ProjectSuites({ project, selected }: { project: Project; selected?: string }) {
+  const headingId = useId()
+  return (
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId} className={styles.projectHeading}>
+        <Link to={projectPath(project.name)}>{projectLabel(project)}</Link>
+      </h2>
+      {project.suites.length === 0 ? (
+        <p className={styles.note}>No test suites.</p>
+      ) : (
+        <div className={styles.suitePicker}>
+          {project.suites.map((suite) => (
+            <Link
+              key={suite.name}
+              to={suitePath(refOf(suite))}
+              className={styles.suiteCard}
+              aria-current={suite.name === selected ? 'page' : undefined}
+            >
+              {suiteLabel(suite)}
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SuiteTabs({ schema }: { schema: Suite }) {
   const [settings, update] = useUrlState(PARAMS)
   const { tab, search } = settings
   const queryClient = useQueryClient()
@@ -112,16 +151,16 @@ function SuiteTabs({ schema }: { schema: SuiteSchema }) {
   // Whether the user is still on the suite's page, whichever its tab: these tabs are its page.
   const mounted = useMounted()
 
-  // Once the suite is deleted from its Schema tab, the page leaves for `/suites`, in place of itself
-  // in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
+  // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
+  // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
   // going from the list takes these tabs with it. The token is checked again, since its key may
   // have been restricted to the suite, which it no longer lists, so that a suite created later
   // under the name does not seem to be covered (AR17).
   const onDeleted = async () => {
     const leaving = mounted.current
-    await removeSuite(queryClient, schema.name)
+    await removeSuite(queryClient, refOf(schema))
     recheck()
-    if (leaving) navigate('/suites', { replace: true })
+    if (leaving) navigate(projectPath(schema.project.name), { replace: true })
   }
 
   // `settings` changes only with the URL.

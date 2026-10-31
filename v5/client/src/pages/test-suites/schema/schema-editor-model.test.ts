@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { schemaOf as apiSchemaOf } from '../../../api/suites'
 import { BARE_SUITE, NO_REPOSITORY, SUITE } from '../../../test/fixtures'
 import {
   addEntry,
@@ -241,10 +242,8 @@ describe('displayNameChange', () => {
 describe('copyOf and schemaOf', () => {
   it('copy a schema, keys and all, as a new suite', () => {
     expect(copyOf(SUITE).metrics.every((entry) => entry.original === null)).toBe(true)
-    expect(schemaOf('copy', '', copyOf(SUITE))).toEqual({
-      ...SUITE,
-      name: 'copy',
-    })
+    // Without the project, which the suite is not created in by its schema.
+    expect(schemaOf('copy', '', copyOf(SUITE))).toEqual({ ...apiSchemaOf(SUITE), name: 'copy' })
   })
 
   it('send each entry with exactly the keys its list accepts', () => {

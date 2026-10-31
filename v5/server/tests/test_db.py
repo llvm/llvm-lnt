@@ -12,6 +12,7 @@ from sqlalchemy import Connection, Engine, func, insert, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.pool import QueuePool
 
+from conftest import ensure_project
 from lnt_v5.db import EngineDep, is_undefined_table, unique_violation_constraint
 from lnt_v5.errors import register_error_handlers
 from lnt_v5.tables import schema
@@ -77,7 +78,11 @@ class TestUnitOfWork:
             with db.begin() as connection:
                 connection.execute(
                     insert(schema).values(
-                        name="nts", namespace="nts", schema_json="{}", migration_version=0
+                        project_id=ensure_project(connection, "nts"),
+                        name="nts",
+                        namespace="nts",
+                        schema_json="{}",
+                        migration_version=0,
                     )
                 )
             return {"ok": True}
@@ -97,7 +102,11 @@ class TestUnitOfWork:
             with db.begin() as connection:
                 connection.execute(
                     insert(schema).values(
-                        name="nts", namespace="nts", schema_json="{}", migration_version=0
+                        project_id=ensure_project(connection, "nts"),
+                        name="nts",
+                        namespace="nts",
+                        schema_json="{}",
+                        migration_version=0,
                     )
                 )
                 raise RuntimeError("something went wrong after the first write")

@@ -1,44 +1,77 @@
 /**
- * The Test Suites page (TS1-TS7), against the seeded libcxx suite.
+ * The Test Suites page (TS1-TS7), against the seeded projects and suites (see tools/seed.ts).
  *
- * Other tests may add to the seeded suites, so these look for what the seed holds rather than
- * assuming that it is all there is. Tests that write change a suite of their own.
+ * Other tests may add to the seeded projects and suites, so these look for what the seed holds
+ * rather than assuming that it is all there is. Tests that write change a suite of their own.
  */
 
 import { readFileSync } from 'node:fs'
 import type { Dialog } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { EXPERIMENT, HARDENED, MACOS, TAG, TAGGED_INFO, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
-import { ownSuite, withOwnSuiteName } from './own-suite.ts'
+import { ownSuite, withOwnSuite } from './own-suite.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
-test('the Test Suites link selects the first suite, in place of /suites', async ({ page }) => {
+test("the Test Suites link shows every project's suites, under the project", async ({ page }) => {
   await page.goto('/')
   await page.getByRole('navigation').getByRole('link', { name: 'Test Suites', exact: true }).click()
 
-  // The first suite may be another test's, which it may delete at any time, so this looks at
-  // nothing read from inside the suite.
-  await expect(page).toHaveURL(/\/suites\/[^/?]+$/)
-  const first = page.getByRole('navigation', { name: 'Test suites' }).getByRole('link').first()
-  await expect(first).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page).toHaveURL('/projects')
+  // Other tests add projects of their own, so this looks at the seeded ones alone.
+  const picker = page.getByRole('navigation', { name: 'Test suites' })
+  const libcxx = picker.getByRole('region', { name: 'libc++', exact: true })
+  await expect(libcxx.getByRole('heading', { name: 'libc++' }).getByRole('link')).toHaveAttribute(
+    'href',
+    '/projects/libcxx',
+  )
+  // Each suite by its own label, in AR22's order.
+  await expect(libcxx.getByRole('link').filter({ hasNotText: 'libc++' })).toHaveText([
+    'header-sizes',
+    'Microbenchmarks',
+  ])
+  await expect(
+    picker.getByRole('region', { name: 'LLVM', exact: true }).getByRole('link'),
+  ).toHaveText(['LLVM', 'nts'])
+  await expect(picker.getByRole('region', { name: 'swift', exact: true })).toContainText(
+    'No test suites.',
+  )
+  await expect(page.getByRole('link', { name: 'All projects' })).toHaveCount(0)
+  await expect(page.getByRole('tab')).toHaveCount(0)
 
   await page.goBack()
   await expect(page).toHaveURL('/')
 })
 
+test("a project's page shows its suites alone, and leads back to every project", async ({
+  page,
+}) => {
+  await page.goto('/projects')
+  const picker = page.getByRole('navigation', { name: 'Test suites' })
+  await picker.getByRole('link', { name: 'LLVM', exact: true }).click()
+
+  await expect(page).toHaveURL('/projects/llvm')
+  await expect(picker.getByRole('heading')).toHaveText(['LLVM'])
+  await expect(picker.getByRole('link', { name: 'nts', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab')).toHaveCount(0)
+
+  await page.getByRole('link', { name: 'All projects' }).click()
+  await expect(page).toHaveURL('/projects')
+  await expect(picker.getByRole('heading', { name: 'libc++' })).toBeVisible()
+})
+
 test('picking a suite shows its runs', async ({ page }) => {
-  await page.goto('/suites/nts')
+  await page.goto('/projects/libcxx')
   const picker = page.getByRole('navigation', { name: 'Test suites' })
 
-  await picker.getByRole('link', { name: 'libcxx', exact: true }).click()
+  await picker.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
 
-  await expect(page).toHaveURL('/suites/libcxx')
-  await expect(picker.getByRole('link', { name: 'libcxx', exact: true })).toHaveAttribute(
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
+  await expect(picker.getByRole('link', { name: 'Microbenchmarks', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
   )
@@ -46,16 +79,20 @@ test('picking a suite shows its runs', async ({ page }) => {
   await expect(rows(table(page, 'Runs'))).toHaveCount(25)
 })
 
-test('an unknown suite is reported, alongside the picker', async ({ page }) => {
-  await page.goto('/suites/nope')
+test('an unknown suite or project is reported', async ({ page }) => {
+  await page.goto('/projects/libcxx/suites/nope')
 
-  await expect(page.getByRole('alert')).toHaveText("Test suite 'nope' not found.")
+  await expect(page.getByRole('alert')).toHaveText("Test suite 'libcxx/nope' not found.")
   await expect(page.getByRole('navigation', { name: 'Test suites' })).toBeVisible()
+
+  await page.goto('/projects/nope')
+  await expect(page.getByRole('alert')).toHaveText("Project 'nope' not found.")
+  await expect(page.getByRole('link', { name: 'All projects' })).toBeVisible()
 })
 
 test.describe('the Runs tab', () => {
   test('shows each run with its commit by display value, and pages', async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     const runs = table(page, 'Runs')
     await expect(rows(runs)).toHaveCount(25)
 
@@ -74,7 +111,7 @@ test.describe('the Runs tab', () => {
     await settled(runs)
     const second = await column(runs, 0)
     expect(second.filter((uuid) => first.includes(uuid))).toEqual([])
-    await expect(page).toHaveURL('/suites/libcxx')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
 
     await page.getByRole('button', { name: /Previous/ }).click()
     await expect.poll(() => column(runs, 0)).toEqual(first)
@@ -82,39 +119,40 @@ test.describe('the Runs tab', () => {
   })
 
   test('links to the run, machine and commit pages', async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     const row = rows(table(page, 'Runs')).first()
     const links = row.getByRole('link')
     await expect(links).toHaveCount(3)
 
-    await expect(links.nth(0)).toHaveAttribute('href', /^\/suites\/libcxx\/runs\/[0-9a-f-]{36}$/)
-    await expect(links.nth(1)).toHaveAttribute('href', /^\/suites\/libcxx\/machines\/[^/]+$/)
-    await expect(links.nth(2)).toHaveAttribute('href', /^\/suites\/libcxx\/commits\/[^/]+$/)
+    const suite = '^/projects/libcxx/suites/benchmarks'
+    await expect(links.nth(0)).toHaveAttribute('href', new RegExp(`${suite}/runs/[0-9a-f-]{36}$`))
+    await expect(links.nth(1)).toHaveAttribute('href', new RegExp(`${suite}/machines/[^/]+$`))
+    await expect(links.nth(2)).toHaveAttribute('href', new RegExp(`${suite}/commits/[^/]+$`))
     const uuid = (await links.nth(0).getAttribute('href'))!.split('/').at(-1)
     await links.nth(0).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Run: ${uuid}`)
   })
 
   test('searches on the machine', async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     await expect(rows(table(page, 'Runs'))).toHaveCount(25)
 
     await page.getByRole('searchbox', { name: RUNS_SEARCH }).fill('hardenedfast')
 
-    await expect(page).toHaveURL('/suites/libcxx?search=hardenedfast')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?search=hardenedfast')
     const runs = table(page, 'Runs')
     await settled(runs)
     await expect.poll(async () => new Set(await column(runs, 1))).toEqual(new Set([HARDENED]))
   })
 
   test("searches on the commit: its tag, or its display field's value", async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     const runs = table(page, 'Runs')
     await expect(rows(runs)).toHaveCount(25)
     const search = page.getByRole('searchbox', { name: RUNS_SEARCH })
 
     await search.fill(TAG)
-    await expect(page).toHaveURL(`/suites/libcxx?search=${TAG}`)
+    await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks?search=${TAG}`)
     await settled(runs)
     await expect.poll(async () => (await column(runs, 2)).length).toBeGreaterThan(0)
     const commits = new Set(await column(runs, 2))
@@ -126,14 +164,14 @@ test.describe('the Runs tab', () => {
     // The revision is the commit's `svn_revision`, a searchable field.
     const revision = tagged.split(' ')[0]
     await search.fill(revision)
-    await expect(page).toHaveURL(`/suites/libcxx?search=${revision}`)
+    await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks?search=${revision}`)
     await settled(runs)
     await expect.poll(() => column(runs, 0)).toEqual(byTag)
     expect(new Set(await column(runs, 2))).toEqual(new Set([tagged]))
   })
 
   test('searches on a prefix of the UUID, as the table shortens it', async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     const runs = table(page, 'Runs')
     await expect(rows(runs)).toHaveCount(25)
     const shown = (await column(runs, 0))[7]
@@ -142,7 +180,7 @@ test.describe('the Runs tab', () => {
 
     await page.getByRole('searchbox', { name: RUNS_SEARCH }).fill(prefix)
 
-    await expect(page).toHaveURL(`/suites/libcxx?search=${prefix}`)
+    await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks?search=${prefix}`)
     await settled(runs)
     await expect.poll(() => column(runs, 0)).toContain(shown)
     for (const uuid of await column(runs, 0)) expect(uuid.startsWith(prefix)).toBe(true)
@@ -154,7 +192,7 @@ test.describe('the Machines tab', () => {
     page,
     request,
   }) => {
-    await page.goto('/suites/libcxx?tab=machines')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=machines')
     const machines = table(page, 'Machines')
 
     // Not `test_suite_commit` nor `sdk`, which the seeded schema does not list.
@@ -179,14 +217,14 @@ test.describe('the Machines tab', () => {
     await expect(macos.getByText('untracked', { exact: true })).toHaveCount(0)
 
     // Every machine of the suite, in one table with no pager (E2).
-    const listed = await request.get('/api/suites/libcxx/machines')
+    const listed = await request.get('/api/projects/libcxx/suites/benchmarks/machines')
     expect(listed.status()).toBe(200)
     await expect(rows(machines)).toHaveCount((await listed.json()).items.length)
     await expect(page.getByRole('navigation', { name: /pagination/ })).toHaveCount(0)
   })
 
   test('a deep link restores the tab and the search', async ({ page }) => {
-    await page.goto('/suites/libcxx?tab=machines&search=hardenedfast')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=machines&search=hardenedfast')
 
     await expect(page.getByRole('tab', { name: 'Machines' })).toHaveAttribute(
       'aria-selected',
@@ -203,13 +241,13 @@ test.describe('the Commits tab', () => {
   test('shows display values without the tag, listed fields, and -- for what is missing', async ({
     page,
   }) => {
-    await page.goto('/suites/libcxx?tab=commits')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=commits')
     const commits = table(page, 'Commits')
     await expect(rows(commits)).toHaveCount(25)
 
     const search = page.getByRole('searchbox', { name: 'Search commits' })
     await search.fill('experiment')
-    await expect(page).toHaveURL('/suites/libcxx?tab=commits&search=experiment')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=commits&search=experiment')
     const experiment = rows(commits).filter({
       has: page.getByRole('link', { name: EXPERIMENT, exact: true }),
     })
@@ -230,7 +268,7 @@ test.describe('the Commits tab', () => {
   })
 
   test('pages through the commits, most recently seen first', async ({ page }) => {
-    await page.goto('/suites/libcxx?tab=commits')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=commits')
     const commits = table(page, 'Commits')
     await expect(rows(commits)).toHaveCount(25)
     const first = await column(commits, 0)
@@ -245,26 +283,26 @@ test.describe('the Commits tab', () => {
 })
 
 test('Back leaves the page rather than stepping through its settings', async ({ page }) => {
-  await page.goto('/suites/nts')
-  await page.getByRole('link', { name: 'libcxx', exact: true }).click()
-  await expect(page).toHaveURL('/suites/libcxx')
+  await page.goto('/projects/libcxx/suites/header-sizes')
+  await page.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
 
   await page.getByRole('tab', { name: 'Machines' }).click()
   await page.getByRole('searchbox', { name: 'Search machines' }).fill('macos')
-  await expect(page).toHaveURL('/suites/libcxx?tab=machines&search=macos')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=machines&search=macos')
   await page.getByRole('tab', { name: 'Commits' }).click()
-  await expect(page).toHaveURL('/suites/libcxx?tab=commits')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=commits')
 
   await page.goBack()
-  await expect(page).toHaveURL('/suites/nts')
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
 })
 
 test.describe('the Schema tab', () => {
   test('shows the schema of a seeded suite to anyone', async ({ page }) => {
-    await page.goto('/suites/libcxx')
+    await page.goto('/projects/libcxx/suites/benchmarks')
     await page.getByRole('tab', { name: 'Schema' }).click()
 
-    await expect(page).toHaveURL('/suites/libcxx?tab=schema')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=schema')
     await expect(rows(table(page, 'Metrics')).first().locator('td')).toHaveText([
       'execution_time',
       'real',
@@ -292,11 +330,11 @@ test.describe('the Schema tab', () => {
   }, testInfo) => {
     await ownSuite(request, tokenFor, testInfo, [], async (suite) => {
       await signIn(page, 'manage', [suite])
-      await page.goto(`/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
       await expect(page.getByRole('button', { name: 'Edit schema' })).toBeEnabled()
       await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeEnabled()
 
-      await page.goto('/suites/libcxx?tab=schema')
+      await page.goto('/projects/libcxx/suites/benchmarks?tab=schema')
       await expect(table(page, 'Metrics')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Edit schema' })).toBeDisabled()
       await expect(page.getByRole('button', { name: 'Delete This Suite' })).toBeDisabled()
@@ -311,29 +349,29 @@ test.describe('the Schema tab', () => {
   }, testInfo) => {
     await ownSuite(request, tokenFor, testInfo, [], async (suite) => {
       await signIn(page, 'manage')
-      await page.goto(`/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
       await expect(table(page, 'Metrics')).toBeVisible()
 
       const [download] = await Promise.all([
         page.waitForEvent('download'),
         page.getByRole('button', { name: 'Download JSON' }).click(),
       ])
-      expect(download.suggestedFilename()).toBe(`${suite}.json`)
+      expect(download.suggestedFilename()).toBe(`${suite.suite}.json`)
       const downloaded = JSON.parse(readFileSync(await download.path(), 'utf8'))
-      expect(downloaded).toEqual(await json(request, `/api/suites/${suite}`))
+      expect(downloaded).toEqual(await json(request, `/api${suitePath(suite)}`))
 
       await page.getByRole('button', { name: 'Delete This Suite' }).click()
       const prompt = page.getByRole('form', { name: 'Confirmation' })
-      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('textbox').fill(suite.suite)
       await prompt.getByRole('button', { name: 'Delete' }).click()
 
-      // `/suites` gives way to the first suite left, which other tests' suites may precede.
-      await expect(page).toHaveURL(/\/suites\/[a-z0-9_-]+$/)
-      await expect(page).not.toHaveURL(new RegExp(`/suites/${suite}$`))
-      await expect(
-        page.getByRole('navigation', { name: 'Test suites' }).getByRole('link', { name: suite }),
-      ).toHaveCount(0)
-      expect((await request.get(`/api/suites/${suite}`)).status()).toBe(404)
+      // The page leaves for the suites of the project, which has none left.
+      await expect(page).toHaveURL(`/projects/${suite.project}`)
+      const picker = page.getByRole('navigation', { name: 'Test suites' })
+      await expect(picker.getByRole('region', { name: suite.project, exact: true })).toContainText(
+        'No test suites.',
+      )
+      expect((await request.get(`/api${suitePath(suite)}`)).status()).toBe(404)
     })
   })
 
@@ -344,11 +382,11 @@ test.describe('the Schema tab', () => {
     tokenFor,
   }, testInfo) => {
     const token = await tokenFor('manage')
-    await withOwnSuiteName(request, token, testInfo, async (suite) => {
-      const created = await request.post('/api/suites', {
+    await withOwnSuite(request, token, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
         headers: { Authorization: `Bearer ${token}` },
         data: {
-          name: suite,
+          name: suite.suite,
           metrics: [
             { name: 'execution_time', type: 'real' },
             { name: 'compile_time', type: 'real' },
@@ -361,10 +399,11 @@ test.describe('the Schema tab', () => {
       })
       expect(created.status(), await created.text()).toBe(201)
       await signIn(page, 'manage')
-      await page.goto(`/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
 
       await page.getByRole('button', { name: 'Edit schema' }).click()
-      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      // Named by its full label (AR22).
+      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')
@@ -380,7 +419,7 @@ test.describe('the Schema tab', () => {
         .fill('kernel')
       await editor.getByRole('button', { name: 'Save', exact: true }).first().click()
       const prompt = page.getByRole('form', { name: 'Confirmation' })
-      await prompt.getByRole('textbox').fill(suite)
+      await prompt.getByRole('textbox').fill(suite.suite)
       await prompt.getByRole('button', { name: 'Save' }).click()
 
       await expect(editor).toBeHidden()
@@ -394,7 +433,7 @@ test.describe('the Schema tab', () => {
       ])
       const schema = await json<components['schemas']['SuiteSchema']>(
         request,
-        `/api/suites/${suite}`,
+        `/api${suitePath(suite)}`,
       )
       expect(schema.metrics.map((metric) => [metric.name, metric.dashboard])).toEqual([
         ['execution_time', true],
@@ -414,17 +453,17 @@ test.describe('the Schema tab', () => {
     tokenFor,
   }, testInfo) => {
     const token = await tokenFor('manage')
-    await withOwnSuiteName(request, token, testInfo, async (suite) => {
-      const created = await request.post('/api/suites', {
+    await withOwnSuite(request, token, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
         headers: { Authorization: `Bearer ${token}` },
-        data: { name: suite, repository: { label: 'Forge' } },
+        data: { name: suite.suite, repository: { label: 'Forge' } },
       })
       expect(created.status(), await created.text()).toBe(201)
       await signIn(page, 'manage')
-      await page.goto(`/suites/${suite}?tab=schema`)
+      await page.goto(`${suitePath(suite)}?tab=schema`)
 
       await page.getByRole('button', { name: 'Edit schema' }).click()
-      const editor = page.getByRole('region', { name: `Editing ${suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
       const save = editor.getByRole('button', { name: 'Save', exact: true })
       const commitUrl = editor.getByRole('textbox', { name: 'Commit URL' })
       // Refused while the host is not written out.
@@ -438,7 +477,7 @@ test.describe('the Schema tab', () => {
 
       await expect(editor).toBeHidden()
       await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
-        `Name${suite}Display nameForge suite`,
+        `Project${suite.project}Name${suite.suite}Display nameForge suite`,
       )
       // The suite's card is named by its display name (AR22).
       await expect(
@@ -451,7 +490,7 @@ test.describe('the Schema tab', () => {
       )
       const schema = await json<components['schemas']['SuiteSchema']>(
         request,
-        `/api/suites/${suite}`,
+        `/api${suitePath(suite)}`,
       )
       expect(schema.display_name).toBe('Forge suite')
       expect(schema.repository).toEqual({
@@ -476,12 +515,12 @@ test.describe('the Schema tab', () => {
 
     await signIn(page, 'manage')
     // From another suite, for Back to have an entry of the SPA to go back to.
-    await page.goto('/suites/nts')
+    await page.goto('/projects/libcxx/suites/header-sizes')
     const picker = page.getByRole('navigation', { name: 'Test suites' })
-    await picker.getByRole('link', { name: 'libcxx' }).click()
+    await picker.getByRole('link', { name: 'Microbenchmarks' }).click()
     await page.getByRole('tab', { name: 'Schema' }).click()
     await page.getByRole('button', { name: 'Edit schema' }).click()
-    const editor = page.getByRole('region', { name: 'Editing libcxx' })
+    const editor = page.getByRole('region', { name: 'Editing libc++/Microbenchmarks' })
     const displayName = editor.getByRole('textbox', {
       name: 'Display name of metric execution_time',
     })
@@ -512,14 +551,14 @@ test.describe('the Schema tab', () => {
     let asked = answerNext(false)
     await page.goBack()
     expect(await asked).toEqual(CONFIRM)
-    await expect(page).toHaveURL('/suites/libcxx?tab=schema')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=schema')
     await expect(displayName).toHaveValue('Not saved')
 
     // Leaving discards them.
     asked = answerNext(true)
     await page.getByRole('tab', { name: 'Runs' }).click()
     expect(await asked).toEqual(CONFIRM)
-    await expect(page).toHaveURL('/suites/libcxx')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
     await page.getByRole('tab', { name: 'Schema' }).click()
     await expect(editor).toBeHidden()
     await expect(rows(table(page, 'Metrics')).first().locator('td').nth(2)).toHaveText(

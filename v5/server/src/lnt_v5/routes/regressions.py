@@ -93,6 +93,7 @@ from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
 from lnt_v5.suites.scope import (
     SUITE_SCHEMA_CHANGED,
+    ProjectName,
     SuiteName,
     schema_changed,
     suite_responses,
@@ -109,7 +110,7 @@ from lnt_v5.suites.tables import (
     REGRESSION_UUID_CONSTRAINT,
 )
 
-REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
+REGRESSIONS_PATH = f"{SUITES_PATH}/{{suite}}/regressions"
 INDICATORS_PATH = f"{REGRESSIONS_PATH}/{{uuid}}/indicators"
 INDICATOR_LOOKUP_PATH = f"{REGRESSIONS_PATH}/indicators/query"
 
@@ -331,8 +332,8 @@ class _RegressionBody(BaseModel):
     specified to share.
 
     Four of the five are nullable and a null clears the stored value on `PATCH`, the same
-    convention as `PATCH /api/suites/{testsuite}/commits/{value}`. `state` is the exception,
-    because a regression is always in one of the five states; sending `state: null` is a 400.
+    convention as `PATCH .../commits/{value}`. `state` is the exception, because a regression is
+    always in one of the five states; sending `state: null` is a 400.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -782,7 +783,7 @@ class Regressions:
     def missing(self, uuid: str) -> ApiError:
         """The 404 for a regression that is not there, worded in one place for all its callers."""
         return ApiError(
-            ErrorCode.NOT_FOUND, f"No regression '{uuid}' in test suite '{self.schema.name}'"
+            ErrorCode.NOT_FOUND, f"No regression '{uuid}' in test suite '{self.suite.full_name}'"
         )
 
     def resolved_indicators(
@@ -820,7 +821,7 @@ class Regressions:
             connection,
             self._metric.c.name,
             [one.metric for one in submitted],
-            lambda _: schema_changed(self.schema.name),
+            lambda _: schema_changed(self.suite),
         )
         rows = {(machines[one.machine], tests[one.test], metrics[one.metric]) for one in submitted}
         return [
@@ -858,7 +859,7 @@ class Regressions:
             reporting_violation(
                 REGRESSION_INDICATOR_METRIC_CONSTRAINT,
                 ErrorCode.RETRY,
-                schema_changed(self.schema.name).message,
+                schema_changed(self.suite).message,
             ),
             reporting_violation(
                 REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
@@ -920,6 +921,7 @@ class Regressions:
     responses=suite_responses(not_found=_NO_FILTERED_ENTITY),
 )
 def list_regressions(
+    project: ProjectName,
     testsuite: SuiteName,
     engine: EngineDep,
     registry: RegistryDep,
@@ -1000,7 +1002,10 @@ def list_regressions(
 
     If you combine `machine`, `test` and `metric`, they must all match the same indicator.
     """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         conditions: list[ColumnElement[bool]] = []
         if search is not None:
@@ -1044,6 +1049,7 @@ def list_regressions(
     ),
 )
 def create_regression(
+    project: ProjectName,
     testsuite: SuiteName,
     body: Annotated[RegressionCreate, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
@@ -1054,14 +1060,17 @@ def create_regression(
 
     LNT doesn't detect regressions itself: people or external tools record them here.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         resolved = regressions.resolved_indicators(connection, body.indicators)
         commit = None if body.commit is None else commit_id(connection, suite, body.commit)
 
         # E8: the client's UUID when it sent one, and a v4 the server mints otherwise.
         uuid = body.uuid or str(uuid4())
-        taken = f"A regression '{uuid}' already exists in test suite '{suite.schema.name}'"
+        taken = f"A regression '{uuid}' already exists in test suite '{suite.full_name}'"
         with (
             reporting_violation(REGRESSION_UUID_CONSTRAINT, ErrorCode.DUPLICATE, taken),
             regressions.commit_deleted(body.commit),
@@ -1085,7 +1094,7 @@ def create_regression(
         # detail endpoint serves for the same regression.
         detail = regressions.detail(connection, uuid)
 
-    response.headers["Location"] = location_of(REGRESSIONS_PATH, testsuite, uuid)
+    response.headers["Location"] = location_of(REGRESSIONS_PATH, project, testsuite, uuid)
     return detail
 
 
@@ -1096,10 +1105,17 @@ def create_regression(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def get_regression(
-    testsuite: SuiteName, uuid: RegressionKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: RegressionKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> RegressionDetail:
     """Get a regression, with its notes and indicators."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         return Regressions(suite).detail(connection, uuid)
 
 
@@ -1112,6 +1128,7 @@ def get_regression(
     ),
 )
 def update_regression(
+    project: ProjectName,
     testsuite: SuiteName,
     uuid: RegressionKey,
     body: Annotated[RegressionUpdate, Body(openapi_examples=_UPDATE_EXAMPLES)],
@@ -1122,7 +1139,10 @@ def update_regression(
 
     Only include what you want to change. A regression can move from any state to any other.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         # The regression before the commit the body names, so that a request addressing a
         # regression that is not there is told so rather than about its commit.
@@ -1161,12 +1181,19 @@ def update_regression(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def delete_regression(
-    testsuite: SuiteName, uuid: RegressionKey, engine: EngineDep, registry: RegistryDep
+    project: ProjectName,
+    testsuite: SuiteName,
+    uuid: RegressionKey,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> None:
     """Delete a regression and its indicators. The machines, tests and commit it refers to are not
     affected."""
     # One statement: D5 gives `{suite}.regression_indicator.regression_id` an `ON DELETE CASCADE`.
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         removed = connection.execute(
             delete(regressions.table).where(regressions.table.c.uuid == uuid)
@@ -1185,6 +1212,7 @@ def delete_regression(
     responses=suite_responses(not_found=_NO_INDICATOR_TARGET),
 )
 def add_indicators(
+    project: ProjectName,
     testsuite: SuiteName,
     uuid: RegressionKey,
     body: Annotated[IndicatorAddition, Body(openapi_examples=_ADD_EXAMPLES)],
@@ -1193,7 +1221,10 @@ def add_indicators(
 ) -> IndicatorsAdded:
     """Add indicators to a regression. Indicators it already has are ignored. The response lists
     all of its indicators afterwards."""
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         regression = regressions.resolve(connection, uuid)
         resolved = regressions.resolved_indicators(connection, body.indicators)
@@ -1218,6 +1249,7 @@ def add_indicators(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def remove_indicators(
+    project: ProjectName,
     testsuite: SuiteName,
     uuid: RegressionKey,
     body: Annotated[IndicatorRemoval, Body(openapi_examples=_REMOVE_EXAMPLES)],
@@ -1230,7 +1262,10 @@ def remove_indicators(
     UUIDs that don't match an indicator of this regression are ignored, so it is safe to retry a
     removal. A regression left without indicators is kept.
     """
-    with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.begin() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         regression = regressions.resolve(connection, uuid)
         removed = regressions.remove_indicators(connection, regression, body.indicator_uuids)
@@ -1248,6 +1283,7 @@ def remove_indicators(
     responses=suite_responses(not_found=_NO_FILTERED_ENTITY),
 )
 def query_indicators(
+    project: ProjectName,
     testsuite: SuiteName,
     body: Annotated[IndicatorQuery, Body(openapi_examples=_QUERY_EXAMPLES)],
     engine: EngineDep,
@@ -1258,7 +1294,10 @@ def query_indicators(
 
     This is a POST only because the lists can be too long for a URL; it doesn't change anything.
     """
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+    with (
+        engine.connect() as connection,
+        suite_scope(registry, connection, project, testsuite) as suite,
+    ):
         regressions = Regressions(suite)
         conditions: list[ColumnElement[bool]] = []
         if body.metric is not None:

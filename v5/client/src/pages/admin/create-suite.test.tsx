@@ -5,10 +5,12 @@ import { describe, expect, it } from 'vitest'
 import type { QueryClient } from '@tanstack/react-query'
 import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import type { SuiteSchema } from '../../api/suites'
+import type { ProjectName, Suite, SuiteSchema } from '../../api/suites'
 import { compareStrings } from '../../format'
-import { signIn } from '../../test/auth'
-import { BARE_SUITE, NO_REPOSITORY, SUITE } from '../../test/fixtures'
+import { entry, signIn } from '../../test/auth'
+import { BARE_SUITE, NO_REPOSITORY, PROJECT, SUITE, inProject } from '../../test/fixtures'
+import { renderWithProviders } from '../../test/render'
+import { CreateSuite } from './create-suite'
 import { answerLeaving, unloadAsks } from '../../test/leave'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -16,6 +18,7 @@ import {
   gate,
   mockSuites,
   renderPage,
+  projectList,
   rowsOf,
   table,
   typeInto,
@@ -26,20 +29,23 @@ import { server } from '../../test/server'
 
 type Failure = ReturnType<typeof errorResponse>
 
+/** Another project, with a display name, holding no suite at first. */
+const SWIFT: ProjectName = { name: 'swift', display_name: 'Swift' }
+
 /**
- * Answer `POST /api/suites` by adding the suite it describes to `store`, normalized as the API
- * returns it, once `wait` resolves, or with `fail`. Returns each request's body, as sent, and its
- * `Authorization`.
+ * Answer `POST /api/projects/{project}/suites` by adding the suite it describes to `store`, in the
+ * project, normalized as the API returns it, once `wait` resolves, or with `fail`. Returns each
+ * request's project, body, as sent, and `Authorization`.
  */
 function mockCreate(
   store: SuiteStore,
   { fail, wait }: { fail?: () => Failure; wait?: () => Promise<void> } = {},
 ) {
-  const sent: { text: string; auth: string | null }[] = []
+  const sent: { project: string; text: string; auth: string | null }[] = []
   server.use(
-    mockApi('post', '/api/suites', async ({ request }) => {
+    mockApi('post', '/api/projects/{project}/suites', async ({ request, params }) => {
       const text = await request.text()
-      sent.push({ text, auth: request.headers.get('Authorization') })
+      sent.push({ project: params.project, text, auth: request.headers.get('Authorization') })
       await wait?.()
       if (fail) return fail()
       const body = JSON.parse(text) as Partial<SuiteSchema> & { name: string }
@@ -51,7 +57,9 @@ function mockCreate(
         ...body,
         repository: { ...NO_REPOSITORY, ...body.repository },
       }
-      store.suites = [...store.suites, schema].sort((a, b) => compareStrings(a.name, b.name))
+      const project = store.projects.find((candidate) => candidate.name === params.project)!
+      const suite = inProject(schema, project)
+      store.suites = [...store.suites, suite].sort((a, b) => compareStrings(a.name, b.name))
       return HttpResponse.json(schema, { status: 201 })
     }),
   )
@@ -79,25 +87,31 @@ function createButton() {
 }
 
 /**
- * Show the Test Suites tab, the instance holding `suites`, to a holder of a `manage` token, and
- * open the editor creating a suite, once it has loaded the suites.
+ * Show the Test Suites tab, the instance holding `suites` in `projects`, to a holder of a `manage`
+ * token, and open the editor creating a suite, once it has loaded the projects, picking `pick`
+ * unless null.
  */
-async function openEditor({ suites = [SUITE, BARE_SUITE] }: { suites?: SuiteSchema[] } = {}) {
+async function openEditor({
+  suites = [SUITE, BARE_SUITE],
+  projects,
+  pick = PROJECT.name,
+}: { suites?: (Suite | SuiteSchema)[]; projects?: ProjectName[]; pick?: string | null } = {}) {
   signIn('manage')
-  const store = mockSuites(suites)
+  const store = mockSuites(suites, { projects })
   const { queryClient } = renderPage('/admin?tab=suites')
   await waitFor(() => expect(newSuiteButton()).toBeEnabled())
   fireEvent.click(newSuiteButton())
   await waitFor(() => expect(editor()).toBeInTheDocument())
-  await waitFor(() => expect(queryClient.getQueryState(queryKeys.suites)?.status).toBe('success'))
+  await waitFor(() => expect(queryClient.getQueryState(queryKeys.projects)?.status).toBe('success'))
+  if (pick !== null) await pickOption('Project', pick)
   return Object.assign(store, { queryClient })
 }
 
-/** The names the suites listed in the cache have. */
+/** The names the suites listed in the cache have, as `project/suite`. */
 function cachedSuites(queryClient: QueryClient) {
   return queryClient
-    .getQueryData<Schemas['SuiteSchemaList']>(queryKeys.suites)
-    ?.items.map((suite) => suite.name)
+    .getQueryData<Schemas['ProjectList']>(queryKeys.projects)
+    ?.items.flatMap((project) => project.suites.map((suite) => `${project.name}/${suite.name}`))
 }
 
 /** Add an entry to `list`, as its "+ Add" button does, naming it `name`. */
@@ -121,70 +135,144 @@ describe('opening the editor', () => {
     expect(newSuiteButton()).toBeDisabled()
   })
 
-  it('needs an instance-wide token, rather than one restricted to some suites', async () => {
-    signIn('manage', ['nts'])
-    mockSuites()
+  it('needs a token covering a project in full, rather than one restricted to suites', async () => {
+    signIn('manage', [entry('nts')])
+    mockSuites([SUITE, BARE_SUITE], { projects: [PROJECT, SWIFT] })
     renderPage('/admin?tab=suites')
 
-    // Creating a suite addresses none.
+    // A suite is created in a project, which the token must cover in full.
     await waitFor(() =>
       expect(newSuiteButton()).toHaveAccessibleDescription(
-        "Needs an instance-wide API token with the 'manage' scope. The token in Settings has " +
-          "the 'manage' scope only in suite 'nts'.",
+        "Needs an API token with the 'manage' scope covering a project in full. The token in " +
+          "Settings has the 'manage' scope only in suite 'llvm/nts'.",
       ),
     )
     expect(newSuiteButton()).toBeDisabled()
   })
 
-  it('loads the suites to start from, and creates nothing until they have loaded', async () => {
-    signIn('manage')
-    const list = gate()
-    const store = mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
+  it('names the project needed when there is only one', async () => {
+    signIn('manage', [entry('nts')])
+    mockSuites()
     renderPage('/admin?tab=suites')
-    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
-    fireEvent.click(newSuiteButton())
-    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'libcxx')
 
-    expect(selectButton('Start from')).toBeDisabled()
-    expect(createButton()).toBeDisabled()
-    expect(createButton()).toHaveAccessibleDescription('Loading the test suites...')
-    await act(async () => list.open())
-
-    // The name is checked against the suites now loaded.
-    await waitFor(() => expect(selectButton('Start from')).toBeEnabled())
-    expect(createButton()).toHaveAccessibleDescription("There is already a suite named 'libcxx'.")
-    expect(store.requests).toBe(1)
+    await waitFor(() =>
+      expect(newSuiteButton()).toHaveAccessibleDescription(
+        "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token " +
+          "in Settings has the 'manage' scope only in suite 'llvm/nts'.",
+      ),
+    )
   })
 
-  it('says why the suites could not be loaded, and loads them again', async () => {
+  it('is disabled while there are no projects to create a suite in', async () => {
+    signIn('manage')
+    mockSuites([], { projects: [] })
+    renderPage('/admin?tab=suites')
+
+    await waitFor(() =>
+      expect(newSuiteButton()).toHaveAccessibleDescription(
+        'There are no projects to create a suite in.',
+      ),
+    )
+    expect(newSuiteButton()).toBeDisabled()
+  })
+
+  it('opens the editor while the projects load, which says that they are loading', async () => {
+    signIn('manage', [entry('nts')])
+    const list = gate()
+    mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
+    renderPage('/admin?tab=suites')
+
+    // A restricted token may cover a project in full, which only the list can tell.
+    await waitFor(() => expect(newSuiteButton()).toBeEnabled())
+    fireEvent.click(newSuiteButton())
+    expect(createButton()).toHaveAccessibleDescription('Loading the projects...')
+    await act(async () => list.open())
+  })
+
+  it('is disabled while the projects load for a token without the scope', async () => {
+    signIn('triage')
+    const list = gate()
+    mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
+    renderPage('/admin?tab=suites')
+
+    await waitFor(() =>
+      expect(newSuiteButton()).toHaveAccessibleDescription(
+        "Needs an API token with the 'manage' scope. The token in Settings has the 'triage' scope.",
+      ),
+    )
+    expect(newSuiteButton()).toBeDisabled()
+    await act(async () => list.open())
+  })
+
+  it('opens the editor when the projects could not be loaded, which says so', async () => {
     signIn('manage')
     server.use(
-      mockApi('get', '/api/suites', () =>
+      mockApi('get', '/api/projects', () =>
         errorResponse(500, 'internal_error', 'The database is down.'),
       ),
     )
     renderPage('/admin?tab=suites')
     await waitFor(() => expect(newSuiteButton()).toBeEnabled())
-    fireEvent.click(newSuiteButton())
-    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'fresh')
 
-    const alert = await within(editor()!).findByRole('alert')
-    expect(alert).toHaveTextContent('The test suites could not be loaded: The database is down.')
-    expect(createButton()).toHaveAccessibleDescription('The test suites could not be loaded.')
-    // Importing a document needs no suites.
-    fireEvent.click(screen.getByRole('button', { name: 'Import JSON' }))
-    expect(within(editor()!).queryByRole('alert')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Import JSON' }))
+    fireEvent.click(newSuiteButton())
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The projects could not be loaded: The database is down.',
+    )
+    expect(createButton()).toHaveAccessibleDescription('The projects could not be loaded.')
 
     mockSuites()
-    fireEvent.click(within(editor()!).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(selectButton('Start from')).toBeEnabled())
-    expect(within(editor()!).queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(createButton()).toHaveAccessibleDescription('Pick a project first.'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('creates nothing until the projects have loaded', async () => {
+    // Rendered on its own: the tab opens the editor only once the projects have loaded.
+    signIn('manage')
+    const list = gate()
+    mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
+    renderWithProviders(<CreateSuite onCancel={() => {}} onCreated={() => {}} />)
+    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'libcxx')
+
+    expect(selectButton('Project')).toBeDisabled()
+    expect(selectButton('Start from')).toBeDisabled()
+    expect(createButton()).toBeDisabled()
+    expect(createButton()).toHaveAccessibleDescription('Loading the projects...')
+    await act(async () => list.open())
+
+    await waitFor(() => expect(selectButton('Project')).toBeEnabled())
+    expect(selectButton('Start from')).toBeEnabled()
+    expect(createButton()).toHaveAccessibleDescription('Pick a project first.')
+    // The name is checked against the suites of the project picked.
+    await pickOption('Project', 'llvm')
+    expect(createButton()).toHaveAccessibleDescription("There is already a suite named 'libcxx'.")
+  })
+
+  it('says why the projects could not be loaded in the editor, and loads them again', async () => {
+    signIn('manage')
+    server.use(
+      mockApi('get', '/api/projects', () =>
+        errorResponse(500, 'internal_error', 'The database is down.'),
+      ),
+    )
+    renderWithProviders(<CreateSuite onCancel={() => {}} onCreated={() => {}} />)
+    typeInto(await screen.findByRole('textbox', { name: 'Suite name' }), 'fresh')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The projects could not be loaded: The database is down.',
+    )
+    expect(createButton()).toHaveAccessibleDescription('The projects could not be loaded.')
+
+    mockSuites()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(selectButton('Project')).toBeEnabled())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await pickOption('Project', 'llvm')
     expect(createButton()).toBeEnabled()
   })
 
   it("takes the place of the tab's content, New suite included", async () => {
-    await openEditor()
+    await openEditor({ pick: null })
 
     expect(screen.queryByRole('button', { name: 'New suite' })).not.toBeInTheDocument()
     expect(suiteNameInput()).toHaveFocus()
@@ -218,7 +306,7 @@ describe('opening the editor', () => {
     typeInto(suiteNameInput(), 'first')
     fireEvent.click(createButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/first?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/first?tab=schema'))
     expect(rowsOf(await table('Metrics'))).toEqual(['No metrics.'])
   })
 
@@ -241,7 +329,7 @@ describe('opening the editor', () => {
     typeInto(suiteNameInput(), 'entered')
     fireEvent.submit(suiteNameInput())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/entered?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/entered?tab=schema'))
     expect(sent).toHaveLength(1)
   })
 
@@ -265,7 +353,7 @@ describe('opening the editor', () => {
   })
 
   it('is left without asking while nothing is entered', async () => {
-    await openEditor()
+    await openEditor({ pick: null })
     const confirm = answerLeaving(false)
     expect(unloadAsks()).toBe(false)
 
@@ -275,8 +363,16 @@ describe('opening the editor', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
+  it('has unsaved changes once a project is picked', async () => {
+    await openEditor({ pick: null })
+    expect(unloadAsks()).toBe(false)
+
+    await pickOption('Project', 'llvm')
+    expect(unloadAsks()).toBe(true)
+  })
+
   it('has unsaved changes once a name, an entry or a repository value is entered', async () => {
-    await openEditor()
+    await openEditor({ pick: null })
 
     typeInto(displayNameInput(), ' ')
     expect(unloadAsks()).toBe(false)
@@ -301,20 +397,85 @@ describe('opening the editor', () => {
     expect(unloadAsks()).toBe(false)
 
     // A suite without entries leaves the editor as it opened.
-    await pickOption('Start from', 'nts')
+    await pickOption('Start from', 'llvm/nts')
     expect(unloadAsks()).toBe(false)
-    await pickOption('Start from', 'libcxx')
+    await pickOption('Start from', 'llvm/libcxx')
     expect(unloadAsks()).toBe(true)
   })
 
   it('has unsaved changes once a document that is not blank is entered', async () => {
     await openEditor()
+    const confirm = answerLeaving(false)
 
     fireEvent.click(screen.getByRole('button', { name: 'Import JSON' }))
-    typeInto(screen.getByRole('textbox', { name: /^Schema document/ }), '  \n ')
-    expect(unloadAsks()).toBe(false)
     typeInto(screen.getByRole('textbox', { name: /^Schema document/ }), '{}')
-    expect(unloadAsks()).toBe(true)
+    fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
+    expect(confirm).toHaveBeenCalledOnce()
+  })
+})
+
+describe('the Project dropdown', () => {
+  it('lists every project by its label, with none picked, and needs one to create', async () => {
+    await openEditor({ projects: [SWIFT, PROJECT], pick: null })
+    typeInto(suiteNameInput(), 'fresh')
+
+    expect(selectButton('Project')).toHaveTextContent('Select a project')
+    expect(createButton()).toBeDisabled()
+    expect(createButton()).toHaveAccessibleDescription('Pick a project first.')
+    const user = userEvent.setup()
+    await user.click(selectButton('Project'))
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'llvm',
+      'Swift',
+    ])
+    await user.click(screen.getByRole('option', { name: 'Swift' }))
+
+    expect(selectButton('Project')).toHaveTextContent('Swift')
+    expect(createButton()).toBeEnabled()
+  })
+
+  it('refuses the projects the token does not cover in full, saying why', async () => {
+    // Rendered on its own: the tab opens the editor only for a token covering some project.
+    signIn('manage', [entry('nts')])
+    mockSuites([SUITE, BARE_SUITE], { projects: [PROJECT, SWIFT] })
+    renderWithProviders(<CreateSuite onCancel={() => {}} onCreated={() => {}} />)
+    await waitFor(() => expect(selectButton('Project')).toBeEnabled())
+
+    await userEvent.setup().click(selectButton('Project'))
+    const why =
+      "Needs an API token with the 'manage' scope covering project 'Swift' in full. The token " +
+      "in Settings has the 'manage' scope only in suite 'llvm/nts'."
+    const options = await screen.findAllByRole('option')
+    // Saying why on hover, and to assistive technology.
+    expect(options[1]).toHaveAccessibleName(`Swift: ${why}`)
+    expect(within(options[1]).getByTitle(why)).toBeInTheDocument()
+    // Picking one changes nothing.
+    fireEvent.click(options[1])
+    expect(createButton()).toHaveAccessibleDescription('Pick a project first.')
+  })
+
+  it('checks the name against the suites of the project picked alone', async () => {
+    await openEditor({ projects: [PROJECT, SWIFT], pick: 'Swift' })
+
+    typeInto(suiteNameInput(), 'nts')
+    expect(suiteNameInput()).not.toHaveAttribute('aria-invalid')
+    expect(createButton()).toBeEnabled()
+
+    await pickOption('Project', 'llvm')
+    expect(suiteNameInput()).toHaveAccessibleDescription("There is already a suite named 'nts'.")
+    expect(createButton()).toBeDisabled()
+  })
+
+  it("creates the suite in the project picked, then goes to the suite's Schema tab", async () => {
+    const store = await openEditor({ projects: [PROJECT, SWIFT], pick: 'Swift' })
+    const sent = mockCreate(store)
+    typeInto(suiteNameInput(), 'nts')
+
+    fireEvent.click(createButton())
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/nts?tab=schema'))
+    expect(sent.map(({ project }) => project)).toEqual(['swift'])
+    expect(cachedSuites(store.queryClient)).toContain('swift/nts')
   })
 })
 
@@ -514,7 +675,7 @@ describe('creating the suite', () => {
 
     fireEvent.click(createButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/fresh?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/fresh?tab=schema'))
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'fresh',
       display_name: 'Fresh suite',
@@ -539,7 +700,7 @@ describe('creating the suite', () => {
     expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()
     expect(await screen.findByRole('group', { name: 'Suite' })).toHaveTextContent(
-      'NamefreshDisplay nameFresh suite',
+      'ProjectllvmNamefreshDisplay nameFresh suite',
     )
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
@@ -560,7 +721,7 @@ describe('creating the suite', () => {
 
     fireEvent.click(createButton())
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/empty?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/empty?tab=schema'))
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'empty',
       display_name: null,
@@ -647,12 +808,30 @@ describe('creating the suite', () => {
     expect(within(editor()!).getByRole('alert')).toHaveTextContent("Suite 'fresh' already exists")
   })
 
+  it('no longer picks a project deleted meanwhile, once creating a suite in it fails', async () => {
+    const store = await openEditor({ projects: [PROJECT, SWIFT], pick: 'Swift' })
+    mockCreate(store, {
+      fail: () => {
+        store.projects = [PROJECT]
+        return errorResponse(404, 'not_found', "Project 'swift' not found")
+      },
+    })
+    typeInto(suiteNameInput(), 'fresh')
+
+    fireEvent.click(createButton())
+
+    await waitFor(() => expect(createButton()).toHaveAccessibleDescription('Pick a project first.'))
+    expect(within(editor()!).getByRole('alert')).toHaveTextContent("Project 'swift' not found")
+    expect(selectButton('Project')).toHaveTextContent('Select a project')
+    expect(suiteNameInput()).toHaveValue('fresh')
+  })
+
   it('keeps the editor when the list fetched again after a taken name fails', async () => {
     const store = await openEditor()
     mockCreate(store, {
       fail: () => {
         server.use(
-          mockApi('get', '/api/suites', () =>
+          mockApi('get', '/api/projects', () =>
             errorResponse(500, 'internal_error', 'The database is down.'),
           ),
         )
@@ -665,7 +844,7 @@ describe('creating the suite', () => {
 
     expect(await within(editor()!).findByRole('alert')).toHaveTextContent('already exists')
     await waitFor(() =>
-      expect(store.queryClient.getQueryState(queryKeys.suites)?.status).toBe('error'),
+      expect(store.queryClient.getQueryState(queryKeys.projects)?.status).toBe('error'),
     )
     expect(editor()).toBeInTheDocument()
     expect(suiteNameInput()).toHaveValue('fresh')
@@ -679,20 +858,24 @@ describe('creating the suite', () => {
     const refetched = mockSuites([SUITE, BARE_SUITE], {
       wait: () => stale.promise,
     })
-    void store.queryClient.refetchQueries({ queryKey: queryKeys.suites })
+    void store.queryClient.refetchQueries({ queryKey: queryKeys.projects })
     await waitFor(() => expect(refetched.requests).toBe(1))
 
     // Lists asked for from now on hold what the instance does.
-    server.use(mockApi('get', '/api/suites', () => HttpResponse.json({ items: store.suites })))
+    server.use(
+      mockApi('get', '/api/projects', () =>
+        HttpResponse.json(projectList(store.suites, store.projects)),
+      ),
+    )
 
     fireEvent.click(createButton())
-    await waitFor(() => expect(currentUrl()).toBe('/suites/fresh?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/fresh?tab=schema'))
     await act(async () => stale.open())
     await waitFor(() => expect(store.queryClient.isFetching()).toBe(0))
 
     expect(await table('Metrics')).toBeInTheDocument()
     expect(screen.queryByText("Test suite 'fresh' not found.")).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/suites/fresh?tab=schema')
+    expect(currentUrl()).toBe('/projects/llvm/suites/fresh?tab=schema')
   })
 
   it('stays where the user is once done if they have left the tab meanwhile', async () => {
@@ -713,7 +896,7 @@ describe('creating the suite', () => {
     expect(currentUrl()).toBe('/admin')
 
     // The suite was created all the same, and is in the list of suites.
-    expect(cachedSuites(store.queryClient)).toContain('fresh')
+    expect(cachedSuites(store.queryClient)).toContain('llvm/fresh')
   })
 })
 
@@ -723,7 +906,7 @@ describe('Start from', () => {
     typeInto(suiteNameInput(), 'copy')
     addEntry('metric', 'mine')
 
-    await pickOption('Start from', 'libcxx')
+    await pickOption('Start from', 'llvm/libcxx')
 
     expect(suiteNameInput()).toHaveValue('copy')
     expect(
@@ -753,7 +936,7 @@ describe('Start from', () => {
 
     // Picking it again starts again from it.
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric execution_time' }))
-    await pickOption('Start from', 'libcxx')
+    await pickOption('Start from', 'llvm/libcxx')
     expect(screen.getAllByRole('textbox', { name: /^Name of metric/ })).toHaveLength(1)
   })
 
@@ -766,10 +949,10 @@ describe('Start from', () => {
     await user.click(selectButton('Start from'))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Select a suite',
-      'alpha',
-      'Microbenchmarks',
+      'llvm/alpha',
+      'llvm/Microbenchmarks',
     ])
-    await user.click(screen.getByRole('option', { name: 'Microbenchmarks' }))
+    await user.click(screen.getByRole('option', { name: 'llvm/Microbenchmarks' }))
 
     expect(suiteNameInput()).toHaveValue('')
     expect(displayNameInput()).toHaveValue(' Mine ')
@@ -801,6 +984,27 @@ describe('Import JSON', () => {
   function documentInput() {
     return screen.getByRole('textbox', { name: /^Schema document/ })
   }
+
+  it('is disabled until a project is picked', async () => {
+    await openEditor({ pick: null })
+
+    expect(importToggle()).toBeDisabled()
+    expect(importToggle()).toHaveAccessibleDescription('Pick a project first.')
+    await pickOption('Project', 'llvm')
+    expect(importToggle()).toBeEnabled()
+  })
+
+  it('sends the document to the project picked', async () => {
+    const store = await openEditor({ projects: [PROJECT, SWIFT], pick: 'Swift' })
+    const sent = mockCreate(store)
+    fireEvent.click(importToggle())
+    typeInto(documentInput(), DOCUMENT)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create from JSON' }))
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/imported?tab=schema'))
+    expect(sent.map(({ project }) => project)).toEqual(['swift'])
+  })
 
   it('takes the place of the editor, which it gives back as it was', async () => {
     await openEditor()
@@ -834,7 +1038,7 @@ describe('Import JSON', () => {
     typeInto(documentInput(), DOCUMENT)
     fireEvent.click(send)
 
-    await waitFor(() => expect(currentUrl()).toBe('/suites/imported?tab=schema'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/imported?tab=schema'))
     expect(sent[0].text).toBe(DOCUMENT)
     expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()

@@ -6,7 +6,7 @@ import {
   useRegression,
   useRegressionMutation,
 } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { fullName, refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { CommitLink } from '../../components/commit-link'
 import { CommitPicker, UNPICKED_COMMIT } from '../../components/commit-picker'
@@ -25,6 +25,7 @@ import { AddIndicators } from './add-indicators'
 import { RegressionIndicators } from './regression-indicators'
 import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
+import { useSuiteParams } from '../../suite-params'
 
 type Regression = Schemas['RegressionDetail']
 
@@ -32,7 +33,8 @@ const STATE_OPTIONS = REGRESSION_STATES.map((state) => ({ value: state, label: s
 
 /** The Regression Detail page (DT4). */
 export default function RegressionDetailPage() {
-  const { suite = '', uuid = '' } = useParams()
+  const suite = useSuiteParams()
+  const { uuid = '' } = useParams()
   // The regression the content fetches, once it has the suite's schema, so that the header follows
   // the title once an edit is saved.
   const title = useRegression(suite, uuid, { fetch: false }).data?.title
@@ -42,14 +44,20 @@ export default function RegressionDetailPage() {
       <h1>Regression: {title ?? shortUuid(uuid)}</h1>
       <WithSchema suite={suite}>
         {/* Keyed, so that nothing of a regression's page, an open editor say, stays on another's. */}
-        {(schema) => <RegressionContent key={`${suite}/${uuid}`} schema={schema} uuid={uuid} />}
+        {(schema) => (
+          <RegressionContent
+            key={`${fullName(suite)}/${uuid}`}
+            schema={schema}
+            uuid={uuid}
+          />
+        )}
       </WithSchema>
     </section>
   )
 }
 
-function RegressionContent({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
-  const regression = useRegression(schema.name, uuid)
+function RegressionContent({ schema, uuid }: { schema: Suite; uuid: string }) {
+  const regression = useRegression(refOf(schema), uuid)
   return (
     <Loaded
       isPending={regression.isPending}
@@ -59,7 +67,7 @@ function RegressionContent({ schema, uuid }: { schema: SuiteSchema; uuid: string
       {regression.data && (
         <>
           <RegressionInfo schema={schema} regression={regression.data} />
-          <Actions suite={schema.name} regression={regression.data} />
+          <Actions suite={refOf(schema)} regression={regression.data} />
           <AddIndicators schema={schema} uuid={uuid} />
           <RegressionIndicators schema={schema} regression={regression.data} />
         </>
@@ -69,14 +77,14 @@ function RegressionContent({ schema, uuid }: { schema: SuiteSchema; uuid: string
 }
 
 /** Change the regression `uuid` with `PATCH /regressions/{uuid}` (E8), which answers with it whole. */
-function useUpdateRegression(suite: string, uuid: string) {
+function useUpdateRegression(suite: SuiteRef, uuid: string) {
   return useRegressionMutation(
     suite,
     uuid,
     (body: Schemas['RegressionUpdate']) =>
       unwrap(
-        authedApi.PATCH('/api/suites/{testsuite}/regressions/{uuid}', {
-          params: { path: { testsuite: suite, uuid } },
+        authedApi.PATCH('/api/projects/{project}/suites/{suite}/regressions/{uuid}', {
+          params: { path: { ...suite, uuid } },
           body,
         }),
       ),
@@ -88,9 +96,9 @@ function useUpdateRegression(suite: string, uuid: string) {
  * The regression's title, state, bug, commit and notes, each of which a holder of `triage` scope
  * can edit, and when it was created (DT4).
  */
-function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regression: Regression }) {
-  const triage = useScopeGate('triage', schema.name)
-  const update = useUpdateRegression(schema.name, regression.uuid).mutateAsync
+function RegressionInfo({ schema, regression }: { schema: Suite; regression: Regression }) {
+  const triage = useScopeGate('triage', refOf(schema))
+  const update = useUpdateRegression(refOf(schema), regression.uuid).mutateAsync
   return (
     <InfoBox label="Regression">
       <InfoRow label="Title">
@@ -103,7 +111,7 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
         />
       </InfoRow>
       <InfoRow label="State">
-        <StateRow suite={schema.name} regression={regression} />
+        <StateRow suite={refOf(schema)} regression={regression} />
       </InfoRow>
       <InfoRow label="Bug">
         <InlineEdit
@@ -157,7 +165,7 @@ function RegressionInfo({ schema, regression }: { schema: SuiteSchema; regressio
  * The regression's state, with its badge, which a holder of `triage` scope changes by picking
  * another, saved at once (AR13).
  */
-function StateRow({ suite, regression }: { suite: string; regression: Regression }) {
+function StateRow({ suite, regression }: { suite: SuiteRef; regression: Regression }) {
   const triage = useScopeGate('triage', suite)
   const update = useUpdateRegression(suite, regression.uuid)
   return (
@@ -189,7 +197,7 @@ function StateRow({ suite, regression }: { suite: string; regression: Regression
 }
 
 /** Delete regression, with its confirmation below it (DT4). */
-function Actions({ suite, regression }: { suite: string; regression: Regression }) {
+function Actions({ suite, regression }: { suite: SuiteRef; regression: Regression }) {
   const { uuid } = regression
   return (
     <DetailActionRow

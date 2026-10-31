@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { SuiteRef } from '../api/suites'
 import { formatTimestamp } from '../format'
 import { runPath } from '../paths'
 import { formatMetricValue, type Metric } from '../schema'
@@ -19,7 +20,7 @@ interface Props {
   /** The table's accessible name. */
   label: string
   /** The runs' suite. */
-  suite: string
+  suite: SuiteRef
   metric: Metric
   /** The runs, in the order they were measured, each with its samples, ascending. */
   runs: RunSamples[]
@@ -48,7 +49,7 @@ export function RunSamplesTable({ label, suite, metric, runs }: Props) {
 const runKey = (run: RunSamples) => run.run
 
 /** The columns of the table: when each run was measured, which run it is, and its samples. */
-function runColumns(suite: string, metric: Metric): Column<RunSamples>[] {
+function runColumns(suite: SuiteRef, metric: Metric): Column<RunSamples>[] {
   return [
     {
       id: 'measured',

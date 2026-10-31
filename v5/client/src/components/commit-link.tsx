@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useResolvedCommit } from '../api/commits'
-import type { SuiteSchema } from '../api/suites'
+import { refOf, type Suite } from '../api/suites'
 import { commitPath } from '../paths'
 import { commitDisplayValue, type Commit } from '../schema'
 import { CommitCard } from './commit-card'
 import { useHoverCard } from './use-hover-card'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   /** The commit string. */
   value: string
 }
@@ -20,7 +20,7 @@ interface Props {
  * with `ListedCommitLink`.
  */
 export function CommitLink({ schema, value }: Props) {
-  const commit = useResolvedCommit(schema.name, value)
+  const commit = useResolvedCommit(refOf(schema), value)
   // Not resolved yet, or not resolvable: the card asks for it again, with the same query.
   return <ListedCommitLink schema={schema} value={value} commit={commit.data ?? undefined} />
 }
@@ -41,7 +41,7 @@ export function ListedCommitLink({ schema, value, commit, withTag = true }: List
   const card = useHoverCard<HTMLAnchorElement>()
   return (
     <>
-      <Link to={commitPath(schema.name, value)} {...card.triggerProps}>
+      <Link to={commitPath(refOf(schema), value)} {...card.triggerProps}>
         {commit ? commitDisplayValue(commit, schema, { withTag }) : value}
       </Link>
       {/* Beside the link rather than in it, which a click in the card would otherwise follow. */}

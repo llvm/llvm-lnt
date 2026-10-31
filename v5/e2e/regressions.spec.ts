@@ -10,7 +10,7 @@
 import type { APIRequestContext, TestInfo } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
 import { HARDENED, TAG, uuidFor } from '../tools/synthetic.ts'
-import { adminToken, expect, test } from './fixtures.ts'
+import { adminToken, BENCHMARKS, expect, test } from './fixtures.ts'
 import { clickSuggestion, pickOption, pickSuggestion, typeInto } from './select.ts'
 import { column, rows, settled, table } from './tables.ts'
 
@@ -25,14 +25,14 @@ function uniqueTitle(testInfo: TestInfo): string {
 }
 
 async function deleteRegression(request: APIRequestContext, uuid: string) {
-  await request.delete(`/api/suites/libcxx/regressions/${uuid}`, {
+  await request.delete(`/api/projects/libcxx/suites/benchmarks/regressions/${uuid}`, {
     headers: { Authorization: `Bearer ${adminToken()}` },
   })
 }
 
 /** Delete the regressions titled `title`, whichever of a test's steps created them. */
 async function deleteRegressionsTitled(request: APIRequestContext, title: string) {
-  const response = await request.get('/api/suites/libcxx/regressions', {
+  const response = await request.get('/api/projects/libcxx/suites/benchmarks/regressions', {
     params: { search: title, limit: 100 },
   })
   const { items } = (await response.json()) as components['schemas']['RegressionCursorPage']
@@ -43,14 +43,14 @@ async function deleteRegressionsTitled(request: APIRequestContext, title: string
 
 test.describe('filtering', () => {
   test('by state', async ({ page }) => {
-    await page.goto('/suites/libcxx?tab=regressions')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
     const list = table(page, 'Regressions')
     await expect(rows(list).first()).toBeVisible()
 
     const chips = page.getByRole('group', { name: 'State' })
     await chips.getByRole('button', { name: 'fixed', exact: true }).click()
 
-    await expect(page).toHaveURL('/suites/libcxx?tab=regressions&state=fixed')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=regressions&state=fixed')
     await settled(list)
     await expect.poll(() => column(list, COLUMN.state)).toEqual(['fixed'])
     await expect(rows(list).first().locator('td').nth(COLUMN.title)).toHaveText(
@@ -59,13 +59,15 @@ test.describe('filtering', () => {
   })
 
   test('by machine, picked through its combobox', async ({ page }) => {
-    await page.goto('/suites/libcxx?tab=regressions')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
     const list = table(page, 'Regressions')
 
     const machine = page.getByRole('combobox', { name: 'Machine' })
     await pickSuggestion(page, 'Machine', 'hardenedfast', HARDENED)
 
-    await expect(page).toHaveURL(`/suites/libcxx?tab=regressions&machine=${HARDENED}`)
+    await expect(page).toHaveURL(
+      `/projects/libcxx/suites/benchmarks?tab=regressions&machine=${HARDENED}`,
+    )
     await settled(list)
     await expect
       .poll(async () => new Set(await column(list, COLUMN.title)))
@@ -79,31 +81,35 @@ test.describe('filtering', () => {
       )
 
     await page.getByRole('button', { name: 'Clear Machine' }).click()
-    await expect(page).toHaveURL('/suites/libcxx?tab=regressions')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=regressions')
     await expect(machine).toHaveValue('')
   })
 
   test('by metric, and by commit', async ({ page }) => {
-    await page.goto('/suites/libcxx?tab=regressions')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
     const list = table(page, 'Regressions')
 
     // Only the std::format regression has indicators on `cycles`.
     await pickOption(page, 'Metric', 'Cycles Elapsed')
-    await expect(page).toHaveURL('/suites/libcxx?tab=regressions&metric=cycles')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=regressions&metric=cycles')
     await settled(list)
     await expect.poll(() => column(list, COLUMN.title)).toEqual(['std::format slowdown'])
     await expect(rows(list).first().locator('td').nth(COLUMN.commit)).toHaveText(/^r\d+$/)
 
     await pickOption(page, 'Metric', 'Any metric')
     await page.getByLabel('No commit set').check()
-    await expect(page).toHaveURL('/suites/libcxx?tab=regressions&has_commit=false')
+    await expect(page).toHaveURL(
+      '/projects/libcxx/suites/benchmarks?tab=regressions&has_commit=false',
+    )
     await settled(list)
     await expect.poll(() => column(list, COLUMN.title)).toContain('(untitled)')
     expect(new Set(await column(list, COLUMN.commit))).toEqual(new Set(['--']))
   })
 
   test('a deep link restores the filters', async ({ page }) => {
-    await page.goto(`/suites/libcxx?tab=regressions&state=active&machine=${HARDENED}`)
+    await page.goto(
+      `/projects/libcxx/suites/benchmarks?tab=regressions&state=active&machine=${HARDENED}`,
+    )
 
     await expect(page.getByRole('button', { name: 'active', exact: true })).toHaveAttribute(
       'aria-pressed',
@@ -121,11 +127,12 @@ test.describe('filtering', () => {
     const asked: string[] = []
     page.on('request', (request) => {
       const url = new URL(request.url())
-      if (url.pathname === '/api/suites/libcxx/regressions') asked.push(url.search)
+      if (url.pathname === '/api/projects/libcxx/suites/benchmarks/regressions')
+        asked.push(url.search)
     })
-    await page.goto('/suites/libcxx?tab=regressions&machine=no-such-machine')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions&machine=no-such-machine')
 
-    await expect(page).toHaveURL('/suites/libcxx?tab=regressions')
+    await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=regressions')
     await expect(rows(table(page, 'Regressions')).first()).toBeVisible()
     // The API would answer it with a 404, shown as an error until the machine is dropped.
     expect(asked.filter((search) => search.includes('no-such-machine'))).toEqual([])
@@ -142,7 +149,7 @@ test.describe('searching', () => {
     test(`finds the ${name} regression by a prefix of its UUID`, async ({ page }) => {
       const uuid = uuidFor(`libcxx/regression/${name}`)
       const prefix = uuid.slice(0, 8)
-      await page.goto('/suites/libcxx?tab=regressions')
+      await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
       const list = table(page, 'Regressions')
       await expect(rows(list).first()).toBeVisible()
 
@@ -150,18 +157,20 @@ test.describe('searching', () => {
         .getByRole('searchbox', { name: 'Search regressions by title or UUID prefix' })
         .fill(prefix)
 
-      await expect(page).toHaveURL(`/suites/libcxx?tab=regressions&search=${prefix}`)
+      await expect(page).toHaveURL(
+        `/projects/libcxx/suites/benchmarks?tab=regressions&search=${prefix}`,
+      )
       await settled(list)
       await expect.poll(() => column(list, COLUMN.title)).toContain(title)
       const row = rows(list).filter({ hasText: title }).first()
       await expect(row.locator('td').nth(COLUMN.uuid)).toHaveText(`${prefix}…`)
       await row.locator('td').nth(COLUMN.title).click()
-      await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
+      await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks/regressions/${uuid}`)
     })
   }
 
   test('finds a regression by the UUID prefix its row shows', async ({ page }) => {
-    await page.goto('/suites/libcxx?tab=regressions')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
     const list = table(page, 'Regressions')
     // A seeded row, rather than the newest, which may be one that another test is about to delete.
     const row = rows(list).filter({ hasText: 'std::format slowdown' })
@@ -174,7 +183,7 @@ test.describe('searching', () => {
     }))
     expect(shown).toMatch(/^[0-9a-f]{8}…$/)
     expect(uuid.startsWith(shown.replace('…', ''))).toBe(true)
-    expect(href).toBe(`/suites/libcxx/regressions/${uuid}`)
+    expect(href).toBe(`/projects/libcxx/suites/benchmarks/regressions/${uuid}`)
 
     await page
       .getByRole('searchbox', { name: 'Search regressions by title or UUID prefix' })
@@ -183,25 +192,27 @@ test.describe('searching', () => {
     await settled(list)
     await expect.poll(() => column(list, COLUMN.uuid)).toContain(shown)
     await list.getByRole('link', { name: shown, exact: true }).click()
-    await expect(page).toHaveURL(`/suites/libcxx/regressions/${uuid}`)
+    await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks/regressions/${uuid}`)
   })
 })
 
 test('a click on a row opens the regression', async ({ page }) => {
-  await page.goto('/suites/libcxx?tab=regressions&state=fixed')
+  await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions&state=fixed')
   const row = rows(table(page, 'Regressions')).first()
   await expect(row).toContainText('filesystem::path')
 
   await row.locator('td').nth(COLUMN.machines).click()
 
-  await expect(page).toHaveURL(/^.*\/suites\/libcxx\/regressions\/[0-9a-f-]{36}$/)
+  await expect(page).toHaveURL(
+    /^.*\/projects\/libcxx\/suites\/benchmarks\/regressions\/[0-9a-f-]{36}$/,
+  )
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     /^Regression: .*filesystem::path/,
   )
 })
 
 test('creating and deleting are disabled without a token', async ({ page }) => {
-  await page.goto('/suites/libcxx?tab=regressions')
+  await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
   await expect(rows(table(page, 'Regressions')).first()).toBeVisible()
 
   const create = page.getByRole('button', { name: 'New Regression' })
@@ -212,18 +223,19 @@ test('creating and deleting are disabled without a token', async ({ page }) => {
 })
 
 test('a token restricted to a suite allows triage there only', async ({ page, signIn }) => {
-  await signIn(page, 'triage', ['libcxx'])
-  await page.goto('/suites/libcxx?tab=regressions')
+  await signIn(page, 'triage', [BENCHMARKS])
+  await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
   await expect(page.getByRole('button', { name: 'New Regression' })).toBeEnabled()
   const firstRow = rows(table(page, 'Regressions')).first()
   await expect(firstRow.getByRole('button', { name: /Delete/ })).toBeEnabled()
 
-  await page.goto('/suites/nts?tab=regressions')
+  await page.goto('/projects/llvm/suites/nts?tab=regressions')
   const create = page.getByRole('button', { name: 'New Regression' })
   await expect(create).toHaveAttribute(
     'title',
-    "Needs an API token with the 'triage' scope in suite 'nts'. The token in Settings has the " +
-      "'triage' scope only in suite 'libcxx'.",
+    // Naming the suites by their full labels (AR22).
+    "Needs an API token with the 'triage' scope in suite 'LLVM/nts'. The token in Settings has " +
+      "the 'triage' scope only in suite 'libc++/Microbenchmarks'.",
   )
   await expect(create).toBeDisabled()
 })
@@ -236,7 +248,7 @@ test('creates a regression with a commit picked through the picker', async ({
   await signIn(page, 'triage')
   const title = uniqueTitle(testInfo)
   try {
-    await page.goto('/suites/libcxx?tab=regressions')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
 
     const create = page.getByRole('button', { name: 'New Regression' })
     await expect(create).toBeEnabled()
@@ -252,14 +264,18 @@ test('creates a regression with a commit picked through the picker', async ({
     await expect(picker).toHaveValue(new RegExp(`\\(${TAG}\\)$`))
     await form.getByRole('button', { name: 'Create' }).click()
 
-    await expect(page).toHaveURL(/\/suites\/libcxx\/regressions\/[0-9a-f-]{36}$/)
+    await expect(page).toHaveURL(
+      /\/projects\/libcxx\/suites\/benchmarks\/regressions\/[0-9a-f-]{36}$/,
+    )
     const uuid = page.url().split('/').at(-1)!
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Regression: ${title}`)
     const created = (await (
-      await request.get(`/api/suites/libcxx/regressions/${uuid}`)
+      await request.get(`/api/projects/libcxx/suites/benchmarks/regressions/${uuid}`)
     ).json()) as RegressionDetail
     expect(created).toMatchObject({ title, state: 'active' })
-    const commit = await (await request.get(`/api/suites/libcxx/commits/${created.commit}`)).json()
+    const commit = await (
+      await request.get(`/api/projects/libcxx/suites/benchmarks/commits/${created.commit}`)
+    ).json()
     expect(commit.tag).toBe(TAG)
   } finally {
     await deleteRegressionsTitled(request, title)
@@ -269,7 +285,7 @@ test('creates a regression with a commit picked through the picker', async ({
 test.describe('the commit picker', () => {
   test.beforeEach(async ({ page, signIn }) => {
     await signIn(page, 'triage')
-    await page.goto('/suites/libcxx?tab=regressions')
+    await page.goto('/projects/libcxx/suites/benchmarks?tab=regressions')
     await page.getByRole('button', { name: 'New Regression' }).click()
   })
 
@@ -322,7 +338,7 @@ test.describe('the commit picker', () => {
       await expect(picker).toBeFocused()
       await expect(create).toBeDisabled()
       await expect(page).toHaveURL(/tab=regressions/)
-      const found = await request.get('/api/suites/libcxx/regressions', {
+      const found = await request.get('/api/projects/libcxx/suites/benchmarks/regressions', {
         params: { search: title },
       })
       expect(((await found.json()) as { items: unknown[] }).items).toEqual([])
@@ -334,7 +350,7 @@ test.describe('the commit picker', () => {
   test('picks a commit entered by its commit string', async ({ page, request }) => {
     const form = page.getByRole('form', { name: 'New regression' })
     const picker = form.getByRole('combobox', { name: 'Commit' })
-    const response = await request.get('/api/suites/libcxx/commits', {
+    const response = await request.get('/api/projects/libcxx/suites/benchmarks/commits', {
       params: { search: TAG, limit: 1 },
     })
     const [tagged] = ((await response.json()) as components['schemas']['CommitCursorPage']).items
@@ -362,7 +378,7 @@ test.describe('the commit picker', () => {
 
 test('deletes a regression, confirmed by its UUID', async ({ page, request, signIn }, testInfo) => {
   const title = uniqueTitle(testInfo)
-  const response = await request.post('/api/suites/libcxx/regressions', {
+  const response = await request.post('/api/projects/libcxx/suites/benchmarks/regressions', {
     headers: { Authorization: `Bearer ${adminToken()}` },
     data: { title },
   })
@@ -370,7 +386,9 @@ test('deletes a regression, confirmed by its UUID', async ({ page, request, sign
   const { uuid } = (await response.json()) as RegressionDetail
   try {
     await signIn(page, 'triage')
-    await page.goto(`/suites/libcxx?tab=regressions&search=${encodeURIComponent(title)}`)
+    await page.goto(
+      `/projects/libcxx/suites/benchmarks?tab=regressions&search=${encodeURIComponent(title)}`,
+    )
     const list = table(page, 'Regressions')
     await expect.poll(() => column(list, COLUMN.title)).toEqual([title])
 
@@ -384,7 +402,9 @@ test('deletes a regression, confirmed by its UUID', async ({ page, request, sign
 
     await expect(page.getByText('No regressions match these filters.')).toBeVisible()
     await expect(prompt).toHaveCount(0)
-    expect((await request.get(`/api/suites/libcxx/regressions/${uuid}`)).status()).toBe(404)
+    expect(
+      (await request.get(`/api/projects/libcxx/suites/benchmarks/regressions/${uuid}`)).status(),
+    ).toBe(404)
   } finally {
     await deleteRegression(request, uuid)
   }

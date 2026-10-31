@@ -115,7 +115,7 @@ export function withEmphasis(trace: Partial<PlotData>, emphasized: boolean): Par
 
 /** A baseline's line for one test (GR9). */
 export interface BaselineLine {
-  /** The label of the baseline's suite (AR22). */
+  /** The full label of the baseline's suite (AR22). */
   suiteLabel: string
   machine: string
   /** The display value of the baseline's commit. */

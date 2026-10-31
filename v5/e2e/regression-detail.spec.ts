@@ -7,8 +7,9 @@
 
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { uuidFor } from '../tools/synthetic.ts'
-import { expect, json, test } from './fixtures.ts'
+import { expect, json, test, type SuiteRef } from './fixtures.ts'
 import { ownSuite, type OwnRun } from './own-suite.ts'
 import { pickOption, pickSuggestion } from './select.ts'
 import { rows, table } from './tables.ts'
@@ -20,11 +21,11 @@ const FORMAT = uuidFor('libcxx/regression/format')
 /** Create a regression in `suite` from `data`, with `token`; returns its UUID. */
 async function createRegression(
   request: APIRequestContext,
-  suite: string,
+  suite: SuiteRef,
   token: string,
   data: components['schemas']['RegressionCreate'],
 ): Promise<string> {
-  const created = await request.post(`/api/suites/${suite}/regressions`, {
+  const created = await request.post(`/api${suitePath(suite)}/regressions`, {
     headers: { Authorization: `Bearer ${token}` },
     data,
   })
@@ -39,9 +40,9 @@ function info(page: Page) {
 test('shows the regression, with links to its bug and its commit', async ({ page, request }) => {
   const regression = await json<RegressionDetail>(
     request,
-    `/api/suites/libcxx/regressions/${FORMAT}`,
+    `/api/projects/libcxx/suites/benchmarks/regressions/${FORMAT}`,
   )
-  await page.goto(`/suites/libcxx/regressions/${FORMAT}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/regressions/${FORMAT}`)
 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Regression: std::format slowdown',
@@ -52,11 +53,14 @@ test('shows the regression, with links to its bug and its commit', async ({ page
   await expect(bug).toHaveAttribute('target', '_blank')
   // The commit's link shows its display value, and leads to its page.
   const commit = info(page).getByRole('link', { name: /^r\d+/ })
-  await expect(commit).toHaveAttribute('href', `/suites/libcxx/commits/${regression.commit}`)
+  await expect(commit).toHaveAttribute(
+    'href',
+    `/projects/libcxx/suites/benchmarks/commits/${regression.commit}`,
+  )
 })
 
 test('cannot be changed without a token', async ({ page }) => {
-  await page.goto(`/suites/libcxx/regressions/${FORMAT}`)
+  await page.goto(`/projects/libcxx/suites/benchmarks/regressions/${FORMAT}`)
   await expect(info(page)).toBeVisible()
 
   for (const field of ['Title', 'Bug', 'Commit', 'Notes']) {
@@ -83,7 +87,7 @@ test('every field is edited by a holder of triage scope', async ({
   await ownSuite(request, tokenFor, testInfo, RUNS, async (suite) => {
     const token = await signIn(page, 'triage')
     const uuid = await createRegression(request, suite, token, { title: 'Slow', commit: 'c1' })
-    await page.goto(`/suites/${suite}/regressions/${uuid}`)
+    await page.goto(`${suitePath(suite)}/regressions/${uuid}`)
 
     await page.getByRole('button', { name: 'Edit Title' }).click()
     await page.getByRole('textbox', { name: 'Title' }).fill(' Slower ')
@@ -117,7 +121,10 @@ test('every field is edited by a holder of triage scope', async ({
     // Shown with its line break: the rendered text keeps it, unlike the text content.
     expect(await info(page).innerText()).toContain('Bisected.\nOnly on m1.')
 
-    const stored = await json<RegressionDetail>(request, `/api/suites/${suite}/regressions/${uuid}`)
+    const stored = await json<RegressionDetail>(
+      request,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
+    )
     expect(stored).toMatchObject({
       title: 'Slower',
       bug: 'https://bugs.example/7',
@@ -138,17 +145,17 @@ test('deleting a regression shows the regressions left', async ({
     const token = await signIn(page, 'triage')
     await createRegression(request, suite, token, { title: 'Kept' })
     const uuid = await createRegression(request, suite, token, { title: 'Deleted' })
-    await page.goto(`/suites/${suite}/regressions/${uuid}`)
+    await page.goto(`${suitePath(suite)}/regressions/${uuid}`)
 
     await page.getByRole('button', { name: 'Delete regression' }).click()
     await page.getByLabel(/to confirm/).fill(uuid.slice(0, 8))
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
-    await expect(page).toHaveURL(`/suites/${suite}?tab=regressions`)
+    await expect(page).toHaveURL(`${suitePath(suite)}?tab=regressions`)
     const list = table(page, 'Regressions')
     await expect(rows(list)).toHaveCount(1)
     await expect(list).toContainText('Kept')
-    expect((await request.get(`/api/suites/${suite}/regressions/${uuid}`)).status()).toBe(404)
+    expect((await request.get(`/api${suitePath(suite)}/regressions/${uuid}`)).status()).toBe(404)
   })
 })
 
@@ -169,7 +176,7 @@ test('indicators are added across machines, filtered and removed', async ({
   await ownSuite(request, tokenFor, testInfo, MEASURED, async (suite) => {
     const token = await signIn(page, 'triage')
     const uuid = await createRegression(request, suite, token, { title: 'Slow' })
-    await page.goto(`/suites/${suite}/regressions/${uuid}`)
+    await page.goto(`${suitePath(suite)}/regressions/${uuid}`)
     const panel = page.getByRole('region', { name: 'Add indicators' })
     const box = (name: string) => panel.getByRole('checkbox', { name, exact: true })
 
@@ -193,7 +200,7 @@ test('indicators are added across machines, filtered and removed', async ({
     await expect(rows(indicators)).toHaveCount(8)
     await page.getByRole('searchbox', { name: 'Filter indicators' }).fill('m2')
     await expect(rows(indicators)).toHaveCount(4)
-    await expect(page).toHaveURL(`/suites/${suite}/regressions/${uuid}?indicator_filter=m2`)
+    await expect(page).toHaveURL(`${suitePath(suite)}/regressions/${uuid}?indicator_filter=m2`)
     await page.getByRole('checkbox', { name: 'Select all indicators shown' }).click()
     await page.getByRole('button', { name: 'Remove 4 selected' }).click()
     await expect(indicators).toContainText('No indicators match the filter.')
@@ -205,7 +212,10 @@ test('indicators are added across machines, filtered and removed', async ({
     await expect(rows(indicators)).toHaveCount(3)
     await expect(page.getByRole('button', { name: 'Remove m1, t2, execution_time' })).toBeFocused()
 
-    const stored = await json<RegressionDetail>(request, `/api/suites/${suite}/regressions/${uuid}`)
+    const stored = await json<RegressionDetail>(
+      request,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
+    )
     expect(stored.indicators.map(({ machine, test }) => `${machine}/${test}`)).toEqual([
       'm1/t2',
       'm1/t3',
@@ -249,7 +259,7 @@ test('the tests offered are those of the machines selected, on the metric select
   await ownSuite(request, tokenFor, testInfo, DIFFERENT, async (suite) => {
     const token = await signIn(page, 'triage')
     const uuid = await createRegression(request, suite, token, { title: 'Slow' })
-    await page.goto(`/suites/${suite}/regressions/${uuid}`)
+    await page.goto(`${suitePath(suite)}/regressions/${uuid}`)
     const panel = page.getByRole('region', { name: 'Add indicators' })
     const tests = panel.getByRole('table', { name: 'Tests' })
     const names = () => rows(tests).allTextContents()
@@ -272,7 +282,8 @@ test('the tests offered are those of the machines selected, on the metric select
       .getByRole('link', { name: 'View on graph' })
     await expect(graph).toHaveAttribute(
       'href',
-      `/graph?suite=${suite}&machine=m1&metric=compile_time&test=built&regressions=all`,
+      `/graph?project=${suite.project}&suite=${suite.suite}&machine=m1&metric=compile_time` +
+        '&test=built&regressions=all',
     )
     await graph.click()
     await expect(page).toHaveURL(/^[^?]*\/graph\?/)

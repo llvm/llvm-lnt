@@ -42,7 +42,14 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 
-from .auth import SECURITY_SCHEME, iter_routes, required_scope, suite_parameter
+from .auth import (
+    SECURITY_SCHEME,
+    Coverage,
+    RequireScope,
+    iter_routes,
+    route_requirement,
+    suite_parameters,
+)
 from .errors import ErrorEnvelope
 from .scopes import UNRESTRICTABLE_SCOPES, Scope
 
@@ -55,11 +62,18 @@ OVERVIEW = Path(__file__).with_name("openapi.md").read_text(encoding="utf-8")
 TAGS: list[dict[str, str]] = [
     {
         "name": "Discovery",
-        "description": "The starting point, with links to the test suites and to this page.",
+        "description": "The starting point, with links to the projects and to this page.",
     },
     {
         "name": "Authentication",
         "description": "Check the API key a request is made with.",
+    },
+    {
+        "name": "Projects",
+        "description": (
+            "Create, view, change and delete projects. A project groups the test suites of one "
+            "software project, and every test suite belongs to one."
+        ),
     },
     {
         "name": "Test Suites",
@@ -127,7 +141,8 @@ SWAGGER_UI_PARAMETERS = {"persistAuthorization": True}
 
 def operation_id(route: APIRoute) -> str:
     """Name an operation after its endpoint function: `list_runs` rather than FastAPI's default,
-    which appends the path and the method (`list_runs_api_suites__testsuite__runs_get`).
+    which appends the path and the method
+    (`list_runs_api_projects__project__suites__suite__runs_get`).
 
     Unique because the function names are; a test holds them to it.
     """
@@ -167,25 +182,28 @@ _UNAUTHORIZED = _error(
     "revoked."
 )
 _FORBIDDEN = _error(
-    "The API key doesn't have the scope this operation requires, or has it only in other test "
-    "suites."
+    "The API key doesn't have the scope this operation requires, or has it only in other projects "
+    "or test suites."
 )
 
 
-def _authorization(scope: Scope, addresses_suite: bool) -> str:
+def _authorization(requirement: RequireScope, addresses_suite: bool) -> str:
     """The sentence that tells a reader of one operation what it takes to call it.
 
-    For a scope that can be restricted (I5), it also says whether a restricted key will do (I8):
-    one will on an operation that addresses a suite, as long as that suite is one of its own, and
-    never on an operation that addresses no suite.
+    For a scope that can be restricted (I5), it also says what a restricted key needs (I8): to cover
+    the suite, on an operation that addresses one; to cover the project in full, on one that says
+    so; and otherwise nothing it can have.
     """
+    scope = requirement.scope
     if scope is Scope.READ:
         return "**Authorization:** no API key needed."
     sentence = f"**Authorization:** requires an API key with the `{scope.value}` scope"
     if scope in UNRESTRICTABLE_SCOPES:
         return f"{sentence}."
     if addresses_suite:
-        return f"{sentence}, for all test suites or for this one."
+        return f"{sentence}, unrestricted or covering this test suite."
+    if requirement.coverage is Coverage.PROJECT:
+        return f"{sentence}, unrestricted or covering this project in full."
     return f"**Authorization:** requires an unrestricted API key with the `{scope.value}` scope."
 
 
@@ -199,19 +217,21 @@ def _referenced_schemas() -> dict[str, Any]:
     return dict(generated.get("$defs", {}))
 
 
-def _scopes_by_operation(app: FastAPI) -> dict[tuple[str, str], Scope]:
-    """The scope each documented operation requires, keyed the way `paths` is."""
-    scopes: dict[tuple[str, str], Scope] = {}
+def _requirements_by_operation(app: FastAPI) -> dict[tuple[str, str], RequireScope]:
+    """What each documented operation requires, keyed the way `paths` is."""
+    requirements: dict[tuple[str, str], RequireScope] = {}
     for route in iter_routes(app.routes):
-        scope = required_scope(route)
-        if scope is None or not route.include_in_schema or route.path_format is None:
+        requirement = route_requirement(route)
+        if requirement is None or not route.include_in_schema or route.path_format is None:
             continue
         for method in route.methods or ():
-            scopes[(route.path_format, method.lower())] = scope
-    return scopes
+            requirements[(route.path_format, method.lower())] = requirement
+    return requirements
 
 
-def _document_scope(operation: dict[str, Any], scope: Scope, addresses_suite: bool) -> None:
+def _document_scope(
+    operation: dict[str, Any], requirement: RequireScope, addresses_suite: bool
+) -> None:
     """State the scope an operation requires, for people and for tools.
 
     For people, a sentence closing the description. For tools, the security requirement: OpenAPI
@@ -219,10 +239,11 @@ def _document_scope(operation: dict[str, Any], scope: Scope, addresses_suite: bo
     exactly that. A `read`-scoped operation also lists the empty requirement, which is how OpenAPI
     says that a caller may send no credentials at all -- I5's anonymous read access.
     """
-    requirement = {SECURITY_SCHEME: [scope.value]}
-    operation["security"] = [{}, requirement] if scope is Scope.READ else [requirement]
+    scope = requirement.scope
+    security = {SECURITY_SCHEME: [scope.value]}
+    operation["security"] = [{}, security] if scope is Scope.READ else [security]
 
-    sentence = _authorization(scope, addresses_suite)
+    sentence = _authorization(requirement, addresses_suite)
     description = operation.get("description")
     operation["description"] = f"{description}\n\n{sentence}" if description else sentence
 
@@ -402,7 +423,7 @@ def _hoist_descriptions(node: Any) -> None:
 
 
 def _correct(app: FastAPI, document: dict[str, Any]) -> None:
-    scopes = _scopes_by_operation(app)
+    requirements = _requirements_by_operation(app)
     schemas = document.setdefault("components", {}).setdefault("schemas", {})
     for name, schema in _referenced_schemas().items():
         schemas.setdefault(name, schema)
@@ -413,13 +434,13 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
             if responses.pop("422", None) is not None:
                 responses.setdefault("400", _BAD_REQUEST)
 
-            scope = scopes.get((path, method))
-            if scope is not None:
-                _document_scope(operation, scope, suite_parameter(path) is not None)
+            requirement = requirements.get((path, method))
+            if requirement is not None:
+                _document_scope(operation, requirement, suite_parameters(path) is not None)
                 responses.setdefault("400", _BAD_REQUEST)
                 responses.setdefault("401", _UNAUTHORIZED)
                 # A read-scoped operation can never answer 403: every valid key grants `read`.
-                if scope is not Scope.READ:
+                if requirement.scope is not Scope.READ:
                     responses.setdefault("403", _FORBIDDEN)
 
     _drop_unreferenced_validation_schemas(document)

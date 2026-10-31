@@ -16,7 +16,7 @@ extract_token() {
 echo "  anonymous reads are allowed, and anonymous admin is not"
 request "$INDEX"
 expect_status 200
-expect_body '"suites"'
+expect_body '"projects"'
 # Caches must check with the server before reusing this, so a revoked token still gets its 401 (I9).
 expect_header Cache-Control 'no-cache, max-age=0[[:space:]]*$'
 expect_header Vary 'Authorization'

@@ -5,6 +5,7 @@
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
+import { suitePath } from '../client/src/paths.ts'
 import { EXPERIMENT, HARDENED, LINUX, PROFILED_TEST, UNTRACKED } from '../tools/synthetic.ts'
 import { cardOf } from './cards.ts'
 import { expect, json, profiledRun, test } from './fixtures.ts'
@@ -71,7 +72,8 @@ function scrollState() {
 
 /** The two newest commits `machine` has runs at, by ordinal: the older first. */
 async function newestCommits(request: APIRequestContext, machine = LINUX) {
-  const path = `/api/suites/libcxx/commits?machine=${machine}&sort=-ordinal&limit=2`
+  const path =
+    `/api/projects/libcxx/suites/benchmarks/commits?machine=${machine}&sort=-ordinal&limit=2`
   const { items } = await json<Schemas['CommitCursorPage']>(request, path)
   return [items[1], items[0]]
 }
@@ -79,8 +81,9 @@ async function newestCommits(request: APIRequestContext, machine = LINUX) {
 test('compares the runs of two commits the URL names', async ({ page, request }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${newer.value}` +
+      '&metric=execution_time',
   )
 
   const comparison = table(page, 'Comparison')
@@ -113,8 +116,8 @@ test("gives each side's commit card from its ⓘ, and links the changes from A t
   await page.clock.install()
   // Side A newer than side B: the changes are still from A to B.
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newer.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${older.value}`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${newer.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${older.value}`,
   )
 
   const github = 'https://github.com/llvm/llvm-project'
@@ -128,7 +131,7 @@ test("gives each side's commit card from its ⓘ, and links the changes from A t
   const card = await cardOf(page, info)
   await expect(card.getByRole('link', { name: older.value, exact: true })).toHaveAttribute(
     'href',
-    `/suites/libcxx/commits/${older.value}`,
+    `/projects/libcxx/suites/benchmarks/commits/${older.value}`,
   )
 
   // Clicking it keeps the card open, rather than lead anywhere.
@@ -144,7 +147,7 @@ test("gives each side's commit card from its ⓘ, and links the changes from A t
   // The card leads to the commit's page.
   await info.click()
   await card.getByRole('link', { name: older.value, exact: true }).click()
-  await expect(page).toHaveURL(`/suites/libcxx/commits/${older.value}`)
+  await expect(page).toHaveURL(`/projects/libcxx/suites/benchmarks/commits/${older.value}`)
 })
 
 test('the card a side’s ⓘ keeps open follows it from the keyboard (CP1, AR21)', async ({
@@ -153,8 +156,8 @@ test('the card a side’s ⓘ keeps open follows it from the keyboard (CP1, AR21
 }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${newer.value}`,
   )
   const info = commitButton(page, 'B')
   const picker = sideOf(page, 'B').getByRole('combobox', { name: 'Commit' })
@@ -204,8 +207,9 @@ test('the card a side’s ⓘ keeps open follows it from the keyboard (CP1, AR21
 test('highlights the row of the bar hovered on the chart (CP5)', async ({ page, request }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${newer.value}` +
+      '&metric=execution_time',
   )
   const comparison = table(page, 'Comparison')
   await expect(rows(comparison).first()).toContainText('Geomean')
@@ -224,8 +228,9 @@ test("shows a bar's details, linking to the test's history on the Graph page (CP
 }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${newer.value}` +
+      '&metric=execution_time',
   )
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
 
@@ -265,7 +270,8 @@ test("shows a bar's details, linking to the test's history on the Graph page (CP
   await graphLink.click()
   await expect(page).toHaveURL(/\/graph\?/)
   expect([...new URL(page.url()).searchParams]).toEqual([
-    ['suite', 'libcxx'],
+    ['project', 'libcxx'],
+    ['suite', 'benchmarks'],
     ['machine', LINUX],
     ['metric', 'execution_time'],
     ['test', test],
@@ -291,8 +297,9 @@ test('scrolls the table rather than the page when its columns do not fit', async
   const [, newest] = await newestCommits(request)
   const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newest.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${EXPERIMENT}&metric=execution_time` +
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${newest.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${EXPERIMENT}` +
+      '&metric=execution_time' +
       statistics.map((key) => `&columns=${key}`).join(''),
   )
   const comparison = table(page, 'Comparison')
@@ -348,8 +355,9 @@ test("shows a bar's details over the table's sticky columns (CP2, CP3)", async (
   const [, newest] = await newestCommits(request)
   const statistics = ['samples', 'mean', 'median', 'min', 'max', 'stddev', 'cv', 'pvalue']
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${newest.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${EXPERIMENT}&metric=execution_time` +
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${newest.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${EXPERIMENT}` +
+      '&metric=execution_time' +
       statistics.map((key) => `&columns=${key}`).join(''),
   )
   const comparison = table(page, 'Comparison')
@@ -390,7 +398,7 @@ test('compares two commits chosen from scratch', async ({ page, request }) => {
     ['B', newer],
   ] as const) {
     const controls = sideOf(page, side)
-    await pickOption(controls, 'Suite', 'libcxx')
+    await pickOption(controls, 'Suite', 'libc++/Microbenchmarks')
     await pickSuggestion(controls, 'Machine', LINUX)
     // The commit is searched by its commit string, and suggested by its display value.
     await pickSuggestion(controls, 'Commit', commit.value, String(commit.fields.svn_revision))
@@ -406,11 +414,11 @@ test("gives a long machine name its side's width, runs listed or not (CP1)", asy
   request,
 }) => {
   const [, commit] = await newestCommits(request, HARDENED)
-  await page.goto(`/compare?suite_a=libcxx&machine_a=${HARDENED}`)
+  await page.goto(`/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${HARDENED}`)
   const controls = sideOf(page, 'A')
   const machine = controls.getByRole('combobox', { name: 'Machine' })
   // Measured once the side shows what the URL names, and no longer its placeholders.
-  await expect(controls.getByRole('button', { name: 'libcxx Suite' })).toBeVisible()
+  await expect(controls.getByRole('button', { name: 'libc++/Microbenchmarks Suite' })).toBeVisible()
   await expect(machine).toHaveValue(HARDENED)
   const width = () => machine.evaluate((element) => element.clientWidth)
   const before = await width()
@@ -425,7 +433,7 @@ test("gives a long machine name its side's width, runs listed or not (CP1)", asy
 })
 
 test('offers the untracked machines last, under their heading (AR18)', async ({ page }) => {
-  await page.goto('/compare?suite_a=libcxx')
+  await page.goto('/compare?project_a=libcxx&suite_a=benchmarks')
   const machine = sideOf(page, 'A').getByRole('combobox', { name: 'Machine' })
 
   await typeInto(machine, 'macos-26.5-arm64')
@@ -443,8 +451,9 @@ test("stops scrolling a combobox's list at its end, leaving it open (AR14)", asy
 }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${newer.value}` +
+      '&metric=execution_time',
   )
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
   // The page could scroll, which would close the list.
@@ -487,7 +496,7 @@ test("stops scrolling a combobox's list at its end, leaving it open (AR14)", asy
 
 test('suggests the commits highest ordinal first (AR15)', async ({ page, request }) => {
   const [, newest] = await newestCommits(request)
-  await page.goto(`/compare?suite_a=libcxx&machine_a=${LINUX}`)
+  await page.goto(`/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}`)
 
   await sideOf(page, 'A').getByRole('button', { name: 'Show suggestions Commit' }).click()
 
@@ -503,10 +512,12 @@ test("links a test to its profile on both sides, side B on its default test", as
   const runA = await profiledRun(request, LINUX, newest.value)
   const runB = await profiledRun(request, LINUX, EXPERIMENT)
   const query = new URLSearchParams({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: LINUX,
     commit_a: newest.value,
-    suite_b: 'libcxx',
+    project_b: 'libcxx',
+    suite_b: 'benchmarks',
     machine_b: LINUX,
     commit_b: EXPERIMENT,
     metric: 'execution_time',
@@ -516,12 +527,14 @@ test("links a test to its profile on both sides, side B on its default test", as
 
   const row = rows(table(page, 'Comparison')).filter({ hasText: PROFILED_TEST }).first()
   const profiles = new URLSearchParams({
-    suite_a: 'libcxx',
+    project_a: 'libcxx',
+    suite_a: 'benchmarks',
     machine_a: LINUX,
     commit_a: newest.value,
     run_a: runA,
     test_a: PROFILED_TEST,
-    suite_b: 'libcxx',
+    project_b: 'libcxx',
+    suite_b: 'benchmarks',
     machine_b: LINUX,
     commit_b: EXPERIMENT,
     run_b: runB,
@@ -547,8 +560,9 @@ test('adds the comparison to a new regression, then to that one', async ({
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1, 1), run('c2', 2, 2)], async (suite) => {
     await signIn(page, 'triage')
     await page.goto(
-      `/compare?suite_a=${suite}&machine_a=m1&commit_a=c1&suite_b=${suite}&machine_b=m1` +
-        '&commit_b=c2&metric=execution_time',
+      `/compare?project_a=${suite.project}&suite_a=${suite.suite}&machine_a=m1&commit_a=c1` +
+        `&project_b=${suite.project}&suite_b=${suite.suite}&machine_b=m1&commit_b=c2` +
+        '&metric=execution_time',
     )
     await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
 
@@ -562,7 +576,7 @@ test('adds the comparison to a new regression, then to that one', async ({
     const uuid = (await link.getAttribute('href'))!.split('/').at(-1)!
     const created = await json<Schemas['RegressionDetail']>(
       request,
-      `/api/suites/${suite}/regressions/${uuid}`,
+      `/api${suitePath(suite)}/regressions/${uuid}`,
     )
     expect(created.commit).toBe('c2')
     expect(created.indicators).toMatchObject([
@@ -583,17 +597,20 @@ test('adds the comparison to a new regression, then to that one', async ({
 test('overlays sides B pinned on the chart, keeping them on a swap', async ({ page, request }) => {
   const [older, newer] = await newestCommits(request)
   await page.goto(
-    `/compare?suite_a=libcxx&machine_a=${LINUX}&commit_a=${older.value}` +
-      `&suite_b=libcxx&machine_b=${LINUX}&commit_b=${newer.value}&metric=execution_time`,
+    `/compare?project_a=libcxx&suite_a=benchmarks&machine_a=${LINUX}&commit_a=${older.value}` +
+      `&project_b=libcxx&suite_b=benchmarks&machine_b=${LINUX}&commit_b=${newer.value}` +
+      '&metric=execution_time',
   )
   await expect(rows(table(page, 'Comparison')).first()).toContainText('Geomean')
 
   const pin = page.getByRole('button', { name: 'Pin as shadow' })
   const chips = page.getByRole('list', { name: 'Shadows' }).getByRole('listitem')
   const shadows = () => new URL(page.url()).searchParams.getAll('shadow')
-  const first = `libcxx/${LINUX}/${newer.fields.svn_revision}`
+  // Named by its suite's full label (AR22).
+  const first = `libc++/Microbenchmarks/${LINUX}/${newer.fields.svn_revision}`
   await pin.click()
-  await expect(chips).toHaveText([new RegExp(`^●Shadow: ${first} · \\d+ tests×$`)])
+  const escaped = first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  await expect(chips).toHaveText([new RegExp(`^●Shadow: ${escaped} · \\d+ tests×$`)])
   await expect(page.getByRole('button', { name: `Dismiss the shadow ${first}` })).toBeFocused()
   await expect(pin).toBeDisabled()
   // Side B on the experiment: its comparison is the bars, and the newest commit's a line.
@@ -617,7 +634,10 @@ test('overlays sides B pinned on the chart, keeping them on a swap', async ({ pa
   // The experiment pinned too: two lines.
   await pin.click()
   await expect(chips).toHaveCount(2)
-  expect(shadows()).toEqual([`libcxx/${LINUX}/${newer.value}`, `libcxx/${LINUX}/${EXPERIMENT}`])
+  expect(shadows()).toEqual([
+    `libcxx/benchmarks/${LINUX}/${newer.value}`,
+    `libcxx/benchmarks/${LINUX}/${EXPERIMENT}`,
+  ])
   await expect.poll(async () => (await traces()).map((trace) => trace.name)).toEqual([
     'comparison',
     'shadow 1',
@@ -635,5 +655,5 @@ test('overlays sides B pinned on the chart, keeping them on a swap', async ({ pa
   await page.getByRole('button', { name: `Dismiss the shadow ${first}` }).click()
   await expect(chips).toHaveCount(1)
   await expect(page.getByRole('button', { name: /^Dismiss the shadow / })).toBeFocused()
-  expect(shadows()).toEqual([`libcxx/${LINUX}/${EXPERIMENT}`])
+  expect(shadows()).toEqual([`libcxx/benchmarks/${LINUX}/${EXPERIMENT}`])
 })

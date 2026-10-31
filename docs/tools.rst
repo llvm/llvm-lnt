@@ -40,9 +40,9 @@ Client-Side Tools
     ``lnt v5 submit`` can submit to an LNT v5 instance. See
     :ref:`convert_v4_mirror`.
 
-  ``lnt v5 submit <v5 url> --suite <suite> [<file>]``
-    Submit runs, one JSON submission per line, to a test suite of an LNT v5
-    instance. See :ref:`v5_submit`.
+  ``lnt v5 submit <v5 url> --project <project> --suite <suite> [<file>]``
+    Submit runs, one JSON submission per line, to a test suite of a project of
+    an LNT v5 instance. See :ref:`v5_submit`.
 
   ``lnt v5 convert-profile <profile>``
     Convert a profile, such as one recorded by Linux ``perf record``, into the

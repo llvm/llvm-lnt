@@ -9,7 +9,7 @@ import {
   useRegressionMutation,
   withIndicators,
 } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { useTestNames } from '../../api/tests'
 import { useScopeGate } from '../../auth/scope'
 import { Badge } from '../../components/badge'
@@ -35,8 +35,8 @@ const nameOf = (name: string) => name
  * selected, on the metric selected. The tests offered are those with a value for the metric on any
  * of the machines selected. It is a form: nothing of it is kept in the URL.
  */
-export function AddIndicators({ schema, uuid }: { schema: SuiteSchema; uuid: string }) {
-  const suite = schema.name
+export function AddIndicators({ schema, uuid }: { schema: Suite; uuid: string }) {
+  const suite = refOf(schema)
   const triage = useScopeGate('triage', suite)
   const [metric, setMetric] = useState(defaultMetric(schema)?.name ?? '')
   const [report, setReport] = useState<string | null>(null)

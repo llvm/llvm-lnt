@@ -1,7 +1,7 @@
 import { PAGE_SIZE } from '../../api/client'
 import { fetchCommitPage } from '../../api/commits'
 import { queryKeys } from '../../api/keys'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { ListedCommitLink } from '../../components/commit-link'
 import { DataTable, type Column } from '../../components/data-table'
@@ -13,7 +13,7 @@ import { listedColumns } from './listed-columns'
 import { TabContent } from './tab-content'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   search: string
   onSearch(text: string): void
 }
@@ -23,7 +23,7 @@ interface Props {
  * are on the first page whether or not they have an ordinal.
  */
 export function CommitsTab({ schema, search, onSearch }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const input = useServerSearch(search, onSearch)
   const query = { search: search || undefined, sort: '-first_seen', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
@@ -65,7 +65,7 @@ export function CommitsTab({ schema, search, onSearch }: Props) {
   )
 }
 
-function columns(schema: SuiteSchema): Column<Commit>[] {
+function columns(schema: Suite): Column<Commit>[] {
   return [
     {
       id: 'commit',

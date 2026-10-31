@@ -144,7 +144,9 @@ def _serve_dev(settings: Settings, port: int) -> int:
     return 0
 
 
-def _create_key(settings: Settings, name: str, scope: Scope, suites: Sequence[str] | None) -> int:
+def _create_key(
+    settings: Settings, name: str, scope: Scope, suites: Sequence[keys.Entry] | None
+) -> int:
     """Create an API key (`server create-key`).
 
     I5 requires an out-of-band way to create a key, because every key-management endpoint needs
@@ -168,8 +170,8 @@ def _create_key(settings: Settings, name: str, scope: Scope, suites: Sequence[st
     print(created.token)
     where = (
         "in every test suite"
-        if created.suites is None
-        else f"in test suite(s) {', '.join(created.suites)} only"
+        if created.restricted_to is None
+        else f"in test suite(s) {', '.join(map(str, created.restricted_to))} only"
     )
     print(
         f"Created key '{created.name}' with prefix {created.prefix} and scope '{created.scope}' "
@@ -226,6 +228,15 @@ def _print_openapi() -> int:
     return 0
 
 
+def _suite(value: str) -> keys.Entry:
+    """Read `--suite`: a suite by its full name (D7), `project/suite`. Raising here makes a value
+    without a project a usage error, like any other bad argument."""
+    parts = value.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise argparse.ArgumentTypeError(f"not a test suite's full name, PROJECT/SUITE: {value!r}")
+    return keys.Entry(*parts)
+
+
 def _port(value: str) -> int:
     """Read `--port`. Raising here makes a bad port a usage error, like any other bad argument."""
     try:
@@ -273,8 +284,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--suite",
         action="append",
         dest="suites",
-        metavar="NAME",
-        help="restrict the key to this test suite; repeat for several (default: every test suite)",
+        type=_suite,
+        metavar="PROJECT/SUITE",
+        help=(
+            "restrict the key to this test suite, by its project's name and its own; repeat for "
+            "several (default: every test suite)"
+        ),
     )
 
     return parser

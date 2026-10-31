@@ -4,25 +4,42 @@
  * in a URL, such as `?` or `#`.
  */
 
-const segment = encodeURIComponent
-
-export function suitePath(suite: string): string {
-  return `/suites/${segment(suite)}`
+/**
+ * A suite, by its project's name and its own: a `SuiteRef` (see api/suite-ref.ts), spelled out so
+ * that this module imports nothing, and the end-to-end tests can load it as it is.
+ */
+interface SuiteRef {
+  project: string
+  suite: string
 }
 
-export function machinePath(suite: string, name: string): string {
+const segment = encodeURIComponent
+
+/** The Test Suites page listing every project's suites (TS1). */
+export const PROJECTS_PATH = '/projects'
+
+/** The Test Suites page listing the suites of the project `project` (TS1). */
+export function projectPath(project: string): string {
+  return `${PROJECTS_PATH}/${segment(project)}`
+}
+
+export function suitePath({ project, suite }: SuiteRef): string {
+  return `${projectPath(project)}/suites/${segment(suite)}`
+}
+
+export function machinePath(suite: SuiteRef, name: string): string {
   return `${suitePath(suite)}/machines/${segment(name)}`
 }
 
-export function runPath(suite: string, uuid: string): string {
+export function runPath(suite: SuiteRef, uuid: string): string {
   return `${suitePath(suite)}/runs/${segment(uuid)}`
 }
 
-export function commitPath(suite: string, value: string): string {
+export function commitPath(suite: SuiteRef, value: string): string {
   return `${suitePath(suite)}/commits/${segment(value)}`
 }
 
-export function regressionPath(suite: string, uuid: string): string {
+export function regressionPath(suite: SuiteRef, uuid: string): string {
   return `${suitePath(suite)}/regressions/${segment(uuid)}`
 }
 
@@ -37,7 +54,7 @@ function withQuery(path: string, params: Param[]): string {
 
 /** What the Graph page (GR14) is to show, as far as it is given. */
 interface GraphView {
-  suite?: string
+  suite?: SuiteRef
   machines?: string[]
   metric?: string
   test?: string
@@ -62,7 +79,8 @@ export function graphPath({
   highlight = [],
 }: GraphView = {}): string {
   return withQuery('/graph', [
-    ['suite', suite],
+    ['project', suite?.project],
+    ['suite', suite?.suite],
     // Repeated once per machine, as a setting holding several values is (AR2 "State").
     ...machines.map((machine): Param => ['machine', machine]),
     ['metric', metric],
@@ -77,7 +95,7 @@ export function graphPath({
 
 /** One side of the Compare page (CP7), as far as it is given. */
 interface CompareSide {
-  suite?: string
+  suite?: SuiteRef
   machine?: string
   commit?: string
   /** The runs selected among those of `machine` at `commit`: every one of them when not given. */
@@ -99,7 +117,8 @@ export function comparePath(
   { metric, sampleAgg, runAgg }: CompareSettings = {},
 ): string {
   const side = (suffix: string, { suite, machine, commit, runs = [] }: CompareSide): Param[] => [
-    [`suite_${suffix}`, suite],
+    [`project_${suffix}`, suite?.project],
+    [`suite_${suffix}`, suite?.suite],
     [`machine_${suffix}`, machine],
     [`commit_${suffix}`, commit],
     // Repeated once per run, as a setting holding several values is (AR2 "State").
@@ -119,7 +138,7 @@ export function comparePath(
  * `commit`, as far as given.
  */
 interface ProfileSide {
-  suite?: string
+  suite?: SuiteRef
   machine?: string
   commit?: string
   run?: string
@@ -129,7 +148,8 @@ interface ProfileSide {
 /** The Profiles page (PF9), with side A, and side B, set as far as given. */
 export function profilesPath(a: ProfileSide = {}, b: ProfileSide = {}): string {
   const side = (suffix: string, { suite, machine, commit, run, test }: ProfileSide): Param[] => [
-    [`suite_${suffix}`, suite],
+    [`project_${suffix}`, suite?.project],
+    [`suite_${suffix}`, suite?.suite],
     [`machine_${suffix}`, machine],
     [`commit_${suffix}`, commit],
     [`run_${suffix}`, run],

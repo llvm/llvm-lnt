@@ -7,7 +7,7 @@ import { forgetSuite, forgetUnobserved, queryKeys } from '../../api/keys'
 import { MACHINE_NAME_LENGTH, machineKey, useMachine } from '../../api/machines'
 import { fetchRegressions } from '../../api/regressions'
 import { fetchRunPage } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useCursorPager } from '../../api/use-cursor-pager'
 import { useScopeGate } from '../../auth/scope'
 import { ButtonLink } from '../../components/button-link'
@@ -31,6 +31,7 @@ import { DetailActionRow } from './action-row'
 import { RegressionsTable } from './regressions-table'
 import { SuiteTrail } from './suite-trail'
 import styles from './details.module.css'
+import { useSuiteParams } from '../../suite-params'
 
 type Machine = Schemas['Machine']
 
@@ -41,7 +42,8 @@ interface Renamed {
 
 /** The Machine Detail page (DT1). */
 export default function MachineDetail() {
-  const { suite = '', name = '' } = useParams()
+  const suite = useSuiteParams()
+  const { name = '' } = useParams()
   const renamedFrom = (useLocation().state as Renamed | null)?.renamedFrom
   const queryClient = useQueryClient()
   // The content's key changes with the machine shown, so that nothing of a machine's page, an open
@@ -70,8 +72,8 @@ export default function MachineDetail() {
   )
 }
 
-function MachineContent({ schema, name }: { schema: SuiteSchema; name: string }) {
-  const suite = schema.name
+function MachineContent({ schema, name }: { schema: Suite; name: string }) {
+  const suite = refOf(schema)
   const machine = useMachine(suite, name)
   // The sections are shown once the machine is, so that one that does not exist shows only that.
   return (
@@ -85,8 +87,8 @@ function MachineContent({ schema, name }: { schema: SuiteSchema; name: string })
   )
 }
 
-function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Machine }) {
-  const suite = schema.name
+function MachineSections({ schema, machine }: { schema: Suite; machine: Machine }) {
+  const suite = refOf(schema)
   const { name } = machine
   const manage = useScopeGate('manage', suite)
   const update = useUpdateMachine(suite, name)
@@ -119,7 +121,7 @@ function MachineSections({ schema, machine }: { schema: SuiteSchema; machine: Ma
  * not replace a later one's. Once renamed, the page moves to the new name, in place of the old one
  * in the history, unless the user has left it already (AR16).
  */
-function useUpdateMachine(suite: string, name: string) {
+function useUpdateMachine(suite: SuiteRef, name: string) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   // Whether the page still shows the machine once the change is done.
@@ -130,8 +132,8 @@ function useUpdateMachine(suite: string, name: string) {
     onMutate: () => queryClient.cancelQueries({ queryKey: machineKey(suite, name) }),
     mutationFn: (body: Schemas['MachineUpdate']) =>
       unwrap(
-        authedApi.PATCH('/api/suites/{testsuite}/machines/{machine_name}', {
-          params: { path: { testsuite: suite, machine_name: name } },
+        authedApi.PATCH('/api/projects/{project}/suites/{suite}/machines/{machine_name}', {
+          params: { path: { ...suite, machine_name: name } },
           body,
         }),
       ),
@@ -163,7 +165,7 @@ function useUpdateMachine(suite: string, name: string) {
  * The machine's name, which a holder of `manage` scope can change, once they have confirmed what it
  * means for whatever submits its runs (DT1).
  */
-function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
+function NameRow({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
   const manage = useScopeGate('manage', suite)
   const update = useUpdateMachine(suite, machine.name)
   return (
@@ -190,7 +192,7 @@ function NameRow({ suite, machine }: { suite: string; machine: Machine }) {
 }
 
 /** The machine's `tracked` flag, which a holder of `manage` scope can flip (DT1). */
-function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
+function TrackedRow({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
   const labelId = useId()
   const helpId = useId()
   const manage = useScopeGate('manage', suite)
@@ -223,7 +225,7 @@ function TrackedRow({ suite, machine }: { suite: string; machine: Machine }) {
 }
 
 /** The days of inactivity after which the machine is deleted, which `manage` can edit (DT1). */
-function InactivityDays({ suite, machine }: { suite: string; machine: Machine }) {
+function InactivityDays({ suite, machine }: { suite: SuiteRef; machine: Machine }) {
   const update = useUpdateMachine(suite, machine.name)
   const manage = useScopeGate('manage', suite)
   return (
@@ -236,7 +238,7 @@ function InactivityDays({ suite, machine }: { suite: string; machine: Machine })
 }
 
 /** View Graph, Compare, and Delete Machine, with its confirmation below them (DT1). */
-function Actions({ suite, name }: { suite: string; name: string }) {
+function Actions({ suite, name }: { suite: SuiteRef; name: string }) {
   return (
     <DetailActionRow
       deletion={{
@@ -256,8 +258,8 @@ function Actions({ suite, name }: { suite: string; name: string }) {
         // change, which is why the whole suite is forgotten (see DetailActionRow).
         onDelete: () =>
           unwrap(
-            authedApi.DELETE('/api/suites/{testsuite}/machines/{machine_name}', {
-              params: { path: { testsuite: suite, machine_name: name } },
+            authedApi.DELETE('/api/projects/{project}/suites/{suite}/machines/{machine_name}', {
+              params: { path: { ...suite, machine_name: name } },
             }),
           ),
         leaveTo: suiteTabPath(suite, 'machines'),
@@ -273,7 +275,7 @@ function Actions({ suite, name }: { suite: string; name: string }) {
  * The regressions still being worked on (detected and active) with an indicator on the machine,
  * newest first: the first page only, with a link to all of the machine's regressions (DT1).
  */
-function ActiveRegressions({ suite, name }: { suite: string; name: string }) {
+function ActiveRegressions({ suite, name }: { suite: SuiteRef; name: string }) {
   const query = {
     machine: name,
     state: [...ACTIVE_STATES],
@@ -312,8 +314,8 @@ function ActiveRegressions({ suite, name }: { suite: string; name: string }) {
 }
 
 /** The runs of the machine, most recently measured first, a page at a time (DT1). */
-function RunHistory({ schema, name }: { schema: SuiteSchema; name: string }) {
-  const suite = schema.name
+function RunHistory({ schema, name }: { schema: Suite; name: string }) {
+  const suite = refOf(schema)
   const query = { machine: name, sort: '-measured_at', limit: PAGE_SIZE } as const
   const pager = useCursorPager({
     queryKey: [...queryKeys.runs(suite), query],
@@ -343,7 +345,7 @@ function RunHistory({ schema, name }: { schema: SuiteSchema; name: string }) {
   )
 }
 
-function columns(schema: SuiteSchema, commits: Map<string, Commit>) {
+function columns(schema: Suite, commits: Map<string, Commit>) {
   const { run, commit, measured } = runColumns(schema, commits)
   return [run, commit, measured]
 }

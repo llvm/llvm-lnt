@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/keys'
+import { REF } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { profilesPath } from '../../paths'
 import { headersOf, renderPage, rowsOf } from '../../test/page'
@@ -138,7 +139,7 @@ describe('the Profiles page: counter comparison (PF3)', () => {
     await waitFor(() => expect(functionRow()).toBe('Function cycles | 30 | 50 | +66.7%'))
 
     dropWarm = true
-    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles('libcxx') }))
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.profiles(REF) }))
     await waitFor(() => expect(functionRow()).toBe('Function cycles |  | 50 | '))
   })
 

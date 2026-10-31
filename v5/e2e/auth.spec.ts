@@ -3,7 +3,7 @@
  */
 
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures.ts'
+import { BENCHMARKS, expect, NTS, test } from './fixtures.ts'
 
 function settings(page: Page) {
   return page.getByRole('dialog', { name: 'Settings' })
@@ -39,12 +39,13 @@ test.describe('the Settings panel', () => {
   })
 
   test('shows the suites of a key restricted to some', async ({ page, signIn }) => {
-    await signIn(page, 'triage', ['libcxx', 'nts'])
+    await signIn(page, 'triage', [BENCHMARKS, NTS])
     await page.goto('/')
     await openSettings(page)
 
+    // By their full labels, once the Dashboard has listed the suites (AR22).
     await expect(settings(page).getByRole('status')).toContainText(
-      'with triage scope in suites libcxx, nts.',
+      'with triage scope in suites libc++/Microbenchmarks, LLVM/nts.',
     )
   })
 

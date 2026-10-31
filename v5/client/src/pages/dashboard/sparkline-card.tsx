@@ -4,7 +4,7 @@ import type { Config, Data, Layout, PlotMouseEvent } from 'plotly.js'
 import { Link } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import clsx from 'clsx'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useTrends, type TrendPoint } from '../../api/trends'
 import { DisabledLink } from '../../components/button-link'
 import { Chart } from '../../components/chart'
@@ -15,7 +15,7 @@ import { plotlyTraces, sparklineDescription, sparklineTraces } from './sparkline
 import styles from './dashboard.module.css'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   metric: Metric
   /** The machines the suite's cards show, chosen once for all of them (DA2). */
   machines: string[]
@@ -25,7 +25,7 @@ interface Props {
 
 /** A card of the Dashboard (DA2): the trend of one metric on the suite's machines. */
 export function SparklineCard({ schema, metric, machines, range }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
   const trends = useTrends(suite, { metric: metric.name, machines, lastN: range })
   const shown = useMemo(() => {
     if (trends.data === undefined) return undefined
@@ -88,7 +88,7 @@ export function SparklineCard({ schema, metric, machines, range }: Props) {
 }
 
 interface SparklineProps {
-  suite: string
+  suite: SuiteRef
   metric: Metric
   /** The machines with a trace, in the order of the traces. */
   machines: string[]

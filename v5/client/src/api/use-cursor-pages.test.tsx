@@ -10,7 +10,7 @@ import { gate, settle } from '../test/page'
 import { renderWithProviders } from '../test/render'
 import { server } from '../test/server'
 
-const SAMPLES = '/api/suites/{testsuite}/runs/{uuid}/samples' as const
+const SAMPLES = '/api/projects/{project}/suites/{suite}/runs/{uuid}/samples' as const
 const RUN = '573af861-8303-4a5b-a643-b8321e0142c4'
 
 const sample = (test: string) => fixtureSample(test, { execution_time: 1 })
@@ -30,7 +30,7 @@ function Samples({ run = RUN }: { run?: string }) {
     fetchPage: (cursor, signal) =>
       unwrap(
         api.GET(SAMPLES, {
-          params: { path: { testsuite: 'nts', uuid: run }, query: { cursor } },
+          params: { path: { project: 'llvm', suite: 'nts', uuid: run }, query: { cursor } },
           signal,
         }),
       ),

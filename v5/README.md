@@ -54,7 +54,7 @@ suite is unaffected by whatever you have in it. To create a token against your l
 ```sh
 npm run create-key                                # a token named "dev", with admin scope
 npm run create-key -- --name bot --scope submit   # anything else
-npm run create-key -- --name bot --scope submit --suite nts   # a key for the nts suite only
+npm run create-key -- --name bot --scope submit --suite llvm/nts   # a key for llvm/nts only
 ```
 
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.
@@ -69,8 +69,9 @@ npm run seed                                      # against the dev server
 npm run seed -- --token <token>                   # with a token of your own
 ```
 
-This creates the `libcxx` and `nts` suites with their real runs from `server/tests/data`, and a
-synthetic libcxx history on top. Seeding takes a few seconds.
+This creates the `libcxx/benchmarks` and `llvm/nts` suites with their real runs from
+`server/tests/data` and a synthetic `libcxx/benchmarks` history on top, plus a `libcxx/header-sizes`
+suite without runs and a `swift` project without suites. Seeding takes a few seconds.
 
 It needs a token with `manage` scope, or `admin` to seed API keys as well: `--token`, or
 `$LNT_SEED_TOKEN`. Without either, it creates an admin key named `seed` for the database in `.env`,
@@ -122,8 +123,8 @@ To look at a page without a browser, take a screenshot of it on a running server
 ```sh
 npm run dev                                       # in one terminal
 npm run seed                                      # once, in another
-npm run screenshot -- /suites/libcxx --out /tmp/suites.png
-npm run screenshot -- '/graph?suite=libcxx' --width 1600 --height 1000 --full-page
+npm run screenshot -- /projects/libcxx/suites/benchmarks --out /tmp/suites.png
+npm run screenshot -- '/graph?project=libcxx&suite=benchmarks' --width 1600 --height 1000 --full-page
 ```
 
 ### API types

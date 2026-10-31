@@ -16,18 +16,17 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
-from conftest import PROFILE_COLUMNS, code_of
+from conftest import PROFILE_COLUMNS, code_of, suite_path
 from introspection import counted, row_count, sql_type_of
 from lnt_v5.querying import DEFAULT_LIMIT
 from lnt_v5.routes.machines import Machines
-from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import _ADAPTERS
 from lnt_v5.suites.registry import Suite
 from lnt_v5.suites.schema import AttributeType, SuiteSchema
 from lnt_v5.suites.tables import SuiteTables, build
 
-MACHINES = f"{SUITES_PATH}/nts/machines"
+MACHINES = f"{suite_path('nts')}/machines"
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -171,7 +170,7 @@ class TestList:
         assert names_in(api_client.get(MACHINES)) == ["a/b"]
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        response = api_client.get(f"{SUITES_PATH}/nope/machines")
+        response = api_client.get(f"{suite_path('nope')}/machines")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
@@ -336,7 +335,9 @@ class TestLastRunAt:
         above, while reading every run in the suite to do it.
         """
         schema = SuiteSchema.model_validate(NTS)
-        suite = Suite(schema=schema, tables=build(schema, "nts"), schema_json="")
+        suite = Suite(
+            id=0, project="nts", schema=schema, tables=build(schema, "nts"), schema_json=""
+        )
 
         statement = Machines(suite).select()
         sql = str(statement.compile(compile_kwargs={"literal_binds": True})).upper()
@@ -650,7 +651,7 @@ class TestCreate:
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:
         response = api_client.post(
-            f"{SUITES_PATH}/nope/machines", json={"name": "linux"}, headers=manage
+            f"{suite_path('nope')}/machines", json={"name": "linux"}, headers=manage
         )
 
         assert response.status_code == 404
@@ -674,7 +675,7 @@ class TestDetail:
         assert code_of(response) == "not_found"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
-        assert api_client.get(f"{SUITES_PATH}/nope/machines/linux").status_code == 404
+        assert api_client.get(f"{suite_path('nope')}/machines/linux").status_code == 404
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, create: Callable[..., Any]
@@ -1068,8 +1069,8 @@ class TestAuthorization:
         [
             # An unknown suite, and a known suite with an unknown machine: neither may be
             # distinguishable from the other by someone who is not allowed to write.
-            f"{SUITES_PATH}/nope/machines/nope",
-            f"{SUITES_PATH}/nts/machines/nope",
+            f"{suite_path('nope')}/machines/nope",
+            f"{suite_path('nts')}/machines/nope",
         ],
     )
     def test_scope_is_checked_before_anything_is_resolved(
@@ -1087,7 +1088,7 @@ class TestAuthorization:
         assert response.status_code == 403
 
     def test_a_missing_credential_outranks_an_unknown_suite(self, api_client: TestClient) -> None:
-        assert api_client.delete(f"{SUITES_PATH}/nope/machines/nope").status_code == 401
+        assert api_client.delete(f"{suite_path('nope')}/machines/nope").status_code == 401
 
     def test_a_higher_scope_may_write(
         self,

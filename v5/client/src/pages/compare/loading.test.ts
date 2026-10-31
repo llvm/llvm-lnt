@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { SampleState } from '../../api/runs'
-import { SUITE } from '../../test/fixtures'
+import { REF, SUITE } from '../../test/fixtures'
 import { waiting, type SideProgress } from './loading'
 
 /** Side `id`, on libcxx's m1 at c1, with the run `1` selected and listed, unless told otherwise. */
 function side(id: 'a' | 'b', overrides: Partial<SideProgress> = {}): SideProgress {
   return {
     id,
-    settings: { suite: 'libcxx', machine: 'm1', commit: 'c1', runs: [] },
+    settings: { suite: REF, machine: 'm1', commit: 'c1', runs: [] },
     schema: SUITE,
     selected: new Set(['1']),
-    wanted: ['libcxx/1'],
+    wanted: ['llvm/libcxx/1'],
     runs: { isError: false },
     ...overrides,
   }
@@ -23,7 +23,7 @@ const state = (state: Partial<SampleState>): SampleState => ({
   ...state,
 })
 
-const LOADED = new Map([['libcxx/1', state({ samples: [] })]])
+const LOADED = new Map([['llvm/libcxx/1', state({ samples: [] })]])
 
 const READY = {
   suitesPending: false,
@@ -66,7 +66,7 @@ describe('waiting', () => {
   })
 
   it('shows nothing once what it could not load is reported', () => {
-    const failed = new Map([['libcxx/1', state({ error: new Error('no') })]])
+    const failed = new Map([['llvm/libcxx/1', state({ error: new Error('no') })]])
     expect(waiting(side('a'), side('b'), failed, READY)).toEqual({ kind: 'failed' })
     const unlisted = side('b', { runs: { isError: true } })
     expect(waiting(side('a'), unlisted, LOADED, READY)).toEqual({ kind: 'failed' })
@@ -78,7 +78,10 @@ describe('waiting', () => {
       kind: 'loading',
       label: 'Loading runs...',
     })
-    const other = side('b', { selected: new Set(['1', '2']), wanted: ['libcxx/1', 'libcxx/2'] })
+    const other = side('b', {
+      selected: new Set(['1', '2']),
+      wanted: ['llvm/libcxx/1', 'llvm/libcxx/2'],
+    })
     expect(waiting(side('a'), other, LOADED, READY)).toEqual({
       kind: 'loading',
       label: 'Loading samples: 1 of 2 runs...',

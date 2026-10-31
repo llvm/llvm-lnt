@@ -3,7 +3,7 @@ import { HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { Schemas } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
-import { signIn, TOKEN } from '../../test/auth'
+import { entry, signIn, TOKEN } from '../../test/auth'
 import { SUITE, commit, cursorPage, machine, runDetail, sample, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -30,7 +30,7 @@ import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 
 const UUID = uuidOf('a')
-const PAGE = `/suites/libcxx/runs/${UUID}`
+const PAGE = `/projects/llvm/suites/libcxx/runs/${UUID}`
 const RUN = runDetail('a', { machine: 'linux-x86_64', commit: 'abc123' })
 /** The run's commit, which has an ordinal, and so may have a commit before it. */
 const ORDERED = commit('abc123', {
@@ -92,14 +92,16 @@ function renderRun({
   mockSuites([suite])
   mockResolve(commit ? [commit] : [])
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}', () => run()),
-    mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => lookups.answer(request)),
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/samples', ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}', () => run()),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) =>
+      lookups.answer(request),
+    ),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/samples', ({ request }) => {
       const query = new URL(request.url).searchParams
       sampleQueries.push(query)
       return samplePages(query, request)
     }),
-    mockApi('get', '/api/suites/{testsuite}/runs/{uuid}/profiles', () => profiles()),
+    mockApi('get', '/api/projects/{project}/suites/{suite}/runs/{uuid}/profiles', () => profiles()),
   )
   renderPage(url)
   return { lookups: lookups.queries, sampleQueries }
@@ -135,11 +137,11 @@ describe('the Run Detail page', () => {
     )
     expect(main().getByRole('link', { name: 'linux-x86_64' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/machines/linux-x86_64',
+      '/projects/llvm/suites/libcxx/machines/linux-x86_64',
     )
     expect(main().getByRole('link', { name: 'r100 (v1)' })).toHaveAttribute(
       'href',
-      '/suites/libcxx/commits/abc123',
+      '/projects/llvm/suites/libcxx/commits/abc123',
     )
     // The UUID is an identifier, set as a table sets one; the commit's display value is not.
     const info = within(screen.getByRole('group', { name: 'Run' }))
@@ -158,14 +160,15 @@ describe('the Run Detail page', () => {
 
   it('shows only the error for a run that does not exist, and the trail', async () => {
     renderRun({
-      run: () => errorResponse(404, 'not_found', `Run '${UUID}' not found in test suite 'libcxx'`),
+      run: () =>
+        errorResponse(404, 'not_found', `Run '${UUID}' not found in test suite 'llvm/libcxx'`),
     })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('not found')
     expect(screen.queryByRole('heading', { name: 'Samples' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     // The Runs tab is the default one.
-    expect(trailLink('Runs')).toHaveAttribute('href', '/suites/libcxx')
+    expect(trailLink('Runs')).toHaveAttribute('href', '/projects/llvm/suites/libcxx')
   })
 
   it('fetches the samples alongside the run', async () => {
@@ -188,6 +191,7 @@ describe('the Run Detail page', () => {
 
       const link = await main().findByRole('link', { name: 'Compare with...' })
       expect(queryOf(link)).toEqual({
+        project_a: 'llvm',
         suite_a: 'libcxx',
         machine_a: 'linux-x86_64',
         commit_a: 'abc123',
@@ -204,9 +208,11 @@ describe('the Run Detail page', () => {
       await waitFor(() => expect(main().getByRole('link', { name })).toHaveAttribute('href'))
       const link = main().getByRole('link', { name })
       expect(queryOf(link)).toEqual({
+        project_a: 'llvm',
         suite_a: 'libcxx',
         machine_a: 'linux-x86_64',
         commit_a: 'prev99',
+        project_b: 'llvm',
         suite_b: 'libcxx',
         machine_b: 'linux-x86_64',
         commit_b: 'abc123',
@@ -290,15 +296,15 @@ describe('the Run Detail page', () => {
     })
 
     it("needs manage scope in the run's suite", async () => {
-      signIn('manage', ['nts'])
+      signIn('manage', [entry('nts')])
       renderRun()
 
       const button = await screen.findByRole('button', { name: 'Delete run' })
       await waitFor(() =>
         expect(button).toHaveAttribute(
           'title',
-          "Needs an API token with the 'manage' scope in suite 'libcxx'. The token in Settings " +
-            "has the 'manage' scope only in suite 'nts'.",
+          "Needs an API token with the 'manage' scope in suite 'llvm/libcxx'. The token in Settings " +
+            "has the 'manage' scope only in suite 'llvm/nts'.",
         ),
       )
       expect(button).toBeDisabled()
@@ -308,12 +314,14 @@ describe('the Run Detail page', () => {
       signIn('manage')
       const deleted: (string | null)[] = []
       server.use(
-        mockApi('delete', '/api/suites/{testsuite}/runs/{uuid}', ({ request }) => {
+        mockApi('delete', '/api/projects/{project}/suites/{suite}/runs/{uuid}', ({ request }) => {
           deleted.push(request.headers.get('Authorization'))
           return new HttpResponse(null, { status: 204 })
         }),
-        mockApi('get', '/api/suites/{testsuite}/machines/{machine_name}', ({ params }) =>
-          HttpResponse.json(machine(params.machine_name)),
+        mockApi(
+          'get',
+          '/api/projects/{project}/suites/{suite}/machines/{machine_name}',
+          ({ params }) => HttpResponse.json(machine(params.machine_name)),
         ),
       )
       mockRegressions()
@@ -329,7 +337,9 @@ describe('the Run Detail page', () => {
       fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: 'aaaaaaaa' } })
       fireEvent.click(within(prompt).getByRole('button', { name: 'Delete' }))
 
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/machines/linux-x86_64'))
+      await waitFor(() =>
+        expect(currentUrl()).toBe('/projects/llvm/suites/libcxx/machines/linux-x86_64'),
+      )
       expect(deleted).toEqual([`Bearer ${TOKEN}`])
       expect(await screen.findByText('No runs on this machine yet.')).toBeInTheDocument()
     })
@@ -350,11 +360,13 @@ describe('the Run Detail page', () => {
       server.use(
         mockApi(
           'delete',
-          '/api/suites/{testsuite}/runs/{uuid}',
+          '/api/projects/{project}/suites/{suite}/runs/{uuid}',
           () => new HttpResponse(null, { status: 204 }),
         ),
-        mockApi('get', '/api/suites/{testsuite}/machines/{machine_name}', ({ params }) =>
-          HttpResponse.json(machine(params.machine_name)),
+        mockApi(
+          'get',
+          '/api/projects/{project}/suites/{suite}/machines/{machine_name}',
+          ({ params }) => HttpResponse.json(machine(params.machine_name)),
         ),
       )
       mockRegressions()
@@ -367,7 +379,9 @@ describe('the Run Detail page', () => {
       fireEvent.change(screen.getByRole('textbox'), { target: { value: 'aaaaaaaa' } })
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
-      await waitFor(() => expect(currentUrl()).toBe('/suites/libcxx/machines/linux-x86_64'))
+      await waitFor(() =>
+        expect(currentUrl()).toBe('/projects/llvm/suites/libcxx/machines/linux-x86_64'),
+      )
       await waitFor(() => expect(aborted).toEqual(['p2']))
       expect(cursors()).toEqual([null, 'p2'])
     })
@@ -457,7 +471,7 @@ describe('the Run Detail page', () => {
       )
       expect(within(samples).getAllByRole('link', { name: 'Profile' })[0]).toHaveAttribute(
         'href',
-        `/profiles?suite_a=libcxx&machine_a=linux-x86_64&commit_a=abc123&run_a=${UUID}&test_a=b%2Ftest`,
+        `/profiles?project_a=llvm&suite_a=libcxx&machine_a=linux-x86_64&commit_a=abc123&run_a=${UUID}&test_a=b%2Ftest`,
       )
       expect(main().getByRole('status')).toHaveTextContent('4 samples')
     })

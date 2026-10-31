@@ -38,9 +38,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+create_project streaming "$AUTH"
 request -X POST -H "$AUTH" -H "$JSON" --data \
     '{"name": "streaming", "metrics": [{"name": "execution_time", "type": "real"}]}' \
-    "${BASE_URL}/api/suites"
+    "${BASE_URL}/api/projects/streaming/suites"
 expect_status 201
 
 request -X POST -H "$AUTH" -H "$JSON" --data '{
@@ -48,7 +49,7 @@ request -X POST -H "$AUTH" -H "$JSON" --data '{
   "tests": [{"name": "a", "samples": [{"execution_time": 1}]},
             {"name": "b", "samples": [{"execution_time": 2}]},
             {"name": "c", "samples": [{"execution_time": 3}]}]}' \
-    "${BASE_URL}/api/suites/streaming/runs"
+    "${BASE_URL}/api/projects/streaming/suites/streaming/runs"
 expect_status 201
 
 # The app may have been restarted by an earlier check (010), and Nginx may still be resolving its
@@ -57,7 +58,8 @@ wait_for_health "$PROXY_URL"
 
 # The namespace the server chose for the suite's tables (D5).
 namespace="$(docker exec "$DB_CONTAINER" psql --no-align --tuples-only -U lnt -d lnt -c \
-    "SELECT namespace FROM schema WHERE name = 'streaming'")"
+    "SELECT schema.namespace FROM schema JOIN project ON project.id = schema.project_id
+     WHERE project.name = 'streaming' AND schema.name = 'streaming'")"
 readonly SAMPLE="\"${namespace}\".sample"
 
 # Held for at most 30 seconds, should this check die without releasing it.
@@ -90,7 +92,7 @@ for variant in "${VARIANTS[@]}"; do
     # holds them until the body starts.
     curl --silent --show-error --no-buffer --max-time 40 --insecure "$encoding" \
         --dump-header "${scratch}/${variant}.headers" --output "${scratch}/${variant}" \
-        --write-out '%{http_code}' "${base}/api/suites/streaming/series?${QUERY}" \
+        --write-out '%{http_code}' "${base}/api/projects/streaming/suites/streaming/series?${QUERY}" \
         > "${scratch}/${variant}.status" &
     requests+=("$!")
 done

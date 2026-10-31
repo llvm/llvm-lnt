@@ -1,8 +1,9 @@
-"""Test suite creation, inspection, evolution and deletion (E10).
+"""Test suite creation, inspection, evolution and deletion (E10), in a project (D7).
 
-A suite's schema is the whole document here: the body `POST /api/suites` accepts, the body a `GET`
-returns, and what the `schema` table stores (D4). So one suite fetched from an instance can be
-posted verbatim to another, and there are no standalone schema or metric-metadata endpoints.
+A suite's schema is the whole document here: the body `POST /api/projects/{project}/suites`
+accepts, the body a `GET` returns, and what the `schema` table stores (D4). So one suite fetched
+from an instance or a project can be posted verbatim to another, and there are no standalone schema
+or metric-metadata endpoints.
 
 The schema document lives in `suites/schema.py`, the patch document and what applying it means in
 `suites/evolve.py`, and the transaction every write shares in `suites/store.py`.
@@ -10,33 +11,35 @@ The schema document lives in `suites/schema.py`, the patch document and what app
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Query, Response
-from sqlalchemy.exc import IntegrityError
 
 from lnt_v5 import examples
-from lnt_v5.auth import require_scope
-from lnt_v5.db import EngineDep, unique_violation_constraint
+from lnt_v5.auth import Coverage, require_scope
+from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import evolve
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
-from lnt_v5.suites.registry import RegistryDep
+from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, SuiteName
+from lnt_v5.suites.scope import SUITE_NOT_FOUND, ProjectName, SuiteName
 from lnt_v5.suites.store import (
     SCHEMA_NAME_CONSTRAINT,
     add_suite,
     bump,
+    full_name,
     locked_suite,
     suite_write,
 )
 from lnt_v5.tables import schema as schema_table
 
-SUITES_PATH = "/api/suites"
+PROJECTS_PATH = "/api/projects"
+SUITES_PATH = f"{PROJECTS_PATH}/{{project}}/suites"
 
 router = APIRouter(prefix=SUITES_PATH, tags=["Test Suites"])
 
@@ -102,67 +105,82 @@ def _confirmed(confirm: bool, what: str) -> None:
 # so they are written for API users.
 
 
+def sorted_schemas(suites: Mapping[str, Suite]) -> list[SuiteSchema]:
+    """The schemas of `suites`, by name (E10, E13)."""
+    return [suites[name].schema for name in sorted(suites)]
+
+
 # Schemas rather than names alone: suites are limited in number, and parts of the client need every
 # suite's metric list up front (E10).
-@router.get("", dependencies=[require_scope(Scope.READ)], summary="List test suites")
-def list_suites(engine: EngineDep, registry: RegistryDep) -> Items[SuiteSchema]:
-    """All test suites on this instance, with their schemas, sorted by name."""
+@router.get(
+    "",
+    dependencies=[require_scope(Scope.READ)],
+    summary="List a project's test suites",
+    responses={404: {"model": ErrorEnvelope, "description": "The project doesn't exist."}},
+)
+def list_suites(
+    project: ProjectName, engine: EngineDep, registry: RegistryDep
+) -> Items[SuiteSchema]:
+    """The project's test suites, with their schemas, sorted by name."""
     with engine.connect() as connection:
-        suites = registry.fresh(connection)
-    return Items(items=[suites[name].schema for name in sorted(suites)])
+        found = registry.resolve_project(connection, project)
+    return Items(items=sorted_schemas(found.suites))
 
 
 @router.post(
     "",
     status_code=201,
-    dependencies=[require_scope(Scope.MANAGE)],
+    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
     summary="Create a test suite",
     responses={
+        404: {"model": ErrorEnvelope, "description": "The project doesn't exist."},
         409: {
             "model": ErrorEnvelope,
-            "description": f"`duplicate`: a suite with this name already exists. {_BUSY}",
-        }
+            "description": (
+                f"`duplicate`: the project already has a suite with this name. {_BUSY}"
+            ),
+        },
     },
 )
 def create_suite(
+    project: ProjectName,
     body: Annotated[SuiteSchema, Body(openapi_examples=_CREATE_EXAMPLES)],
     engine: EngineDep,
     response: Response,
 ) -> SuiteSchema:
-    """Create a test suite from a schema.
+    """Create a test suite in the project, from a schema.
 
     The response is the schema with all optional keys filled in. Its `Location` header points to
     the new suite.
     """
-    try:
-        with suite_write(engine, body.name) as connection:
-            add_suite(connection, body)
-    except IntegrityError as error:
-        if unique_violation_constraint(error) != SCHEMA_NAME_CONSTRAINT:
-            raise
-        raise ApiError(
-            ErrorCode.DUPLICATE, f"A test suite named '{body.name}' already exists"
-        ) from error
-
-    response.headers["Location"] = f"{SUITES_PATH}/{body.name}"
+    taken = f"A test suite named '{full_name(project, body.name)}' already exists"
+    with (
+        reporting_violation(SCHEMA_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),
+        suite_write(engine, project, body.name) as connection,
+    ):
+        add_suite(connection, project, body)
+    # Both names are slugs (D4, D7), which need no quoting.
+    response.headers["Location"] = f"{SUITES_PATH.format(project=project)}/{body.name}"
     return body
 
 
 @router.get(
-    "/{name}",
+    "/{suite}",
     dependencies=[require_scope(Scope.READ)],
     summary="Get a test suite",
     responses={404: _NOT_FOUND},
 )
-def get_suite(name: SuiteName, engine: EngineDep, registry: RegistryDep) -> SuiteSchema:
+def get_suite(
+    project: ProjectName, name: SuiteName, engine: EngineDep, registry: RegistryDep
+) -> SuiteSchema:
     """A test suite's schema, with all optional keys filled in. It can be used as-is to create the
-    same suite on another instance."""
+    same suite in another project or on another instance."""
     with engine.connect() as connection:
-        return registry.resolve(connection, name).schema
+        return registry.resolve(connection, project, name).schema
 
 
 @router.patch(
-    "/{name}/schema",
+    "/{suite}/schema",
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Change a test suite's schema",
     responses={
@@ -179,6 +197,7 @@ def get_suite(name: SuiteName, engine: EngineDep, registry: RegistryDep) -> Suit
     },
 )
 def patch_schema(
+    project: ProjectName,
     name: SuiteName,
     body: Annotated[SchemaPatch, Body(openapi_examples=_PATCH_EXAMPLES)],
     engine: EngineDep,
@@ -191,8 +210,8 @@ def patch_schema(
     add it again. Removing a metric or field permanently deletes its data, so the request must
     include `confirm=true`.
     """
-    with suite_write(engine, name) as connection:
-        stored = locked_suite(connection, name)
+    with suite_write(engine, project, name) as connection:
+        stored = locked_suite(connection, project, name)
         if evolve.removes_anything(body):
             _confirmed(confirm, "Removing a schema entry destroys every value stored for it.")
         resulting = evolve.resulting_schema(stored.schema, body)
@@ -201,7 +220,7 @@ def patch_schema(
 
 
 @router.delete(
-    "/{name}",
+    "/{suite}",
     status_code=204,
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Delete a test suite",
@@ -210,16 +229,18 @@ def patch_schema(
         409: {"model": ErrorEnvelope, "description": _BUSY},
     },
 )
-def delete_suite(name: SuiteName, engine: EngineDep, confirm: Confirm = False) -> None:
+def delete_suite(
+    project: ProjectName, name: SuiteName, engine: EngineDep, confirm: Confirm = False
+) -> None:
     """Delete a test suite and all its data: machines, commits, runs, samples, profiles and
     regressions. This can't be undone, so the request must include `confirm=true`.
 
     The suite is also removed from the API keys restricted to it. A test suite created later with
     the same name is a different suite, which those keys don't cover."""
-    with suite_write(engine, name) as connection:
-        stored = locked_suite(connection, name)
-        _confirmed(confirm, f"Deleting '{name}' permanently destroys all of its data.")
+    with suite_write(engine, project, name) as connection:
+        stored = locked_suite(connection, project, name)
+        _confirmed(confirm, f"Deleting '{stored.full_name}' permanently destroys all of its data.")
         # Takes the suite's API key restriction rows with it (I5).
-        connection.execute(schema_table.delete().where(schema_table.c.name == name))
+        connection.execute(schema_table.delete().where(schema_table.c.id == stored.id))
         suite_tables.drop(connection, stored.namespace)
         bump(connection)

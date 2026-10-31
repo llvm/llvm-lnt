@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { uuidOf } from '../../test/fixtures'
+import { REF, uuidOf } from '../../test/fixtures'
 import { errorResponse } from '../../test/mock-api'
 import { query, renderPage, rowsOf, settle } from '../../test/page'
 import { clearCombobox, pick, pickOption } from '../../test/select'
@@ -113,7 +113,7 @@ describe("the Profiles page: side B's default test (PF2)", () => {
 
   it('has no default test without a commit', async () => {
     mockWorld()
-    renderPage(profilesPath(sideAt('m1', 'c1', '1', 'alpha'), { suite: 'libcxx', machine: 'm1' }))
+    renderPage(profilesPath(sideAt('m1', 'c1', '1', 'alpha'), { suite: REF, machine: 'm1' }))
     await profileShown('A')
 
     expect(field('Test', 'B')).toHaveAttribute('placeholder', 'Select a run first')
@@ -341,10 +341,7 @@ describe("the Profiles page: side B's default function (PF4)", () => {
     mockWorld()
     // Side A has a commit, but no test.
     renderPage(
-      profilesPath(
-        { suite: 'libcxx', machine: 'm1', commit: 'c1' },
-        sideAt('m1', 'c1', '2', 'alpha'),
-      ),
+      profilesPath({ suite: REF, machine: 'm1', commit: 'c1' }, sideAt('m1', 'c1', '2', 'alpha')),
     )
 
     await waitFor(() =>

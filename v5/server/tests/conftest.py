@@ -22,23 +22,25 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, create_engine, insert, make_url, select, text, update
+from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
 from introspection import namespace_of
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
-from lnt_v5.keys import create_key
+from lnt_v5.keys import Entry, create_key
 from lnt_v5.migrate import upgrade_to_head
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.store import add_suite
+from lnt_v5.suites.store import add_suite, bump
 from lnt_v5.suites.tables import SuiteTables, build
 from lnt_v5.tables import (
     SCHEMA_VERSION_ID,
     api_key,
     metadata,
+    project,
     schema,
     schema_version,
 )
@@ -289,39 +291,72 @@ def api_client(api_app: FastAPI) -> Iterator[TestClient]:
         yield client
 
 
+def entry_of(name: str) -> Entry:
+    """The suite a test names: `project/suite`, or a bare name for the suite of that name in the
+    project of that name, as migrating an instance that predates projects leaves it (D7)."""
+    project_name, _, suite = name.partition("/")
+    return Entry(project_name, suite or project_name)
+
+
+def ensure_project(connection: Connection, name: str) -> int:
+    """The identity of the project `name`, created unless it exists already, which is announced to
+    every worker (D2)."""
+    connection.execute(upsert(project).values(name=name).on_conflict_do_nothing())
+    bump(connection)
+    return int(connection.execute(select(project.c.id).where(project.c.name == name)).scalar_one())
+
+
 @pytest.fixture
 def make_key(db_engine: Engine) -> Callable[..., str]:
-    """Mint a real key and return its token, committed so the server can resolve it."""
+    """Mint a real key and return its token, committed so the server can resolve it. Its `suites`
+    are named as `entry_of` reads them."""
 
     def make(
         scope: Scope = Scope.ADMIN, name: str = "test key", suites: list[str] | None = None
     ) -> str:
+        entries = None if suites is None else [entry_of(suite) for suite in suites]
         with db_engine.begin() as connection:
-            return create_key(connection, name, scope, suites).token
+            return create_key(connection, name, scope, entries).token
 
     return make
 
 
 @pytest.fixture
 def restricted_key(db_engine: Engine, make_key: Callable[..., str]) -> Callable[..., str]:
-    """Mint a key restricted to `suites`, creating those that do not exist yet with no metrics or
-    fields, and return its token.
+    """Mint a key restricted to `suites`, named as `entry_of` reads them, creating those that do
+    not exist yet with no metrics or fields, and return its token.
 
     A key can only be restricted to suites that exist, and follows them (I5), so the suites a test
     restricts a key to have to be there for as long as the key is meant to be restricted to them.
     """
 
     def make(scope: Scope, *suites: str) -> str:
-        with db_engine.begin() as connection:
-            existing = set(
-                connection.execute(select(schema.c.name).where(schema.c.name.in_(suites))).scalars()
+        for name in suites:
+            entry = entry_of(name)
+            assert entry.suite is not None
+            ensure_suite(
+                db_engine, SuiteSchema.model_validate({"name": entry.suite}), entry.project
             )
-            for name in suites:
-                if name not in existing:
-                    add_suite(connection, SuiteSchema.model_validate({"name": name}))
         return make_key(scope, "restricted key", list(suites))
 
     return make
+
+
+def ensure_suite(engine: Engine, suite: SuiteSchema, project_name: str | None = None) -> None:
+    """Create `suite` in the project `project_name`, by default the one named after it, unless the
+    project already has a suite of that name, creating the project too if needed."""
+    project_name = project_name or suite.name
+    with engine.begin() as connection:
+        ensure_project(connection, project_name)
+        exists = connection.execute(
+            text(
+                "SELECT FROM schema JOIN project ON project.id = schema.project_id "
+                "WHERE project.name = :project AND schema.name = :suite"
+            ),
+            {"project": project_name, "suite": suite.name},
+        ).first()
+        if exists is None:
+            add_suite(connection, project_name, suite)
 
 
 @pytest.fixture
@@ -410,20 +445,32 @@ def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
 def make_api_suite(
     api_client: TestClient, manage: dict[str, str], db_engine: Engine
 ) -> Callable[[dict[str, Any]], SuiteTables]:
-    """Create a test suite through the API, and hand back its tables.
+    """Create a test suite through the API, in the project named after it unless given another,
+    which is created if need be, and hand back its tables.
 
     The tables are built from what the API stored rather than from the submitted document, so a
     test reading the database back is reading the same columns the server writes. Every endpoint
     family needs this, which is why it is here rather than copied into each module.
     """
 
-    def make(schema: dict[str, Any]) -> SuiteTables:
-        response = api_client.post(SUITES_PATH, json=schema, headers=manage)
+    def make(schema: dict[str, Any], project_name: str | None = None) -> SuiteTables:
+        project_name = project_name or schema["name"]
+        with db_engine.begin() as connection:
+            ensure_project(connection, project_name)
+        response = api_client.post(
+            SUITES_PATH.format(project=project_name), json=schema, headers=manage
+        )
         assert response.status_code == 201, response.text
         suite = SuiteSchema.model_validate(response.json())
-        return build(suite, namespace_of(db_engine, suite.name))
+        return build(suite, namespace_of(db_engine, suite.name, project_name))
 
     return make
+
+
+def suite_path(suite: str, project_name: str | None = None) -> str:
+    """The path of the suite `suite` of the project `project_name`, by default the one named after
+    it, as `entry_of` reads a bare name."""
+    return f"{SUITES_PATH.format(project=project_name or suite)}/{suite}"
 
 
 def recent(moment: datetime) -> bool:
@@ -458,14 +505,16 @@ def code_of(response: Any) -> str:
 
 
 def store_suite(engine: Engine, suite: SuiteSchema, version: int) -> None:
-    """Create a suite the way the server does, then record it at migration version `version`.
+    """Create a suite the way the server does, in the project named after it, then record it at
+    migration version `version`.
 
     The tables have this build's latest structure whatever `version` says. That suits the tests of
     the migration mechanism, which only check which steps run. The snapshot tests, which care about
     the structure itself, replay a snapshot instead.
     """
     with engine.begin() as connection:
-        add_suite(connection, suite)
+        ensure_project(connection, suite.name)
+        add_suite(connection, suite.name, suite)
         connection.execute(
             update(schema).where(schema.c.name == suite.name).values(migration_version=version)
         )

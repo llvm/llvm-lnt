@@ -25,16 +25,16 @@ export function shadowOf(side: ShadowSpec): ShadowSpec {
 }
 
 /**
- * The shadow `text` names, or null if it is malformed: `{suite}/{machine}/{commit}`, followed by
- * `/{run},{run}...` when it selects only some of its commit's runs. None of the names can contain a
- * `/` (I1), and only the runs are told apart by commas, which a machine or a commit may contain. No
- * part, and no run, can be empty.
+ * The shadow `text` names, or null if it is malformed: `{project}/{suite}/{machine}/{commit}`,
+ * followed by `/{run},{run}...` when it selects only some of its commit's runs. None of the names
+ * can contain a `/` (D7, I1), and only the runs are told apart by commas, which a machine or a
+ * commit may contain. No part, and no run, can be empty.
  */
 export function parseShadow(text: string): ShadowSpec | null {
   const parts = text.split('/')
-  const base = parseCommitOfMachine(parts.slice(0, 3))
-  if (base === null || parts.length > 4) return null
-  const runs = parts.length === 4 ? parts[3].split(',') : []
+  const base = parseCommitOfMachine(parts.slice(0, 4))
+  if (base === null || parts.length > 5) return null
+  const runs = parts.length === 5 ? parts[4].split(',') : []
   if (runs.some((run) => run === '')) return null
   return shadowOf({ ...base, runs })
 }

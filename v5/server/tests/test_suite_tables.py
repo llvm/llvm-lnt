@@ -94,7 +94,7 @@ def make_suite(db_engine: Engine) -> Iterator[Callable[..., SuiteTables]]:
         with db_engine.begin() as connection:
             # In a namespace named after the suite, which the server would not choose (D5), but
             # which keeps it plain whose tables a test reads back.
-            built = suite_tables.create(connection, schema, name)
+            built = suite_tables.create(connection, schema, name, f"{name}/{name}")
         created.append(name)
         return built
 

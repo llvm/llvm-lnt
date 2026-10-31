@@ -8,7 +8,7 @@ import {
   regressionCreated,
   TEXT_LENGTH,
 } from '../../api/regressions'
-import type { SuiteSchema } from '../../api/suites'
+import { refOf, type Suite, type SuiteRef } from '../../api/suites'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { DisabledLink } from '../../components/button-link'
@@ -25,7 +25,7 @@ import type { Point } from './points'
 import styles from './graph.module.css'
 
 interface Props {
-  schema: SuiteSchema
+  schema: Suite
   metric: Metric
   machine: string
   test: string
@@ -84,7 +84,7 @@ export function PointDetails({
   companion,
   onClose,
 }: Props) {
-  const suite = schema.name
+  const suite = refOf(schema)
 
   const side = (commit: string) => ({ suite, machine, commit })
   const compare =
@@ -171,7 +171,7 @@ export function PointDetails({
 
 interface CreateRegressionProps {
   /** The point's suite, machine, test, metric and commit, which the regression is of. */
-  suite: string
+  suite: SuiteRef
   machine: string
   test: string
   metric: string

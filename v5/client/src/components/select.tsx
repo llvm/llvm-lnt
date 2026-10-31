@@ -1,4 +1,5 @@
 import { useId, useRef, type Ref } from 'react'
+import clsx from 'clsx'
 import {
   Button,
   ListBox,
@@ -15,6 +16,12 @@ import styles from './select.module.css'
 export interface Option<Value extends string> {
   value: Value
   label: string
+  /**
+   * Why the option cannot be picked, if it cannot, such as one the token does not allow (AR17):
+   * shown on hover over the whole option, and part of its accessible name. It can still be focused,
+   * from the keyboard too, so that the reason can be read, but picking it changes nothing.
+   */
+  reason?: string
 }
 
 interface Props<Value extends string> {
@@ -78,7 +85,10 @@ export function Select<Value extends string>({
         // A single selection that cannot be cleared: React Aria reports a null only for no
         // selection.
         onChange={(key) => {
-          if (key !== null && (open.current || !listPicksOnly)) onChange(key as Value)
+          if (key === null || (!open.current && listPicksOnly)) return
+          if (options.find((option) => option.value === key)?.reason === undefined) {
+            onChange(key as Value)
+          }
         }}
         onOpenChange={(isOpen) => (open.current = isOpen)}
         isDisabled={isDisabled}
@@ -97,8 +107,19 @@ export function Select<Value extends string>({
         <Popover className={shared.popover} maxHeight={320}>
           <ListBox className={shared.list} items={options}>
             {(option) => (
-              <ListBoxItem id={option.value} className={shared.option}>
-                {option.label}
+              <ListBoxItem
+                id={option.value}
+                className={clsx(shared.option, option.reason !== undefined && shared.refused)}
+                textValue={option.label}
+              >
+                {option.reason === undefined ? (
+                  option.label
+                ) : (
+                  <span className={shared.refusedText} title={option.reason}>
+                    {option.label}
+                    <VisuallyHidden elementType="span">: {option.reason}</VisuallyHidden>
+                  </span>
+                )}
               </ListBoxItem>
             )}
           </ListBox>

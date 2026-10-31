@@ -14,7 +14,7 @@ import {
   type RunRef,
   type SampleState,
 } from '../../api/runs'
-import type { SuiteSchema } from '../../api/suites'
+import { isNamed, NO_SUITE, type Suite } from '../../api/suites'
 import { useControlledSelection, type RowSelection } from '../../components/range-selection'
 import type { Machines } from '../../components/machine-suggestions'
 import { useSuiteAndMachine } from '../../components/side-selection'
@@ -35,7 +35,7 @@ export interface Side {
   settings: SideSettings
   update(changes: Partial<SideSettings>): void
   /** The side's suite, once the suites are known to hold it. */
-  schema: SuiteSchema | undefined
+  schema: Suite | undefined
   /** The suite's machines, and the suggestions of the combobox picking one. */
   machines: Machines
   /** Whether the side names a suite, a machine and a commit: what its runs are asked for with. */
@@ -50,7 +50,7 @@ export interface Side {
    */
   selected: ReadonlySet<string> | undefined
   /**
-   * The runs, by `[suite, machine, commit]`, of which the user has deselected every one, which the
+   * The runs, by `[project, suite, machine, commit]`, of which the user has deselected every one, which the
    * URL cannot say (CP7): null when the side's runs are not those.
    */
   noRunsOf: string | null
@@ -74,7 +74,7 @@ export function useSide(
   id: SideId,
   all: Settings,
   update: (changes: Partial<Settings>) => void,
-  suites: UseQueryResult<SuiteSchema[]>,
+  suites: UseQueryResult<Suite[]>,
 ): Side {
   const settings = sideSettings(all, id)
   const { suite, machine, commit } = settings
@@ -89,17 +89,17 @@ export function useSide(
     suite,
     machine,
     suites,
-    onUnusableSuite: () => updateSide({ suite: '', ...CLEARED_WITH.suite }),
+    onUnusableSuite: () => updateSide({ suite: NO_SUITE, ...CLEARED_WITH.suite }),
     onUnusableMachine: () => updateSide({ machine: '', ...CLEARED_WITH.machine }),
   })
 
   // Asked for with the URL's values as they are, without waiting for them to be checked (CP6).
-  const named = suite !== '' && machine !== '' && commit !== ''
+  const named = isNamed(suite) && machine !== '' && commit !== ''
   const runs = useQuery({ ...commitRunsQuery(suite, machine, commit), enabled: named })
   const uuids = useMemo(() => runs.data?.map((run) => run.uuid), [runs.data])
 
   // The runs selected, as the URL names them, once they are listed.
-  const list = [suite, machine, commit].join('\0')
+  const list = [suite.project, suite.suite, machine, commit].join('\0')
   const [noRunsOf, setNoRunsOf] = useState<string | null>(null)
   const none = noRunsOf === list
   const selected = useMemo(
@@ -121,7 +121,7 @@ export function useSide(
   useEffect(() => {
     if (uuids !== undefined && selected !== undefined)
       updateSide({ runs: runsParam(uuids, selected) })
-    else if (suite === '') updateSide(CLEARED_WITH.suite)
+    else if (suite === NO_SUITE) updateSide(CLEARED_WITH.suite)
     else if (machine === '') updateSide(CLEARED_WITH.machine)
     else if (commit === '') updateSide(CLEARED_WITH.commit)
   }, [suite, machine, commit, selected, uuids, updateSide])
@@ -173,7 +173,7 @@ export interface Sides {
 export function useSides(
   all: Settings,
   update: (changes: Partial<Settings>) => void,
-  suites: UseQueryResult<SuiteSchema[]>,
+  suites: UseQueryResult<Suite[]>,
 ): Sides {
   const a = useSide('a', all, update, suites)
   const b = useSide('b', all, update, suites)

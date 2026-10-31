@@ -26,7 +26,7 @@ from lnt_v5.content_coding import DecodeRequestBody
 
 # A write endpoint: it reads its body before authenticating (I5), so without a token a body that
 # decodes gets a 401, which takes a database, and one that does not gets a 400, which does not.
-RUNS = "/api/suites/nts/runs"
+RUNS = "/api/projects/nts/suites/nts/runs"
 
 SUBMISSION = json.dumps(run_payload()).encode()
 

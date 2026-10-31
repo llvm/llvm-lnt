@@ -40,19 +40,21 @@ def test_reports_the_scope_of_any_key(
     assert response.json()["key"]["scope"] == scope.value
 
 
-def test_reports_the_suites_a_key_is_restricted_to(
+def test_reports_what_a_key_is_restricted_to(
     api_client: TestClient,
     make_key: Callable[..., str],
     restricted_key: Callable[..., str],
     bearer: Callable[[str], dict[str, str]],
 ) -> None:
     unrestricted = make_key(Scope.MANAGE)
-    restricted = restricted_key(Scope.MANAGE, "libcxx", "nts")
+    restricted = restricted_key(Scope.MANAGE, "llvm/nts", "libcxx/benchmarks")
 
-    assert api_client.get(AUTH_PATH, headers=bearer(unrestricted)).json()["key"]["suites"] is None
-    assert api_client.get(AUTH_PATH, headers=bearer(restricted)).json()["key"]["suites"] == [
-        "libcxx",
-        "nts",
+    own = api_client.get(AUTH_PATH, headers=bearer(unrestricted)).json()["key"]
+    assert own["restricted_to"] is None
+    own = api_client.get(AUTH_PATH, headers=bearer(restricted)).json()["key"]
+    assert own["restricted_to"] == [
+        {"project": "libcxx", "suite": "benchmarks"},
+        {"project": "llvm", "suite": "nts"},
     ]
 
 

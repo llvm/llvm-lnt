@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CommitFilters } from '../api/commits'
 import { queryKeys } from '../api/keys'
 import { scrollToEnd } from '../test/intersection-observer'
-import { SUITE, commit, cursorPage } from '../test/fixtures'
+import { REF, SUITE, commit, cursorPage } from '../test/fixtures'
 import type { Commit } from '../schema'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { gate, mockCommits, mockResolve, recording } from '../test/page'
@@ -116,7 +116,7 @@ function serveCommits() {
     return cursorPage(matches.slice(0, 3), matches.length > 3 ? 'p2' : null)
   })
   server.use(
-    mockApi('get', '/api/suites/{testsuite}/commits', async ({ request }) => {
+    mockApi('get', '/api/projects/{project}/suites/{suite}/commits', async ({ request }) => {
       const page = await answer(request)
       return page ? HttpResponse.json(page) : errorResponse(404, 'not_found', 'No such machine')
     }),
@@ -277,7 +277,7 @@ describe('CommitPicker', () => {
     // machine of the filters may be the one that is unknown.
     const failed = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         const query = new URL(request.url).searchParams
         if (!query.has('commit')) return HttpResponse.json(cursorPage([]))
         failed.open()
@@ -297,7 +297,7 @@ describe('CommitPicker', () => {
     let fail = true
     const queries = serveCommits()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         const query = new URL(request.url).searchParams
         if (query.has('commit') && fail) return errorResponse(500, 'internal_error', 'Boom')
       }),
@@ -327,13 +327,13 @@ describe('CommitPicker', () => {
 
     const failed = gate()
     server.use(
-      mockApi('get', '/api/suites/{testsuite}/commits', ({ request }) => {
+      mockApi('get', '/api/projects/{project}/suites/{suite}/commits', ({ request }) => {
         if (!new URL(request.url).searchParams.has('commit')) return
         failed.open()
         return errorResponse(500, 'internal_error', 'Boom') as never
       }),
     )
-    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.commits(SUITE.name) }))
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.commits(REF) }))
 
     await failed.promise
     await settle()
@@ -374,29 +374,29 @@ describe('CommitPicker', () => {
         return picker
       },
     ],
-  ])('checks a commit %s under other filters against the new ones, keeping its text', async (
-    _,
-    setUp,
-  ) => {
-    serveCommits()
-    const { input, setFilters } = await setUp()
+  ])(
+    'checks a commit %s under other filters against the new ones, keeping its text',
+    async (_, setUp) => {
+      serveCommits()
+      const { input, setFilters } = await setUp()
 
-    const slow = gate()
-    const queries = mockCommits(async () => {
-      await slow.promise
-      return cursorPage([TAGGED])
-    })
-    setFilters({ machine: 'darwin' })
+      const slow = gate()
+      const queries = mockCommits(async () => {
+        await slow.promise
+        return cursorPage([TAGGED])
+      })
+      setFilters({ machine: 'darwin' })
 
-    await waitFor(() => expect(lookups(queries)).toHaveLength(1))
-    expect(lookups(queries)[0].get('machine')).toBe('darwin')
-    // No flicker to the commit string while the lookup is under way.
-    expect(input).toHaveValue('r100 (v1)')
-    act(() => slow.open())
-    await settle()
-    expect(input).toHaveValue('r100 (v1)')
-    expect(value()).toBe(TAGGED.value)
-  })
+      await waitFor(() => expect(lookups(queries)).toHaveLength(1))
+      expect(lookups(queries)[0].get('machine')).toBe('darwin')
+      // No flicker to the commit string while the lookup is under way.
+      expect(input).toHaveValue('r100 (v1)')
+      act(() => slow.open())
+      await settle()
+      expect(input).toHaveValue('r100 (v1)')
+      expect(value()).toBe(TAGGED.value)
+    },
+  )
 
   it('never offers the suggestions of its previous filters while the new ones load', async () => {
     // Otherwise one could be picked, and taken for a commit the new filters offer.

@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { commitChanged } from '../api/commits'
-import type { SuiteSchema } from '../api/suites'
+import type { Suite } from '../api/suites'
 import { mockClipboard } from '../test/clipboard'
-import { NO_REPOSITORY, SUITE, commit } from '../test/fixtures'
+import { NO_REPOSITORY, REF, SUITE, commit } from '../test/fixtures'
 import { errorResponse, mockApi } from '../test/mock-api'
 import { mockResolve } from '../test/page'
 import { renderWithProviders } from '../test/render'
@@ -17,7 +17,7 @@ import { CLOSE_DELAY_MS, OPEN_DELAY_MS } from './use-hover-card'
 const HASH = '014621ede7c175aece29796adcaf5000f891cf0c'
 
 /** A suite with fields of every kind a card shows differently. */
-const FIELDS_SUITE: SuiteSchema = {
+const FIELDS_SUITE: Suite = {
   ...SUITE,
   commit_fields: [
     ...SUITE.commit_fields,
@@ -297,7 +297,12 @@ describe('a ⓘ', () => {
     renderWithProviders(
       <>
         <input aria-label="Search" />
-        <CommitCardButton schema={SUITE} value={HASH} commit={given ?? undefined} aria-label="Commit r593922">
+        <CommitCardButton
+          schema={SUITE}
+          value={HASH}
+          commit={given ?? undefined}
+          aria-label="Commit r593922"
+        >
           ⓘ
         </CommitCardButton>
         <input aria-label="After" />
@@ -430,7 +435,7 @@ describe('a ⓘ', () => {
 
   it('leads Tab into a kept card that holds a single element', async () => {
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', () =>
         errorResponse(500, 'internal', 'Boom.'),
       ),
     )
@@ -546,7 +551,7 @@ describe('the content', () => {
     expect(values[0]).toHaveTextContent(HASH)
     expect(within(values[0]).getByRole('link', { name: HASH })).toHaveAttribute(
       'href',
-      `/suites/libcxx/commits/${HASH}`,
+      `/projects/llvm/suites/libcxx/commits/${HASH}`,
     )
     const copy = within(values[0]).getByRole('button', { name: 'Copy commit' })
     expect(copy).toHaveAttribute('title', 'Copy commit')
@@ -614,7 +619,7 @@ describe('the data', () => {
   it('says why it could not fetch the commit, and tries again', async () => {
     let fail = true
     server.use(
-      mockApi('post', '/api/suites/{testsuite}/commits/resolve', () =>
+      mockApi('post', '/api/projects/{project}/suites/{suite}/commits/resolve', () =>
         fail
           ? errorResponse(500, 'internal', 'Boom.')
           : HttpResponse.json({ results: { [HASH]: FULL }, not_found: [] }),
@@ -659,7 +664,7 @@ describe('the data', () => {
     await wait(CLOSE_DELAY_MS)
 
     mockResolve([{ ...FULL, tag: 'llvm-23.0' }])
-    await act(() => commitChanged(queryClient, SUITE.name))
+    await act(() => commitChanged(queryClient, REF))
     await open()
     await waitFor(() => expect(card()).toHaveAccessibleName('r593922 (llvm-23.0)'))
   })
