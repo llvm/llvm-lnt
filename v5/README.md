@@ -73,14 +73,9 @@ npm run seed                                      # against the dev server
 npm run seed -- --token <token>                   # with a token of your own
 ```
 
-This creates three projects: `libcxx` (libc++), with the `benchmarks` suite (Microbenchmarks) and a
-`header-sizes` suite without runs; `llvm` (LLVM), with the `nts` suite; and `swift`, without suites.
-`benchmarks` and `nts` get their real runs from `server/tests/data`, and `benchmarks` a synthetic
-history on top. Seeding takes a few seconds. It leaves what exists alone: it adds only the projects
-and suites that are missing. In a dev database seeded before projects existed, the migrations
-(through 0011) put each suite in a project named after it, so seeding again adds the seeded suites
-beside the migrated ones: `libcxx/benchmarks` and `libcxx/header-sizes` beside `libcxx/libcxx`, and
-`llvm/nts` beside `nts/nts`.
+This creates the `libcxx/benchmarks` and `llvm/nts` suites with their real runs from
+`server/tests/data` and a synthetic `libcxx/benchmarks` history on top, plus a `libcxx/header-sizes`
+suite without runs and a `swift` project without suites. Seeding takes a few seconds.
 
 It needs a token with `manage` scope, or `admin` to seed API keys as well: `--token`, or
 `$LNT_SEED_TOKEN`. Without either, it creates an admin key named `seed` for the database in `.env`,
