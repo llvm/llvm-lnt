@@ -381,8 +381,8 @@ valid. The body is otherwise validated after authorization.
   move takes a suite from the keys listing its old project and gives it to those
   listing the new one, which is why moving needs to cover the destination in
   full. A move can leave a key listing a suite along with its new project: both
-entries stay, and the suite's keeps following the suite. A project or a suite
-created later under an old name is not covered.
+  entries stay, and the suite's keeps following the suite. A project or a suite
+  created later under an old name is not covered.
 - Deleting a project or a suite removes it from the keys that list it. A key
   whose last entry is removed stays restricted, to nothing, and grants only
   `read`: it never becomes instance-wide.
@@ -538,7 +538,7 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
   `read` is marked as callable without credentials. An operation requiring
   `submit`, `triage` or `manage` also states what a restricted key needs to call
   it (see I5): to cover the suite, to cover the project in full, to cover the
-suite and the destination project in full (a move), or nothing it can have.
+  suite and the destination project in full (a move), or nothing it can have.
 - `GET /api/docs` serves an interactive documentation viewer for that
   specification, as `text/html`.
 - How the viewer gets its scripts and stylesheets is up to the implementation.
