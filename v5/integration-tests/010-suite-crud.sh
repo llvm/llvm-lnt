@@ -225,7 +225,7 @@ request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"m2"}' \
 expect_status 403
 request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"project": "crud-moved"}' "${SUITES}/suite-crud"
 expect_status 403
-expect_body 'covering that project in full'
+expect_body 'Moving a test suite'
 request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud-moved"
 expect_status 403
 expect_body "covering project 'crud-moved' in full"

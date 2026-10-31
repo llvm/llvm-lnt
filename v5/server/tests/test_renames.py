@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -66,9 +67,22 @@ def suite_names(engine: Engine) -> list[tuple[str, str]]:
     return sorted((row[0], row[1]) for row in rows)
 
 
+# What an instance-wide `manage` key resolves to, for calling an endpoint directly.
+MANAGE_KEY = keys.ResolvedKey(
+    prefix="00000000",
+    name="manage",
+    scope=Scope.MANAGE,
+    restricted_to=None,
+    created_at=datetime.now(UTC),
+    last_used_at=None,
+    is_active=True,
+    id=0,
+)
+
+
 def move(engine: Engine, body: dict[str, Any], path: tuple[str, str] = ("libcxx", "nts")) -> Any:
     """Call the rename-or-move endpoint directly, as a thread racing another can."""
-    return patch_suite(*path, SuiteUpdate.model_validate(body), engine)
+    return patch_suite(MANAGE_KEY, *path, SuiteUpdate.model_validate(body), engine)
 
 
 def rename_project(engine: Engine, body: dict[str, Any], name: str = "libcxx") -> Any:

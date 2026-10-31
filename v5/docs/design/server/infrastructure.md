@@ -366,8 +366,10 @@ other request -- exactly what anonymous access gets, so reads are unaffected:
 | Creating a suite in a project (E10), changing or deleting a project (E13) | To cover the project in full |
 | Creating a project (E13) | Nothing it can have: this requires an instance-wide key |
 
-A request is a move when its body has a `project` other than the path's, whether
-or not that value is valid. The body is otherwise validated after authorization.
+The body is validated once what the path addresses is authorized. What a move
+needs beyond covering the suite is checked once the body is valid, still before the suite or the
+destination is looked up, so an invalid body is a 400 even from a key that does
+not cover the destination.
 
 - Only `submit`, `triage` and `manage` keys can be restricted. A restricted
   `read` key would grant nothing more than no key at all, and `admin` keys are
