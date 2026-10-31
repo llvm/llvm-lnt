@@ -123,7 +123,7 @@ New project    Name [________]    Display name [________]    [Create project]
 
 Name              Display name         Suites
 ----------------------------------------------------------------------
-libcxx  [Edit]    libc++  [Edit]       2
+libcxx  [Edit]    libc++  [Edit]       2         [red Delete button, disabled]
 swift   [Edit]    --      [Edit]       0         [red Delete button]
 ```
 
@@ -131,9 +131,9 @@ The "New project" form has an input for the project's name and one for its displ
 "Create project" button, which requires an instance-wide `manage` key (see I5). As the user types a
 name, it is checked against D7's rules and the names of the existing projects, as the schema editor
 checks a suite's name (see TS7). The display name is sent as the schema editor sends one (see TS7).
-"Create project" is disabled, saying why on hover, while the name is empty or fails its check. On
-success, the project appears in the table and the form is emptied. On failure, the form keeps its
-contents and shows the API's error message.
+"Create project" is disabled, saying why on hover, until the list of projects has loaded, as in
+TS7, and while the name is empty or fails its check. On success, the project appears in the table
+and the form is emptied. On failure, the form keeps its contents and shows the API's error message.
 
 The table has a row for each project, those without suites included, in AR22's order:
 
@@ -151,5 +151,9 @@ The table has a row for each project, those without suites included, in AR22's o
   project has suites, saying why on hover. Clicking it asks for a plain confirmation (see AR16),
   which says that API keys listing the project lose it, and that a key left with nothing grants
   only `read` (see I5). On success, the row is removed.
+
+Only a failure to load the list of projects in the first place takes the place of the table, with
+a way to try again; when the list is fetched again and that fails, the table stays as it is (see
+AR7).
 
 Anyone can view the tab.
