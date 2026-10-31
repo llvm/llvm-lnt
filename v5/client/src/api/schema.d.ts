@@ -193,8 +193,8 @@ export interface paths {
         head?: never;
         /**
          * Change a test suite's schema
-         * @description Add, update or remove metrics, commit fields and machine fields, or change the repository.
-         *     Returns the updated schema.
+         * @description Add, update or remove metrics, commit fields and machine fields, or change the display name
+         *     or the repository. Returns the updated schema.
          *
          *     Only display settings can be updated. To change the type of a metric or field, remove it and
          *     add it again. Removing a metric or field permanently deletes its data, so the request must
@@ -2723,16 +2723,22 @@ export interface components {
         };
         /**
          * SchemaPatch
-         * @description Changes to a suite's metrics, commit fields, machine fields and repository. What you leave
-         *     out is not changed.
+         * @description Changes to a suite's display name, metrics, commit fields, machine fields and repository.
+         *     What you leave out is not changed.
          *
          *     Either all the changes are applied or none are, and the resulting schema must be valid. Each
          *     metric or field can only be changed once per request. A new metric or field has no value for
          *     existing data. Removing one permanently deletes its data (and, for a metric, the regression
          *     indicators that refer to it), so the request must include `confirm=true`. To rename a metric
-         *     or field, remove it and add it again. Changing the repository needs no confirmation.
+         *     or field, remove it and add it again. Changing the display name or the repository needs no
+         *     confirmation.
          */
         SchemaPatch: {
+            /**
+             * Display Name
+             * @description How the web UI names the suite, instead of its `name`. At most 256 characters. Only the name addresses the suite in the API. Null removes it.
+             */
+            display_name?: string | null;
             metrics?: components["schemas"]["MetricChanges"];
             commit_fields?: components["schemas"]["CommitFieldChanges"];
             machine_fields?: components["schemas"]["MachineFieldChanges"];
@@ -2758,8 +2764,9 @@ export interface components {
         Scope: "read" | "submit" | "triage" | "manage" | "admin";
         /**
          * SuiteSchema
-         * @description A test suite's schema: its name, the metrics, commit fields and machine fields it defines,
-         *     and the repository its commits come from. A suite can only store what its schema defines.
+         * @description A test suite's schema: its name and display name, the metrics, commit fields and machine
+         *     fields it defines, and the repository its commits come from. A suite can only store what its
+         *     schema defines.
          *
          *     The same document is used to create a suite and is returned when reading one (with all
          *     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -2782,6 +2789,7 @@ export interface components {
          *           "type": "text"
          *         }
          *       ],
+         *       "display_name": "Microbenchmarks",
          *       "machine_fields": [
          *         {
          *           "display_name": null,
@@ -2881,6 +2889,11 @@ export interface components {
              */
             name: string;
             /**
+             * Display Name
+             * @description How the web UI names the suite, instead of its `name`. At most 256 characters. Only the name addresses the suite in the API. Null if there is none.
+             */
+            display_name: string | null;
+            /**
              * Metrics
              * @description What the suite's tests measure.
              */
@@ -2900,8 +2913,9 @@ export interface components {
         };
         /**
          * SuiteSchemaInput
-         * @description A test suite's schema: its name, the metrics, commit fields and machine fields it defines,
-         *     and the repository its commits come from. A suite can only store what its schema defines.
+         * @description A test suite's schema: its name and display name, the metrics, commit fields and machine
+         *     fields it defines, and the repository its commits come from. A suite can only store what its
+         *     schema defines.
          *
          *     The same document is used to create a suite and is returned when reading one (with all
          *     optional keys filled in), so a suite read from one instance can be created as-is on another.
@@ -2924,6 +2938,7 @@ export interface components {
          *           "type": "text"
          *         }
          *       ],
+         *       "display_name": "Microbenchmarks",
          *       "machine_fields": [
          *         {
          *           "display_name": null,
@@ -3022,6 +3037,11 @@ export interface components {
              * @description The suite's name. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters.
              */
             name: string;
+            /**
+             * Display Name
+             * @description How the web UI names the suite, instead of its `name`. At most 256 characters. Only the name addresses the suite in the API. Null if there is none.
+             */
+            display_name?: string | null;
             /**
              * Metrics
              * @description What the suite's tests measure.

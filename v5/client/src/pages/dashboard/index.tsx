@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useSuites, type SuiteSchema } from '../../api/suites'
 import { useRecentlyActiveMachines } from '../../api/machines'
 import { Loaded } from '../../components/feedback'
+import { suiteLabel } from '../../labels'
 import { isNumeric, type Metric } from '../../schema'
 import { enumParam, useUrlState } from '../../url-state'
 import { suiteTabPath } from '../test-suites/settings'
@@ -68,7 +69,7 @@ function SuiteSection({ schema, range }: { schema: SuiteSchema; range: number })
   return (
     <section className={styles.suite} aria-labelledby={headingId}>
       <h2 id={headingId} className={styles.suiteHeading}>
-        {schema.name}
+        {suiteLabel(schema)}
       </h2>
       {metrics.length === 0 ? (
         <NoCards schema={schema} />

@@ -9,8 +9,8 @@ validates an addition, which update model validates a change, and -- through the
 `RESERVED_COLUMNS` -- which of the suite's tables gain or lose a column. Spelling that
 correspondence out per operation is how a fourth list would end up half-supported.
 
-The schema's `repository` is not a list: it is changed key by key, like an entry's `update`, and
-adds or removes no column.
+The schema's `display_name` and `repository` are not lists: the first is set or cleared, and the
+second is changed key by key, like an entry's `update`. Neither adds or removes a column.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from lnt_v5.suites.schema import (
     COMMIT_URL,
     RANGE_URL,
     REPOSITORY_LABEL,
+    SUITE_DISPLAY_NAME,
     CommitField,
     CommitUrl,
     Entry,
@@ -37,6 +38,7 @@ from lnt_v5.suites.schema import (
     MachineField,
     Metric,
     RangeUrl,
+    SuiteLabel,
     SuiteSchema,
 )
 from lnt_v5.suites.store import StoredSuite, bump, normalized_json
@@ -196,18 +198,23 @@ class RepositoryUpdate(BaseModel):
 
 
 class SchemaPatch(BaseModel):
-    """Changes to a suite's metrics, commit fields, machine fields and repository. What you leave
-    out is not changed.
+    """Changes to a suite's display name, metrics, commit fields, machine fields and repository.
+    What you leave out is not changed.
 
     Either all the changes are applied or none are, and the resulting schema must be valid. Each
     metric or field can only be changed once per request. A new metric or field has no value for
     existing data. Removing one permanently deletes its data (and, for a metric, the regression
     indicators that refer to it), so the request must include `confirm=true`. To rename a metric
-    or field, remove it and add it again. Changing the repository needs no confirmation.
+    or field, remove it and add it again. Changing the display name or the repository needs no
+    confirmation.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    # As `_EntryUpdate`: only a `display_name` the request sends is read, so its default never is.
+    model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
+    display_name: SuiteLabel | None = Field(
+        default=None, description=f"{SUITE_DISPLAY_NAME} Null removes it."
+    )
     metrics: MetricChanges = Field(default_factory=MetricChanges)
     commit_fields: CommitFieldChanges = Field(default_factory=CommitFieldChanges)
     machine_fields: MachineFieldChanges = Field(default_factory=MachineFieldChanges)
@@ -315,7 +322,13 @@ def resulting_schema(current: SuiteSchema, patch: SchemaPatch) -> SuiteSchema:
     Catching it narrowly also keeps it from swallowing an internal one -- a stored schema that will
     not parse is a 500, not the caller's fault.
     """
-    document: dict[str, Any] = {"name": current.name}
+    document: dict[str, Any] = {
+        "name": current.name,
+        # As in an entry's `update`: left out, it is unchanged, and sent as null, it is cleared.
+        "display_name": (
+            patch.display_name if "display_name" in patch.model_fields_set else current.display_name
+        ),
+    }
     for of in LISTS:
         document[of.attribute] = _apply(of, getattr(current, of.attribute), _changes(patch, of))
     # As in an entry's `update`: a key left out is unchanged, and one sent as null is cleared.

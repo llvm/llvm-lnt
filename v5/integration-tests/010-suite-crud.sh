@@ -69,15 +69,18 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     fi
 done
 
-echo "  changing only its repository, which changes no table, is visible on every worker"
+echo "  changing only its display name and repository changes no table, and every worker sees it"
 request -X PATCH -H "$AUTH" -H "$JSON" \
-    --data '{"repository": {"label": "Forge"}}' "${SUITES}/suite-crud/schema"
+    --data '{"display_name": "Suite CRUD", "repository": {"label": "Forge"}}' \
+    "${SUITES}/suite-crud/schema"
 expect_status 200
+expect_body '"display_name":"Suite CRUD"'
 expect_body '"label":"Forge"'
 
 for _ in $(seq 1 "$ATTEMPTS"); do
     request "${SUITES}/suite-crud"
     expect_status 200
+    expect_body '"display_name":"Suite CRUD"'
     expect_body '"label":"Forge"'
 done
 

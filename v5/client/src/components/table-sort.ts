@@ -43,6 +43,19 @@ export function sortRows<Row>(
 }
 
 /**
+ * `rows`, sorted by `compare` in `direction`, for an order that no single key expresses. Stable,
+ * like `sortRows`.
+ */
+export function sortRowsBy<Row>(
+  rows: readonly Row[],
+  compare: (a: Row, b: Row) => number,
+  direction: SortDirection,
+): Row[] {
+  const sign = direction === 'ascending' ? 1 : -1
+  return [...rows].sort((a, b) => sign * compare(a, b))
+}
+
+/**
  * The sort a click on the header of `column` asks for: the other direction if the rows are already
  * sorted by it, and ascending otherwise.
  */

@@ -15,6 +15,7 @@ import {
   useCheckedCommits,
   type CommitOfMachine,
 } from '../../components/checked-commits'
+import { suiteLabelOf } from '../../labels'
 import { isNumeric, type Metric } from '../../schema'
 import { listParam, type Param } from '../../url-state'
 
@@ -41,6 +42,8 @@ export function baselineParam(): Param<string[]> {
 /** What is known of a baseline (see `useBaselines`). */
 export interface BaselineState {
   baseline: Baseline
+  /** The label of its suite (AR22), or the suite's name until the suites are listed. */
+  suiteLabel: string
   /** The display value of its commit, or the commit string until it is known. */
   display: string
   /**
@@ -141,12 +144,13 @@ export function useBaselines(
       baselines.map(
         (baseline, i): BaselineState => ({
           baseline,
+          suiteLabel: suiteLabelOf(suites, baseline.suite),
           display: checked.states[i].display,
           unusable: checked.states[i].unusable,
           samples: drawable[i] ? samples.data[i] : undefined,
         }),
       ),
-    [baselines, checked.states, drawable, samples.data],
+    [baselines, suites, checked.states, drawable, samples.data],
   )
   return {
     states,

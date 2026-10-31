@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { authedApi, unwrap } from '../../api/client'
 import type { SuiteSchema } from '../../api/suites'
+import { suiteLabel } from '../../labels'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ActionRow } from '../../components/action-row'
@@ -62,8 +63,8 @@ export function SchemaTab({ schema, onDeleted }: Props) {
             expected: name,
             message: (
               <p>
-                Deleting the test suite <strong>{name}</strong> permanently destroys all of its
-                machines, runs, commits, samples and regressions. This cannot be undone.
+                Deleting the test suite <strong>{suiteLabel(schema)}</strong> permanently destroys
+                all of its machines, runs, commits, samples and regressions. This cannot be undone.
               </p>
             ),
             busyMessage: 'Deleting a suite with much data may take a while.',

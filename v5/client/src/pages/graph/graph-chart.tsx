@@ -292,15 +292,16 @@ export function GraphChart({
   // A line per baseline and selected test it has a value for, once all its data has arrived.
   const lines = useMemo(
     () =>
-      baselines.flatMap(({ baseline, display, samples }): BaselineLine[] =>
+      baselines.flatMap(({ baseline, suiteLabel, display, samples }): BaselineLine[] =>
         samples === undefined
           ? []
           : selected.flatMap((test) => {
               const measured = samples.get(test)
               if (measured === undefined) return []
               const value = combineRuns(runValues(measured, sampleAgg), runAgg)
-              const { suite, machine } = baseline
-              return [{ suite, machine, commit: display, test, value, color: colorOfName(test) }]
+              const { machine } = baseline
+              const color = colorOfName(test)
+              return [{ suiteLabel, machine, commit: display, test, value, color }]
             }),
       ),
     [baselines, selected, sampleAgg, runAgg],

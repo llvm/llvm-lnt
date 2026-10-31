@@ -190,12 +190,15 @@ def store_schema_json(engine: Engine, rows: dict[str, str], version: int | None 
     By default, the latest. At that version, the suite pass neither migrates the suites' tables,
     which these rows don't have, nor parses their schemas: only the global revisions read them.
     """
+    # From 0008 on, each row records a namespace, which these rows name after the suite.
+    namespace = "namespace" in column_names(engine, "public", "schema")
     with engine.begin() as connection:
         for name, schema_json in rows.items():
             connection.execute(
                 text(
-                    "INSERT INTO schema (name, schema_json, migration_version) "
-                    "VALUES (:name, :schema_json, :version)"
+                    f"INSERT INTO schema (name, schema_json, migration_version"
+                    f"{', namespace' if namespace else ''}) "
+                    f"VALUES (:name, :schema_json, :version{', :name' if namespace else ''})"
                 ),
                 {
                     "name": name,
@@ -209,6 +212,14 @@ def stored_schema_json(engine: Engine) -> dict[str, str]:
     with engine.connect() as connection:
         rows = connection.execute(text("SELECT name, schema_json FROM schema")).all()
     return {row.name: row.schema_json for row in rows}
+
+
+def replace_schema_json(engine: Engine, document: Any) -> None:
+    """Replace every stored schema with `document`, as the server writes it."""
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE schema SET schema_json = :schema_json"), {"schema_json": compact(document)}
+        )
 
 
 def compact(document: Any) -> str:
@@ -636,6 +647,7 @@ class TestFieldListed:
 # A schema stored by a build before suites had a repository.
 _BEFORE_REPOSITORY = _AFTER_LISTED
 _NO_REPOSITORY = {"label": None, "commit_url": None, "range_url": None}
+_BEFORE_DISPLAY_NAME = {**_BEFORE_REPOSITORY, "repository": _NO_REPOSITORY}
 
 
 class TestSchemaRepository:
@@ -651,7 +663,7 @@ class TestSchemaRepository:
         upgrade_to_head(empty_engine)
 
         stored = stored_schema_json(empty_engine)["before"]
-        assert stored == compact({**_BEFORE_REPOSITORY, "repository": _NO_REPOSITORY})
+        assert stored == compact(with_display_name(_BEFORE_DISPLAY_NAME))
         # Byte for byte what the server itself writes for that schema.
         assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
 
@@ -708,16 +720,91 @@ class TestSchemaRepository:
         upgrade_by_hand(empty_engine, "0006")
         store_schema_json(empty_engine, {"before": compact(_BEFORE_REPOSITORY)})
         upgrade_by_hand(empty_engine, "0007")
-        with empty_engine.begin() as connection:
-            stored = {**_BEFORE_REPOSITORY, "repository": {**_NO_REPOSITORY, "label": "GitHub"}}
-            connection.execute(
-                text("UPDATE schema SET schema_json = :schema_json"),
-                {"schema_json": compact(stored)},
-            )
+        replace_schema_json(
+            empty_engine,
+            {**_BEFORE_REPOSITORY, "repository": {**_NO_REPOSITORY, "label": "GitHub"}},
+        )
 
         downgrade_by_hand(empty_engine, "0006")
 
         assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_REPOSITORY)}
+        # Once on the way up, and once on the way down.
+        assert schema_version_of(empty_engine) == 2
+
+
+def with_display_name(document: dict[str, Any]) -> dict[str, Any]:
+    """`document` as 0010 rewrites it: with the display name, unset, right after the name."""
+    return {"name": document["name"], "display_name": None} | document
+
+
+class TestSuiteDisplayName:
+    """0010 gives every stored schema the suite's `display_name`, unset, to keep stored schemas
+    normalized."""
+
+    def test_adds_it_right_after_the_name_and_nothing_else(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0009")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_DISPLAY_NAME)})
+
+        # To the head, so that what is stored is what the latest build writes.
+        upgrade_to_head(empty_engine)
+
+        stored = stored_schema_json(empty_engine)["before"]
+        assert stored == compact(with_display_name(_BEFORE_DISPLAY_NAME))
+        # Byte for byte what the server itself writes for that schema.
+        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+
+    def test_bumps_the_schema_version_once_and_leaves_a_display_name_alone(
+        self, empty_engine: Engine
+    ) -> None:
+        already = compact({"name": "already", "display_name": "Already"})
+        upgrade_by_hand(empty_engine, "0009")
+        store_schema_json(
+            empty_engine,
+            {
+                "before": compact(_BEFORE_DISPLAY_NAME),
+                "second": compact({**_BEFORE_DISPLAY_NAME, "name": "second"}),
+                "already": already,
+            },
+        )
+
+        upgrade_by_hand(empty_engine, "0010")
+
+        # D2: like any other change to a stored schema, however many rows it rewrites.
+        assert schema_version_of(empty_engine) == 1
+        assert stored_schema_json(empty_engine)["already"] == already
+
+    def test_changes_nothing_when_every_schema_has_it(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0009")
+        already = compact({"name": "already", "display_name": None})
+        store_schema_json(empty_engine, {"already": already})
+
+        upgrade_by_hand(empty_engine, "0010")
+
+        assert schema_version_of(empty_engine) == 0
+
+    def test_adds_it_to_any_object_and_leaves_the_rest_alone(self, empty_engine: Engine) -> None:
+        rows = {"not_json": "{", "not_an_object": "[]"}
+        upgrade_by_hand(empty_engine, "0009")
+        store_schema_json(empty_engine, {**rows, "nameless": '{"metrics": []}'})
+
+        upgrade_by_hand(empty_engine, "0010")
+
+        assert stored_schema_json(empty_engine) == {
+            **rows,
+            "nameless": compact({"display_name": None, "metrics": []}),
+        }
+
+    def test_downgrading_removes_it_whatever_it_holds(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0009")
+        store_schema_json(empty_engine, {"before": compact(_BEFORE_DISPLAY_NAME)})
+        upgrade_by_hand(empty_engine, "0010")
+        replace_schema_json(
+            empty_engine, {**with_display_name(_BEFORE_DISPLAY_NAME), "display_name": "Before"}
+        )
+
+        downgrade_by_hand(empty_engine, "0009")
+
+        assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_DISPLAY_NAME)}
         # Once on the way up, and once on the way down.
         assert schema_version_of(empty_engine) == 2
 

@@ -29,7 +29,12 @@ from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.store import normalized_json
 from lnt_v5.suites.tables import NAMESPACE_PREFIX, build
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, SUITE_NAME_MAX_LENGTH, namespace_sequence
+from lnt_v5.tables import (
+    DISPLAY_NAME_MAX_LENGTH,
+    IDENTIFIER_MAX_LENGTH,
+    SUITE_NAME_MAX_LENGTH,
+    namespace_sequence,
+)
 from lnt_v5.tables import schema as schema_table
 
 SUITES = SUITES_PATH
@@ -129,6 +134,13 @@ class TestCreate:
         assert response.headers["Location"] == f"{SUITES}/nts"
         # The Location has to actually resolve, and to the same document.
         assert api_client.get(response.headers["Location"]).json() == response.json()
+
+    def test_keeps_the_display_name_and_leaves_it_null_when_omitted(
+        self, create: Callable[..., Any]
+    ) -> None:
+        assert create().json()["display_name"] is None
+        named = create(name="named", display_name="LLVM test-suite").json()
+        assert named["display_name"] == "LLVM test-suite"
 
     def test_normalizes_the_repository(self, create: Callable[..., Any]) -> None:
         repository = {"commit_url": "https://git.example.com/{commit}"}
@@ -923,6 +935,68 @@ class TestEvolveRepository:
 
         assert code_of(response) == "invalid_request"
         assert api_client.get(f"{SUITES}/nts").json()["repository"] == examples.REPOSITORY
+
+
+class TestEvolveDisplayName:
+    """The suite's `display_name` is set, cleared with null, or left alone when omitted (D2)."""
+
+    def test_sets_it_without_confirmation_and_tells_every_worker(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+        before = schema_version_of(db_engine)
+
+        response = patch_request(api_client, manage, {"display_name": "LLVM test-suite"})
+
+        assert response.status_code == 200
+        assert response.json()["display_name"] == "LLVM test-suite"
+        assert stored_schema(db_engine, "nts") == response.json()
+        assert schema_version_of(db_engine) == before + 1
+
+    def test_null_clears_it_and_omitting_it_keeps_it(
+        self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
+    ) -> None:
+        create(display_name="LLVM test-suite")
+
+        kept = patch_request(api_client, manage, {"repository": {"label": "GitHub"}}).json()
+        cleared = patch_request(api_client, manage, {"display_name": None}).json()
+
+        assert kept["display_name"] == "LLVM test-suite"
+        assert cleared["display_name"] is None
+
+    def test_setting_what_is_stored_changes_nothing(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create(display_name="LLVM test-suite")
+        before = schema_version_of(db_engine)
+
+        response = patch_request(api_client, manage, {"display_name": "LLVM test-suite"})
+
+        assert response.status_code == 200
+        assert schema_version_of(db_engine) == before
+
+    @pytest.mark.parametrize("display_name", ["", "x" * (DISPLAY_NAME_MAX_LENGTH + 1), "a\x00b"])
+    def test_refuses_what_a_schema_would_not_accept(
+        self,
+        api_client: TestClient,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+        display_name: str,
+    ) -> None:
+        create(display_name="LLVM test-suite")
+
+        response = patch_request(api_client, manage, {"display_name": display_name})
+
+        assert code_of(response) == "invalid_request"
+        assert api_client.get(f"{SUITES}/nts").json()["display_name"] == "LLVM test-suite"
 
 
 def suite_tables_for(engine: Engine) -> Any:

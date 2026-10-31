@@ -139,6 +139,7 @@ with open(os.path.join(TMP, 'basic-schema.json')) as f:
 # declared machine fields are listed.
 # CHECK-LABEL: # CONVERSION
 # CHECK:       "commit_fields": [],
+# CHECK-NEXT:  "display_name": null,
 # CHECK-NEXT:  "machine_fields": [
 # CHECK-NEXT:   {
 # CHECK-NEXT:    "display_name": null,

@@ -84,6 +84,27 @@ describe('the Test Suites page', () => {
     expect(await table('Runs')).toBeInTheDocument()
   })
 
+  it('names the suites by their labels, in their order (AR22)', async () => {
+    mockSuites([
+      { ...SUITE, name: 'zeta', display_name: 'Alpha suite' },
+      { ...SUITE, name: 'alpha', display_name: null },
+      { ...SUITE, name: 'beta', display_name: 'beta suite' },
+    ])
+    mockRuns(() => cursorPage([]))
+    renderPage('/suites/alpha')
+
+    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
+    expect(within(picker).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'alpha',
+      'Alpha suite',
+      'beta suite',
+    ])
+    expect(within(picker).getByRole('link', { name: 'Alpha suite' })).toHaveAttribute(
+      'href',
+      '/suites/zeta',
+    )
+  })
+
   it('selects another suite by its card, starting again from its Runs tab', async () => {
     mockSuites()
     mockMachines(() => ({ items: [] }))

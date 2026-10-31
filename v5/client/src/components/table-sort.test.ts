@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextSort, sortParam, sortRows, type SortKey } from './table-sort'
+import { nextSort, sortParam, sortRows, sortRowsBy, type SortKey } from './table-sort'
 
 interface Row {
   id: string
@@ -34,6 +34,36 @@ describe('sortRows', () => {
     sortRows(rows, (row) => row.key, 'ascending')
 
     expect(rows).toEqual(ROWS)
+  })
+})
+
+describe('sortRowsBy', () => {
+  const byLength = (a: { id: string }, b: { id: string }) => a.id.length - b.id.length
+  const rows = ['ccc', 'a', 'bb', 'd', 'eee'].map((id) => ({ id }))
+
+  it('sorts by the comparator, keeping the order of ties, in both directions', () => {
+    expect(sortRowsBy(rows, byLength, 'ascending').map((row) => row.id)).toEqual([
+      'a',
+      'd',
+      'bb',
+      'ccc',
+      'eee',
+    ])
+    expect(sortRowsBy(rows, byLength, 'descending').map((row) => row.id)).toEqual([
+      'ccc',
+      'eee',
+      'bb',
+      'a',
+      'd',
+    ])
+  })
+
+  it('leaves the rows it is given as they are', () => {
+    const given = [...rows]
+
+    sortRowsBy(given, byLength, 'ascending')
+
+    expect(given).toEqual(rows)
   })
 })
 

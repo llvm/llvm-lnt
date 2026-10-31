@@ -216,6 +216,7 @@ test.describe('the Test Suites tab', () => {
       await page.getByRole('button', { name: 'New suite' }).click()
       const editor = page.getByRole('region', { name: 'New suite' })
       await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite)
+      await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill(' E2E suite ')
       await pickOption(editor, 'Start from', 'libcxx')
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
       await editor
@@ -225,6 +226,9 @@ test.describe('the Test Suites tab', () => {
       await editor.getByRole('button', { name: 'Create', exact: true }).click()
 
       await expect(page).toHaveURL(`/suites/${suite}?tab=schema`)
+      await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
+        `Name${suite}Display nameE2E suite`,
+      )
       await expect(rows(table(page, 'Machine fields')).last().locator('td')).toHaveText([
         'kernel',
         'text',
@@ -240,6 +244,7 @@ test.describe('the Test Suites tab', () => {
       expect(created).toEqual({
         ...libcxx,
         name: suite,
+        display_name: 'E2E suite',
         machine_fields: [
           ...libcxx.machine_fields,
           { name: 'kernel', type: 'text', display_name: null, searchable: false, listed: false },

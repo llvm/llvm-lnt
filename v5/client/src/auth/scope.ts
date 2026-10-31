@@ -1,4 +1,6 @@
 import type { Schemas } from '../api/client'
+import { useKnownSuites, type SuiteSchema } from '../api/suites'
+import { suiteLabel, suiteLabelOf, suitesNamed } from '../labels'
 import type { ApiKey } from './credentials'
 import { acceptedKey, useAuth, type TokenStatus } from './use-auth'
 
@@ -42,31 +44,42 @@ export const RESTRICTED_TO_NOTHING =
   'the suites it was restricted to have been deleted, so it can only read'
 
 /**
- * Where a key restricted to `suites` has its scope, as a sentence says it: `only in suite 'a'`,
- * `only in suites 'a', 'b'`, or in none once they have all been deleted (I5).
+ * Where a key restricted to `suites` has its scope, as a sentence says it, naming them by their
+ * labels as `known` has them (AR22): `only in suite 'a'`, `only in suites 'a', 'b'`, or in none
+ * once they have all been deleted (I5).
  */
-function restrictionText(suites: readonly string[]): string {
+function restrictionText(suites: readonly string[], known: SuiteSchema[] | undefined): string {
   if (suites.length === 0) return `in no suite: ${RESTRICTED_TO_NOTHING}`
-  const names = suites.map((name) => `'${name}'`).join(', ')
-  return `only in ${suites.length === 1 ? 'suite' : 'suites'} ${names}`
+  const labels = suitesNamed(known, suites).map((suite) => `'${suiteLabel(suite)}'`)
+  return `only in ${suites.length === 1 ? 'suite' : 'suites'} ${labels.join(', ')}`
 }
 
-/** Why a control needing `required` in `suite` is disabled, given the token's `status`. */
-function reason(required: Scope, suite: string | null, status: TokenStatus): string {
+/**
+ * Why a control needing `required` in `suite` is disabled, given the token's `status`, naming the
+ * suites by their labels as `known` has them.
+ */
+function reason(
+  required: Scope,
+  suite: string | null,
+  status: TokenStatus,
+  known: SuiteSchema[] | undefined,
+): string {
   const restricted = status.state === 'valid' ? status.key.suites : null
   // Only a restrictable scope can be had in some suites and not in others.
   const needs =
     suite === null && RESTRICTABLE_SCOPES.includes(required)
       ? `Needs an instance-wide API token with the '${required}' scope.`
       : `Needs an API token with the '${required}' scope` +
-        (suite !== null && restricted !== null ? ` in suite '${suite}'.` : '.')
+        (suite !== null && restricted !== null
+          ? ` in suite '${suiteLabelOf(known, suite)}'.`
+          : '.')
   switch (status.state) {
     case 'none':
       return `${needs} Set one in Settings.`
     case 'checking':
       return `${needs} The token in Settings is still being checked.`
     case 'valid': {
-      const where = restricted === null ? '' : ` ${restrictionText(restricted)}`
+      const where = restricted === null ? '' : ` ${restrictionText(restricted, known)}`
       return `${needs} The token in Settings has the '${status.key.scope}' scope${where}.`
     }
     case 'invalid':
@@ -93,8 +106,9 @@ function reason(required: Scope, suite: string | null, status: TokenStatus): str
  */
 export function useScopeGate(required: Scope, suite: string | null): ScopeGate {
   const { status } = useAuth()
+  const known = useKnownSuites()
   if (grants(acceptedKey(status) ?? null, required, suite)) {
     return { disabled: false, title: undefined }
   }
-  return { disabled: true, title: reason(required, suite, status) }
+  return { disabled: true, title: reason(required, suite, status, known) }
 }

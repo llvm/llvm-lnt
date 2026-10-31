@@ -304,6 +304,29 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
 
 const rowKey = (entry: DraftEntry) => String(entry.id)
 
+interface DisplayNameProps {
+  /** What the input shows. */
+  value: string
+  readOnly: boolean
+  className?: string
+  onValue(value: string): void
+}
+
+/**
+ * The input of the suite's display name, in the editor's header (TS7), below its label when
+ * creating a suite, and beside it when editing one. Unlike a name, it is free text, which the
+ * server checks when the schema is sent.
+ */
+export function DisplayNameInput(props: DisplayNameProps) {
+  const id = useId()
+  return (
+    <>
+      <label htmlFor={id}>Display name</label>
+      <NameInput id={id} problem={undefined} spellCheck {...props} />
+    </>
+  )
+}
+
 interface NameProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   /** The input's accessible name, unless a `<label>` gives it one. */
   label?: string

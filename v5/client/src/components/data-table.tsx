@@ -7,7 +7,7 @@ import {
   type Ref,
 } from 'react'
 import clsx from 'clsx'
-import { nextSort, sortRows, type SortKey, type TableSort } from './table-sort'
+import { nextSort, sortRows, sortRowsBy, type SortKey, type TableSort } from './table-sort'
 import styles from './data-table.module.css'
 
 /**
@@ -28,6 +28,8 @@ export interface Column<Row> {
   className?: string
   /** What a row is sorted by in this column, in a table whose rows can be sorted (see `sort`). */
   sortKey?: (row: Row) => SortKey
+  /** How two rows compare in this column, in place of `sortKey`, for an order no key expresses. */
+  compare?: (a: Row, b: Row) => number
 }
 
 /** Attributes of a row's `<tr>`, `data-` attributes included. */
@@ -72,7 +74,7 @@ interface Props<Row> {
   /** Makes the table focusable from script: where focus goes once a row it held is deleted. */
   ref?: Ref<HTMLTableElement>
   /**
-   * For a table whose rows can be sorted by the columns with a `sortKey`: the sort to show them in,
+   * For a table whose rows can be sorted by the columns with a `sortKey` or a `compare`: the sort,
    * which the table applies, and what to call when a click on a header asks for another. Its owner
    * keeps the sort, in the URL say.
    */
@@ -115,12 +117,13 @@ function DataTableImpl<Row>({
   pinned,
   presorted = false,
 }: Props<Row>) {
-  const sortKey = columns.find((column) => column.id === sort?.column)?.sortKey
+  const { sortKey, compare } = columns.find((column) => column.id === sort?.column) ?? {}
   const direction = sort?.direction
-  const sorted = useMemo(
-    () => (!presorted && sortKey && direction ? sortRows(rows, sortKey, direction) : rows),
-    [rows, sortKey, direction, presorted],
-  )
+  const sorted = useMemo(() => {
+    if (presorted || !direction) return rows
+    if (compare) return sortRowsBy(rows, compare, direction)
+    return sortKey ? sortRows(rows, sortKey, direction) : rows
+  }, [rows, sortKey, compare, direction, presorted])
   return (
     <table
       ref={ref}
@@ -140,7 +143,7 @@ function DataTableImpl<Row>({
                 className={cellClass(column, true)}
                 aria-sort={sortedBy}
               >
-                {sort && onSort && column.sortKey ? (
+                {sort && onSort && (column.sortKey || column.compare) ? (
                   <button
                     type="button"
                     className={styles.sortButton}

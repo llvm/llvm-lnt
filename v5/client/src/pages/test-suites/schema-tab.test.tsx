@@ -28,6 +28,7 @@ vi.mock('./schema/download', () => ({ downloadFile: vi.fn() }))
 /** A suite whose only metric has no unit at all. */
 const UNITLESS: SuiteSchema = {
   name: 'units',
+  display_name: null,
   metrics: [
     {
       name: 'neither',
@@ -191,11 +192,16 @@ describe('the Schema tab', () => {
     ])
 
     expect(main().getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+      'Suite',
       'Metrics',
       'Commit Fields',
       'Machine Fields',
       'Repository',
     ])
+    // The suite by its name, and its display name, which it has none of.
+    expect(screen.getByRole('group', { name: 'Suite' })).toHaveTextContent(
+      'Name' + 'libcxx' + 'Display name' + '--',
+    )
     // The templates as text, not links: they are not URLs until filled in.
     const repository = screen.getByRole('group', { name: 'Repository' })
     expect(repository).toHaveTextContent(
@@ -314,6 +320,19 @@ describe('deleting a suite', () => {
     expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
     expect(cards()).toEqual(['nts', 'units'])
     expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite('libcxx') })).toEqual([])
+  })
+
+  it('names the suite by its label, and asks for its name (AR22, AR16)', async () => {
+    const suites = [{ ...SUITE, display_name: 'Microbenchmarks' }, BARE_SUITE, UNITLESS]
+    const { store } = await renderSuite('libcxx', { manage: true, suites })
+    const sent = mockDelete(store)
+
+    fireEvent.click(deleteButton())
+    expect(prompt()).toHaveTextContent('Deleting the test suite Microbenchmarks permanently')
+    expect(prompt()).toHaveTextContent('Type libcxx to confirm')
+    confirmDeletion('libcxx')
+
+    await waitFor(() => expect(sent).toHaveLength(1))
   })
 
   it('checks the token again, and forgets the API keys, which may have listed it', async () => {
