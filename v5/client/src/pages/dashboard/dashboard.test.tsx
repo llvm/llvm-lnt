@@ -152,7 +152,7 @@ describe('the Dashboard', () => {
     // The project 'llvm' before 'LLVM Extra', whatever its suites are called.
     const projects = main().getAllByRole('heading', { level: 2 })
     expect(projects.map((h) => h.textContent)).toEqual(['llvm', 'LLVM Extra'])
-    // Each heading leads to the project's suites on the Test Suites page (TS1).
+    // Each heading leads to the project's suites on the Projects page (TS1).
     const extraLink = projectSection('LLVM Extra').getByRole('link', { name: 'LLVM Extra' })
     expect(extraLink).toHaveAttribute('href', '/projects/extra')
     const suitesOf = (project: string) =>

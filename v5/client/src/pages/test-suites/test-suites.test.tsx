@@ -6,6 +6,9 @@ import type { ProjectName } from '../../api/suites'
 import { BARE_SUITE, PROJECT, SUITE, commit, cursorPage, machine, run } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
+  chipLink,
+  chipRow,
+  chipTexts,
   commitCard,
   currentUrl,
   gate,
@@ -34,61 +37,52 @@ const EMPTY: ProjectName = { name: 'zzz', display_name: 'Empty' }
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
-describe('the Test Suites page', () => {
-  it("lists every project's suites under the project's heading, selecting none", async () => {
+describe('the Projects page', () => {
+  it('goes to the first project once the projects have loaded, in place of /projects', async () => {
     const list = gate()
-    mockSuites([SUITE, BARE_SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
+    mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
       projects: [PROJECT, SWIFT, EMPTY],
       wait: () => list.promise,
     })
-    renderPage('/projects')
+    renderPage('/nope')
+    fireEvent.click(navbarLink('Projects'))
 
-    expect(await screen.findByText('Loading test suites...')).toBeInTheDocument()
+    expect(await screen.findByText('Loading projects...')).toBeInTheDocument()
+    expect(currentUrl()).toBe('/projects')
     act(() => list.open())
 
-    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
-    // In AR22's order, each linking to its own suites, an empty one included.
-    const sections = within(picker).getAllByRole('region')
-    expect(sections.map((section) => within(section).getByRole('heading').textContent)).toEqual([
-      'Empty',
-      'llvm',
-      'Swift',
-    ])
-    expect(within(sections[0]).getByText('No test suites.')).toBeInTheDocument()
-    expect(within(sections[1]).getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'llvm',
-      'libcxx',
-      'nts',
-    ])
-    expect(within(sections[2]).getByRole('link', { name: 'Swift' })).toHaveAttribute(
-      'href',
-      '/projects/swift',
-    )
-    expect(within(sections[2]).getByRole('link', { name: 'stdlib' })).toHaveAttribute(
-      'href',
-      '/projects/swift/suites/stdlib',
-    )
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'All projects' })).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/projects')
+    // The first in AR22's order, a project without suites included.
+    await waitFor(() => expect(currentUrl()).toBe('/projects/zzz'))
+    expect(chipLink('Projects', 'Empty')).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
   })
 
-  it('shows the suites of a project alone, with a link to every project', async () => {
-    mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }])
+  it('goes to the first project without the query, which it has no use for', async () => {
+    mockSuites()
+    renderPage('/projects?tab=machines&search=linux')
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+  })
+
+  it("shows every project's chip, and the suites of the project, selecting none", async () => {
+    mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
+      projects: [PROJECT, SWIFT, EMPTY],
+    })
     renderPage('/projects/swift')
 
-    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
-    expect(within(picker).getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-      'Swift',
-    ])
-    expect(within(picker).getByRole('link', { name: 'stdlib' })).not.toHaveAttribute(
-      'aria-current',
-    )
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Projects')
+    await waitFor(() => expect(chipTexts('Projects')).toEqual(['Empty', 'llvm', 'Swift']))
+    const swift = chipLink('Projects', 'Swift')
+    expect(swift).toHaveAttribute('href', '/projects/swift')
+    expect(swift).toHaveAttribute('aria-current', 'page')
+    expect(chipLink('Projects', 'Empty')).toHaveAttribute('href', '/projects/zzz')
+    expect(chipLink('Projects', 'llvm')).not.toHaveAttribute('aria-current')
+    const stdlib = chipLink('Test suites', 'stdlib')
+    expect(chipTexts('Test suites')).toEqual(['stdlib'])
+    expect(stdlib).toHaveAttribute('href', '/projects/swift/suites/stdlib')
+    expect(stdlib).not.toHaveAttribute('aria-current')
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('link', { name: 'All projects' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects'))
-    expect(await screen.findByRole('link', { name: 'libcxx' })).toBeInTheDocument()
   })
 
   it('says that a project has no suites', async () => {
@@ -96,43 +90,33 @@ describe('the Test Suites page', () => {
     renderPage('/projects/swift')
 
     expect(await screen.findByText('No test suites.')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'libcxx' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Test suites' })).not.toBeInTheDocument()
+    expect(chipLink('Projects', 'Swift')).toHaveAttribute('aria-current', 'page')
   })
 
   it.each([['/projects/nope'], ['/projects/nope/suites/libcxx']])(
-    'says that the project does not exist at %s',
+    'says that the project does not exist at %s, beside the chips of the projects',
     async (url) => {
       mockSuites()
       renderPage(url)
 
       expect(await screen.findByRole('alert')).toHaveTextContent("Project 'nope' not found.")
+      expect(chipTexts('Projects')).toEqual(['llvm'])
+      expect(chipLink('Projects', 'llvm')).not.toHaveAttribute('aria-current')
       expect(screen.queryByRole('navigation', { name: 'Test suites' })).not.toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'All projects' })).toHaveAttribute(
-        'href',
-        '/projects',
-      )
+      expect(currentUrl()).toBe(url)
     },
   )
-
-  it("leads from the navbar to every project's suites, outside a suite's pages", async () => {
-    mockSuites()
-    renderPage('/nope')
-
-    fireEvent.click(navbarLink('Test Suites'))
-    await waitFor(() => expect(currentUrl()).toBe('/projects'))
-    expect(await screen.findByRole('link', { name: 'libcxx' })).toBeInTheDocument()
-  })
 
   it('shows the tabs of the selected suite, the Runs tab first', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
     renderPage('/projects/llvm/suites/libcxx')
 
-    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
-    expect(within(picker).getByRole('link', { name: 'libcxx' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
+    await screen.findByRole('navigation', { name: 'Test suites' })
+    expect(chipLink('Test suites', 'libcxx')).toHaveAttribute('aria-current', 'page')
+    // The project is the current one of its row, rather than the page shown.
+    expect(chipLink('Projects', 'llvm')).toHaveAttribute('aria-current', 'true')
     const tabs = screen.getAllByRole('tab')
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'Runs',
@@ -154,43 +138,87 @@ describe('the Test Suites page', () => {
     mockRuns(() => cursorPage([]))
     renderPage('/projects/llvm/suites/alpha')
 
-    const picker = await screen.findByRole('navigation', { name: 'Test suites' })
-    expect(within(picker).getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'llvm',
-      'alpha',
-      'Alpha suite',
-      'beta suite',
-    ])
-    expect(within(picker).getByRole('link', { name: 'Alpha suite' })).toHaveAttribute(
+    await screen.findByRole('navigation', { name: 'Test suites' })
+    expect(chipTexts('Test suites')).toEqual(['alpha', 'Alpha suite', 'beta suite'])
+    expect(chipLink('Test suites', 'Alpha suite')).toHaveAttribute(
       'href',
       '/projects/llvm/suites/zeta',
     )
   })
 
-  it('selects another suite by its card, starting again from its Runs tab', async () => {
+  it('picks another suite at the same tab, without its search', async () => {
     mockSuites()
     mockMachines(() => ({ items: [] }))
-    mockRuns(() => cursorPage([]))
     renderPage('/projects/llvm/suites/libcxx?tab=machines&search=linux')
+    await table('Machines')
+    const nts = chipLink('Test suites', 'nts')
+    // The selected suite's own chip leads to the tab shown too, in its default state.
+    expect(chipLink('Test suites', 'libcxx')).toHaveAttribute(
+      'href',
+      '/projects/llvm/suites/libcxx?tab=machines',
+    )
 
-    fireEvent.click(await screen.findByRole('link', { name: 'nts' }))
+    fireEvent.click(nts)
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
-    expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts?tab=machines'))
+    expect(screen.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('searchbox', { name: 'Search machines' })).toHaveValue('')
+    // The chip clicked is the same element, rather than one drawn anew, so that it keeps the focus.
+    expect(nts).toBeInTheDocument()
   })
 
-  it('starts the selected suite afresh when its card is clicked', async () => {
+  it('picks another project at its page', async () => {
+    mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }])
+    mockMachines(() => ({ items: [] }))
+    renderPage('/projects/llvm/suites/libcxx?tab=machines')
+    await table('Machines')
+
+    fireEvent.click(chipLink('Projects', 'Swift'))
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift'))
+    expect(chipTexts('Test suites')).toEqual(['stdlib'])
+    expect(chipLink('Test suites', 'stdlib')).toHaveAttribute(
+      'href',
+      '/projects/swift/suites/stdlib',
+    )
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  })
+
+  it('ignores a click on a selected chip', async () => {
     mockSuites()
     mockRuns(() => cursorPage([]))
     renderPage('/projects/llvm/suites/libcxx?search=linux')
     await table('Runs')
 
-    fireEvent.click(screen.getByRole('link', { name: 'libcxx' }))
+    // `fireEvent` says whether the click was left to follow the link.
+    expect(fireEvent.click(chipLink('Test suites', 'libcxx'))).toBe(false)
+    expect(fireEvent.click(chipLink('Projects', 'llvm'))).toBe(false)
+    expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=linux')
+    expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('linux')
+  })
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
-    expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
-    await new Promise((resolve) => setTimeout(resolve, SEARCH_DELAY_MS + 100))
+  it('leaves a modified click on a selected chip to the browser', async () => {
+    mockSuites()
+    mockRuns(() => cursorPage([]))
+    renderPage('/projects/llvm/suites/libcxx')
+    const libcxx = await screen.findByRole('link', { name: 'libcxx' })
+
+    // What the browser does with the clicks, which jsdom cannot, is kept from happening here.
+    const followed: boolean[] = []
+    const record = (event: MouseEvent) => {
+      followed.push(!event.defaultPrevented)
+      event.preventDefault()
+    }
+    document.addEventListener('click', record)
+    try {
+      const modifiers = [{ metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }]
+      for (const init of modifiers) {
+        fireEvent.click(libcxx, init)
+      }
+    } finally {
+      document.removeEventListener('click', record)
+    }
+    expect(followed).toEqual([true, true, true, true])
     expect(currentUrl()).toBe('/projects/llvm/suites/libcxx')
   })
 
@@ -201,7 +229,7 @@ describe('the Test Suites page', () => {
     await table('Runs')
 
     // The navbar's link leads to the suite without the search, as a new history entry.
-    fireEvent.click(navbarLink('Test Suites'))
+    fireEvent.click(navbarLink('Projects'))
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     expect(screen.getByRole('searchbox', { name: RUNS_SEARCH })).toHaveValue('')
 
@@ -214,16 +242,20 @@ describe('the Test Suites page', () => {
     expect(currentUrl()).toBe('/projects/llvm/suites/libcxx?search=linux')
   })
 
-  it('says that the suite does not exist, alongside the picker', async () => {
+  it('says that the suite does not exist, alongside the chips, selecting no suite', async () => {
     mockSuites()
-    renderPage('/projects/llvm/suites/nope')
+    renderPage('/projects/llvm/suites/nope?tab=machines')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       "Test suite 'llvm/nope' not found.",
     )
-    expect(screen.getByRole('navigation', { name: 'Test suites' })).toBeInTheDocument()
+    expect(chipTexts('Test suites')).toEqual(['libcxx', 'nts'])
+    expect(chipRow('Test suites').queryByRole('link', { current: true })).not.toBeInTheDocument()
+    // Leading to their default tab, whatever the URL holds.
+    expect(chipLink('Test suites', 'nts')).toHaveAttribute('href', '/projects/llvm/suites/nts')
+    expect(chipLink('Projects', 'llvm')).toHaveAttribute('aria-current', 'true')
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-    expect(currentUrl()).toBe('/projects/llvm/suites/nope')
+    expect(currentUrl()).toBe('/projects/llvm/suites/nope?tab=machines')
     // It takes the focus only from the tabs it replaces (see the schema editor's tests).
     expect(screen.getByRole('alert')).not.toHaveFocus()
   })
@@ -238,7 +270,7 @@ describe('the Test Suites page', () => {
     )
     renderPage('/projects/llvm/suites/nope')
 
-    expect(await screen.findByText('Loading test suites...')).toBeInTheDocument()
+    expect(await screen.findByText('Loading projects...')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     act(() => list.open())
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -246,9 +278,13 @@ describe('the Test Suites page', () => {
     )
   })
 
-  it.each([['/projects/llvm/suites/libcxx'], ['/projects/llvm']])(
-    'reports a failure to list the suites at %s, showing nothing more until it is retried',
-    async (url) => {
+  it.each([
+    ['/projects', '/projects/llvm'],
+    ['/projects/llvm', '/projects/llvm'],
+    ['/projects/llvm/suites/libcxx', '/projects/llvm/suites/libcxx'],
+  ])(
+    'reports a failure to list the projects at %s, showing nothing more until it is retried',
+    async (url, retried) => {
       server.use(
         mockApi('get', '/api/projects', () =>
           errorResponse(500, 'internal_error', 'The server failed'),
@@ -264,7 +300,7 @@ describe('the Test Suites page', () => {
       mockRuns(() => cursorPage([]))
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
       expect(await screen.findByRole('link', { name: 'libcxx' })).toBeInTheDocument()
-      expect(currentUrl()).toBe(url)
+      expect(currentUrl()).toBe(retried)
     },
   )
 

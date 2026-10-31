@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { forgetUnobserved } from '../../api/keys'
 import {
   fullName,
@@ -10,7 +10,6 @@ import {
   suiteOfFullName,
   suiteRef,
   useProjects,
-  type Project,
   type Suite,
   type SuiteRef,
   type SuiteSchema,
@@ -20,8 +19,9 @@ import { Alert, ErrorMessage, Loading } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
 import { useMounted } from '../../components/use-mounted'
 import { projectLabel, suiteLabel } from '../../labels'
-import { projectPath, PROJECTS_PATH, suitePath } from '../../paths'
-import { useUrlState } from '../../url-state'
+import { projectPath } from '../../paths'
+import { readParam, useUrlState } from '../../url-state'
+import { ChipLinks } from './chip-links'
 import { CommitsTab } from './commits-tab'
 import { MachinesTab } from './machines-tab'
 import { RegressionsTab } from './regressions-tab'
@@ -37,9 +37,13 @@ import {
 } from './settings'
 import styles from './test-suites.module.css'
 
-/** The Test Suites page (TS1): the suite picker, and the selected suite's tabs. */
-export default function TestSuites() {
+/**
+ * The Projects page (TS1): the chips of the projects, those of the selected project's suites, and
+ * the selected suite's tabs.
+ */
+export default function Projects() {
   const { project, suite } = useParams()
+  const [search] = useSearchParams()
   const projects = useProjects()
   const shown = projects.data?.find((entry) => entry.name === project)
   const schema = shown?.suites.find((entry) => entry.name === suite)
@@ -53,41 +57,71 @@ export default function TestSuites() {
     content = projects.isError ? (
       <ErrorMessage error={projects.error} onRetry={() => void projects.refetch()} />
     ) : (
-      <Loading label="Loading test suites..." />
+      <Loading label="Loading projects..." />
     )
   } else if (project === undefined) {
+    const first = projects.data.at(0)
     content =
-      projects.data.length === 0 ? (
+      first === undefined ? (
         <p className={styles.note}>There are no projects yet.</p>
       ) : (
-        <SuitePicker projects={projects.data} />
+        <Navigate to={projectPath(first.name)} replace />
       )
-  } else if (shown === undefined) {
-    content = <Alert>Project '{project}' not found.</Alert>
   } else {
-    content = (
-      <>
-        <SuitePicker projects={[shown]} selected={suite} />
-        {named === undefined ? null : schema === undefined ? (
-          <Alert ref={notFound} tabIndex={-1}>
-            Test suite '{fullName(named)}' not found.
-          </Alert>
-        ) : (
-          <SuiteTabs key={fullName(named)} schema={schema} />
-        )}
-      </>
+    const projectChips = (
+      <ChipLinks
+        label="Projects"
+        chips={projects.data.map((entry) => ({
+          key: entry.name,
+          text: projectLabel(entry),
+          to: projectPath(entry.name),
+        }))}
+        selected={shown?.name}
+        current={suite === undefined ? 'page' : 'true'}
+      />
     )
+    if (shown === undefined) {
+      content = (
+        <>
+          {projectChips}
+          <Alert>Project '{project}' not found.</Alert>
+        </>
+      )
+    } else {
+      // Another suite's chip leads to the tab shown, if any.
+      const tab =
+        schema === undefined ? PARAMS.tab.default : readParam(PARAMS.tab, search.getAll('tab'))
+      content = (
+        <>
+          {projectChips}
+          {shown.suites.length === 0 ? (
+            <p className={styles.note}>No test suites.</p>
+          ) : (
+            <ChipLinks
+              label="Test suites"
+              chips={shown.suites.map((entry) => ({
+                key: entry.name,
+                text: suiteLabel(entry),
+                to: suiteTabPath(refOf(entry), tab),
+              }))}
+              selected={schema?.name}
+            />
+          )}
+          {named === undefined ? null : schema === undefined ? (
+            <Alert ref={notFound} tabIndex={-1}>
+              Test suite '{fullName(named)}' not found.
+            </Alert>
+          ) : (
+            <SuiteTabs key={fullName(named)} schema={schema} />
+          )}
+        </>
+      )
+    }
   }
 
   return (
     <section>
-      <h1>Test Suites</h1>
-      {/* Everywhere but on the list of every project (TS1). */}
-      {project !== undefined && (
-        <Link to={PROJECTS_PATH} className={styles.allProjects}>
-          All projects
-        </Link>
-      )}
+      <h1>Projects</h1>
       {content}
     </section>
   )
@@ -110,48 +144,6 @@ function useNotFoundFocus(suite: string | undefined, found: boolean) {
     }
   })
   return ref
-}
-
-/**
- * The suite picker (TS1): the suites of each of `projects`, under a heading with the project's
- * label, linking to the project's suites, each by its own label (AR22). A project without suites
- * says so.
- */
-function SuitePicker({ projects, selected }: { projects: Project[]; selected?: string }) {
-  return (
-    <nav aria-label="Test suites">
-      {projects.map((project) => (
-        <ProjectSuites key={project.name} project={project} selected={selected} />
-      ))}
-    </nav>
-  )
-}
-
-function ProjectSuites({ project, selected }: { project: Project; selected?: string }) {
-  const headingId = useId()
-  return (
-    <section aria-labelledby={headingId}>
-      <h2 id={headingId} className={styles.projectHeading}>
-        <Link to={projectPath(project.name)}>{projectLabel(project)}</Link>
-      </h2>
-      {project.suites.length === 0 ? (
-        <p className={styles.note}>No test suites.</p>
-      ) : (
-        <div className={styles.suitePicker}>
-          {project.suites.map((suite) => (
-            <Link
-              key={suite.name}
-              to={suitePath(refOf(suite))}
-              className={styles.suiteCard}
-              aria-current={suite.name === selected ? 'page' : undefined}
-            >
-              {suiteLabel(suite)}
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  )
 }
 
 /** The history state of the page that a rename or a move leads to, in place of the old names'. */

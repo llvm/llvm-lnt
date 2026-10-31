@@ -1,5 +1,5 @@
 /**
- * The settings of the Test Suites page that live in the URL (TS1): the tab, and those of each tab.
+ * The settings of a suite's page that live in the URL (TS1): the tab, and those of each tab.
  */
 
 import { suitePath } from '../../paths'

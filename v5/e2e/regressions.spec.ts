@@ -1,5 +1,5 @@
 /**
- * The Regressions tab of the Test Suites page (TS5), against the seeded libcxx regressions
+ * The Regressions tab of the Projects page (TS5), against the seeded libcxx regressions
  * (tools/synthetic.ts).
  *
  * Other tests may add regressions to the suite, so these look for what the seed holds rather than

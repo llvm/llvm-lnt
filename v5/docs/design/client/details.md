@@ -2,10 +2,10 @@
 
 Page specifications for the various detail pages. The detail pages present
 detailed information about various entities. They are accessible by clicking
-on these entities from other pages (e.g. the `Test Suite / Runs` page).
+on these entities from other pages (e.g. a suite's Runs tab).
 
 Above its header, each detail page shows a breadcrumb trail leading back to the
-Test Suites page (TS1): the label of the suite's project, linking to
+Projects page (TS1): the label of the suite's project, linking to
 `/projects/{p}`, then the suite's label, linking to `/projects/{p}/suites/{s}`
 (see AR22), then the name of the tab listing the kind of entity the page is
 about, linking to that tab -- Machines, Runs, Commits or Regressions. The tab
@@ -149,7 +149,7 @@ Each row shows:
 
 If there are no unresolved regressions for the machine, it shows "No active regressions on this machine."
 The table has no Previous/Next: below it, a "Show all regressions" button links to the
-Regressions tab of the Test Suites page, filtered by this machine only, whatever the state.
+Regressions tab of the Projects page, filtered by this machine only, whatever the state.
 It is shown even when the table is empty, since the machine may have resolved regressions.
 
 ### Run History table
@@ -324,7 +324,7 @@ with their samples and profiles, are deleted too, and that the regressions
 attributed to it are kept, with no commit (see E3). Deletion requires `manage`
 scope. While it is in progress, a message reassures the user that deletion may
 take a while for commits with many runs. On success, navigates to the Commits
-tab of the Test Suites page (`/projects/{p}/suites/{s}?tab=commits`).
+tab of the Projects page (`/projects/{p}/suites/{s}?tab=commits`).
 
 ### Regressions section
 
@@ -418,7 +418,7 @@ included.
 A red "Delete regression" button follows the info box. Clicking it shows its
 confirmation prompt (see AR16) below it; the prompt says that the regression's
 indicators are deleted too. Deletion requires `triage` scope. Once the
-regression is deleted, the page goes to the Regressions tab of the Test Suites
+regression is deleted, the page goes to the Regressions tab of the Projects
 page (`/projects/{p}/suites/{s}?tab=regressions`).
 
 ### Add indicators panel

@@ -132,6 +132,15 @@ export function tabSettings<P extends Params & { tab: Param<string> }>(
   }
 }
 
+/**
+ * The setting `param` reads from `values`, the URL's values of its parameter: its default when
+ * there are none, or when the page cannot use them. Unlike `useUrlState`, it leaves the URL as it
+ * is.
+ */
+export function readParam<T>(param: Param<T>, values: string[]): T {
+  return values.length === 0 ? param.default : (param.parse(values) ?? param.default)
+}
+
 /** How `value` is spelled in the URL: not at all at its default. */
 function canonical<T>(param: Param<T>, value: T): string[] {
   return isDefault(param, value) ? [] : param.serialize(value)
@@ -160,11 +169,7 @@ function read<P extends Params>(
     const raw = search.getAll(key)
     const last = readings.get(param)
     const value =
-      last !== undefined && sameElements(last.raw, raw)
-        ? last.value
-        : raw.length === 0
-          ? param.default
-          : (param.parse(raw) ?? param.default)
+      last !== undefined && sameElements(last.raw, raw) ? last.value : readParam(param, raw)
     readings.set(param, { raw, value })
     values[key] = value
     if (!sameElements(raw, canonical(param, value))) rewrites[key] = value

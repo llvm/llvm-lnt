@@ -6,7 +6,14 @@ import { suiteRef } from './api/suites'
 import { SettingsMenu } from './auth/settings-menu'
 import { Loading } from './components/feedback'
 import { PageErrorBoundary } from './components/page-error-boundary'
-import { comparePath, graphPath, PROJECTS_PATH, profilesPath, suitePath } from './paths'
+import {
+  comparePath,
+  graphPath,
+  projectPath,
+  PROJECTS_PATH,
+  profilesPath,
+  suitePath,
+} from './paths'
 import styles from './layout.module.css'
 
 export function Layout() {
@@ -18,6 +25,14 @@ export function Layout() {
     match?.project === undefined || match.suite === undefined
       ? undefined
       : suiteRef(match.project, match.suite)
+  // The project of a project's page, which the Projects link stays on (AR4).
+  const project = useMatch('/projects/:project')?.params.project
+  const projectsTarget =
+    suite !== undefined
+      ? suitePath(suite)
+      : project !== undefined
+        ? projectPath(project)
+        : PROJECTS_PATH
   return (
     <div className={styles.root}>
       <nav className={styles.navbar}>
@@ -25,11 +40,8 @@ export function Layout() {
           <NavLink to="/" end className={clsx(styles.link, styles.brand)}>
             LNT
           </NavLink>
-          <NavLink
-            to={suite === undefined ? PROJECTS_PATH : suitePath(suite)}
-            className={styles.link}
-          >
-            Test Suites
+          <NavLink to={projectsTarget} className={styles.link}>
+            Projects
           </NavLink>
           <NavLink to={graphPath({ suite })} className={styles.link}>
             Graph

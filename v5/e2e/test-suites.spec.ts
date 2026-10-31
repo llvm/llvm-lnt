@@ -1,5 +1,5 @@
 /**
- * The Test Suites page (TS1-TS7), against the seeded projects and suites (see tools/seed.ts).
+ * The Projects page (TS1-TS7), against the seeded projects and suites (see tools/seed.ts).
  *
  * Other tests may add to the seeded projects and suites, so these look for what the seed holds
  * rather than assuming that it is all there is. Tests that write change a suite of their own.
@@ -18,77 +18,92 @@ import { column, rows, settled, table } from './tables.ts'
 /** The accessible name of the Runs tab's search. */
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
-test("the Test Suites link shows every project's suites, under the project", async ({ page }) => {
+test('the Projects link goes to the first project, in place of /projects in the history', async ({
+  page,
+}) => {
   await page.goto('/')
-  await page.getByRole('navigation').getByRole('link', { name: 'Test Suites', exact: true }).click()
+  await page.getByRole('navigation').first().getByRole('link', { name: 'Projects' }).click()
 
-  await expect(page).toHaveURL('/projects')
-  // Other tests add projects of their own, so this looks at the seeded ones alone.
-  const picker = page.getByRole('navigation', { name: 'Test suites' })
-  const libcxx = picker.getByRole('region', { name: 'libc++', exact: true })
-  await expect(libcxx.getByRole('heading', { name: 'libc++' }).getByRole('link')).toHaveAttribute(
-    'href',
-    '/projects/libcxx',
-  )
-  // Each suite by its own label, in AR22's order.
-  await expect(libcxx.getByRole('link').filter({ hasNotText: 'libc++' })).toHaveText([
-    'header-sizes',
-    'Microbenchmarks',
-  ])
-  await expect(
-    picker.getByRole('region', { name: 'LLVM', exact: true }).getByRole('link'),
-  ).toHaveText(['LLVM', 'nts'])
-  await expect(picker.getByRole('region', { name: 'swift', exact: true })).toContainText(
-    'No test suites.',
-  )
-  await expect(page.getByRole('link', { name: 'All projects' })).toHaveCount(0)
-  await expect(page.getByRole('tab')).toHaveCount(0)
+  const projects = page.getByRole('navigation', { name: 'Projects' })
+  // Other tests add projects of their own, which may come first. The chip of the project the URL
+  // names is the current page, so the URL is the first chip's.
+  await expect(page).toHaveURL(/\/projects\/[^/?]+$/)
+  await expect(projects.getByRole('link').first()).toHaveAttribute('aria-current', 'page')
+  // The seeded projects, among the others, in AR22's order.
+  const seeded = projects.getByRole('link').filter({ hasText: /^(libc\+\+|LLVM|swift)$/ })
+  await expect(seeded).toHaveText(['libc++', 'LLVM', 'swift'])
 
   await page.goBack()
   await expect(page).toHaveURL('/')
 })
 
-test("a project's page shows its suites alone, and leads back to every project", async ({
+test("a project's page shows its suites, none selected, and leads to the other projects", async ({
   page,
 }) => {
-  await page.goto('/projects')
-  const picker = page.getByRole('navigation', { name: 'Test suites' })
-  await picker.getByRole('link', { name: 'LLVM', exact: true }).click()
-
-  await expect(page).toHaveURL('/projects/llvm')
-  await expect(picker.getByRole('heading')).toHaveText(['LLVM'])
-  await expect(picker.getByRole('link', { name: 'nts', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab')).toHaveCount(0)
-
-  await page.getByRole('link', { name: 'All projects' }).click()
-  await expect(page).toHaveURL('/projects')
-  await expect(picker.getByRole('heading', { name: 'libc++' })).toBeVisible()
-})
-
-test('picking a suite shows its runs', async ({ page }) => {
   await page.goto('/projects/libcxx')
-  const picker = page.getByRole('navigation', { name: 'Test suites' })
+  const projects = page.getByRole('navigation', { name: 'Projects' })
+  const suites = page.getByRole('navigation', { name: 'Test suites' })
 
-  await picker.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
-
-  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
-  await expect(picker.getByRole('link', { name: 'Microbenchmarks', exact: true })).toHaveAttribute(
+  await expect(projects.getByRole('link', { name: 'libc++', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
   )
+  // Each suite by its own label, in AR22's order.
+  await expect(suites.getByRole('link')).toHaveText(['header-sizes', 'Microbenchmarks'])
+  await expect(suites.locator('[aria-current]')).toHaveCount(0)
+  await expect(page.getByRole('tab')).toHaveCount(0)
+
+  await projects.getByRole('link', { name: 'LLVM', exact: true }).click()
+  await expect(page).toHaveURL('/projects/llvm')
+  await expect(suites.getByRole('link')).toHaveText(['nts'])
+
+  await projects.getByRole('link', { name: 'swift', exact: true }).click()
+  await expect(page).toHaveURL('/projects/swift')
+  await expect(page.getByRole('main')).toContainText('No test suites.')
+  await expect(suites).toHaveCount(0)
+})
+
+test('picking a suite shows its runs, and another suite the same tab', async ({ page }) => {
+  await page.goto('/projects/libcxx')
+  const suites = page.getByRole('navigation', { name: 'Test suites' })
+  const benchmarks = suites.getByRole('link', { name: 'Microbenchmarks', exact: true })
+
+  await benchmarks.click()
+
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
+  await expect(benchmarks).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
   await expect(rows(table(page, 'Runs'))).toHaveCount(25)
+
+  // The selected suite's chip goes nowhere, leaving the search as it is.
+  await page.getByRole('tab', { name: 'Machines' }).click()
+  await page.getByRole('searchbox', { name: 'Search machines' }).fill('macos')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=machines&search=macos')
+  await benchmarks.click()
+  await expect(page.getByRole('searchbox', { name: 'Search machines' })).toHaveValue('macos')
+  await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=machines&search=macos')
+
+  // Another suite's, the same tab, without the search.
+  await suites.getByRole('link', { name: 'header-sizes', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes?tab=machines')
+  await expect(page.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('searchbox', { name: 'Search machines' })).toHaveValue('')
 })
 
 test('an unknown suite or project is reported', async ({ page }) => {
   await page.goto('/projects/libcxx/suites/nope')
 
   await expect(page.getByRole('alert')).toHaveText("Test suite 'libcxx/nope' not found.")
-  await expect(page.getByRole('navigation', { name: 'Test suites' })).toBeVisible()
+  const suites = page.getByRole('navigation', { name: 'Test suites' })
+  await expect(suites.getByRole('link')).toHaveText(['header-sizes', 'Microbenchmarks'])
+  await expect(suites.locator('[aria-current]')).toHaveCount(0)
 
   await page.goto('/projects/nope')
   await expect(page.getByRole('alert')).toHaveText("Project 'nope' not found.")
-  await expect(page.getByRole('link', { name: 'All projects' })).toBeVisible()
+  const projects = page.getByRole('navigation', { name: 'Projects' })
+  await expect(projects.getByRole('link', { name: 'libc++', exact: true })).toBeVisible()
+  await expect(projects.locator('[aria-current]')).toHaveCount(0)
+  await expect(suites).toHaveCount(0)
 })
 
 test.describe('the Runs tab', () => {
@@ -368,10 +383,7 @@ test.describe('the Schema tab', () => {
 
       // The page leaves for the suites of the project, which has none left.
       await expect(page).toHaveURL(`/projects/${suite.project}`)
-      const picker = page.getByRole('navigation', { name: 'Test suites' })
-      await expect(picker.getByRole('region', { name: suite.project, exact: true })).toContainText(
-        'No test suites.',
-      )
+      await expect(page.getByRole('main')).toContainText('No test suites.')
       expect((await request.get(`/api${suitePath(suite)}`)).status()).toBe(404)
     })
   })
@@ -480,7 +492,7 @@ test.describe('the Schema tab', () => {
       await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
         `Project${suite.project}Name${suite.suite}Display nameForge suite`,
       )
-      // The suite's card is named by its display name (AR22).
+      // The suite's chip is named by its display name (AR22).
       await expect(
         page.getByRole('navigation', { name: 'Test suites' }).getByRole('link', {
           name: 'Forge suite',
@@ -525,7 +537,7 @@ test.describe('the Schema tab', () => {
       try {
         await signIn(page, 'manage')
         // From another page, for Back to have an entry of the SPA to go back to.
-        await page.goto('/projects')
+        await page.goto(`/projects/${suite.project}`)
         await page.goto(`${suitePath(suite)}?tab=schema`)
         const move = page.getByRole('button', { name: 'Rename or move' })
         const panel = page.getByRole('form', { name: 'Rename or move' })
@@ -544,7 +556,7 @@ test.describe('the Schema tab', () => {
         await expect(page).toHaveURL(`${suitePath(renamed)}?tab=schema`)
         await expect(move).toBeFocused()
         await page.goBack()
-        await expect(page).toHaveURL('/projects')
+        await expect(page).toHaveURL(`/projects/${suite.project}`)
         await page.goto(`${suitePath(suite)}?tab=schema`)
         await expect(page.getByRole('alert')).toHaveText(
           `Test suite '${suite.project}/${suite.suite}' not found.`,

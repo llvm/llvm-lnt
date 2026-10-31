@@ -263,7 +263,7 @@ Notes:
   concern: the API treats metrics alike whether or not they set it, in trends,
   series and everywhere else.
 - `listed: true` on a commit or machine field is a hint for the UI: the Commits
-  and Machines tabs of the Test Suites page show a column for each field that
+  and Machines tabs of the Projects page show a column for each field that
   sets it (see TS3, TS4). Like `display`, it is purely a UI concern: the API
   treats fields alike whether or not they set it.
 - `repository` says where the suite's commits come from, so that the UI can

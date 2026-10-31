@@ -15,10 +15,10 @@ interface SuiteRef {
 
 const segment = encodeURIComponent
 
-/** The Test Suites page listing every project's suites (TS1). */
+/** The Projects page, which goes to the first project's page (TS1). */
 export const PROJECTS_PATH = '/projects'
 
-/** The Test Suites page listing the suites of the project `project` (TS1). */
+/** The Projects page of the project `project`, listing its suites (TS1). */
 export function projectPath(project: string): string {
   return `${PROJECTS_PATH}/${segment(project)}`
 }

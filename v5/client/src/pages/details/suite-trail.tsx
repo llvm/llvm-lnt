@@ -8,7 +8,7 @@ import styles from './details.module.css'
 interface Props {
   /** The suite named by the page's URL, whether or not it exists. */
   suite: SuiteRef
-  /** The tab of the Test Suites page listing the kind of entity the page is about. */
+  /** The tab of the suite's page listing the kind of entity the page is about. */
   tab: TabId
 }
 

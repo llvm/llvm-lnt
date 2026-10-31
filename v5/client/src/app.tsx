@@ -8,9 +8,9 @@ import {
   Graph,
   MachineDetail,
   Profiles,
+  Projects,
   RegressionDetail,
   RunDetail,
-  TestSuites,
 } from './pages/lazy'
 import { NotFound } from './pages/not-found'
 import { RethrowError } from './rethrow-error'
@@ -21,9 +21,9 @@ export const routes: RouteObject[] = [
     element: <Layout />,
     children: [
       { index: true, element: <Dashboard /> },
-      { path: 'projects', element: <TestSuites /> },
-      { path: 'projects/:project', element: <TestSuites /> },
-      { path: 'projects/:project/suites/:suite', element: <TestSuites /> },
+      { path: 'projects', element: <Projects /> },
+      { path: 'projects/:project', element: <Projects /> },
+      { path: 'projects/:project/suites/:suite', element: <Projects /> },
       { path: 'projects/:project/suites/:suite/machines/:name', element: <MachineDetail /> },
       { path: 'projects/:project/suites/:suite/runs/:uuid', element: <RunDetail /> },
       { path: 'projects/:project/suites/:suite/commits/:value', element: <CommitDetail /> },

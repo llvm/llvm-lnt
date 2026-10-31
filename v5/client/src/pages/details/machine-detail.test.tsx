@@ -33,6 +33,7 @@ import {
   mockResolve,
   mockSent,
   mockSuites,
+  navbarLink,
   ready,
   recording,
   renderPage,
@@ -886,7 +887,7 @@ describe('the Machine Detail page', () => {
       // The machine's page, then the Runs tab, then the machine's page again, from its run's row.
       renderPage(PAGE)
       await ready('Machine', () => editButton('Name'))
-      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      fireEvent.click(navbarLink('Projects'))
       fireEvent.click(within(await table('Runs')).getByRole('link', { name: NAME }))
       await ready('Machine', () => editButton('Name'))
 
@@ -910,7 +911,7 @@ describe('the Machine Detail page', () => {
       await waitFor(() => expect(sent).toHaveLength(1))
 
       // To the Runs tab of the suite, which lists the machine's runs, while the rename runs.
-      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      fireEvent.click(navbarLink('Projects'))
       await table('Runs')
       const fetched = runQueries.length
       act(() => answer.open())
@@ -1015,7 +1016,7 @@ describe('the Machine Detail page', () => {
       // The machine's page, then the Runs tab, then the machine's page again, from its run's row.
       const { queryClient } = renderPage(PAGE)
       await ready('Machine', deleteButton)
-      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      fireEvent.click(navbarLink('Projects'))
       fireEvent.click(within(await table('Runs')).getByRole('link', { name: NAME }))
 
       await startDeleting()
@@ -1068,7 +1069,7 @@ describe('the Machine Detail page', () => {
       await startDeleting()
 
       // To the Runs tab of the suite, which lists the machine's runs, while the deletion runs.
-      fireEvent.click(screen.getByRole('link', { name: 'Test Suites' }))
+      fireEvent.click(navbarLink('Projects'))
       await table('Runs')
       const fetched = runQueries.length
       act(() => deletion.open())

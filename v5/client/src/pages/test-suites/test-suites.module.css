@@ -1,34 +1,29 @@
-.suitePicker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: var(--lnt-space-4);
+/* A row of chips of projects or suites (TS1). */
+.chips {
+  composes: chips from '../../components/chip.module.css';
+  margin: 0 0 var(--lnt-space-2);
+  padding: 0;
+  list-style: none;
 }
 
-.suiteCard {
-  min-width: 8rem;
-  padding: 0.75rem var(--lnt-space-4);
+/*
+ * A chip of a project or a suite: a link with the look of a state chip (TS5), and so of a button.
+ * Not composed from button-link.module.css's, whose shape and size would compete with the chip's
+ * at the same specificity, the winner depending on the order in which the stylesheets load.
+ */
+.chip {
+  composes: chip from '../../components/chip.module.css';
+  display: inline-block;
+  padding: var(--lnt-space-1) 0.75rem;
   border: 1px solid var(--lnt-border-strong);
-  border-radius: 6px;
   background: var(--lnt-bg);
-  color: var(--lnt-fg);
-  font-weight: 600;
-  text-align: center;
+  color: inherit;
   text-decoration: none;
-  transition:
-    border-color 0.15s,
-    background 0.15s;
 }
 
-.suiteCard:hover {
+.chip:hover {
   border-color: var(--lnt-accent);
   color: var(--lnt-accent);
-}
-
-.suiteCard[aria-current='page'] {
-  border-color: var(--lnt-accent);
-  background: var(--lnt-accent);
-  color: var(--lnt-bg);
 }
 
 /* What the page says when there is nothing to show. */
@@ -96,16 +91,4 @@
    the title to a few characters a line. */
 .title {
   min-width: 10rem;
-}
-
-/* The heading of a project's suites in the suite picker (TS1). */
-.projectHeading {
-  margin: var(--lnt-space-3) 0 var(--lnt-space-2);
-  font-size: 1.2rem;
-}
-
-/* The link back to every project's suites, above the picker (TS1). */
-.allProjects {
-  display: inline-block;
-  margin-bottom: var(--lnt-space-2);
 }
