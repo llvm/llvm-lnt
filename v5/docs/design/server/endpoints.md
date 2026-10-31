@@ -925,9 +925,9 @@ DELETE /api/projects/{project}    -- Delete a project that has no suites
 
 A project groups test suites (see D7), which are managed through E10.
 
-**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. Creating,
-renaming and deleting a project require an instance-wide key, and changing a
-project's display name a key that covers the project in full (see I5).
+**Auth scope:** `read` for GET, `manage` for POST, PATCH and DELETE. Creating a
+project requires an instance-wide key, and changing or deleting one a key that
+covers the project in full (see I5).
 
 **Project object:** `name` and `display_name` (see D7), and `suites`: the
 project's suites, as E10's suite objects, ordered by name. List and detail
@@ -958,8 +958,6 @@ a successful no-op.
 - 200 with the project.
 - 400 if `name` is `null` or not a valid project name, or `display_name` is
   empty or too long (see D7).
-- 403 if the request renames the project with a restricted key, even one that
-  covers the project in full (see I5).
 - 409 `duplicate` if another project has the new name.
 - 409 `retry` if the change could not take the locks it needs.
 

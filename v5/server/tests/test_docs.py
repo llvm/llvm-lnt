@@ -342,13 +342,6 @@ class TestDocumentedAuthentication:
                 "requires an API key with the `manage` scope, unrestricted or covering this test "
                 "suite. Moving it to another project also needs that project covered in full.",
             ),
-            # A project rename, which needs an unrestricted key.
-            (
-                f"{PROJECTS_PATH}/{{project}}",
-                "patch",
-                "requires an API key with the `manage` scope, unrestricted or covering this "
-                "project in full. Renaming it needs an unrestricted key.",
-            ),
             # One that addresses neither, which no restricted key may make.
             (PROJECTS_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
             # `admin` keys cannot be restricted, so there is nothing to add.

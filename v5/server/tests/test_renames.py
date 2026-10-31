@@ -375,13 +375,16 @@ class TestKeysFollow:
     def test_a_project_entry_follows_the_project(
         self,
         api_client: TestClient,
-        manage: dict[str, str],
         make_key: Callable[..., str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         headers = bearer(make_key(Scope.MANAGE, restricted_to=[keys.Entry("libcxx", None)]))
 
-        api_client.patch(f"{PROJECTS_PATH}/libcxx", json={"name": "libcpp"}, headers=manage)
+        # The key itself may rename the project, which it covers in full (I5).
+        renamed = api_client.patch(
+            f"{PROJECTS_PATH}/libcxx", json={"name": "libcpp"}, headers=headers
+        )
+        assert renamed.status_code == 200, renamed.text
 
         assert self.listed(api_client, headers) == [{"project": "libcpp", "suite": None}]
         machines = f"{suite_path('nts', 'libcpp')}/machines"

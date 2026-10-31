@@ -15,11 +15,11 @@ one, or it will resolve first and answer 404 where I5 requires 403.
 A restricted key is checked against what the request addresses, which is read off the route's path:
 a suite, for every route under `/api/projects/{project}/suites/{suite}` (see `suite_parameters`), or
 a project, for a route that declares so (see `Coverage`). Any other request needs an instance-wide
-key, so a route that declares nothing fails closed. Two routes also read their body, which can ask
-for more (see `BodyRule`): moving a suite, and renaming a project. That is only sound because of an
-invariant no test can check: a request that addresses a suite writes only to that suite, plus the
-destination project of a move, and one that addresses a project only to that project (I5). An
-endpoint that reached elsewhere would let a restricted key write where it has only `read`.
+key, so a route that declares nothing fails closed. One route also reads its body, which can ask
+for more (see `BodyRule`): moving a suite. That is only sound because of an invariant no test can
+check: a request that addresses a suite writes only to that suite, plus the destination project of
+a move, and one that addresses a project only to that project (I5). An endpoint that reached
+elsewhere would let a restricted key write where it has only `read`.
 """
 
 from __future__ import annotations
@@ -163,23 +163,18 @@ class BodyRule(Enum):
     """What a route's body can ask a restricted key to cover beyond what its path addresses (I5).
 
     I5 decides it from the body, before the body is validated: a request is a move when its body has
-    a `project` other than the path's, and a project rename when its body has a `name` other than
-    the path's, whatever that value is. A body that is not a JSON object asks for nothing more, and
-    is refused once validated.
+    a `project` other than the path's, whatever that value is. A body that is not a JSON object asks
+    for nothing more, and is refused once validated.
     """
 
     # `PATCH /api/projects/{project}/suites/{suite}`: a move also needs the destination project
     # covered in full.
     MOVE = "move"
-    # `PATCH /api/projects/{project}`: renaming the project needs an instance-wide key.
-    PROJECT_RENAME = "project_rename"
 
     @property
     def documentation(self) -> str:
         """What I8's document adds to the sentence saying what an operation needs (I8)."""
-        if self is BodyRule.MOVE:
-            return "Moving it to another project also needs that project covered in full."
-        return "Renaming it needs an unrestricted key."
+        return "Moving it to another project also needs that project covered in full."
 
     def requirement(
         self, required: Scope, project: str, body: dict[str, Any]
@@ -187,26 +182,19 @@ class BodyRule(Enum):
         """What `body`, sent to a route requiring `required` and addressing the project `project`,
         asks for, if anything."""
         scope = f"the '{required.value}' scope"
-        if self is BodyRule.MOVE:
-            if "project" not in body or body["project"] == project:
-                return None
-            destination = body["project"]
-            if not isinstance(destination, str):
-                # Not a project name, so nothing a restricted key can cover.
-                return BodyRequirement(
-                    None,
-                    f"Moving a test suite requires {scope} covering the project it is moved to in "
-                    "full",
-                )
-            return BodyRequirement(
-                destination,
-                f"Moving a test suite to project '{destination}' requires {scope} covering that "
-                "project in full",
-            )
-        if "name" not in body or body["name"] == project:
+        if "project" not in body or body["project"] == project:
             return None
+        destination = body["project"]
+        if not isinstance(destination, str):
+            # Not a project name, so nothing a restricted key can cover.
+            return BodyRequirement(
+                None,
+                f"Moving a test suite requires {scope} covering the project it is moved to in full",
+            )
         return BodyRequirement(
-            None, f"Renaming a project requires {scope} from an instance-wide API key"
+            destination,
+            f"Moving a test suite to project '{destination}' requires {scope} covering that "
+            "project in full",
         )
 
 

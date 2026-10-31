@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import insert, select, update
 
 from lnt_v5 import examples
-from lnt_v5.auth import BodyRule, Coverage, require_scope
+from lnt_v5.auth import Coverage, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ErrorCode, ErrorEnvelope
 from lnt_v5.patching import omit_defaults
@@ -144,9 +144,7 @@ def create_project(
     engine: EngineDep,
     response: Response,
 ) -> Project:
-    """Create a project, without test suites. Its `Location` header points to the new project.
-
-    Requires an unrestricted API key, since a project shapes the instance."""
+    """Create a project, without test suites. Its `Location` header points to the new project."""
     taken = f"A project named '{body.name}' already exists"
     with (
         reporting_violation(PROJECT_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),
@@ -174,7 +172,7 @@ def get_project(project: ProjectName, engine: EngineDep, registry: RegistryDep) 
 
 @router.patch(
     "/{project}",
-    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT, body_rule=BodyRule.PROJECT_RENAME)],
+    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
     summary="Change a project",
     responses={
         404: _NOT_FOUND,
@@ -195,7 +193,7 @@ def patch_project(
 
     Renaming a project changes only names: its test suites keep all of their data, and API keys
     keep covering what they covered. The old name isn't kept: every URL of the project and of its
-    test suites changes, and the old ones answer 404. Renaming needs an unrestricted API key."""
+    test suites changes, and the old ones answer 404."""
     changes = body.model_dump(exclude_unset=True)
     name = changes.get("name", project)
     renaming = name != project
@@ -232,7 +230,7 @@ def patch_project(
 @router.delete(
     "/{project}",
     status_code=204,
-    dependencies=[require_scope(Scope.MANAGE)],
+    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
     summary="Delete a project",
     responses={
         404: _NOT_FOUND,
@@ -244,9 +242,7 @@ def patch_project(
 )
 def delete_project(project: ProjectName, engine: EngineDep) -> None:
     """Delete a project that has no test suites. It destroys no data, so it doesn't need
-    `confirm=true`. The project is also removed from the API keys that list it.
-
-    Requires an unrestricted API key, since a project shapes the instance."""
+    `confirm=true`. The project is also removed from the API keys that list it."""
     has_suites = (
         f"Project '{project}' still has test suites: delete them, or move them to another "
         "project, first."
