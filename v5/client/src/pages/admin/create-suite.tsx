@@ -11,7 +11,7 @@ import {
   type SuiteRef,
   type SuiteSchema,
 } from '../../api/suites'
-import { projectLabel, suiteOption } from '../../labels'
+import { projectLabel, projectNamed, suiteOption } from '../../labels'
 import { refusal } from '../../auth/scope'
 import { useAuth } from '../../auth/use-auth'
 import { ActionButton } from '../../components/action-button'
@@ -36,26 +36,26 @@ import { EditorFooter } from '../test-suites/schema/editor-footer'
 import styles from './admin.module.css'
 
 interface Props {
+  /** The name of the project to create the suite in. */
+  project: string
   onCancel(): void
   /** The suite `suite` has been created, and is in the list of projects. */
   onCreated(suite: SuiteRef): void
 }
 
 /**
- * The schema editor creating a suite (TS7) in the project picked: the suite's name, its entries and
- * its repository, which can start as a copy of another suite's. Or, through "Import JSON", a schema
- * document sent as it is.
+ * The schema editor creating a suite (TS7) in the project `project`: the suite's name, its entries
+ * and its repository, which can start as a copy of another suite's. Or, through "Import JSON", a
+ * schema document sent as it is.
  */
-export function CreateSuite({ onCancel, onCreated }: Props) {
+export function CreateSuite({ project, onCancel, onCreated }: Props) {
   const { status } = useAuth()
-  // The projects of the instance, to pick from, and their suites: to start from, and whose names
-  // are taken. A list fetched again that fails leaves the one the editor has.
-  const projects = useProjects()
-  const list = projects.data
-  const suites = list?.flatMap((project) => project.suites)
-  // The project picked, if it is still listed: one deleted elsewhere is no longer picked.
-  const [project, setProject] = useState<string | null>(null)
-  const picked = list?.find((candidate) => candidate.name === project)
+  // The projects of the instance, listed before the editor opens, and their suites: to start from,
+  // and whose names are taken. A list fetched again that fails leaves the one the editor has.
+  const list = useProjects().data
+  const suites = list?.flatMap((candidate) => candidate.suites)
+  // The project, while it is listed: once deleted or renamed elsewhere, it is not.
+  const listed = list?.find((candidate) => candidate.name === project)
   const titleId = useId()
   const nameId = useId()
   const formId = useId()
@@ -75,8 +75,7 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
   const busy = create.isPending || send.isPending
   // Anything entered, until the suite is created (TS7).
   const allowLeaving = useUnsavedChanges(
-    project !== null ||
-      name !== '' || isSet(displayName) || hasContent(draft) || text.trim() !== '',
+    name !== '' || isSet(displayName) || hasContent(draft) || text.trim() !== '',
   )
   // Only once the suite is created, and only if the editor is still shown: a user who has left the
   // tab meanwhile is not taken to the new suite (TanStack Query skips `mutate`'s callbacks then).
@@ -87,21 +86,12 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
     },
   }
 
-  const nameProblem = suiteNameProblem(name, picked?.suites.map((suite) => suite.name) ?? [])
-  // Until the projects have loaded, none can be picked, and the name cannot be checked.
-  const listProblem =
-    list !== undefined
-      ? undefined
-      : projects.isError
-        ? 'The projects could not be loaded.'
-        : 'Loading the projects...'
-  // What the project picked, if any, keeps from creating a suite in it, as the editor and "Import
-  // JSON" both need one.
+  const nameProblem = suiteNameProblem(name, listed?.suites.map((suite) => suite.name) ?? [])
+  // What keeps from creating a suite in the project, whether from the editor or from a document.
   const projectProblem =
-    listProblem ??
-    (picked === undefined
-      ? 'Pick a project first.'
-      : refusal('manage', { project: picked.name }, status, list))
+    listed === undefined
+      ? `The project '${project}' has been deleted or renamed.`
+      : refusal('manage', { project }, status, list)
   const reason =
     projectProblem ??
     (name === '' ? 'Give the suite a name first.' : undefined) ??
@@ -110,9 +100,9 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (picked !== undefined && reason === undefined && !busy) {
+    if (reason === undefined && !busy) {
       const text = JSON.stringify(schemaOf(name, displayName, draft))
-      create.mutate({ project: picked.name, text }, created)
+      create.mutate({ project, text }, created)
     }
   }
 
@@ -128,22 +118,9 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
           below the tables. */}
       <form id={formId} className={styles.createForm} aria-labelledby={titleId} onSubmit={submit}>
         <strong id={titleId} className={styles.formTitle}>
-          New suite
+          New suite in {projectLabel(projectNamed(list, project))}
         </strong>
         <div className={styles.fields}>
-          <Select
-            label="Project"
-            placeholder="Select a project"
-            options={(list ?? []).map((option) => ({
-              value: option.name,
-              label: projectLabel(option),
-              reason: refusal('manage', { project: option.name }, status, list),
-            }))}
-            value={picked?.name ?? null}
-            onChange={setProject}
-            isDisabled={list === undefined}
-            isPending={busy}
-          />
           {!importing && (
             <>
               <div className={styles.control}>
@@ -181,9 +158,6 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
           <ActionButton
             className={styles.toggle}
             aria-pressed={importing}
-            // A document is sent to the project picked, which comes first. Going back to the
-            // editor is always possible.
-            reason={importing || picked !== undefined ? undefined : 'Pick a project first.'}
             busy={busy}
             onClick={() => setImporting(!importing)}
           >
@@ -191,13 +165,6 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
           </ActionButton>
         </div>
       </form>
-      {list === undefined && projects.isError && (
-        <ErrorMessage
-          error={projects.error}
-          context="The projects could not be loaded"
-          onRetry={() => void projects.refetch()}
-        />
-      )}
       {importing ? (
         <ImportJson
           text={text}
@@ -205,9 +172,7 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
           reason={projectProblem}
           busy={send.isPending}
           error={send.error}
-          onSend={() => {
-            if (picked !== undefined) send.mutate({ project: picked.name, text }, created)
-          }}
+          onSend={() => send.mutate({ project, text }, created)}
         />
       ) : (
         <SchemaEditorTables draft={draft} onChange={setDraft} busy={busy} />
@@ -236,8 +201,8 @@ interface Creation {
 /**
  * Create a suite from the schema document `text` in the project `project`, and add it to the list
  * of projects, whether or not the editor is still shown. A name taken meanwhile, by a suite created
- * elsewhere, or a project deleted meanwhile, has the list fetched again, so that the name check
- * says so, or the project is no longer picked.
+ * elsewhere, or a project deleted or renamed meanwhile, has the list fetched again, so that the
+ * name check says so, or the project is no longer listed.
  */
 function useCreateSuite() {
   const queryClient = useQueryClient()

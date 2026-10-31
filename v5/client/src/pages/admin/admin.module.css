@@ -1,4 +1,4 @@
-/* A form creating an API key (AD1) or a suite (TS7). */
+/* A form creating an API key (AD1), a project (AD3) or a suite (TS7). */
 .createForm {
   padding: var(--lnt-space-3);
   margin-bottom: var(--lnt-space-3);
@@ -128,4 +128,18 @@
 /* What a key restricted to nothing covers (AD1). */
 .nothing {
   color: var(--lnt-muted);
+}
+
+/* A project's number of suites, and its "+" creating one (AD3). */
+.suites {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lnt-space-2);
+}
+
+/* As compact as a row's own actions (see data-table.module.css). */
+.suites > button {
+  padding-top: 0;
+  padding-bottom: 0;
+  white-space: nowrap;
 }

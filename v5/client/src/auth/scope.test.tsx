@@ -8,7 +8,7 @@ import { BARE_SUITE, PROJECT, SUITE } from '../test/fixtures'
 import { errorResponse } from '../test/mock-api'
 import { providers } from '../test/render'
 import { TOKEN_STORAGE_KEY } from './storage-key'
-import { grants, refusalInEvery, useScopeGate, type Entry, type Scope, type Target } from './scope'
+import { grants, useScopeGate, type Scope, type Target } from './scope'
 import { useAuth } from './use-auth'
 
 const SCOPES: Scope[] = ['read', 'submit', 'triage', 'manage', 'admin']
@@ -256,48 +256,5 @@ describe('useScopeGate', () => {
       disabled: true,
       title: "Needs an API token with the 'submit' scope. The token in Settings is not valid.",
     })
-  })
-})
-
-describe('refusalInEvery', () => {
-  const projects = [
-    { ...PROJECT, suites: [] },
-    { name: 'swift', display_name: 'Swift', suites: [] },
-  ]
-  const valid = (restricted_to: Entry[] | null) =>
-    ({ state: 'valid', key: { scope: 'manage', restricted_to } }) as const
-
-  it('allows an action on a project picked among some to an instance-wide token', () => {
-    expect(refusalInEvery('manage', projects, valid(null) as never, projects)).toBeUndefined()
-  })
-
-  it('allows it to a token covering one of them in full', () => {
-    const token = valid([entry('nts'), whole('swift')]) as never
-    expect(refusalInEvery('manage', projects, token, projects)).toBeUndefined()
-  })
-
-  it('refuses it to a token restricted to single suites while the projects load', () => {
-    const suites = valid([entry('nts')]) as never
-    expect(refusalInEvery('manage', undefined, suites, undefined)).toBe(
-      "Needs an API token with the 'manage' scope covering a project in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'llvm/nts'.",
-    )
-    // Unlike one listing a whole project, which may well cover one of them in full.
-    const project = valid([entry('nts'), whole('swift')]) as never
-    expect(refusalInEvery('manage', undefined, project, undefined)).toBeUndefined()
-    expect(refusalInEvery('manage', undefined, valid(null) as never, undefined)).toBeUndefined()
-  })
-
-  it('says why the token covers none of them in full', () => {
-    expect(refusalInEvery('manage', projects, valid([entry('nts')]) as never, projects)).toBe(
-      "Needs an API token with the 'manage' scope covering a project in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'llvm/nts'.",
-    )
-    // Naming the project when there is only one.
-    expect(refusalInEvery('manage', [PROJECT], valid([]) as never, projects)).toBe(
-      "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token in " +
-        "Settings has the 'manage' scope, covering nothing: what it was restricted to has been " +
-        'deleted, so it can only read.',
-    )
   })
 })

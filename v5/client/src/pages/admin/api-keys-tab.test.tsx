@@ -220,12 +220,9 @@ describe('the Admin page', () => {
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       'API Keys',
       'Projects',
-      'Test Suites',
     ])
     expect(screen.getByRole('tab', { name: 'API Keys' })).toHaveAttribute('aria-selected', 'true')
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
     fireEvent.click(screen.getByRole('tab', { name: 'Projects' }))
     await waitFor(() => expect(currentUrl()).toBe('/admin?tab=projects'))
     fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
@@ -510,14 +507,14 @@ describe('sorting the keys', () => {
   it('drops the sort on leaving the tab', async () => {
     renderPage('/admin?sort=name')
 
-    fireEvent.click(await screen.findByRole('tab', { name: 'Test Suites' }))
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Projects' }))
+    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=projects'))
   })
 
-  it('drops the sort from the URL of the Test Suites tab', async () => {
-    renderPage('/admin?tab=suites&sort=name')
+  it('drops the sort from the URL of the Projects tab', async () => {
+    renderPage('/admin?tab=projects&sort=name')
 
-    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=suites'))
+    await waitFor(() => expect(currentUrl()).toBe('/admin?tab=projects'))
   })
 })
 
@@ -834,7 +831,7 @@ describe('creating a key', () => {
         queryClient.getMutationCache().getAll().map((mutation) => mutation.state.data),
       ])
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Test Suites' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Projects' }))
     await waitFor(() => expect(cached()).not.toContain(CREATED.token))
     fireEvent.click(screen.getByRole('tab', { name: 'API Keys' }))
     await keysTable()

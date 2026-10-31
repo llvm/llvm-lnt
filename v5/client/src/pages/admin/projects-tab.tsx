@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { VisuallyHidden } from 'react-aria-components'
 import { ApiError, authedApi, unwrap, type Schemas } from '../../api/client'
 import {
@@ -37,16 +37,38 @@ import { projectLabel } from '../../labels'
 import { projectPath } from '../../paths'
 import { projectNameProblem } from '../test-suites/schema/schema-editor-model'
 import { DisplayNameInput, NameInput } from '../test-suites/schema/schema-editor-tables'
+import { suiteTabPath } from '../test-suites/settings'
+import { CreateSuite } from './create-suite'
 import styles from './admin.module.css'
 
 /**
  * The Projects tab (AD3): a form creating a project, and a table of the projects, in AR22's order,
- * whose names and display names are edited in place, and which are deleted once they have no
- * suites. Anyone can view it. Creating a project needs an instance-wide `manage` token, and
- * changing or deleting one a token covering the project in full.
+ * whose names and display names are edited in place, in which suites are created, and which are
+ * deleted once they have no suites. Anyone can view it. Creating a project needs an instance-wide
+ * `manage` token, and changing or deleting one, or creating a suite in it, a token covering the
+ * project in full.
  */
 export function ProjectsTab() {
   const projects = useProjects()
+  const navigate = useNavigate()
+  // The project the schema editor creates a suite in, while it shows in place of the tab (TS7).
+  const [creatingIn, setCreatingIn] = useState<string | null>(null)
+  // The project whose "+" takes the focus back once the editor has closed.
+  const [closed, setClosed] = useState<string | null>(null)
+  const onRefocused = useCallback(() => setClosed(null), [])
+
+  if (creatingIn !== null) {
+    return (
+      <CreateSuite
+        project={creatingIn}
+        onCancel={() => {
+          setCreatingIn(null)
+          setClosed(creatingIn)
+        }}
+        onCreated={(suite) => navigate(suiteTabPath(suite, 'schema'))}
+      />
+    )
+  }
   return (
     <>
       <CreateProject />
@@ -58,7 +80,14 @@ export function ProjectsTab() {
         onRetry={() => void projects.refetch()}
         label="Loading projects..."
       >
-        {projects.data && <ProjectsTable projects={projects.data} />}
+        {projects.data && (
+          <ProjectsTable
+            projects={projects.data}
+            onNewSuite={setCreatingIn}
+            refocus={closed}
+            onRefocused={onRefocused}
+          />
+        )}
       </Loaded>
     </>
   )
@@ -181,14 +210,35 @@ function CreateProject() {
   )
 }
 
+interface TableProps {
+  projects: Project[]
+  /** Open the schema editor to create a suite in the project `project`. */
+  onNewSuite(project: string): void
+  /**
+   * The project whose "+" takes the focus, once the editor creating a suite in it has closed, or
+   * null. The table takes it when the "+" cannot: once the project is gone, or while the "+" is
+   * disabled.
+   */
+  refocus: string | null
+  onRefocused(): void
+}
+
 /**
  * The projects, each with its name and display name edited in place, its number of suites, linking
- * to them, and its Delete button (AD3).
+ * to them, its "+" creating a suite in it, and its Delete button (AD3).
  */
-function ProjectsTable({ projects }: { projects: Project[] }) {
+function ProjectsTable({ projects, onNewSuite, refocus, onRefocused }: TableProps) {
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
   const tableRef = useRef<HTMLTableElement>(null)
+  // The project whose "+" should take the focus back is gone, deleted or renamed elsewhere while
+  // the editor showed: the table takes it.
+  const refocusGone = refocus !== null && !projects.some((project) => project.name === refocus)
+  useEffect(() => {
+    if (!refocusGone) return
+    tableRef.current?.focus()
+    onRefocused()
+  }, [refocusGone, onRefocused])
   const rowConfirm = useRowConfirm<Project>(tableRef)
   // The project whose deletion is being confirmed, as listed now: once gone, deleted elsewhere,
   // there is nothing left to confirm.
@@ -241,12 +291,21 @@ function ProjectsTable({ projects }: { projects: Project[] }) {
         header: 'Suites',
         looks: ['numeric'],
         cell: (project) => (
-          <Link
-            to={projectPath(project.name)}
-            aria-label={`${plural(project.suites.length, 'suite')} of ${projectLabel(project)}`}
-          >
-            {project.suites.length}
-          </Link>
+          <span className={styles.suites}>
+            <Link
+              to={projectPath(project.name)}
+              aria-label={`${plural(project.suites.length, 'suite')} of ${projectLabel(project)}`}
+            >
+              {project.suites.length}
+            </Link>
+            <NewSuiteButton
+              project={project}
+              focus={project.name === refocus}
+              onFocused={onRefocused}
+              tableRef={tableRef}
+              onClick={onNewSuite}
+            />
+          </span>
         ),
       },
       {
@@ -255,7 +314,7 @@ function ProjectsTable({ projects }: { projects: Project[] }) {
         cell: (project) => <DeleteButton project={project} onDelete={open} />,
       },
     ],
-    [names, renamed, onFocused, open],
+    [names, renamed, onFocused, open, refocus, onRefocused, onNewSuite],
   )
 
   // A project deleted elsewhere meanwhile is gone all the same: what the user asked for.
@@ -357,8 +416,8 @@ function NameCell({ project, names, focus, onRenamed, onFocused, tableRef }: Nam
       confirm={(name) => (
         <>
           <p>
-            Rename the project <Named project={project} /> to <strong>{name}</strong>? Every URL,
-            bookmark and bot that uses the name <strong>{project.name}</strong> for any of the
+            Rename the project <strong>{project.name}</strong> to <strong>{name}</strong>? Every
+            URL, bookmark and bot that uses the name <strong>{project.name}</strong> for any of the
             project's suites will get a 404 until it is updated.
           </p>
           <p>API keys are unaffected.</p>
@@ -388,6 +447,38 @@ function DisplayNameCell({ project }: { project: Project }) {
       gate={gate}
       onSave={save}
     />
+  )
+}
+
+interface NewSuiteProps {
+  project: Project
+  /** Whether the button takes the focus, the editor it opened having closed. */
+  focus: boolean
+  onFocused(): void
+  tableRef: RefObject<HTMLTableElement | null>
+  onClick(project: string): void
+}
+
+/**
+ * The project's "+", which opens the schema editor to create a suite in it (AD3, TS7), and needs
+ * `manage` covering the project in full.
+ */
+function NewSuiteButton({ project, focus, onFocused, tableRef, onClick }: NewSuiteProps) {
+  const gate = useScopeGate('manage', { project: project.name })
+  const ref = useRef<HTMLButtonElement>(null)
+  // The table, shown again, is a new one: the focus goes back to the button, or to the table if it
+  // stays disabled.
+  useFocusOnceChecked(focus, onFocused, ref, tableRef)
+  return (
+    <button
+      type="button"
+      ref={ref}
+      {...gate}
+      aria-label={`New suite in ${projectLabel(project)}`}
+      onClick={() => onClick(project.name)}
+    >
+      +
+    </button>
   )
 }
 
