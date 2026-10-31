@@ -58,9 +58,6 @@ npm run create-key -- --name bot --scope submit --suite llvm/nts   # a key for l
 npm run create-key -- --name libcxx --scope manage --project libcxx   # for the whole project
 ```
 
-`--project` and `--suite` can be repeated and combined. A key restricted to a whole project covers
-the suites created in it later too, and can create suites in it.
-
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.
 Paste the token into the web UI's Settings panel to use it from the browser.
 
