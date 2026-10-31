@@ -44,26 +44,23 @@ def _suite_is_never_null(schema: JsonDict) -> None:
 
 
 class RestrictionEntry(BaseModel):
-    """What a restricted API key is restricted to: a single test suite, named by its project's name
-    and its own."""
+    """Something a restricted API key is restricted to: a whole project, named by its name alone, or
+    a single test suite, named by its project's name and its own."""
 
     model_config = ConfigDict(
-        extra="forbid",
-        from_attributes=True,
-        # As for a schema's entries: `suite` may be left out of a request, where it is refused for
-        # now, and is in every response.
-        json_schema_serialization_defaults_required=True,
-        json_schema_extra=_suite_is_never_null,
+        extra="forbid", from_attributes=True, json_schema_extra=_suite_is_never_null
     )
 
     project: SuiteNameStr = Field(
         description="The name of the project.", examples=[examples.PROJECT["name"]]
     )
+    # Left out of a whole project's entry, in responses as in requests (E11).
     suite: SuiteNameStr | None = Field(
         default=None,
+        exclude_if=lambda suite: suite is None,
         description=(
-            "The name of the test suite, in the project. A key is restricted to single test "
-            "suites, so every entry names one."
+            "The name of the test suite, in the project. Left out for the whole project, which "
+            "covers every test suite the project has, including those created in it later."
         ),
         examples=[examples.SUITE],
     )
@@ -73,7 +70,10 @@ class RestrictionEntry(BaseModel):
     def _reject_null_suite(cls, data: Any) -> Any:
         # E11: a whole project is written without `suite`, rather than with a null one.
         if isinstance(data, dict) and "suite" in data and data["suite"] is None:
-            raise ValueError("'suite' must be the name of a test suite, not null")
+            raise ValueError(
+                "'suite' must be the name of a test suite, not null: leave it out to restrict the "
+                "key to the whole project"
+            )
         return data
 
     def entry(self) -> keys.Entry:
@@ -96,13 +96,14 @@ class ApiKey(BaseModel):
     scope: Scope
     restricted_to: list[RestrictionEntry] | None = Field(
         description=(
-            "What the key is restricted to, under their current names, sorted by project name, "
-            "then by suite name. Null if it isn't restricted. A restricted key has its scope only "
-            "in these test suites, and can only read everywhere else. A suite that is deleted is "
-            "removed from the list, so the list is empty once all of them are: the key then can "
-            "only read."
+            "The whole projects and the single test suites the key is restricted to, under their "
+            "current names, sorted by project name, a whole project before the suites of that "
+            "project, then by suite name. Null if it isn't restricted. A restricted key has its "
+            "scope only in the test suites it covers, and can only read everywhere else. A project "
+            "or a suite that is deleted is removed from the list, so the list is empty once all of "
+            "them are: the key then can only read."
         ),
-        examples=[[{"project": examples.PROJECT["name"], "suite": examples.SUITE}]],
+        examples=[[{"project": examples.PROJECT["name"]}, {"project": "llvm", "suite": "nts"}]],
     )
     created_at: datetime = Field(description="When the key was created.")
     last_used_at: datetime | None = Field(
@@ -124,7 +125,7 @@ class ApiKeyCreated(ApiKey):
 
 
 class ApiKeyCreate(BaseModel):
-    """The name and scope of a new key, and the test suites it is restricted to."""
+    """The name and scope of a new key, and what it is restricted to."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -134,16 +135,18 @@ class ApiKeyCreate(BaseModel):
         description="A label for the key. Several keys can have the same name.",
     )
     scope: Scope
-    # Only the shape is checked here. Which keys can be restricted, and to which existing suites,
-    # is checked by `keys.create_key`, which the CLI shares.
+    # Only the shape is checked here. Which keys can be restricted, and to which existing projects
+    # and suites, is checked by `keys.create_key`, which the CLI shares.
     restricted_to: list[RestrictionEntry] | None = Field(
         default=None,
         min_length=1,
         description=(
-            "The test suites to restrict the key to, each listed once. It then has its scope only "
-            "in these suites, and can only read everywhere else, which includes creating a test "
-            "suite or a project. Only `submit`, `triage` and `manage` keys can be restricted, and "
-            "every suite must exist. Leave out, or set to null, for an unrestricted key."
+            "The whole projects and the single test suites to restrict the key to, each listed "
+            "once, and a suite not along with its whole project. The key then has its scope only "
+            "in the suites it covers, and can only read everywhere else. Creating a test suite in "
+            "a project, or changing its display name, needs the whole project. Only `submit`, "
+            "`triage` and `manage` keys can be restricted, and every project and suite must exist. "
+            "Leave out, or set to null, for an unrestricted key."
         ),
     )
 
@@ -159,6 +162,14 @@ _CREATE_EXAMPLES = {
             "name": examples.API_KEY_NAME,
             "scope": "submit",
             "restricted_to": [{"project": examples.PROJECT["name"], "suite": examples.SUITE}],
+        },
+    },
+    "project": {
+        "summary": "A key that manages one project's test suites, and creates new ones in it",
+        "value": {
+            "name": examples.API_KEY_NAME,
+            "scope": "manage",
+            "restricted_to": [{"project": examples.PROJECT["name"]}],
         },
     },
 }
@@ -197,10 +208,11 @@ def create_api_key(
     Keys can't be changed and don't expire. To change a key's scope or what it is restricted to,
     create a new key and revoke the old one.
 
-    The test suites in `restricted_to` must exist when the key is created. A suite that is deleted
-    later is removed from the key, and a suite created again with the same name is a different
-    suite, which the key doesn't cover. A key whose suites have all been deleted stays restricted,
-    and can only read.
+    The projects and test suites in `restricted_to` must exist when the key is created. They are
+    followed by identity: a whole project covers the suites it has at the time of each request,
+    including those created later. A project or a suite that is deleted later is removed from the
+    key, and one created again with the same name is a different one, which the key doesn't cover.
+    A key whose projects and suites have all been deleted stays restricted, and can only read.
     """
     restricted_to = (
         None if body.restricted_to is None else [entry.entry() for entry in body.restricted_to]

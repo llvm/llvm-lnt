@@ -55,6 +55,7 @@ suite is unaffected by whatever you have in it. To create a token against your l
 npm run create-key                                # a token named "dev", with admin scope
 npm run create-key -- --name bot --scope submit   # anything else
 npm run create-key -- --name bot --scope submit --suite llvm/nts   # a key for llvm/nts only
+npm run create-key -- --name libcxx --scope manage --project libcxx   # for the whole project
 ```
 
 The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.

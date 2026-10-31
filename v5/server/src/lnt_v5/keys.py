@@ -67,7 +67,9 @@ class Entry(NamedTuple):
     suite: str | None
 
     def __str__(self) -> str:
-        return self.project if self.suite is None else full_name(self.project, self.suite)
+        if self.suite is None:
+            return f"{self.project} (all)"
+        return full_name(self.project, self.suite)
 
 
 @dataclass(frozen=True)
@@ -129,25 +131,34 @@ class ResolvedKey(ApiKeyInfo):
 
 def _entries() -> ColumnElement[Any]:
     """The entries a key's restriction rows list, under the current names of what they list, as an
-    array of full names (D7), ordered as E11 lists them.
+    array of texts: a project's name for a whole project, and a suite's full name (D7) for a single
+    suite, ordered as E11 lists them.
 
     Correlated with the `api_key` row being read, so that a key is read together with its entries
     in one statement (I5 looks the key up on every request). The names come from `schema` and
-    `project` rather than being stored with the key, so that an entry follows what it lists (I5).
-    Sorted by code point, rather than by the database's collation, which may ignore `-` and `_`.
-    Neither name can contain the `/` between them (D4, D7), so each splits back exactly.
+    `project` rather than being stored with the key, so that an entry follows what it lists (I5): a
+    single suite's project is the one the suite is in now. Sorted by code point, rather than by the
+    database's collation, which may ignore `-` and `_`, with a whole project before the suites of
+    that project. Neither name can contain the `/` between them (D4, D7), so each splits back
+    exactly.
     """
     return func.array(
-        select(project.c.name + "/" + schema.c.name)
-        .select_from(api_key_restriction.join(schema).join(project))
+        select(project.c.name + func.coalesce("/" + schema.c.name, ""))
+        .select_from(
+            api_key_restriction.outerjoin(schema).join(
+                project,
+                project.c.id
+                == func.coalesce(api_key_restriction.c.project_id, schema.c.project_id),
+            )
+        )
         .where(api_key_restriction.c.api_key_id == api_key.c.id)
-        .order_by(project.c.name.collate("C"), schema.c.name.collate("C"))
+        .order_by(project.c.name.collate("C"), schema.c.name.collate("C").nulls_first())
         .scalar_subquery()
     ).label("restricted_to")
 
 
 def _entry(text: str) -> Entry:
-    """The entry whose full name is `text` (see `_entries`)."""
+    """The entry `text` stands for (see `_entries`)."""
     project_name, _, suite = text.partition("/")
     return Entry(project_name, suite or None)
 
@@ -199,16 +210,16 @@ def create_key(
     `ValueError` for a key that can never be valid, or its subclass `UnknownEntriesError` for
     projects or suites that do not exist (yet).
 
-    The caller owns the transaction, and the suites the key lists stay locked against deletion until
-    it ends (see `_checked_suites`). The key's row is inserted inside a savepoint, so that a prefix
-    collision can be retried without discarding work the caller did earlier in the same
-    transaction.
+    The caller owns the transaction, and the projects and suites the key lists stay locked against
+    deletion until it ends (see `_checked_entries`). The key's row is inserted inside a savepoint,
+    so that a prefix collision can be retried without discarding work the caller did earlier in the
+    same transaction.
     """
     if not name:
         raise ValueError("An API key's name must not be empty.")
     if len(name) > KEY_NAME_MAX_LENGTH:
         raise ValueError(f"An API key's name must be at most {KEY_NAME_MAX_LENGTH} characters.")
-    suite_ids = None if restricted_to is None else _checked_suites(connection, scope, restricted_to)
+    targets = None if restricted_to is None else _checked_entries(connection, scope, restricted_to)
 
     for _ in range(_MAX_ATTEMPTS):
         token = generate_token()
@@ -222,7 +233,7 @@ def create_key(
                         key_hash=hash_token(token),
                         name=name,
                         scope=scope.value,
-                        restricted=suite_ids is not None,
+                        restricted=targets is not None,
                     )
                     .returning(api_key.c.id)
                 ).scalar_one()
@@ -230,10 +241,10 @@ def create_key(
             if unique_violation_constraint(error) != PREFIX_CONSTRAINT:
                 raise
             continue
-        if suite_ids:
+        if targets:
             connection.execute(
                 insert(api_key_restriction),
-                [{"api_key_id": key_id, "suite_id": suite_id} for suite_id in suite_ids],
+                [{"api_key_id": key_id, **target} for target in targets],
             )
         # Read back rather than assembled from what was sent: `created_at` is the database's clock,
         # and `last_used_at` and `is_active` are column defaults (D5).
@@ -245,13 +256,18 @@ def create_key(
     )
 
 
-def _checked_suites(connection: Connection, scope: Scope, entries: Sequence[Entry]) -> list[int]:
-    """The ids of the suites a key is to be restricted to, once E11's rules are checked.
+def _checked_entries(
+    connection: Connection, scope: Scope, entries: Sequence[Entry]
+) -> list[dict[str, int | None]]:
+    """The restriction rows of a key to be restricted to `entries`, each with the `project_id` of a
+    whole project or the `suite_id` of a single suite, once E11's rules are checked.
 
-    The suites' rows are locked against deletion until the caller's transaction ends, so that a
-    suite deleted concurrently is either gone already, and refused here, or deleted once the key is
-    stored, which removes it from the key (E11). Without the lock, a deletion committed between
-    this read and the insert of the key's rows would fail that insert on its foreign key instead.
+    What the key lists is locked against deletion until the caller's transaction ends, so that a
+    project or a suite deleted concurrently is either gone already, and refused here, or deleted
+    once the key is stored, which removes it from the key (E11). Without the lock, a deletion
+    committed between this read and the insert of the key's rows would fail that insert on its
+    foreign key instead. The projects are locked before the suites, the order writers that lock
+    both take, so that none can deadlock with it.
     """
     if scope in UNRESTRICTABLE_SCOPES:
         raise ValueError(f"A key with the '{scope.value}' scope cannot be restricted.")
@@ -259,34 +275,50 @@ def _checked_suites(connection: Connection, scope: Scope, entries: Sequence[Entr
         raise ValueError("A restricted key must list at least one entry.")
     if len(set(entries)) != len(entries):
         raise ValueError("A restricted key must not list an entry more than once.")
-    if whole := [str(entry) for entry in entries if entry.suite is None]:
+    whole = {entry.project for entry in entries if entry.suite is None}
+    if redundant := [str(entry) for entry in entries if entry.suite and entry.project in whole]:
         raise ValueError(
-            "A key can only be restricted to single test suites, so every entry names a suite: "
-            + ", ".join(whole)
+            "A restricted key must not list a test suite along with its whole project: "
+            + ", ".join(redundant)
         )
-    rows = connection.execute(
-        select(project.c.name.label("project"), schema.c.name, schema.c.id)
-        .select_from(schema.join(project))
-        .where(tuple_(project.c.name, schema.c.name).in_([tuple(entry) for entry in entries]))
-        .with_for_update(of=schema, read=True, key_share=True)
-    )
-    existing = {Entry(row.project, row.name): row.id for row in rows}
-    if missing := [entry for entry in entries if entry not in existing]:
-        projects = set(
-            connection.execute(
-                select(project.c.name).where(
-                    project.c.name.in_({entry.project for entry in missing})
+
+    projects = {
+        row.name: row.id
+        for row in connection.execute(
+            select(project.c.name, project.c.id)
+            .where(project.c.name.in_({entry.project for entry in entries}))
+            .with_for_update(read=True, key_share=True)
+        )
+    }
+    single = [entry for entry in entries if entry.suite is not None and entry.project in projects]
+    suites = {}
+    if single:
+        rows = connection.execute(
+            select(schema.c.project_id, schema.c.name, schema.c.id)
+            .where(
+                tuple_(schema.c.project_id, schema.c.name).in_(
+                    [(projects[entry.project], entry.suite) for entry in single]
                 )
-            ).scalars()
+            )
+            .with_for_update(of=schema, read=True, key_share=True)
         )
-        problems = [
-            f"Project '{entry.project}' has no test suite named '{entry.suite}'."
-            if entry.project in projects
-            else f"No project is named '{entry.project}'."
-            for entry in missing
-        ]
+        suites = {(row.project_id, row.name): row.id for row in rows}
+
+    targets: list[dict[str, int | None]] = []
+    problems = []
+    for entry in entries:
+        project_id = projects.get(entry.project)
+        if project_id is None:
+            problems.append(f"No project is named '{entry.project}'.")
+        elif entry.suite is None:
+            targets.append({"project_id": project_id, "suite_id": None})
+        elif (suite_id := suites.get((project_id, entry.suite))) is None:
+            problems.append(f"Project '{entry.project}' has no test suite named '{entry.suite}'.")
+        else:
+            targets.append({"project_id": None, "suite_id": suite_id})
+    if problems:
         raise UnknownEntriesError(" ".join(dict.fromkeys(problems)))
-    return list(existing.values())
+    return targets
 
 
 def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
@@ -295,7 +327,7 @@ def resolve_token(connection: Connection, token: str) -> ResolvedKey | None:
     I5 resolves every authenticated request against the database rather than caching the decision,
     so that revoking a key takes effect immediately. That is affordable because this is a single
     statement: an indexed match on a table holding one row per key, which also reads the current
-    names of the key's suites from tables just as small.
+    names of what the key lists from tables just as small.
 
     A token that is not the shape I5 fixes cannot be one we issued, so it is rejected without a
     round trip -- which also means an unauthenticated caller cannot make the server query on its

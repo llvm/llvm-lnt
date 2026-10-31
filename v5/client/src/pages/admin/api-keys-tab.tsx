@@ -7,10 +7,9 @@ import { queryKeys } from '../../api/keys'
 import {
   refOf,
   fullName,
-  suiteOfFullName,
-  useKnownSuites,
-  useSuites,
-  type Suite,
+  useKnownProjects,
+  useProjects,
+  type Project,
 } from '../../api/suites'
 import {
   grants,
@@ -28,16 +27,19 @@ import { ActionButton } from '../../components/action-button'
 import { DangerButton } from '../../components/danger-button'
 import { DataTable, type Column } from '../../components/data-table'
 import { Alert, ErrorMessage, Loaded, Loading } from '../../components/feedback'
-import { MultiSelect, Select } from '../../components/select'
+import { Select, TreeSelect, type TreeParent } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { formatTimestamp, yesNo } from '../../format'
 import {
-  compareSuiteLists,
+  compareEntryLists,
+  entriesNamed,
+  entryLabel,
   fullLabel,
-  suiteOption,
-  suitesNamed,
-  type Labelled,
+  projectLabel,
+  suiteLabel,
+  type EntryRef,
+  type NamedEntry,
 } from '../../labels'
 import { CopyButton } from '../../components/copy-button'
 import type { KEY_SORT_COLUMNS } from './settings'
@@ -105,10 +107,11 @@ function CreateKey() {
   const warningId = useId()
   const [name, setName] = useState('')
   const [scope, setScope] = useState<Scope>('read')
-  // Whether "Only these suites:" is chosen over "All suites", and the suites checked under it.
+  // Whether "Only these:" is chosen over "Everything", and what is checked under it: projects by
+  // their names, and suites by their full names.
   const [restrict, setRestrict] = useState(false)
   const [checked, setChecked] = useState<string[]>([])
-  const suites = useSuites()
+  const projects = useProjects()
   const create = useMutation({
     mutationFn: (body: Schemas['ApiKeyCreate']) =>
       unwrap(authedApi.POST('/api/admin/api-keys', { body })),
@@ -127,19 +130,19 @@ function CreateKey() {
   })
 
   const trimmed = name.trim()
-  const unrestrictable = whyUnrestrictable(scope, suites)
-  // "Only these suites:" gives way to "All suites" while it cannot be chosen: for good once the
-  // scope cannot be restricted (see the Scope dropdown), and until the suites are listed otherwise.
+  const unrestrictable = whyUnrestrictable(scope, projects)
+  // "Only these:" gives way to "Everything" while it cannot be chosen: for good once the scope
+  // cannot be restricted (see the Scope dropdown), and until the projects are listed otherwise.
   const restricting = restrict && unrestrictable === undefined
-  // Only the suites still listed, should one checked have gone since.
-  const listed = new Set(suites.data?.map((suite) => fullName(refOf(suite))))
+  const covers = useMemo(() => coversTree(projects.data ?? []), [projects.data])
+  // Only what is still listed, should something checked have gone since.
   const restrictedTo = restricting
-    ? checked.filter((suite) => listed.has(suite)).map(suiteOfFullName)
+    ? checked.flatMap((value) => covers.entries.get(value) ?? [])
     : null
   const reason =
     gate.title ??
     (trimmed === '' ? 'Give the key a name first.' : undefined) ??
-    (restrictedTo?.length === 0 ? 'Pick at least one suite.' : undefined)
+    (restrictedTo?.length === 0 ? 'Pick at least one project or suite.' : undefined)
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (reason === undefined && !create.isPending) {
@@ -172,12 +175,13 @@ function CreateKey() {
             value={scope}
             onChange={(next) => {
               setScope(next)
-              // The choice goes back to "All suites" (AD1), keeping the suites checked.
+              // The choice goes back to "Everything" (AD1), keeping what is checked.
               if (!RESTRICTABLE_SCOPES.includes(next)) setRestrict(false)
             }}
           />
-          <SuitesChoice
-            suites={suites}
+          <CoversChoice
+            projects={projects}
+            tree={covers.tree}
             unrestrictable={unrestrictable}
             restrict={restricting}
             onRestrict={setRestrict}
@@ -209,22 +213,51 @@ function CreateKey() {
   )
 }
 
-/** Why a key of `scope` cannot be restricted to some of `suites` for now, if it cannot. */
-function whyUnrestrictable(scope: Scope, suites: ReturnType<typeof useSuites>) {
+/** Why a key of `scope` cannot be restricted for now, given `projects`, if it cannot. */
+function whyUnrestrictable(scope: Scope, projects: ReturnType<typeof useProjects>) {
   if (!RESTRICTABLE_SCOPES.includes(scope)) {
-    return "Only 'submit', 'triage' and 'manage' keys can be restricted to some suites."
+    return "Only 'submit', 'triage' and 'manage' keys can be restricted."
   }
-  if (suites.data === undefined) {
-    return suites.isError ? 'The test suites could not be loaded.' : 'Loading test suites...'
+  if (projects.data === undefined) {
+    return projects.isError ? 'The projects could not be loaded.' : 'Loading projects...'
   }
-  if (suites.data.length === 0) return 'There are no test suites yet.'
+  if (projects.data.length === 0) return 'There are no projects yet.'
 }
 
-interface SuitesChoiceProps {
-  suites: ReturnType<typeof useSuites>
-  /** Why "Only these suites:" cannot be chosen, if it cannot. */
+/**
+ * The tree of `projects` and their suites the key form checks what a key covers in (AD1): every
+ * project, those without suites included, saying so, with its suites below it, each by its own
+ * label, and by its full label to assistive technology. Each option's value stands for an entry of
+ * the key, which `entries` maps it to.
+ */
+function coversTree(projects: readonly Project[]) {
+  const entries = new Map<string, EntryRef>()
+  const tree = projects.map((project): TreeParent<string> => {
+    const label = projectLabel(project)
+    entries.set(project.name, { project: project.name })
+    return {
+      value: project.name,
+      label,
+      summary: `${label} (all)`,
+      note: project.suites.length === 0 ? '(no suites)' : undefined,
+      implied: `Covered with the whole project '${label}'.`,
+      children: project.suites.map((suite) => {
+        const value = fullName(refOf(suite))
+        entries.set(value, { project: project.name, suite: suite.name })
+        return { value, label: suiteLabel(suite), name: fullLabel(suite) }
+      }),
+    }
+  })
+  return { tree, entries }
+}
+
+interface CoversChoiceProps {
+  projects: ReturnType<typeof useProjects>
+  /** The projects and their suites, to check (see `coversTree`). */
+  tree: TreeParent<string>[]
+  /** Why "Only these:" cannot be chosen, if it cannot. */
   unrestrictable: string | undefined
-  /** Whether the key is restricted to the suites checked, rather than instance-wide. */
+  /** Whether the key is restricted to what is checked, rather than instance-wide. */
   restrict: boolean
   onRestrict(restrict: boolean): void
   checked: string[]
@@ -232,26 +265,27 @@ interface SuitesChoiceProps {
 }
 
 /**
- * The suites a key is for (AD1): all of them, or only those checked in a dropdown listing every
- * suite of the instance.
+ * What a key covers (AD1): everything, or only what is checked in a dropdown holding a tree of
+ * every project of the instance and its suites.
  */
-function SuitesChoice({
-  suites,
+function CoversChoice({
+  projects,
+  tree,
   unrestrictable,
   restrict,
   onRestrict,
   checked,
   onCheck,
-}: SuitesChoiceProps) {
+}: CoversChoiceProps) {
   const group = useId()
   const whyId = useId()
 
   return (
-    <fieldset className={styles.suites}>
-      <legend>Suites</legend>
+    <fieldset className={styles.covers}>
+      <legend>Covers</legend>
       <label>
         <input type="radio" name={group} checked={!restrict} onChange={() => onRestrict(false)} />
-        All suites (instance-wide)
+        Everything (instance-wide)
       </label>
       <div className={styles.only}>
         <label title={unrestrictable}>
@@ -263,26 +297,26 @@ function SuitesChoice({
             aria-describedby={unrestrictable === undefined ? undefined : whyId}
             onChange={() => onRestrict(true)}
           />
-          Only these suites:
+          Only these:
         </label>
         {unrestrictable !== undefined && (
           <VisuallyHidden id={whyId}>{unrestrictable}</VisuallyHidden>
         )}
-        <MultiSelect
-          label="Suites to restrict to"
+        <TreeSelect
+          label="Projects and suites to restrict to"
           hideLabel
-          placeholder="Select suites"
-          options={(suites.data ?? []).map(suiteOption)}
+          placeholder="Select projects or suites"
+          options={tree}
           value={checked}
           onChange={onCheck}
           isDisabled={!restrict}
         />
       </div>
-      {suites.isError && suites.data === undefined && (
+      {projects.isError && projects.data === undefined && (
         <ErrorMessage
-          context="The test suites could not be loaded"
-          error={suites.error}
-          onRetry={() => void suites.refetch()}
+          context="The projects could not be loaded"
+          error={projects.error}
+          onRetry={() => void projects.refetch()}
         />
       )}
     </fieldset>
@@ -295,18 +329,18 @@ type SortColumn = (typeof KEY_SORT_COLUMNS)[number]
 const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING[0].toUpperCase()}${RESTRICTED_TO_NOTHING.slice(1)}.`
 
 /**
- * Every column but the last, which holds each active key's Revoke button. `Suites` names a key's
- * suites by their labels as `known` has them, in AR22's order, and sorts `All` first, then by the
- * suites shown, compared in turn, and `Nothing` last (AD1).
+ * Every column but the last, which holds each active key's Revoke button. `Covers` names what a key
+ * covers by labels as `known` has them, in AR22's order, and sorts `All` first, then by the entries
+ * shown, compared in turn, and `Nothing` last (AD1).
  */
-function columns(known: Suite[] | undefined): (Column<ApiKey> & { id: SortColumn })[] {
+function columns(known: Project[] | undefined): (Column<ApiKey> & { id: SortColumn })[] {
   // Once per key, rather than at each comparison of a sort.
-  const covered = new WeakMap<ApiKey, Labelled[] | null>()
+  const covered = new WeakMap<ApiKey, NamedEntry[] | null>()
   const coveredBy = (key: ApiKey) => {
     if (!covered.has(key)) {
-      covered.set(key, key.restricted_to && suitesNamed(known, key.restricted_to))
+      covered.set(key, key.restricted_to && entriesNamed(known, key.restricted_to))
     }
-    return covered.get(key) as Labelled[] | null
+    return covered.get(key) as NamedEntry[] | null
   }
   return [
     {
@@ -326,12 +360,12 @@ function columns(known: Suite[] | undefined): (Column<ApiKey> & { id: SortColumn
     },
     {
       id: 'restricted_to',
-      header: 'Suites',
+      header: 'Covers',
       cell: (key) => {
-        const suites = coveredBy(key)
-        if (suites === null) return 'All'
-        if (suites.length > 0) return suites.map(fullLabel).join(', ')
-        // Its suites were all deleted, which leaves it restricted to nothing (AD1, I5).
+        const entries = coveredBy(key)
+        if (entries === null) return 'All'
+        if (entries.length > 0) return entries.map(entryLabel).join(', ')
+        // What it listed was all deleted, which leaves it restricted to nothing (AD1, I5).
         return (
           <span className={styles.nothing} title={NOTHING_HOVER}>
             Nothing
@@ -344,7 +378,7 @@ function columns(known: Suite[] | undefined): (Column<ApiKey> & { id: SortColumn
           return Number(second === null) - Number(first === null)
         }
         if (first.length === 0 || second.length === 0) return second.length - first.length
-        return compareSuiteLists(first, second)
+        return compareEntryLists(first, second)
       },
     },
     {
@@ -402,8 +436,8 @@ function KeysTable({
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
   const gate = useScopeGate('admin', null)
-  const known = useKnownSuites()
-  // Built again only when the suites change, so that the table sorts its rows again only then.
+  const known = useKnownProjects()
+  // Built again only when the projects change, so that the table sorts its rows again only then.
   const shown = useMemo(() => columns(known), [known])
   const tableRef = useRef<HTMLTableElement>(null)
   const rowConfirm = useRowConfirm<ApiKey>(tableRef)

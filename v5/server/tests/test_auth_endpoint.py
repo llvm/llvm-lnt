@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import code_of
+from lnt_v5.keys import Entry
 from lnt_v5.routes.auth import AUTH_PATH
 from lnt_v5.scopes import Scope
 
@@ -47,14 +48,19 @@ def test_reports_what_a_key_is_restricted_to(
     bearer: Callable[[str], dict[str, str]],
 ) -> None:
     unrestricted = make_key(Scope.MANAGE)
-    restricted = restricted_key(Scope.MANAGE, "llvm/nts", "libcxx/benchmarks")
+    restricted = restricted_key(
+        Scope.MANAGE, "llvm/nts", "libcxx/benchmarks", Entry("swift", None), Entry("llvm-x", None)
+    )
 
     own = api_client.get(AUTH_PATH, headers=bearer(unrestricted)).json()["key"]
     assert own["restricted_to"] is None
     own = api_client.get(AUTH_PATH, headers=bearer(restricted)).json()["key"]
+    # A whole project without a `suite` key (E11).
     assert own["restricted_to"] == [
         {"project": "libcxx", "suite": "benchmarks"},
         {"project": "llvm", "suite": "nts"},
+        {"project": "llvm-x"},
+        {"project": "swift"},
     ]
 
 

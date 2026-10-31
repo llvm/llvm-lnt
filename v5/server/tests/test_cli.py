@@ -409,10 +409,32 @@ class TestCreateRestrictedKey:
         assert cli.main([*argv, "--suite", "llvm/nts", "--suite", "libcxx/benchmarks"]) == 0
 
         # By their full names (D7).
-        assert "libcxx/benchmarks, llvm/nts only" in capsys.readouterr().err
+        assert "only in: libcxx/benchmarks, llvm/nts." in capsys.readouterr().err
         with configured_database.connect() as connection:
             (key,) = keys.list_keys(connection)
         assert key.restricted_to == (Entry("libcxx", "benchmarks"), Entry("llvm", "nts"))
+
+    def test_restricts_the_key_to_whole_projects_and_suites_together(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        argv = ["server", "create-key", "--name", "bot", "--scope", "manage"]
+        assert cli.main([*argv, "--suite", "llvm/nts", "--project", "libcxx"]) == 0
+
+        assert "only in: libcxx (all), llvm/nts." in capsys.readouterr().err
+        with configured_database.connect() as connection:
+            (key,) = keys.list_keys(connection)
+        assert key.restricted_to == (Entry("libcxx", None), Entry("llvm", "nts"))
+
+    @pytest.mark.parametrize("project", ["", "llvm/nts", "llvm/"])
+    def test_refuses_a_project_not_named_by_its_name(
+        self, configured_database: Engine, capsys: pytest.CaptureFixture[str], project: str
+    ) -> None:
+        argv = ["server", "create-key", "--name", "bot", "--scope", "submit", "--project", project]
+        with pytest.raises(SystemExit) as raised:
+            cli.main(argv)
+
+        assert raised.value.code == 2
+        assert "not a project's name" in capsys.readouterr().err
 
     @pytest.mark.parametrize("suite", ["nts", "/nts", "llvm/", "llvm/nts/x", "llvm//nts"])
     def test_refuses_a_suite_not_named_by_its_full_name(
@@ -438,6 +460,8 @@ class TestCreateRestrictedKey:
             ("admin", "llvm/nts", "cannot be restricted"),
             ("submit", "llvm/ntss", "Project 'llvm' has no test suite named 'ntss'"),
             ("submit", "swift/nts", "No project is named 'swift'"),
+            ("submit", "swift", "No project is named 'swift'"),
+            ("submit", "llvm llvm/nts", "along with its whole project: llvm/nts"),
         ],
     )
     def test_reports_a_restriction_it_refuses_without_a_traceback(
@@ -448,7 +472,13 @@ class TestCreateRestrictedKey:
         suite: str,
         says: str,
     ) -> None:
-        argv = ["server", "create-key", "--name", "bot", "--scope", scope, "--suite", suite]
+        # Each word an entry: a whole project without a `/`, a suite with one.
+        entries = [
+            argument
+            for word in suite.split()
+            for argument in ("--suite" if "/" in word else "--project", word)
+        ]
+        argv = ["server", "create-key", "--name", "bot", "--scope", scope, *entries]
         assert cli.main(argv) == 1
 
         captured = capsys.readouterr()
