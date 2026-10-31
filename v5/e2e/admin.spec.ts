@@ -1,8 +1,9 @@
 /**
- * The Admin page's API Keys tab (AD1) and Test Suites tab (AD2).
+ * The Admin page's API Keys tab (AD1), Projects tab (AD3) and Test Suites tab (AD2).
  *
- * Tests that write change what they create: a key of their own to revoke, and a suite of their own
- * to delete. The seeded suites and the harness's admin key are left alone.
+ * Tests that write change what they create: a key of their own to revoke, and a project or a suite
+ * of their own to change and delete. The seeded projects and suites and the harness's admin key are
+ * left alone.
  */
 
 import type { APIRequestContext, Page } from '@playwright/test'
@@ -10,7 +11,7 @@ import type { components } from '../client/src/api/schema.d.ts'
 import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
 import { suitePath } from '../client/src/paths.ts'
 import { BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
-import { withOwnSuite } from './own-suite.ts'
+import { ownName, withOwnSuite } from './own-suite.ts'
 import { pickOption, selectButton } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
@@ -438,6 +439,117 @@ test.describe('the Test Suites tab', () => {
       await expect(rows(machines).locator('td')).toHaveText(['m1', 'Apple M4'])
 
       expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)
+    })
+  })
+})
+
+test.describe('the Projects tab', () => {
+  test('creates a project, changes its display name, renames it and deletes it', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const base = ownName(testInfo, 62)
+    const [name, renamed] = [`${base}-a`, `${base}-b`]
+    const headers = { Authorization: `Bearer ${await tokenFor('manage')}` }
+    try {
+      await signIn(page, 'manage')
+      await page.goto('/admin?tab=projects')
+      const projects = table(page, 'Projects')
+      // A project with suites cannot be deleted (AD3).
+      const libcxx = page.getByRole('button', { name: 'Delete project libcxx' })
+      await expect(libcxx).toBeDisabled()
+      await expect(libcxx).toHaveAttribute(
+        'title',
+        "The project 'libc++' still has test suites: delete or move them first.",
+      )
+
+      const form = page.getByRole('form', { name: 'New project' })
+      await form.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+      await form.getByRole('textbox', { name: 'Display name' }).fill(`${name} label`)
+      await form.getByRole('button', { name: 'Create project' }).click()
+      const row = (project: string) =>
+        rows(projects).filter({
+          has: page.getByRole('button', { name: `Delete project ${project}` }),
+        })
+      await expect(row(name).locator('td')).toHaveText([
+        `${name}Edit`,
+        `${name} labelEdit`,
+        '0',
+        'Delete',
+      ])
+      await expect(form.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('')
+
+      await page.getByRole('button', { name: `Edit Display name of ${name}` }).click()
+      await page.getByRole('textbox', { name: `Display name of ${name}` }).fill('E2E project')
+      await page.keyboard.press('Enter')
+      await expect(row(name).locator('td').nth(1)).toHaveText('E2E projectEdit')
+
+      await page.getByRole('button', { name: `Edit Name of ${name}` }).click()
+      await page.getByRole('textbox', { name: `Name of ${name}` }).fill(renamed)
+      await page.keyboard.press('Enter')
+      const prompt = page.getByRole('form', { name: 'Confirmation' })
+      await expect(prompt).toContainText(
+        `Every URL, bookmark and bot that uses the name ${name} for any of the project's suites`,
+      )
+      await prompt.getByRole('button', { name: 'OK' }).click()
+      await expect(row(renamed)).toHaveCount(1)
+      await expect(row(name)).toHaveCount(0)
+      expect((await request.get(`/api/projects/${name}`)).status()).toBe(404)
+      const shown = await json<components['schemas']['Project']>(
+        request,
+        `/api/projects/${renamed}`,
+      )
+      expect(shown).toMatchObject({ name: renamed, display_name: 'E2E project', suites: [] })
+
+      // Its suites, of which it has none, on the Test Suites page (TS1).
+      await row(renamed).getByRole('link', { name: '0 suites of E2E project' }).click()
+      await expect(page).toHaveURL(`/projects/${renamed}`)
+      await expect(page.getByRole('main')).toContainText('No test suites.')
+      await page.goBack()
+
+      await page.getByRole('button', { name: `Delete project ${renamed}` }).click()
+      await expect(prompt).toContainText('API keys listing the project will lose it')
+      await prompt.getByRole('button', { name: 'Delete' }).click()
+      await expect(row(renamed)).toHaveCount(0)
+      expect((await request.get(`/api/projects/${renamed}`)).status()).toBe(404)
+    } finally {
+      await request.delete(`/api/projects/${name}`, { headers })
+      await request.delete(`/api/projects/${renamed}`, { headers })
+    }
+  })
+
+  test('lets a token covering a project in full change its display name, and nothing else', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    await withOwnSuite(request, await tokenFor('manage'), testInfo, async ({ project }) => {
+      await signIn(page, 'manage', [{ project }])
+      await page.goto('/admin?tab=projects')
+
+      const instanceWide = /^Needs an instance-wide API token with the 'manage' scope\./
+      const create = page.getByRole('button', { name: 'Create project' })
+      await expect(create).toBeDisabled()
+      await expect(create).toHaveAttribute('title', instanceWide)
+      for (const control of [`Edit Name of ${project}`, `Delete project ${project}`]) {
+        const button = page.getByRole('button', { name: control })
+        await expect(button).toBeDisabled()
+        await expect(button).toHaveAttribute('title', instanceWide)
+      }
+      await expect(page.getByRole('button', { name: 'Edit Display name of libcxx' })).toBeDisabled()
+
+      await page.getByRole('button', { name: `Edit Display name of ${project}` }).click()
+      await page.getByRole('textbox', { name: `Display name of ${project}` }).fill('Own project')
+      await page.keyboard.press('Enter')
+      await expect(
+        page.getByRole('link', { name: '0 suites of Own project', exact: true }),
+      ).toBeVisible()
+      const path = `/api/projects/${project}`
+      const shown = await json<components['schemas']['Project']>(request, path)
+      expect(shown.display_name).toBe('Own project')
     })
   })
 })

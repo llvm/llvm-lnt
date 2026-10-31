@@ -235,13 +235,33 @@ export function nameProblems(list: ListName, entries: readonly DraftEntry[]): Ma
   return problems
 }
 
-/** Why `name` cannot name a new suite, if it cannot. An empty name is not refused here. */
-export function suiteNameProblem(name: string, existing: readonly string[]): string | undefined {
+/**
+ * Why `name` cannot name a new suite, or project, among the `existing` ones, if it cannot: D4's rule
+ * for suite names, which D7 applies to project names too. An empty name is not refused here.
+ */
+function newNameProblem(
+  noun: 'suite' | 'project',
+  name: string,
+  existing: readonly string[],
+): string | undefined {
   if (name === '') return undefined
   const problem = ruleProblem(name, 'suite')
   if (problem !== undefined) return problem
-  if (existing.includes(name)) return `There is already a suite named '${name}'.`
+  if (existing.includes(name)) return `There is already a ${noun} named '${name}'.`
   return undefined
+}
+
+/** Why `name` cannot name a new suite, if it cannot. An empty name is not refused here. */
+export function suiteNameProblem(name: string, existing: readonly string[]): string | undefined {
+  return newNameProblem('suite', name, existing)
+}
+
+/**
+ * Why `name` cannot name a project, among the `existing` ones, if it cannot (AD3). An empty name is
+ * not refused here.
+ */
+export function projectNameProblem(name: string, existing: readonly string[]): string | undefined {
+  return newNameProblem('project', name, existing)
 }
 
 /**
