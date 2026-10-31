@@ -39,7 +39,7 @@ test.describe('the Settings panel', () => {
   })
 
   test('shows what a restricted key covers', async ({ page, signIn }) => {
-    await signIn(page, 'triage', [NTS, { project: 'swift' }, BENCHMARKS])
+    await signIn(page, 'triage', [NTS, { project: 'swift', suite: null }, BENCHMARKS])
     await page.goto('/')
     await openSettings(page)
 

@@ -964,9 +964,9 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Restricted To
-             * @description The whole projects and the single test suites to restrict the key to, each listed once, and a suite not along with its whole project. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing its display name, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
+             * @description The whole projects and the single test suites to restrict the key to, each listed once. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing its display name, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
              */
-            restricted_to?: components["schemas"]["RestrictionEntry"][] | null;
+            restricted_to?: components["schemas"]["RestrictionEntryInput"][] | null;
         };
         /**
          * ApiKeyCreated
@@ -2780,8 +2780,8 @@ export interface components {
         };
         /**
          * RestrictionEntry
-         * @description Something a restricted API key is restricted to: a whole project, named by its name alone, or
-         *     a single test suite, named by its project's name and its own.
+         * @description Something a restricted API key is restricted to: a whole project, named by its name with a
+         *     null `suite`, or a single test suite, named by its project's name and its own.
          */
         RestrictionEntry: {
             /**
@@ -2792,10 +2792,29 @@ export interface components {
             project: string;
             /**
              * Suite
-             * @description The name of the test suite, in the project. Left out for the whole project, which covers every test suite the project has, including those created in it later.
+             * @description The name of the test suite, in the project. Null for the whole project, which covers every test suite the project has, including those created in it later. Can be left out in a request for the whole project.
              * @example libcxx
              */
-            suite?: string;
+            suite: string | null;
+        };
+        /**
+         * RestrictionEntryInput
+         * @description Something a restricted API key is restricted to: a whole project, named by its name with a
+         *     null `suite`, or a single test suite, named by its project's name and its own.
+         */
+        RestrictionEntryInput: {
+            /**
+             * Project
+             * @description The name of the project.
+             * @example libcxx
+             */
+            project: string;
+            /**
+             * Suite
+             * @description The name of the test suite, in the project. Null for the whole project, which covers every test suite the project has, including those created in it later. Can be left out in a request for the whole project.
+             * @example libcxx
+             */
+            suite?: string | null;
         };
         /**
          * Run

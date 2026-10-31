@@ -122,10 +122,10 @@ describe('entriesNamed', () => {
   it('names whole projects and suites as listed, or by their names where not, in order', () => {
     const refs = [
       { project: 'llvm', suite: 'nts' },
-      { project: 'llvm-extra' },
+      { project: 'llvm-extra', suite: null },
       { project: 'llvm', suite: 'gone' },
-      { project: 'swift' },
-      { project: 'llvm' },
+      { project: 'swift', suite: null },
+      { project: 'llvm', suite: null },
       { project: 'llvm', suite: 'libcxx' },
     ]
     // By project label, the whole project before its suites, then by suite label (AR22).
@@ -142,7 +142,7 @@ describe('entriesNamed', () => {
 
   it('shows a whole project as its label followed by (all), and a suite by its full label', () => {
     const named = entriesNamed(projects, [
-      { project: 'llvm' },
+      { project: 'llvm', suite: null },
       { project: 'llvm-extra', suite: 'alpha' },
     ])
     expect(named.map(entryLabel)).toEqual(['LLVM (all)', 'LLVM Extra/alpha'])

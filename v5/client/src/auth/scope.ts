@@ -25,7 +25,7 @@ export function scopeRank(scope: Scope): number {
   return SCOPES.indexOf(scope)
 }
 
-/** An entry of a restricted key's list (I5): a whole project, without `suite`, or one suite. */
+/** An entry of a restricted key's list (I5): a whole project, with a null `suite`, or one suite. */
 export type Entry = EntryRef
 
 /**
@@ -44,7 +44,7 @@ function covers(restrictedTo: readonly Entry[] | null, target: Target): boolean 
   return restrictedTo.some(
     (entry) =>
       entry.project === target.project &&
-      (entry.suite === undefined || entry.suite === target.suite),
+      (entry.suite === null || entry.suite === target.suite),
   )
 }
 
@@ -202,7 +202,7 @@ export function refusalInEvery(
     projects === undefined
       ? key !== null &&
         scopeRank(key.scope) >= scopeRank(required) &&
-        (key.restricted_to === null || key.restricted_to.some((e) => e.suite === undefined))
+        (key.restricted_to === null || key.restricted_to.some((e) => e.suite === null))
       : projects.some((project) => grants(key, required, { project: project.name }))
   if (allowed) return undefined
   if (projects === undefined) return reason(required, SOME_PROJECT, status, known)

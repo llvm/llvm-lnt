@@ -835,7 +835,7 @@ that anonymous access never reaches (see I5).
 **Key object:** `prefix`, `name`, `scope`, `restricted_to`, `created_at`,
 `last_used_at`, `is_active`. `restricted_to` is null for an instance-wide key,
 and otherwise the list of the entries the key is restricted to (see I5): each is
-`{"project": "swift"}` for a whole project, or
+`{"project": "swift", "suite": null}` for a whole project, or
 `{"project": "swift", "suite": "benchmarks"}` for a single suite, under the
 current names of what it lists. Entries are ordered by project name, a whole
 project before the suites of that project, then by suite name. The list is empty
@@ -854,8 +854,10 @@ nullable, and only approximate (see D5). Revoked keys are included, with
 **Create** (`POST /api/admin/api-keys`): the body has `name` (string, required),
 `scope` (string, required: one of `read`, `submit`, `triage`, `manage`,
 `admin`), and `restricted_to` (optional: a non-empty list of entries, as in the
-key object, to restrict the key to them, or null). An omitted or null
-`restricted_to` makes the key instance-wide.
+key object, except that a whole project's may leave `suite` out, to restrict the
+key to them, or null). An omitted or null `restricted_to` makes the key
+instance-wide. The list may name a suite along with its whole project (see
+I5).
 
 - 201 with the key object plus a `token` field holding the raw token. The token
   is shown only this once and cannot be retrieved afterwards (see I5). No
@@ -865,11 +867,9 @@ key object, to restrict the key to them, or null). An omitted or null
   than an identifier, so two keys may share one.
 - 400 if `restricted_to` is an empty list, has an entry without `project` or
   with a key other than `project` and `suite`, holds a name that is not a valid
-  project or suite name (see D4 and D7) or a `null` one (a whole project is
-  written without `suite`), lists an entry more than once, lists a suite along
-  with its whole project, or is a list on a `read` or `admin` key, which cannot
-  be restricted (see I5). These are checked on creation only: a move can later
-  leave a key listing a suite along with its new project (see I5).
+  project or suite name (see D4 and D7) or a null `project`, lists an entry more
+  than once, or is a list on a `read` or `admin` key, which cannot be restricted
+  (see I5).
 - 404 if an entry names a project that does not exist, or a suite that its
   project does not have.
 

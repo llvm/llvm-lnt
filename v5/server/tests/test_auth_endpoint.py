@@ -55,12 +55,12 @@ def test_reports_what_a_key_is_restricted_to(
     own = api_client.get(AUTH_PATH, headers=bearer(unrestricted)).json()["key"]
     assert own["restricted_to"] is None
     own = api_client.get(AUTH_PATH, headers=bearer(restricted)).json()["key"]
-    # A whole project without a `suite` key (E11).
+    # A whole project with a null `suite` (E11).
     assert own["restricted_to"] == [
         {"project": "libcxx", "suite": "benchmarks"},
         {"project": "llvm", "suite": "nts"},
-        {"project": "llvm-x"},
-        {"project": "swift"},
+        {"project": "llvm-x", "suite": None},
+        {"project": "swift", "suite": None},
     ]
 
 

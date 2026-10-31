@@ -184,15 +184,10 @@ class TestOpenApiDocument:
         for _, schema in _responses(document):
             visit(schema)
 
-        # Where an endpoint specifies otherwise, as I4 allows: E11 leaves `suite` out of the entry
-        # of a key restricted to a whole project.
-        specified = {"RestrictionEntry": {"suite"}}
         assert reachable, "no response references a component"
         for name in sorted(reachable):
-            optional = (
-                set(schemas[name].get("properties", {}))
-                - set(schemas[name].get("required", []))
-                - specified.get(name, set())
+            optional = set(schemas[name].get("properties", {})) - set(
+                schemas[name].get("required", [])
             )
             assert not optional, f"{name} leaves {sorted(optional)} optional"
 
@@ -379,24 +374,6 @@ class TestDocumentedAuthentication:
         keys = client.get("/api/openapi.json").json()["paths"]["/api/admin/api-keys"]
 
         assert {"401", "403"} <= set(keys["get"]["responses"])
-
-    def test_describes_an_entry_of_a_restriction_once_for_requests_and_responses(
-        self, client: TestClient
-    ) -> None:
-        # E11: a whole project's entry has no `suite`, in a response as in a request, and a single
-        # suite's has a string, never null. So both read one schema.
-        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
-
-        assert not [
-            name
-            for name in schemas
-            if name.startswith("RestrictionEntry") and name != "RestrictionEntry"
-        ]
-        entry = schemas["RestrictionEntry"]
-        assert entry["required"] == ["project"]
-        assert entry["properties"]["suite"]["type"] == "string"
-        assert "anyOf" not in entry["properties"]["suite"]
-        assert "default" not in entry["properties"]["suite"]
 
     def test_every_operation_can_answer_400(self, client: TestClient) -> None:
         # I3: any of them refuses a query parameter it does not take, so even one with nothing

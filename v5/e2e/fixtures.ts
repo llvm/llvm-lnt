@@ -24,7 +24,10 @@ export { expect }
 
 export type Scope = components['schemas']['Scope']
 
-/** An entry of a key's restriction (E11): a whole project, without `suite`, or a single suite. */
+/**
+ * An entry of a key's restriction (E11): a whole project, with a null `suite`, or a single suite.
+ * The response's type, rather than the request's, so that it compares with what the API lists.
+ */
 export type Entry = components['schemas']['RestrictionEntry']
 
 export type { SuiteRef }

@@ -275,12 +275,6 @@ def _checked_entries(
         raise ValueError("A restricted key must list at least one entry.")
     if len(set(entries)) != len(entries):
         raise ValueError("A restricted key must not list an entry more than once.")
-    whole = {entry.project for entry in entries if entry.suite is None}
-    if redundant := [str(entry) for entry in entries if entry.suite and entry.project in whole]:
-        raise ValueError(
-            "A restricted key must not list a test suite along with its whole project: "
-            + ", ".join(redundant)
-        )
 
     projects = {
         row.name: row.id
