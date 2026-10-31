@@ -9,6 +9,7 @@
 import type { Schemas } from './api/client'
 import type { ProjectName } from './api/suites'
 import { findSuite, fullName, type SuiteRef } from './api/suite-ref'
+import type { Option } from './components/select'
 import { compareStrings } from './format'
 import { labelOf } from './schema'
 
@@ -76,11 +77,17 @@ export function compareSuites(a: Labelled, b: Labelled): number {
   return compareProjects(a.project, b.project) || compareLabelled(a, b)
 }
 
-/** `suite` as an option of a dropdown picking a suite: its names, shown by its full label. */
-export function suiteOption(suite: Labelled): { value: string; label: string } {
+/**
+ * `suite` as an option of a dropdown picking a suite (AR22): its names, shown by its own label under
+ * the heading of its project, and by its full label once picked. Its project's name tells its group
+ * apart from that of another project with the same label.
+ */
+export function suiteOption(suite: Labelled): Option<string> {
   return {
     value: fullName({ project: suite.project.name, suite: suite.name }),
-    label: fullLabel(suite),
+    label: suiteLabel(suite),
+    selectedLabel: fullLabel(suite),
+    section: { key: suite.project.name, heading: projectLabel(suite.project) },
   }
 }
 

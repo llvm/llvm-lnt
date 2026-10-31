@@ -7,18 +7,44 @@ export function selectButton(scope: Page | Locator, label: string): Locator {
   return scope.getByRole('button', { name: new RegExp(` ${label}$`) })
 }
 
-/**
- * Pick the option named `option` in the select labelled `label`. A select does not open while it
- * has no options, which may still be loading, so it is opened again until the option shows.
- */
+/** Pick the option named `option` in the select labelled `label`, once it shows (see `openSelect`). */
 export async function pickOption(scope: Page | Locator, label: string, option: string) {
   // The list is in a popover at the end of the document, outside `scope`.
   const page = 'page' in scope ? scope.page() : scope
   const listed = page.getByRole('option', { name: option, exact: true })
+  await openSelect(scope, label, listed)
+  await listed.click()
+}
+
+/**
+ * Open the select labelled `label` until its list shows `shown`. A select does not open while it
+ * has no options, which may still be loading, so it is opened again until `shown` shows.
+ */
+export async function openSelect(scope: Page | Locator, label: string, shown: Locator) {
   await expect(async () => {
-    if (!(await listed.isVisible())) await selectButton(scope, label).click()
-    await expect(listed).toBeVisible({ timeout: 1000 })
+    if (!(await shown.isVisible())) await selectButton(scope, label).click()
+    await expect(shown).toBeVisible({ timeout: 1000 })
   }).toPass()
+}
+
+/** The group of options under the heading `heading` in an open select (AR22). */
+export function optionGroup(page: Page, heading: string): Locator {
+  return page.getByRole('group', { name: heading, exact: true })
+}
+
+/**
+ * Pick the suite labelled `suite` under the heading `project` in the suite select labelled `label`
+ * (AR22).
+ */
+export async function pickSuite(
+  scope: Page | Locator,
+  label: string,
+  project: string,
+  suite: string,
+) {
+  const page = 'page' in scope ? scope.page() : scope
+  const listed = optionGroup(page, project).getByRole('option', { name: suite, exact: true })
+  await openSelect(scope, label, listed)
   await listed.click()
 }
 

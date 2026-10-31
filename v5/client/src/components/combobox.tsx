@@ -31,6 +31,7 @@ import clsx from 'clsx'
 import { errorMessage } from '../api/client'
 import { FieldLabel } from './field-label'
 import { Popover } from './popover'
+import { sectioned } from './sectioned'
 import type { Suggestion, Suggestions } from './suggestions'
 import shared from './dropdown.module.css'
 import styles from './combobox.module.css'
@@ -295,24 +296,6 @@ export function Combobox({
 const LIST_LAYOUT = { estimatedRowSize: 30, loaderSize: 30 }
 
 /**
- * `items` as the list shows them: those in no section, then each section with its own, in the order
- * of their first suggestion.
- */
-function sectioned(items: readonly Suggestion[]) {
-  // Most lists have no sections, among them lists of thousands of suggestions (AR9), which are
-  // then shown as they are.
-  if (!items.some((item) => item.section !== undefined)) return { unsectioned: items, sections: [] }
-  const unsectioned: Suggestion[] = []
-  const sections = new Map<string, Suggestion[]>()
-  for (const item of items) {
-    if (item.section === undefined) unsectioned.push(item)
-    else if (sections.has(item.section)) sections.get(item.section)!.push(item)
-    else sections.set(item.section, [item])
-  }
-  return { unsectioned, sections: [...sections] }
-}
-
-/**
  * The list of suggestions, and the item loading more of them, while there are more or they are on
  * their way.
  */
@@ -327,7 +310,10 @@ function List({
   virtualized: boolean
   emptyMessage: string | undefined
 }) {
-  const { unsectioned, sections } = useMemo(() => sectioned(suggestions.items), [suggestions.items])
+  const { unsectioned, sections } = useMemo(
+    () => sectioned(suggestions.items, (item) => item.section),
+    [suggestions.items],
+  )
   // Kept from one render to the next, so that React Aria does not go over every suggestion again on
   // each keystroke, while the suggestions themselves are still those for earlier text (AR9).
   const option = useCallback(
@@ -358,7 +344,7 @@ function List({
           only while it holds suggestions, since `sectioned` makes none for an empty one. */}
       {sections.map(([section, items]) => (
         <ListBoxSection key={`/section/${section}`} id={`/section/${section}`}>
-          <Header className={styles.sectionHeader}>{section}</Header>
+          <Header className={shared.sectionHeader}>{section}</Header>
           <Collection items={items} dependencies={[renderSuggestion]}>
             {option}
           </Collection>

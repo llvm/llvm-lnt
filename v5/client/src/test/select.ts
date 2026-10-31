@@ -20,6 +20,30 @@ export async function pickOption(label: string, option: string, container?: HTML
 }
 
 /**
+ * Pick the suite labelled `suite` under the heading `project` in the suite dropdown labelled
+ * `label`, inside `container`, as a mouse user does (AR22).
+ */
+export async function pickSuite(
+  label: string,
+  project: string,
+  suite: string,
+  container?: HTMLElement,
+) {
+  const user = userEvent.setup()
+  await user.click(selectButton(label, container))
+  // The list is in a popover, outside `container`.
+  const group = await screen.findByRole('group', { name: project })
+  await user.click(within(group).getByRole('option', { name: suite }))
+}
+
+/** The texts of the options in `group`, a group of options under a heading (AR14). */
+export function optionsIn(group: HTMLElement): (string | null)[] {
+  return within(group)
+    .getAllByRole('option')
+    .map((option) => option.textContent)
+}
+
+/**
  * Check or uncheck each of `options` in the `TreeSelect` labelled `label`, as a mouse user does,
  * then close its list.
  */

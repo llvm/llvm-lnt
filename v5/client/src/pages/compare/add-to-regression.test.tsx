@@ -7,7 +7,7 @@ import { entry, signIn } from '../../test/auth'
 import { cursorPage, regression, regressionDetail, uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { mockCreateRegression, mockRegressions, renderPage } from '../../test/page'
-import { pick, pickOption } from '../../test/select'
+import { pick, pickSuite } from '../../test/select'
 import { server } from '../../test/server'
 import { COMPARED, comparison, mockWorld, sideOf, SUITES } from './compare-world'
 
@@ -346,7 +346,7 @@ describe('Add to Regression (CP9)', () => {
     await waitFor(() => expect(picker()).toHaveValue(''))
 
     await pick('Regression', 'Older')
-    await pickOption('Suite', 'llvm/other', sideOf('B'))
+    await pickSuite('Suite', 'llvm', 'other', sideOf('B'))
     await waitFor(() => expect(picker()).toHaveValue(''))
   })
 

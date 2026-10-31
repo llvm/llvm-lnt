@@ -31,7 +31,7 @@ import {
   renderPage,
   search,
 } from '../../test/page'
-import { pickOption, selectButton } from '../../test/select'
+import { pickOption, pickSuite, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
   COMMITS,
@@ -1240,7 +1240,7 @@ describe('the baselines (GR9)', () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Add a baseline' }))
-    await pickOption('Baseline suite', 'llvm/libcxx')
+    await pickSuite('Baseline suite', 'llvm', 'libcxx')
     await user.type(screen.getByRole('combobox', { name: 'Baseline machine' }), 'm1')
     await user.click(await screen.findByRole('option', { name: 'm1' }))
     const commit = screen.getByRole('combobox', { name: 'Baseline commit' })
@@ -1330,7 +1330,7 @@ describe('the baselines (GR9)', () => {
       expect(baselineChips()).toHaveTextContent('r10'),
     )
 
-    await pickOption('Suite', 'llvm/text_only')
+    await pickSuite('Suite', 'llvm', 'text_only')
 
     await waitFor(() =>
       expect(query()).toEqual({
@@ -1584,7 +1584,7 @@ describe('the highlighted commits (GR16)', () => {
     expect(main().queryByRole('list', { name: 'Highlighted commits' })).toBeNull()
     expect(query().highlight).toEqual(['c20'])
 
-    await pickOption('Suite', 'llvm/libcxx')
+    await pickSuite('Suite', 'llvm', 'libcxx')
 
     await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'] }))
   })
