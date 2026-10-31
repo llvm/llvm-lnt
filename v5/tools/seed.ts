@@ -17,8 +17,11 @@
  *
  * It never changes anything that exists: a suite that is already there is skipped whole, whatever
  * it holds, and a key is created only if no key has its name. To seed a suite again, delete it
- * first. The keys are seeded along with a suite, so that seeding an instance that has every suite
- * asks for no token, and writes nothing.
+ * first. Deleting it also removes it from the keys restricted to it, which seeding again leaves
+ * as they are, since keys of their names exist (revoking them does not help: revoked keys keep
+ * their names), so they then cover less, or nothing: only a database with no key of their names,
+ * such as an empty one, has them seeded anew. The keys are seeded along with a suite, so that
+ * seeding an instance that has every suite asks for no token, and writes nothing.
  */
 
 import { readdirSync, readFileSync } from 'node:fs'

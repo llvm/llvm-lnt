@@ -207,24 +207,30 @@ class TestSuiteRestriction:
     ) -> None:
         """The guard that keeps a future endpoint from letting a restricted key out of its suites.
 
-        Every operation a restrictable scope reaches is called on suite `x`, which does not exist,
-        with a `manage` key restricted to another suite and with one restricted to `x`. The first
-        is refused everywhere, before the missing suite is noticed (I5's order of checks), and the
-        second only where no suite is addressed. An endpoint whose suite is not where the
-        authorization looks for it fails one or the other.
+        Every operation a restrictable scope reaches is called on suite `x` with a `manage` key
+        restricted to another suite, while `x` does not exist, and then with one restricted to `x`,
+        once it does. The first is refused everywhere, before the missing suite is noticed (I5's
+        order of checks), and the second only where no suite is addressed. An endpoint whose suite
+        is not where the authorization looks for it fails one or the other.
         """
         elsewhere = bearer(restricted_key(Scope.MANAGE, "other"))
-        here = bearer(restricted_key(Scope.MANAGE, "x"))
         restrictable = set(Scope) - set(UNRESTRICTABLE_SCOPES)
+        found = operations(api_app, restrictable)
 
-        refused_here = set()
-        for method, template in operations(api_app, restrictable):
-            path = placeholders_filled(template)
-            response = api_client.request(method, path, headers=elsewhere)
+        for method, template in found:
+            response = api_client.request(method, placeholders_filled(template), headers=elsewhere)
             assert response.status_code == 403, f"{method} {template}"
-            if api_client.request(method, path, headers=here).status_code == 403:
-                refused_here.add((method, template))
 
+        here = bearer(restricted_key(Scope.MANAGE, "x"))
+        refused_here = {
+            (method, template)
+            for method, template in found
+            if api_client.request(method, placeholders_filled(template), headers=here).status_code
+            == 403
+        }
+
+        # Had an operation deleted `x`, the key would have lost it, and been refused for that.
+        assert api_client.get("/api/suites/x").status_code == 200
         assert refused_here == UNRESTRICTED_ONLY
 
     def test_reads_every_other_suite(
@@ -266,8 +272,10 @@ class TestSuiteRestriction:
 
         assert api_client.patch("/api/suites/nts/schema", json=patch, headers=headers).is_success
         assert api_client.delete("/api/suites/nts?confirm=true", headers=headers).status_code == 204
+        # Which removes the suite from the key itself (I5).
+        assert api_client.get("/api/auth", headers=headers).json()["key"]["suites"] == []
 
-    def test_covers_a_suite_created_again_under_its_name(
+    def test_does_not_cover_a_suite_created_again_under_its_name(
         self,
         api_client: TestClient,
         make_api_suite: Callable[[dict[str, Any]], Any],
@@ -275,8 +283,8 @@ class TestSuiteRestriction:
         manage: dict[str, str],
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
-        # A key names its suites and is not linked to them, so deleting one leaves its name on
-        # the key, which then covers whatever suite takes the name next.
+        # A key is linked to its suites, not to their names, so deleting one removes it from the
+        # key, and the suite that takes the name next is another suite (I5).
         make_api_suite(NTS)
         headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
         assert api_client.delete("/api/suites/nts?confirm=true", headers=manage).status_code == 204
@@ -284,7 +292,44 @@ class TestSuiteRestriction:
 
         response = api_client.post("/api/suites/nts/machines", json={"name": "m"}, headers=headers)
 
+        assert response.status_code == 403
+
+    def test_keeps_the_suites_that_were_not_deleted(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        manage: dict[str, str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, "libcxx", "nts"))
+        assert api_client.delete("/api/suites/nts?confirm=true", headers=manage).status_code == 204
+
+        response = api_client.post(
+            "/api/suites/libcxx/machines", json={"name": "m"}, headers=headers
+        )
+
         assert response.status_code == 201
+
+    def test_grants_only_read_once_its_suites_are_all_deleted(
+        self,
+        api_client: TestClient,
+        make_api_suite: Callable[[dict[str, Any]], Any],
+        restricted_key: Callable[..., str],
+        manage: dict[str, str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        # I5: the key stays restricted, to nothing, rather than becoming valid across the instance.
+        headers = bearer(restricted_key(Scope.MANAGE, "gone"))
+        assert api_client.delete("/api/suites/gone?confirm=true", headers=manage).status_code == 204
+        make_api_suite(NTS)
+
+        assert api_client.get("/api/suites/nts/machines", headers=headers).status_code == 200
+        write = api_client.post("/api/suites/nts/machines", json={"name": "m"}, headers=headers)
+        assert write.status_code == 403
+        assert "have all been deleted" in write.json()["error"]["message"]
+        creation = api_client.post("/api/suites", json={**NTS, "name": "new"}, headers=headers)
+        assert creation.status_code == 403
+        assert "have all been deleted" in creation.json()["error"]["message"]
 
     @pytest.mark.parametrize(
         ("scope", "path", "says"),
@@ -292,6 +337,7 @@ class TestSuiteRestriction:
             # Under-scoped wherever it is used: the restriction is beside the point.
             (Scope.SUBMIT, "/api/suites/x/machines", "this API key grants 'submit'"),
             (Scope.MANAGE, "/api/suites/y/machines", "grants it only in: x"),
+            (Scope.MANAGE, "/api/suites", "this one is restricted to test suites: x"),
         ],
     )
     def test_a_403_says_why(

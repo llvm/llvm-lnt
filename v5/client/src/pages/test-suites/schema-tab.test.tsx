@@ -3,7 +3,7 @@ import { HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/keys'
 import type { SuiteSchema } from '../../api/suites'
-import { signIn, TOKEN } from '../../test/auth'
+import { apiKey, mockAuth, signIn, TOKEN } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
 import { BARE_SUITE, NO_REPOSITORY, SUITE, cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
@@ -314,6 +314,27 @@ describe('deleting a suite', () => {
     expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
     expect(cards()).toEqual(['nts', 'units'])
     expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite('libcxx') })).toEqual([])
+  })
+
+  it('checks the token again, and forgets the API keys, which may have listed it', async () => {
+    signIn('manage', ['libcxx'])
+    const store = mockSuites(SUITES)
+    mockRuns(() => cursorPage([]))
+    const { queryClient } = renderPage('/suites/libcxx?tab=schema')
+    await waitFor(() => expect(deleteButton()).toBeEnabled())
+    queryClient.setQueryData(queryKeys.apiKeys, {
+      items: [apiKey('manage', { suites: ['libcxx'] })],
+    })
+    mockDelete(store)
+    // The suite is gone from the key once deleted (I5).
+    const rechecks = mockAuth(() => HttpResponse.json({ key: apiKey('manage', { suites: [] }) }))
+
+    fireEvent.click(deleteButton())
+    confirmDeletion('libcxx')
+
+    await waitFor(() => expect(currentUrl()).toBe('/suites/nts'))
+    await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
+    expect(queryClient.getQueryData(queryKeys.apiKeys)).toBeUndefined()
   })
 
   it('leaves the suite in place of its page in the history', async () => {

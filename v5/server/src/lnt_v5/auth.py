@@ -202,6 +202,12 @@ class RequireScope:
         # Refused although its scope suffices, so the key is restricted to suites other than this
         # request's.
         assert key.suites is not None
+        if not key.suites:
+            # I5: deleting the suites a key is restricted to leaves it restricted, to nothing.
+            return (
+                f"This endpoint requires the '{required}' scope, and this API key is restricted "
+                "to test suites that have all been deleted, so it can only read."
+            )
         if suite is None:
             return (
                 f"This endpoint requires the '{required}' scope from an unrestricted API key, and "

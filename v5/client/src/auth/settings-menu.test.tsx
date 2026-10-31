@@ -134,6 +134,19 @@ describe('Settings panel', () => {
     await waitFor(() => expect(status()).toHaveTextContent(/with submit scope in suite nts\.$/))
   })
 
+  it('says that a key whose suites were all deleted covers nothing', async () => {
+    signIn('triage', [])
+    renderMenu()
+    openPanel()
+
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        'Using key triage-key (aaaaaaaa), with triage scope, covering Nothing: the suites it was ' +
+          'restricted to have been deleted, so it can only read.',
+      ),
+    )
+  })
+
   it('checks a token when it is entered, and stores it', async () => {
     const checks = mockAuth(() => HttpResponse.json({ key: apiKey('triage', { name: 'bot' }) }))
     renderMenu()

@@ -49,8 +49,10 @@ export interface paths {
          *     Keys can't be changed and don't expire. To change a key's scope or test suites, create a new key
          *     and revoke the old one.
          *
-         *     The test suites in `suites` must exist when the key is created. A key keeps naming a suite
-         *     that is deleted later, and so also applies to a suite created again with the same name.
+         *     The test suites in `suites` must exist when the key is created. A suite that is deleted later
+         *     is removed from the key, and a suite created again with the same name is a different suite,
+         *     which the key doesn't cover. A key whose suites have all been deleted stays restricted, and can
+         *     only read.
          *
          *     **Authorization:** requires an API key with the `admin` scope.
          */
@@ -164,6 +166,9 @@ export interface paths {
          * Delete a test suite
          * @description Delete a test suite and all its data: machines, commits, runs, samples, profiles and
          *     regressions. This can't be undone, so the request must include `confirm=true`.
+         *
+         *     The suite is also removed from the API keys restricted to it. A test suite created later with
+         *     the same name is a different suite, which those keys don't cover.
          *
          *     **Authorization:** requires an API key with the `manage` scope, for all test suites or for this one.
          */
@@ -831,7 +836,7 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Suites
-             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else.
+             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
              * @example [
              *       "libcxx"
              *     ]
@@ -891,7 +896,7 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Suites
-             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else.
+             * @description The test suites the key is restricted to, sorted by name. Null if it isn't restricted. A restricted key has its scope only in these suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
              * @example [
              *       "libcxx"
              *     ]

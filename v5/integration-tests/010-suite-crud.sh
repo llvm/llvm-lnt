@@ -125,6 +125,19 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     expect_body '"code":"not_found"'
 done
 
+echo "  deleting it removes it from the key restricted to it, which does not cover a namesake"
+request -H "Authorization: Bearer ${restricted}" "${BASE_URL}/api/auth"
+expect_status 200
+expect_body '"suites":\[\]'
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name":"suite-crud","metrics":[]}' "$SUITES"
+expect_status 201
+request -X POST -H "Authorization: Bearer ${restricted}" -H "$JSON" \
+    --data '{"name":"m"}' "${SUITES}/suite-crud/machines"
+expect_status 403
+expect_body '"code":"forbidden"'
+request -X DELETE -H "$AUTH" "${SUITES}/suite-crud?confirm=true"
+expect_status 204
+
 echo "  a suite deleted and created again from the same schema serves its new tables on every worker"
 readonly RECREATED='{"name": "recreated", "metrics": [{"name": "execution_time", "type": "real"}]}'
 request -X POST -H "$AUTH" -H "$JSON" --data "$RECREATED" "$SUITES"

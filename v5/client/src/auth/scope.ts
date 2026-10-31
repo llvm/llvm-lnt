@@ -18,7 +18,8 @@ export function scopeRank(scope: Scope): number {
 /**
  * Whether `key` (null without a valid token) may do what needs `required` in `suite`, or, for an
  * action on no suite, with `suite` null. A key restricted to some suites grants its scope only in
- * them, and `read` anywhere (I5).
+ * them, and `read` anywhere (I5). Once they have all been deleted, it lists none, and grants only
+ * `read`.
  */
 export function grants(
   key: Pick<ApiKey, 'scope' | 'suites'> | null,
@@ -36,10 +37,18 @@ export interface ScopeGate {
   title: string | undefined
 }
 
-/** `suites` as a sentence names them: `suite 'a'`, or `suites 'a', 'b'`. */
-function suitesText(suites: readonly string[]): string {
+/** What happened to a key whose suites were all deleted, which leaves it restricted to nothing. */
+export const RESTRICTED_TO_NOTHING =
+  'the suites it was restricted to have been deleted, so it can only read'
+
+/**
+ * Where a key restricted to `suites` has its scope, as a sentence says it: `only in suite 'a'`,
+ * `only in suites 'a', 'b'`, or in none once they have all been deleted (I5).
+ */
+function restrictionText(suites: readonly string[]): string {
+  if (suites.length === 0) return `in no suite: ${RESTRICTED_TO_NOTHING}`
   const names = suites.map((name) => `'${name}'`).join(', ')
-  return `${suites.length === 1 ? 'suite' : 'suites'} ${names}`
+  return `only in ${suites.length === 1 ? 'suite' : 'suites'} ${names}`
 }
 
 /** Why a control needing `required` in `suite` is disabled, given the token's `status`. */
@@ -57,7 +66,7 @@ function reason(required: Scope, suite: string | null, status: TokenStatus): str
     case 'checking':
       return `${needs} The token in Settings is still being checked.`
     case 'valid': {
-      const where = restricted === null ? '' : ` only in ${suitesText(restricted)}`
+      const where = restricted === null ? '' : ` ${restrictionText(restricted)}`
       return `${needs} The token in Settings has the '${status.key.scope}' scope${where}.`
     }
     case 'invalid':

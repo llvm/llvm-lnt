@@ -22,11 +22,12 @@ from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
 
-# What tables.py's NAMING_CONVENTION names `schema`'s primary key, and so the constraint a repeated
-# suite name trips. Written out because it is fixed, and checked against what PostgreSQL reports by
-# `test_registry.py` -- the same arrangement as `keys.PREFIX_CONSTRAINT`, and for the same reason: a
-# convention change must fail a test rather than silently turn a 409 into a 500.
-SCHEMA_NAME_CONSTRAINT = "pk_schema"
+# What tables.py's NAMING_CONVENTION names the unique constraint on `schema.name`, and so the
+# constraint a repeated suite name trips. Written out because it is fixed, and checked against what
+# PostgreSQL reports by `test_registry.py` -- the same arrangement as `keys.PREFIX_CONSTRAINT`, and
+# for the same reason: a convention change must fail a test rather than silently turn a 409 into a
+# 500.
+SCHEMA_NAME_CONSTRAINT = "uq_schema_name"
 
 # How long a schema change waits for the locks it needs before giving up. Long enough to outlast an
 # ordinary query holding the table, and deliberately well under `db.POOL_SIZE`'s companion
@@ -47,8 +48,8 @@ def normalized_json(suite: SuiteSchema) -> str:
 
 @dataclass(frozen=True)
 class StoredSuite:
-    """A suite as its `schema` row records it (D5): the row's key, the suite's schema, and the
-    namespace of its tables.
+    """A suite as its `schema` row records it (D5): its name, its schema, and the namespace of its
+    tables.
 
     What a write reads under the suite's lock (see `locked_suite`), and what a per-suite migration
     step is told about the suite it migrates (see `migrations.py`). The name is the row's, rather
@@ -77,7 +78,7 @@ def add_suite(connection: Connection, suite: SuiteSchema) -> None:
     """Store a new suite and create its tables, announcing it to every worker (D2, D5).
 
     The row first: it is the lock every writer of this suite contends on, so two callers racing to
-    create one name serialize here and the loser fails on its primary key rather than leaving a
+    create one name serialize here and the loser fails on its unique name rather than leaving a
     half-built namespace. It is also the order the other writes take their locks in. Choosing the
     namespace takes no lock, and gives each caller a namespace of its own.
 

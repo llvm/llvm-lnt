@@ -10,11 +10,11 @@ naming convention below.
 from __future__ import annotations
 
 from sqlalchemy import (
-    ARRAY,
     Boolean,
     CheckConstraint,
     Column,
     DateTime,
+    ForeignKey,
     Identity,
     Integer,
     MetaData,
@@ -22,6 +22,8 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    UniqueConstraint,
+    false,
     func,
     true,
 )
@@ -86,7 +88,10 @@ SCHEMA_VERSION_ID = 1
 schema = Table(
     "schema",
     metadata,
-    Column("name", String(SUITE_NAME_MAX_LENGTH), primary_key=True),
+    # The suite's identity, which no response shows (D5): what an API key's restriction refers to,
+    # so that it follows the suite rather than its name.
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False, unique=True),
     # Chosen by the server when the suite is created, and never changed afterwards (D5). Unique
     # because a namespace holds the tables of one suite only.
     Column("namespace", String(IDENTIFIER_MAX_LENGTH), nullable=False, unique=True),
@@ -136,9 +141,9 @@ api_key = Table(
     Column("key_hash", String(TOKEN_HASH_LENGTH), nullable=False, unique=True),
     Column("name", String(KEY_NAME_MAX_LENGTH), nullable=False),
     Column("scope", String(32), nullable=False),
-    # Null for a key valid across the instance, or the suites it is restricted to (I5). Names
-    # rather than foreign keys to `schema`: deleting a suite leaves its name on its keys.
-    Column("suites", ARRAY(String(SUITE_NAME_MAX_LENGTH)), nullable=True),
+    # Whether the key is restricted to the suites its `api_key_restriction` rows list (I5). It stays
+    # restricted once deleting those suites has removed every row.
+    Column("restricted", Boolean, nullable=False, server_default=false()),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("last_used_at", DateTime(timezone=True), nullable=True),
     Column("is_active", Boolean, nullable=False, server_default=true()),
@@ -150,14 +155,27 @@ api_key = Table(
         "scope IN ({})".format(", ".join(f"'{scope.value}'" for scope in Scope)),
         name="scope",
     ),
-    # D5's rules for `suites`, as I5 states them: never an empty list (which would grant nothing
-    # anywhere), never a null name, and never on the scopes that cannot be restricted.
+    # D5: the scopes that cannot be restricted (I5) are never stored as restricted.
     CheckConstraint(
-        "suites IS NULL OR (cardinality(suites) > 0 AND array_position(suites, NULL) IS NULL "
-        "AND scope NOT IN ({}))".format(
+        "NOT restricted OR scope NOT IN ({})".format(
             ", ".join(f"'{scope.value}'" for scope in UNRESTRICTABLE_SCOPES)
         ),
-        name="suites",
+        name="restricted",
     ),
 )
 """One row per API key (D5). The token itself is never stored; see I5 and keys.py."""
+
+
+api_key_restriction = Table(
+    "api_key_restriction",
+    metadata,
+    Column("api_key_id", Integer, ForeignKey(api_key.c.id), nullable=False),
+    # Deleting a suite removes it from the keys that list it (I5).
+    Column("suite_id", Integer, ForeignKey(schema.c.id, ondelete="CASCADE"), nullable=False),
+    UniqueConstraint("api_key_id", "suite_id"),
+)
+"""One row per suite a restricted key is restricted to (D5, I5).
+
+A row refers to its suite by identity rather than by name, so a suite created later under the name
+of a deleted one is not covered. Rows are written with their key and never changed.
+"""

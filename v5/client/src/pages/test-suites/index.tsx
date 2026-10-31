@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router'
 import { removeSuite, useSuites, type SuiteSchema } from '../../api/suites'
+import { useAuth } from '../../auth/use-auth'
 import { Alert, ErrorMessage, Loading } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
 import { useMounted } from '../../components/use-mounted'
@@ -106,15 +107,19 @@ function SuiteTabs({ schema }: { schema: SuiteSchema }) {
   const { tab, search } = settings
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { recheck } = useAuth()
   // Whether the user is still on the suite's page, whichever its tab: these tabs are its page.
   const mounted = useMounted()
 
   // Once the suite is deleted from its Schema tab, the page leaves for `/suites`, in place of itself
   // in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
-  // going from the list takes these tabs with it.
+  // going from the list takes these tabs with it. The token is checked again, since its key may
+  // have been restricted to the suite, which it no longer lists, so that a suite created later
+  // under the name does not seem to be covered (AR17).
   const onDeleted = async () => {
     const leaving = mounted.current
     await removeSuite(queryClient, schema.name)
+    recheck()
     if (leaving) navigate('/suites', { replace: true })
   }
 

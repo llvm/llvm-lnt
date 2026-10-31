@@ -3,6 +3,7 @@ import { Button, Dialog, DialogTrigger } from 'react-aria-components'
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
 import { Popover } from '../components/popover'
+import { RESTRICTED_TO_NOTHING } from './scope'
 import { useAuth, type TokenStatus } from './use-auth'
 import styles from './settings-menu.module.css'
 
@@ -83,7 +84,13 @@ function statusText(status: TokenStatus): ReactNode {
       return (
         <>
           Using key <strong>{name}</strong> ({prefix}), with <strong>{scope}</strong> scope
-          {suites !== null && (
+          {suites?.length === 0 && (
+            // Its suites were all deleted, which leaves it restricted to nothing (AR22, I5).
+            <>
+              , covering <strong>Nothing</strong>: {RESTRICTED_TO_NOTHING}
+            </>
+          )}
+          {suites !== null && suites.length > 0 && (
             <>
               {' '}
               in {suites.length === 1 ? 'suite' : 'suites'}{' '}
