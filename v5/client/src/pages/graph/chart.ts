@@ -115,6 +115,8 @@ export function withEmphasis(trace: Partial<PlotData>, emphasized: boolean): Par
 
 /** A baseline's line for one test (GR9). */
 export interface BaselineLine {
+  /** How the baseline is named (see `BaselineState`). */
+  label: string
   /** The full label of the baseline's suite (AR22). */
   suiteLabel: string
   machine: string
@@ -137,14 +139,14 @@ const SPAN = Array.from({ length: ACROSS }, (_, i) => i / (ACROSS - 1))
  * however many commits the chart has, so that the line can be hovered from anywhere along it.
  */
 export function baselineTraces(lines: BaselineLine[], metric: Metric): Data[] {
-  return lines.map(({ suiteLabel, machine, commit, test, value, color }) => {
+  return lines.map(({ label, suiteLabel, machine, commit, test, value, color }) => {
     const tooltip = [suiteLabel, machine, commit, test, formatMetricValue(value, metric)].map(
       escapeHtml,
     )
     return {
       type: 'scatter',
       mode: 'lines',
-      name: `${escapeHtml(test)} - baseline ${escapeHtml(`${suiteLabel}/${machine}/${commit}`)}`,
+      name: `${escapeHtml(test)} - baseline ${escapeHtml(label)}`,
       xaxis: 'x2',
       x: SPAN,
       y: SPAN.map(() => value),

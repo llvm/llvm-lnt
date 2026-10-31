@@ -168,6 +168,7 @@ describe('withEmphasis (GR7)', () => {
 describe('baselineTraces (GR9)', () => {
   it('draws a dashed line across the chart, on an axis of its own, with a tooltip', () => {
     const line = {
+      label: 'nts › m › r10',
       suiteLabel: 'nts',
       machine: 'm<1>',
       commit: 'r10',
@@ -190,6 +191,7 @@ describe('baselineTraces (GR9)', () => {
 
   it("shows the test and the commit's display value as they are, even with template fields", () => {
     const line = {
+      label: 'nts › <&> › r10 %{x}',
       suiteLabel: 'nts',
       machine: '<&>',
       // The commit's display value, which unlike a commit string may contain a `%` (I1).
@@ -203,6 +205,7 @@ describe('baselineTraces (GR9)', () => {
     expect(hoverText(drawn, 50)).toContain(
       'Machine: &lt;&amp;&gt;<br>Commit: r10 %{x}<br>Test: fmt/%{y}<br>',
     )
+    expect((drawn as PlotData).name).toBe('fmt/%{y} - baseline nts › &lt;&amp;&gt; › r10 %{x}')
   })
 })
 

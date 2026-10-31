@@ -37,16 +37,17 @@ describe('labels', () => {
   })
 
   it("make a suite's full label of its project's label and its own", () => {
-    expect(fullLabel(suite('nts', 'LLVM test-suite'))).toBe('LLVM/LLVM test-suite')
-    expect(fullLabel(suite('nts', null, project('llvm')))).toBe('llvm/nts')
+    expect(fullLabel(suite('nts', 'LLVM test-suite'))).toBe('LLVM › LLVM test-suite')
+    expect(fullLabel(suite('nts', null, project('llvm')))).toBe('llvm › nts')
+    expect(fullLabel(suite('nts', 'C/D', project('llvm', 'A/B')))).toBe('A/B › C/D')
   })
 
   it("name a suite by its names until it is known, or if it isn't", () => {
     const suites = [suite('nts', 'LLVM test-suite')]
-    expect(fullLabelOf(suites, suiteRef('llvm', 'nts'))).toBe('LLVM/LLVM test-suite')
-    expect(fullLabelOf(suites, suiteRef('llvm', 'libcxx'))).toBe('llvm/libcxx')
-    expect(fullLabelOf(suites, suiteRef('other', 'nts'))).toBe('other/nts')
-    expect(fullLabelOf(undefined, suiteRef('llvm', 'nts'))).toBe('llvm/nts')
+    expect(fullLabelOf(suites, suiteRef('llvm', 'nts'))).toBe('LLVM › LLVM test-suite')
+    expect(fullLabelOf(suites, suiteRef('llvm', 'libcxx'))).toBe('llvm › libcxx')
+    expect(fullLabelOf(suites, suiteRef('other', 'nts'))).toBe('other › nts')
+    expect(fullLabelOf(undefined, suiteRef('llvm', 'nts'))).toBe('llvm › nts')
   })
 
   it("name a project by its name until it is known, or if it isn't", () => {
@@ -59,13 +60,13 @@ describe('labels', () => {
     expect(suiteOption(suite('nts', 'Tests'))).toEqual({
       value: 'llvm/nts',
       label: 'Tests',
-      selectedLabel: 'LLVM/Tests',
+      selectedLabel: 'LLVM › Tests',
       section: { key: 'llvm', heading: 'LLVM' },
     })
     expect(suiteOption(suite('nts', null, project('swift')))).toEqual({
       value: 'swift/nts',
       label: 'nts',
-      selectedLabel: 'swift/nts',
+      selectedLabel: 'swift › nts',
       section: { key: 'swift', heading: 'swift' },
     })
   })
@@ -101,9 +102,9 @@ describe('compareSuites', () => {
   })
 
   it('orders a level at a time: by project, then by suite, rather than by full label', () => {
-    // As strings, 'LLVM Extra/alpha' comes before 'LLVM/zeta', since ' ' comes before '/'.
-    const extra = project('extra', 'LLVM Extra')
-    expect(order(suite('alpha', null, extra), suite('zeta'))).toEqual(['llvm/zeta', 'extra/alpha'])
+    // Both projects are labelled 'LLVM', so 'LLVM › alpha' would come first by full label.
+    const extra = project('extra', 'LLVM')
+    expect(order(suite('alpha'), suite('zeta', null, extra))).toEqual(['extra/zeta', 'llvm/alpha'])
   })
 
   it('orders projects by label, then by name', () => {
@@ -145,7 +146,7 @@ describe('entriesNamed', () => {
       { project: 'llvm', suite: null },
       { project: 'llvm-extra', suite: 'alpha' },
     ])
-    expect(named.map(entryLabel)).toEqual(['LLVM (all)', 'LLVM Extra/alpha'])
+    expect(named.map(entryLabel)).toEqual(['LLVM (all)', 'LLVM Extra › alpha'])
   })
 })
 

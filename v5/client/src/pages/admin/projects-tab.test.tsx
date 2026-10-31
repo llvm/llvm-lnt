@@ -259,7 +259,7 @@ describe('gating with a key restricted to a suite', () => {
 
     const needs =
       "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token " +
-      "in Settings has the 'manage' scope, covering only 'llvm/libcxx'."
+      "in Settings has the 'manage' scope, covering only 'llvm › libcxx'."
     const edit = screen.getByRole('button', { name: 'Edit Display name of llvm' })
     await waitFor(() => expect(edit).toHaveAttribute('title', needs))
     expect(edit).toBeDisabled()

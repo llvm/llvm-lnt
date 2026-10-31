@@ -237,17 +237,18 @@ suites defined on the instance, grouped by project; see AR22) -> Machine
 (populated from the selected machine's commits via
 `GET commits?machine={name}&sort=-ordinal`; see AR15). Picking a commit adds the
 baseline and closes the panel; "+" closes it too. Added baselines appear as
-removable chips labeled `{suite}/{machine}/{display_value}`, where `{suite}` is
-the suite's full label (see AR22) and `display_value` the commit's display value
-(see AR6), or the commit string until the display value is known. A baseline
-loaded from the URL is looked up like a commit given to the commit picker:
-through `GET commits?machine={machine}&commit={commit}` in the baseline's suite,
-which returns the commit, with its display value, only if the machine has runs
-at it. If that lookup succeeds without returning it, the baseline is unusable,
-and is dropped (see AR2 "State"). A baseline can also be added from a point's
-details (GR11): the point's suite, machine and commit. Like a commit picked in
-the panel, it is not looked up (AR15): its point shows that the machine has runs
-at the commit. Baseline data is fetched from the baseline's suite via
+removable chips labeled `{suite} › {machine} › {display_value}`, where
+`{suite}` is the suite's full label (see AR22) and `display_value` the commit's
+display value (see AR6), or the commit string until the display value is known.
+A baseline loaded from the URL is looked up like a commit given to the commit
+picker: through `GET commits?machine={machine}&commit={commit}` in the
+baseline's suite, which returns the commit, with its display value, only if the
+machine has runs at it. If that lookup succeeds without returning it, the
+baseline is unusable, and is dropped (see AR2 "State"). A baseline can also be
+added from a point's details (GR11): the point's suite, machine and commit. Like
+a commit picked in the panel, it is not looked up (AR15): its point shows that
+the machine has runs at the commit. Baseline data is fetched from the baseline's
+suite via
 `GET /api/projects/{project}/suites/{suite}/series?machine={machine}&metric={metric}&commit={commit}`:
 every test's data at that commit, so that selecting tests needs no request, and
 a test that the baseline's suite does not have is simply absent. These requests

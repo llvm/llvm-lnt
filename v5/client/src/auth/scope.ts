@@ -76,7 +76,7 @@ export interface ScopeGate {
 export const RESTRICTED_TO_NOTHING =
   'what it was restricted to has been deleted, so it can only read'
 
-/** `entry` as a sentence names it: `'libc++' (all)` for a whole project, `'LLVM/nts'` a suite. */
+/** `entry` as a sentence names it: `'libc++' (all)` for a whole project, `'LLVM › nts'` a suite. */
 function quoted(entry: NamedEntry): string {
   if (entry.suite === null) return `'${projectLabel(entry.project)}' (all)`
   return `'${fullLabel(entry.suite)}'`
@@ -84,7 +84,7 @@ function quoted(entry: NamedEntry): string {
 
 /**
  * What a key restricted to `entries` covers, as a sentence says it, naming what it lists by their
- * labels as `known` has them (AR22): `covering only 'libc++' (all), 'LLVM/nts'`, or nothing once
+ * labels as `known` has them (AR22): `covering only 'libc++' (all), 'LLVM › nts'`, or nothing once
  * they have all been deleted (I5).
  */
 function restrictionText(entries: readonly Entry[], known: readonly Project[] | undefined): string {

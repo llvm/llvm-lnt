@@ -119,7 +119,7 @@ test.describe('the API Keys tab', () => {
       page.getByRole('option', { name: 'libc++ (all suites, including those created later)' }),
     ).toHaveAttribute('aria-selected', 'true')
     const benchmarks = page.getByRole('option', {
-      name: 'libc++/Microbenchmarks, covered by libc++',
+      name: 'libc++ › Microbenchmarks, covered by libc++',
     })
     await expect(benchmarks.getByRole('checkbox', { includeHidden: true })).toBeHidden()
     await benchmarks.click({ force: true })
@@ -127,16 +127,16 @@ test.describe('the API Keys tab', () => {
     await expect(benchmarks).toHaveAttribute('aria-selected', 'false')
     await expect(covers).toHaveText(/^libc\+\+ \(all\)/)
     // Each suite by its full label (AR22).
-    await page.getByRole('option', { name: 'LLVM/nts', exact: true }).click()
+    await page.getByRole('option', { name: 'LLVM › nts', exact: true }).click()
     await page.keyboard.press('Escape')
-    await expect(covers).toHaveText(/libc\+\+ \(all\), LLVM\/nts/)
+    await expect(covers).toHaveText(/libc\+\+ \(all\), LLVM › nts/)
     await expect(covers).toBeFocused()
     await form.getByRole('button', { name: 'Create key' }).click()
 
     const created = page.getByRole('region', { name: 'Created key' })
     const token = (await created.locator('code').textContent()) ?? ''
     const row = rows(keys).filter({ hasText: token.slice(0, 8) })
-    await expect(row.locator('td').nth(3)).toHaveText('libc++ (all), LLVM/nts')
+    await expect(row.locator('td').nth(3)).toHaveText('libc++ (all), LLVM › nts')
     expect(await keyOf(request, token)).toMatchObject({
       name,
       scope: 'submit',
@@ -386,7 +386,7 @@ test.describe("the Projects tab's suite creation", () => {
       await suiteLink.click()
       await page.getByRole('tab', { name: 'Schema' }).click()
       await page.getByRole('button', { name: 'Edit schema' }).click()
-      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project} › ${suite.suite}` })
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')

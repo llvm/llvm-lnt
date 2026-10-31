@@ -416,7 +416,7 @@ test.describe('the Schema tab', () => {
 
       await page.getByRole('button', { name: 'Edit schema' }).click()
       // Named by its full label (AR22).
-      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project} › ${suite.suite}` })
       await editor
         .getByRole('textbox', { name: 'Display name of metric execution_time' })
         .fill('Execution Time')
@@ -476,7 +476,7 @@ test.describe('the Schema tab', () => {
       await page.goto(`${suitePath(suite)}?tab=schema`)
 
       await page.getByRole('button', { name: 'Edit schema' }).click()
-      const editor = page.getByRole('region', { name: `Editing ${suite.project}/${suite.suite}` })
+      const editor = page.getByRole('region', { name: `Editing ${suite.project} › ${suite.suite}` })
       const save = editor.getByRole('button', { name: 'Save', exact: true })
       const commitUrl = editor.getByRole('textbox', { name: 'Commit URL' })
       // Refused while the host is not written out.
@@ -606,7 +606,7 @@ test.describe('the Schema tab', () => {
     await picker.getByRole('link', { name: 'Microbenchmarks' }).click()
     await page.getByRole('tab', { name: 'Schema' }).click()
     await page.getByRole('button', { name: 'Edit schema' }).click()
-    const editor = page.getByRole('region', { name: 'Editing libc++/Microbenchmarks' })
+    const editor = page.getByRole('region', { name: 'Editing libc++ › Microbenchmarks' })
     const displayName = editor.getByRole('textbox', {
       name: 'Display name of metric execution_time',
     })

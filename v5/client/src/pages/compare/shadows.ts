@@ -11,7 +11,7 @@ import type { Schemas } from '../../api/client'
 import type { Failures } from '../../api/failures'
 import { commitRunsQuery, runRefKey, uniqueRuns, useRunSamples } from '../../api/runs'
 import type { Suite } from '../../api/suites'
-import { fullLabelOf } from '../../labels'
+import { fullLabelOf, joinLabels } from '../../labels'
 import {
   distinctCommits,
   formatCommitOfMachine,
@@ -137,7 +137,7 @@ export function useShadows(
         return {
           key: keys[i],
           schema,
-          label: `${fullLabelOf(suites, spec.suite)}/${spec.machine}/${display}${subset}`,
+          label: joinLabels(fullLabelOf(suites, spec.suite), spec.machine, display) + subset,
           runSamples: samplesOfRuns(chosen, states),
         }
       }),

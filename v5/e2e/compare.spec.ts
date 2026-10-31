@@ -418,7 +418,7 @@ test("gives a long machine name its side's width, runs listed or not (CP1)", asy
   const controls = sideOf(page, 'A')
   const machine = controls.getByRole('combobox', { name: 'Machine' })
   // Measured once the side shows what the URL names, and no longer its placeholders.
-  await expect(controls.getByRole('button', { name: 'libc++/Microbenchmarks Suite' })).toBeVisible()
+  await expect(controls.getByRole('button', { name: 'libc++ › Microbenchmarks Suite' })).toBeVisible()
   await expect(machine).toHaveValue(HARDENED)
   const width = () => machine.evaluate((element) => element.clientWidth)
   const before = await width()
@@ -607,7 +607,7 @@ test('overlays sides B pinned on the chart, keeping them on a swap', async ({ pa
   const chips = page.getByRole('list', { name: 'Shadows' }).getByRole('listitem')
   const shadows = () => new URL(page.url()).searchParams.getAll('shadow')
   // Named by its suite's full label (AR22).
-  const first = `libc++/Microbenchmarks/${LINUX}/${newer.fields.svn_revision}`
+  const first = `libc++ › Microbenchmarks › ${LINUX} › ${newer.fields.svn_revision}`
   await pin.click()
   const escaped = first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   await expect(chips).toHaveText([new RegExp(`^●Shadow: ${escaped} · \\d+ tests×$`)])

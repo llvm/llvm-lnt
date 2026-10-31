@@ -132,8 +132,8 @@ describe('hover (GR7, GR10)', () => {
       trace.line.width,
     ])
     expect(looks).toEqual([
-      ['a - baseline llvm/libcxx/m1/r10', 0.2, 1.5],
-      ['b - baseline llvm/libcxx/m1/r10', undefined, 3],
+      ['a - baseline llvm › libcxx › m1 › r10', 0.2, 1.5],
+      ['b - baseline llvm › libcxx › m1 › r10', undefined, 3],
       ['a - m1', 0.2, 1.5],
       ['b - m1', undefined, 3],
       ['b - m2', undefined, 3],
@@ -175,7 +175,7 @@ describe('hover (GR7, GR10)', () => {
     renderPage(`${ONE_MACHINE}&test=a&test=b&baseline=llvm/libcxx/m1/c10`)
     await waitFor(() => expect(chart().data).toHaveLength(4))
 
-    hover('b - baseline llvm/libcxx/m1/r10', 50)
+    hover('b - baseline llvm › libcxx › m1 › r10', 50)
 
     expect(testTable().getByText('b').closest('span')).toHaveClass('hovered')
   })
@@ -551,7 +551,7 @@ describe('the point details (GR11)', () => {
 
     // A click without a press, as from the keyboard, unlike a press outside the details.
     reopen()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove baseline llvm/libcxx/m1/r10' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove baseline llvm › libcxx › m1 › r10' }))
     expect(query().baseline).toBeUndefined()
     // Its lines change neither the point nor what its details show (GR11).
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -1130,40 +1130,40 @@ describe('the baselines (GR9)', () => {
 
     await waitFor(() =>
       expect(baselineLines()).toEqual([
-        'a - baseline llvm/libcxx/m1/r10: 1',
-        'b - baseline llvm/libcxx/m1/r10: 3',
+        'a - baseline llvm › libcxx › m1 › r10: 1',
+        'b - baseline llvm › libcxx › m1 › r10: 3',
       ]),
     )
     // Before the traces, so that the points on a line keep their tooltips and details (GR9).
     expect(drawn()).toEqual([
-      'a - baseline llvm/libcxx/m1/r10',
-      'b - baseline llvm/libcxx/m1/r10',
+      'a - baseline llvm › libcxx › m1 › r10',
+      'b - baseline llvm › libcxx › m1 › r10',
       'a - m1',
       'b - m1',
     ])
     const line = curve('a - m1') as PlotData
-    const a = curve('a - baseline llvm/libcxx/m1/r10') as PlotData
+    const a = curve('a - baseline llvm › libcxx › m1 › r10') as PlotData
     expect(a.x).toHaveLength(101)
     expect(a.line.dash).toBe('dash')
     expect(a.line.color).toBe(line.line.color)
-    expect(hoverText(a, 0)).toContain('Suite: llvm/libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
+    expect(hoverText(a, 0)).toContain('Suite: llvm › libcxx<br>Machine: m1<br>Commit: r10<br>Test: a')
     // Every test's data at the commit, without `has_ordinal`, which leaves in commits without an
     // ordinal.
     const baseline = recorded.series.find(({ query }) => query.has('commit'))
     expect(baseline?.query.toString()).toBe('metric=execution_time&machine=m1&commit=c10')
     const chips = within(baselineChips())
-    expect(chips.getByRole('listitem')).toHaveTextContent('llvm/libcxx/m1/r10')
+    expect(chips.getByRole('listitem')).toHaveTextContent('llvm › libcxx › m1 › r10')
   })
 
   it("names a baseline's suite by its label (AR22)", async () => {
     mockWorld({ suites: [{ ...GRAPH_SUITE, name: 'other', display_name: 'Other suite' }] })
     renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/other/m1/c10`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/Other suite/m1/r10: 1']))
-    expect(hoverText(curve('a - baseline llvm/Other suite/m1/r10') as PlotData, 0)).toContain(
-      'Suite: llvm/Other suite<br>',
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › Other suite › m1 › r10: 1']))
+    expect(hoverText(curve('a - baseline llvm › Other suite › m1 › r10') as PlotData, 0)).toContain(
+      'Suite: llvm › Other suite<br>',
     )
-    expect(within(baselineChips()).getByRole('listitem')).toHaveTextContent('llvm/Other suite/m1/r10')
+    expect(within(baselineChips()).getByRole('listitem')).toHaveTextContent('llvm › Other suite › m1 › r10')
     // The URL names the suite by its name.
     expect(query().baseline).toEqual(['llvm/other/m1/c10'])
   })
@@ -1181,7 +1181,7 @@ describe('the baselines (GR9)', () => {
     const tests = names.map((name) => `&test=${name}`).join('')
     renderPage(`${ONE_MACHINE}${tests}&baseline=llvm/libcxx/m1/c10`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 1']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 1']))
     const traces = recorded.series.filter(({ query }) => !query.has('commit'))
     expect(traces).toHaveLength(6)
     expect(traces.every(({ signal }) => !signal.aborted)).toBe(true)
@@ -1199,9 +1199,9 @@ describe('the baselines (GR9)', () => {
     mockWorld({ samples })
     renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/libcxx/m1/c10&run_agg=max`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 10']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 10']))
     await pickOption('Run aggregation', 'min')
-    expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 3'])
+    expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 3'])
   })
 
   it("drops a baseline whose suite, machine or commit doesn't exist, or is malformed", async () => {
@@ -1219,7 +1219,7 @@ describe('the baselines (GR9)', () => {
     const recorded = mockWorld({ suites: [OTHER_UNIT] })
     renderPage(`${ONE_MACHINE}&test=a&baseline=llvm/other/m1/c10&baseline=llvm/libcxx/m1/c20`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r20: 2']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r20: 2']))
     const baselines = recorded.series.filter(({ query }) => query.has('commit'))
     expect(baselines.map(({ query }) => query.get('commit'))).toEqual(['c20'])
     expect(query().baseline).toEqual(['llvm/other/m1/c10', 'llvm/libcxx/m1/c20'])
@@ -1229,7 +1229,7 @@ describe('the baselines (GR9)', () => {
     mockWorld({ samples: { 'm2/b': [['c40', 'r3', 4]] } })
     renderPage(`${ONE_MACHINE}&test=b&baseline=llvm/libcxx/m2/c40`)
 
-    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm/libcxx/m2/r40: 4']))
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm › libcxx › m2 › r40: 4']))
     await waitFor(() => expect(layout().annotations?.[0]?.text).toBe('No data to plot'))
   })
 
@@ -1252,9 +1252,9 @@ describe('the baselines (GR9)', () => {
     const add = screen.getByRole('button', { name: 'Add a baseline' })
     expect(add).toHaveFocus()
     expect(add).toHaveAttribute('aria-expanded', 'false')
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r20: 2']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r20: 2']))
 
-    await user.click(screen.getByRole('button', { name: 'Remove baseline llvm/libcxx/m1/r20' }))
+    await user.click(screen.getByRole('button', { name: 'Remove baseline llvm › libcxx › m1 › r20' }))
     expect(query().baseline).toBeUndefined()
     // The focus goes to the button adding one, once none is left.
     expect(screen.getByRole('button', { name: 'Add a baseline' })).toHaveFocus()
@@ -1263,7 +1263,7 @@ describe('the baselines (GR9)', () => {
   it("is added from a point's details, and removed, which stay open with the focus", async () => {
     const recorded = mockWorld()
     renderPage(`${GRAPHED}&test=a&test=b&baseline=llvm/libcxx/m2/c40`)
-    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm/libcxx/m2/r40: 4']))
+    await waitFor(() => expect(baselineLines()).toEqual(['b - baseline llvm › libcxx › m2 › r40: 4']))
     draw()
     const user = userEvent.setup()
 
@@ -1272,13 +1272,13 @@ describe('the baselines (GR9)', () => {
 
     // Besides the baselines added before.
     expect(query().baseline).toEqual(['llvm/libcxx/m2/c40', 'llvm/libcxx/m1/c20'])
-    expect(baselineChips()).toHaveTextContent(/^llvm\/libcxx\/m2\/r40×llvm\/libcxx\/m1\/r20×$/)
+    expect(baselineChips()).toHaveTextContent(/^llvm › libcxx › m2 › r40×llvm › libcxx › m1 › r20×$/)
     const remove = details().getByRole('button', { name: 'Remove baseline' })
     expect(remove).toHaveFocus()
     await waitFor(() =>
       expect(baselineLines()).toEqual([
-        'b - baseline llvm/libcxx/m2/r40: 4',
-        'a - baseline llvm/libcxx/m1/r20: 2',
+        'b - baseline llvm › libcxx › m2 › r40: 4',
+        'a - baseline llvm › libcxx › m1 › r20: 2',
       ]),
     )
     // Its point shows that the machine has runs at the commit, which is not looked up (GR9): only
@@ -1290,7 +1290,7 @@ describe('the baselines (GR9)', () => {
     await user.click(remove)
 
     expect(query().baseline).toEqual(['llvm/libcxx/m2/c40'])
-    expect(baselineLines()).toEqual(['b - baseline llvm/libcxx/m2/r40: 4'])
+    expect(baselineLines()).toEqual(['b - baseline llvm › libcxx › m2 › r40: 4'])
     expect(details().getByRole('button', { name: 'Add baseline' })).toHaveFocus()
 
     // The details of a point that is a baseline already remove it.
@@ -1314,7 +1314,7 @@ describe('the baselines (GR9)', () => {
     draw()
 
     click('a - m1', 1)
-    expect(baselineChips()).toHaveTextContent('llvm/libcxx/m1/c20')
+    expect(baselineChips()).toHaveTextContent('llvm › libcxx › m1 › c20')
     await userEvent
       .setup()
       .click(details().getByRole('button', { name: 'Remove baseline' }))
@@ -1357,7 +1357,7 @@ describe('the baselines (GR9)', () => {
     ).toBeInTheDocument()
     failing = false
     fireEvent.click(within(main().getByRole('alert')).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm/libcxx/m1/r10: 1']))
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline llvm › libcxx › m1 › r10: 1']))
   })
 })
 

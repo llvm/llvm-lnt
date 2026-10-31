@@ -148,19 +148,19 @@ describe('shadowTrace', () => {
   const points = chartBars([row('a', 1, 2), row('b', 2, 1)])
 
   it('draws a line through the points, with the tooltip of a bar naming the shadow', () => {
-    const trace = shadowTrace(points, 0, 'Shadow: s/m/c')
+    const trace = shadowTrace(points, 0, 'Shadow: s › m › c')
     expect(trace).toMatchObject({ type: 'scatter', mode: 'lines+markers', x: [0, 1], y: [-1, 1] })
     expect(trace.hovertemplate).toMatch(
       /^<b>%\{customdata\[0\]\}<\/b><br>%\{customdata\[5\]\}<br>Ratio/,
     )
-    expect((trace.customdata as unknown as string[][])[0][5]).toBe('Shadow: s/m/c')
+    expect((trace.customdata as unknown as string[][])[0][5]).toBe('Shadow: s › m › c')
     // A point of a shadow has no details (CP8).
     expect(trace.hovertemplate).not.toContain('Click')
   })
 
   it('escapes the label, and keeps it out of the template', () => {
-    const trace = shadowTrace(points, 0, 'Shadow: s/<m&>/%{x}')
-    expect((trace.customdata as unknown as string[][])[1][5]).toBe('Shadow: s/&lt;m&amp;&gt;/%{x}')
+    const trace = shadowTrace(points, 0, 'Shadow: s › <m&> › %{x}')
+    expect((trace.customdata as unknown as string[][])[1][5]).toBe('Shadow: s › &lt;m&amp;&gt; › %{x}')
     expect(trace.hovertemplate).not.toContain('%{x}')
   })
 

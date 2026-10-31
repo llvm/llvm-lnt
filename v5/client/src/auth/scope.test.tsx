@@ -137,20 +137,20 @@ describe('useScopeGate', () => {
     expect(result.current.other).toEqual({
       disabled: true,
       title:
-        "Needs an API token with the 'triage' scope in suite 'llvm/other'. The token in Settings " +
-        "has the 'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
+        "Needs an API token with the 'triage' scope in suite 'llvm › other'. The token in Settings " +
+        "has the 'triage' scope, covering only 'llvm › libcxx', 'llvm › nts'.",
     })
     expect(result.current.higher.title).toBe(
-      "Needs an API token with the 'manage' scope in suite 'llvm/nts'. The token in Settings has " +
-        "the 'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
+      "Needs an API token with the 'manage' scope in suite 'llvm › nts'. The token in Settings has " +
+        "the 'triage' scope, covering only 'llvm › libcxx', 'llvm › nts'.",
     )
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'triage' scope covering project 'llvm' in full. The token in " +
-        "Settings has the 'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
+        "Settings has the 'triage' scope, covering only 'llvm › libcxx', 'llvm › nts'.",
     )
     expect(result.current.none.title).toBe(
       "Needs an instance-wide API token with the 'triage' scope. The token in Settings has the " +
-        "'triage' scope, covering only 'llvm/libcxx', 'llvm/nts'.",
+        "'triage' scope, covering only 'llvm › libcxx', 'llvm › nts'.",
     )
   })
 
@@ -178,12 +178,12 @@ describe('useScopeGate', () => {
 
     await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
     expect(result.current.other.title).toBe(
-      "Needs an API token with the 'manage' scope in suite 'LLVM/Microbenchmarks'. The token in " +
-        "Settings has the 'triage' scope, covering only 'LLVM/Microbenchmarks', 'LLVM/Test suite'.",
+      "Needs an API token with the 'manage' scope in suite 'LLVM › Microbenchmarks'. The token in " +
+        "Settings has the 'triage' scope, covering only 'LLVM › Microbenchmarks', 'LLVM › Test suite'.",
     )
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'manage' scope covering project 'LLVM' in full. The token in " +
-        "Settings has the 'triage' scope, covering only 'LLVM/Microbenchmarks', 'LLVM/Test suite'.",
+        "Settings has the 'triage' scope, covering only 'LLVM › Microbenchmarks', 'LLVM › Test suite'.",
     )
   })
 
@@ -208,7 +208,7 @@ describe('useScopeGate', () => {
     await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
     expect(result.current.project.title).toBe(
       "Needs an API token with the 'manage' scope covering project 'LLVM' in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'LLVM/gone', 'LLVM/libcxx', 'Swift' (all).",
+        "Settings has the 'manage' scope, covering only 'LLVM › gone', 'LLVM › libcxx', 'Swift' (all).",
     )
   })
 
@@ -223,7 +223,7 @@ describe('useScopeGate', () => {
     expect(result.current.gate).toEqual({
       disabled: true,
       title:
-        "Needs an API token with the 'triage' scope in suite 'llvm/nts'. The token in Settings " +
+        "Needs an API token with the 'triage' scope in suite 'llvm › nts'. The token in Settings " +
         "has the 'triage' scope, covering nothing: what it was restricted to has been deleted, so it " +
         'can only read.',
     })

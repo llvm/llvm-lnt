@@ -35,9 +35,9 @@ interface Props {
  */
 export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled, toggle }: Props) {
   const [adding, setAdding] = useState(false)
-  const chips = baselines.map(({ baseline, suiteLabel, display }) => ({
+  const chips = baselines.map(({ baseline, label }) => ({
     key: formatBaseline(baseline),
-    text: `${suiteLabel}/${baseline.machine}/${display}`,
+    text: label,
   }))
 
   // Once a baseline is added, the form it was picked in is gone: the focus goes back to "+".

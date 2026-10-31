@@ -93,8 +93,8 @@ describe('Add to Regression (CP9)', () => {
     await waitFor(() =>
       expect(toggle()).toHaveAttribute(
         'title',
-        "Needs an API token with the 'triage' scope in suite 'llvm/libcxx'. The token in " +
-          "Settings has the 'triage' scope, covering only 'llvm/other'.",
+        "Needs an API token with the 'triage' scope in suite 'llvm › libcxx'. The token in " +
+          "Settings has the 'triage' scope, covering only 'llvm › other'.",
       ),
     )
     expect(toggle()).toBeDisabled()
@@ -116,7 +116,7 @@ describe('Add to Regression (CP9)', () => {
     const targets = screen.getByText('Covers:').closest('dl')!
     expect([...targets.children].map((row) => row.textContent)).toEqual([
       'Covers:2 selected tests',
-      'Test Suite:llvm/libcxx',
+      'Test Suite:llvm › libcxx',
       'Metric:Execution Time',
       'Machine:m1',
       'Commit:c2',
@@ -132,7 +132,7 @@ describe('Add to Regression (CP9)', () => {
     await openPanel()
 
     expect(screen.getByText('Test Suite:').closest('div')).toHaveTextContent(
-      'Test Suite:llvm/Microbenchmarks',
+      'Test Suite:llvm › Microbenchmarks',
     )
   })
 
