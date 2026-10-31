@@ -77,3 +77,22 @@
   composes: note from '../test-suites.module.css';
   font-size: 0.85rem;
 }
+
+/* The "Rename or move" panel, below the Schema tab's buttons (TS6), laid out as the schema
+   editor's header is. */
+.movePanel {
+  margin-top: var(--lnt-space-3);
+}
+
+.moveForm {
+  composes: createForm fields from '../test-suites.module.css';
+}
+
+/* The name, its label above it as the project's dropdown has its own. */
+.moveControl {
+  composes: control from '../test-suites.module.css';
+}
+
+.moveName {
+  composes: wide from '../test-suites.module.css';
+}

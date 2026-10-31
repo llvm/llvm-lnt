@@ -1,36 +1,29 @@
 """Projects, which group test suites (E13, D7).
 
 A project's suites are managed through E10, under the project's path. Here are the projects
-themselves: listing them with their suites, creating them, changing their display names and deleting
-them. Renaming a project is not supported yet.
+themselves: listing them with their suites, creating them, renaming them, changing their display
+names and deleting them.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Response
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    ModelWrapValidatorHandler,
-    PrivateAttr,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import insert, select, update
 
 from lnt_v5 import examples
-from lnt_v5.auth import Coverage, require_scope
+from lnt_v5.auth import BodyRule, Coverage, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
-from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
+from lnt_v5.errors import ErrorCode, ErrorEnvelope
 from lnt_v5.patching import omit_defaults
 from lnt_v5.responses import Items
 from lnt_v5.routes.suites import PROJECTS_PATH, sorted_schemas
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.registry import Project as CachedProject
 from lnt_v5.suites.registry import RegistryDep
-from lnt_v5.suites.schema import SuiteLabel, SuiteNameStr, SuiteSchema
+from lnt_v5.suites.schema import NAME_RULE, SuiteLabel, SuiteNameStr, SuiteSchema
 from lnt_v5.suites.scope import ProjectName
 from lnt_v5.suites.store import (
     PROJECT_NAME_CONSTRAINT,
@@ -38,14 +31,14 @@ from lnt_v5.suites.store import (
     bump,
     project_not_found,
     project_write,
+    relabel_project_suites,
 )
-from lnt_v5.tables import SUITE_NAME_MAX_LENGTH
 from lnt_v5.tables import project as project_table
 
 router = APIRouter(prefix=PROJECTS_PATH, tags=["Projects"])
 
 _NOT_FOUND = {"model": ErrorEnvelope, "description": "The project doesn't exist."}
-# A display-name change and a deletion can answer this: the project was busy (D2).
+# A change and a deletion can answer this: the project was busy (D2).
 _BUSY = (
     "`retry`: the project was busy, for example because a test suite was being created in it, so "
     "the change couldn't start. Nothing was saved: send the request again."
@@ -54,10 +47,7 @@ _BUSY = (
 # The docstrings of the models and endpoints below are published, as the descriptions I8's document
 # gives them, so they are written for API users.
 
-_PROJECT_NAME = (
-    "The project's name. Lowercase letters, digits, hyphens and underscores, starting with a "
-    f"letter or a digit, and at most {SUITE_NAME_MAX_LENGTH} characters."
-)
+_PROJECT_NAME = f"The project's name. {NAME_RULE}"
 _DISPLAY_NAME = (
     "How the web UI names the project, instead of its `name`. At most 256 characters. Only the "
     "name addresses the project in the API."
@@ -93,35 +83,22 @@ class ProjectCreate(BaseModel):
     )
 
 
-# What `ProjectUpdate` holds as its name when the request gives none.
-_NO_NAME = object()
-
-
 class ProjectUpdate(BaseModel):
     """Changes to a project. Only include the keys you want to change."""
 
-    # Read with `exclude_unset`, so the default is never read, and kept out of the document.
+    # Read with `exclude_unset`, so the defaults are never read, and kept out of the document.
     model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
+    name: SuiteNameStr = Field(
+        default="",
+        description=(
+            f"{_PROJECT_NAME} Renames the project: every URL of its test suites changes, and the "
+            "old ones answer 404. Can't be null."
+        ),
+    )
     display_name: SuiteLabel | None = Field(
         default=None, description=f"{_DISPLAY_NAME} Null removes it."
     )
-
-    # A `name`, which only the project's current name may be for now (see `patch_project`). Not a
-    # field, so that the document leaves it out until a project can be renamed.
-    _name: Any = PrivateAttr(default=_NO_NAME)
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def _take_name(cls, data: Any, handler: ModelWrapValidatorHandler[ProjectUpdate]) -> Any:
-        # Taken out before validation, so that `extra="forbid"` does not refuse it.
-        name = _NO_NAME
-        if isinstance(data, dict) and "name" in data:
-            data = dict(data)
-            name = data.pop("name")
-        model = handler(data)
-        model._name = name
-        return model
 
 
 _CREATE_EXAMPLES = {
@@ -132,6 +109,7 @@ _CREATE_EXAMPLES = {
 }
 
 _PATCH_EXAMPLES = {
+    "rename": {"summary": "Rename the project", "value": {"name": "libcpp"}},
     "display_name": {
         "summary": "Change the project's display name",
         "value": {"display_name": examples.PROJECT["display_name"]},
@@ -196,9 +174,15 @@ def get_project(project: ProjectName, engine: EngineDep, registry: RegistryDep) 
 
 @router.patch(
     "/{project}",
-    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
+    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT, body_rule=BodyRule.PROJECT_RENAME)],
     summary="Change a project",
-    responses={404: _NOT_FOUND, 409: {"model": ErrorEnvelope, "description": _BUSY}},
+    responses={
+        404: _NOT_FOUND,
+        409: {
+            "model": ErrorEnvelope,
+            "description": f"`duplicate`: another project has the new name. {_BUSY}",
+        },
+    },
 )
 def patch_project(
     project: ProjectName,
@@ -206,29 +190,43 @@ def patch_project(
     engine: EngineDep,
     registry: RegistryDep,
 ) -> Project:
-    """Change a project's display name, or remove it with null. A body that changes nothing, an
-    empty one included, changes nothing."""
+    """Rename a project, or change its display name, or remove it with null. A body that changes
+    nothing, an empty one included, changes nothing.
+
+    Renaming a project changes only names: its test suites keep all of their data, and API keys
+    keep covering what they covered. The old name isn't kept: every URL of the project and of its
+    test suites changes, and the old ones answer 404. Renaming needs an unrestricted API key."""
     changes = body.model_dump(exclude_unset=True)
-    with project_write(engine, project) as connection:
-        # FOR NO KEY UPDATE, which does not wait for a suite being created in the project.
+    name = changes.get("name", project)
+    renaming = name != project
+    taken = f"A project named '{name}' already exists"
+    with (
+        reporting_violation(PROJECT_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),
+        project_write(engine, project) as connection,
+    ):
+        # A rename takes FOR UPDATE, since it changes the name that creating a suite in the project,
+        # moving one into it and creating a key listing it look the project up by. A display-name
+        # change takes only FOR NO KEY UPDATE, which does not wait for them.
         stored = connection.execute(
-            select(project_table.c.display_name)
+            select(project_table.c.id, project_table.c.display_name)
             .where(project_table.c.name == project)
-            .with_for_update(key_share=True)
+            .with_for_update(key_share=not renaming)
         ).one_or_none()
         if stored is None:
             raise project_not_found(project)
-        if body._name is not _NO_NAME and body._name != project:
-            raise ApiError(ErrorCode.INVALID_REQUEST, "Renaming a project is not supported yet.")
-        if "display_name" in changes and changes["display_name"] != stored.display_name:
+        if not renaming:
+            changes.pop("name", None)
+        if "display_name" in changes and changes["display_name"] == stored.display_name:
+            del changes["display_name"]
+        if changes:
             connection.execute(
-                update(project_table)
-                .where(project_table.c.name == project)
-                .values(display_name=changes["display_name"])
+                update(project_table).where(project_table.c.id == stored.id).values(**changes)
             )
+            if renaming:
+                relabel_project_suites(connection, stored.id, name)
             bump(connection)
     with engine.connect() as connection:
-        return Project.of(registry.resolve_project(connection, project))
+        return Project.of(registry.resolve_project(connection, name))
 
 
 @router.delete(

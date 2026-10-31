@@ -105,11 +105,7 @@ def add_suite(connection: Connection, project_name: str, suite: SuiteSchema) -> 
     The tables are created with this build's latest structure, so the suite is recorded at the
     latest migration version (D6).
     """
-    project_id = connection.execute(
-        select(project.c.id)
-        .where(project.c.name == project_name)
-        .with_for_update(read=True, key_share=True)
-    ).scalar_one_or_none()
+    project_id = locked_projects(connection, {project_name}).get(project_name)
     if project_id is None:
         raise project_not_found(project_name)
     namespace = suite_tables.new_namespace(connection)
@@ -124,6 +120,77 @@ def add_suite(connection: Connection, project_name: str, suite: SuiteSchema) -> 
     )
     suite_tables.create(connection, suite, namespace, full_name(project_name, suite.name))
     bump(connection)
+
+
+def locked_projects(connection: Connection, names: set[str]) -> dict[str, int]:
+    """The ids of the projects named `names` that exist, by name, each locked against being renamed
+    or deleted until the caller's transaction ends.
+
+    Projects are locked before suites, by every writer that locks both (see `locked_suite`). A
+    move locks the suite's project and its destination together this way before it locks the
+    suite, which keeps the destination from being deleted meanwhile (D2), as `add_suite` keeps the
+    project it creates a suite in. FOR KEY SHARE, which a change to a project's display name does
+    not wait for.
+    """
+    rows = connection.execute(
+        select(project.c.name, project.c.id)
+        .where(project.c.name.in_(names))
+        .with_for_update(read=True, key_share=True)
+    )
+    return {row.name: row.id for row in rows}
+
+
+def move_suite(
+    connection: Connection, stored: StoredSuite, project_name: str, project_id: int, name: str
+) -> SuiteSchema:
+    """Rename the suite `stored` to `name`, in the project `project_name` (whose id is
+    `project_id`), which may be another project than its own, and return its schema under its new
+    name (D7).
+
+    Only names change: the suite keeps its namespace and its tables, which are relabelled with its
+    new full name. `stored` must come from `locked_suite`, once `locked_projects` has locked both
+    projects.
+    """
+    renamed = stored.schema.model_copy(update={"name": name})
+    connection.execute(
+        update(schema)
+        .where(schema.c.id == stored.id)
+        .values(project_id=project_id, name=name, schema_json=normalized_json(renamed))
+    )
+    suite_tables.label(connection, stored.namespace, full_name(project_name, name))
+    bump(connection)
+    return renamed
+
+
+def relabel_project_suites(connection: Connection, project_id: int, project_name: str) -> None:
+    """Label the namespace of every suite of the project `project_id` with the suite's full name in
+    the project, once it is named `project_name`.
+
+    The caller has locked the project's row FOR UPDATE, which every writer of a suite waits for or
+    has made it wait for, since each locks the suite's project first. The suites' rows are locked
+    too, so that none of them is changed or deleted while its namespace is relabelled: a deleted
+    namespace could not be commented on. The only thing that can then hold one of them is what locks
+    a suite without its project, a migration of the suite's tables, which labels the namespace
+    itself. So they are locked without waiting: the rename gives up, with a retryable 409, rather
+    than wait for a migration, which may take long, and which would otherwise label the suite with
+    the project's old name.
+    """
+    try:
+        rows = connection.execute(
+            select(schema.c.name, schema.c.namespace)
+            .where(schema.c.project_id == project_id)
+            .with_for_update(read=True, key_share=True, nowait=True)
+        ).all()
+    except DBAPIError as error:
+        if not is_lock_unavailable(error):
+            raise
+        raise ApiError(
+            ErrorCode.RETRY,
+            f"Project '{project_name}' could not be renamed: one of its test suites was being "
+            "changed. Retry.",
+        ) from error
+    for row in rows:
+        suite_tables.label(connection, row.namespace, full_name(project_name, row.name))
 
 
 def project_not_found(name: str) -> ApiError:
@@ -144,17 +211,21 @@ def locked_suite(connection: Connection, project_name: str, name: str) -> Stored
     the previous change added while still applying its own DDL, leaving the tables and the stored
     schema permanently disagreeing.
 
-    Only the suite's row is locked, not its project's, which a change to the project's display name
-    can then go on changing meanwhile.
+    The project's row is locked first, FOR KEY SHARE, the order every writer that locks both takes
+    them in (see `locked_projects`). That keeps the suite from being changed through a project name
+    that a concurrent rename of the project has just retired: once the rename commits, the name
+    finds nothing. A change to the project's display name does not wait for it.
 
-    Raises 404 if there is no such suite, which is also what makes a change racing a delete answer
-    404 rather than succeeding against a row that is no longer there.
+    Raises 404 if there is no such suite, which is also what makes a change racing a delete or a
+    rename answer 404 rather than succeeding against a row that is no longer there.
     """
+    project_id = locked_projects(connection, {project_name}).get(project_name)
+    if project_id is None:
+        raise suite_not_found(project_name, name)
     row = connection.execute(
         select(schema.c.id, schema.c.schema_json, schema.c.namespace)
-        .select_from(schema.join(project))
-        .where(project.c.name == project_name, schema.c.name == name)
-        .with_for_update(of=schema)
+        .where(schema.c.project_id == project_id, schema.c.name == name)
+        .with_for_update()
     ).one_or_none()
     if row is None:
         raise suite_not_found(project_name, name)

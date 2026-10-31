@@ -565,13 +565,9 @@ class TestProjectRestriction:
     ) -> None:
         response = api_client.request(method, path, json=body, headers=libcxx)
 
-        # Renaming is refused whatever the key for now; creating and deleting need an instance-wide
-        # key (I5).
-        if method == "PATCH":
-            assert response.status_code == 400
-        else:
-            assert response.status_code == 403
-            assert "instance-wide" in response.json()["error"]["message"]
+        # I5: these need an instance-wide key.
+        assert response.status_code == 403
+        assert "instance-wide" in response.json()["error"]["message"]
 
     def test_grants_only_read_once_the_project_is_deleted(
         self,
@@ -591,6 +587,161 @@ class TestProjectRestriction:
         write = api_client.post(machines, json={"name": "m"}, headers=libcxx)
         assert write.status_code == 403
         assert "have all been deleted" in write.json()["error"]["message"]
+
+
+class TestMovesAndProjectRenames:
+    """I5: what the body of a move or a project rename asks of a restricted key, decided from the
+    body before it is validated."""
+
+    MOVE = "/api/projects/libcxx/suites/nts"
+
+    @pytest.fixture(autouse=True)
+    def suites(self, make_api_suite: Callable[..., Any], db_engine: Engine) -> None:
+        make_api_suite(NTS, "libcxx")
+        with db_engine.begin() as connection:
+            ensure_project(connection, "llvm")
+
+    @pytest.fixture
+    def suite_key(
+        self, restricted_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
+    ) -> dict[str, str]:
+        return bearer(restricted_key(Scope.MANAGE, "libcxx/nts"))
+
+    def test_a_suite_key_renames_its_suite_within_its_project(
+        self, api_client: TestClient, suite_key: dict[str, str]
+    ) -> None:
+        response = api_client.patch(
+            self.MOVE, json={"name": "bench", "project": "libcxx"}, headers=suite_key
+        )
+
+        assert response.status_code == 200, response.text
+        listed = api_client.get("/api/auth", headers=suite_key).json()["key"]["restricted_to"]
+        assert listed == [{"project": "libcxx", "suite": "bench"}]
+
+    @pytest.mark.parametrize("destination", ["llvm", "missing", "Not A Name", 5, None, "x\u0000"])
+    def test_a_move_needs_the_destination_covered_in_full_whatever_it_is(
+        self, api_client: TestClient, suite_key: dict[str, str], destination: Any
+    ) -> None:
+        # Refused before the body is validated or the destination looked up (I5), so a 403 even
+        # where an instance-wide key would get a 400 or a 404.
+        response = api_client.patch(self.MOVE, json={"project": destination}, headers=suite_key)
+
+        assert response.status_code == 403, response.text
+        assert "Moving a test suite" in response.json()["error"]["message"]
+        assert api_client.get(self.MOVE).status_code == 200
+
+    @pytest.mark.parametrize(
+        ("destination", "code"),
+        [("missing", "not_found"), ("Not A Name", "not_found"), (5, "invalid_request")],
+    )
+    def test_an_unrestricted_key_gets_the_answer_for_the_destination(
+        self, api_client: TestClient, manage: dict[str, str], destination: Any, code: str
+    ) -> None:
+        response = api_client.patch(self.MOVE, json={"project": destination}, headers=manage)
+
+        assert code_of(response) == code
+
+    def test_a_nul_in_the_destination_is_a_400(
+        self, api_client: TestClient, manage: dict[str, str]
+    ) -> None:
+        # D3: psycopg could not even look it up.
+        response = api_client.patch(self.MOVE, json={"project": "x\u0000"}, headers=manage)
+
+        assert code_of(response) == "invalid_request"
+
+    def test_a_key_covering_the_suite_and_the_destination_in_full_moves_it(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, "libcxx/nts", keys.Entry("llvm", None)))
+
+        response = api_client.patch(self.MOVE, json={"project": "llvm"}, headers=headers)
+
+        assert response.status_code == 200, response.text
+        # Both entries stay, and the suite's follows the suite (I5).
+        listed = api_client.get("/api/auth", headers=headers).json()["key"]["restricted_to"]
+        assert listed == [{"project": "llvm"}, {"project": "llvm", "suite": "nts"}]
+
+    def test_a_key_covering_the_destination_but_not_the_suite_cannot_move_it(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, keys.Entry("llvm", None)))
+
+        response = api_client.patch(self.MOVE, json={"project": "llvm"}, headers=headers)
+
+        assert response.status_code == 403
+        assert "in test suite 'libcxx/nts'" in response.json()["error"]["message"]
+
+    @pytest.mark.parametrize(
+        ("content_type", "content"),
+        [
+            ("text/plain", '{"project": "llvm"}'),
+            (None, '{"project": "llvm"}'),
+            ("application/json", '[{"project": "llvm"}]'),
+            ("application/json", "null"),
+        ],
+    )
+    def test_a_body_that_is_no_json_object_asks_for_nothing_more(
+        self,
+        api_client: TestClient,
+        suite_key: dict[str, str],
+        content_type: str | None,
+        content: str,
+    ) -> None:
+        # It is no move, so the suite key is let through, and the body refused once validated.
+        headers = suite_key | ({} if content_type is None else {"Content-Type": content_type})
+
+        response = api_client.patch(self.MOVE, content=content, headers=headers)
+
+        assert code_of(response) == "invalid_request"
+
+    def test_a_json_subtype_is_read_as_json(
+        self, api_client: TestClient, suite_key: dict[str, str]
+    ) -> None:
+        headers = suite_key | {"Content-Type": "application/merge-patch+json"}
+
+        response = api_client.patch(self.MOVE, content='{"project": "llvm"}', headers=headers)
+
+        assert response.status_code == 403
+
+    @pytest.mark.parametrize("name", ["libcpp", "Not A Name", None, 1])
+    def test_renaming_a_project_needs_an_instance_wide_key(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+        name: Any,
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, keys.Entry("libcxx", None)))
+
+        response = api_client.patch("/api/projects/libcxx", json={"name": name}, headers=headers)
+
+        assert response.status_code == 403
+        message = response.json()["error"]["message"]
+        assert "Renaming a project requires the 'manage' scope from an instance-wide" in message
+        assert api_client.get("/api/projects/libcxx").status_code == 200
+
+    def test_sending_the_project_s_own_name_is_no_rename(
+        self,
+        api_client: TestClient,
+        restricted_key: Callable[..., str],
+        bearer: Callable[[str], dict[str, str]],
+    ) -> None:
+        headers = bearer(restricted_key(Scope.MANAGE, keys.Entry("libcxx", None)))
+
+        response = api_client.patch(
+            "/api/projects/libcxx",
+            json={"name": "libcxx", "display_name": "libc++"},
+            headers=headers,
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["display_name"] == "libc++"
 
 
 class TestRevocation:

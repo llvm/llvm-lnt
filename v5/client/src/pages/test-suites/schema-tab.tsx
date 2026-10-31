@@ -1,13 +1,15 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { authedApi, unwrap } from '../../api/client'
-import { refOf, schemaOf, type Suite } from '../../api/suites'
+import { refOf, schemaOf, type Suite, type SuiteRef, type SuiteSchema } from '../../api/suites'
 import { fullLabel } from '../../labels'
 import { useScopeGate } from '../../auth/scope'
 import { ActionButton } from '../../components/action-button'
 import { ActionRow } from '../../components/action-row'
 import { CopyButton } from '../../components/copy-button'
+import { useFocusOnceChecked } from '../../components/use-focus-once-checked'
 import { downloadFile } from './schema/download'
 import { EditSchema } from './schema/edit-schema'
+import { MoveSuite } from './schema/move-suite'
 import { SchemaTables } from './schema/schema-tables'
 import styles from './schema/schema.module.css'
 
@@ -15,27 +17,44 @@ interface Props {
   schema: Suite
   /** The suite has been deleted: forget it, and leave its page if the user is still on it. */
   onDeleted(): Promise<void>
+  /**
+   * The suite has been renamed or moved to `to`: forget its old names, and leave its page for the
+   * new one if the user is still on it.
+   */
+  onMoved(schema: SuiteSchema, to: SuiteRef): Promise<void>
+  /**
+   * The page has just come from the suite's old names (see `onMoved`): "Rename or move" takes the
+   * focus once the token has been checked again, or the tab's actions do if it stays disabled, and
+   * `onMoveFocused` is called.
+   */
+  focusMove?: boolean
+  onMoveFocused?(): void
 }
 
 /**
- * The Schema tab (TS6): the suite's schema, its exports, and its editing and deletion, which need
- * `manage` in it. "Edit schema" opens the schema editor (TS7) in their place, which asks before
- * its changes go with the tab.
+ * The Schema tab (TS6): the suite's schema, its exports, and its editing, renaming, moving and
+ * deletion, which need `manage` in it. "Edit schema" opens the schema editor (TS7) in their place,
+ * which asks before its changes go with the tab.
  */
-export function SchemaTab({ schema, onDeleted }: Props) {
+export function SchemaTab({ schema, onDeleted, onMoved, focusMove, onMoveFocused }: Props) {
   const { name } = schema
   const suite = refOf(schema)
   const gate = useScopeGate('manage', suite)
   const [editing, setEditing] = useState(false)
+  const [moving, setMoving] = useState(false)
   const editRef = useRef<HTMLButtonElement>(null)
-  // Whether "Edit schema" takes the focus once rendered: when the editor has just closed. In the
-  // commit, so that the schema saved never shows without the focus where it goes.
-  const refocus = useRef(false)
+  const moveRef = useRef<HTMLButtonElement>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
+  // The button whose action has just closed, which takes the focus back once rendered: "Edit
+  // schema" once the editor has closed, "Rename or move" once its panel has. In the commit, so that
+  // what they changed never shows without the focus where it goes.
+  const refocus = useRef<typeof editRef | null>(null)
   useLayoutEffect(() => {
-    if (!refocus.current) return
-    refocus.current = false
-    editRef.current?.focus()
+    refocus.current?.current?.focus()
+    refocus.current = null
   })
+  // Once the token has been checked again after the move, only if the focus went with the old page.
+  useFocusOnceChecked(focusMove ?? false, onMoveFocused, moveRef, actionsRef)
 
   if (editing) {
     return (
@@ -43,7 +62,7 @@ export function SchemaTab({ schema, onDeleted }: Props) {
         suite={suite}
         onClose={() => {
           setEditing(false)
-          refocus.current = true
+          refocus.current = editRef
         }}
       />
     )
@@ -55,7 +74,13 @@ export function SchemaTab({ schema, onDeleted }: Props) {
   return (
     <>
       <SchemaTables schema={schema} />
-      <div className={styles.actions}>
+      <div
+        ref={actionsRef}
+        className={styles.actions}
+        role="group"
+        aria-label="Schema actions"
+        tabIndex={-1}
+      >
         <ActionRow
           deleteAtEnd
           deletion={{
@@ -82,6 +107,14 @@ export function SchemaTab({ schema, onDeleted }: Props) {
           <ActionButton ref={editRef} reason={gate.title} onClick={() => setEditing(true)}>
             Edit schema
           </ActionButton>
+          <ActionButton
+            ref={moveRef}
+            reason={gate.title}
+            aria-expanded={moving}
+            onClick={() => setMoving(true)}
+          >
+            Rename or move
+          </ActionButton>
           <CopyButton text={json}>Copy as JSON</CopyButton>
           <button
             type="button"
@@ -90,6 +123,16 @@ export function SchemaTab({ schema, onDeleted }: Props) {
             Download JSON
           </button>
         </ActionRow>
+        {moving && (
+          <MoveSuite
+            schema={schema}
+            onClose={() => {
+              setMoving(false)
+              refocus.current = moveRef
+            }}
+            onMoved={onMoved}
+          />
+        )}
       </div>
     </>
   )
