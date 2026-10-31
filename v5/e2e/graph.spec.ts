@@ -136,10 +136,11 @@ test('restores the chart from its URL, after a reload too', async ({ page }) => 
 
 test("lists the tests of a Dashboard card's machines, and plots none", async ({ page }) => {
   await page.goto('/')
-  // Other tests create suites of their own, which the Dashboard lists too.
+  // Other tests create projects of their own, which the Dashboard lists too.
   const card = page
     .getByRole('main')
-    .getByRole('region', { name: 'libc++/Microbenchmarks', exact: true })
+    .getByRole('region', { name: 'libc++', exact: true })
+    .getByRole('region', { name: 'Microbenchmarks', exact: true })
     .getByRole('article', { name: 'Execution Time', exact: true })
   await card.getByRole('link', { name: 'Execution Time', exact: true }).click()
 

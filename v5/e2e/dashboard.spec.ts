@@ -3,8 +3,8 @@
  * with a trend on every metric but `peak_memory`, which no run reports, and an untracked one left
  * out.
  *
- * Other tests create suites of their own, which the Dashboard lists too, so every check is scoped
- * to the section of the suite it is about, which its full label names (AR22).
+ * Other tests create projects of their own, which the Dashboard lists too, so every check is scoped
+ * to the section of the project or the suite it is about, which their labels name (AR22).
  */
 
 import type { Locator, Page } from '@playwright/test'
@@ -13,6 +13,7 @@ import { HARDENED, LINUX, MACOS, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, test } from './fixtures.ts'
 import { ownSuite, withOwnSuite, type OwnRun } from './own-suite.ts'
 import { plotOf, pointOf, tracesOf } from './plot.ts'
+import { pickOption, selectButton } from './select.ts'
 
 const LIBCXX_METRICS = [
   'Execution Time',
@@ -22,16 +23,23 @@ const LIBCXX_METRICS = [
   'Peak Memory Footprint',
 ]
 
-/** The section of the suite whose full label is `label`. */
-function section(page: Page, label: string) {
-  return page.getByRole('main').getByRole('region', { name: label, exact: true })
+/** The section of the project labelled `project`. */
+function projectSection(page: Page, project: string) {
+  return page.getByRole('main').getByRole('region', { name: project, exact: true })
 }
 
-/** The full label of `libcxx/benchmarks`. */
-const BENCHMARKS = 'libc++/Microbenchmarks'
+/** The section of the suite labelled `suite`, in that of the project labelled `project`. */
+function section(page: Page, project: string, suite: string) {
+  return projectSection(page, project).getByRole('region', { name: suite, exact: true })
+}
+
+/** The section of `libcxx/benchmarks`. */
+function benchmarks(page: Page) {
+  return section(page, 'libc++', 'Microbenchmarks')
+}
 
 function card(page: Page, name: string) {
-  return section(page, BENCHMARKS).getByRole('article', { name, exact: true })
+  return benchmarks(page).getByRole('article', { name, exact: true })
 }
 
 /**
@@ -56,7 +64,7 @@ function machinesOf(url: string) {
 test('draws a trace per tracked machine on each card of libcxx/benchmarks', async ({ page }) => {
   await page.goto('/')
 
-  await expect(section(page, BENCHMARKS).getByRole('article')).toHaveText(
+  await expect(benchmarks(page).getByRole('article')).toHaveText(
     LIBCXX_METRICS.map((name) => new RegExp(`^${name}`)),
   )
   // The real machines measured every commit of the window; the others, only a few.
@@ -167,8 +175,8 @@ test('says that a suite has no numeric metrics', async ({
 
     await page.goto('/')
 
-    // In a project of the same name, without a display name.
-    const own = section(page, `${suite.project}/${suite.suite}`)
+    // Without display names, the project and the suite are labelled by their names.
+    const own = section(page, suite.project, suite.suite)
     await expect(own).toContainText('This suite has no numeric metrics.')
     await expect(own.getByRole('article')).toHaveCount(0)
   })
@@ -190,7 +198,7 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
   await ownSuite(request, tokenFor, testInfo, [run('c1', 1), run('c2', 2)], async (suite) => {
     await signIn(page, 'manage')
     await page.goto('/')
-    const own = section(page, `${suite.project}/${suite.suite}`)
+    const own = section(page, suite.project, suite.suite)
     await expect(own).toContainText('This suite shows no metrics on the Dashboard.')
     await expect(own.getByRole('article')).toHaveCount(0)
 
@@ -207,4 +215,64 @@ test('leads from a suite that shows no metric to its schema, where one is chosen
     await expect(own.getByRole('article')).toHaveText([/^compile_time/])
     await expect(tracesOf(own.getByRole('article'))).toHaveCount(1)
   })
+})
+
+test('groups the suites by project, under headings leading to the Test Suites page', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const libcxx = projectSection(page, 'libc++')
+  // Each suite under its project's heading by its own label, in AR22's order.
+  await expect(libcxx.getByRole('heading', { level: 3 })).toHaveText([
+    'header-sizes',
+    'Microbenchmarks',
+  ])
+  await expect(projectSection(page, 'swift')).toContainText('No test suites.')
+
+  await libcxx.getByRole('heading', { level: 2 }).getByRole('link').click()
+  await expect(page).toHaveURL('/projects/libcxx')
+})
+
+test('shows one project alone, fetching nothing for the others', async ({ page }) => {
+  const asked: string[] = []
+  page.on('request', (request) => asked.push(new URL(request.url()).pathname))
+  await page.goto('/?project=libcxx')
+
+  await expect(selectButton(page, 'Project')).toContainText('libc++')
+  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText(['libc++'])
+  // header-sizes, labelled by its name, has no runs.
+  await expect(section(page, 'libc++', 'header-sizes')).toContainText(
+    'No tracked machine has runs yet.',
+  )
+  await expect(tracesOf(card(page, 'Cycles Elapsed'))).toHaveCount(5)
+  // Everything asked of a project is asked of libcxx, the list of projects aside.
+  const inProjects = asked.filter((path) => path.startsWith('/api/projects/'))
+  expect(inProjects).not.toEqual([])
+  expect(inProjects.filter((path) => !path.startsWith('/api/projects/libcxx/'))).toEqual([])
+
+  await pickOption(page, 'Project', 'All projects')
+  await expect(page).toHaveURL('/')
+  await expect(projectSection(page, 'LLVM')).toBeVisible()
+})
+
+test('keeps the project picked in the URL, along with the commit range', async ({ page }) => {
+  await page.goto('/?range=100&project=libcxx')
+  await expect(page.getByRole('button', { name: 'Last 100', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(tracesOf(card(page, 'Execution Time'))).not.toHaveCount(0)
+
+  await pickOption(page, 'Project', 'LLVM')
+  await expect(page).toHaveURL('/?range=100&project=llvm')
+  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText(['LLVM'])
+})
+
+test('drops a project that does not exist from the URL', async ({ page }) => {
+  await page.goto('/?project=nope')
+
+  await expect(page).toHaveURL('/')
+  await expect(selectButton(page, 'Project')).toContainText('All projects')
+  await expect(benchmarks(page)).toBeVisible()
 })
