@@ -122,6 +122,10 @@ controls (dropdowns, filters, aggregation settings) wrap them in a shared
 controls panel -- a lightly shaded box with a border -- so the settings area is
 visually distinct from the page content.
 
+A list of options, a dropdown's or a combobox's, may list some of its options in
+groups, each under a heading, after the options in no group. A heading is not an
+option: it cannot be picked, and moving through the options skips it.
+
 
 ## AR6: Display Conventions
 
@@ -316,11 +320,9 @@ Otherwise, the text stays as it is. An Enter pressed before those suggestions
 have loaded takes effect once they have, unless the text has changed meanwhile,
 as it does when the user leaves the combobox.
 
-A combobox may list some of its suggestions in groups, each under a heading,
-after the suggestions in no group. A heading is not a suggestion: it cannot be
-picked, and moving through the suggestions skips it. It is shown only while
-some suggestion under it is shown, so typing that matches none of a group's
-suggestions also hides its heading.
+A combobox may list some of its suggestions in groups (see AR5). A group's
+heading is shown only while some suggestion under it is shown, so typing that
+matches none of a group's suggestions also hides its heading.
 
 
 ## AR15: Commit Pickers
@@ -544,8 +546,9 @@ display name is known. A suite's *full label* is its project's label and its
 own, separated by a `/` (`libc++/Benchmarks`). It names the suite wherever its
 project is not named beside it, such as a dropdown's selected suite, a chip or a
 prompt. Under the heading of its project, a suite is named by its own label.
-Links, URLs, API requests and the text typed to confirm a deletion (AR16) use
-names rather than labels.
+Links, URLs, API requests, the text typed to confirm a deletion (AR16), and the
+old and new names of a suite or a project in the prompts confirming that it is
+renamed or moved (TS6, AD3) use names rather than labels.
 
 What an API key covers (see I5) is shown as `All` for an instance-wide key, and
 otherwise as its entries, each as it is: a whole project by its label followed
@@ -560,7 +563,7 @@ case-insensitively and in the order of the browser's language, and ties are
 broken by name.
 
 **Grouping.** A control that picks a suite lists the suites under a heading for
-each project, which cannot be picked, and leaves out the projects without
-suites. A control or a page that picks, lists or manages projects shows every
-project, including those without suites, which say that they have none where
-the page shows a project's suites.
+each project (see AR5), and leaves out the projects without suites. A control
+or a page that picks, lists or manages projects shows every project, including
+those without suites, which say that they have none where the page shows a
+project's suites.
