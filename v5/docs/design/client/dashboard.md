@@ -14,10 +14,15 @@ performance trends across all test suites, grouped by project (see D7).
   `All projects`, the default, and every project, labelled and ordered as AR22
   says. The project picked is persisted in the URL as `project`, by name
   (e.g. `?project=libcxx`). Only the sections shown fetch their data.
+- Both controls sit in the page header rather than in a controls panel, an
+  exception to AR5.
 - One section per project, under a heading with the project's label (see
   AR22), linking to the project's suites on the Test Suites page
   (`/projects/{p}`, see TS1). Projects are in AR22's order. A project with no
   suites says so in its section. When there are no projects, the page says so.
+  Only a failure to load the list of projects in the first place takes the
+  place of the sections, with a way to try again; when the list is fetched
+  again and that fails, the page keeps showing what it shows (see AR7).
 - Within a project's section, one section per suite of the project, in AR22's
   order, under a heading with the suite's label.
 - Each suite section contains a responsive grid of sparkline cards -- one card
