@@ -316,9 +316,9 @@ class TestDelete:
 
 
 class TestDeletionRacingSuiteCreation:
-    """D2: deleting a project and creating a suite in it never both succeed. Either the suite is
-    stored and the deletion is a 409 `conflict`, or the project is deleted and the creation is a
-    404."""
+    """Deleting a project and creating a suite in it never both succeed (D7, E10, E13). Either the
+    suite is stored and the deletion is a 409 `conflict`, or the project is deleted and the creation
+    is a 404."""
 
     def test_a_suite_created_during_the_deletion_is_a_404(
         self, db_engine: Engine, background: Callable[..., Future[Any]]

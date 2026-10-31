@@ -204,7 +204,7 @@ function SuiteTabs({ schema }: { schema: Suite }) {
   // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
   // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
   // going from the list takes these tabs with it. The token is checked again, since its key may
-  // have been restricted to the suite, which it no longer lists, so that a suite created later
+  // have been restricted to the suite, which it no longer lists (I5), so that a suite created later
   // under the name does not seem to be covered (AR17).
   const onDeleted = async () => {
     const leaving = mounted.current
