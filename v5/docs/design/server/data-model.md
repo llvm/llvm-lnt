@@ -75,20 +75,13 @@ changes any table. Ordinary data writes, such as creating a machine or
 submitting a run, are not covered by this rule: they derive nothing from the
 schema that they could lose, and read the registry like any other request.
 
-**Renames, moves and projects.** Renaming a suite or moving it to another
-project (see D7) serializes with the suite's schema changes. Deleting a project
-and creating a suite in it or moving one into it never both succeed: either the
-suite is stored and the deletion gets 409 `conflict`, or the project is deleted
-and the other request gets 404.
-
-Schema writes, renames and moves of suites, and renames, display-name changes
-and deletions of projects each wait only a bounded time for the locks they need,
-and return a retryable 409 (`retry`, see I4) rather than waiting indefinitely.
-This wait must be shorter than the time a request waits for a database
-connection, so that schema changes queued behind a long-running reader cannot
-exhaust the connection pool. A request and a concurrent schema change may also
-deadlock. Avoiding that is not required, but whichever one is aborted gets the
-same retryable 409.
+**Bounded lock waits.** A write that E10 or E13 says may fail to take its locks
+waits for them only a bounded time, and returns a retryable 409 (`retry`, see
+I4) rather than waiting indefinitely. This wait must be shorter than the
+time a request waits for a database connection, so that schema changes queued
+behind a long-running reader cannot exhaust the connection pool. A request and a
+concurrent schema change may also deadlock. Avoiding that is not required, but
+whichever one is aborted gets the same retryable 409.
 
 **A stale reader gets an answer, not a silently wrong result.** Between a
 reader's version check and its next query, another worker may remove a field,
@@ -418,7 +411,6 @@ namespace of their own (see below).
 | display_name | VARCHAR(256) | nullable |
 
 - One row per project (see D7).
-- `id` is the project's internal identity, which no response shows (see I1).
 - See D7 for the limits on the name and the display name.
 
 #### `schema`
@@ -436,7 +428,6 @@ namespace of their own (see below).
 - One row per test suite, holding the suite's schema (see D4).
 - Unique constraint on `(project_id, name)`: a suite's name is unique within its
   project (see D7).
-- `id` is the suite's internal identity, which no response shows (see I1).
 - `namespace` is the PostgreSQL schema holding the suite's tables (see Per-Suite
   Tables below), and nothing but them. The server chooses it when it creates the
   suite, among the names that no namespace in the database has and no suite
@@ -499,8 +490,7 @@ namespace of their own (see below).
   once per authenticated request and never filtered or sorted on, so
   readability in the database matters more than compactness.
 - `restricted` is true for a key restricted to the projects and suites its
-  `api_key_restriction` rows list (see I5). It stays true once deleting what
-  they list has removed every one of them. The database layer rejects it on a
+  `api_key_restriction` rows list (see I5). The database layer rejects it on a
   `read` or `admin` key.
 - `last_used_at` is null until the key is first used. It is recorded on
   successful authentication, on a best-effort basis: an implementation may
@@ -987,7 +977,7 @@ project's context (see O10). The API itself always takes the two names as
 separate path segments (see I1).
 
 Projects are created, changed and deleted through E13. Deleting a project is
-refused while it has suites (see D2), so it never deletes any data.
+refused while it has suites (see E13), so it never deletes any data.
 
 **Renames and moves.** A suite can be renamed within its project, moved to
 another project, or both at once (see E10), and a project can be renamed (see

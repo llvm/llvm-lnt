@@ -96,7 +96,7 @@ def add_suite(connection: Connection, project_name: str, suite: SuiteSchema) -> 
 
     The project's row is locked first, against its deletion, until the caller's transaction ends:
     either the project is gone already, and this is a 404, or its deletion waits and then finds the
-    suite, and is refused (D2). The suite's row next: it is the lock every writer of this suite
+    suite, and is refused (E13). The suite's row next: it is the lock every writer of this suite
     contends on, so two callers racing to create one name serialize here and the loser fails on its
     unique name rather than leaving a half-built namespace. It is also the order the other writes
     take their locks in. Choosing the namespace takes no lock, and gives each caller a namespace of
@@ -128,7 +128,7 @@ def locked_projects(connection: Connection, names: set[str]) -> dict[str, int]:
 
     Projects are locked before suites, by every writer that locks both (see `locked_suite`). A
     move locks the suite's project and its destination together this way before it locks the
-    suite, which keeps the destination from being deleted meanwhile (D2), as `add_suite` keeps the
+    suite, which keeps the destination from being deleted meanwhile, as `add_suite` keeps the
     project it creates a suite in. FOR KEY SHARE, which a change to a project's display name does
     not wait for.
     """
@@ -262,7 +262,7 @@ def suite_write(engine: Engine, project_name: str, name: str) -> Iterator[Connec
 @contextmanager
 def project_write(engine: Engine, name: str) -> Iterator[Connection]:
     """One transaction that changes or deletes the project `name`, with the same bounded wait for
-    its locks as `suite_write`, which D2 asks of a project's display-name change and deletion."""
+    its locks as `suite_write` (D2)."""
     with _bounded_write(engine, f"Project '{name}'") as connection:
         yield connection
 
