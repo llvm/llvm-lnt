@@ -995,10 +995,3 @@ E13). Only names change: the suite keeps its namespace (see D5) and all of its
 data. The old name is not kept as an alias: every URL under the suite, or under
 every suite of a renamed project, changes, and the old one answers 404 until
 something else takes the name. See I5 for how API keys follow renames and moves.
-
-**Instances that predate projects.** Once migrated (see D6), an instance whose
-suites existed before projects did has a project for each of those suites, named
-after it, with no display name, holding that suite alone. A key that was
-restricted to some suites by name is restricted to the suites of those names
-that still exist, each as a single-suite entry. A key left with no entry is
-restricted to nothing (see I5).
