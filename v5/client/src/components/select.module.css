@@ -19,14 +19,11 @@
   composes: option from './dropdown.module.css';
 }
 
-/* Its checkbox before its label, over the whole option, padding included, so that its hover says
-   why wherever it is. */
+/* Its checkbox before its label. */
 .checkRow {
   display: flex;
   align-items: center;
   gap: var(--lnt-space-1);
-  margin: calc(-1 * var(--lnt-space-1)) calc(-1 * var(--lnt-space-2));
-  padding: var(--lnt-space-1) var(--lnt-space-2);
 }
 
 .checkRow input {
@@ -35,8 +32,19 @@
 }
 
 /* A child, indented below its parent. */
-.child .checkRow {
+.checkOption.child {
   padding-left: calc(var(--lnt-space-2) + 1.5em);
+}
+
+/* A child covered by its parent checked: muted, and without a checkbox, whose room it keeps to stay
+   in line with the other children. */
+.checkOption[data-disabled] {
+  color: var(--lnt-muted);
+  cursor: default;
+}
+
+.checkOption[data-disabled] input {
+  visibility: hidden;
 }
 
 /* What is said of an option after its label. */

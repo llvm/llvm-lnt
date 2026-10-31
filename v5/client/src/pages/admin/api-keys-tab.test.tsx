@@ -178,6 +178,19 @@ function suitesButton() {
   return selectButton('Projects and suites to restrict to', createForm())
 }
 
+/** Open the list of the projects and suites to restrict a new `manage` key to (AD1). */
+async function openSuites() {
+  await pickOption('Scope', 'manage', createForm())
+  fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
+  const user = userEvent.setup()
+  const button = suitesButton()
+  await user.click(button)
+  return { user, button, list: await screen.findByRole('listbox') }
+}
+
+/** What the project `llvm` is named as once checked, saying what it covers (AD1). */
+const LLVM_CHECKED = 'llvm (all suites, including those created later)'
+
 /** The banner showing the token of the key just created, if it shows. */
 function createdKey() {
   return screen.queryByRole('region', { name: 'Created key' })
@@ -624,28 +637,30 @@ describe('creating a key', () => {
     await waitFor(() => expect(button).toHaveFocus())
   })
 
-  it('restricts a key to a whole project checked, its suites shown checked and fixed', async () => {
+  it('restricts a key to a whole project checked, listing its suites as covered', async () => {
     const { store } = await renderKeys()
     const sent = mockCreate(store)
-    await pickOption('Scope', 'manage', createForm())
-    fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
-    const user = userEvent.setup()
-    const button = suitesButton()
-    await user.click(button)
-    const list = await screen.findByRole('listbox')
-    // A suite checked first is dropped once its project is: the project covers it.
+    const { user, button, list } = await openSuites()
+    // A suite checked first is unchecked once its project is: the project covers it.
     await user.click(within(list).getByRole('option', { name: 'llvm/nts' }))
     await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
-    const reason = "Covered with the whole project 'llvm'."
-    const nts = within(list).getByRole('option', { name: `llvm/nts: ${reason}` })
-    expect(nts).toHaveAttribute('aria-selected', 'true')
-    expect(within(nts).getByTitle(reason)).toBeInTheDocument()
-    expect(within(nts).getByRole('checkbox', { hidden: true })).toBeDisabled()
+    // The project says what it covers, those created later included.
+    const project = within(list).getByRole('option', { name: LLVM_CHECKED })
+    expect(project).toHaveAttribute('aria-selected', 'true')
+    // Its suites are listed as covered, and cannot be checked.
+    const covered = within(list).getAllByRole('option').slice(1)
+    expect(covered.map((option) => option.getAttribute('aria-label'))).toEqual([
+      'llvm/libcxx, covered by llvm',
+      'llvm/nts, covered by llvm',
+    ])
+    for (const option of covered) {
+      expect(option).toHaveAttribute('aria-disabled', 'true')
+      expect(option).toHaveAttribute('aria-selected', 'false')
+    }
     expect(button).toHaveTextContent('llvm (all)')
-    // Picking it changes nothing.
-    await user.click(nts)
-    expect(nts).toHaveAttribute('aria-selected', 'true')
+    await user.click(covered[1])
+    expect(covered[1]).toHaveAttribute('aria-selected', 'false')
     expect(button).toHaveTextContent('llvm (all)')
     await user.keyboard('{Escape}')
     createKey('maintainer')
@@ -656,54 +671,66 @@ describe('creating a key', () => {
     ])
   })
 
-  it('unchecks the suites of a project unchecked, which were only shown checked', async () => {
+  it('lists the suites of a project unchecked again, unchecked', async () => {
     await renderKeys()
-    await pickOption('Scope', 'manage', createForm())
-    fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
-    const user = userEvent.setup()
-    const button = suitesButton()
-    await user.click(button)
-    const list = await screen.findByRole('listbox')
+    const { user, button, list } = await openSuites()
+    await user.click(within(list).getByRole('option', { name: 'llvm/nts' }))
     await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
-    await user.click(within(list).getByRole('option', { name: 'llvm' }))
+    await user.click(within(list).getByRole('option', { name: LLVM_CHECKED }))
 
+    // nts, checked before the project was, is not checked again.
     for (const option of within(list).getAllByRole('option')) {
       expect(option).toHaveAttribute('aria-selected', 'false')
+      expect(option).not.toHaveAttribute('aria-disabled')
     }
     expect(button).toHaveTextContent('Select projects or suites')
   })
 
-  it('checks a project alone for a range over it and its suites, and nothing for all', async () => {
+  it('skips the suites a project checked covers when moving with the arrow keys', async () => {
     mockSuites([SUITE, BARE_SUITE, { ...SUITE, project: { name: 'swift', display_name: null } }])
     await renderKeys()
     await pickOption('Scope', 'manage', createForm())
     fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
     const user = userEvent.setup()
-    const button = suitesButton()
-    await user.click(button)
+    suitesButton().focus()
+    await user.keyboard('{ArrowDown}')
     const list = await screen.findByRole('listbox')
+    const project = within(list).getByRole('option', { name: 'llvm' })
+    await waitFor(() => expect(project).toHaveFocus())
 
-    await user.click(within(list).getByRole('option', { name: 'llvm' }))
-    await user.keyboard('{Shift>}')
-    await user.click(within(list).getByRole('option', { name: /^llvm\/nts/ }))
-    await user.keyboard('{/Shift}')
-    expect(button).toHaveTextContent(/^llvm \(all\)/)
+    await user.keyboard(' ')
+    await user.keyboard('{ArrowDown}')
+    expect(within(list).getByRole('option', { name: 'swift' })).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(project).toHaveFocus()
+  })
+
+  it('checks nothing more for a selection of everything', async () => {
+    await renderKeys()
+    const { user, button, list } = await openSuites()
+    await user.click(within(list).getByRole('option', { name: 'llvm/nts' }))
 
     // Selecting everything, which React Aria's Select ignores, checks nothing more: there is no
     // way to check every option at once (AD1).
     await user.keyboard('{Control>}a{/Control}')
-    expect(button).toHaveTextContent(/^llvm \(all\)▾$/)
+    expect(button).toHaveTextContent(/^llvm\/nts▾$/)
   })
 
-  it('lists a project without suites, saying so', async () => {
+  it('lists a project without suites, saying so, and what it covers once checked', async () => {
     mockSuites([SUITE], { projects: [PROJECT, { name: 'swift', display_name: null }] })
     const { store } = await renderKeys()
     const sent = mockCreate(store)
     await pickOption('Scope', 'submit', createForm())
     fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
 
-    await toggleOptions('Projects and suites to restrict to', ['swift (no suites)'], createForm())
+    const user = userEvent.setup()
+    await user.click(suitesButton())
+    await user.click(await screen.findByRole('option', { name: 'swift (no suites)' }))
+    expect(
+      screen.getByRole('option', { name: 'swift (no suites yet; covers those created later)' }),
+    ).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Escape}')
     expect(suitesButton()).toHaveTextContent('swift (all)')
     createKey('swift-bot')
 

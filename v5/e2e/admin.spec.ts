@@ -113,11 +113,19 @@ test.describe('the API Keys tab', () => {
     // Every project, those without suites included, saying so (AD1).
     await expect(page.getByRole('option', { name: 'swift (no suites)', exact: true })).toBeVisible()
     await page.getByRole('option', { name: 'libc++', exact: true }).click()
-    // The project's suites are then checked, and stay so.
-    const benchmarks = page.getByRole('option', { name: /^libc\+\+\/Microbenchmarks: Covered/ })
-    await expect(benchmarks).toHaveAttribute('aria-selected', 'true')
-    await benchmarks.click()
-    await expect(benchmarks).toHaveAttribute('aria-selected', 'true')
+    // The project then says what it covers, and its suites are listed as covered, without a
+    // checkbox, and cannot be focused or checked.
+    await expect(
+      page.getByRole('option', { name: 'libc++ (all suites, including those created later)' }),
+    ).toHaveAttribute('aria-selected', 'true')
+    const benchmarks = page.getByRole('option', {
+      name: 'libc++/Microbenchmarks, covered by libc++',
+    })
+    await expect(benchmarks.getByRole('checkbox', { includeHidden: true })).toBeHidden()
+    await benchmarks.click({ force: true })
+    await expect(benchmarks).not.toBeFocused()
+    await expect(benchmarks).toHaveAttribute('aria-selected', 'false')
+    await expect(covers).toHaveText(/^libc\+\+ \(all\)/)
     // Each suite by its full label (AR22).
     await page.getByRole('option', { name: 'LLVM/nts', exact: true }).click()
     await page.keyboard.press('Escape')

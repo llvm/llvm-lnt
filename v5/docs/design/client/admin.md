@@ -46,16 +46,19 @@ What the key covers is chosen with two radio buttons: "Everything (instance-wide
 can be used only while "Only these:" is selected. It opens a tree of checkboxes: every project,
 those without suites included, with its suites indented below it, labelled and ordered as AR22 says.
 Checking a project restricts the key to the whole project, including the suites it holds later (see
-I5): its suites are then shown checked and cannot be unchecked, and unchecking the project unchecks
-them. Checking a suite of a project that is not checked restricts the key to that suite alone. The
-tree stays open while boxes are checked and unchecked, and scrolls when long. It is not an AR10
-list: there is no checkbox selecting everything. The dropdown's button shows "Select projects or
-suites" while nothing is checked, and otherwise names what is checked as AR22 shows what a key
-covers, or says how many entries there are when there are more than two. "Create key" is disabled,
-saying why on hover, while "Only these:" is selected with nothing checked. Only `submit`, `triage`
-and `manage` keys can be restricted (see I5): for another scope, "Only these:" is disabled, saying
-why on hover, and the choice goes back to "Everything (instance-wide)". While the projects are not
-loaded, or there are none, only "Only these:" is unavailable.
+I5), and the project then says so beside its label. Its suites are listed under it as covered:
+without a checkbox, they cannot be focused or checked, and any that were checked are unchecked.
+Unchecking the project lists them again, unchecked. Checking a suite of a project that is not
+checked restricts the key to that suite alone. The form does not offer a suite along with its whole
+project, which the API allows (see I5 and E11). The tree stays open while boxes are checked and
+unchecked, and scrolls when long. It is not an AR10 list: there is no checkbox selecting everything.
+The dropdown's button shows "Select projects or suites" while nothing is checked, and otherwise
+names what is checked as AR22 shows what a key covers, or says how many entries there are when there
+are more than two. "Create key" is disabled, saying why on hover, while "Only these:" is selected
+with nothing checked. Only `submit`, `triage` and `manage` keys can be restricted (see I5): for
+another scope, "Only these:" is disabled, saying why on hover, and the choice goes back to
+"Everything (instance-wide)". While the projects are not loaded, or there are none, only "Only
+these:" is unavailable.
 
 On creation, a banner shows:
 
