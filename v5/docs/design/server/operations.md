@@ -8,7 +8,8 @@ and commits after inactivity.
 
 ## O1: Submission Format
 
-Runs are submitted as JSON via `POST /api/suites/{testsuite}/runs`.
+Runs are submitted as JSON via
+`POST /api/projects/{project}/suites/{suite}/runs`.
 
 The machine and the commit are each submitted as an entity object of the same
 shape: the identity attribute, any built-in attributes, and a `fields` dict
@@ -74,15 +75,17 @@ O2).
   - `tracked`: optional boolean, a built-in attribute rather than a
     `machine_field`. It controls whether the machine takes part in automatic
     machine selection. It only applies when the machine is created (first write
-    wins), and defaults to `true` when omitted. Submitting it for a machine
-    that already exists has no effect. Use
-    `PATCH /api/suites/{testsuite}/machines/{name}` to change it afterwards.
+    wins), and defaults to `true` when omitted. Submitting it for a machine that
+    already exists has no effect. Use
+    `PATCH /api/projects/{project}/suites/{suite}/machines/{name}` to change it
+    afterwards.
   - `delete_after_inactive_days`: optional integer from 1 to 36500, a built-in
     attribute: the number of days without activity after which the machine is
     deleted (see O10). Like `tracked`, it only applies when the machine is
     created, and is ignored for a machine that already exists, whatever the
     machine's current setting. Use
-    `PATCH /api/suites/{testsuite}/machines/{name}` to change it afterwards.
+    `PATCH /api/projects/{project}/suites/{suite}/machines/{name}` to change it
+    afterwards.
 - `commit`: required object identifying the commit this run belongs to.
   - `value`: required string, the commit's identity.
   - `fields`: optional. Every key must be declared in the schema's
@@ -90,21 +93,22 @@ O2).
     reconciled when the commit already exists.
   - `ordinal`: optional integer, a built-in attribute rather than a
     `commit_field`. It places the commit in the suite's total order. It is set
-    if the commit has no ordinal yet. If the commit already has a different
-    one, the submission is rejected with 409 (see O2). Use
-    `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal once
-    set. Ordinals are unique within a suite, so a value already held by another
-    commit is also rejected with 409 (see O6).
-  - `tag`: optional string, a built-in attribute rather than a `commit_field`:
-    a human-readable label such as a release name. Several commits may share a
-    tag (see D5). It is set if the commit has no tag yet. If the commit already
-    has a different one, the submission is rejected with 409 (see O2). Use
-    `PATCH /api/suites/{testsuite}/commits/{value}` to change or clear a tag
-    once set.
+    if the commit has no ordinal yet. If the commit already has a different one,
+    the submission is rejected with 409 (see O2). Use
+    `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` to change an
+    ordinal once set. Ordinals are unique within a suite, so a value already
+    held by another commit is also rejected with 409 (see O6).
+  - `tag`: optional string, a built-in attribute rather than a `commit_field`: a
+    human-readable label such as a release name. Several commits may share a tag
+    (see D5). It is set if the commit has no tag yet. If the commit already has
+    a different one, the submission is rejected with 409 (see O2). Use
+    `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` to change or
+    clear a tag once set.
   - `delete_after_inactive_days`: optional, as for the machine (see O10). It
     only applies when the commit is created, and is ignored for a commit that
-    already exists. Use `PATCH /api/suites/{testsuite}/commits/{value}` to
-    change it afterwards.
+    already exists. Use
+    `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` to change it
+    afterwards.
 - `run_parameters`: optional, stored as JSONB on the run. Runs have no declared
   field list, so this is a free-form blob rather than a `fields` dict. Its only
   validation is D3's rule on values that cannot be stored.
@@ -150,19 +154,21 @@ metadata -- and every write path accepts that same object:
    objects fill in the record when it is first created. If the record already
    exists, its metadata is NOT overwritten, and the submitted values must match
    the stored ones, or the submission is rejected.
-2. **Explicit creation**: `POST /api/suites/{testsuite}/machines` and
-   `POST /api/suites/{testsuite}/commits` take the same entity object, and
-   create the record without a run.
-3. **PATCH**: `PATCH /api/suites/{testsuite}/machines/{name}` and
-   `PATCH /api/suites/{testsuite}/commits/{value}` set or update metadata at
-   any time, overwriting existing values. Inside `fields`, an explicit `null`
-   clears a stored value, and a key that is omitted is left unchanged.
+2. **Explicit creation**: `POST /api/projects/{project}/suites/{suite}/machines`
+   and `POST /api/projects/{project}/suites/{suite}/commits` take the same
+   entity object, and create the record without a run.
+3. **PATCH**: `PATCH /api/projects/{project}/suites/{suite}/machines/{name}` and
+   `PATCH /api/projects/{project}/suites/{suite}/commits/{value}` set or update
+   metadata at any time, overwriting existing values. Inside `fields`, an
+   explicit `null` clears a stored value, and a key that is omitted is left
+   unchanged.
 
-**Declared keys only.** On every path, each metadata key must be declared in
-the suite's schema; an undeclared key is rejected with 400. Neither entity has
-a catch-all blob, so the schema states exactly what can be stored on it.
-Declaring a new field is a schema change (`PATCH /api/suites/{name}/schema`,
-see D2); a submission cannot do it implicitly.
+**Declared keys only.** On every path, each metadata key must be declared in the
+suite's schema; an undeclared key is rejected with 400. Neither entity has a
+catch-all blob, so the schema states exactly what can be stored on it. Declaring
+a new field is a schema change
+(`PATCH /api/projects/{project}/suites/{suite}/schema`, see D2); a submission
+cannot do it implicitly.
 
 **Matching on re-submission.** In path 1, only the keys present in the
 submission are compared, and a key sent as `null` counts as absent (see O1). An
@@ -236,11 +242,11 @@ instead. An empty term matches every row.
 
 | Endpoint | Matches against |
 |----------|-----------------|
-| `GET /api/suites/{testsuite}/commits?search=abc` | The `commit` column, the `tag` column, and any `searchable` commit field |
-| `GET /api/suites/{testsuite}/machines?search=x86` | The `name` column and any `searchable` machine field |
-| `GET /api/suites/{testsuite}/tests?search=bench` | The `name` column |
-| `GET /api/suites/{testsuite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |
-| `GET /api/suites/{testsuite}/regressions?search=slowdown` | The `title` column, and the `uuid` by prefix |
+| `GET /api/projects/{project}/suites/{suite}/commits?search=abc` | The `commit` column, the `tag` column, and any `searchable` commit field |
+| `GET /api/projects/{project}/suites/{suite}/machines?search=x86` | The `name` column and any `searchable` machine field |
+| `GET /api/projects/{project}/suites/{suite}/tests?search=bench` | The `name` column |
+| `GET /api/projects/{project}/suites/{suite}/runs?search=x86` | The run's machine, as the Machines `search=` above matches it; the run's commit, as the Commits `search=` above matches it; and the run's `uuid`, by prefix |
+| `GET /api/projects/{project}/suites/{suite}/regressions?search=slowdown` | The `title` column, and the `uuid` by prefix |
 
 The term is plain text: `%`, `_` and regex syntax have no special meaning.
 
@@ -275,8 +281,9 @@ commit list sorted by ordinal does either, depending on `has_ordinal` (see E3).
 ## O6: Ordinal Management
 
 - Ordinals can be set in three ways: inline as `commit.ordinal` in a run
-  submission, at creation with `POST /api/suites/{testsuite}/commits`, or at
-  any time with `PATCH /api/suites/{testsuite}/commits/{value}`.
+  submission, at creation with
+  `POST /api/projects/{project}/suites/{suite}/commits`, or at any time with
+  `PATCH /api/projects/{project}/suites/{suite}/commits/{value}`.
 - An inline ordinal is set if the commit has none, and a submission that sends
   a different one from the commit's current ordinal is rejected with 409.
   `PATCH` is the only way to change an ordinal once set.
@@ -375,9 +382,9 @@ one submitted.
 
 ## O8: Concurrent Submission
 
-Run submission (`POST /api/suites/{testsuite}/runs`) is atomic from the API
-user's point of view: it either fully succeeds (201) or fully fails, with no
-partial side effects.
+Run submission (`POST /api/projects/{project}/suites/{suite}/runs`) is atomic
+from the API user's point of view: it either fully succeeds (201) or fully
+fails, with no partial side effects.
 
 Machines, commits, and tests are created with a get-or-create pattern, so
 concurrent submissions naming the same entity race to create it. An
@@ -445,10 +452,11 @@ steps:
    skipping any that are zero or negative.
 
 If a metric has no positive per-test value under an aggregation, it has no
-geomean under that aggregation, and its summary holds none for it. A metric
-with no geomean under any aggregation has no summary. Summaries are stored in
+geomean under that aggregation, and its summary holds none for it. A metric with
+no geomean under any aggregation has no summary. Summaries are stored in
 `{suite}.run_summary` (see D5), which lets a trend read a few rows per commit
-rather than every sample (see `GET /api/suites/{testsuite}/trends`).
+rather than every sample (see
+`GET /api/projects/{project}/suites/{suite}/trends`).
 
 Adding a metric needs no backfill: existing samples have no value for it, so
 existing runs have no summary of it either.
@@ -518,6 +526,6 @@ Until an entity is deleted it stays visible: no read filters on
   next round tries again. A sweep never stops the server from starting or
   serving.
 
-The sweep is also available as a standalone administrative operation, which
-runs one round and reports what it deleted, or reports that a round is already
-under way.
+The sweep is also available as a standalone administrative operation, which runs
+one round and reports what it deleted, or reports that a round is already under
+way. Its report and its logs name each suite by its full name (see D7).

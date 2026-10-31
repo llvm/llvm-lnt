@@ -16,9 +16,9 @@ v5 "Commit" concept separates them.
   overrides what is shown (see D4). Every run must have a commit.
 - **Ordinal**: an optional integer that places the commit in a total order. It
   can be set inline in a run submission, at creation via
-  `POST /api/suites/{testsuite}/commits`, or at any later time via PATCH. It is
-  never inferred from the commit string, even if the string is numeric. `NULL`
-  means unordered.
+  `POST /api/projects/{project}/suites/{suite}/commits`, or at any later time
+  via PATCH. It is never inferred from the commit string, even if the string is
+  numeric. `NULL` means unordered.
 
 Runs therefore come in two tiers:
 1. A run on an ordered commit (ordinal set) takes full part in time series.
@@ -40,8 +40,10 @@ commit has an ordinal: an ordered commit is part of the suite's history.
 
 ## D2: Schema Storage and Lifecycle
 
-Test suite schemas are created through the API (`POST /api/suites`), evolved
-with `PATCH /api/suites/{name}/schema`, and stored in the database.
+Test suite schemas are created through the API
+(`POST /api/projects/{project}/suites`), evolved with
+`PATCH /api/projects/{project}/suites/{suite}/schema`, and stored in the
+database.
 
 Two global tables hold this state: `schema`, with one row per suite, and
 `schema_version`, a single-row counter. See D5 for their columns.
@@ -52,11 +54,11 @@ at startup or on first use; correctness does not depend on which. An
 implementation that loads at startup must still serve if the load fails.
 
 **Multi-process safety.** In a deployment with several workers, a worker that
-creates, modifies or deletes a suite bumps the `schema_version` counter in the
-same transaction. Every request path that reads the in-memory suite registry
-must first compare its cached counter with the one in the database, and reload
-all schemas from the database if they differ. This check is a single-row
-integer read per request.
+creates, changes or deletes a suite or a project (see D5 and D7) bumps the
+`schema_version` counter in the same transaction. Every request path that reads
+the in-memory suite registry must first compare its cached counter with the one
+in the database, and reload all schemas from the database if they differ. This
+check is a single-row integer read per request.
 
 The counter and the schemas must be read from the same snapshot: a reader must
 never cache a counter that is newer than the schemas cached with it.
@@ -73,13 +75,20 @@ changes any table. Ordinary data writes, such as creating a machine or
 submitting a run, are not covered by this rule: they derive nothing from the
 schema that they could lose, and read the registry like any other request.
 
-A schema write waits only a bounded time for the locks it needs, and returns a
-retryable 409 (`retry`, see I4) rather than waiting indefinitely. This wait must
-be shorter than the time a request waits for a database connection, so that
-schema changes queued behind a long-running reader cannot exhaust the
-connection pool. A request and a concurrent schema change may also deadlock.
-Avoiding that is not required, but whichever one is aborted gets the same
-retryable 409.
+**Renames, moves and projects.** Renaming a suite or moving it to another
+project (see D7) serializes with the suite's schema changes. Deleting a project
+and creating a suite in it or moving one into it never both succeed: either the
+suite is stored and the deletion gets 409 `conflict`, or the project is deleted
+and the other request gets 404.
+
+Schema writes, renames and moves of suites, and renames, display-name changes
+and deletions of projects each wait only a bounded time for the locks they need,
+and return a retryable 409 (`retry`, see I4) rather than waiting indefinitely.
+This wait must be shorter than the time a request waits for a database
+connection, so that schema changes queued behind a long-running reader cannot
+exhaust the connection pool. A request and a concurrent schema change may also
+deadlock. Avoiding that is not required, but whichever one is aborted gets the
+same retryable 409.
 
 **A stale reader gets an answer, not a silently wrong result.** Between a
 reader's version check and its next query, another worker may remove a field,
@@ -89,12 +98,12 @@ not required, but a request that hits it must return the same retryable 409
 A streaming response (see I2) that has already started cannot change its
 status, so it is aborted instead.
 
-**Schema evolution.** A suite's `metrics`, `commit_fields` and
-`machine_fields` lists can be changed after creation with
-`PATCH /api/suites/{name}/schema`, which adds, updates and/or removes entries
-in any of the three. This is the only way a suite can start accepting metadata
-it did not declare at creation: undeclared keys are rejected on submission, for
-both machines and commits (see O2).
+**Schema evolution.** A suite's `metrics`, `commit_fields` and `machine_fields`
+lists can be changed after creation with
+`PATCH /api/projects/{project}/suites/{suite}/schema`, which adds, updates
+and/or removes entries in any of the three. This is the only way a suite can
+start accepting metadata it did not declare at creation: undeclared keys are
+rejected on submission, for both machines and commits (see O2).
 
 - **Adding** an entry leaves existing rows with no value for it.
 - Only presentation metadata can be **updated**: whichever of `display_name`,
@@ -115,21 +124,22 @@ The boolean keys (`bigger_is_better`, `dashboard`, `searchable`, `display`,
 `listed`) are not nullable, because D4 normalizes them to `false` rather than to
 null, so `null` for one of them is rejected with 400.
 
-The same request can change the suite's `repository` (D4), with the same rule:
-an omitted key is left unchanged, and an explicit `null` clears one. `null` for
-the whole `repository` is rejected with 400, since there is one way to clear
-it, key by key. A change to it destroys nothing and changes no table, but it is
-a schema write all the same: it takes the lock above, and bumps
-`schema_version`.
+The same request can change the suite's `display_name` and its `repository`
+(D4), with the same rule: an omitted key is left unchanged, and an explicit
+`null` clears the display name or one of the repository's keys. `null` for the
+whole `repository` is rejected with 400, since there is one way to clear it, key
+by key. A change to either destroys nothing and changes no table, but it is a
+schema write all the same: it takes the lock above, and bumps `schema_version`.
 
 Notes:
-- Renaming is not supported: it is semantically a remove plus an add.
+- Renaming an entry is not supported: it is semantically a remove plus an add.
 - A schema change is atomic: it applies entirely or not at all.
 - A field cannot be the target of more than one add, update or remove
   operation in a single request, including by being repeated within one
   operation's own list.
 - The resulting schema is validated in full, exactly as if it had been sent to
-  `POST /api/suites`, not just the entries the request touched.
+  `POST /api/projects/{project}/suites`, not just the entries the request
+  touched.
 
 
 ## D3: Attribute Types
@@ -194,15 +204,18 @@ aggregation. Choosing sensible metrics is the schema author's responsibility.
 
 ## D4: Schema Format
 
-A test suite's schema is a JSON document: the body of `POST /api/suites`, the
-body `GET /api/suites/{name}` returns, and what the `schema` table stores (see
-D2 and D5). This is a clean break from v4, where suites were defined by YAML
-files shipped with the server: in v5, a schema only ever exists as JSON sent
-through the API. The two formats still share much of their vocabulary.
+A test suite's schema is a JSON document: the body of
+`POST /api/projects/{project}/suites`, the body
+`GET /api/projects/{project}/suites/{suite}` returns, and what the `schema`
+table stores (see D2 and D5). This is a clean break from v4, where suites were
+defined by YAML files shipped with the server: in v5, a schema only ever exists
+as JSON sent through the API. The two formats still share much of their
+vocabulary.
 
 ```json
 {
   "name": "nts",
+  "display_name": "LLVM test-suite",
   "metrics": [
     {
       "name": "compile_time",
@@ -263,6 +276,12 @@ Notes:
 - `repository` says where the suite's commits come from, so that the UI can
   link to them (see Repository below). Like `display`, it is purely a UI
   concern: the server stores and validates it, but never fills its templates in.
+- `display_name` is how the UI names the suite (see AR22), when it is set. Like
+  `display`, it is purely a UI concern: the API addresses the suite by its
+  `name` alone.
+- The schema does not name the suite's project: that comes from the path that
+  creates or addresses the suite (see D7), so a schema fetched from one project
+  can be posted unchanged to another.
 - There is no `format_version` in the schema: v5 has only one format.
 
 **Presentation keys.** Besides `name` and `type`, each list accepts only the
@@ -286,7 +305,7 @@ another, so these defaults are part of the wire contract.
 
 | Key | Default |
 |-----|---------|
-| `display_name` | `null` |
+| `display_name` (the suite's, and each entry's) | `null` |
 | `unit`, `unit_abbrev` | `null` |
 | `bigger_is_better` | `false` |
 | `dashboard` | `false` |
@@ -299,10 +318,10 @@ A schema that omits one of the three lists entirely gets it back as an empty
 list, and one that omits `repository` gets it back with all of its keys. Like a
 list, `repository` itself cannot be `null`.
 
-`display_name`, `unit` and `unit_abbrev`, and the keys of `repository`, are
-each either `null`, meaning there is none, or a non-empty string. An empty
-string is rejected with 400 rather than read as `null`: it would only be a
-second spelling of `null`.
+`display_name`, `unit` and `unit_abbrev`, and the keys of `repository`, are each
+either `null`, meaning there is none, or a non-empty string. An empty string is
+rejected with 400 rather than read as `null`: it would only be a second spelling
+of `null`. The suite's `display_name` is also at most 256 characters.
 
 **Repository.** `repository` accepts only the keys below, each optional. Any
 other key is rejected with 400.
@@ -342,9 +361,9 @@ dot segment, which would change the path.
 
 **Suite name.** `name` must match `^[a-z0-9][a-z0-9_-]*$` and be at most 64
 characters; anything else is rejected with 400. The name identifies the suite
-in URLs and on command lines, and names nothing in the database: the namespace
-holding the suite's tables is chosen by the server (see D5). No name that
-matches the pattern is reserved.
+within its project (see D7), in URLs and on command lines, and names nothing in
+the database: the namespace holding the suite's tables is chosen by the server
+(see D5). No name that matches the pattern is reserved.
 
 **Entry names.** Each entry becomes a column, so every `name` in `metrics`,
 `commit_fields` and `machine_fields` is an identifier too: it must match
@@ -390,31 +409,48 @@ These exist once per instance, independently of any test suite. They live in
 the database's default namespace, whereas each suite's tables live in a
 namespace of their own (see below).
 
+#### `project`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PK |
+| name | VARCHAR | unique, not null |
+| display_name | VARCHAR(256) | nullable |
+
+- One row per project (see D7).
+- `id` is the project's internal identity, which no response shows (see I1).
+- See D7 for the limits on the name and the display name.
+
 #### `schema`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
-| name | VARCHAR | PK |
+| id | INTEGER | PK |
+| project_id | INTEGER FK -> project | not null |
+| name | VARCHAR | not null |
 | namespace | VARCHAR | unique, not null |
 | schema_json | TEXT | not null |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
 | migration_version | INTEGER | not null |
 
 - One row per test suite, holding the suite's schema (see D4).
-- `namespace` is the PostgreSQL schema holding the suite's tables (see
-  Per-Suite Tables below), and nothing but them. The server chooses it when it
-  creates the suite, among the names that no namespace in the database has and
-  no suite records. No request changes it afterwards: only a migration may
-  move a suite to another namespace (see D6).
+- Unique constraint on `(project_id, name)`: a suite's name is unique within its
+  project (see D7).
+- `id` is the suite's internal identity, which no response shows (see I1).
+- `namespace` is the PostgreSQL schema holding the suite's tables (see Per-Suite
+  Tables below), and nothing but them. The server chooses it when it creates the
+  suite, among the names that no namespace in the database has and no suite
+  records. No request changes it afterwards, renaming or moving the suite
+  included (see D7): only a migration may change it (see D6).
 - `schema_json` holds the *normalized* schema -- the same content
-  `GET /api/suites/{name}` returns, with omitted optional keys filled in --
-  rather than the request body as submitted. It is stored as text rather than
-  JSONB because the server never queries inside it: it is read whole, parsed
-  into the in-memory model, and written whole.
+  `GET /api/projects/{project}/suites/{suite}` returns, with omitted optional
+  keys filled in -- rather than the request body as submitted. It is stored as
+  text rather than JSONB because the server never queries inside it: it is read
+  whole, parsed into the in-memory model, and written whole.
 - `migration_version` is the number of per-suite migrations (see D6) that have
   been applied to the suite's tables. It is unrelated to `schema_version`
   below, which only signals that some suite has changed.
-- See D4 for the limits on the schema name.
+- `name` is the suite's name, also held by `schema_json`. See D4 for its limits.
 
 #### `schema_version`
 
@@ -426,10 +462,11 @@ namespace of their own (see below).
 - Exactly one row, created with `version = 0` when the database is initialized
   (see D6) and never deleted. Readers may rely on it being there. `id` is fixed
   at `1` so that the row can be addressed without a search.
-- Bumped whenever a suite is created, modified, deleted, or moved to another
-  namespace by a migration (D6), so that other workers can detect that their
-  cached suites are stale (see D2). Migrating a suite's tables otherwise changes
-  nothing a worker caches, so it does not bump the counter.
+- Bumped whenever a suite or a project is created, changed (renaming and moving
+  a suite included) or deleted, and whenever a migration gives a suite another
+  namespace (D6), so that other workers can detect that what they cached about
+  suites and projects is stale (see D2). Migrating a suite's tables otherwise
+  changes nothing a worker caches, so it does not bump the counter.
 
 #### `api_key`
 
@@ -440,7 +477,7 @@ namespace of their own (see below).
 | key_hash | VARCHAR(64) | unique, not null |
 | name | VARCHAR(256) | not null |
 | scope | VARCHAR(32) | not null |
-| suites | VARCHAR(64)[] | nullable |
+| restricted | BOOLEAN | not null, default `false` |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
 | last_used_at | TIMESTAMP WITH TIME ZONE | nullable |
 | is_active | BOOLEAN | not null, default `true` |
@@ -461,14 +498,10 @@ namespace of their own (see below).
   integer code (unlike `{suite}.regression.state`, below), because it is read
   once per authenticated request and never filtered or sorted on, so
   readability in the database matters more than compactness.
-- `suites` is null for an instance-wide key, and otherwise the non-empty list of
-  suite names the key is restricted to, in ascending order and without
-  duplicates (see I5). The database layer rejects an empty list, a null element,
-  and a list on a `read` or `admin` key. The names are not foreign keys to
-  `schema`: deleting a suite leaves its name on its keys (see I5). The list is a
-  column of the row rather than a table of its own because it is read with the
-  rest of the row on every authenticated request, which keeps that a single
-  lookup (see I5), and keys are never looked up by suite.
+- `restricted` is true for a key restricted to the projects and suites its
+  `api_key_restriction` rows list (see I5). It stays true once deleting what
+  they list has removed every one of them. The database layer rejects it on a
+  `read` or `admin` key.
 - `last_used_at` is null until the key is first used. It is recorded on
   successful authentication, on a best-effort basis: an implementation may
   coalesce or drop these writes, so the value may lag actual use. It is not an
@@ -479,6 +512,22 @@ namespace of their own (see below).
   lock, held for the length of each request.
 - `is_active` is false once the key has been revoked. Revocation does not
   delete the row (see E11).
+
+#### `api_key_restriction`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| api_key_id | INTEGER FK -> api_key | not null |
+| project_id | INTEGER FK -> project | nullable |
+| suite_id | INTEGER FK -> schema | nullable |
+
+- One row per entry of a restricted key's list: a whole project, or a single
+  suite (see I5). Exactly one of `project_id` and `suite_id` is set; the
+  database layer rejects a row with neither or both.
+- Unique constraints on `(api_key_id, project_id)` and on
+  `(api_key_id, suite_id)`: a key lists a project or a suite at most once.
+- Rows are written with their key, and never changed. Deleting a project or a
+  suite deletes the rows that refer to it.
 
 ### Per-Suite Tables
 
@@ -610,21 +659,21 @@ and the tables below are named that way.
   accepts any value, including one later than `submitted_at`.
 - Compound index on `(machine_id, measured_at)`. Its leading column serves
   lookups of all the runs of a machine, and the pair keeps both
-  `GET /api/suites/{testsuite}/runs?machine={name}&sort=-measured_at` and the
-  `last_run_at` computation described under `{suite}.machine` to a bounded
-  index scan rather than a scan of this table.
+  `GET /api/projects/{project}/suites/{suite}/runs?machine={name}&sort=-measured_at`
+  and the `last_run_at` computation described under `{suite}.machine` to a
+  bounded index scan rather than a scan of this table.
 - Compound index on `(machine_id, submitted_at)`: O10's check of whether a
   machine has had a run submitted since a given time, which must be a single
   index probe even on a machine with a long history.
 - Compound indexes on `(submitted_at, id)` and `(measured_at, id)`: serve
-  `GET /api/suites/{testsuite}/runs?sort=-submitted_at` and `?sort=-measured_at`
-  without `machine=`. `id` is the cursor's tiebreaker (O5).
-- `uuid` uses the `C` collation so that its unique index also serves O4's
-  match by prefix, which an index under a linguistic collation cannot.
-  Equality is the same under either, and nothing sorts by `uuid`. With that
-  index, the one on `commit_id` and the one on `(machine_id, measured_at)`,
-  `GET /api/suites/{testsuite}/runs?search=` must not scan this table when
-  fewer runs match than fill a page.
+  `GET /api/projects/{project}/suites/{suite}/runs?sort=-submitted_at` and
+  `?sort=-measured_at` without `machine=`. `id` is the cursor's tiebreaker (O5).
+- `uuid` uses the `C` collation so that its unique index also serves O4's match
+  by prefix, which an index under a linguistic collation cannot. Equality is the
+  same under either, and nothing sorts by `uuid`. With that index, the one on
+  `commit_id` and the one on `(machine_id, measured_at)`,
+  `GET /api/projects/{project}/suites/{suite}/runs?search=` must not scan this
+  table when fewer runs match than fill a page.
 - Deleting a run deletes its samples, profiles and run summaries.
 
 #### `{suite}.test`
@@ -652,10 +701,10 @@ and the tables below are named that way.
   the submission (see O1). It tells the repetitions of a test in a run apart in
   storage, and is not exposed by the API (see E6).
 - The primary key leads with the run. It serves
-  `GET /api/suites/{testsuite}/runs/{uuid}/samples`, with or without `test=`;
-  the deletion of a run's samples; and `GET /api/suites/{testsuite}/series`,
-  which reaches one machine's samples through its runs, whatever tests and
-  commits it reads.
+  `GET /api/projects/{project}/suites/{suite}/runs/{uuid}/samples`, with or
+  without `test=`; the deletion of a run's samples; and
+  `GET /api/projects/{project}/suites/{suite}/series`, which reaches one
+  machine's samples through its runs, whatever tests and commits it reads.
 - Compound index on `(test_id, run_id)`: reaches a test's samples on every
   machine without going through the runs. No endpoint relies on it.
 - Dynamic columns are created from the schema's metrics (see D3 for the
@@ -671,11 +720,11 @@ and the tables below are named that way.
 | test_id | INTEGER FK -> Test | PK |
 | _(dynamic)_ | BOOLEAN, one per metric | not null, default `false` |
 
-- One row per machine and test that has had samples, so that the `machine=`
-  and `metric=` filters of `GET /api/suites/{testsuite}/tests`, and the tests
-  `GET /api/suites/{testsuite}/series` reads, are a lookup rather than a scan of
-  `{suite}.sample`. Each metric's column records whether any of those samples
-  had a value for that metric.
+- One row per machine and test that has had samples, so that the `machine=` and
+  `metric=` filters of `GET /api/projects/{project}/suites/{suite}/tests`, and
+  the tests `GET /api/projects/{project}/suites/{suite}/series` reads, are a
+  lookup rather than a scan of `{suite}.sample`. Each metric's column records
+  whether any of those samples had a value for that metric.
 - It only grows: rows are added and flags only turn true. Run submission adds
   rows and sets flags in the same transaction as its samples (see O8).
   Deleting a run or a commit leaves the table unchanged, so those filters can
@@ -706,8 +755,8 @@ and the tables below are named that way.
   null, and changes nothing else about them. A commit created later with the
   same value is a new commit, to which those regressions are not attributed.
 - Compound index on `(created_at, id)`: serves
-  `GET /api/suites/{testsuite}/regressions?sort=-created_at`. `id` is the
-  cursor's tiebreaker (O5).
+  `GET /api/projects/{project}/suites/{suite}/regressions?sort=-created_at`.
+  `id` is the cursor's tiebreaker (O5).
 
 Regression state values:
 
@@ -802,8 +851,8 @@ The database layer validates state values on create and update.
 
 - Statistics summarizing a run's samples for one numeric metric, computed at
   submission (see O9), one column per statistic and sample aggregation.
-  `GET /api/suites/{testsuite}/trends` reads this table, so that a trend does
-  not read every sample in its window.
+  `GET /api/projects/{project}/suites/{suite}/trends` reads this table, so that
+  a trend does not read every sample in its window.
 - A geomean column is null when the run has no geomean of the metric under
   that aggregation. A run with no geomean of a metric under any aggregation has
   no row for it.
@@ -828,18 +877,19 @@ parts change in different ways.
 
 **Which dynamic columns exist is decided by data.** A suite's schema decides
 which columns its tables have beyond the built-in ones, so they cannot be
-described in advance. They are created by `POST /api/suites`, added or removed
-by `PATCH /api/suites/{name}/schema`, and dropped with the suite by
-`DELETE /api/suites/{name}` (see D2). This is ordinary request handling, not
-initialization.
+described in advance. They are created by `POST /api/projects/{project}/suites`,
+added or removed by `PATCH /api/projects/{project}/suites/{suite}/schema`, and
+dropped with the suite by `DELETE /api/projects/{project}/suites/{suite}` (see
+D2). This is ordinary request handling, not initialization.
 
-**Everything else is decided by code.** The global tables (`schema`,
-`schema_version`, `api_key`), and everything about a suite's tables except
-which dynamic columns they have, are fixed by the server build rather than by
-anything a user submits. Before a build serves traffic, the database must
-therefore be migrated to the structure that build expects, and migrated again
-whenever a later build changes that structure -- including the tables of every
-existing suite. This is what "when the database is initialized" means in D5.
+**Everything else is decided by code.** The global tables (`project`, `schema`,
+`schema_version`, `api_key`, `api_key_restriction`), and everything about a
+suite's tables except which dynamic columns they have, are fixed by the server
+build rather than by anything a user submits. Before a build serves traffic, the
+database must therefore be migrated to the structure that build expects, and
+migrated again whenever a later build changes that structure -- including the
+tables of every existing suite. This is what "when the database is initialized"
+means in D5.
 
 These changes form two sequences of migrations: one for the global tables, and
 one for the per-suite tables, applied to each suite separately. The mechanism
@@ -870,10 +920,10 @@ that applies them must meet these requirements:
   migration therefore receives the suite's schema, so that it knows which
   columns to change, and its namespace, so that it knows where they are. A
   migration may also update existing rows, not only change the tables.
-- **Migrations can move a suite.** A suite's migration may move its tables to
-  another namespace, chosen as for a new suite (see D5). It records the new
-  one in `schema.namespace`, and bumps `schema_version` so that every worker
-  reloads its copy of the suite (see D2).
+- **Migrations can change a suite's namespace.** A suite's migration may move
+  its tables to another namespace, chosen as for a new suite (see D5). It
+  records the new one in `schema.namespace`, and bumps `schema_version` so that
+  every worker reloads its copy of the suite (see D2).
 - **Never backwards.** If a newer build has already migrated the database, or
   any suite, past the latest migration the running build knows about, the
   running build refuses to start or to apply migrations, since its code would
@@ -913,3 +963,35 @@ refuses to serve if any of it fails: a server whose tables are not the ones its
 code expects would fail every request. It is also available as a standalone
 administrative operation, so that an operator can apply or inspect it without
 starting a server.
+
+
+## D7: Projects
+
+A **project** groups the test suites of one software project, such as the
+microbenchmarks and the header sizes of libc++. Every suite belongs to exactly
+one project. Projects are one level deep: a project holds suites, never other
+projects. The UI groups suites by project (see AR22), and an API key can be
+restricted to whole projects as well as to single suites (see I5).
+
+A project has a `name` and a `display_name`:
+
+- `name` follows the rules of a suite name (see D4), and is unique across the
+  instance.
+- `display_name` follows the rules of a suite's `display_name` (see D4), and is
+  how the UI names the project when it is set (see AR22).
+
+A suite's name is unique only within its project, so a suite is identified by
+its project's name and its own together. Its **full name**, `project/suite`
+(e.g. `libcxx/benchmarks`), is how people and logs write it outside its
+project's context (see O10). The API itself always takes the two names as
+separate path segments (see I1).
+
+Projects are created, changed and deleted through E13. Deleting a project is
+refused while it has suites (see D2), so it never deletes any data.
+
+**Renames and moves.** A suite can be renamed within its project, moved to
+another project, or both at once (see E10), and a project can be renamed (see
+E13). Only names change: the suite keeps its namespace (see D5) and all of its
+data. The old name is not kept as an alias: every URL under the suite, or under
+every suite of a renamed project, changes, and the old one answers 404 until
+something else takes the name. See I5 for how API keys follow renames and moves.

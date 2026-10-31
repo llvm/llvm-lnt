@@ -3,24 +3,23 @@
 Page specification for the Graph (time series) page at `/graph`.
 
 
-## Graph (Time Series) -- `/graph?suite={ts}&machine={name}&metric={name}`
+## Graph (Time Series) -- `/graph?project={p}&suite={s}&machine={name}&metric={name}`
 
 The primary performance-over-time visualization. This page is suite-agnostic:
-the suite is a query parameter, not a path segment.
+the suite and its project are query parameters, not path segments.
 
 
 ### GR1: Controls and Chart
 
-- **Suite selector**: A required dropdown at the top of the page, populated from
-  the test suites defined on the instance. All other controls (machine, metric,
-  test filter, aggregation, regression annotations, baselines) are disabled
-  until a suite is selected.
-  Changing the suite clears the machines, the metric, the selected tests, the
-  highlighted commits (GR16) and the chart. The test filter, the aggregation,
-  the regression annotation mode (GR15) and the baselines (GR9) are kept: a
-  baseline names its own suite.
-  When the page is loaded with `suite=` in the URL, the dropdown is
-  pre-selected.
+- **Suite selector**: A required dropdown at the top of the page, over the test
+  suites defined on the instance, grouped by project (see AR22). All other
+  controls (machine, metric, test filter, aggregation, regression annotations,
+  baselines) are disabled until a suite is selected. Changing the suite clears
+  the machines, the metric, the selected tests, the highlighted commits (GR16)
+  and the chart. The test filter, the aggregation, the regression annotation
+  mode (GR15) and the baselines (GR9) are kept: a baseline names its own suite.
+  When the page is loaded with `project=` and `suite=` in the URL, the dropdown
+  is pre-selected.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select
   input: the user adds a machine by picking it from a combobox (see AR14), and
@@ -232,47 +231,46 @@ baseline. In particular:
 Users can overlay one or more baselines as horizontal dashed lines on the chart.
 Each baseline is a (suite, machine, commit) tuple, allowing cross-suite
 comparisons. The selector is a panel, opened by a "+" button beside the
-"Baselines" label, with cascading selectors: Suite
-(populated from the test suites defined on the instance) -> Machine (populated from the selected
-suite's machines endpoint, see AR18) -> Commit (populated from the selected machine's
-commits via `GET commits?machine={name}&sort=-ordinal`; see AR15). Picking
-a commit adds the baseline and closes the panel; "+" closes it too. Added
-baselines appear as removable chips labeled `{suite}/{machine}/{display_value}`,
-where `display_value` is the commit's display value (see AR6), or the commit
-string until the display value is known. A baseline loaded from the URL is
-looked up like a commit given to the commit picker: through
-`GET commits?machine={machine}&commit={commit}` in the baseline's suite, which
-returns the commit, with its display value, only if the machine has runs at it.
-If that lookup succeeds without returning it, the baseline is unusable, and is
-dropped (see AR2 "State"). A baseline can also be added from a point's details
-(GR11): the point's suite, machine and commit. Like a commit picked in the
-panel, it is not looked up (AR15): its point shows that the machine has runs at
-the commit.
-Baseline data is fetched from the baseline's suite via
-`GET /api/suites/{suite}/series?machine={machine}&metric={metric}&commit={commit}`:
+"Baselines" label, with cascading selectors: Suite (a dropdown over the test
+suites defined on the instance, grouped by project; see AR22) -> Machine
+(populated from the selected suite's machines endpoint, see AR18) -> Commit
+(populated from the selected machine's commits via
+`GET commits?machine={name}&sort=-ordinal`; see AR15). Picking a commit adds the
+baseline and closes the panel; "+" closes it too. Added baselines appear as
+removable chips labeled `{suite}/{machine}/{display_value}`, where `{suite}` is
+the suite's full label (see AR22) and `display_value` the commit's display value
+(see AR6), or the commit string until the display value is known. A baseline
+loaded from the URL is looked up like a commit given to the commit picker:
+through `GET commits?machine={machine}&commit={commit}` in the baseline's suite,
+which returns the commit, with its display value, only if the machine has runs
+at it. If that lookup succeeds without returning it, the baseline is unusable,
+and is dropped (see AR2 "State"). A baseline can also be added from a point's
+details (GR11): the point's suite, machine and commit. Like a commit picked in
+the panel, it is not looked up (AR15): its point shows that the machine has runs
+at the commit. Baseline data is fetched from the baseline's suite via
+`GET /api/projects/{project}/suites/{suite}/series?machine={machine}&metric={metric}&commit={commit}`:
 every test's data at that commit, so that selecting tests needs no request, and
 a test that the baseline's suite does not have is simply absent. These requests
 do not wait for the traces' turns (GR2), so that a large selection does not hold
-back a baseline. Each baseline renders
-as a horizontal dashed line per selected test, spanning the full chart width,
-colored to match that test's traces. The baseline's Y value for each test is
-computed with the same sample and run aggregation as the traces (GR1), so that
-when the baseline's suite and machine are plotted and its commit is on the
-x-axis, the dashed line meets that machine's trace at the baseline commit. A
-baseline draws nothing until all its data has arrived. The y-axis range includes
-the baseline's lines. A
-baseline draws no line for a test it has no data for, and draws nothing at all
-when its suite does not declare the plotted metric as a numeric metric with the
-same `unit` (an unset unit matching only an unset one), as CP1 requires of a
-metric compared across suites.
-Hovering a dashed line shows a tooltip with: the baseline suite, machine,
-commit, test name, and metric value. A point on a dashed line keeps its tooltip
-and details (GR10, GR11).
-Baselines are encoded in the URL query string for shareability as
-`{suite}/{machine}/{commit}` (e.g.
-`&baseline=nts/machine1/abc123&baseline=other_suite/machine2/def456`). None of
-the three can contain a `/` (see D4 and I1). If the URL names a baseline twice,
-it is added once. Loading a baseline never delays drawing the traces.
+back a baseline. Each baseline renders as a horizontal dashed line per selected
+test, spanning the full chart width, colored to match that test's traces. The
+baseline's Y value for each test is computed with the same sample and run
+aggregation as the traces (GR1), so that when the baseline's suite and machine
+are plotted and its commit is on the x-axis, the dashed line meets that
+machine's trace at the baseline commit. A baseline draws nothing until all its
+data has arrived. The y-axis range includes the baseline's lines. A baseline
+draws no line for a test it has no data for, and draws nothing at all when its
+suite does not declare the plotted metric as a numeric metric with the same
+`unit` (an unset unit matching only an unset one), as CP1 requires of a metric
+compared across suites. Hovering a dashed line shows a tooltip with: the
+baseline suite, machine, commit, test name, and metric value. A point on a
+dashed line keeps its tooltip and details (GR10, GR11). Baselines are encoded in
+the URL query string for shareability as `{project}/{suite}/{machine}/{commit}`,
+by name (e.g.
+`&baseline=llvm/nts/machine1/abc123&baseline=libcxx/benchmarks/machine2/def456`).
+None of the four can contain a `/` (see D4, D7 and I1). If the URL names a
+baseline twice, it is added once. Loading a baseline never delays drawing the
+traces.
 
 
 ### GR10: Hover Behavior
@@ -393,7 +391,7 @@ the highlighted commits (GR16) are not points.
 - `GET commits?machine={name}&sort=-ordinal&search=...` (baseline commit picker)
 - `GET commits?machine={name}&commit={value}` (baselines loaded from the URL)
 - `GET machines` (machine combobox, and the baseline panel's machines)
-- `GET suites` (suite selector, and the selected suite's metrics)
+- `GET /api/projects` (suite selector, and the selected suite's metrics)
 - `POST regressions/indicators/query` and `GET regressions` (regression
   annotations; see GR15)
 - `POST regressions` (creating a regression from a point; see GR11)
@@ -401,7 +399,7 @@ the highlighted commits (GR16) are not points.
 
 ### GR14: URL State
 
-`?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={suite}/{machine}/{commit}&baseline={suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
+`?project={p}&suite={s}&machine={name}&machine={name2}&metric={name}&test_filter={text}&test_filter_regex=true&test={name}&test={name2}&run_agg={fn}&sample_agg={fn}&regressions={mode}&baseline={project}/{suite}/{machine}/{commit}&baseline={project2}/{suite2}/{machine2}/{commit2}&highlight={commit}&highlight={commit2}`
 
 `test` is present only while at most 10 tests are selected: with more, the URL
 holds no `test` at all, and the page says that the URL does not reflect the
