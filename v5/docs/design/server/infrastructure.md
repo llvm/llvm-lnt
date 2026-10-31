@@ -380,9 +380,9 @@ valid. The body is otherwise validated after authorization.
   suite. An entry for a project covers the suites that project holds now, so a
   move takes a suite from the keys listing its old project and gives it to those
   listing the new one, which is why moving needs to cover the destination in
-  full. A move can leave a key listing a suite along with its new project: both
-  entries stay, and the suite's keeps following the suite. A project or a suite
-  created later under an old name is not covered.
+  full. A key may list a suite along with its project: both entries stay, and
+  the suite's keeps following the suite. A project or a suite created later
+  under an old name is not covered.
 - Deleting a project or a suite removes it from the keys that list it. A key
   whose last entry is removed stays restricted, to nothing, and grants only
   `read`: it never becomes instance-wide.

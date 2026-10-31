@@ -50,9 +50,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Earlier builds list single suites only. A whole project becomes the suites it holds now, which
     # narrows the key (it no longer covers the suites created in the project later, nor the project
-    # in full) rather than widening it. A key may already list one of them, which a move can leave
-    # it doing. A key whose projects held no suite, and that listed nothing else, is left restricted
-    # to nothing, which earlier builds store.
+    # in full) rather than widening it. A key may already list one of them too (I5). A key whose
+    # projects held no suite, and that listed nothing else, is left restricted to nothing, which
+    # earlier builds store.
     op.execute(
         "INSERT INTO api_key_restriction (api_key_id, suite_id) "
         "SELECT api_key_restriction.api_key_id, schema.id "

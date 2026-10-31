@@ -4,8 +4,8 @@ import { adminToken, expect, json, test } from './fixtures.ts'
 
 type Schemas = components['schemas']
 
-/** An entry of a key's restriction: a whole project, without `suite`, or a single suite. */
-type Ref = { project: string; suite?: string }
+/** An entry of a key's restriction: a whole project, with a null `suite`, or a single suite. */
+type Ref = Schemas['RestrictionEntry']
 
 /** By code point, compared explicitly, rather than in the order the API happens to list. */
 const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)

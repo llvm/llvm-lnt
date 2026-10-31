@@ -198,13 +198,13 @@ every lower one. `read` endpoints allow anonymous access, so send no header if
 you only read. A header that carries no usable Bearer token, or an unknown or
 revoked one, is 401 even on a `read` endpoint, and too little scope is 403. A
 key may be restricted (its `restricted_to` list) to whole projects, each
-`{"project": ...}`, and single suites, each `{"project": ..., "suite": ...}`,
-and then has its scope only in the suites it covers: those it lists, and every
-suite of the projects it lists, including suites created there later. A
-restricted key can create a suite in a project, move a suite into it, or change
-its display name, only if it lists the project as a whole. Creating, renaming
-and deleting projects need an unrestricted key. Renames and moves leave keys
-alone: a key listing a suite still covers it under its new names, and a key
+`{"project": ..., "suite": null}`, and single suites, each `{"project": ...,
+"suite": ...}`, and then has its scope only in the suites it covers: those it
+lists, and every suite of the projects it lists, including suites created there
+later. A restricted key can create a suite in a project, move a suite into it,
+or change its display name, only if it lists the project as a whole. Creating,
+renaming and deleting projects need an unrestricted key. Renames and moves leave
+keys alone: a key listing a suite still covers it under its new names, and a key
 listing a project covers whatever suites the project holds now, so a move takes
 a suite from the keys listing its old project and gives it to those listing the
 new one. Deleting a project or a suite removes it from the keys that list it,

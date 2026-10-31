@@ -892,7 +892,7 @@ class TestProjectRestrictions:
         """At 0012: projects `llvm` (suites `nts`, `zeta`), `libcxx` (suite `benchmarks`) and
         `swift` (no suite), and keys restricted to some of them, as whole projects or not:
 
-        - `aaaaaaaa`: `llvm` as a whole, and `llvm/nts` too, which a move can leave (I5);
+        - `aaaaaaaa`: `llvm` as a whole, and `llvm/nts` too (I5);
         - `bbbbbbbb`: `swift` as a whole, alone;
         - `cccccccc`: `libcxx/benchmarks`, alone.
         """

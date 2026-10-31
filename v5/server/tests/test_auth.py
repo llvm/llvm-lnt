@@ -524,7 +524,7 @@ class TestProjectRestriction:
         assert api_client.delete(f"{suite}?confirm=true", headers=libcxx).status_code == 204
         # Deleting a suite of the project leaves the project in the key.
         listed = api_client.get("/api/auth", headers=libcxx).json()["key"]["restricted_to"]
-        assert listed == [{"project": "libcxx"}]
+        assert listed == [{"project": "libcxx", "suite": None}]
 
     def test_creates_no_suite_in_another_project(
         self, api_client: TestClient, libcxx: dict[str, str], db_engine: Engine
@@ -662,7 +662,7 @@ class TestMovesAndProjectRenames:
         assert response.status_code == 200, response.text
         # Both entries stay, and the suite's follows the suite (I5).
         listed = api_client.get("/api/auth", headers=headers).json()["key"]["restricted_to"]
-        assert listed == [{"project": "llvm"}, {"project": "llvm", "suite": "nts"}]
+        assert listed == [{"project": "llvm", "suite": None}, {"project": "llvm", "suite": "nts"}]
 
     def test_a_key_covering_the_destination_but_not_the_suite_cannot_move_it(
         self,
