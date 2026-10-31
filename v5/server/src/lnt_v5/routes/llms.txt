@@ -26,8 +26,7 @@
   a field the schema does not name is rejected with 400 rather than ignored.
   An optional `repository` block holds URL templates of the repository's
   commits (`{commit}`) and of the changes between two commits (`{from}`,
-  `{to}`), for clients to link to. An optional `display_name` is how the web
-  UI names the suite; the API addresses it by `name` alone.
+  `{to}`), for clients to link to.
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
   declared `machine_fields` under `fields`, and a built-in `tracked` flag
   marking whether it takes part in *automatic* machine selection, such as a
@@ -75,7 +74,7 @@ GET    /api/auth                                              read    The API ke
 GET    /api/suites                                            read    Every suite, with its schema
 POST   /api/suites                                            manage  Create a suite from a schema
 GET    /api/suites/{name}                                     read    One suite's schema
-PATCH  /api/suites/{name}/schema                              manage  Add, update or remove metrics and fields, or change the display name or the repository
+PATCH  /api/suites/{name}/schema                              manage  Add, update or remove metrics and fields, or change the repository
 DELETE /api/suites/{name}                                     manage  Delete a suite and all its data
 
 GET    /api/suites/{testsuite}/machines                       read    List machines (search=, tracked=, sort=)
