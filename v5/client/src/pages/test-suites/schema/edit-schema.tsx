@@ -212,8 +212,6 @@ function EditForm({ suite, schema, onClose, onMoved }: FormProps) {
   // starts from the schema stored, so that only the rename or the move is left to save. The list of
   // suites takes the stored schema only then, or once there is nothing to rename: a rename or a move
   // puts the suite there under its new names, with the schema it returns, and forgets the old ones.
-  // (Meanwhile, another tab of the suite shows its schema as it was before the change, under the old
-  // names, until the move completes.)
   const send = async (save: Save, prompted: boolean) => {
     setSaving(true)
     setFailure(null)

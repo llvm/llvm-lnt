@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router'
 import { authedApi, unwrap } from '../../api/client'
 import { refOf, schemaOf, type Suite, type SuiteRef, type SuiteSchema } from '../../api/suites'
 import { fullLabel } from '../../labels'
@@ -10,6 +11,7 @@ import { useFocusOnceChecked } from '../../components/use-focus-once-checked'
 import { downloadFile } from './schema/download'
 import { EditSchema } from './schema/edit-schema'
 import { SchemaTables } from './schema/schema-tables'
+import { movedFromOf } from './settings'
 import styles from './schema/schema.module.css'
 
 interface Props {
@@ -21,13 +23,6 @@ interface Props {
    * new one if the user is still on it.
    */
   onMoved(schema: SuiteSchema, to: SuiteRef): Promise<void>
-  /**
-   * The page has just come from the suite's old names (see `onMoved`): "Edit schema" takes the
-   * focus once the token has been checked again, as once the editor has closed, or the tab's actions
-   * do if it stays disabled, and `onEditFocused` is called.
-   */
-  focusEdit?: boolean
-  onEditFocused?(): void
 }
 
 /**
@@ -35,7 +30,7 @@ interface Props {
  * deletion, which need `manage` in it. "Edit schema" opens the schema editor (TS7) in their place,
  * which renames and moves the suite too, and asks before its changes go with the tab.
  */
-export function SchemaTab({ schema, onDeleted, onMoved, focusEdit, onEditFocused }: Props) {
+export function SchemaTab({ schema, onDeleted, onMoved }: Props) {
   const { name } = schema
   const suite = refOf(schema)
   const gate = useScopeGate('manage', suite)
@@ -49,9 +44,14 @@ export function SchemaTab({ schema, onDeleted, onMoved, focusEdit, onEditFocused
     if (refocus.current) editRef.current?.focus()
     refocus.current = false
   })
-  // Once the token has been checked again after a rename or a move, only if the focus went with the
-  // old page.
-  useFocusOnceChecked(focusEdit ?? false, onEditFocused, editRef, actionsRef)
+  // Arriving from the suite's old names (see `onMoved`), which a move always leads to this tab
+  // from: "Edit schema" takes the focus once the token has been checked again, as once the editor
+  // has closed, or the tab's actions do if it stays disabled, only if the focus went with the old
+  // page. Read on mount, since the page then takes the state out of the history entry.
+  const location = useLocation()
+  const [focusEdit, setFocusEdit] = useState(() => movedFromOf(location) !== undefined)
+  const onEditFocused = useCallback(() => setFocusEdit(false), [])
+  useFocusOnceChecked(focusEdit, onEditFocused, editRef, actionsRef)
 
   if (editing) {
     return (

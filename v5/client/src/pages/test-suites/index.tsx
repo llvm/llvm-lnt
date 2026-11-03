@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { forgetUnobserved } from '../../api/keys'
@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../../auth/use-auth'
 import { Alert, Loaded } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
+import { focusLost } from '../../components/use-focus-once-checked'
 import { useMounted } from '../../components/use-mounted'
 import { projectLabel, suiteLabel } from '../../labels'
 import { projectPath } from '../../paths'
@@ -31,9 +32,11 @@ import { SchemaTab } from './schema-tab'
 import {
   PARAMS,
   TABS,
+  movedFromOf,
   resetSettings,
   suiteTabPath,
   unusedSettings,
+  type Moved,
   type TabId,
 } from './settings'
 import styles from './test-suites.module.css'
@@ -153,17 +156,9 @@ function useNotFoundFocus(suite: string | undefined, found: boolean) {
   useLayoutEffect(() => {
     const lost = !found && shown.current === suite
     shown.current = found && suite !== undefined ? suite : null
-    if (lost && (document.activeElement === null || document.activeElement === document.body)) {
-      ref.current?.focus()
-    }
+    if (lost && focusLost()) ref.current?.focus()
   })
   return ref
-}
-
-/** The history state of the page that a rename or a move leads to, in place of the old names'. */
-interface Moved {
-  /** The full name the suite had. */
-  movedFrom: string
 }
 
 function SuiteTabs({ schema }: { schema: Suite }) {
@@ -193,19 +188,15 @@ function SuiteTabs({ schema }: { schema: Suite }) {
     }
   }
   // Arriving from the old names: what the page read there, which it has stopped observing, is
-  // dropped rather than shown if the history leads back to them, and "Edit schema" takes the focus,
-  // as once the editor has closed. Only once: the state is taken out of the history entry, so that
-  // a reload or Back does not do it again.
-  const movedFrom = (location.state as Moved | null)?.movedFrom
-  const [focusEdit, setFocusEdit] = useState(movedFrom !== undefined)
+  // dropped rather than shown if the history leads back to them (the Schema tab also gives "Edit
+  // schema" the focus). Only once: the state is taken out of the history entry, so that a reload or
+  // Back does not do it again.
+  const movedFrom = movedFromOf(location)
   useEffect(() => {
     if (movedFrom === undefined) return
     forgetUnobserved(queryClient, suiteOfFullName(movedFrom))
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
   }, [movedFrom, queryClient, navigate, location.pathname, location.search])
-  const onEditFocused = useCallback(() => setFocusEdit(false), [])
-  // Another tab, chosen before the token has been checked, keeps what it chose.
-  if (focusEdit && tab !== 'schema') setFocusEdit(false)
 
   // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
   // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
@@ -245,13 +236,7 @@ function SuiteTabs({ schema }: { schema: Suite }) {
         />
       )}
       {tab === 'schema' && (
-        <SchemaTab
-          schema={schema}
-          onDeleted={onDeleted}
-          onMoved={onMoved}
-          focusEdit={focusEdit}
-          onEditFocused={onEditFocused}
-        />
+        <SchemaTab schema={schema} onDeleted={onDeleted} onMoved={onMoved} />
       )}
     </Tabs>
   )

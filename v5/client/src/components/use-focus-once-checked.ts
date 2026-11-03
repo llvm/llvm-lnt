@@ -15,14 +15,14 @@ export function focusLost(): boolean {
  */
 export function useFocusOnceChecked(
   pending: boolean,
-  onDone: (() => void) | undefined,
+  onDone: () => void,
   target: RefObject<HTMLButtonElement | null>,
   fallback: RefObject<HTMLElement | null>,
 ): void {
   const checking = useAuth().status.state === 'checking'
   useEffect(() => {
     if (!pending || checking) return
-    onDone?.()
+    onDone()
     if (!focusLost()) return
     const button = target.current
     if (button !== null && !button.disabled) button.focus()
