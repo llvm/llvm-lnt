@@ -12,7 +12,7 @@ import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
 import { suitePath } from '../client/src/paths.ts'
 import { BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
 import { ownName, withOwnSuite } from './own-suite.ts'
-import { pickOption, selectButton } from './select.ts'
+import { pickOption, pickSuite, selectButton } from './select.ts'
 import { column, rows, table } from './tables.ts'
 
 /** The key that `token` belongs to, or null if the API does not accept it. */
@@ -262,7 +262,7 @@ test.describe('the Test Suites tab', () => {
       await pickOption(editor, 'Project', suite.project)
       await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
       await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill(' E2E suite ')
-      await pickOption(editor, 'Start from', 'libc++/Microbenchmarks')
+      await pickSuite(editor, 'Start from', 'libc++', 'Microbenchmarks')
       await editor.getByRole('button', { name: '+ Add machine field' }).click()
       await editor
         .getByRole('textbox', { name: /^Name of machine field \d+$/ })

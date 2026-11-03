@@ -24,7 +24,7 @@ import {
   typeInto,
   type SuiteStore,
 } from '../../test/page'
-import { pickOption, selectButton } from '../../test/select'
+import { optionsIn, pickOption, pickSuite, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 
 type Failure = ReturnType<typeof errorResponse>
@@ -414,9 +414,9 @@ describe('opening the editor', () => {
     expect(unloadAsks()).toBe(false)
 
     // A suite without entries leaves the editor as it opened.
-    await pickOption('Start from', 'llvm/nts')
+    await pickSuite('Start from', 'llvm', 'nts')
     expect(unloadAsks()).toBe(false)
-    await pickOption('Start from', 'llvm/libcxx')
+    await pickSuite('Start from', 'llvm', 'libcxx')
     expect(unloadAsks()).toBe(true)
   })
 
@@ -949,7 +949,7 @@ describe('Start from', () => {
     typeInto(suiteNameInput(), 'copy')
     addEntry('metric', 'mine')
 
-    await pickOption('Start from', 'llvm/libcxx')
+    await pickSuite('Start from', 'llvm', 'libcxx')
 
     expect(suiteNameInput()).toHaveValue('copy')
     expect(
@@ -979,23 +979,27 @@ describe('Start from', () => {
 
     // Picking it again starts again from it.
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric execution_time' }))
-    await pickOption('Start from', 'llvm/libcxx')
+    await pickSuite('Start from', 'llvm', 'libcxx')
     expect(screen.getAllByRole('textbox', { name: /^Name of metric/ })).toHaveLength(1)
   })
 
-  it("lists the suites by their labels, in their order, and copies neither one's names", async () => {
+  it("lists the suites by their labels under their project, in order, and copies neither one's names", async () => {
     await openEditor({
-      suites: [{ ...SUITE, display_name: 'Microbenchmarks' }, { ...BARE_SUITE, name: 'alpha' }],
+      suites: [
+        { ...SUITE, display_name: 'Microbenchmarks' },
+        { ...BARE_SUITE, name: 'alpha' },
+      ],
+      projects: [PROJECT, SWIFT],
     })
     typeInto(displayNameInput(), ' Mine ')
     const user = userEvent.setup()
     await user.click(selectButton('Start from'))
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'Select a suite',
-      'llvm/alpha',
-      'llvm/Microbenchmarks',
-    ])
-    await user.click(screen.getByRole('option', { name: 'llvm/Microbenchmarks' }))
+    // Only suites, under the heading of the one project that has any (AR22).
+    expect(screen.getAllByRole('group')).toHaveLength(1)
+    const group = screen.getByRole('group', { name: 'llvm' })
+    expect(optionsIn(group)).toEqual(['alpha', 'Microbenchmarks'])
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+    await user.click(within(group).getByRole('option', { name: 'Microbenchmarks' }))
 
     expect(suiteNameInput()).toHaveValue('')
     expect(displayNameInput()).toHaveValue(' Mine ')

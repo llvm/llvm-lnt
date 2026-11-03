@@ -14,7 +14,7 @@ import {
   renderPage,
   settle,
 } from '../../test/page'
-import { pick, pickOption, selectButton } from '../../test/select'
+import { pick, pickSuite, selectButton } from '../../test/select'
 import { inProject, NO_REPOSITORY, SUITE, uuidOf } from '../../test/fixtures'
 import { COMPARED, comparison, mockWorld, ROWS, runBox, sideOf, SUITES } from './compare-world'
 
@@ -29,7 +29,7 @@ describe('the Compare page (CP1)', () => {
     expect(await main().findByText('Select a suite for side A.')).toBeInTheDocument()
     expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
     expect(selectButton('Metric')).toBeDisabled()
-    await pickOption('Suite', 'llvm/libcxx', sideOf('A'))
+    await pickSuite('Suite', 'llvm', 'libcxx', sideOf('A'))
     expect(await main().findByText('Select a machine for side A.')).toBeInTheDocument()
     expect(selectButton('Metric')).toBeEnabled()
     await pick('Machine', 'm1', sideOf('A'))
@@ -417,7 +417,7 @@ describe('the metric (CP1)', () => {
     ])
     await user.keyboard('{Escape}')
 
-    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
+    await pickSuite('Suite', 'llvm', 'libcxx', sideOf('B'))
     await user.click(selectButton('Metric'))
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Execution Time',
@@ -429,7 +429,7 @@ describe('the metric (CP1)', () => {
     renderPage('/compare?project_a=llvm&suite_a=other&metric=compile_time')
     await waitFor(() => expect(selectButton('Metric')).toHaveTextContent('Compile Time'))
 
-    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
+    await pickSuite('Suite', 'llvm', 'libcxx', sideOf('B'))
 
     await waitFor(() => expect(query().metric).toBeUndefined())
     expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
@@ -715,11 +715,11 @@ describe("a side's suite in the URL (CP7, AR22)", () => {
     mockWorld({ suites: [...SUITES, other] })
     renderPage('/compare')
 
-    await pickOption('Suite', 'other/libcxx', sideOf('A'))
+    await pickSuite('Suite', 'other', 'libcxx', sideOf('A'))
     await waitFor(() => expect(query()).toEqual({ project_a: ['other'], suite_a: ['libcxx'] }))
     expect(selectButton('Suite', sideOf('A'))).toHaveTextContent('other/libcxx')
 
-    await pickOption('Suite', 'llvm/libcxx', sideOf('A'))
+    await pickSuite('Suite', 'llvm', 'libcxx', sideOf('A'))
     await waitFor(() => expect(query()).toEqual({ project_a: ['llvm'], suite_a: ['libcxx'] }))
   })
 })

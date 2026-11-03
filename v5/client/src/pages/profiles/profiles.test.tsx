@@ -7,7 +7,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import { server } from '../../test/server'
 import { profilesPath } from '../../paths'
 import { currentUrl, gate, main, query, renderPage, settle } from '../../test/page'
-import { clearCombobox, pick, pickOption, selectButton } from '../../test/select'
+import { clearCombobox, pick, pickOption, pickSuite, selectButton } from '../../test/select'
 import {
   ALPHA,
   columnOf,
@@ -58,7 +58,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     const { commits } = mockWorld()
     renderPage('/profiles')
 
-    await pickOption('Suite', 'llvm/libcxx', await screen.findByRole('region', { name: 'Side A' }))
+    await pickSuite('Suite', 'llvm', 'libcxx', await screen.findByRole('region', { name: 'Side A' }))
     await pick('Machine', 'm1', sideOf('A'))
     await pick('Commit', 'c1', sideOf('A'))
 
@@ -219,7 +219,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
 
-    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
+    await pickSuite('Suite', 'llvm', 'libcxx', sideOf('B'))
     await pick('Machine', 'm2', sideOf('B'))
     expect(field('Test', 'B')).toHaveAttribute('placeholder', 'Select a run first')
     await pick('Commit', 'c1', sideOf('B'))
@@ -238,7 +238,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
 
-    await pickOption('Suite', 'llvm/libcxx', sideOf('B'))
+    await pickSuite('Suite', 'llvm', 'libcxx', sideOf('B'))
     await pick('Machine', 'm2', sideOf('B'))
     await pick('Commit', 'c3', sideOf('B'))
 
@@ -298,7 +298,7 @@ describe('the Profiles page: side selection (PF2)', () => {
     renderPage(ALPHA)
     await waitFor(() => expect(field('Test', 'A')).toHaveValue('alpha'))
 
-    await pickOption('Suite', 'llvm/other', sideOf('A'))
+    await pickSuite('Suite', 'llvm', 'other', sideOf('A'))
 
     await waitFor(() => expect(currentUrl()).toBe('/profiles?project_a=llvm&suite_a=other'))
   })

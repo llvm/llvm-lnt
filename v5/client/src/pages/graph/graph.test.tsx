@@ -4,7 +4,7 @@ import { HttpResponse } from 'msw'
 import type { PlotData } from 'plotly.js'
 import { describe, expect, it, vi } from 'vitest'
 import { colorOfName } from '../../chart-colors'
-import { cursorPage, inProject, machine } from '../../test/fixtures'
+import { PROJECT, cursorPage, inProject, machine } from '../../test/fixtures'
 import { errorResponse, mockApi, mockSeries, ndjsonResponse } from '../../test/mock-api'
 import {
   currentUrl,
@@ -19,7 +19,7 @@ import {
   search,
   settle,
 } from '../../test/page'
-import { pickOption, selectButton } from '../../test/select'
+import { optionsIn, pickOption, pickSuite, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import {
   COMMITS,
@@ -95,7 +95,7 @@ describe('the Graph page (GR1)', () => {
     mockWorld()
     renderPage('/graph')
 
-    await pickOption('Suite', 'llvm/libcxx')
+    await pickSuite('Suite', 'llvm', 'libcxx')
     expect(currentUrl()).toBe('/graph?project=llvm&suite=libcxx')
     expect(selectButton('Metric')).toHaveTextContent('-- Select metric --')
     await userEvent.setup().click(selectButton('Metric'))
@@ -697,7 +697,7 @@ describe('the selection (GR6, GR7, GR14)', () => {
     renderPage(`${GRAPHED}&test=a&test_filter=a&sample_agg=max&highlight=c20`)
     await waitFor(() => expect(box('a')).toBeChecked())
 
-    await pickOption('Suite', 'llvm/text_only')
+    await pickSuite('Suite', 'llvm', 'text_only')
 
     await waitFor(() =>
       expect(query()).toEqual({
@@ -1007,16 +1007,41 @@ describe('the URL (GR14, AR2)', () => {
     }
   })
 
+  it("lists the suites under their projects' headings, and leaves out a project without any (AR22)", async () => {
+    mockWorld()
+    const zed = { name: 'aaa', display_name: 'Zed' }
+    mockSuites(
+      [
+        GRAPH_SUITE,
+        TEXT_SUITE,
+        inProject({ ...GRAPH_SUITE, name: 'zeta', display_name: 'Alpha' }, zed),
+      ],
+      { projects: [PROJECT, zed, { name: 'empty', display_name: 'Empty' }] },
+    )
+    renderPage('/graph')
+
+    await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
+    await userEvent.setup().click(selectButton('Suite'))
+    const groups = screen.getAllByRole('group')
+    expect(groups.map(optionsIn)).toEqual([['libcxx', 'text_only'], ['Alpha']])
+    expect(groups[0]).toHaveAccessibleName('llvm')
+    expect(groups[1]).toHaveAccessibleName('Zed')
+    await userEvent.setup().click(within(groups[1]).getByRole('option', { name: 'Alpha' }))
+
+    await waitFor(() => expect(query()).toEqual({ project: ['aaa'], suite: ['zeta'] }))
+    expect(selectButton('Suite')).toHaveTextContent('Zed/Alpha')
+  })
+
   it('tells apart suites of the same name in two projects', async () => {
     mockWorld({ suites: [inProject(GRAPH_SUITE, { name: 'other', display_name: null })] })
     renderPage('/graph')
 
     await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
-    await pickOption('Suite', 'other/libcxx')
+    await pickSuite('Suite', 'other', 'libcxx')
     await waitFor(() => expect(query()).toEqual({ project: ['other'], suite: ['libcxx'] }))
     expect(selectButton('Suite')).toHaveTextContent('other/libcxx')
 
-    await pickOption('Suite', 'llvm/libcxx')
+    await pickSuite('Suite', 'llvm', 'libcxx')
     await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'] }))
   })
 

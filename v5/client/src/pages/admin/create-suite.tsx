@@ -168,11 +168,9 @@ export function CreateSuite({ onCancel, onCreated }: Props) {
               </div>
               <Select
                 label="Start from"
-                options={[
-                  { value: '', label: 'Select a suite' },
-                  ...(suites ?? []).map(suiteOption),
-                ]}
-                value=""
+                options={(suites ?? []).map(suiteOption)}
+                value={null}
+                placeholder="Select a suite"
                 onChange={startFrom}
                 listPicksOnly
                 isDisabled={!suites?.length}

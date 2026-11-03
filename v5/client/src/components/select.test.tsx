@@ -2,8 +2,8 @@ import { createRef, useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { pickOption, selectButton } from '../test/select'
-import { Select } from './select'
+import { optionsIn, pickOption, selectButton } from '../test/select'
+import { Select, type Option } from './select'
 
 const OPTIONS = [
   { value: '', label: 'Any metric' },
@@ -206,5 +206,158 @@ describe('Select', () => {
 
     expect(selectButton('Metric')).toBeDisabled()
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+})
+
+describe('Select with options in groups', () => {
+  // As a suite dropdown lists them (AR22), after an option in no group. Two projects share a label,
+  // and their groups stay apart.
+  const section = (key: string, heading: string) => ({ key, heading })
+  const GROUPED: Option<string>[] = [
+    { value: '', label: 'Any suite' },
+    {
+      value: 'llvm/nts',
+      label: 'nts',
+      selectedLabel: 'LLVM/nts',
+      section: section('llvm', 'LLVM'),
+    },
+    {
+      value: 'llvm/micro',
+      label: 'Microbenchmarks',
+      selectedLabel: 'LLVM/Microbenchmarks',
+      section: section('llvm', 'LLVM'),
+    },
+    {
+      value: 'llvm2/nts',
+      label: 'Tests',
+      selectedLabel: 'LLVM/Tests',
+      section: section('llvm2', 'LLVM'),
+    },
+    {
+      value: 'swift/bench',
+      label: 'bench',
+      selectedLabel: 'Swift/bench',
+      section: section('swift', 'Swift'),
+    },
+  ]
+
+  function SuiteSelect({
+    options = GROUPED,
+    onChange = () => {},
+    listPicksOnly,
+  }: {
+    options?: Option<string>[]
+    onChange?: (value: string) => void
+    listPicksOnly?: boolean
+  }) {
+    const [value, setValue] = useState('')
+    return (
+      <Select
+        label="Suite"
+        options={options}
+        value={value}
+        onChange={(next) => {
+          setValue(next)
+          onChange(next)
+        }}
+        listPicksOnly={listPicksOnly}
+      />
+    )
+  }
+
+  it('lists each group under its heading, which is not an option, after the options in none', async () => {
+    render(<SuiteSelect />)
+
+    await userEvent.setup().click(selectButton('Suite'))
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Any suite',
+      'nts',
+      'Microbenchmarks',
+      'Tests',
+      'bench',
+    ])
+    const groups = screen.getAllByRole('group')
+    expect(groups.map((group) => optionsIn(group))).toEqual([
+      ['nts', 'Microbenchmarks'],
+      ['Tests'],
+      ['bench'],
+    ])
+    expect(groups[0]).toHaveAccessibleName('LLVM')
+    expect(groups[1]).toHaveAccessibleName('LLVM')
+    expect(groups[2]).toHaveAccessibleName('Swift')
+    expect(screen.queryByRole('option', { name: /^LLVM|^Swift/ })).toBeNull()
+  })
+
+  it('shows the label an option is picked by once picked, and its own label in the list', async () => {
+    const onChange = vi.fn()
+    render(<SuiteSelect onChange={onChange} />)
+
+    await pickOption('Suite', 'Tests')
+
+    expect(onChange).toHaveBeenCalledWith('llvm2/nts')
+    expect(selectButton('Suite')).toHaveTextContent('LLVM/Tests')
+    expect(selectButton('Suite')).toHaveAccessibleName('LLVM/Tests Suite')
+    await userEvent.setup().click(selectButton('Suite'))
+    expect(screen.getByRole('option', { name: 'Tests' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('shows the label of an option without a label to be picked by, as in no group', async () => {
+    render(<SuiteSelect />)
+    expect(selectButton('Suite')).toHaveTextContent('Any suite')
+  })
+
+  it('skips the headings when moving through the options, in the open list and closed', async () => {
+    const onChange = vi.fn()
+    render(<SuiteSelect onChange={onChange} />)
+    const user = userEvent.setup()
+
+    await user.click(selectButton('Suite'))
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Tests' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'bench' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(onChange).toHaveBeenLastCalledWith('swift/bench')
+
+    selectButton('Suite').focus()
+    await user.keyboard('{ArrowLeft}')
+    expect(onChange).toHaveBeenLastCalledWith('llvm2/nts')
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    expect(onChange).toHaveBeenLastCalledWith('')
+  })
+
+  it('finds an option by typing its own label, in the open list and closed', async () => {
+    const onChange = vi.fn()
+    render(<SuiteSelect onChange={onChange} />)
+    const user = userEvent.setup()
+
+    await user.click(selectButton('Suite'))
+    await user.keyboard('micro')
+    expect(screen.getByRole('option', { name: 'Microbenchmarks' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+
+    selectButton('Suite').focus()
+    await user.keyboard('b')
+    expect(onChange).toHaveBeenLastCalledWith('swift/bench')
+  })
+
+  it('refuses an option with a reason in a group, which can be focused but not picked', async () => {
+    const onChange = vi.fn()
+    const refused = { ...GROUPED[4], reason: 'Needs a token covering it.' }
+    render(<SuiteSelect options={[...GROUPED.slice(0, 4), refused]} onChange={onChange} />)
+    const user = userEvent.setup()
+
+    await user.click(selectButton('Suite'))
+    const option = screen.getByRole('option', {
+      name: 'bench: Needs a token covering it.',
+    })
+    expect(screen.getByRole('group', { name: 'Swift' })).toContainElement(option)
+    await user.keyboard('{End}')
+    expect(option).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await user.click(selectButton('Suite'))
+    await user.click(screen.getByRole('option', { name: 'bench: Needs a token covering it.' }))
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
