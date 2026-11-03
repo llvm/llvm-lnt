@@ -227,8 +227,9 @@ function whyUnrestrictable(scope: Scope, projects: ReturnType<typeof useProjects
 /**
  * The tree of `projects` and their suites the key form checks what a key covers in (AD1): every
  * project, those without suites included, saying so, with its suites below it, each by its own
- * label, and by its full label to assistive technology. Each option's value stands for an entry of
- * the key, which `entries` maps it to.
+ * label, and by its full label to assistive technology. A project checked says that it covers its
+ * suites, those created later included. Each option's value stands for an entry of the key, which
+ * `entries` maps it to.
  */
 function coversTree(projects: readonly Project[]) {
   const entries = new Map<string, EntryRef>()
@@ -240,7 +241,10 @@ function coversTree(projects: readonly Project[]) {
       label,
       summary: `${label} (all)`,
       note: project.suites.length === 0 ? '(no suites)' : undefined,
-      implied: `Covered with the whole project '${label}'.`,
+      checkedNote:
+        project.suites.length === 0
+          ? '(no suites yet; covers those created later)'
+          : '(all suites, including those created later)',
       children: project.suites.map((suite) => {
         const value = fullName(refOf(suite))
         entries.set(value, { project: project.name, suite: suite.name })
