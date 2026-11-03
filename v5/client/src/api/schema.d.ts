@@ -49,10 +49,11 @@ export interface paths {
          *     Keys can't be changed and don't expire. To change a key's scope or what it is restricted to,
          *     create a new key and revoke the old one.
          *
-         *     The test suites in `restricted_to` must exist when the key is created. A suite that is deleted
-         *     later is removed from the key, and a suite created again with the same name is a different
-         *     suite, which the key doesn't cover. A key whose suites have all been deleted stays restricted,
-         *     and can only read.
+         *     The projects and test suites in `restricted_to` must exist when the key is created. They are
+         *     followed by identity: a whole project covers the suites it has at the time of each request,
+         *     including those created later. A project or a suite that is deleted later is removed from the
+         *     key, and one created again with the same name is a different one, which the key doesn't cover.
+         *     A key whose projects and suites have all been deleted stays restricted, and can only read.
          *
          *     **Authorization:** requires an API key with the `admin` scope.
          */
@@ -98,8 +99,8 @@ export interface paths {
         };
         /**
          * Get the API key used for the request
-         * @description Check an API key, and find out which scope it has, and in which test suites. Unlike the
-         *     other API key operations, this doesn't require the `admin` scope.
+         * @description Check an API key, and find out which scope it has, and in which projects and test suites.
+         *     Unlike the other API key operations, this doesn't require the `admin` scope.
          *
          *     `last_used_at` doesn't count this request.
          *
@@ -164,7 +165,7 @@ export interface paths {
         /**
          * Delete a project
          * @description Delete a project that has no test suites. It destroys no data, so it doesn't need
-         *     `confirm=true`.
+         *     `confirm=true`. The project is also removed from the API keys that list it.
          *
          *     Requires an unrestricted API key, since a project shapes the instance.
          *
@@ -236,8 +237,8 @@ export interface paths {
          * @description Delete a test suite and all its data: machines, commits, runs, samples, profiles and
          *     regressions. This can't be undone, so the request must include `confirm=true`.
          *
-         *     The suite is also removed from the API keys restricted to it. A test suite created later with
-         *     the same name is a different suite, which those keys don't cover.
+         *     The suite is also removed from the API keys that list it. A test suite created later with the
+         *     same name is a different suite, which those keys don't cover.
          *
          *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite.
          */
@@ -905,11 +906,14 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Restricted To
-             * @description What the key is restricted to, under their current names, sorted by project name, then by suite name. Null if it isn't restricted. A restricted key has its scope only in these test suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
+             * @description The whole projects and the single test suites the key is restricted to, under their current names, sorted by project name, a whole project before the suites of that project, then by suite name. Null if it isn't restricted. A restricted key has its scope only in the test suites it covers, and can only read everywhere else. A project or a suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
              * @example [
              *       {
-             *         "project": "libcxx",
-             *         "suite": "libcxx"
+             *         "project": "libcxx"
+             *       },
+             *       {
+             *         "project": "llvm",
+             *         "suite": "nts"
              *       }
              *     ]
              */
@@ -933,7 +937,7 @@ export interface components {
         };
         /**
          * ApiKeyCreate
-         * @description The name and scope of a new key, and the test suites it is restricted to.
+         * @description The name and scope of a new key, and what it is restricted to.
          */
         ApiKeyCreate: {
             /**
@@ -944,9 +948,9 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Restricted To
-             * @description The test suites to restrict the key to, each listed once. It then has its scope only in these suites, and can only read everywhere else, which includes creating a test suite or a project. Only `submit`, `triage` and `manage` keys can be restricted, and every suite must exist. Leave out, or set to null, for an unrestricted key.
+             * @description The whole projects and the single test suites to restrict the key to, each listed once, and a suite not along with its whole project. The key then has its scope only in the suites it covers, and can only read everywhere else. Creating a test suite in a project, or changing its display name, needs the whole project. Only `submit`, `triage` and `manage` keys can be restricted, and every project and suite must exist. Leave out, or set to null, for an unrestricted key.
              */
-            restricted_to?: components["schemas"]["RestrictionEntryInput"][] | null;
+            restricted_to?: components["schemas"]["RestrictionEntry"][] | null;
         };
         /**
          * ApiKeyCreated
@@ -968,11 +972,14 @@ export interface components {
             scope: components["schemas"]["Scope"];
             /**
              * Restricted To
-             * @description What the key is restricted to, under their current names, sorted by project name, then by suite name. Null if it isn't restricted. A restricted key has its scope only in these test suites, and can only read everywhere else. A suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
+             * @description The whole projects and the single test suites the key is restricted to, under their current names, sorted by project name, a whole project before the suites of that project, then by suite name. Null if it isn't restricted. A restricted key has its scope only in the test suites it covers, and can only read everywhere else. A project or a suite that is deleted is removed from the list, so the list is empty once all of them are: the key then can only read.
              * @example [
              *       {
-             *         "project": "libcxx",
-             *         "suite": "libcxx"
+             *         "project": "libcxx"
+             *       },
+             *       {
+             *         "project": "llvm",
+             *         "suite": "nts"
              *       }
              *     ]
              */
@@ -2752,8 +2759,8 @@ export interface components {
         };
         /**
          * RestrictionEntry
-         * @description What a restricted API key is restricted to: a single test suite, named by its project's name
-         *     and its own.
+         * @description Something a restricted API key is restricted to: a whole project, named by its name alone, or
+         *     a single test suite, named by its project's name and its own.
          */
         RestrictionEntry: {
             /**
@@ -2764,26 +2771,7 @@ export interface components {
             project: string;
             /**
              * Suite
-             * @description The name of the test suite, in the project. A key is restricted to single test suites, so every entry names one.
-             * @example libcxx
-             */
-            suite: string;
-        };
-        /**
-         * RestrictionEntryInput
-         * @description What a restricted API key is restricted to: a single test suite, named by its project's name
-         *     and its own.
-         */
-        RestrictionEntryInput: {
-            /**
-             * Project
-             * @description The name of the project.
-             * @example libcxx
-             */
-            project: string;
-            /**
-             * Suite
-             * @description The name of the test suite, in the project. A key is restricted to single test suites, so every entry names one.
+             * @description The name of the test suite, in the project. Left out for the whole project, which covers every test suite the project has, including those created in it later.
              * @example libcxx
              */
             suite?: string;
@@ -3038,9 +3026,11 @@ export interface components {
          *       change and delete test suites and projects.
          *     - `admin`: list, create and revoke API keys.
          *
-         *     A `submit`, `triage` or `manage` key can be restricted to some test suites. It then has its
-         *     scope only in those suites, and only `read` everywhere else -- including for creating a test
-         *     suite or changing a project. Creating and deleting a project always need an unrestricted key.
+         *     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
+         *     single test suites. It then has its scope only in the suites it covers, and only `read`
+         *     everywhere else. Creating a test suite in a project, or changing the project's display name,
+         *     needs a key covering that project as a whole. Creating and deleting a project always need an
+         *     unrestricted key.
          * @enum {string}
          */
         Scope: "read" | "submit" | "triage" | "manage" | "admin";

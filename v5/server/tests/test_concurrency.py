@@ -43,9 +43,10 @@ from lnt_v5.suites.registry import Suite, SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.scope import suite_scope
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.suites.store import locked_suite, suite_write
+from lnt_v5.suites.store import locked_suite, project_write, suite_write
 from lnt_v5.suites.submission import SubmittedCommit, SubmittedMachine
 from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.tables import project as project_table
 from lnt_v5.tables import schema as schema_table
 
 # A suite with a field of two different types on each entity, so that reconciliation is exercised
@@ -1409,3 +1410,76 @@ class TestKeyCreationRacingSuiteDeletion:
             second = background(create_second)
             # Completes while the first key's transaction is still open.
             assert second.result(timeout=BLOCK_TIMEOUT)
+
+
+class TestKeyCreationRacingProjectDeletion:
+    """E11: a key created while a whole project it lists is deleted either gets 404, or is created
+    and loses the project with the deletion -- never a 500, and never a key listing a deleted
+    project."""
+
+    WHOLE = (Entry("libcxx", None), Entry("swift", None))
+
+    @pytest.fixture(autouse=True)
+    def projects(self, db_engine: Engine) -> None:
+        # Without suites, which a project being deleted cannot have.
+        with db_engine.begin() as connection:
+            for name in ("libcxx", "swift"):
+                ensure_project(connection, name)
+
+    @staticmethod
+    def delete_swift(connection: Connection) -> None:
+        """What deleting a project does to its row (see `routes/projects.py`)."""
+        connection.execute(delete(project_table).where(project_table.c.name == "swift"))
+
+    def test_a_key_created_during_the_deletion_is_refused(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        losing = raced(
+            db_engine,
+            background,
+            self.delete_swift,
+            lambda connection: create_key(connection, "bot", Scope.MANAGE, self.WHOLE),
+        )
+
+        with pytest.raises(UnknownEntriesError) as raised:
+            losing.result(timeout=BLOCK_TIMEOUT)
+        assert str(raised.value) == "No project is named 'swift'."
+
+    def test_a_deletion_during_the_creation_removes_the_project_from_the_key(
+        self, db_engine: Engine, background: Callable[..., Future[Any]]
+    ) -> None:
+        def delete_swift() -> None:
+            with project_write(db_engine, "swift") as connection:
+                self.delete_swift(connection)
+
+        # The deletion waits for the key to be stored, well within its lock timeout, and then
+        # succeeds, as the route runs it.
+        with db_engine.connect() as creating:
+            with creating.begin():
+                token = create_key(creating, "bot", Scope.MANAGE, self.WHOLE).token
+                deleting = background(delete_swift)
+                until_blocked(db_engine)
+            deleting.result(timeout=BLOCK_TIMEOUT)
+
+            key = resolve_token(creating, token)
+        assert key is not None
+        assert key.restricted_to == (Entry("libcxx", None),)
+
+    def test_a_display_name_change_does_not_wait_for_the_creation(
+        self,
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        api_client: TestClient,
+        manage: dict[str, str],
+    ) -> None:
+        # The key locks the project FOR KEY SHARE, which conflicts with deleting it, but not with
+        # the lock a display-name change takes. Through the route itself, so that a change to that
+        # lock is caught: had it to wait, it would answer a 409 `retry` once its wait ran out.
+        def change_display_name() -> int:
+            body = {"display_name": "Swift"}
+            return api_client.patch("/api/projects/swift", json=body, headers=manage).status_code
+
+        with db_engine.connect() as creating, creating.begin():
+            create_key(creating, "bot", Scope.MANAGE, self.WHOLE)
+            # Completes while the key's transaction is still open.
+            assert background(change_display_name).result(timeout=BLOCK_TIMEOUT) == 200

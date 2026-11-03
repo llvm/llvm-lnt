@@ -24,6 +24,7 @@ from fastapi._compat import field_annotation_is_sequence
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, update
 
+from conftest import code_of, ensure_project
 from lnt_v5 import keys
 from lnt_v5.auth import Coverage, iter_routes, required_scope, route_requirement, suite_parameters
 from lnt_v5.querying import _takes_several
@@ -200,8 +201,8 @@ class TestScopeEnforcement:
 
 
 class TestSuiteRestriction:
-    """I5: a key restricted to some suites has its scope on requests addressing one of them, and
-    only `read` on any other."""
+    """I5: a key restricted to some single suites has its scope on requests addressing one of them,
+    and only `read` on any other (`TestProjectRestriction` covers whole projects)."""
 
     def test_every_operation_above_read_honours_a_restriction(
         self,
@@ -237,6 +238,19 @@ class TestSuiteRestriction:
         # Had an operation deleted `x`, the key would have lost it, and been refused for that.
         assert api_client.get("/api/projects/x/suites/x").status_code == 200
         assert refused_here == IN_FULL_ONLY | UNRESTRICTED_ONLY
+
+        # A key restricted to the whole project `x` covers it in full, and so is refused only what
+        # needs an instance-wide key.
+        whole = bearer(restricted_key(Scope.MANAGE, keys.Entry("x", None)))
+        refused_whole = {
+            (method, template)
+            for method, template in found
+            if api_client.request(method, placeholders_filled(template), headers=whole).status_code
+            == 403
+        }
+
+        assert api_client.get("/api/projects/x/suites/x").status_code == 200
+        assert refused_whole == UNRESTRICTED_ONLY
 
     def test_every_operation_that_addresses_no_suite_says_what_a_key_needs(
         self, api_app: FastAPI
@@ -355,7 +369,7 @@ class TestSuiteRestriction:
         bearer: Callable[[str], dict[str, str]],
     ) -> None:
         make_api_suite(NTS)
-        headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
+        headers = bearer(make_key(Scope.MANAGE, restricted_to=["nts"]))
         patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
         suite = "/api/projects/nts/suites/nts"
 
@@ -375,7 +389,7 @@ class TestSuiteRestriction:
         # A key is linked to its suites, not to their names, so deleting one removes it from the
         # key, and the suite that takes the name next is another suite (I5).
         make_api_suite(NTS)
-        headers = bearer(make_key(Scope.MANAGE, suites=["nts"]))
+        headers = bearer(make_key(Scope.MANAGE, restricted_to=["nts"]))
         suite = "/api/projects/nts/suites/nts"
         assert api_client.delete(f"{suite}?confirm=true", headers=manage).status_code == 204
         make_api_suite(NTS)
@@ -434,6 +448,8 @@ class TestSuiteRestriction:
             (Scope.MANAGE, "/api/projects/x/suites/y/machines", "grants it only in: x/x"),
             (Scope.MANAGE, "/api/projects/x/suites", "is restricted to: x/x"),
             (Scope.MANAGE, "/api/projects", "from an instance-wide API key"),
+            # A whole project, as such.
+            (Scope.MANAGE, "/api/projects/y/suites", "is restricted to: x/x, z (all)"),
         ],
     )
     def test_a_403_says_why(
@@ -445,10 +461,136 @@ class TestSuiteRestriction:
         path: str,
         says: str,
     ) -> None:
-        response = api_client.post(path, json={}, headers=bearer(restricted_key(scope, "x")))
+        entries = ["x", keys.Entry("z", None)] if "(all)" in says else ["x"]
+        response = api_client.post(path, json={}, headers=bearer(restricted_key(scope, *entries)))
 
         assert response.status_code == 403
         assert says in response.json()["error"]["message"]
+
+
+class TestProjectRestriction:
+    """I5: a key restricted to a whole project covers every suite the project holds, and the
+    project in full."""
+
+    @pytest.fixture
+    def libcxx(
+        self, restricted_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
+    ) -> dict[str, str]:
+        return bearer(restricted_key(Scope.MANAGE, keys.Entry("libcxx", None)))
+
+    def test_manages_the_suites_of_the_project_and_no_other(
+        self,
+        api_client: TestClient,
+        make_api_suite: Callable[..., Any],
+        libcxx: dict[str, str],
+    ) -> None:
+        make_api_suite(NTS, "libcxx")
+        make_api_suite(NTS, "llvm")
+        machine = {"name": "m"}
+
+        mine = api_client.post(
+            "/api/projects/libcxx/suites/nts/machines", json=machine, headers=libcxx
+        )
+        theirs = api_client.post(
+            "/api/projects/llvm/suites/nts/machines", json=machine, headers=libcxx
+        )
+
+        assert mine.status_code == 201
+        assert theirs.status_code == 403
+        assert "only in: libcxx (all)" in theirs.json()["error"]["message"]
+
+    def test_a_write_to_a_suite_the_project_lacks_is_a_404(
+        self, api_client: TestClient, libcxx: dict[str, str]
+    ) -> None:
+        # The key covers whatever the project holds, so authorization lets the request through,
+        # and the missing suite is found next (I5's order of checks).
+        response = api_client.post(
+            "/api/projects/libcxx/suites/missing/machines", json={"name": "m"}, headers=libcxx
+        )
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    def test_creates_suites_in_the_project_and_manages_them(
+        self, api_client: TestClient, libcxx: dict[str, str]
+    ) -> None:
+        # Including the suites created after the key (I5).
+        created = api_client.post("/api/projects/libcxx/suites", json=NTS, headers=libcxx)
+        assert created.status_code == 201, created.text
+
+        patch = {"metrics": {"add": [{"name": "size", "type": "integer"}]}}
+        suite = "/api/projects/libcxx/suites/nts"
+        assert api_client.patch(f"{suite}/schema", json=patch, headers=libcxx).is_success
+        assert api_client.delete(f"{suite}?confirm=true", headers=libcxx).status_code == 204
+        # Deleting a suite of the project leaves the project in the key.
+        listed = api_client.get("/api/auth", headers=libcxx).json()["key"]["restricted_to"]
+        assert listed == [{"project": "libcxx"}]
+
+    def test_creates_no_suite_in_another_project(
+        self, api_client: TestClient, libcxx: dict[str, str], db_engine: Engine
+    ) -> None:
+        with db_engine.begin() as connection:
+            ensure_project(connection, "llvm")
+
+        response = api_client.post("/api/projects/llvm/suites", json=NTS, headers=libcxx)
+
+        assert response.status_code == 403
+        assert "covering project 'llvm' in full" in response.json()["error"]["message"]
+
+    def test_changes_the_display_name_of_the_project(
+        self, api_client: TestClient, libcxx: dict[str, str]
+    ) -> None:
+        response = api_client.patch(
+            "/api/projects/libcxx", json={"display_name": "libc++"}, headers=libcxx
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["display_name"] == "libc++"
+
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        [
+            ("POST", "/api/projects", {"name": "new"}),
+            ("DELETE", "/api/projects/libcxx", None),
+            ("PATCH", "/api/projects/libcxx", {"name": "libcpp"}),
+        ],
+    )
+    def test_cannot_create_delete_or_rename_a_project_even_its_own(
+        self,
+        api_client: TestClient,
+        libcxx: dict[str, str],
+        method: str,
+        path: str,
+        body: Any,
+    ) -> None:
+        response = api_client.request(method, path, json=body, headers=libcxx)
+
+        # Renaming is refused whatever the key for now; creating and deleting need an instance-wide
+        # key (I5).
+        if method == "PATCH":
+            assert response.status_code == 400
+        else:
+            assert response.status_code == 403
+            assert "instance-wide" in response.json()["error"]["message"]
+
+    def test_grants_only_read_once_the_project_is_deleted(
+        self,
+        api_client: TestClient,
+        libcxx: dict[str, str],
+        manage: dict[str, str],
+        make_api_suite: Callable[..., Any],
+    ) -> None:
+        # I5: the key stays restricted, to nothing, and a project created later under the same name
+        # is another project, which it does not cover.
+        assert api_client.delete("/api/projects/libcxx", headers=manage).status_code == 204
+        assert api_client.get("/api/auth", headers=libcxx).json()["key"]["restricted_to"] == []
+        make_api_suite(NTS, "libcxx")
+
+        machines = "/api/projects/libcxx/suites/nts/machines"
+        assert api_client.get(machines, headers=libcxx).status_code == 200
+        write = api_client.post(machines, json={"name": "m"}, headers=libcxx)
+        assert write.status_code == 403
+        assert "have all been deleted" in write.json()["error"]["message"]
 
 
 class TestRevocation:

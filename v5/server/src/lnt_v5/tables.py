@@ -160,8 +160,8 @@ api_key = Table(
     Column("key_hash", String(TOKEN_HASH_LENGTH), nullable=False, unique=True),
     Column("name", String(KEY_NAME_MAX_LENGTH), nullable=False),
     Column("scope", String(32), nullable=False),
-    # Whether the key is restricted to the suites its `api_key_restriction` rows list (I5). It stays
-    # restricted once deleting those suites has removed every row.
+    # Whether the key is restricted to the projects and suites its `api_key_restriction` rows list
+    # (I5). It stays restricted once deleting what they list has removed every row.
     Column("restricted", Boolean, nullable=False, server_default=false()),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("last_used_at", DateTime(timezone=True), nullable=True),
@@ -189,12 +189,19 @@ api_key_restriction = Table(
     "api_key_restriction",
     metadata,
     Column("api_key_id", Integer, ForeignKey(api_key.c.id), nullable=False),
-    # Deleting a suite removes it from the keys that list it (I5).
-    Column("suite_id", Integer, ForeignKey(schema.c.id, ondelete="CASCADE"), nullable=False),
+    # Exactly one of the two is set: a whole project, or a single suite. Deleting either removes it
+    # from the keys that list it (I5).
+    Column("project_id", Integer, ForeignKey(project.c.id, ondelete="CASCADE"), nullable=True),
+    Column("suite_id", Integer, ForeignKey(schema.c.id, ondelete="CASCADE"), nullable=True),
+    CheckConstraint("(project_id IS NULL) <> (suite_id IS NULL)", name="one_target"),
+    # Each a key lists at most once. Null `project_id`s and `suite_id`s are distinct from each other
+    # here, so each constraint only applies to the rows of its own kind.
+    UniqueConstraint("api_key_id", "project_id"),
     UniqueConstraint("api_key_id", "suite_id"),
 )
-"""One row per suite a restricted key is restricted to (D5, I5).
+"""One row per entry of a restricted key's list, a whole project or a single suite (D5, I5).
 
-A row refers to its suite by identity rather than by name, so a suite created later under the name
-of a deleted one is not covered. Rows are written with their key and never changed.
+A row refers to its project or suite by identity rather than by name, so that it follows renames and
+moves, and so that a project or a suite created later under the name of a deleted one is not
+covered. Rows are written with their key and never changed.
 """

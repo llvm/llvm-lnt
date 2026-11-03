@@ -20,7 +20,7 @@ export async function pickOption(label: string, option: string, container?: HTML
 }
 
 /**
- * Check or uncheck each of `options` in the `MultiSelect` labelled `label`, as a mouse user does,
+ * Check or uncheck each of `options` in the `TreeSelect` labelled `label`, as a mouse user does,
  * then close its list.
  */
 export async function toggleOptions(label: string, options: string[], container?: HTMLElement) {

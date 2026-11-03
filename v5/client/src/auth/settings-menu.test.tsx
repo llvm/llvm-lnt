@@ -138,14 +138,14 @@ describe('Settings panel', () => {
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        'Using key triage-key (aaaaaaaa), with triage scope in suites llvm/libcxx, llvm/nts.',
+        'Using key triage-key (aaaaaaaa), with triage scope, covering llvm/libcxx, llvm/nts.',
       ),
     )
 
     mockAuth(() => HttpResponse.json({ key: apiKey('submit', { restricted_to: [entry('nts')] }) }))
     enterToken(OTHER)
     await waitFor(() =>
-      expect(status()).toHaveTextContent(/with submit scope in suite llvm\/nts\.$/),
+      expect(status()).toHaveTextContent(/with submit scope, covering llvm\/nts\.$/),
     )
   })
 
@@ -164,20 +164,42 @@ describe('Settings panel', () => {
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        /with triage scope in suites LLVM\/Microbenchmarks, LLVM\/Test suite\.$/,
+        /with triage scope, covering LLVM\/Microbenchmarks, LLVM\/Test suite\.$/,
       ),
     )
   })
 
-  it('says that a key whose suites were all deleted covers nothing', async () => {
+  it('shows a whole project by its label followed by (all), before its suites', async () => {
+    signIn('manage', [{ project: 'swift' }, entry('nts'), { project: 'llvm' }])
+    const { queryClient } = renderMenu()
+    queryClient.setQueryData(
+      queryKeys.projects,
+      projectList(
+        [SUITE],
+        [
+          { ...PROJECT, display_name: 'LLVM' },
+          { name: 'swift', display_name: null },
+        ],
+      ),
+    )
+    openPanel()
+
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        /with manage scope, covering LLVM \(all\), LLVM\/nts, swift \(all\)\.$/,
+      ),
+    )
+  })
+
+  it('says that a key whose entries were all deleted covers nothing', async () => {
     signIn('triage', [])
     renderMenu()
     openPanel()
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        'Using key triage-key (aaaaaaaa), with triage scope, covering Nothing: the suites it was ' +
-          'restricted to have been deleted, so it can only read.',
+        'Using key triage-key (aaaaaaaa), with triage scope, covering Nothing: what it was ' +
+          'restricted to has been deleted, so it can only read.',
       ),
     )
   })

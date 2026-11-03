@@ -235,8 +235,8 @@ def delete_suite(
     """Delete a test suite and all its data: machines, commits, runs, samples, profiles and
     regressions. This can't be undone, so the request must include `confirm=true`.
 
-    The suite is also removed from the API keys restricted to it. A test suite created later with
-    the same name is a different suite, which those keys don't cover."""
+    The suite is also removed from the API keys that list it. A test suite created later with the
+    same name is a different suite, which those keys don't cover."""
     with suite_write(engine, project, name) as connection:
         stored = locked_suite(connection, project, name)
         _confirmed(confirm, f"Deleting '{stored.full_name}' permanently destroys all of its data.")

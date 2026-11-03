@@ -13,7 +13,14 @@ from conftest import ensure_project
 from introspection import assert_names_survived, stored_names
 from lnt_v5.keys import PREFIX_CONSTRAINT
 from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
-from lnt_v5.tables import api_key, api_key_restriction, metadata, schema, schema_version
+from lnt_v5.tables import (
+    api_key,
+    api_key_restriction,
+    metadata,
+    project,
+    schema,
+    schema_version,
+)
 
 
 class TestNamingConvention:
@@ -27,6 +34,11 @@ class TestNamingConvention:
             "ck_api_key_scope",
             "ck_api_key_restricted",
         } <= stored_names(inspect(db_engine))["api_key"]
+        assert {
+            "ck_api_key_restriction_one_target",
+            "uq_api_key_restriction_api_key_id_project_id",
+            "uq_api_key_restriction_api_key_id_suite_id",
+        } <= stored_names(inspect(db_engine))["api_key_restriction"]
 
     def test_gives_the_prefix_constraint_the_name_keys_py_retries_on(
         self, db_engine: Engine
@@ -147,6 +159,50 @@ class TestApiKeyRestriction:
         db.execute(insert(api_key_restriction).values(api_key_id=key, suite_id=suite))
 
         db.execute(schema.delete())
+
+        assert db.execute(select(api_key_restriction)).all() == []
+
+    def test_lists_a_project_once_per_key(self, db: Connection, ids: tuple[int, int]) -> None:
+        key, _ = ids
+        project_id = ensure_project(db, "nts")
+        db.execute(insert(api_key_restriction).values(api_key_id=key, project_id=project_id))
+
+        with pytest.raises(IntegrityError), db.begin_nested():
+            db.execute(insert(api_key_restriction).values(api_key_id=key, project_id=project_id))
+
+    def test_lists_several_projects_and_suites(self, db: Connection, ids: tuple[int, int]) -> None:
+        # Null ids are distinct from each other, so each unique constraint only binds its own kind.
+        key, suite = ids
+        db.execute(
+            insert(api_key_restriction),
+            [
+                {"api_key_id": key, "project_id": ensure_project(db, "a"), "suite_id": None},
+                {"api_key_id": key, "project_id": ensure_project(db, "b"), "suite_id": None},
+                {"api_key_id": key, "project_id": None, "suite_id": suite},
+            ],
+        )
+
+        assert len(db.execute(select(api_key_restriction)).all()) == 3
+
+    @pytest.mark.parametrize("both", [False, True])
+    def test_refers_to_exactly_one_project_or_suite(
+        self, db: Connection, ids: tuple[int, int], both: bool
+    ) -> None:
+        key, suite = ids
+        values = {"project_id": ensure_project(db, "nts"), "suite_id": suite} if both else {}
+
+        with (
+            pytest.raises(IntegrityError, match="ck_api_key_restriction_one_target"),
+            db.begin_nested(),
+        ):
+            db.execute(insert(api_key_restriction).values(api_key_id=key, **values))
+
+    def test_goes_with_its_project(self, db: Connection, ids: tuple[int, int]) -> None:
+        key, _ = ids
+        project_id = ensure_project(db, "empty")
+        db.execute(insert(api_key_restriction).values(api_key_id=key, project_id=project_id))
+
+        db.execute(project.delete().where(project.c.id == project_id))
 
         assert db.execute(select(api_key_restriction)).all() == []
 

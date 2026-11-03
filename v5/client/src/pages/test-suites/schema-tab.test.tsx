@@ -275,7 +275,7 @@ describe('a manage token restricted to some suites', () => {
       expect(deleteButton()).toHaveAttribute(
         'title',
         "Needs an API token with the 'manage' scope in suite 'llvm/libcxx'. The token in " +
-          "Settings has the 'manage' scope only in suite 'llvm/nts'.",
+          "Settings has the 'manage' scope, covering only 'llvm/nts'.",
       ),
     )
     expect(screen.getByRole('button', { name: 'Edit schema' })).toBeDisabled()

@@ -13,8 +13,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
 
-from conftest import TOKEN_PATTERN, code_of
+from conftest import TOKEN_PATTERN, code_of, ensure_project
 from lnt_v5.scopes import Scope
 from lnt_v5.tables import KEY_NAME_MAX_LENGTH, SUITE_NAME_MAX_LENGTH
 
@@ -188,7 +189,7 @@ BENCHMARKS = {"project": "libcxx", "suite": "benchmarks"}
 
 
 class TestCreateRestricted:
-    """A key restricted to some suites (E11, I5)."""
+    """A key restricted to some projects and suites (E11, I5)."""
 
     @pytest.fixture(autouse=True)
     def suites(self, make_api_suite: Callable[..., Any]) -> None:
@@ -247,6 +248,9 @@ class TestCreateRestricted:
             ("read", [NTS], "a read key, which a restriction would leave as anonymous"),
             ("admin", [NTS], "an admin key, whose endpoints address no suite"),
             ("submit", [NTS, NTS], "an entry listed twice"),
+            ("submit", [{"project": "llvm"}] * 2, "a project listed twice"),
+            ("submit", [{"project": "llvm"}, NTS], "a suite along with its whole project"),
+            ("submit", [{"project": "go", "suite": "x"}, {"project": "go"}], "both, of no project"),
             ("submit", [{"suite": "nts"}], "an entry without a project"),
             ("submit", [{**NTS, "machine": "m"}], "a key other than project and suite"),
             ("submit", [{"project": "llvm", "suite": None}], "a null suite"),
@@ -269,15 +273,39 @@ class TestCreateRestricted:
         assert response.status_code == 400, why
         assert code_of(response) == "invalid_request"
 
-    def test_refuses_a_whole_project_for_now(
+    def test_lists_a_whole_project_without_a_suite(
+        self, api_client: TestClient, admin: dict[str, str], db_engine: Engine
+    ) -> None:
+        # A project without suites can be listed too: it covers the suites created in it later.
+        with db_engine.begin() as connection:
+            ensure_project(connection, "empty")
+        entries = [{"project": "other", "suite": "nts"}, {"project": "llvm"}, {"project": "empty"}]
+        body = {"name": "bot", "scope": "manage", "restricted_to": entries}
+
+        created = api_client.post(KEYS, headers=admin, json=body)
+
+        assert created.status_code == 201, created.text
+        # Without a `suite` key at all, rather than a null one (E11); by project name.
+        expected = [{"project": "empty"}, {"project": "llvm"}, {"project": "other", "suite": "nts"}]
+        assert created.json()["restricted_to"] == expected
+        (listed,) = [
+            key
+            for key in api_client.get(KEYS, headers=admin).json()["items"]
+            if key["prefix"] == created.json()["prefix"]
+        ]
+        assert listed["restricted_to"] == expected
+
+    def test_says_why_a_suite_cannot_be_listed_with_its_project(
         self, api_client: TestClient, admin: dict[str, str]
     ) -> None:
-        body = {"name": "bot", "scope": "submit", "restricted_to": [{"project": "llvm"}]}
+        body = {"name": "bot", "scope": "submit", "restricted_to": [{"project": "llvm"}, NTS]}
 
         response = api_client.post(KEYS, headers=admin, json=body)
 
         assert code_of(response) == "invalid_request"
-        assert "single test suites" in response.json()["error"]["message"]
+        assert response.json()["error"]["message"] == (
+            "A restricted key must not list a test suite along with its whole project: llvm/nts"
+        )
 
     @pytest.mark.parametrize(
         ("entry", "says"),
@@ -285,10 +313,11 @@ class TestCreateRestricted:
             ({"project": "llvm", "suite": "ntss"}, "Project 'llvm' has no test suite named 'ntss'"),
             ({"project": "libcxx", "suite": "nts"}, "Project 'libcxx' has no test suite named"),
             ({"project": "swift", "suite": "nts"}, "No project is named 'swift'"),
+            ({"project": "swift"}, "No project is named 'swift'"),
         ],
     )
     def test_refuses_what_does_not_exist(
-        self, api_client: TestClient, admin: dict[str, str], entry: dict[str, str], says: str
+        self, api_client: TestClient, admin: dict[str, str], entry: dict[str, Any], says: str
     ) -> None:
         # I3: a body naming an entity that does not exist is a 404 -- which also catches a typo
         # that would otherwise mint a key granting nothing.

@@ -7,8 +7,9 @@
  * - the `swift` project, without a display name or suites;
  * - a synthetic history of `libcxx/benchmarks`, with regressions and profiles, and machines beyond
  *   the real ones (see synthetic.ts);
- * - API keys of every scope, one of them revoked and some restricted to one suite or two, for the
- *   Admin page to list. Their tokens are thrown away, so that nothing can authenticate with them.
+ * - API keys of every scope, one of them revoked and some restricted to whole projects, single
+ *   suites or both, for the Admin page to list. Their tokens are thrown away, so that nothing can
+ *   authenticate with them.
  *
  *     node tools/seed.ts [--url URL] [--token TOKEN]
  *
@@ -21,10 +22,11 @@
  * It never changes anything that exists: a project that is already there is left as it is, its
  * display name included, and only its missing suites are added; a suite that is already there is
  * skipped whole, whatever it holds; and a key is created only if no key has its name. To seed a
- * suite again, delete it first. Deleting it also removes it from the keys restricted to it, which
+ * suite again, delete it first. Deleting it also removes it from the keys that list it, which
  * seeding again leaves as they are, since keys of their names exist (revoking them does not help:
  * revoked keys keep their names), so they then cover less, or nothing: only a database with no key
- * of their names, such as an empty one, has them seeded anew. The keys are seeded along with a
+ * of their names, such as an empty one, has them seeded anew. Likewise, a key whose entries change
+ * here is seeded with them only where no key has its name yet. The keys are seeded along with a
  * project or a suite, so that seeding an instance that has everything asks for no token, and writes
  * nothing.
  */
@@ -119,13 +121,13 @@ export const PROJECTS: Project[] = [
 
 /**
  * The keys to seed, each never used: the Admin page shows every scope, a revoked key, and keys
- * restricted to some suites. Those are created after the suites, since a key can only be restricted
- * to suites that exist.
+ * restricted to whole projects, single suites or both. Those are created after the projects and
+ * suites, since a key can only be restricted to projects and suites that exist.
  */
 export const KEYS: {
   name: string
   scope: components['schemas']['Scope']
-  restricted_to?: SuiteRef[]
+  restricted_to?: components['schemas']['RestrictionEntry'][]
   revoked?: true
 }[] = [
   { name: 'dashboard-reader', scope: 'read' },
@@ -137,6 +139,10 @@ export const KEYS: {
   { name: 'libcxx-submitter', scope: 'submit', restricted_to: [BENCHMARKS] },
   { name: 'perf-triager', scope: 'triage', restricted_to: [BENCHMARKS, NTS] },
   { name: 'nts-maintainer', scope: 'manage', restricted_to: [NTS] },
+  { name: 'libcxx-maintainer', scope: 'manage', restricted_to: [{ project: 'libcxx' }] },
+  // A project without suites: it covers those created in it later.
+  { name: 'swift-submitter', scope: 'submit', restricted_to: [{ project: 'swift' }] },
+  { name: 'perf-lead', scope: 'triage', restricted_to: [{ project: 'libcxx' }, NTS] },
 ]
 
 function readJson(file: string): unknown {

@@ -31,7 +31,8 @@ _show_body() {
 }
 
 # mint_key <name> <scope> [create-key options...] -- create an API key through the CLI and echo its
-# token. Any further arguments go to `create-key`, e.g. `--suite llvm/nts` to restrict the key.
+# token. Any further arguments go to `create-key`, e.g. `--suite llvm/nts` or `--project llvm` to
+# restrict the key.
 #
 # I5 requires an out-of-band way to create a key, and this is it. `create-key` prints the token
 # alone on stdout and everything a human reads on stderr, which is what makes this capture yield

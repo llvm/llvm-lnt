@@ -304,7 +304,7 @@ describe('the Run Detail page', () => {
         expect(button).toHaveAttribute(
           'title',
           "Needs an API token with the 'manage' scope in suite 'llvm/libcxx'. The token in Settings " +
-            "has the 'manage' scope only in suite 'llvm/nts'.",
+            "has the 'manage' scope, covering only 'llvm/nts'.",
         ),
       )
       expect(button).toBeDisabled()

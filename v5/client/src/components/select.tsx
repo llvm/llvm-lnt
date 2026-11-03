@@ -1,4 +1,4 @@
-import { useId, useRef, type Ref } from 'react'
+import { useId, useMemo, useRef, type Ref } from 'react'
 import clsx from 'clsx'
 import {
   Button,
@@ -129,29 +129,76 @@ export function Select<Value extends string>({
   )
 }
 
-/** The most options a `MultiSelect`'s button names; beyond that it counts them. */
+/** The most options a `TreeSelect`'s button names; beyond that it counts them. */
 const NAMED = 2
 
-interface MultiProps<Value extends string> {
+/** An option of a `TreeSelect`, below an option of its own if it is a child. */
+export interface TreeOption<Value extends string> {
+  value: Value
+  /** What the list shows. Typing on the list matches it. */
   label: string
-  options: readonly Option<Value>[]
-  /** The values of the options picked, in any order. */
+  /** Its accessible name, where the label alone does not say enough, such as out of context. */
+  name?: string
+  /** What the button names it as, once it is checked, if not by `name` or `label`. */
+  summary?: string
+  /** Shown after the label, muted, and part of its accessible name, but not matched by typing. */
+  note?: string
+}
+
+/** An option of a `TreeSelect` with the options below it, which checking it checks too. */
+export interface TreeParent<Value extends string> extends TreeOption<Value> {
+  children: readonly TreeOption<Value>[]
+  /** Why a child is checked, and cannot be unchecked, while this option is checked. */
+  implied: string
+}
+
+interface TreeProps<Value extends string> {
+  label: string
+  options: readonly TreeParent<Value>[]
+  /** The values of the options checked, in any order: a parent's, and no child of a checked one. */
   value: readonly Value[]
-  /** What the button shows while no option is picked. */
+  /** What the button shows while no option is checked. */
   placeholder: string
-  /** The values of the options picked, in the order of `options`. */
+  /** The values of the options checked, in the order of `options`. */
   onChange(value: NoInfer<Value>[]): void
   isDisabled?: boolean
   /** Keep the label for assistive technology only, where the page already says what it is. */
   hideLabel?: boolean
 }
 
+/** An option of a `TreeSelect` as its list holds it, with its parent if it has one. */
+interface Row<Value extends string> extends TreeOption<Value> {
+  parent?: TreeParent<Value>
+}
+
 /**
- * A dropdown picking any number of `options`, each with a checkbox, whose list stays open while
- * they are checked and unchecked. Its button names the options picked, or says how many there are
- * when they are too many to name.
+ * The options checked, out of the options React Aria has selected, `keys`, when `value` was checked
+ * before. A parent selected stands for its children, which are dropped. So are the children of a
+ * parent unchecked, which were only shown checked because of it. This depends on the keys alone,
+ * not on how they were selected: one click, or a range of options with Shift.
  */
-export function MultiSelect<Value extends string>({
+function checkedOf<Value extends string>(
+  options: readonly TreeParent<Value>[],
+  value: readonly Value[],
+  keys: readonly Value[],
+): Value[] {
+  const selected = new Set(keys)
+  const before = new Set(value)
+  return options.flatMap((parent) => {
+    if (selected.has(parent.value)) return [parent.value]
+    if (before.has(parent.value)) return []
+    return parent.children.map((child) => child.value).filter((child) => selected.has(child))
+  })
+}
+
+/**
+ * A dropdown checking any number of `options`, each with a checkbox, in a tree two levels deep: the
+ * children are indented below their parent. Checking a parent checks its children too, which are
+ * shown checked and cannot be unchecked until the parent is, and unchecking it unchecks them. The
+ * list stays open while options are checked and unchecked. The button names the options checked,
+ * or says how many there are when they are too many to name.
+ */
+export function TreeSelect<Value extends string>({
   label,
   options,
   value,
@@ -159,19 +206,35 @@ export function MultiSelect<Value extends string>({
   onChange,
   isDisabled,
   hideLabel,
-}: MultiProps<Value>) {
-  const picked = options.filter((option) => value.includes(option.value))
+}: TreeProps<Value>) {
+  const checked = new Set(value)
+  // Built again only when the options change, so that the list renders its rows again only then,
+  // or when what is checked changes (see `dependencies` below).
+  const rows = useMemo(
+    (): Row<Value>[] =>
+      options.flatMap((parent) => [
+        parent,
+        ...parent.children.map((child) => ({ ...child, parent })),
+      ]),
+    [options],
+  )
+  const picked = rows.filter((row) => checked.has(row.value))
+  // What the list shows checked, which React Aria then says is selected: the children of a parent
+  // checked too.
+  const shown = rows.filter(
+    (row) => checked.has(row.value) || (row.parent !== undefined && checked.has(row.parent.value)),
+  )
   let summary = placeholder
   if (picked.length > NAMED) summary = `${picked.length} selected`
-  else if (picked.length > 0) summary = picked.map((option) => option.label).join(', ')
+  else if (picked.length > 0) {
+    summary = picked.map((row) => row.summary ?? row.name ?? row.label).join(', ')
+  }
   return (
     <AriaSelect
       className={shared.root}
       selectionMode="multiple"
-      value={picked.map((option) => option.value)}
-      onChange={(keys) =>
-        onChange(options.filter((option) => keys.includes(option.value)).map(({ value }) => value))
-      }
+      value={shown.map((row) => row.value)}
+      onChange={(keys) => onChange(checkedOf(options, value, keys as Value[]))}
       isDisabled={isDisabled}
     >
       <FieldLabel label={label} hidden={hideLabel} />
@@ -180,24 +243,54 @@ export function MultiSelect<Value extends string>({
         <span aria-hidden="true">▾</span>
       </Button>
       <Popover className={shared.popover} maxHeight={320}>
-        <ListBox className={shared.list} items={options}>
-          {(option) => (
-            <ListBoxItem id={option.value} textValue={option.label} className={styles.checkOption}>
-              {({ isSelected }) => (
-                <>
-                  {/* Only to show the option as checked: the option itself is what is picked. */}
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    readOnly
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                  {option.label}
-                </>
-              )}
-            </ListBoxItem>
-          )}
+        <ListBox className={shared.list} items={rows} dependencies={[value]}>
+          {(row) => {
+            const reason =
+              row.parent !== undefined && checked.has(row.parent.value)
+                ? row.parent.implied
+                : undefined
+            // Given only where it differs from what the option shows, which names it otherwise.
+            const name =
+              row.name === undefined
+                ? undefined
+                : [row.name, row.note].filter(Boolean).join(' ') + (reason ? `: ${reason}` : '')
+            return (
+              <ListBoxItem
+                id={row.value}
+                textValue={row.label}
+                aria-label={name}
+                className={clsx(
+                  styles.checkOption,
+                  row.parent !== undefined && styles.child,
+                  reason !== undefined && shared.refused,
+                )}
+              >
+                {({ isSelected }) => (
+                  <span className={styles.checkRow} title={reason}>
+                    {/* Only to show the option as checked: the option itself is what is picked. */}
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={reason !== undefined}
+                      readOnly
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                    {row.label}
+                    {row.note !== undefined && (
+                      <>
+                        {' '}
+                        <span className={styles.note}>{row.note}</span>
+                      </>
+                    )}
+                    {reason !== undefined && (
+                      <VisuallyHidden elementType="span">: {reason}</VisuallyHidden>
+                    )}
+                  </span>
+                )}
+              </ListBoxItem>
+            )
+          }}
         </ListBox>
       </Popover>
     </AriaSelect>

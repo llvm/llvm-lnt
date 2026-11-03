@@ -38,14 +38,15 @@ test.describe('the Settings panel', () => {
     await expect(settings(page).getByRole('status')).toContainText('with triage scope')
   })
 
-  test('shows the suites of a key restricted to some', async ({ page, signIn }) => {
-    await signIn(page, 'triage', [BENCHMARKS, NTS])
+  test('shows what a restricted key covers', async ({ page, signIn }) => {
+    await signIn(page, 'triage', [NTS, { project: 'swift' }, BENCHMARKS])
     await page.goto('/')
     await openSettings(page)
 
-    // By their full labels, once the Dashboard has listed the suites (AR22).
+    // A whole project by its label followed by (all), and a suite by its full label, once the
+    // Dashboard has listed them (AR22).
     await expect(settings(page).getByRole('status')).toContainText(
-      'with triage scope in suites libc++/Microbenchmarks, LLVM/nts.',
+      'with triage scope, covering libc++/Microbenchmarks, LLVM/nts, swift (all).',
     )
   })
 

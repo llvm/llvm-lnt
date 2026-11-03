@@ -235,7 +235,7 @@ test('a token restricted to a suite allows triage there only', async ({ page, si
     'title',
     // Naming the suites by their full labels (AR22).
     "Needs an API token with the 'triage' scope in suite 'LLVM/nts'. The token in Settings has " +
-      "the 'triage' scope only in suite 'libc++/Microbenchmarks'.",
+      "the 'triage' scope, covering only 'libc++/Microbenchmarks'.",
   )
   await expect(create).toBeDisabled()
 })

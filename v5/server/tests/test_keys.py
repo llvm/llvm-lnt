@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy import Connection, Engine, create_engine, delete, func, insert, select
+from sqlalchemy import Connection, Engine, create_engine, delete, func, insert, select, update
 
 from conftest import TOKEN_PATTERN, UNREACHABLE_URL
 from introspection import counting_statements
@@ -143,6 +143,8 @@ class TestCreateRestrictedKey:
             "libcxx": ["benchmarks"],
             "other": ["nts"],
             "empty": [],
+            "lib-a": [],
+            "lib_b": [],
         }.items():
             project_id = db.execute(
                 insert(project).values(name=project_name).returning(project.c.id)
@@ -242,7 +244,10 @@ class TestCreateRestrictedKey:
             (Scope.ADMIN, [Entry("llvm", "nts")], "an admin key"),
             (Scope.SUBMIT, [], "no entry at all"),
             (Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", "nts")], "an entry twice"),
-            (Scope.SUBMIT, [Entry("llvm", None)], "a whole project"),
+            (Scope.SUBMIT, [Entry("llvm", None), Entry("llvm", None)], "a project twice"),
+            (Scope.MANAGE, [Entry("llvm", "nts"), Entry("llvm", None)], "a suite and its project"),
+            # Checked by name, before anything is read.
+            (Scope.MANAGE, [Entry("swift", None), Entry("swift", "a")], "both, of no project"),
         ],
     )
     def test_rejects_a_restriction_that_cannot_be_valid(
@@ -253,19 +258,123 @@ class TestCreateRestrictedKey:
             create_key(db, "bot", scope, entries)
         assert not isinstance(raised.value, UnknownEntriesError)
 
-    def test_says_a_key_is_restricted_to_single_suites_for_now(self, db: Connection) -> None:
-        with pytest.raises(ValueError, match=r"single test suites.*: llvm$"):
-            create_key(db, "bot", Scope.SUBMIT, [Entry("llvm", None)])
+    def test_names_a_suite_listed_with_its_whole_project(self, db: Connection) -> None:
+        with pytest.raises(ValueError, match=r"along with its whole project: llvm/nts$"):
+            create_key(db, "bot", Scope.SUBMIT, [Entry("llvm", None), Entry("llvm", "nts")])
 
     def test_names_the_projects_and_suites_that_do_not_exist(self, db: Connection) -> None:
-        entries = [Entry("llvm", "nts"), Entry("llvm", "ntss"), Entry("swift", "nts")]
+        entries = [
+            Entry("llvm", "nts"),
+            Entry("llvm", "ntss"),
+            Entry("swift", "nts"),
+            Entry("go", None),
+        ]
         with pytest.raises(UnknownEntriesError) as raised:
             create_key(db, "bot", Scope.SUBMIT, entries)
 
         assert str(raised.value) == (
-            "Project 'llvm' has no test suite named 'ntss'. No project is named 'swift'."
+            "Project 'llvm' has no test suite named 'ntss'. No project is named 'swift'. "
+            "No project is named 'go'."
         )
         assert db.execute(select(func.count()).select_from(api_key)).scalar_one() == 0
+
+    def test_stores_whole_projects_by_identity_before_their_suites(self, db: Connection) -> None:
+        created = create_key(
+            db,
+            "bot",
+            Scope.MANAGE,
+            [Entry("other", "nts"), Entry("llvm", None), Entry("empty", None)],
+        )
+
+        # By project name, a whole project before the suites of that project (E11).
+        expected = (Entry("empty", None), Entry("llvm", None), Entry("other", "nts"))
+        assert created.restricted_to == expected
+        rows = db.execute(
+            select(project.c.name, schema.c.namespace)
+            .select_from(api_key_restriction)
+            .outerjoin(project, project.c.id == api_key_restriction.c.project_id)
+            .outerjoin(schema, schema.c.id == api_key_restriction.c.suite_id)
+            .order_by(project.c.name, schema.c.namespace)
+        ).all()
+        assert [tuple(row) for row in rows] == [
+            ("empty", None),
+            ("llvm", None),
+            (None, "other_nts"),
+        ]
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.restricted_to == expected
+        assert resolved.covers("llvm", "nts")
+        assert resolved.covers("llvm", None)
+        assert resolved.covers("empty", None)
+        assert not resolved.covers("other", None)
+
+    def test_sorts_projects_by_code_point(self, db: Connection) -> None:
+        # Not by the database's collation, which may ignore `-` and `_`, and put `lib_b` before a
+        # suite of `lib-a`.
+        created = create_key(
+            db,
+            "bot",
+            Scope.SUBMIT,
+            [Entry("lib_b", None), Entry("lib-a", None), Entry("libcxx", None)],
+        )
+
+        expected = (Entry("lib-a", None), Entry("lib_b", None), Entry("libcxx", None))
+        assert created.restricted_to == expected
+
+    def test_follows_a_suite_moved_into_a_project_it_lists(self, db: Connection) -> None:
+        created = create_key(db, "bot", Scope.MANAGE, [Entry("llvm", "nts"), Entry("libcxx", None)])
+
+        # A move changes only the suite's project (D7). Both entries stay, and the suite's follows
+        # the suite (I5).
+        libcxx = db.execute(select(project.c.id).where(project.c.name == "libcxx")).scalar_one()
+        db.execute(update(schema).where(schema.c.namespace == "llvm_nts").values(project_id=libcxx))
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.restricted_to == (Entry("libcxx", None), Entry("libcxx", "nts"))
+        assert resolved.covers("libcxx", "nts")
+        assert resolved.covers("libcxx", None)
+        assert not resolved.covers("llvm", "nts")
+
+    def test_a_whole_project_gains_a_suite_moved_into_it_and_loses_one_moved_out(
+        self, db: Connection
+    ) -> None:
+        created = create_key(db, "bot", Scope.MANAGE, [Entry("llvm", None)])
+        other = db.execute(select(project.c.id).where(project.c.name == "other")).scalar_one()
+
+        db.execute(update(schema).where(schema.c.namespace == "llvm_ab").values(project_id=other))
+        db.execute(
+            update(schema)
+            .where(schema.c.namespace == "libcxx_benchmarks")
+            .values(
+                project_id=db.execute(
+                    select(project.c.id).where(project.c.name == "llvm")
+                ).scalar_one()
+            )
+        )
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.restricted_to == (Entry("llvm", None),)
+        assert resolved.covers("llvm", "benchmarks")
+        assert not resolved.covers("other", "ab")
+
+    def test_loses_a_project_that_is_deleted(self, db: Connection) -> None:
+        created = create_key(db, "bot", Scope.MANAGE, [Entry("empty", None), Entry("llvm", "nts")])
+
+        db.execute(delete(project).where(project.c.name == "empty"))
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.restricted_to == (Entry("llvm", "nts"),)
+
+        # Restricted to nothing, rather than valid across the instance (I5).
+        db.execute(delete(schema).where(schema.c.namespace == "llvm_nts"))
+        resolved = keys.resolve_token(db, created.token)
+        assert resolved is not None
+        assert resolved.restricted_to == ()
+
+    def test_names_a_whole_project_as_such(self) -> None:
+        assert str(Entry("llvm", None)) == "llvm (all)"
+        assert str(Entry("llvm", "nts")) == "llvm/nts"
 
 
 def key_with(scope: Scope, restricted_to: tuple[Entry, ...] | None) -> ApiKeyInfo:

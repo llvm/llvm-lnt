@@ -145,7 +145,7 @@ def _serve_dev(settings: Settings, port: int) -> int:
 
 
 def _create_key(
-    settings: Settings, name: str, scope: Scope, suites: Sequence[keys.Entry] | None
+    settings: Settings, name: str, scope: Scope, restricted_to: Sequence[keys.Entry] | None
 ) -> int:
     """Create an API key (`server create-key`).
 
@@ -158,7 +158,7 @@ def _create_key(
     """
     try:
         with _database(settings) as engine, engine.begin() as connection:
-            created = keys.create_key(connection, name, scope, suites)
+            created = keys.create_key(connection, name, scope, restricted_to)
     except ValueError as error:
         return _fail(str(error))
     except DBAPIError as error:
@@ -171,7 +171,7 @@ def _create_key(
     where = (
         "in every test suite"
         if created.restricted_to is None
-        else f"in test suite(s) {', '.join(map(str, created.restricted_to))} only"
+        else f"only in: {', '.join(map(str, created.restricted_to))}"
     )
     print(
         f"Created key '{created.name}' with prefix {created.prefix} and scope '{created.scope}' "
@@ -237,6 +237,13 @@ def _suite(value: str) -> keys.Entry:
     return keys.Entry(*parts)
 
 
+def _project(value: str) -> keys.Entry:
+    """Read `--project`: a whole project, by its name."""
+    if not value or "/" in value:
+        raise argparse.ArgumentTypeError(f"not a project's name: {value!r}")
+    return keys.Entry(value, None)
+
+
 def _port(value: str) -> int:
     """Read `--port`. Raising here makes a bad port a usage error, like any other bad argument."""
     try:
@@ -280,15 +287,28 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=[scope.value for scope in Scope],
         help="privilege level the key grants",
     )
+    # Both into one list, which restricts the key to every entry it holds (default: none, for a key
+    # valid in every test suite).
+    create_key.add_argument(
+        "--project",
+        action="append",
+        dest="restricted_to",
+        type=_project,
+        metavar="PROJECT",
+        help=(
+            "restrict the key to this whole project, including the test suites created in it "
+            "later; repeat for several, and combine with --suite (default: every test suite)"
+        ),
+    )
     create_key.add_argument(
         "--suite",
         action="append",
-        dest="suites",
+        dest="restricted_to",
         type=_suite,
         metavar="PROJECT/SUITE",
         help=(
             "restrict the key to this test suite, by its project's name and its own; repeat for "
-            "several (default: every test suite)"
+            "several, and combine with --project (default: every test suite)"
         ),
     )
 
@@ -321,5 +341,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "sweep":
         return _sweep(settings)
     if args.command == "create-key":
-        return _create_key(settings, args.name, Scope(args.scope), args.suites)
+        return _create_key(settings, args.name, Scope(args.scope), args.restricted_to)
     raise AssertionError(f"unhandled command: {args.command}")

@@ -4,13 +4,14 @@ import { adminToken, expect, json, test } from './fixtures.ts'
 
 type Schemas = components['schemas']
 
-type Ref = { project: string; suite: string }
+/** An entry of a key's restriction: a whole project, without `suite`, or a single suite. */
+type Ref = { project: string; suite?: string }
 
 /** By code point, compared explicitly, rather than in the order the API happens to list. */
 const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 const byName = (a: { name: string }, b: { name: string }) => byCodePoint(a.name, b.name)
 const byNames = (a: Ref, b: Ref) =>
-  byCodePoint(a.project, b.project) || byCodePoint(a.suite, b.suite)
+  byCodePoint(a.project, b.project) || byCodePoint(a.suite ?? '', b.suite ?? '')
 
 test('the stack is seeded, and seeding it again writes nothing', async ({ request, baseURL }) => {
   const projects = await json<Schemas['ProjectList']>(request, '/api/projects')
