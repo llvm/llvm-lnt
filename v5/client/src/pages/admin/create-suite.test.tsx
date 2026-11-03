@@ -143,7 +143,7 @@ describe('opening the editor', () => {
     expect(newSuiteButton()).toBeDisabled()
     expect(newSuiteButton()).toHaveAccessibleDescription(
       "Needs an API token with the 'manage' scope covering project 'llvm' in full. The token in " +
-        "Settings has the 'manage' scope, covering only 'llvm/nts', 'Swift' (all).",
+        "Settings has the 'manage' scope, covering only 'llvm › nts', 'Swift' (all).",
     )
     fireEvent.click(newSuiteButton('Swift'))
     const sent = mockCreate(store)

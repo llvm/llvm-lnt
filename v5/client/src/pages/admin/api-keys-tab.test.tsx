@@ -68,9 +68,9 @@ const KEYS: ApiKey[] = [
 
 const ROWS = [
   '229d78c5 | test-key2 | read | All | 2026-08-13, 3:01:04 AM | Never | Yes | Revoke',
-  '135f502b | test-key | manage | llvm/libcxx, llvm/nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
+  '135f502b | test-key | manage | llvm › libcxx, llvm › nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | Yes | Revoke',
   'aaaaaaaa | my-admin | admin | All | 2026-08-05, 10:00:00 AM | 2026-08-20, 8:00:00 AM | Yes | Revoke',
-  '3f0ac112 | old-bot | submit | llvm/nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
+  '3f0ac112 | old-bot | submit | llvm › nts | 2026-07-02, 9:12:44 AM | 2026-08-01, 6:20:11 PM | No | ',
 ]
 
 /** The keys the mocked API holds, as it lists them, and the `Authorization` of each listing. */
@@ -439,8 +439,8 @@ describe('sorting the keys', () => {
     const nts = apiKey('triage', { prefix: 'dddddddd', restricted_to: [entry('nts')] })
     const { list } = await renderKeys({ keys: [libcxx, both, nts] })
 
-    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('llvm/zeta'))
-    expect(rowsOf(list)[1].split(' | ')[3]).toBe('llvm/nts, llvm/zeta')
+    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('llvm › zeta'))
+    expect(rowsOf(list)[1].split(' | ')[3]).toBe('llvm › nts, llvm › zeta')
 
     fireEvent.click(within(list).getByRole('button', { name: 'Covers' }))
     expect(prefixes(list)).toEqual(['dddddddd', 'bbbbbbbb', 'cccccccc'])
@@ -459,7 +459,7 @@ describe('sorting the keys', () => {
     const { list } = await renderKeys({ keys: [suite, projects] })
 
     await waitFor(() =>
-      expect(rowsOf(list)[1].split(' | ')[3]).toBe('LLVM (all), LLVM/libcxx, swift (all)'),
+      expect(rowsOf(list)[1].split(' | ')[3]).toBe('LLVM (all), LLVM › libcxx, swift (all)'),
     )
 
     // A whole project before the suites of that project.
@@ -468,25 +468,24 @@ describe('sorting the keys', () => {
   })
 
   it("names suites of several projects by full labels, a project's together (AR22)", async () => {
-    const extra = { name: 'extra', display_name: 'LLVM Extra' }
+    // Both labelled 'LLVM', so that 'LLVM › alpha' would come first by full label.
+    const extra = { name: 'extra', display_name: 'LLVM' }
     const llvm = { ...PROJECT, display_name: 'LLVM' }
     mockSuites([
-      { ...SUITE, project: llvm, name: 'zeta' },
-      { ...BARE_SUITE, project: extra, name: 'alpha' },
+      { ...SUITE, project: llvm, name: 'alpha' },
+      { ...BARE_SUITE, project: extra, name: 'zeta' },
     ])
     const key = apiKey('triage', {
       prefix: 'bbbbbbbb',
       restricted_to: [
-        { project: 'extra', suite: 'alpha' },
-        { project: 'llvm', suite: 'zeta' },
+        { project: 'llvm', suite: 'alpha' },
+        { project: 'extra', suite: 'zeta' },
       ],
     })
     const { list } = await renderKeys({ keys: [key] })
 
-    // By project, then by suite, rather than by the full labels as strings.
-    await waitFor(() =>
-      expect(rowsOf(list)[0].split(' | ')[3]).toBe('LLVM/zeta, LLVM Extra/alpha'),
-    )
+    // By project, then by suite, rather than by the full labels.
+    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('LLVM › zeta, LLVM › alpha'))
   })
 
   it('keeps the sort in the URL, leaving out the default one', async () => {
@@ -584,8 +583,8 @@ describe('creating a key', () => {
     expect(suitesButton()).toHaveTextContent('Select projects or suites')
     expect(createButton()).toHaveAccessibleDescription('Pick at least one project or suite.')
 
-    await toggleOptions('Projects and suites to restrict to', ['llvm/nts'], createForm())
-    expect(suitesButton()).toHaveTextContent('llvm/nts')
+    await toggleOptions('Projects and suites to restrict to', ['llvm › nts'], createForm())
+    expect(suitesButton()).toHaveTextContent('llvm › nts')
     fireEvent.click(createButton())
 
     await findCreatedKey()
@@ -612,14 +611,14 @@ describe('creating a key', () => {
     expect(options.map((option) => option.textContent)).toEqual(['llvm', 'libcxx', 'nts', 'zorg'])
     expect(options.map((option) => option.getAttribute('aria-label'))).toEqual([
       null,
-      'llvm/libcxx',
-      'llvm/nts',
-      'llvm/zorg',
+      'llvm › libcxx',
+      'llvm › nts',
+      'llvm › zorg',
     ])
     // Space checks the option focused, and the list stays open for more.
     await user.keyboard('{ArrowDown} ')
     await user.keyboard('{ArrowDown} ')
-    expect(within(list).getByRole('option', { name: 'llvm/nts' })).toHaveAttribute(
+    expect(within(list).getByRole('option', { name: 'llvm › nts' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -627,7 +626,7 @@ describe('creating a key', () => {
     expect(within(list).queryAllByRole('checkbox')).toHaveLength(0)
     const boxes = within(list).getAllByRole<HTMLInputElement>('checkbox', { hidden: true })
     expect(boxes.map((box) => box.checked)).toEqual([false, true, true, false])
-    expect(button).toHaveTextContent('llvm/libcxx, llvm/nts')
+    expect(button).toHaveTextContent('llvm › libcxx, llvm › nts')
     await user.keyboard('{ArrowDown} ')
     // Too many to name.
     expect(button).toHaveTextContent('3 selected')
@@ -642,7 +641,7 @@ describe('creating a key', () => {
     const sent = mockCreate(store)
     const { user, button, list } = await openSuites()
     // A suite checked first is unchecked once its project is: the project covers it.
-    await user.click(within(list).getByRole('option', { name: 'llvm/nts' }))
+    await user.click(within(list).getByRole('option', { name: 'llvm › nts' }))
     await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
     // The project says what it covers, those created later included.
@@ -651,8 +650,8 @@ describe('creating a key', () => {
     // Its suites are listed as covered, and cannot be checked.
     const covered = within(list).getAllByRole('option').slice(1)
     expect(covered.map((option) => option.getAttribute('aria-label'))).toEqual([
-      'llvm/libcxx, covered by llvm',
-      'llvm/nts, covered by llvm',
+      'llvm › libcxx, covered by llvm',
+      'llvm › nts, covered by llvm',
     ])
     for (const option of covered) {
       expect(option).toHaveAttribute('aria-disabled', 'true')
@@ -674,7 +673,7 @@ describe('creating a key', () => {
   it('lists the suites of a project unchecked again, unchecked', async () => {
     await renderKeys()
     const { user, button, list } = await openSuites()
-    await user.click(within(list).getByRole('option', { name: 'llvm/nts' }))
+    await user.click(within(list).getByRole('option', { name: 'llvm › nts' }))
     await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
     await user.click(within(list).getByRole('option', { name: LLVM_CHECKED }))
@@ -709,12 +708,12 @@ describe('creating a key', () => {
   it('checks nothing more for a selection of everything', async () => {
     await renderKeys()
     const { user, button, list } = await openSuites()
-    await user.click(within(list).getByRole('option', { name: 'llvm/nts' }))
+    await user.click(within(list).getByRole('option', { name: 'llvm › nts' }))
 
     // Selecting everything, which React Aria's Select ignores, checks nothing more: there is no
     // way to check every option at once (AD1).
     await user.keyboard('{Control>}a{/Control}')
-    expect(button).toHaveTextContent(/^llvm\/nts▾$/)
+    expect(button).toHaveTextContent(/^llvm › nts▾$/)
   })
 
   it('lists a project without suites, saying so, and what it covers once checked', async () => {
@@ -746,7 +745,7 @@ describe('creating a key', () => {
     const form = within(createForm())
     await pickOption('Scope', 'manage', createForm())
     fireEvent.click(form.getByRole('radio', { name: 'Only these:' }))
-    await toggleOptions('Projects and suites to restrict to', ['llvm/libcxx'], createForm())
+    await toggleOptions('Projects and suites to restrict to', ['llvm › libcxx'], createForm())
 
     await pickOption('Scope', 'admin', createForm())
 
@@ -757,7 +756,7 @@ describe('creating a key', () => {
     await pickOption('Scope', 'triage', createForm())
     expect(form.getByRole('radio', { name: 'Everything (instance-wide)' })).toBeChecked()
     expect(suitesButton()).toBeDisabled()
-    expect(suitesButton()).toHaveTextContent('llvm/libcxx')
+    expect(suitesButton()).toHaveTextContent('llvm › libcxx')
 
     await pickOption('Scope', 'admin', createForm())
     createKey('root')
@@ -774,14 +773,14 @@ describe('creating a key', () => {
     fireEvent.click(within(createForm()).getByRole('radio', { name: 'Only these:' }))
     await toggleOptions(
       'Projects and suites to restrict to',
-      ['llvm/libcxx', 'llvm/nts'],
+      ['llvm › libcxx', 'llvm › nts'],
       createForm(),
     )
 
     // nts is deleted meanwhile.
     const suites = mockSuites([SUITE])
     await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects }))
-    await waitFor(() => expect(suitesButton()).not.toHaveTextContent('llvm/nts'))
+    await waitFor(() => expect(suitesButton()).not.toHaveTextContent('llvm › nts'))
     expect(suites.requests).toBe(1)
     createKey('ci-bot')
 
@@ -988,7 +987,7 @@ describe('revoking a key', () => {
     await waitFor(() => expect(prompt()).toBeNull())
     expect(prefixes).toEqual(['135f502b'])
     expect(rowsOf(list)[1]).toBe(
-      '135f502b | test-key | manage | llvm/libcxx, llvm/nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
+      '135f502b | test-key | manage | llvm › libcxx, llvm › nts | 2026-08-11, 1:04:23 PM | 2026-08-18, 3:49:26 AM | No | ',
     )
     expect(list).toHaveFocus()
     // The keys are asked for again, but not the token, whose key is another.

@@ -82,7 +82,7 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
     await comparison()
 
-    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm/Microbenchmarks/m1/c2 · 1 test']))
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm › Microbenchmarks › m1 › c2 · 1 test']))
     expect(query().shadow).toEqual(['llvm/libcxx/m1/c2'])
     // The sides' suites are named by their labels too.
     expect(selectButton('Suite', sideOf('B'))).toHaveTextContent('Microbenchmarks')
@@ -95,8 +95,8 @@ describe('the shadows (CP8)', () => {
 
     const user = userEvent.setup()
     await user.click(pinButton()!)
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests'])
-    expect(dismissButton('llvm/libcxx/m1/c2')).toHaveFocus()
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests'])
+    expect(dismissButton('llvm › libcxx › m1 › c2')).toHaveFocus()
     expect(query().shadow).toEqual(['llvm/libcxx/m1/c2'])
     // Side B as it is cannot be pinned twice.
     expect(pinButton()).toBeDisabled()
@@ -106,7 +106,7 @@ describe('the shadows (CP8)', () => {
     await waitFor(() => expect(line()?.tests).toEqual(['b', 'c', 'a']))
     expect(line()?.y).toEqual([-1, 1, 2])
     expect((chart().data[1] as PlotData).hovertemplate).toContain('%{customdata[5]}')
-    expect((chart().data[1] as PlotData).customdata[0]).toContain('Shadow: llvm/libcxx/m1/c2')
+    expect((chart().data[1] as PlotData).customdata[0]).toContain('Shadow: llvm › libcxx › m1 › c2')
     // The bars are the main comparison's.
     expect(barsOf()).toEqual([-1, 1, 1])
     expect(pinButton()).toBeEnabled()
@@ -120,8 +120,8 @@ describe('the shadows (CP8)', () => {
     const user = userEvent.setup()
     await user.click(pinButton()!)
     expect(query().shadow).toEqual(['llvm/libcxx/m1/c2', 'llvm/libcxx/m2/c2'])
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests', '▲Shadow: llvm/libcxx/m2/c2 · 3 tests'])
-    expect(dismissButton('llvm/libcxx/m2/c2')).toHaveFocus()
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests', '▲Shadow: llvm › libcxx › m2 › c2 · 3 tests'])
+    expect(dismissButton('llvm › libcxx › m2 › c2')).toHaveFocus()
 
     await waitFor(() => expect(lines()).toHaveLength(2))
     expect(lines().map(({ y }) => y)).toEqual([
@@ -150,10 +150,10 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
 
     await waitFor(() => expect(line()?.y).toEqual([-1, 1, 2]))
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests'])
     expect([...sampled].sort()).toEqual(['1', '3', '4'])
     // Only pinning one gives the focus to its chip.
-    expect(dismissButton('llvm/libcxx/m1/c2')).not.toHaveFocus()
+    expect(dismissButton('llvm › libcxx › m1 › c2')).not.toHaveFocus()
   })
 
   it('plots only the tests the chart plots', async () => {
@@ -161,7 +161,7 @@ describe('the shadows (CP8)', () => {
     renderPage(`${SHADOWED}&hidden_test=a`)
 
     await waitFor(() => expect(line()?.tests).toEqual(['b', 'c']))
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 2 tests'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 2 tests'])
   })
 
   it('counts its tests only once there is a comparison and its samples have arrived', async () => {
@@ -176,17 +176,17 @@ describe('the shadows (CP8)', () => {
     )
     renderPage(SHADOWED)
     await comparison()
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2'])
 
     release()
-    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests']))
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests']))
   })
 
   it('counts no test when the chart plots none', async () => {
     mockWorld(WORLD)
     renderPage(`${SHADOWED}&hidden_test=a&hidden_test=b&hidden_test=c`)
 
-    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 0 tests']))
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 0 tests']))
     expect(line()).toBeUndefined()
   })
 
@@ -195,7 +195,7 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
     await waitFor(() => expect(line()).toBeDefined())
 
-    await userEvent.setup().click(dismissButton('llvm/libcxx/m1/c2'))
+    await userEvent.setup().click(dismissButton('llvm › libcxx › m1 › c2'))
     await waitFor(() => expect(noChips()).toBe(true))
     expect(query().shadow).toBeUndefined()
     expect(line()).toBeUndefined()
@@ -211,12 +211,12 @@ describe('the shadows (CP8)', () => {
     renderPage(`${SHADOWED}&shadow=llvm/libcxx/m2/c1&shadow=llvm/libcxx/m2/c2`)
     await waitFor(() => expect(lines()).toHaveLength(3))
 
-    await userEvent.setup().click(dismissButton('llvm/libcxx/m2/c1'))
+    await userEvent.setup().click(dismissButton('llvm › libcxx › m2 › c1'))
     await waitFor(() => expect(lines()).toHaveLength(2))
     expect(query().shadow).toEqual(['llvm/libcxx/m1/c2', 'llvm/libcxx/m2/c2'])
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests', '▲Shadow: llvm/libcxx/m2/c2 · 3 tests'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests', '▲Shadow: llvm › libcxx › m2 › c2 · 3 tests'])
     expect(lines()[1]).toMatchObject({ y: [-1, 1, 1], color: shadowLook(1).color })
-    expect(dismissButton('llvm/libcxx/m2/c2')).toHaveFocus()
+    expect(dismissButton('llvm › libcxx › m2 › c2')).toHaveFocus()
   })
 
   it('is offered only once there is a comparison', async () => {
@@ -238,7 +238,7 @@ describe('the shadows (CP8)', () => {
     await user.click(runBox('3', 'B'))
     await user.click(pinButton()!)
     expect(query().shadow).toEqual([`llvm/libcxx/m1/c2/${uuidOf('6')},${uuidOf('7')}`])
-    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 2 of 3 runs · 1 test']))
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 2 of 3 runs · 1 test']))
     await waitFor(() => expect(line()?.y).toEqual([3]))
 
     // Side B changes, but not the shadow: min(8, 16), against 1. Side B with all its runs is not
@@ -263,7 +263,7 @@ describe('the shadows (CP8)', () => {
     renderPage(SHADOWED)
 
     await waitFor(() => expect(line()?.y).toEqual([2]))
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 1 test'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 1 test'])
     expect(chart().layout.annotations).toEqual([])
     expect(Math.max(...(chart().layout.yaxis!.tickvals as number[]))).toBeGreaterThan(1.5)
   })
@@ -306,11 +306,11 @@ describe('the shadows (CP8)', () => {
     mockWorld(WORLD)
     renderPage(SHADOWED.replace('&commit_a=c1', ''))
     expect(await screen.findByText('Select a commit for side A.')).toBeInTheDocument()
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2'])
 
     await pick('Commit', 'c1', sideOf('A'))
     await waitFor(() => expect(line()?.y).toEqual([-1, 1, 2]))
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests'])
     expect(query().shadow).toEqual(['llvm/libcxx/m1/c2'])
   })
 
@@ -347,11 +347,11 @@ describe('the shadows (CP8)', () => {
 
     // Until its samples have arrived, it counts nothing.
     await waitFor(() =>
-      expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests', '▲Shadow: llvm/millis/m1/c2']),
+      expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests', '▲Shadow: llvm › millis › m1 › c2']),
     )
     release()
     await waitFor(() =>
-      expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2 · 3 tests', '▲Shadow: llvm/millis/m1/c2 · 0 tests']),
+      expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2 · 3 tests', '▲Shadow: llvm › millis › m1 › c2 · 0 tests']),
     )
     expect(lines()).toHaveLength(1)
     expect(lines()[0].color).toBe(shadowLook(0).color)
@@ -368,7 +368,7 @@ describe('the shadows (CP8)', () => {
     expect(await screen.findByText(/A shadow could not be loaded: Boom/)).toBeInTheDocument()
     await comparison()
     expect(line()).toBeUndefined()
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2'])
   })
 
   it('says when its runs could not be listed, still comparing', async () => {
@@ -384,7 +384,7 @@ describe('the shadows (CP8)', () => {
     expect(await screen.findByText(/A shadow could not be loaded: Boom/)).toBeInTheDocument()
     await comparison()
     expect(line()).toBeUndefined()
-    expect(chips()).toEqual(['●Shadow: llvm/libcxx/m1/c2'])
+    expect(chips()).toEqual(['●Shadow: llvm › libcxx › m1 › c2'])
   })
 
   it("reports a run side B shares with it once, as side B's", async () => {
@@ -409,9 +409,9 @@ describe('the shadows (CP8)', () => {
 
     await waitFor(() => expect(lines()).toHaveLength(3))
     expect(chips()).toEqual([
-      '●Shadow: llvm/libcxx/m1/c2 · 3 tests',
-      '▲Shadow: llvm/libcxx/m1/c1 · 1 of 2 runs · 1 test',
-      '■Shadow: llvm/libcxx/m1/c1 · 3 tests',
+      '●Shadow: llvm › libcxx › m1 › c2 · 3 tests',
+      '▲Shadow: llvm › libcxx › m1 › c1 · 1 of 2 runs · 1 test',
+      '■Shadow: llvm › libcxx › m1 › c1 · 3 tests',
     ])
     expect(warn).not.toHaveBeenCalledWith(expect.stringMatching(/Duplicate Queries/))
     warn.mockRestore()

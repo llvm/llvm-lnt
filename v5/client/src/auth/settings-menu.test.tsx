@@ -139,14 +139,14 @@ describe('Settings panel', () => {
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        'Using key triage-key (aaaaaaaa), with triage scope, covering llvm/libcxx, llvm/nts.',
+        'Using key triage-key (aaaaaaaa), with triage scope, covering llvm › libcxx, llvm › nts.',
       ),
     )
 
     mockAuth(() => HttpResponse.json({ key: apiKey('submit', { restricted_to: [entry('nts')] }) }))
     enterToken(OTHER)
     await waitFor(() =>
-      expect(status()).toHaveTextContent(/with submit scope, covering llvm\/nts\.$/),
+      expect(status()).toHaveTextContent(/with submit scope, covering llvm › nts\.$/),
     )
   })
 
@@ -165,7 +165,7 @@ describe('Settings panel', () => {
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        /with triage scope, covering LLVM\/Microbenchmarks, LLVM\/Test suite\.$/,
+        /with triage scope, covering LLVM › Microbenchmarks, LLVM › Test suite\.$/,
       ),
     )
   })
@@ -187,7 +187,7 @@ describe('Settings panel', () => {
 
     await waitFor(() =>
       expect(status()).toHaveTextContent(
-        /with manage scope, covering LLVM \(all\), LLVM\/nts, swift \(all\)\.$/,
+        /with manage scope, covering LLVM \(all\), LLVM › nts, swift \(all\)\.$/,
       ),
     )
   })

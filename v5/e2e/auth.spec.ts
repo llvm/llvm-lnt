@@ -46,7 +46,7 @@ test.describe('the Settings panel', () => {
     // A whole project by its label followed by (all), and a suite by its full label, once the
     // Dashboard has listed them (AR22).
     await expect(settings(page).getByRole('status')).toContainText(
-      'with triage scope, covering libc++/Microbenchmarks, LLVM/nts, swift (all).',
+      'with triage scope, covering libc++ › Microbenchmarks, LLVM › nts, swift (all).',
     )
   })
 

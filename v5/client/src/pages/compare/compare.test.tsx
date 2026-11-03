@@ -565,7 +565,7 @@ describe('loading (CP6)', () => {
     renderPage(COMPARED)
 
     expect(
-      await screen.findAllByText(/The machines of llvm\/libcxx could not be listed/),
+      await screen.findAllByText(/The machines of llvm › libcxx could not be listed/),
     ).not.toHaveLength(0)
     expect(
       await within(sideOf('A')).findByText(/The commit could not be looked up: Boom/),
@@ -717,7 +717,7 @@ describe("a side's suite in the URL (CP7, AR22)", () => {
 
     await pickSuite('Suite', 'other', 'libcxx', sideOf('A'))
     await waitFor(() => expect(query()).toEqual({ project_a: ['other'], suite_a: ['libcxx'] }))
-    expect(selectButton('Suite', sideOf('A'))).toHaveTextContent('other/libcxx')
+    expect(selectButton('Suite', sideOf('A'))).toHaveTextContent('other › libcxx')
 
     await pickSuite('Suite', 'llvm', 'libcxx', sideOf('A'))
     await waitFor(() => expect(query()).toEqual({ project_a: ['llvm'], suite_a: ['libcxx'] }))

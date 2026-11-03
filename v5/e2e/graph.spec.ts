@@ -96,7 +96,7 @@ test("lists the suites under their projects' headings, without the projects that
   await optionGroup(page, 'LLVM').getByRole('option', { name: 'nts', exact: true }).click()
 
   await expect(page).toHaveURL(/\/graph\?project=llvm&suite=nts$/)
-  await expect(page.getByRole('button', { name: 'LLVM/nts Suite', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'LLVM › nts Suite', exact: true })).toBeVisible()
 })
 
 test('plots a test chosen from scratch', async ({ page }) => {
@@ -440,7 +440,7 @@ test('adds a baseline from its panel, drawn across the chart (GR9)', async ({ pa
     .toBe(`libcxx/benchmarks/${MACOS}/${newest.value}`)
   // Its suite by its full label (AR22).
   const chips = page.getByRole('list', { name: 'Baselines added' })
-  await expect(chips).toContainText(`libc++/Microbenchmarks/${MACOS}/${revision}`)
+  await expect(chips).toContainText(`libc++ › Microbenchmarks › ${MACOS} › ${revision}`)
   await expect(tracesOf(page)).toHaveCount(2)
 })
 
@@ -475,7 +475,7 @@ test("adds a baseline from a point's details, which stay open (GR9, GR11)", asyn
     .poll(() => new URL(page.url()).searchParams.get('baseline'))
     .toBe(`libcxx/benchmarks/${LINUX}/${commit}`)
   const chips = page.getByRole('list', { name: 'Baselines added' })
-  await expect(chips).toContainText(`libc++/Microbenchmarks/${LINUX}/${display}`)
+  await expect(chips).toContainText(`libc++ › Microbenchmarks › ${LINUX} › ${display}`)
   await expect(tracesOf(page)).toHaveCount(2)
   // Its line runs through the point, which stays where it was, and so do its details.
   expect(await yRange()).toEqual(before)

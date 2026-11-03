@@ -318,7 +318,7 @@ Range URL     [                                                          ]
                                                                            [Cancel] [Create]
 
 Display name [LLVM test-suite]                       (the header, when editing a schema)
-Editing LLVM/LLVM test-suite                                                 [Cancel] [Save]
+Editing LLVM › LLVM test-suite                                               [Cancel] [Save]
 ```
 
 When creating a suite, the header above the tables names its project, by its label (see AR22),

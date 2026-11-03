@@ -38,7 +38,7 @@ covers, and a "Create key" button to create the new key:
 ```
 Name [ci-bot      ]   Scope [triage v]   Covers
                                          ( ) Everything (instance-wide)
-                                         (o) Only these: [libc++ (all), LLVM/nts v]   [Create key]
+                                         (o) Only these: [libc++ (all), LLVM › nts v] [Create key]
 ```
 
 What the key covers is chosen with two radio buttons: "Everything (instance-wide)", the default, and
@@ -78,7 +78,7 @@ Below the creation widget, a table like this shows the existing API keys:
 Prefix      Name          Scope       Covers                     Created                     Last Used                   Active
 --------------------------------------------------------------------------------------------------------------------------------------------------------
 229d78c5    test-key2     read        All                        2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
-135f502b    test-key      manage      libc++ (all), LLVM/nts     2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
+135f502b    test-key      manage      libc++ (all), LLVM › nts   2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
 7d1e40aa    swift-bot     submit      Nothing                    2026-08-02, 4:40:10 PM      2026-08-09, 1:15:57 AM      Yes           [red Revoke button]
 3f0ac112    old-bot       submit      All                        2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
 ```

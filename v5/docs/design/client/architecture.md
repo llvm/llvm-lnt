@@ -538,13 +538,15 @@ AR2 "State").
 **Labels.** A project or a suite is labelled with its `display_name` when it
 has one (see D4 and D7), and with its `name` otherwise, including until its
 display name is known. A suite's *full label* is its project's label and its
-own, separated by a `/` (`libc++/Benchmarks`). It names the suite wherever its
-project is not named beside it, such as a dropdown's selected suite, a chip or a
-prompt. Under the heading of its project, or beside its project's selected chip
-on the Projects page (TS1), a suite is named by its own label.
+own, separated by ` › ` (`libc++ › Benchmarks`), as in the detail pages'
+breadcrumb (see DT). It names the suite wherever its project is not named beside
+it, such as a dropdown's selected suite, a chip or a prompt. Under the heading
+of its project, or beside its project's selected chip on the Projects page
+(TS1), a suite is named by its own label.
 Links, URLs, API requests, the text typed to confirm a deletion (AR16), and the
 old and new names of a suite or a project in the prompts confirming that it is
-renamed or moved (TS6, AD3) use names rather than labels.
+renamed or moved (TS6, AD3) use names rather than labels; a suite's full name
+(`project/suite`, see D7) keeps its `/`.
 
 What an API key covers (see I5) is shown as `All` for an instance-wide key, and
 otherwise as its entries, each as it is: a whole project by its label followed

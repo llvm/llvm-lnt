@@ -279,8 +279,8 @@ describe('a manage token restricted to some suites', () => {
     await waitFor(() =>
       expect(deleteButton()).toHaveAttribute(
         'title',
-        "Needs an API token with the 'manage' scope in suite 'llvm/libcxx'. The token in " +
-          "Settings has the 'manage' scope, covering only 'llvm/nts'.",
+        "Needs an API token with the 'manage' scope in suite 'llvm › libcxx'. The token in " +
+          "Settings has the 'manage' scope, covering only 'llvm › nts'.",
       ),
     )
     expect(screen.getByRole('button', { name: 'Edit schema' })).toBeDisabled()
@@ -333,7 +333,7 @@ describe('deleting a suite', () => {
     fireEvent.click(deleteButton())
     expect(deleteButton()).toHaveAttribute('aria-expanded', 'true')
     expect(prompt()).toHaveTextContent(
-      'Deleting the test suite llvm/libcxx permanently destroys all of its machines, runs, ' +
+      'Deleting the test suite llvm › libcxx permanently destroys all of its machines, runs, ' +
         'commits, samples and regressions. This cannot be undone.',
     )
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
@@ -354,7 +354,7 @@ describe('deleting a suite', () => {
     const sent = mockDelete(store)
 
     fireEvent.click(deleteButton())
-    expect(prompt()).toHaveTextContent('Deleting the test suite llvm/Microbenchmarks permanently')
+    expect(prompt()).toHaveTextContent('Deleting the test suite llvm › Microbenchmarks permanently')
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
     confirmDeletion('libcxx')
 
@@ -656,7 +656,7 @@ describe('renaming or moving a suite', () => {
     expect(options[0]).toHaveAccessibleName('llvm')
     expect(options[1]).toHaveAccessibleName(
       "Swift: Needs an API token with the 'manage' scope covering project 'Swift' in full. The " +
-        "token in Settings has the 'manage' scope, covering only 'llvm/libcxx'.",
+        "token in Settings has the 'manage' scope, covering only 'llvm › libcxx'.",
     )
   })
 

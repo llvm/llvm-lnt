@@ -12,7 +12,7 @@ suite-agnostic: each side selects its own suite. Layout:
 # Compare
 
 +-- Side A (Baseline) ----------------+       +-- Side B (New) -------------- [Pin as shadow] +
-| Suite            [libc++/Bench…  v] |       | Suite            [libc++/Benchmarks        v] |
+| Suite            [libc++ › Ben…  v] |       | Suite            [libc++ › Benchmarks      v] |
 | Machine          [linux-x86_64     ] | (<->) | Machine          [linux-x86_64               ] |
 |                                   ⓘ |       |                                              ⓘ |
 | Commit           [0f985af790f8    ] |       | Commit           [014621ede7c1              ] |
@@ -30,8 +30,8 @@ Metric [Execution Time v]  Run aggregation [median v]  Sample aggregation [media
 > Add to regression
 
 <progress and errors>
-[● Shadow: libc++/Benchmarks/linux-x86_64/0f69d2804b9b · 298 tests  x]
-[▲ Shadow: libc++/Benchmarks/linux-x86_64/014621ede7c1 (llvmorg-21.1.0) · 1 of 2 runs · 301 tests  x]
+[● Shadow: libc++ › Benchmarks › linux-x86_64 › 0f69d2804b9b · 298 tests  x]
+[▲ Shadow: libc++ › Benchmarks › linux-x86_64 › 014621ede7c1 (llvmorg-21.1.0) · 1 of 2 runs · 301 tests  x]
 <chart>
 
 o Improved 120 (40%)  o Regressed 30 (10%)  o Noise 0 (0%)  o Unchanged 150 (50%)  o Only in A 2  o Only in B 0  o Zero baseline 1
@@ -561,7 +561,7 @@ is pinned already, and once 5 shadows are pinned: beyond that, the chart is
 unreadable. A shadow just pinned gives the focus to its chip's dismiss button.
 
 **Chips.** Each shadow has a chip above the chart, in the order they were
-pinned. It names the shadow as "Shadow: {suite}/{machine}/{commit}", where
+pinned. It names the shadow as "Shadow: {suite} › {machine} › {commit}", where
 `{suite}` is the suite's full label (see AR22) and `{commit}` the commit's
 display value (see AR6), or the commit string until it is known, followed by " ·
 {k} of {n} runs" when the shadow selects only some of its commit's runs, once

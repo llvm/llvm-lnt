@@ -1029,7 +1029,7 @@ describe('the URL (GR14, AR2)', () => {
     await userEvent.setup().click(within(groups[1]).getByRole('option', { name: 'Alpha' }))
 
     await waitFor(() => expect(query()).toEqual({ project: ['aaa'], suite: ['zeta'] }))
-    expect(selectButton('Suite')).toHaveTextContent('Zed/Alpha')
+    expect(selectButton('Suite')).toHaveTextContent('Zed › Alpha')
   })
 
   it('tells apart suites of the same name in two projects', async () => {
@@ -1039,7 +1039,7 @@ describe('the URL (GR14, AR2)', () => {
     await waitFor(() => expect(selectButton('Suite')).toBeEnabled())
     await pickSuite('Suite', 'other', 'libcxx')
     await waitFor(() => expect(query()).toEqual({ project: ['other'], suite: ['libcxx'] }))
-    expect(selectButton('Suite')).toHaveTextContent('other/libcxx')
+    expect(selectButton('Suite')).toHaveTextContent('other › libcxx')
 
     await pickSuite('Suite', 'llvm', 'libcxx')
     await waitFor(() => expect(query()).toEqual({ project: ['llvm'], suite: ['libcxx'] }))

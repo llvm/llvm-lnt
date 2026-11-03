@@ -1,7 +1,7 @@
 /**
  * How the UI names and orders projects and test suites (AR22): by their label, which is the
  * display name a project or a suite has (D4, D7), or its name otherwise. A suite's full label is its
- * project's label and its own, separated by a `/`: it names the suite wherever its project is not
+ * project's label and its own, separated by ` › `: it names the suite wherever its project is not
  * named beside it. Every label shown for a project or a suite comes from here, whereas links, URLs,
  * API requests and the text typed to confirm a deletion use the names.
  */
@@ -22,9 +22,14 @@ export const projectLabel: (project: ProjectName) => string = labelOf
 /** The label of a suite of its own, as under the heading of its project (AR22). */
 export const suiteLabel: (suite: Pick<Labelled, 'name' | 'display_name'>) => string = labelOf
 
-/** The full label of `suite`: its project's label and its own, separated by a `/` (AR22). */
+/** `parts` joined by ` › `, which unlike `/` is not mistaken for part of a display name (AR22). */
+export function joinLabels(...parts: string[]): string {
+  return parts.join(' › ')
+}
+
+/** The full label of `suite`: its project's label and its own, separated by ` › ` (AR22). */
 export function fullLabel(suite: Labelled): string {
-  return `${projectLabel(suite.project)}/${suiteLabel(suite)}`
+  return joinLabels(projectLabel(suite.project), suiteLabel(suite))
 }
 
 /**

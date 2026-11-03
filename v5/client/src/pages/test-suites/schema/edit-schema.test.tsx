@@ -103,7 +103,7 @@ function editButton() {
 }
 
 function editor() {
-  return screen.queryByRole('region', { name: 'Editing llvm/libcxx' })
+  return screen.queryByRole('region', { name: 'Editing llvm › libcxx' })
 }
 
 /** The editor's Save, rather than the one of the prompt confirming a removal. */
@@ -518,7 +518,7 @@ describe("the suite's display name", () => {
     fireEvent.click(editButton())
     const input = await screen.findByRole('textbox', { name: 'Display name' })
     // Named by the suite's label (AR22).
-    const region = screen.getByRole('region', { name: 'Editing llvm/Micro' })
+    const region = screen.getByRole('region', { name: 'Editing llvm › Micro' })
     expect(input).toHaveValue('Micro')
     const sent = mockPatch(store, (schema) => ({ ...schema, display_name: null }))
 
@@ -657,10 +657,10 @@ describe('saving', () => {
     fireEvent.click(editButton())
     fireEvent.click(await screen.findByRole('button', { name: 'Remove metric execution_time' }))
 
-    const region = screen.getByRole('region', { name: 'Editing llvm/Micro' })
+    const region = screen.getByRole('region', { name: 'Editing llvm › Micro' })
     fireEvent.click(within(region).getAllByRole('button', { name: 'Save' })[0])
 
-    expect(prompt()).toHaveTextContent('Saving removes these entries from the suite llvm/Micro:')
+    expect(prompt()).toHaveTextContent('Saving removes these entries from the suite llvm › Micro:')
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
   })
 

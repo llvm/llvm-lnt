@@ -15,7 +15,7 @@ import {
   useCheckedCommits,
   type CommitOfMachine,
 } from '../../components/checked-commits'
-import { fullLabelOf } from '../../labels'
+import { fullLabelOf, joinLabels } from '../../labels'
 import { isNumeric, type Metric } from '../../schema'
 import { listParam, type Param } from '../../url-state'
 
@@ -46,6 +46,8 @@ export interface BaselineState {
   suiteLabel: string
   /** The display value of its commit, or the commit string until it is known. */
   display: string
+  /** How it is named: its suite's full label, its machine and its commit's display value (GR9). */
+  label: string
   /**
    * Whether it is known to be unusable: its suite, its machine or its commit does not exist, or
    * the machine has no run at the commit (AR2 "State").
@@ -141,15 +143,18 @@ export function useBaselines(
 
   const states = useMemo(
     () =>
-      baselines.map(
-        (baseline, i): BaselineState => ({
+      baselines.map((baseline, i): BaselineState => {
+        const suiteLabel = fullLabelOf(suites, baseline.suite)
+        const { display, unusable } = checked.states[i]
+        return {
           baseline,
-          suiteLabel: fullLabelOf(suites, baseline.suite),
-          display: checked.states[i].display,
-          unusable: checked.states[i].unusable,
+          suiteLabel,
+          display,
+          label: joinLabels(suiteLabel, baseline.machine, display),
+          unusable,
           samples: drawable[i] ? samples.data[i] : undefined,
-        }),
-      ),
+        }
+      }),
     [baselines, suites, checked.states, drawable, samples.data],
   )
   return {
