@@ -5,21 +5,23 @@ detailed information about various entities. They are accessible by clicking
 on these entities from other pages (e.g. the `Test Suite / Runs` page).
 
 Above its header, each detail page shows a breadcrumb trail leading back to the
-Test Suites page (TS1): the suite's name, linking to `/suites/{ts}`, then the
-name of the tab listing the kind of entity the page is about, linking to that
-tab -- Machines, Runs, Commits or Regressions. The tab opens in its default
-state: no search, no filters, its first page. The trail depends only on the
-page's path, so it is shown whatever the state of the page's data: while it
-loads, when it cannot be fetched, and when the entity or the suite does not
-exist. It does not name the entity, which the header does.
+Test Suites page (TS1): the label of the suite's project, linking to
+`/projects/{p}`, then the suite's label, linking to `/projects/{p}/suites/{s}`
+(see AR22), then the name of the tab listing the kind of entity the page is
+about, linking to that tab -- Machines, Runs, Commits or Regressions. The tab
+opens in its default state: no search, no filters, its first page. The trail's
+links depend only on the page's path, so it is shown whatever the state of the
+page's data: while it loads, when it cannot be fetched, and when the entity or
+the suite does not exist. It does not name the entity, which the
+header does.
 
 
-## DT1: Machine Detail -- `/suites/{ts}/machines/{name}`
+## DT1: Machine Detail -- `/projects/{p}/suites/{s}/machines/{name}`
 
 Deep dive into a single machine. Machine names are guaranteed unique. Layout:
 
 ```
-libcxx › Machines
+libc++ › Benchmarks › Machines
 
 # Machine: linux-x86_64-20260812
 
@@ -74,13 +76,13 @@ Escape, closes the prompt and returns to the input, with its text. A name
 already taken by another machine is refused, and the input says so (see AR12).
 
 The page header changes only once a rename is saved. The page then shows the
-machine at `/suites/{ts}/machines/{new name}`, which takes the place of the old
-name's URL in the history, unless the user has left the page meanwhile (see
-AR16). The page stays that of the same machine, so the focus stays on the Edit
-button of its name (see AR12), even though its URL has changed. Once the rename
-has succeeded, no page shows the machine under its old name. The old name's URL
-is not redirected: it says that the machine does not exist, unless another
-machine has taken the name since.
+machine at `/projects/{p}/suites/{s}/machines/{new name}`, which takes the place
+of the old name's URL in the history, unless the user has left the page
+meanwhile (see AR16). The page stays that of the same machine, so the focus
+stays on the Edit button of its name (see AR12), even though its URL has
+changed. Once the rename has succeeded, no page shows the machine under its old
+name. The old name's URL is not redirected: it says that the machine does not
+exist, unless another machine has taken the name since.
 
 ### Tracked toggle
 
@@ -157,12 +159,12 @@ Shows the runs of this machine, most recently measured first, 25 per page
 lead to the details page for that object. A commit's link has its card (see AR21).
 
 
-## DT2: Run Detail -- `/suites/{ts}/runs/{uuid}`
+## DT2: Run Detail -- `/projects/{p}/suites/{s}/runs/{uuid}`
 
 All data from a single run. Layout:
 
 ```
-libcxx › Runs
+libc++ › Benchmarks › Runs
 
 # Run: 573af861-8303-4a5b-a643-b8321e0142c4
 
@@ -245,13 +247,13 @@ Tests with profiles show a "Profile" link in the samples table. The link leads t
 Profiles page, with side A set to this run and the row's test (see PF1).
 
 
-## DT3: Commit Detail -- `/suites/{ts}/commits/{value}`
+## DT3: Commit Detail -- `/projects/{p}/suites/{s}/commits/{value}`
 
 The "what happened at this commit?" page. Key investigation page for developers.
 Layout:
 
 ```
-libcxx › Commits
+libc++ › Benchmarks › Commits
 
 # Commit: 014621ede7c175aece29796adcaf5000f891cf0c
 
@@ -316,12 +318,13 @@ commit are left to the Graph and Compare pages.
 
 ### Delete commit
 
-A red "Delete commit" button follows the navigation buttons. Clicking it shows its
-confirmation prompt (see AR16) below them, saying that the commit's runs, with their samples
-and profiles, are deleted too, and that the regressions attributed to it are kept, with no
-commit (see E3). Deletion requires `manage` scope. While it is in progress, a message
-reassures the user that deletion may take a while for commits with many runs. On success,
-navigates to the Commits tab of the Test Suites page (`/suites/{ts}?tab=commits`).
+A red "Delete commit" button follows the navigation buttons. Clicking it shows
+its confirmation prompt (see AR16) below them, saying that the commit's runs,
+with their samples and profiles, are deleted too, and that the regressions
+attributed to it are kept, with no commit (see E3). Deletion requires `manage`
+scope. While it is in progress, a message reassures the user that deletion may
+take a while for commits with many runs. On success, navigates to the Commits
+tab of the Test Suites page (`/projects/{p}/suites/{s}?tab=commits`).
 
 ### Regressions section
 
@@ -347,12 +350,12 @@ is looked up once per machine rather than once per run. The link is disabled, wi
 saying why, when this commit has no ordinal or the row's machine has no earlier commit.
 
 
-## DT4: Regression Detail -- `/suites/{ts}/regressions/{uuid}`
+## DT4: Regression Detail -- `/projects/{p}/suites/{s}/regressions/{uuid}`
 
 Investigation and management page for a single regression. Layout:
 
 ```
-libcxx › Regressions
+libc++ › Benchmarks › Regressions
 
 # Regression: find_if slowdown
 
@@ -416,7 +419,7 @@ A red "Delete regression" button follows the info box. Clicking it shows its
 confirmation prompt (see AR16) below it; the prompt says that the regression's
 indicators are deleted too. Deletion requires `triage` scope. Once the
 regression is deleted, the page goes to the Regressions tab of the Test Suites
-page (`/suites/{ts}?tab=regressions`).
+page (`/projects/{p}/suites/{s}?tab=regressions`).
 
 ### Add indicators panel
 

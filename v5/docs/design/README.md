@@ -62,20 +62,20 @@ e.g. `D5`, `I4` or `GR8`.
 
 | Document | Prefix | Contents |
 |----------|----------|----------|
-| [Data Model](server/data-model.md) | D | Commit concept, schema storage and format, attribute types, all table definitions, database initialization |
+| [Data Model](server/data-model.md) | D | Commit concept, schema storage and format, attribute types, all table definitions, database initialization, projects |
 | [Operations](server/operations.md) | O | Run submission, machine and commit metadata, search, cursor pagination, ordinal management, profiles, concurrent submission, run summaries, deletion after inactivity |
 | [Infrastructure](server/infrastructure.md) | I | URL structure, pagination, filtering, response format, authentication, AI orientation, health check, API documentation, caching, crawler policy |
-| [Endpoints](server/endpoints.md) | E | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin, authentication |
+| [Endpoints](server/endpoints.md) | E | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin, authentication, projects |
 
 ### Web UI
 
 | Document | Prefix | Contents |
 |----------|----------|----------|
-| [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar, conventions shared by every page |
-| [Dashboard](client/dashboard.md) | DA | Landing page with sparkline trend overview across test suites |
-| [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker + tabs): Runs, Machines, Commits, Regressions, Schema (viewer and editor) |
+| [Architecture](client/architecture.md) | AR | SPA design, client-side routing, navigation bar, conventions shared by every page, projects and suites in the UI |
+| [Dashboard](client/dashboard.md) | DA | Landing page with sparkline trend overview across test suites, grouped by project |
+| [Test Suites](client/test-suites.md) | TS | Test Suites page (suite picker grouped by project + tabs): Runs, Machines, Commits, Regressions, Schema (viewer, editor, renaming and moving) |
 | [Detail Pages](client/details.md) | DT | Machine Detail, Run Detail, Commit Detail, and Regression Detail entity pages |
 | [Graph](client/graph.md) | GR | Time-series visualization: multi-machine, lazy loading, test selection, baselines, point details, regression annotations, highlighted commits |
 | [Compare](client/compare.md) | CP | Side-by-side comparison of two commits: selection panel, comparison table, ratio chart, geomean summary, shadow traces, adding to a regression |
 | [Profiles](client/profiles.md) | PF | A/B profile viewer: side selection, counter comparison, function selection, disassembly view |
-| [Admin](client/admin.md) | AD | API key management, test suite creation |
+| [Admin](client/admin.md) | AD | API key management, project management, test suite creation |
