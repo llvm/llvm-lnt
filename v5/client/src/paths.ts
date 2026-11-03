@@ -18,7 +18,7 @@ const segment = encodeURIComponent
 /** The Projects page, which goes to the first project's page (TS1). */
 export const PROJECTS_PATH = '/projects'
 
-/** The Projects page of the project `project`, listing its suites (TS1). */
+/** The Projects page of the project `project`, which goes to its first suite, if any (TS1). */
 export function projectPath(project: string): string {
   return `${PROJECTS_PATH}/${segment(project)}`
 }

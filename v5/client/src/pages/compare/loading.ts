@@ -1,12 +1,13 @@
 /** How far the Compare page is from a comparison (CP6): what it still needs, and what it loads. */
 
 import type { SampleState } from '../../api/runs'
+import { failureShown } from '../../api/shown-data'
 import { plural } from '../../format'
 import type { Side } from './use-side'
 
 /** What the page's progress reads of a side. */
 export type SideProgress = Pick<Side, 'id' | 'settings' | 'schema' | 'selected' | 'wanted'> & {
-  runs: Pick<Side['runs'], 'isError'>
+  runs: Pick<Side['runs'], 'data' | 'error'>
 }
 
 /**
@@ -97,7 +98,9 @@ export function waiting(
   const missing = missingInput(a, b, offered, metric)
   if (missing !== null) return { kind: 'missing', text: missing }
   const chosen = [...sidesRuns(a, b)].map((key) => states.get(key))
-  if (chosen.some(hasFailed) || a.runs.isError || b.runs.isError) return { kind: 'failed' }
+  // A list of runs fetched again that fails is kept (AR7).
+  const unlisted = (side: SideProgress) => failureShown(side.runs.data, side.runs.error)
+  if (chosen.some(hasFailed) || unlisted(a) || unlisted(b)) return { kind: 'failed' }
   if (a.selected === undefined || b.selected === undefined) {
     return { kind: 'loading', label: 'Loading runs...' }
   }

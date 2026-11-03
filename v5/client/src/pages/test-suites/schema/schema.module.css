@@ -9,17 +9,10 @@
   margin-top: var(--lnt-space-4);
 }
 
-/* The suite's display name, above the editor's tables when editing a suite's schema (TS7). */
-.displayName {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lnt-space-2);
-  margin-bottom: var(--lnt-space-3);
-}
-
-.displayNameInput {
+/* An input of the editor's suite, its name or its display name (TS7). */
+.suiteInput {
   width: 24rem;
+  max-width: 100%;
 }
 
 /* The editor's buttons, and its heading when editing a suite, below its tables (TS7). */
@@ -76,23 +69,4 @@
 .hint {
   composes: note from '../test-suites.module.css';
   font-size: 0.85rem;
-}
-
-/* The "Rename or move" panel, below the Schema tab's buttons (TS6), laid out as the schema
-   editor's header is. */
-.movePanel {
-  margin-top: var(--lnt-space-3);
-}
-
-.moveForm {
-  composes: createForm fields from '../test-suites.module.css';
-}
-
-/* The name, its label above it as the project's dropdown has its own. */
-.moveControl {
-  composes: control from '../test-suites.module.css';
-}
-
-.moveName {
-  composes: wide from '../test-suites.module.css';
 }

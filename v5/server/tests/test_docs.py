@@ -335,12 +335,12 @@ class TestDocumentedAuthentication:
                 "requires an API key with the `manage` scope, unrestricted or covering this "
                 "project in full.",
             ),
-            # A move, which also needs the destination covered in full.
+            # A move, whose description says that it also needs the destination covered in full.
             (
                 f"{SUITES_PATH}/{{suite}}",
                 "patch",
                 "requires an API key with the `manage` scope, unrestricted or covering this test "
-                "suite. Moving it to another project also needs that project covered in full.",
+                "suite.",
             ),
             # One that addresses neither, which no restricted key may make.
             (PROJECTS_PATH, "post", "requires an unrestricted API key with the `manage` scope."),

@@ -25,10 +25,11 @@ test('the Projects link goes to the first project, in place of /projects in the 
   await page.getByRole('navigation').first().getByRole('link', { name: 'Projects' }).click()
 
   const projects = page.getByRole('navigation', { name: 'Projects' })
-  // Other tests add projects of their own, which may come first. The chip of the project the URL
-  // names is the current page, so the URL is the first chip's.
-  await expect(page).toHaveURL(/\/projects\/[^/?]+$/)
-  await expect(projects.getByRole('link').first()).toHaveAttribute('aria-current', 'page')
+  // Other tests add projects of their own, which may come first, with a suite or without. The chip
+  // of the project the URL names is the current one, so the URL is the first chip's: its first
+  // suite's page, or its own when it has none.
+  await expect(page).toHaveURL(/\/projects\/[^/?]+(\/suites\/[^/?]+)?$/)
+  await expect(projects.getByRole('link').first()).toHaveAttribute('aria-current', /^(page|true)$/)
   // The seeded projects, among the others, in AR22's order.
   const seeded = projects.getByRole('link').filter({ hasText: /^(libc\+\+|LLVM|swift)$/ })
   await expect(seeded).toHaveText(['libc++', 'LLVM', 'swift'])
@@ -37,26 +38,36 @@ test('the Projects link goes to the first project, in place of /projects in the 
   await expect(page).toHaveURL('/')
 })
 
-test("a project's page shows its suites, none selected, and leads to the other projects", async ({
+test("a project's page goes to its first suite, and a project's chip leads to its own", async ({
   page,
 }) => {
   await page.goto('/projects/libcxx')
   const projects = page.getByRole('navigation', { name: 'Projects' })
   const suites = page.getByRole('navigation', { name: 'Test suites' })
 
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
   await expect(projects.getByRole('link', { name: 'libc++', exact: true })).toHaveAttribute(
     'aria-current',
-    'page',
+    'true',
   )
   // Each suite by its own label, in AR22's order.
   await expect(suites.getByRole('link')).toHaveText(['header-sizes', 'Microbenchmarks'])
-  await expect(suites.locator('[aria-current]')).toHaveCount(0)
-  await expect(page.getByRole('tab')).toHaveCount(0)
+  await expect(suites.getByRole('link', { name: 'header-sizes' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
 
+  // Another project's chip leads to its first suite, at the same tab, in its default state.
+  await page.getByRole('tab', { name: 'Machines' }).click()
+  await page.getByRole('searchbox', { name: 'Search machines' }).fill('macos')
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes?tab=machines&search=macos')
   await projects.getByRole('link', { name: 'LLVM', exact: true }).click()
-  await expect(page).toHaveURL('/projects/llvm')
+  await expect(page).toHaveURL('/projects/llvm/suites/nts?tab=machines')
   await expect(suites.getByRole('link')).toHaveText(['nts'])
+  await expect(page.getByRole('searchbox', { name: 'Search machines' })).toHaveValue('')
 
+  // A project without suites has a page of its own, which says so.
   await projects.getByRole('link', { name: 'swift', exact: true }).click()
   await expect(page).toHaveURL('/projects/swift')
   await expect(page.getByRole('main')).toContainText('No test suites.')
@@ -64,7 +75,7 @@ test("a project's page shows its suites, none selected, and leads to the other p
 })
 
 test('picking a suite shows its runs, and another suite the same tab', async ({ page }) => {
-  await page.goto('/projects/libcxx')
+  await page.goto('/projects/libcxx/suites/header-sizes')
   const suites = page.getByRole('navigation', { name: 'Test suites' })
   const benchmarks = suites.getByRole('link', { name: 'Microbenchmarks', exact: true })
 
@@ -299,7 +310,13 @@ test.describe('the Commits tab', () => {
 })
 
 test('Back leaves the page rather than stepping through its settings', async ({ page }) => {
-  await page.goto('/projects/libcxx/suites/header-sizes')
+  // From a page that asks the API nothing.
+  await page.goto('/nope')
+  await page.goto('/projects/llvm/suites/nts')
+  // The project, the suite and the tab are all settings of the page (TS1).
+  const projects = page.getByRole('navigation', { name: 'Projects' })
+  await projects.getByRole('link', { name: 'libc++', exact: true }).click()
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
   await page.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
   await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
 
@@ -310,7 +327,7 @@ test('Back leaves the page rather than stepping through its settings', async ({ 
   await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks?tab=commits')
 
   await page.goBack()
-  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
+  await expect(page).toHaveURL('/nope')
 })
 
 test.describe('the Schema tab', () => {
@@ -536,46 +553,54 @@ test.describe('the Schema tab', () => {
       )
       try {
         await signIn(page, 'manage')
-        // From another page, for Back to have an entry of the SPA to go back to.
-        await page.goto(`/projects/${suite.project}`)
+        // From another page, for Back to have an entry of the SPA to go back to: that of a project
+        // without suites, which does not go on to a suite's.
+        await page.goto('/projects/swift')
         await page.goto(`${suitePath(suite)}?tab=schema`)
-        const move = page.getByRole('button', { name: 'Rename or move' })
-        const panel = page.getByRole('form', { name: 'Rename or move' })
+        const edit = page.getByRole('button', { name: 'Edit schema' })
+        const editor = page.getByRole('region', { name: /^Editing / })
+        const box = editor.getByRole('group', { name: 'Suite' })
         const prompt = page.getByRole('form', { name: 'Confirmation' })
 
-        await move.click()
-        await panel.getByRole('textbox', { name: 'Name' }).fill('renamed')
-        await panel.getByRole('button', { name: 'Save' }).click()
+        // A display name and a name, saved at once: the schema, then the rename.
+        await edit.click()
+        await box.getByRole('textbox', { name: 'Name', exact: true }).fill('renamed')
+        await box.getByRole('textbox', { name: 'Display name', exact: true }).fill('Renamed suite')
+        await editor.getByRole('button', { name: 'Save', exact: true }).click()
         await expect(prompt).toContainText(
           `Rename the test suite ${suite.project}/${suite.suite} to ${suite.project}/renamed?`,
         )
         await expect(prompt).toContainText('API keys are unaffected.')
-        await prompt.getByRole('button', { name: 'OK' }).click()
+        await prompt.getByRole('button', { name: 'Save' }).click()
 
         // The page of the new names takes the place of the old one in the history (AR16).
         await expect(page).toHaveURL(`${suitePath(renamed)}?tab=schema`)
-        await expect(move).toBeFocused()
+        await expect(editor).toBeHidden()
+        await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
+          `Project${suite.project}NamerenamedDisplay nameRenamed suite`,
+        )
+        await expect(edit).toBeFocused()
         await page.goBack()
-        await expect(page).toHaveURL(`/projects/${suite.project}`)
+        await expect(page).toHaveURL('/projects/swift')
         await page.goto(`${suitePath(suite)}?tab=schema`)
         await expect(page.getByRole('alert')).toHaveText(
           `Test suite '${suite.project}/${suite.suite}' not found.`,
         )
 
         await page.goto(`${suitePath(renamed)}?tab=schema`)
-        await move.click()
-        await pickOption(panel, 'Project', other)
-        await panel.getByRole('button', { name: 'Save' }).click()
+        await edit.click()
+        await pickOption(box, 'Project', other)
+        await editor.getByRole('button', { name: 'Save', exact: true }).click()
         await expect(prompt).toContainText(
           `API keys listing the project '${suite.project}' as a whole will no longer cover the ` +
             `suite, those listing the project '${other}' as a whole will`,
         )
-        await prompt.getByRole('button', { name: 'OK' }).click()
+        await prompt.getByRole('button', { name: 'Save' }).click()
 
         await expect(page).toHaveURL(`${suitePath(moved)}?tab=schema`)
-        await expect(move).toBeFocused()
+        await expect(edit).toBeFocused()
         const picker = page.getByRole('navigation', { name: 'Test suites' })
-        await expect(picker.getByRole('link', { name: 'renamed', exact: true })).toBeVisible()
+        await expect(picker.getByRole('link', { name: 'Renamed suite', exact: true })).toBeVisible()
         expect((await request.get(`/api${suitePath(moved)}`)).status()).toBe(200)
       } finally {
         await request.delete(`/api${suitePath(moved)}?confirm=true`, { headers })
@@ -600,10 +625,11 @@ test.describe('the Schema tab', () => {
     const CONFIRM = { type: 'confirm', message: 'You have unsaved changes. Leave anyway?' }
 
     await signIn(page, 'manage')
-    // From another suite, for Back to have an entry of the SPA to go back to.
-    await page.goto('/projects/libcxx/suites/header-sizes')
-    const picker = page.getByRole('navigation', { name: 'Test suites' })
-    await picker.getByRole('link', { name: 'Microbenchmarks' }).click()
+    // From a machine's page, through its breadcrumb, for Back to have an entry of the SPA to go
+    // back to.
+    await page.goto(`/projects/libcxx/suites/benchmarks/machines/${MACOS}`)
+    const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+    await trail.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
     await page.getByRole('tab', { name: 'Schema' }).click()
     await page.getByRole('button', { name: 'Edit schema' }).click()
     const editor = page.getByRole('region', { name: 'Editing libc++ › Microbenchmarks' })

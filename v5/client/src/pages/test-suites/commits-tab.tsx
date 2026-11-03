@@ -30,18 +30,17 @@ export function CommitsTab({ schema, search, onSearch }: Props) {
     queryKey: [...queryKeys.commits(suite), query],
     fetchPage: (cursor, signal) => fetchCommitPage(suite, { ...query, cursor }, signal),
   })
-  const page = pager.page
 
   return (
     <TabContent
       search={input}
       searchLabel="Search commits"
       placeholder="Search commits..."
-      isPending={pager.isPending}
+      data={pager.page}
       error={pager.error}
       onRetry={pager.retry}
     >
-      {page && (
+      {(page) => (
         <>
           <DataTable
             label="Commits"

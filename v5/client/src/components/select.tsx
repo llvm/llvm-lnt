@@ -156,9 +156,7 @@ export function Select<Value extends string>({
         // selection.
         onChange={(key) => {
           if (key === null || (!open.current && listPicksOnly)) return
-          // A backstop: the closed dropdown sets the value directly, without the checks of a pick
-          // from the list, and skips refused options only through `disabledKeys` below.
-          if (!refused.has(key as string)) onChange(key as Value)
+          onChange(key as Value)
         }}
         onOpenChange={(isOpen) => (open.current = isOpen)}
         isDisabled={isDisabled}
@@ -222,8 +220,6 @@ export interface TreeOption<Value extends string> {
 /** An option of a `TreeSelect` with the options below it, which checking it covers. */
 export interface TreeParent<Value extends string> extends TreeOption<Value> {
   children: readonly TreeOption<Value>[]
-  /** Shown in place of `note` while the option is checked, saying what it covers. */
-  checkedNote: string
 }
 
 interface TreeProps<Value extends string> {
@@ -243,8 +239,6 @@ interface TreeProps<Value extends string> {
 /** An option of a `TreeSelect` as its list holds it, with its parent if it has one. */
 interface Row<Value extends string> extends TreeOption<Value> {
   parent?: TreeParent<Value>
-  /** A parent's (see `TreeParent`). */
-  checkedNote?: string
 }
 
 /**
@@ -312,9 +306,8 @@ export function TreeSelect<Value extends string>({
       <Popover className={shared.popover} maxHeight={320}>
         <ListBox className={shared.list} items={rows} dependencies={[value]}>
           {(row) => {
-            const { parent } = row
+            const { parent, note } = row
             const covered = parent !== undefined && checked.has(parent.value)
-            const note = checked.has(row.value) ? (row.checkedNote ?? row.note) : row.note
             // Given only where it differs from what the option shows, which names it otherwise.
             let name: string | undefined
             if (covered) name = `${row.name ?? row.label}, covered by ${parent.label}`

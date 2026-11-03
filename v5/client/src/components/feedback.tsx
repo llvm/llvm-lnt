@@ -1,5 +1,6 @@
 import type { ReactNode, Ref } from 'react'
-import { ApiError, errorMessage } from '../api/client'
+import { errorMessage } from '../api/client'
+import { failureShown, isMissing } from '../api/shown-data'
 import styles from './feedback.module.css'
 
 /**
@@ -35,7 +36,7 @@ interface ErrorMessageProps {
 
 /** A failure, as the user should see it (see `errorMessage`). */
 export function ErrorMessage({ error, context, onRetry }: ErrorMessageProps) {
-  const missing = error instanceof ApiError && error.code === 'not_found'
+  const missing = isMissing(error)
   return (
     <Alert>
       {context !== undefined && `${context}: `}
@@ -58,23 +59,32 @@ export function Loading({ label = 'Loading...' }: { label?: string }) {
   )
 }
 
-interface LoadedProps {
-  isPending: boolean
-  /** Why the data could not be fetched, shown in place of `children`, with a way to try again. */
+interface LoadedProps<Data> {
+  /**
+   * The data of the query asked for, if it has any, or another query's, kept as a placeholder while
+   * it loads, but not once it has failed (see `shownData`).
+   */
+  data: Data | undefined
+  /** Why the data could not be fetched, shown with a way to try again (see `failureShown`). */
   error: Error | null
   onRetry(): void
-  /** What shows the data, rendered once there is no failure and nothing pending. */
-  children: ReactNode
+  /** What shows the data. */
+  children(data: Data): ReactNode
   /** What to say while the data loads, if not that it is loading. */
   label?: string
+  /** What could not be loaded, said before why, as `ErrorMessage` does. */
+  context?: string
 }
 
 /**
- * A section showing data it fetches: that it is loading, why it failed, or the data. A failure takes
- * the place of the data rather than leave up what was shown before (AR7).
+ * A section showing data it fetches: that it is loading, why it failed, or the data. A failure to
+ * fetch again data already shown leaves it shown, unless the failure says that it no longer exists
+ * (AR7).
  */
-export function Loaded({ isPending, error, onRetry, children, label }: LoadedProps) {
-  if (error) return <ErrorMessage error={error} onRetry={onRetry} />
-  if (isPending) return <Loading label={label} />
-  return children
+export function Loaded<Data>({ data, error, onRetry, children, label, context }: LoadedProps<Data>) {
+  if (failureShown(data, error)) {
+    return <ErrorMessage context={context} error={error} onRetry={onRetry} />
+  }
+  if (data === undefined) return <Loading label={label} />
+  return children(data)
 }

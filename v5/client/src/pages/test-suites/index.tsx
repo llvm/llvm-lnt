@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { forgetUnobserved } from '../../api/keys'
@@ -10,13 +10,15 @@ import {
   suiteOfFullName,
   suiteRef,
   useProjects,
+  type Project,
   type Suite,
   type SuiteRef,
   type SuiteSchema,
 } from '../../api/suites'
 import { useAuth } from '../../auth/use-auth'
-import { Alert, ErrorMessage, Loading } from '../../components/feedback'
+import { Alert, Loaded } from '../../components/feedback'
 import { Tabs } from '../../components/tabs'
+import { focusLost } from '../../components/use-focus-once-checked'
 import { useMounted } from '../../components/use-mounted'
 import { projectLabel, suiteLabel } from '../../labels'
 import { projectPath } from '../../paths'
@@ -30,16 +32,19 @@ import { SchemaTab } from './schema-tab'
 import {
   PARAMS,
   TABS,
+  movedFromOf,
   resetSettings,
   suiteTabPath,
   unusedSettings,
+  type Moved,
   type TabId,
 } from './settings'
 import styles from './test-suites.module.css'
 
 /**
  * The Projects page (TS1): the chips of the projects, those of the selected project's suites, and
- * the selected suite's tabs.
+ * the selected suite's tabs. The page goes to the first project's, and that of a project with suites
+ * to its first suite's, in place of itself in the history.
  */
 export default function Projects() {
   const { project, suite } = useParams()
@@ -50,81 +55,93 @@ export default function Projects() {
   const named = project === undefined || suite === undefined ? undefined : suiteRef(project, suite)
   const notFound = useNotFoundFocus(named && fullName(named), schema !== undefined)
 
-  let content
-  // A list fetched again that fails leaves the one the page shows, and the tabs with it: an open
-  // schema editor, say, which has the list fetched again when a save finds it out of date (TS7).
-  if (projects.data === undefined) {
-    content = projects.isError ? (
-      <ErrorMessage error={projects.error} onRetry={() => void projects.refetch()} />
-    ) : (
-      <Loading label="Loading projects..." />
-    )
-  } else if (project === undefined) {
-    const first = projects.data.at(0)
-    content =
-      first === undefined ? (
+  // What the page shows once the projects have loaded. A list fetched again that fails leaves it
+  // shown (AR7), and the tabs with it: an open schema editor, say, which has the list fetched again
+  // when a save finds it out of date (TS7).
+  const listed = (list: Project[]) => {
+    if (project === undefined) {
+      const first = list.at(0)
+      return first === undefined ? (
         <p className={styles.note}>There are no projects yet.</p>
       ) : (
-        <Navigate to={projectPath(first.name)} replace />
+        <Navigate to={projectLanding(first)} replace />
       )
-  } else {
+    }
+    // Another chip leads to the tab shown, if any.
+    const tab =
+      schema === undefined ? PARAMS.tab.default : readParam(PARAMS.tab, search.getAll('tab'))
     const projectChips = (
       <ChipLinks
         label="Projects"
-        chips={projects.data.map((entry) => ({
+        chips={list.map((entry) => ({
           key: entry.name,
           text: projectLabel(entry),
-          to: projectPath(entry.name),
+          to: projectLanding(entry, tab),
         }))}
         selected={shown?.name}
         current={suite === undefined ? 'page' : 'true'}
       />
     )
     if (shown === undefined) {
-      content = (
+      return (
         <>
           {projectChips}
           <Alert>Project '{project}' not found.</Alert>
         </>
       )
-    } else {
-      // Another suite's chip leads to the tab shown, if any.
-      const tab =
-        schema === undefined ? PARAMS.tab.default : readParam(PARAMS.tab, search.getAll('tab'))
-      content = (
-        <>
-          {projectChips}
-          {shown.suites.length === 0 ? (
-            <p className={styles.note}>No test suites.</p>
-          ) : (
-            <ChipLinks
-              label="Test suites"
-              chips={shown.suites.map((entry) => ({
-                key: entry.name,
-                text: suiteLabel(entry),
-                to: suiteTabPath(refOf(entry), tab),
-              }))}
-              selected={schema?.name}
-            />
-          )}
-          {named === undefined ? null : schema === undefined ? (
-            <Alert ref={notFound} tabIndex={-1}>
-              Test suite '{fullName(named)}' not found.
-            </Alert>
-          ) : (
-            <SuiteTabs key={fullName(named)} schema={schema} />
-          )}
-        </>
-      )
     }
+    if (suite === undefined && shown.suites.length > 0) {
+      return <Navigate to={projectLanding(shown)} replace />
+    }
+    return (
+      <>
+        {projectChips}
+        {shown.suites.length === 0 ? (
+          <p className={styles.note}>No test suites.</p>
+        ) : (
+          <ChipLinks
+            label="Test suites"
+            chips={shown.suites.map((entry) => ({
+              key: entry.name,
+              text: suiteLabel(entry),
+              to: suiteTabPath(refOf(entry), tab),
+            }))}
+            selected={schema?.name}
+          />
+        )}
+        {named === undefined ? null : schema === undefined ? (
+          <Alert ref={notFound} tabIndex={-1}>
+            Test suite '{fullName(named)}' not found.
+          </Alert>
+        ) : (
+          <SuiteTabs key={fullName(named)} schema={schema} />
+        )}
+      </>
+    )
   }
 
   return (
     <section>
       <h1>Projects</h1>
-      {content}
+      <Loaded
+        data={projects.data}
+        error={projects.error}
+        onRetry={() => void projects.refetch()}
+        label="Loading projects..."
+      >
+        {listed}
+      </Loaded>
     </section>
   )
+}
+
+/**
+ * Where the page of `project` goes (TS1): the tab `tab`, in its default state, of its first suite,
+ * or its own page when it has none.
+ */
+function projectLanding(project: Project, tab: TabId = PARAMS.tab.default): string {
+  const first = project.suites.at(0)
+  return first === undefined ? projectPath(project.name) : suiteTabPath(refOf(first), tab)
 }
 
 /**
@@ -139,17 +156,9 @@ function useNotFoundFocus(suite: string | undefined, found: boolean) {
   useLayoutEffect(() => {
     const lost = !found && shown.current === suite
     shown.current = found && suite !== undefined ? suite : null
-    if (lost && (document.activeElement === null || document.activeElement === document.body)) {
-      ref.current?.focus()
-    }
+    if (lost && focusLost()) ref.current?.focus()
   })
   return ref
-}
-
-/** The history state of the page that a rename or a move leads to, in place of the old names'. */
-interface Moved {
-  /** The full name the suite had. */
-  movedFrom: string
 }
 
 function SuiteTabs({ schema }: { schema: Suite }) {
@@ -162,7 +171,7 @@ function SuiteTabs({ schema }: { schema: Suite }) {
   // Whether the user is still on the suite's page, whichever its tab: these tabs are its page.
   const mounted = useMounted()
 
-  // Once the suite is renamed or moved from its Schema tab, the page leaves for the Schema tab of the
+  // Once the suite is renamed or moved from its schema editor, the page leaves for the Schema tab of the
   // new names, in place of itself in the history, unless the user has left it meanwhile (TS6,
   // AR16). Before it does, the list of projects holds the suite under its new names, so that the
   // old ones never show it as gone, and what was read under the old names is forgotten, the page's
@@ -179,19 +188,15 @@ function SuiteTabs({ schema }: { schema: Suite }) {
     }
   }
   // Arriving from the old names: what the page read there, which it has stopped observing, is
-  // dropped rather than shown if the history leads back to them, and "Rename or move" takes the
-  // focus, as once its panel has closed. Only once: the state is taken out of the history entry,
-  // so that a reload or Back does not do it again.
-  const movedFrom = (location.state as Moved | null)?.movedFrom
-  const [focusMove, setFocusMove] = useState(movedFrom !== undefined)
+  // dropped rather than shown if the history leads back to them (the Schema tab also gives "Edit
+  // schema" the focus). Only once: the state is taken out of the history entry, so that a reload or
+  // Back does not do it again.
+  const movedFrom = movedFromOf(location)
   useEffect(() => {
     if (movedFrom === undefined) return
     forgetUnobserved(queryClient, suiteOfFullName(movedFrom))
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
   }, [movedFrom, queryClient, navigate, location.pathname, location.search])
-  const onMoveFocused = useCallback(() => setFocusMove(false), [])
-  // Another tab, chosen before the token has been checked, keeps what it chose.
-  if (focusMove && tab !== 'schema') setFocusMove(false)
 
   // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
   // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
@@ -231,13 +236,7 @@ function SuiteTabs({ schema }: { schema: Suite }) {
         />
       )}
       {tab === 'schema' && (
-        <SchemaTab
-          schema={schema}
-          onDeleted={onDeleted}
-          onMoved={onMoved}
-          focusMove={focusMove}
-          onMoveFocused={onMoveFocused}
-        />
+        <SchemaTab schema={schema} onDeleted={onDeleted} onMoved={onMoved} />
       )}
     </Tabs>
   )

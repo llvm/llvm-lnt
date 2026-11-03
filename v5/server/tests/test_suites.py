@@ -18,7 +18,7 @@ from sqlalchemy import Engine, insert, inspect, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from conftest import code_of, ensure_project, entry, ndjson_lines, run_payload
-from introspection import label_of, namespace_of, schema_version_of, suite_column_names
+from introspection import comment_of, namespace_of, schema_version_of, suite_column_names
 from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import SUITES_PATH, create_suite, delete_suite, patch_schema
@@ -287,18 +287,17 @@ class TestCreate:
         assert api_client.get(f"{SUITES}/{name}").status_code == 200
         assert code_of(create(name=name + "a")) == "invalid_request"
 
-    def test_puts_the_tables_in_a_namespace_it_chooses_and_labels(
+    def test_puts_the_tables_in_a_namespace_it_chooses(
         self, db_engine: Engine, create: Callable[..., Any]
     ) -> None:
-        # D5: the server chooses the namespace, which is not the suite's name. The label is for
-        # whoever reads the database directly.
+        # D5: the server chooses the namespace, which is not the suite's name.
         create()
 
         namespace = namespace_of(db_engine, "nts")
         assert namespace != "nts"
         assert "nts" not in inspect(db_engine).get_schema_names()
-        # By its full name (D7).
-        assert label_of(db_engine, namespace) == "LNT test suite llvm/nts"
+        # Without a comment: one naming the suite would go out of date with a rename.
+        assert comment_of(db_engine, namespace) is None
 
     def test_chooses_a_namespace_no_namespace_has(
         self, db_engine: Engine, create: Callable[..., Any]
@@ -310,7 +309,7 @@ class TestCreate:
         suite = SuiteSchema.model_validate({**NTS, "name": old})
         with db_engine.begin() as connection:
             connection.execute(text(f'CREATE SCHEMA "{stray}"'))
-            suite_tables.create(connection, suite, old, f"{PROJECT}/{old}")
+            suite_tables.create(connection, suite, old)
             connection.execute(
                 insert(schema_table).values(
                     project_id=select(project_table.c.id)

@@ -9,6 +9,7 @@ import { useTrends, type TrendPoint } from '../../api/trends'
 import { DisabledLink } from '../../components/button-link'
 import { Chart } from '../../components/chart'
 import { ErrorMessage, Loading } from '../../components/feedback'
+import { failureShown } from '../../api/shown-data'
 import { graphPath } from '../../paths'
 import { displayValueOf, formatUnit, labelOf, type Metric } from '../../schema'
 import { plotlyTraces, sparklineDescription, sparklineTraces } from './sparkline'
@@ -46,7 +47,8 @@ export function SparklineCard({ schema, metric, machines, range }: Props) {
   let body
   // Why the title leads nowhere for now (AR8), while the card has no chart.
   let unlinked: string | null = null
-  if (trends.isError) {
+  // A trend fetched again that fails is kept (AR7).
+  if (failureShown(trends.data, trends.error)) {
     unlinked = 'The trend could not be loaded.'
     body = (
       <div className={styles.placeholder}>

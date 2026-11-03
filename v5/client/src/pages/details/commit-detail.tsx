@@ -99,11 +99,11 @@ function CommitContent({ schema, value }: { schema: Suite; value: string }) {
   // that.
   const runs = useRuns(suite, value)
   return (
-    <Loaded isPending={commit.isPending} error={commit.error} onRetry={() => void commit.refetch()}>
-      {commit.data && (
+    <Loaded data={commit.data} error={commit.error} onRetry={() => void commit.refetch()}>
+      {(data) => (
         <>
-          <CommitInfo schema={schema} commit={commit.data} />
-          <Actions schema={schema} commit={commit.data} />
+          <CommitInfo schema={schema} commit={data} />
+          <Actions schema={schema} commit={data} />
           <CommitRegressions suite={suite} value={value} />
           <CommitRuns schema={schema} runs={runs} />
         </>
@@ -270,12 +270,11 @@ function CommitRegressions({ suite, value }: { suite: SuiteRef; value: string })
     queryKey: [...queryKeys.regressions(suite), 'without commits', query],
     fetchPage: (cursor, signal) => fetchRegressions(suite, { ...query, cursor }, signal),
   })
-  const page = pager.page
   return (
     <>
       <h2 className={styles.heading}>Regressions</h2>
-      <Loaded isPending={pager.isPending} error={pager.error} onRetry={pager.retry}>
-        {page && (
+      <Loaded data={pager.page} error={pager.error} onRetry={pager.retry}>
+        {(page) => (
           <>
             <RegressionsTable
               suite={suite}

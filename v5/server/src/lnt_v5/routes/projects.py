@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import insert, select, update
 
 from lnt_v5 import examples
-from lnt_v5.auth import Coverage, require_scope
+from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ErrorCode, ErrorEnvelope
 from lnt_v5.patching import omit_defaults
@@ -31,7 +31,6 @@ from lnt_v5.suites.store import (
     bump,
     project_not_found,
     project_write,
-    relabel_project_suites,
 )
 from lnt_v5.tables import project as project_table
 
@@ -172,7 +171,7 @@ def get_project(project: ProjectName, engine: EngineDep, registry: RegistryDep) 
 
 @router.patch(
     "/{project}",
-    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
+    dependencies=[require_scope(Scope.MANAGE)],
     summary="Change a project",
     responses={
         404: _NOT_FOUND,
@@ -220,8 +219,6 @@ def patch_project(
             connection.execute(
                 update(project_table).where(project_table.c.id == stored.id).values(**changes)
             )
-            if renaming:
-                relabel_project_suites(connection, stored.id, name)
             bump(connection)
     with engine.connect() as connection:
         return Project.of(registry.resolve_project(connection, name))
@@ -230,7 +227,7 @@ def patch_project(
 @router.delete(
     "/{project}",
     status_code=204,
-    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
+    dependencies=[require_scope(Scope.MANAGE)],
     summary="Delete a project",
     responses={
         404: _NOT_FOUND,

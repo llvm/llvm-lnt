@@ -2,12 +2,11 @@ import type { Schemas } from '../api/client'
 import { useKnownProjects, type Project } from '../api/suites'
 import {
   entriesNamed,
-  fullLabel,
+  entryLabel,
   fullLabelOf,
   projectLabel,
   projectNamed,
   type EntryRef,
-  type NamedEntry,
 } from '../labels'
 import type { ApiKey } from './credentials'
 import { acceptedKey, useAuth, type TokenStatus } from './use-auth'
@@ -25,9 +24,6 @@ export function scopeRank(scope: Scope): number {
   return SCOPES.indexOf(scope)
 }
 
-/** An entry of a restricted key's list (I5): a whole project, with a null `suite`, or one suite. */
-export type Entry = EntryRef
-
 /**
  * What an action writes to (I5): a suite; a project, in full, when `suite` is left out, such as when
  * a suite is created in it; or, with null, the instance, which only an instance-wide key covers.
@@ -38,7 +34,7 @@ export type Target = { project: string; suite?: string } | null
  * Whether a key restricted to `restrictedTo`, unless null, covers `target` (I5): a suite it lists,
  * or whose project it lists, and a project in full only when it lists that project.
  */
-function covers(restrictedTo: readonly Entry[] | null, target: Target): boolean {
+function covers(restrictedTo: readonly EntryRef[] | null, target: Target): boolean {
   if (restrictedTo === null) return true
   if (target === null) return false
   return restrictedTo.some(
@@ -71,25 +67,23 @@ export interface ScopeGate {
 
 /**
  * What happened to a key whose projects and suites were all deleted, which leaves it restricted to
- * nothing.
+ * nothing (I5), as a sentence without its final period.
  */
 export const RESTRICTED_TO_NOTHING =
-  'what it was restricted to has been deleted, so it can only read'
-
-/** `entry` as a sentence names it: `'libc++' (all)` for a whole project, `'LLVM › nts'` a suite. */
-function quoted(entry: NamedEntry): string {
-  if (entry.suite === null) return `'${projectLabel(entry.project)}' (all)`
-  return `'${fullLabel(entry.suite)}'`
-}
+  'What it was restricted to has been deleted, so it can only read'
 
 /**
- * What a key restricted to `entries` covers, as a sentence says it, naming what it lists by their
- * labels as `known` has them (AR22): `covering only 'libc++' (all), 'LLVM › nts'`, or nothing once
- * they have all been deleted (I5).
+ * What a key restricted to `entries` covers, as a sentence says it, naming what it lists as AR22
+ * shows them, by their labels as `known` has them: `covering only 'libc++ (all)', 'LLVM › nts'`,
+ * or nothing once they have all been deleted (I5).
  */
-function restrictionText(entries: readonly Entry[], known: readonly Project[] | undefined): string {
-  if (entries.length === 0) return `covering nothing: ${RESTRICTED_TO_NOTHING}`
-  return `covering only ${entriesNamed(known, entries).map(quoted).join(', ')}`
+function restrictionText(
+  entries: readonly EntryRef[],
+  known: readonly Project[] | undefined,
+): string {
+  if (entries.length === 0) return `covering nothing. ${RESTRICTED_TO_NOTHING}`
+  const named = entriesNamed(known, entries).map((entry) => `'${entryLabel(entry)}'`)
+  return `covering only ${named.join(', ')}`
 }
 
 /** What the target needs to be covered, as a sentence says it, naming it as AR22 says. */

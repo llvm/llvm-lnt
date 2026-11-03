@@ -19,16 +19,11 @@
  * without it skips; it defaults to `$LNT_SEED_TOKEN`. Without either, and only for the dev server,
  * an admin key is created for the dev database (the one in `.env`) with `lnt-v5 server create-key`.
  *
- * It never changes anything that exists: a project that is already there is left as it is, its
- * display name included, and only its missing suites are added; a suite that is already there is
- * skipped whole, whatever it holds; and a key is created only if no key has its name. To seed a
- * suite again, delete it first. Deleting it also removes it from the keys that list it, which
- * seeding again leaves as they are, since keys of their names exist (revoking them does not help:
- * revoked keys keep their names), so they then cover less, or nothing: only a database with no key
- * of their names, such as an empty one, has them seeded anew. Likewise, a key whose entries change
- * here is seeded with them only where no key has its name yet. The keys are seeded along with a
- * project or a suite, so that seeding an instance that has everything asks for no token, and writes
- * nothing.
+ * It never changes anything that exists: a project or a suite that is already there is left as it
+ * is, only the missing suites of a project being added, and a key is created only under a name no
+ * key has, revoked ones included. To seed a suite again, delete it first. The keys are seeded along
+ * with a project or a suite, so that seeding an instance that has everything asks for no token, and
+ * writes nothing.
  */
 
 import { readdirSync, readFileSync } from 'node:fs'

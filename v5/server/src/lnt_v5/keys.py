@@ -205,10 +205,11 @@ def create_key(
 ) -> CreatedKey:
     """Mint a key and store it, returning the raw token to show the operator once.
 
-    `restricted_to` restricts the key to those entries, or None makes it valid across the instance
-    (I5). E11's rules for a key are checked here, so that the API and the CLI share them: a
-    `ValueError` for a key that can never be valid, or its subclass `UnknownEntriesError` for
-    projects or suites that do not exist (yet).
+    `restricted_to` restricts the key to those entries, of which there is at least one (the API
+    validates that, and the CLI's flags cannot produce an empty list), or None makes it valid
+    across the instance (I5). E11's other rules for a key are checked here, so that the API and the
+    CLI share them: a `ValueError` for a key that can never be valid, or its subclass
+    `UnknownEntriesError` for projects or suites that do not exist (yet).
 
     The caller owns the transaction, and the projects and suites the key lists stay locked against
     deletion until it ends (see `_checked_entries`). The key's row is inserted inside a savepoint,
@@ -271,8 +272,6 @@ def _checked_entries(
     """
     if scope in UNRESTRICTABLE_SCOPES:
         raise ValueError(f"A key with the '{scope.value}' scope cannot be restricted.")
-    if not entries:
-        raise ValueError("A restricted key must list at least one entry.")
     if len(set(entries)) != len(entries):
         raise ValueError("A restricted key must not list an entry more than once.")
 

@@ -117,17 +117,17 @@ export function RepositoryBox({ value }: { value(key: RepositoryKey): ReactNode 
 }
 
 /**
- * The suite a schema is of, by its project's label, its name and its display name, `--` when it
- * has none, rather than repeating the name (TS6).
+ * The suite a schema is of, under its heading, in the viewer and the editor alike: its project, its
+ * name and its display name, as given, or the editor's inputs of them.
  */
-function SuiteBox({ schema }: { schema: Suite }) {
+export function SuiteBox(props: { project: ReactNode; name: ReactNode; displayName: ReactNode }) {
   return (
     <>
       <h2 className={styles.heading}>Suite</h2>
       <InfoBox label="Suite">
-        <InfoRow label="Project">{projectLabel(schema.project)}</InfoRow>
-        <InfoRow label="Name">{schema.name}</InfoRow>
-        <InfoRow label="Display name">{schema.display_name ?? MISSING}</InfoRow>
+        <InfoRow label="Project">{props.project}</InfoRow>
+        <InfoRow label="Name">{props.name}</InfoRow>
+        <InfoRow label="Display name">{props.displayName}</InfoRow>
       </InfoBox>
     </>
   )
@@ -141,7 +141,13 @@ function SuiteBox({ schema }: { schema: Suite }) {
 export function SchemaTables({ schema }: { schema: Suite }) {
   return (
     <>
-      <SuiteBox schema={schema} />
+      {/* By its project's label, its name and its display name, `--` when it has none, rather
+          than repeating the name (TS6). */}
+      <SuiteBox
+        project={projectLabel(schema.project)}
+        name={schema.name}
+        displayName={schema.display_name ?? MISSING}
+      />
       <SchemaList
         list="metrics"
         columns={METRIC_COLUMNS}

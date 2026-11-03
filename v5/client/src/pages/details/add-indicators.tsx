@@ -15,6 +15,7 @@ import { useScopeGate } from '../../auth/scope'
 import { Badge } from '../../components/badge'
 import { DataTable, type Column } from '../../components/data-table'
 import { ErrorMessage, Loading } from '../../components/feedback'
+import { failureShown } from '../../api/shown-data'
 import { useRangeSelection, type RangeSelection } from '../../components/range-selection'
 import { SearchInput } from '../../components/search-input'
 import { SelectAllBox, SelectBox } from '../../components/select-box'
@@ -99,7 +100,7 @@ export function AddIndicators({ schema, uuid }: { schema: Suite; uuid: string })
   let why: string | undefined
   if (triage.title !== undefined) why = triage.title
   else if (metric === '') why = 'This suite has no metrics.'
-  else if (!machineList.isSuccess) why = 'The machines are not listed yet.'
+  else if (machineList.data === undefined) why = 'The machines are not listed yet.'
   else if (!testsKnown) why = 'The tests are not listed yet.'
   else if (count === 0) why = 'Select one or more machines and tests first.'
   else if (count > INDICATOR_BATCH) {
@@ -108,11 +109,12 @@ export function AddIndicators({ schema, uuid }: { schema: Suite; uuid: string })
 
   let machineStatus: ReactNode
   if (machineList.isPending) machineStatus = <Loading label="Loading machines..." />
-  else if (machineList.isError) {
+  // A list fetched again that fails is kept (AR7).
+  else if (failureShown(machineList.data, machineList.error)) {
     machineStatus = (
       <ErrorMessage error={machineList.error} onRetry={() => void machineList.refetch()} />
     )
-  } else if (machineList.data.length === 0) machineStatus = 'This suite has no machines.'
+  } else if (machineList.data?.length === 0) machineStatus = 'This suite has no machines.'
 
   let testStatus: ReactNode
   if (metric === '') testStatus = 'This suite has no metrics.'

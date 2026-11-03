@@ -44,11 +44,10 @@ from pydantic.json_schema import models_json_schema
 
 from .auth import (
     SECURITY_SCHEME,
-    Coverage,
-    RequireScope,
+    addresses_project,
+    addresses_suite,
     iter_routes,
-    route_requirement,
-    suite_parameters,
+    required_scope,
 )
 from .errors import ErrorEnvelope
 from .scopes import UNRESTRICTABLE_SCOPES, Scope
@@ -187,25 +186,22 @@ _FORBIDDEN = _error(
 )
 
 
-def _authorization(requirement: RequireScope, addresses_suite: bool) -> str:
-    """The sentence that tells a reader of one operation what it takes to call it.
+def _authorization(scope: Scope, path: str) -> str:
+    """The sentence that tells a reader of the operation at `path` what it takes to call it.
 
     For a scope that can be restricted (I5), it also says what a restricted key needs (I8): to cover
-    the suite, on an operation that addresses one; to cover the project in full, on one that says
-    so; and otherwise nothing it can have. An operation whose handler checks more says that too
-    (see `RequireScope`).
+    the suite, on an operation that addresses one; to cover the project in full, on one that
+    addresses a project; and otherwise nothing it can have.
     """
-    scope = requirement.scope
     if scope is Scope.READ:
         return "**Authorization:** no API key needed."
     sentence = f"**Authorization:** requires an API key with the `{scope.value}` scope"
     if scope in UNRESTRICTABLE_SCOPES:
         return f"{sentence}."
-    more = "" if requirement.note is None else f" {requirement.note}"
-    if addresses_suite:
-        return f"{sentence}, unrestricted or covering this test suite.{more}"
-    if requirement.coverage is Coverage.PROJECT:
-        return f"{sentence}, unrestricted or covering this project in full.{more}"
+    if addresses_suite(path):
+        return f"{sentence}, unrestricted or covering this test suite."
+    if addresses_project(path):
+        return f"{sentence}, unrestricted or covering this project in full."
     return f"**Authorization:** requires an unrestricted API key with the `{scope.value}` scope."
 
 
@@ -219,21 +215,19 @@ def _referenced_schemas() -> dict[str, Any]:
     return dict(generated.get("$defs", {}))
 
 
-def _requirements_by_operation(app: FastAPI) -> dict[tuple[str, str], RequireScope]:
-    """What each documented operation requires, keyed the way `paths` is."""
-    requirements: dict[tuple[str, str], RequireScope] = {}
+def _scopes_by_operation(app: FastAPI) -> dict[tuple[str, str], Scope]:
+    """The scope each documented operation requires, keyed the way `paths` is."""
+    scopes: dict[tuple[str, str], Scope] = {}
     for route in iter_routes(app.routes):
-        requirement = route_requirement(route)
-        if requirement is None or not route.include_in_schema or route.path_format is None:
+        scope = required_scope(route)
+        if scope is None or not route.include_in_schema or route.path_format is None:
             continue
         for method in route.methods or ():
-            requirements[(route.path_format, method.lower())] = requirement
-    return requirements
+            scopes[(route.path_format, method.lower())] = scope
+    return scopes
 
 
-def _document_scope(
-    operation: dict[str, Any], requirement: RequireScope, addresses_suite: bool
-) -> None:
+def _document_scope(operation: dict[str, Any], scope: Scope, path: str) -> None:
     """State the scope an operation requires, for people and for tools.
 
     For people, a sentence closing the description. For tools, the security requirement: OpenAPI
@@ -241,11 +235,10 @@ def _document_scope(
     exactly that. A `read`-scoped operation also lists the empty requirement, which is how OpenAPI
     says that a caller may send no credentials at all -- I5's anonymous read access.
     """
-    scope = requirement.scope
     security = {SECURITY_SCHEME: [scope.value]}
     operation["security"] = [{}, security] if scope is Scope.READ else [security]
 
-    sentence = _authorization(requirement, addresses_suite)
+    sentence = _authorization(scope, path)
     description = operation.get("description")
     operation["description"] = f"{description}\n\n{sentence}" if description else sentence
 
@@ -425,7 +418,7 @@ def _hoist_descriptions(node: Any) -> None:
 
 
 def _correct(app: FastAPI, document: dict[str, Any]) -> None:
-    requirements = _requirements_by_operation(app)
+    scopes = _scopes_by_operation(app)
     schemas = document.setdefault("components", {}).setdefault("schemas", {})
     for name, schema in _referenced_schemas().items():
         schemas.setdefault(name, schema)
@@ -436,13 +429,13 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
             if responses.pop("422", None) is not None:
                 responses.setdefault("400", _BAD_REQUEST)
 
-            requirement = requirements.get((path, method))
-            if requirement is not None:
-                _document_scope(operation, requirement, suite_parameters(path) is not None)
+            scope = scopes.get((path, method))
+            if scope is not None:
+                _document_scope(operation, scope, path)
                 responses.setdefault("400", _BAD_REQUEST)
                 responses.setdefault("401", _UNAUTHORIZED)
                 # A read-scoped operation can never answer 403: every valid key grants `read`.
-                if requirement.scope is not Scope.READ:
+                if scope is not Scope.READ:
                     responses.setdefault("403", _FORBIDDEN)
 
     _drop_unreferenced_validation_schemas(document)

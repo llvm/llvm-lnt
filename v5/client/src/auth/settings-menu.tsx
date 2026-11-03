@@ -91,7 +91,7 @@ function statusText(status: TokenStatus, known: Project[] | undefined): ReactNod
           {entries?.length === 0 && (
             // What it listed was all deleted, which leaves it restricted to nothing (AR22, I5).
             <>
-              , covering <strong>Nothing</strong>: {RESTRICTED_TO_NOTHING}
+              , covering <strong>Nothing</strong>. {RESTRICTED_TO_NOTHING}
             </>
           )}
           {entries !== null && entries.length > 0 && (

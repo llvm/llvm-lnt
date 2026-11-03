@@ -31,12 +31,20 @@
 }
 
 .chips {
-  composes: chips from './chip.module.css';
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lnt-space-1);
 }
 
 .chip {
-  composes: chip from './chip.module.css';
-  --chip-bg: var(--state-bg);
-  --chip-fg: var(--state-fg);
-  --chip-border: var(--state-border);
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.chip[aria-pressed='true'],
+.chip[aria-pressed='true']:hover:not(:disabled) {
+  border-color: var(--state-border);
+  background: var(--state-bg);
+  /* Not bold: a wider label would shift the chips after it. */
+  color: var(--state-fg);
 }

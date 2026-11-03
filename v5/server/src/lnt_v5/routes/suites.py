@@ -19,7 +19,7 @@ from fastapi import APIRouter, Body, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from lnt_v5 import examples
-from lnt_v5.auth import Coverage, require_in_full, require_scope
+from lnt_v5.auth import require_in_full, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.keys import ResolvedKey
@@ -171,7 +171,7 @@ def list_suites(
 @router.post(
     "",
     status_code=201,
-    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
+    dependencies=[require_scope(Scope.MANAGE)],
     summary="Create a test suite",
     responses={
         404: {"model": ErrorEnvelope, "description": "The project doesn't exist."},
@@ -241,13 +241,7 @@ def get_suite(
 def patch_suite(
     # The key, which a move needs, rather than `dependencies=[...]`. First, since dependencies are
     # solved in order, so that nothing comes before I5's checks, as on a route that declares them.
-    key: Annotated[
-        ResolvedKey | None,
-        require_scope(
-            Scope.MANAGE,
-            note="Moving it to another project also needs that project covered in full.",
-        ),
-    ],
+    key: Annotated[ResolvedKey | None, require_scope(Scope.MANAGE)],
     project: ProjectName,
     name: SuiteName,
     body: Annotated[SuiteUpdate, Body(openapi_examples=_RENAME_EXAMPLES)],
@@ -259,7 +253,8 @@ def patch_suite(
     Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
     suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
     move takes the suite away from the keys that list its old project as a whole, and gives it to
-    those that list the new one.
+    those that list the new one, so a move also needs a key that is unrestricted or covers the new
+    project in full.
     """
     changes = body.model_dump(exclude_unset=True)
     new_name = changes.get("name", name)
@@ -280,7 +275,7 @@ def patch_suite(
             raise project_not_found(destination)
         if (destination, new_name) == (project, name):
             return stored.schema
-        return move_suite(connection, stored, destination, projects[destination], new_name)
+        return move_suite(connection, stored, projects[destination], new_name)
 
 
 @router.patch(

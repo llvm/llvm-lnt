@@ -68,7 +68,7 @@ within the UI causes a full page reload.
 ```
 /                                             Dashboard (landing page -- sparkline trend overview)
 /projects                                     Projects (goes to the first project's page; see TS1)
-/projects/{p}                                 Projects (the suites of one project)
+/projects/{p}                                 Projects (goes to the project's first suite; see TS1)
 /projects/{p}/suites/{s}                      Projects (browsing tabs and schema of the selected suite)
 /projects/{p}/suites/{s}/machines/{name}      Machine Detail
 /projects/{p}/suites/{s}/runs/{uuid}          Run Detail
@@ -186,6 +186,11 @@ This also applies outside tables: when a page cannot fetch something it needs,
 it says what could not be loaded, offers a way to try again, and keeps showing
 everything else it can.
 
+A failed refetch of what is shown leaves it in place. The error takes its place
+only when nothing of what was asked for is shown yet (rows kept from another
+page or search while the new ones load are not what was asked for), or when it
+says that what was asked for no longer exists (I4's `not_found`).
+
 When the cursor of a later page is rejected with `invalid_cursor` (I2),
 whatever fetches the pages of a paginated endpoint starts again from the first
 page rather than report a failure: a table shown a page at a time goes back to
@@ -250,8 +255,7 @@ to the selection than a click on a row, leaves the anchor where it is.
 ## AR11: Invalid Input
 
 An input whose text is invalid -- an invalid regex in a test filter, a name or a
-repository URL the schema editor rejects (TS7), a suite name the "Rename or
-move" panel rejects (TS6), a project name the Projects tab
+repository URL the schema editor rejects (TS7), a project name the Projects tab
 rejects (AD3), an ordinal that is not an
 integer its column can hold (DT3), a machine name that I1 rejects or an empty
 one (DT1), or a field value that its type does not allow (DT1) -- shows a red
@@ -365,7 +369,7 @@ since it destroys their stored values. Revoking an API key (AD1) and deleting a
 project (AD3), which destroy nothing, ask for a plain confirmation instead, as
 does renaming a machine (DT1), since run submissions that still use the old
 name create a new machine. So do renaming a project (AD3) and renaming or
-moving a suite (TS6), since every URL, bookmark and bot that uses the old name
+moving a suite (TS7), since every URL, bookmark and bot that uses the old name
 gets a 404 until it is updated (see D7). Removing indicators from a regression
 (DT4) is not confirmed at all: it destroys no measured data, and the indicators
 can be added again.
@@ -374,7 +378,7 @@ Once the entity a page is about has been deleted, the page leaves for the one
 its spec names, which takes its place in the history rather than adding an entry
 (an exception to AR2 "State"), so that Back from the page shown next does not
 return to it. The same goes for the page of a machine once it has been renamed
-(DT1), and for a page of a suite once the suite has been renamed or moved (TS6),
+(DT1), and for a page of a suite once the suite has been renamed or moved (TS7),
 which leave for the page of the new name. If the user has already left the page
 when the deletion or the rename completes, they stay where they are. Data
 fetched before a deletion is never used to show the deleted entity again: not on
@@ -545,7 +549,7 @@ of its project, or beside its project's selected chip on the Projects page
 (TS1), a suite is named by its own label.
 Links, URLs, API requests, the text typed to confirm a deletion (AR16), and the
 old and new names of a suite or a project in the prompts confirming that it is
-renamed or moved (TS6, AD3) use names rather than labels; a suite's full name
+renamed or moved (TS7, AD3) use names rather than labels; a suite's full name
 (`project/suite`, see D7) keeps its `/`.
 
 What an API key covers (see I5) is shown as `All` for an instance-wide key, and

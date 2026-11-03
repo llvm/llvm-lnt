@@ -29,18 +29,17 @@ export function MachinesTab({ schema, search, onSearch }: Props) {
     // Keep the machines shown until those of the next search arrive.
     placeholderData: keepPreviousData,
   })
-  const shown = shownData(machines)
 
   return (
     <TabContent
       search={input}
       searchLabel="Search machines"
       placeholder="Search machines..."
-      isPending={shown === undefined}
+      data={shownData(machines)}
       error={machines.error}
       onRetry={() => void machines.refetch()}
     >
-      {shown && (
+      {(shown) => (
         <DataTable
           label="Machines"
           columns={columns(schema)}

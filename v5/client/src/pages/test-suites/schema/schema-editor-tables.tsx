@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   type InputHTMLAttributes,
+  type ReactNode,
   type Ref,
 } from 'react'
 import { VisuallyHidden } from 'react-aria-components'
@@ -12,7 +13,7 @@ import { ActionButton } from '../../../components/action-button'
 import type { Column } from '../../../components/data-table'
 import { Select } from '../../../components/select'
 import type { UrlKey } from '../../../repository'
-import { RepositoryBox, SchemaList } from './schema-tables'
+import { RepositoryBox, SchemaList, SuiteBox } from './schema-tables'
 import {
   addEntry,
   changeEntry,
@@ -304,26 +305,59 @@ const ListTable = memo(function ListTable({ list, entries, busy, change }: ListP
 
 const rowKey = (entry: DraftEntry) => String(entry.id)
 
-interface DisplayNameProps {
-  /** What the input shows. */
-  value: string
+interface SuiteFieldsProps {
+  /** The suite's project: its label, or the dropdown of the project to move the suite to. */
+  project: ReactNode
+  name: string
+  /** Why the name is refused, if it is. */
+  nameProblem: string | undefined
+  onName(name: string): void
+  nameRef?: Ref<HTMLInputElement>
+  displayName: string
+  onDisplayName(displayName: string): void
   readOnly: boolean
-  className?: string
-  onValue(value: string): void
 }
 
 /**
- * The input of the suite's display name, in the editor's header (TS7), below its label when
- * creating a suite, and beside it when editing one. Unlike a name, it is free text, which the
- * server checks when the schema is sent.
+ * The editor's suite, laid out as the viewer's (TS7): its project, and the inputs of its name,
+ * checked as it is typed, and of its display name, free text, which the server checks.
  */
-export function DisplayNameInput(props: DisplayNameProps) {
-  const id = useId()
+export function SuiteFields({
+  project,
+  name,
+  nameProblem,
+  onName,
+  nameRef,
+  displayName,
+  onDisplayName,
+  readOnly,
+}: SuiteFieldsProps) {
   return (
-    <>
-      <label htmlFor={id}>Display name</label>
-      <NameInput id={id} problem={undefined} spellCheck {...props} />
-    </>
+    <SuiteBox
+      project={project}
+      name={
+        <NameInput
+          label="Name"
+          className={styles.suiteInput}
+          value={name}
+          problem={nameProblem}
+          ref={nameRef}
+          readOnly={readOnly}
+          onValue={onName}
+        />
+      }
+      displayName={
+        <NameInput
+          label="Display name"
+          className={styles.suiteInput}
+          value={displayName}
+          problem={undefined}
+          spellCheck
+          readOnly={readOnly}
+          onValue={onDisplayName}
+        />
+      }
+    />
   )
 }
 

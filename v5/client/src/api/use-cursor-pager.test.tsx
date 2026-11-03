@@ -33,7 +33,8 @@ describe('useCursorPager', () => {
   it('shows the first page, with only Next to offer', async () => {
     const { result } = renderPager()
 
-    expect(result.current.isPending).toBe(true)
+    expect(result.current.page).toBeUndefined()
+    expect(result.current.error).toBeNull()
     await waitFor(() => expect(result.current.page?.items).toEqual(['a', 'b']))
     expect(result.current.hasPrevious).toBe(false)
     expect(result.current.hasNext).toBe(true)
@@ -206,7 +207,7 @@ describe('useCursorPager', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3))
     // Not the first page, which TanStack offers as a placeholder meanwhile.
     expect(result.current.page).toBeUndefined()
-    expect(result.current.isPending).toBe(true)
+    expect(result.current.error).toBeNull()
 
     act(() => release())
     await waitFor(() => expect(result.current.page?.items).toEqual(['c', 'd']))

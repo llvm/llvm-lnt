@@ -9,10 +9,11 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { profileQuery } from '../../api/profiles'
 import { commitRunsQuery, runProfilesQuery } from '../../api/runs'
+import { failureShown } from '../../api/shown-data'
 import { isNamed, NO_SUITE, type Suite, type SuiteRef } from '../../api/suites'
 import { compareStrings } from '../../format'
 import type { Machines } from '../../components/machine-suggestions'
-import { runsListFailed, useSuiteAndMachine } from '../../components/side-selection'
+import { machineFailuresReportable, useSuiteAndMachine } from '../../components/side-selection'
 import {
   CLEARED_WITH,
   sideChanges,
@@ -136,13 +137,12 @@ export function useProfileSide(
     ...commitRunsQuery(suite, machine, commit, { has_profiles: true }),
     enabled: isNamed(suite) && machine !== '' && commit !== '',
   })
-  // If a run list loaded once and a refetch fails, the side keeps using it. A failure is not
+  // If a run list loaded once and a refetch fails, the side keeps using it (AR7). A failure is not
   // reported while the machine may not exist, unless the page cannot check that because the suites
   // failed too.
   const runsFailed =
-    runs.data === undefined &&
-    runs.isError &&
-    (runsListFailed(runs, machines, machine) || suites.isError)
+    failureShown(runs.data, runs.error) &&
+    (machineFailuresReportable(machines, machine) || suites.isError)
   const selected = runs.data?.find((entry) => entry.uuid === run)
   const profiles = useQuery({
     ...runProfilesQuery(suite, run),

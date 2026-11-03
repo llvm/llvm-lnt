@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
-import { Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { expect } from 'vitest'
 import { routes } from '../app'
 import type { Schemas } from '../api/client'
@@ -53,6 +53,13 @@ export function renderPage(url: string, extra?: ReactNode) {
     ],
     { url },
   )
+}
+
+/** The app at `url`, reached through a link from the page at `from`, so that Back leads there. */
+export async function renderPageFrom(from: string, url: string) {
+  const rendered = renderPage(from, <Link to={url}>Elsewhere's link</Link>)
+  fireEvent.click(await screen.findByRole('link', { name: "Elsewhere's link" }))
+  return rendered
 }
 
 /** Queries within the page's content, rather than the navbar, which has links of its own. */

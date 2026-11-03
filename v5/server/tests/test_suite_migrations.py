@@ -19,7 +19,7 @@ from sqlalchemy.pool import NullPool
 
 from conftest import ensure_project, recent, store_suite
 from introspection import (
-    label_of,
+    comment_of,
     namespace_of,
     schema_version_of,
     structure_of,
@@ -128,7 +128,7 @@ def fresh_structure(engine: Engine, namespace: str = NAMESPACE) -> dict[str, lis
     """
     with engine.begin() as connection:
         suite_tables.drop(connection, namespace)
-        suite_tables.create(connection, reference_schema(), namespace, "reference/reference")
+        suite_tables.create(connection, reference_schema(), namespace)
     return structure_of(engine, namespace)
 
 
@@ -540,9 +540,9 @@ class TestSteps:
         self, db_engine: Engine
     ) -> None:
         # Version 7 (D5): its tables, data included, move to a namespace chosen as a new suite's
-        # is, and labelled as a new suite's is. The registry caches the namespace, so the counter
-        # moves, once per suite (D2). Suites are migrated in name order, so `a` goes first, and
-        # must skip the name `suite_1` has, whose namespace has not been moved yet.
+        # is. The registry caches the namespace, so the counter moves, once per suite (D2). Suites
+        # are migrated in name order, so `a` goes first, and must skip the name `suite_1` has,
+        # whose namespace has not been moved yet.
         old, first, second = (f"{NAMESPACE_PREFIX}{number}" for number in (1, 2, 3))
         with db_engine.begin() as connection:
             replay_reference(connection, 6, namespace="a", name="a")
@@ -560,8 +560,6 @@ class TestSteps:
         assert schema_version_of(db_engine) == before + 2
         with db_engine.connect() as connection:
             assert connection.scalars(text(f"SELECT name FROM {first}.machine")).all() == ["m"]
-        # By its full name (D7), as version 8 relabels it too.
-        assert label_of(db_engine, first) == "LNT test suite a/a"
 
     def test_a_move_that_fails_leaves_the_suite_where_it_was(
         self, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -632,18 +630,19 @@ class TestSteps:
         assert version_of(db_engine, "a") == 4
 
 
-class TestFullNameLabel:
-    """Version 8 labels a suite's namespace with the suite's full name (D7), as a new suite's is."""
+class TestClearedComment:
+    """Version 8 clears the comment earlier builds put on a suite's namespace, which named the
+    suite, as a new suite's namespace has none."""
 
-    def test_relabels_the_namespace_without_telling_the_workers(self, db_engine: Engine) -> None:
+    def test_clears_it_without_telling_the_workers(self, db_engine: Engine) -> None:
         with db_engine.begin() as connection:
             replay_reference(connection, 7, name="nts", project_name="llvm")
-            suite_tables.label(connection, NAMESPACE, "nts")
+            connection.execute(text(f"COMMENT ON SCHEMA {NAMESPACE} IS 'LNT test suite nts'"))
         before = schema_version_of(db_engine)
 
         upgrade_to_head(db_engine)
 
-        assert label_of(db_engine, NAMESPACE) == "LNT test suite llvm/nts"
+        assert comment_of(db_engine, NAMESPACE) is None
         # Nothing a worker caches has changed (D2).
         assert schema_version_of(db_engine) == before
 
@@ -652,12 +651,14 @@ class TestFullNameLabel:
         with db_engine.begin() as connection:
             replay_reference(connection, 7, namespace="first", name="nts", project_name="llvm")
             replay_reference(connection, 7, namespace="second", name="nts", project_name="other")
+            for namespace in ("first", "second"):
+                connection.execute(text(f"COMMENT ON SCHEMA {namespace} IS 'LNT test suite nts'"))
 
         result = upgrade_to_head(db_engine)
 
         assert result.suites_migrated == ("llvm/nts", "other/nts")
-        assert label_of(db_engine, "first") == "LNT test suite llvm/nts"
-        assert label_of(db_engine, "second") == "LNT test suite other/nts"
+        assert comment_of(db_engine, "first") is None
+        assert comment_of(db_engine, "second") is None
         with db_engine.connect() as connection:
             versions = connection.execute(select(schema.c.migration_version)).scalars().all()
         assert versions == [migrations.head()] * 2

@@ -26,18 +26,17 @@ export function RunsTab({ schema, search, onSearch }: Props) {
     queryKey: [...queryKeys.runs(suite), query],
     fetchPage: (cursor, signal) => fetchRunPage(suite, { ...query, cursor }, signal),
   })
-  const page = pager.page
 
   return (
     <TabContent
       search={input}
       searchLabel="Search runs by machine, commit or UUID"
       placeholder="Search"
-      isPending={pager.isPending}
+      data={pager.page}
       error={pager.error}
       onRetry={pager.retry}
     >
-      {page && (
+      {(page) => (
         <>
           <DataTable
             label="Runs"

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ApiKey } from '../../api/api-keys'
-import { PERMISSION_DENIED, type Schemas } from '../../api/client'
+import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { TOKEN_STORAGE_KEY } from '../../auth/storage-key'
 import {
@@ -188,9 +188,6 @@ async function openSuites() {
   return { user, button, list: await screen.findByRole('listbox') }
 }
 
-/** What the project `llvm` is named as once checked, saying what it covers (AD1). */
-const LLVM_CHECKED = 'llvm (all suites, including those created later)'
-
 /** The banner showing the token of the key just created, if it shows. */
 function createdKey() {
   return screen.queryByRole('region', { name: 'Created key' })
@@ -254,11 +251,13 @@ describe('the Admin page', () => {
 })
 
 describe('the API Keys tab', () => {
-  it('says that permission is denied without a token, and asks for no keys', async () => {
+  it('says that it needs an admin token without one, and asks for no keys', async () => {
     const { requests } = mockKeys()
     renderPage('/admin')
 
-    expect((await main().findByRole('alert')).textContent).toBe(PERMISSION_DENIED)
+    expect((await main().findByRole('alert')).textContent).toBe(
+      "Permission denied. Needs an API token with the 'admin' scope. Set one in Settings.",
+    )
     expect(screen.queryByRole('form', { name: 'Create API Key' })).not.toBeInTheDocument()
     expect(requests).toEqual([])
   })
@@ -270,7 +269,10 @@ describe('the API Keys tab', () => {
       const { requests } = mockKeys()
       renderPage('/admin')
 
-      expect(await main().findByRole('alert')).toHaveTextContent(PERMISSION_DENIED)
+      expect(await main().findByRole('alert')).toHaveTextContent(
+        `Permission denied. Needs an API token with the 'admin' scope. The token in Settings has ` +
+          `the '${scope}' scope.`,
+      )
       expect(requests).toEqual([])
     },
   )
@@ -280,7 +282,10 @@ describe('the API Keys tab', () => {
     mockAuth(unknownToken)
     renderPage('/admin')
 
-    expect(await main().findByRole('alert')).toHaveTextContent(PERMISSION_DENIED)
+    expect(await main().findByRole('alert')).toHaveTextContent(
+      "Permission denied. Needs an API token with the 'admin' scope. The token in Settings is " +
+        'not valid.',
+    )
   })
 
   it('says that the token is being checked rather than deny permission', async () => {
@@ -644,8 +649,8 @@ describe('creating a key', () => {
     await user.click(within(list).getByRole('option', { name: 'llvm › nts' }))
     await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
-    // The project says what it covers, those created later included.
-    const project = within(list).getByRole('option', { name: LLVM_CHECKED })
+    // The project says nothing more once checked: its suites listed as covered say it.
+    const project = within(list).getByRole('option', { name: 'llvm' })
     expect(project).toHaveAttribute('aria-selected', 'true')
     // Its suites are listed as covered, and cannot be checked.
     const covered = within(list).getAllByRole('option').slice(1)
@@ -676,7 +681,7 @@ describe('creating a key', () => {
     await user.click(within(list).getByRole('option', { name: 'llvm › nts' }))
     await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
-    await user.click(within(list).getByRole('option', { name: LLVM_CHECKED }))
+    await user.click(within(list).getByRole('option', { name: 'llvm' }))
 
     // nts, checked before the project was, is not checked again.
     for (const option of within(list).getAllByRole('option')) {
@@ -726,9 +731,11 @@ describe('creating a key', () => {
     const user = userEvent.setup()
     await user.click(suitesButton())
     await user.click(await screen.findByRole('option', { name: 'swift (no suites)' }))
-    expect(
-      screen.getByRole('option', { name: 'swift (no suites yet; covers those created later)' }),
-    ).toHaveAttribute('aria-selected', 'true')
+    // Still saying that it has none (AR22).
+    expect(screen.getByRole('option', { name: 'swift (no suites)' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
     await user.keyboard('{Escape}')
     expect(suitesButton()).toHaveTextContent('swift (all)')
     createKey('swift-bot')
@@ -1075,7 +1082,10 @@ describe('revoking a key', () => {
 
     fireEvent.click(within(prompt()).getByRole('button', { name: 'Revoke' }))
 
-    expect(await main().findByRole('alert')).toHaveTextContent(PERMISSION_DENIED)
+    expect(await main().findByRole('alert')).toHaveTextContent(
+      "Permission denied. Needs an API token with the 'admin' scope. The token in Settings is " +
+        'not valid.',
+    )
     expect(checks).toHaveLength(1)
     expect(rechecks).toEqual([`Bearer ${TOKEN}`])
     // Nor are the keys asked for again with a token that no longer works.

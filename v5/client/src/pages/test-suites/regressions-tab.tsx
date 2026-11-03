@@ -94,7 +94,6 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
     fetchPage: (cursor, signal) => fetchRegressionPage(suite, { ...query, cursor }, signal),
     enabled: machineReady,
   })
-  const page = pager.page
 
   const remove = useMutation({
     mutationFn: (regression: Regression) => deleteRegression(suite, regression.uuid),
@@ -189,11 +188,11 @@ export function RegressionsTab({ schema, search, onSearch, filters, onFilters: u
       placeholder="Search by title or UUID..."
       controls={controls}
       toolbar={toolbar}
-      isPending={pager.isPending}
+      data={pager.page}
       error={pager.error}
       onRetry={pager.retry}
     >
-      {page && (
+      {(page) => (
         <>
           <DataTable
             label="Regressions"

@@ -230,8 +230,9 @@ test('groups the suites by project, under headings leading to the Projects page'
   ])
   await expect(projectSection(page, 'swift')).toContainText('No test suites.')
 
+  // The project's page, which goes to its first suite (TS1).
   await libcxx.getByRole('heading', { level: 2 }).getByRole('link').click()
-  await expect(page).toHaveURL('/projects/libcxx')
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
 })
 
 test('shows one project alone, fetching nothing for the others', async ({ page }) => {

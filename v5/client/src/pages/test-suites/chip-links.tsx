@@ -23,9 +23,10 @@ interface Props {
 }
 
 /**
- * A row of chips, each a link, one of which may be selected (TS1). A plain click on the selected
- * chip does nothing, rather than start its page again; a modified click still opens it in a new
- * tab (AR2 "Routing").
+ * A row of chips, each a link, one of which may be selected (TS1). Following one replaces the
+ * current history entry, as changing a setting does, so that Back leaves the page rather than
+ * picking the chip before (AR2 "State"). A plain click on the selected chip does nothing, rather
+ * than start its page again; a modified click still opens it in a new tab (AR2 "Routing").
  */
 export function ChipLinks({ label, chips, selected, current = 'page' }: Props) {
   return (
@@ -37,6 +38,7 @@ export function ChipLinks({ label, chips, selected, current = 'page' }: Props) {
             <li key={chip.key}>
               <Link
                 to={chip.to}
+                replace
                 className={styles.chip}
                 aria-current={isSelected ? current : undefined}
                 onClick={isSelected ? ignorePlainClick : undefined}

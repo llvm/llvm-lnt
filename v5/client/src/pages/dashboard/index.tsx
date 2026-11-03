@@ -2,7 +2,7 @@ import { useId } from 'react'
 import { Link } from 'react-router'
 import { fullName, refOf, useProjects, type Project, type Suite } from '../../api/suites'
 import { useRecentlyActiveMachines } from '../../api/machines'
-import { ErrorMessage, Loaded, Loading } from '../../components/feedback'
+import { Loaded } from '../../components/feedback'
 import { Select } from '../../components/select'
 import { projectLabel, projectNamed, suiteLabel } from '../../labels'
 import { projectPath } from '../../paths'
@@ -48,28 +48,27 @@ export default function Dashboard() {
     ...offered.map((entry) => ({ value: entry.name, label: projectLabel(entry) })),
   ]
 
-  let content
-  // Unlike `Loaded`, a list fetched again that fails leaves the one the page shows, as on the Test
-  // Suites page (TS1): only the list's first load takes the page's place.
-  if (data === undefined) {
-    content = projects.isError ? (
-      <ErrorMessage
-        context="The projects could not be loaded"
-        error={projects.error}
-        onRetry={() => void projects.refetch()}
-      />
-    ) : (
-      <Loading label="Loading projects..." />
-    )
-  } else if (data.length === 0) {
-    content = <p className={styles.note}>There are no projects yet.</p>
-  } else {
-    // Only the sections shown are rendered, and so fetch their data (DA1). One list whichever is
-    // shown, so that picking a project keeps its sections as they are.
-    content = (picked ? [picked] : data).map((entry) => (
-      <ProjectSection key={entry.name} project={entry} range={Number(range)} />
-    ))
-  }
+  const content = (
+    <Loaded
+      data={data}
+      error={projects.error}
+      onRetry={() => void projects.refetch()}
+      label="Loading projects..."
+      context="The projects could not be loaded"
+    >
+      {(list) =>
+        list.length === 0 ? (
+          <p className={styles.note}>There are no projects yet.</p>
+        ) : (
+          // Only the sections shown are rendered, and so fetch their data (DA1). One list whichever
+          // is shown, so that picking a project keeps its sections as they are.
+          (picked ? [picked] : list).map((entry) => (
+            <ProjectSection key={entry.name} project={entry} range={Number(range)} />
+          ))
+        )
+      }
+    </Loaded>
+  )
 
   return (
     <section>
@@ -143,14 +142,12 @@ function SuiteSection({ schema, range }: { schema: Suite; range: number }) {
         <NoCards schema={schema} />
       ) : (
         <Loaded
-          isPending={machines.isPending}
+          data={machines.data}
           error={machines.error}
           onRetry={() => void machines.refetch()}
           label="Loading machines..."
         >
-          {machines.data && (
-            <SuiteCards schema={schema} metrics={metrics} machines={machines.data} range={range} />
-          )}
+          {(data) => <SuiteCards schema={schema} metrics={metrics} machines={data} range={range} />}
         </Loaded>
       )}
     </section>

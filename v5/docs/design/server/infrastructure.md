@@ -355,15 +355,17 @@ instance-wide key covers every project and suite in full.
 
 A request *addresses* a suite when its path is
 `/api/projects/{project}/suites/{suite}` or lies under it (see I1): that is
-every suite-scoped route, plus E10's routes for one suite. A restricted key
-grants its scope only where the table below allows it, and only `read` on any
-other request -- exactly what anonymous access gets, so reads are unaffected:
+every suite-scoped route, plus E10's routes for one suite. It addresses a
+project when its path is `/api/projects/{project}` or lies under it, without
+addressing a suite. A restricted key grants its scope only where the table
+below allows it, and only `read` on any other request -- exactly what anonymous
+access gets, so reads are unaffected:
 
 | Operation | What a restricted key needs |
 |-----------|-----------------------------|
 | A request addressing a suite, other than a move | To cover the suite |
 | Moving a suite to another project (E10) | To cover the suite, and the destination project in full |
-| Creating a suite in a project (E10), changing or deleting a project (E13) | To cover the project in full |
+| A request addressing a project: creating a suite in it (E10), changing or deleting it (E13) | To cover the project in full |
 | Creating a project (E13) | Nothing it can have: this requires an instance-wide key |
 
 The body is validated once what the path addresses is authorized. What a move

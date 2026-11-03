@@ -440,7 +440,6 @@ class SuiteSchema(BaseModel):
     )
 
     name: SuiteNameStr = Field(description=f"The suite's name. {NAME_RULE}")
-    # Right after the name, where global revision 0010 writes it into stored schemas too.
     display_name: SuiteLabel | None = Field(
         default=None, description=f"{SUITE_DISPLAY_NAME} Null if there is none."
     )

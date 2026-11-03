@@ -90,14 +90,14 @@ function RunContent({ schema, uuid }: { schema: Suite; uuid: string }) {
   }, [unusable, update])
 
   return (
-    <Loaded isPending={run.isPending} error={run.error} onRetry={() => void run.refetch()}>
-      {run.data && (
+    <Loaded data={run.data} error={run.error} onRetry={() => void run.refetch()}>
+      {(data) => (
         <>
-          <RunInfo schema={schema} run={run.data} />
-          <Actions schema={schema} run={run.data} metric={metric} />
+          <RunInfo schema={schema} run={data} />
+          <Actions schema={schema} run={data} metric={metric} />
           <Samples
             schema={schema}
-            run={run.data}
+            run={data}
             samples={samples}
             profiles={profiles}
             metric={metric}

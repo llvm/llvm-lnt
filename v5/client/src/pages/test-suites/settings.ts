@@ -87,3 +87,14 @@ export function suiteTabPath(
   const query = search.toString()
   return query ? `${suitePath(suite)}?${query}` : suitePath(suite)
 }
+
+/** The history state of the page that a rename or a move leads to, in place of the old names'. */
+export interface Moved {
+  /** The full name the suite had. */
+  movedFrom: string
+}
+
+/** The full name the suite had, if `location` is the page a rename or a move led to. */
+export function movedFromOf(location: { state: unknown }): string | undefined {
+  return (location.state as Moved | null)?.movedFrom
+}
