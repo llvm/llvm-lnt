@@ -9,7 +9,7 @@ import { errorResponse, mockApi } from '../../test/mock-api'
 import { mockCreateRegression, mockRegressions, renderPage } from '../../test/page'
 import { pick, pickOption } from '../../test/select'
 import { server } from '../../test/server'
-import { COMPARED, comparison, mockWorld, sideOf } from './compare-world'
+import { COMPARED, comparison, mockWorld, sideOf, SUITES } from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -124,6 +124,16 @@ describe('Add to Regression (CP9)', () => {
     expect(
       screen.getByText('1 test compared has no value on side B, and is left out.'),
     ).toBeInTheDocument()
+  })
+
+  it("names side B's suite by its label (AR22)", async () => {
+    const [libcxx, ...others] = SUITES
+    mockWorld({ suites: [{ ...libcxx, display_name: 'Microbenchmarks' }, ...others] })
+    await openPanel()
+
+    expect(screen.getByText('Test Suite:').closest('div')).toHaveTextContent(
+      'Test Suite:Microbenchmarks',
+    )
   })
 
   it("creates a regression of side B's commit, with the compared tests B has a value for", async () => {

@@ -1,10 +1,10 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { VisuallyHidden } from 'react-aria-components'
 import { NAME_LENGTH, useApiKeys, type ApiKey, type ApiKeyList } from '../../api/api-keys'
 import { authedApi, PERMISSION_DENIED, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
-import { useSuites } from '../../api/suites'
+import { useKnownSuites, useSuites, type SuiteSchema } from '../../api/suites'
 import {
   grants,
   RESTRICTABLE_SCOPES,
@@ -25,6 +25,7 @@ import { MultiSelect, Select } from '../../components/select'
 import type { TableSort } from '../../components/table-sort'
 import { useRowConfirm } from '../../components/use-row-confirm'
 import { formatTimestamp, yesNo } from '../../format'
+import { compareSuiteLists, suiteLabel, suiteOption, suitesNamed } from '../../labels'
 import { CopyButton } from '../../components/copy-button'
 import type { KEY_SORT_COLUMNS } from './settings'
 import tableStyles from '../../components/data-table.module.css'
@@ -256,7 +257,7 @@ function SuitesChoice({
           label="Suites to restrict to"
           hideLabel
           placeholder="Select suites"
-          options={(suites.data ?? []).map(({ name }) => ({ value: name, label: name }))}
+          options={(suites.data ?? []).map(suiteOption)}
           value={checked}
           onChange={onCheck}
           isDisabled={!restrict}
@@ -278,63 +279,75 @@ type SortColumn = (typeof KEY_SORT_COLUMNS)[number]
 /** What the hover of a key restricted to nothing says (AD1). */
 const NOTHING_HOVER = `${RESTRICTED_TO_NOTHING[0].toUpperCase()}${RESTRICTED_TO_NOTHING.slice(1)}.`
 
-/** Every column but the last, which holds each active key's Revoke button. */
-const COLUMNS: (Column<ApiKey> & { id: SortColumn })[] = [
-  {
-    id: 'prefix',
-    header: 'Prefix',
-    looks: ['mono', 'nowrap'],
-    cell: (key) => key.prefix,
-    sortKey: (key) => key.prefix,
-  },
-  { id: 'name', header: 'Name', cell: (key) => key.name, sortKey: (key) => key.name },
-  {
-    id: 'scope',
-    header: 'Scope',
-    cell: (key) => key.scope,
-    // By the hierarchy, from the lowest scope to the highest (AD1).
-    sortKey: (key) => scopeRank(key.scope),
-  },
-  {
-    id: 'suites',
-    header: 'Suites',
-    cell: (key) => {
-      if (key.suites === null) return 'All'
-      if (key.suites.length > 0) return key.suites.join(', ')
-      // Its suites were all deleted, which leaves it restricted to nothing (AD1, I5).
-      return (
-        <span className={styles.nothing} title={NOTHING_HOVER}>
-          Nothing
-        </span>
-      )
+/**
+ * Every column but the last, which holds each active key's Revoke button. `Suites` names a key's
+ * suites by their labels as `known` has them, in AR22's order, and sorts `All` first, then by the
+ * suites shown, compared in turn, and `Nothing` last (AD1).
+ */
+function columns(known: SuiteSchema[] | undefined): (Column<ApiKey> & { id: SortColumn })[] {
+  const coveredBy = (key: ApiKey) => key.suites && suitesNamed(known, key.suites)
+  return [
+    {
+      id: 'prefix',
+      header: 'Prefix',
+      looks: ['mono', 'nowrap'],
+      cell: (key) => key.prefix,
+      sortKey: (key) => key.prefix,
     },
-    // All first, then by the names in order, and Nothing last (AD1): a comma sorts before any
-    // character of a name, and every name before the last code unit there is.
-    sortKey: (key) =>
-      key.suites === null ? '' : key.suites.length > 0 ? key.suites.join(',') : '\uffff',
-  },
-  {
-    id: 'created_at',
-    header: 'Created',
-    looks: ['nowrap'],
-    cell: (key) => formatTimestamp(key.created_at),
-    sortKey: (key) => Date.parse(key.created_at),
-  },
-  {
-    id: 'last_used_at',
-    header: 'Last Used',
-    looks: ['nowrap'],
-    cell: (key) => (key.last_used_at === null ? 'Never' : formatTimestamp(key.last_used_at)),
-    // A key never used sorts after every key that has been, in both directions (AD1).
-    sortKey: (key) => (key.last_used_at === null ? null : Date.parse(key.last_used_at)),
-  },
-  {
-    id: 'is_active',
-    header: 'Active',
-    cell: (key) => yesNo(key.is_active),
-    sortKey: (key) => Number(key.is_active),
-  },
-]
+    { id: 'name', header: 'Name', cell: (key) => key.name, sortKey: (key) => key.name },
+    {
+      id: 'scope',
+      header: 'Scope',
+      cell: (key) => key.scope,
+      // By the hierarchy, from the lowest scope to the highest (AD1).
+      sortKey: (key) => scopeRank(key.scope),
+    },
+    {
+      id: 'suites',
+      header: 'Suites',
+      cell: (key) => {
+        const suites = coveredBy(key)
+        if (suites === null) return 'All'
+        if (suites.length > 0) return suites.map(suiteLabel).join(', ')
+        // Its suites were all deleted, which leaves it restricted to nothing (AD1, I5).
+        return (
+          <span className={styles.nothing} title={NOTHING_HOVER}>
+            Nothing
+          </span>
+        )
+      },
+      compare: (a, b) => {
+        const [first, second] = [coveredBy(a), coveredBy(b)]
+        if (first === null || second === null) {
+          return Number(second === null) - Number(first === null)
+        }
+        if (first.length === 0 || second.length === 0) return second.length - first.length
+        return compareSuiteLists(first, second)
+      },
+    },
+    {
+      id: 'created_at',
+      header: 'Created',
+      looks: ['nowrap'],
+      cell: (key) => formatTimestamp(key.created_at),
+      sortKey: (key) => Date.parse(key.created_at),
+    },
+    {
+      id: 'last_used_at',
+      header: 'Last Used',
+      looks: ['nowrap'],
+      cell: (key) => (key.last_used_at === null ? 'Never' : formatTimestamp(key.last_used_at)),
+      // A key never used sorts after every key that has been, in both directions (AD1).
+      sortKey: (key) => (key.last_used_at === null ? null : Date.parse(key.last_used_at)),
+    },
+    {
+      id: 'is_active',
+      header: 'Active',
+      cell: (key) => yesNo(key.is_active),
+      sortKey: (key) => Number(key.is_active),
+    },
+  ]
+}
 
 function revokeColumn(
   gate: ScopeGate,
@@ -367,6 +380,9 @@ function KeysTable({
   const queryClient = useQueryClient()
   const { recheck } = useAuth()
   const gate = useScopeGate('admin', null)
+  const known = useKnownSuites()
+  // Built again only when the suites change, so that the table sorts its rows again only then.
+  const shown = useMemo(() => columns(known), [known])
   const tableRef = useRef<HTMLTableElement>(null)
   const rowConfirm = useRowConfirm<ApiKey>(tableRef)
   const revoking = rowConfirm.item
@@ -433,7 +449,7 @@ function KeysTable({
       <DataTable
         label="API keys"
         ref={tableRef}
-        columns={[...COLUMNS, revokeColumn(revokeGate, rowConfirm.open)]}
+        columns={[...shown, revokeColumn(revokeGate, rowConfirm.open)]}
         rows={keys}
         rowKey={(key) => key.prefix}
         confirming={(key) => key.prefix === revoking?.prefix}

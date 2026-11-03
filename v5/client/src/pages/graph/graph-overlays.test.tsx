@@ -1154,6 +1154,19 @@ describe('the baselines (GR9)', () => {
     expect(chips.getByRole('listitem')).toHaveTextContent('libcxx/m1/r10')
   })
 
+  it("names a baseline's suite by its label (AR22)", async () => {
+    mockWorld({ suites: [{ ...GRAPH_SUITE, name: 'other', display_name: 'Other suite' }] })
+    renderPage(`${ONE_MACHINE}&test=a&baseline=other/m1/c10`)
+
+    await waitFor(() => expect(baselineLines()).toEqual(['a - baseline Other suite/m1/r10: 1']))
+    expect(hoverText(curve('a - baseline Other suite/m1/r10') as PlotData, 0)).toContain(
+      'Suite: Other suite<br>',
+    )
+    expect(within(baselineChips()).getByRole('listitem')).toHaveTextContent('Other suite/m1/r10')
+    // The URL names the suite by its name.
+    expect(query().baseline).toEqual(['other/m1/c10'])
+  })
+
   it("does not wait for the traces' requests, even when they take every turn (GR2)", async () => {
     const held = gate()
     const names = ['a', 't1', 't2', 't3', 't4', 't5']

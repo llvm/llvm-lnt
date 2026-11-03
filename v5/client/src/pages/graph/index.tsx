@@ -21,6 +21,7 @@ import { RegexFilter } from '../../components/regex-filter'
 import { Select } from '../../components/select'
 import { useTextFilter } from '../../components/use-text-filter'
 import { compareStrings } from '../../format'
+import { suiteOption } from '../../labels'
 import { ACTIVE_STATES, REGRESSION_STATES, type RegressionState } from '../../regression-states'
 import { displayValueOf, isNumeric, labelOf, type Metric } from '../../schema'
 import {
@@ -300,7 +301,7 @@ function GraphPage() {
         <div className={styles.sources}>
           <Select
             label="Suite"
-            options={(suites.data ?? []).map(({ name }) => ({ value: name, label: name }))}
+            options={(suites.data ?? []).map(suiteOption)}
             value={schema === undefined ? null : schema.name}
             placeholder="-- Select suite --"
             onChange={chooseSuite}

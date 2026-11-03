@@ -5,6 +5,7 @@ import { Combobox } from '../../components/combobox'
 import { CommitPicker } from '../../components/commit-picker'
 import { useMachineSuggestions } from '../../components/machine-suggestions'
 import { Select } from '../../components/select'
+import { suiteOption } from '../../labels'
 import { NO_SUGGESTIONS, type Suggestion } from '../../components/suggestions'
 import { formatBaseline, type Baseline, type BaselineState } from './baselines'
 import styles from './graph.module.css'
@@ -27,9 +28,9 @@ interface Props {
  */
 export function BaselinePanel({ suites, baselines, onAdd, onRemove, isDisabled, toggle }: Props) {
   const [adding, setAdding] = useState(false)
-  const chips = baselines.map(({ baseline, display }) => ({
+  const chips = baselines.map(({ baseline, suiteLabel, display }) => ({
     key: formatBaseline(baseline),
-    text: `${baseline.suite}/${baseline.machine}/${display}`,
+    text: `${suiteLabel}/${baseline.machine}/${display}`,
   }))
 
   // Once a baseline is added, the form it was picked in is gone: the focus goes back to "+".
@@ -91,7 +92,7 @@ function BaselineForm({ suites, onAdd }: Pick<Props, 'suites' | 'onAdd'>) {
     <div className={styles.baselineForm} role="group" aria-label="New baseline">
       <Select
         label="Baseline suite"
-        options={suites.map(({ name }) => ({ value: name, label: name }))}
+        options={suites.map(suiteOption)}
         value={suite}
         placeholder="-- Suite --"
         onChange={(name) => {

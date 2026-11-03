@@ -1,6 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { queryKeys } from '../api/keys'
 import { TOKEN, mockAuth, signIn, unknownToken } from '../test/auth'
+import { BARE_SUITE, SUITE } from '../test/fixtures'
 import { errorResponse } from '../test/mock-api'
 import { providers } from '../test/render'
 import { TOKEN_STORAGE_KEY } from './storage-key'
@@ -121,6 +123,27 @@ describe('useScopeGate', () => {
     expect(result.current.none.title).toBe(
       "Needs an instance-wide API token with the 'triage' scope. The token in Settings has the " +
         "'triage' scope only in suites 'libcxx', 'nts'.",
+    )
+  })
+
+  it('names the suites by their labels once they are listed (AR22)', async () => {
+    signIn('triage', ['libcxx', 'nts'])
+    const wrapper = providers()
+    wrapper.queryClient.setQueryData(queryKeys.suites, {
+      items: [
+        { ...SUITE, display_name: 'Microbenchmarks' },
+        { ...BARE_SUITE, display_name: 'LLVM' },
+      ],
+    })
+    const { result } = renderHook(
+      () => ({ auth: useAuth(), other: useScopeGate('manage', 'libcxx') }),
+      wrapper,
+    )
+
+    await waitFor(() => expect(result.current.auth.status.state).toBe('valid'))
+    expect(result.current.other.title).toBe(
+      "Needs an API token with the 'manage' scope in suite 'Microbenchmarks'. The token in " +
+        "Settings has the 'triage' scope only in suites 'LLVM', 'Microbenchmarks'.",
     )
   })
 

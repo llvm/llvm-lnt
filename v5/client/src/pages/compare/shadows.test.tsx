@@ -5,10 +5,19 @@ import { describe, expect, it, vi } from 'vitest'
 import { uuidOf } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import { query, renderPage } from '../../test/page'
-import { pick, pickOption } from '../../test/select'
+import { pick, pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import { shadowLook } from './chart'
-import { barsOf, chart, COMPARED, comparison, mockWorld, runBox, sideOf } from './compare-world'
+import {
+  barsOf,
+  chart,
+  COMPARED,
+  comparison,
+  mockWorld,
+  runBox,
+  sideOf,
+  SUITES,
+} from './compare-world'
 
 // The tests check what the page hands Plotly to draw (see test/chart.tsx).
 vi.mock('../../components/chart', () => import('../../test/chart'))
@@ -67,6 +76,18 @@ const dismissButton = (label: string) =>
   screen.getByRole('button', { name: `Dismiss the shadow ${label}` })
 
 describe('the shadows (CP8)', () => {
+  it("names a shadow's suite by its label (AR22), and the URL by its name", async () => {
+    const [libcxx, ...others] = SUITES
+    mockWorld({ suites: [{ ...libcxx, display_name: 'Microbenchmarks' }, ...others] })
+    renderPage(SHADOWED)
+    await comparison()
+
+    await waitFor(() => expect(chips()).toEqual(['●Shadow: Microbenchmarks/m1/c2 · 1 test']))
+    expect(query().shadow).toEqual(['libcxx/m1/c2'])
+    // The sides' suites are named by their labels too.
+    expect(selectButton('Suite', sideOf('B'))).toHaveTextContent('Microbenchmarks')
+  })
+
   it('pins side B, drawn as a line sorted by its own ratios once side B changes', async () => {
     mockWorld(WORLD)
     renderPage(COMPARED)

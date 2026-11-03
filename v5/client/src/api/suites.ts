@@ -1,21 +1,44 @@
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { queryOptions, useQuery, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap, type Schemas } from './client'
 import { compareStrings } from '../format'
+import { compareSuites, suiteLabelOf } from '../labels'
 import { forgetSuite, queryKeys } from './keys'
 
 export type SuiteSchema = Schemas['SuiteSchema']
 
+/** The suites of the list the API returned, in the order the UI lists suites in (AR22). */
+function inOrder(list: Schemas['SuiteSchemaList']): SuiteSchema[] {
+  return [...list.items].sort(compareSuites)
+}
+
+const suitesQuery = queryOptions({
+  queryKey: queryKeys.suites,
+  queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
+  select: inOrder,
+})
+
 /**
- * The test suites of the instance, with their schemas, ordered by name (E10). Suites are few, and
- * the list carries every schema, so pages read a suite's schema from it rather than fetching it on
- * its own.
+ * The test suites of the instance, with their schemas, in the order the UI lists them (AR22).
+ * Suites are few, and the list carries every schema, so pages read a suite's schema from it rather
+ * than fetching it on its own.
  */
 export function useSuites() {
-  return useQuery({
-    queryKey: queryKeys.suites,
-    queryFn: ({ signal }) => unwrap(api.GET('/api/suites', { signal })),
-    select: (list) => list.items,
-  })
+  return useQuery(suitesQuery)
+}
+
+/**
+ * The suites as far as they have been listed already, without listing them: for what names a suite
+ * by its label (AR22) without needing the list otherwise, which names it by its name until then.
+ * It deliberately never fetches the list, which AR22 allows ("including until its display name is
+ * known"), so that a gated control or the Settings panel costs no request of its own.
+ */
+export function useKnownSuites(): SuiteSchema[] | undefined {
+  return useQuery({ ...suitesQuery, enabled: false }).data
+}
+
+/** The label of the suite `name` (AR22), or its name until the suites are listed. */
+export function useSuiteLabel(name: string): string {
+  return suiteLabelOf(useKnownSuites(), name)
 }
 
 /** Fetch the list of suites again, after a write that found it out of date. */

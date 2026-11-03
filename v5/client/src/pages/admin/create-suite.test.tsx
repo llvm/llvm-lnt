@@ -44,6 +44,7 @@ function mockCreate(
       if (fail) return fail()
       const body = JSON.parse(text) as Partial<SuiteSchema> & { name: string }
       const schema: SuiteSchema = {
+        display_name: null,
         metrics: [],
         commit_fields: [],
         machine_fields: [],
@@ -67,6 +68,10 @@ function editor() {
 
 function suiteNameInput() {
   return screen.getByRole('textbox', { name: 'Suite name' })
+}
+
+function displayNameInput() {
+  return screen.getByRole('textbox', { name: 'Display name' })
 }
 
 function createButton() {
@@ -272,6 +277,12 @@ describe('opening the editor', () => {
 
   it('has unsaved changes once a name, an entry or a repository value is entered', async () => {
     await openEditor()
+
+    typeInto(displayNameInput(), ' ')
+    expect(unloadAsks()).toBe(false)
+    typeInto(displayNameInput(), 'Draft')
+    expect(unloadAsks()).toBe(true)
+    typeInto(displayNameInput(), '')
 
     typeInto(screen.getByRole('textbox', { name: 'Range URL' }), ' ')
     expect(unloadAsks()).toBe(false)
@@ -490,6 +501,7 @@ describe('creating the suite', () => {
     const sent = mockCreate(store)
     const confirm = answerLeaving(false)
     typeInto(suiteNameInput(), 'fresh')
+    typeInto(screen.getByRole('textbox', { name: 'Display name' }), ' Fresh suite ')
     addEntry('metric', 'size')
     await pickOption('Type of metric size', 'integer')
     typeInto(screen.getByRole('textbox', { name: 'Display name of metric size' }), ' Size  ')
@@ -505,6 +517,7 @@ describe('creating the suite', () => {
     await waitFor(() => expect(currentUrl()).toBe('/suites/fresh?tab=schema'))
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'fresh',
+      display_name: 'Fresh suite',
       metrics: [
         {
           name: 'size',
@@ -525,6 +538,9 @@ describe('creating the suite', () => {
     expect(sent[0].auth).toMatch(/^Bearer /)
     expect(confirm).not.toHaveBeenCalled()
     expect(editor()).not.toBeInTheDocument()
+    expect(await screen.findByRole('group', { name: 'Suite' })).toHaveTextContent(
+      'NamefreshDisplay nameFresh suite',
+    )
     expect(rowsOf(await table('Metrics'))).toEqual(['size | integer | Size | -- | Yes | Yes'])
     expect(rowsOf(await table('Machine fields'))).toEqual(['kernel | text | -- | No | No'])
     expect(screen.getByRole('group', { name: 'Repository' })).toHaveTextContent(
@@ -547,6 +563,7 @@ describe('creating the suite', () => {
     await waitFor(() => expect(currentUrl()).toBe('/suites/empty?tab=schema'))
     expect(JSON.parse(sent[0].text)).toEqual({
       name: 'empty',
+      display_name: null,
       metrics: [],
       commit_fields: [],
       machine_fields: [],
@@ -738,6 +755,29 @@ describe('Start from', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove metric execution_time' }))
     await pickOption('Start from', 'libcxx')
     expect(screen.getAllByRole('textbox', { name: /^Name of metric/ })).toHaveLength(1)
+  })
+
+  it("lists the suites by their labels, in their order, and copies neither one's names", async () => {
+    await openEditor({
+      suites: [{ ...SUITE, display_name: 'Microbenchmarks' }, { ...BARE_SUITE, name: 'alpha' }],
+    })
+    typeInto(displayNameInput(), ' Mine ')
+    const user = userEvent.setup()
+    await user.click(selectButton('Start from'))
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Select a suite',
+      'alpha',
+      'Microbenchmarks',
+    ])
+    await user.click(screen.getByRole('option', { name: 'Microbenchmarks' }))
+
+    expect(suiteNameInput()).toHaveValue('')
+    expect(displayNameInput()).toHaveValue(' Mine ')
+    expect(
+      screen
+        .getAllByRole('textbox', { name: /^Name of metric/ })
+        .map((i) => i.getAttribute('value')),
+    ).toEqual(['execution_time'])
   })
 
   it('changes nothing from the keyboard while its list is closed', async () => {

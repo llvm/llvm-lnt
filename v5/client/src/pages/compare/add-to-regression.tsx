@@ -23,6 +23,7 @@ import {
   type PickedRegression,
 } from '../../components/regression-picker'
 import { plural, shortUuid } from '../../format'
+import { suiteLabel } from '../../labels'
 import { regressionPath } from '../../paths'
 import type { ComparisonRow } from './comparison'
 import styles from './compare.module.css'
@@ -250,7 +251,7 @@ function Summary({ schema, machine, commit, metric, tests, skipped }: SummaryPro
   const shown = usePickedCommitText(schema, { machine }, commit)
   const rows: [string, string][] = [
     ['Covers', plural(tests, 'selected test')],
-    ['Test Suite', schema.name],
+    ['Test Suite', suiteLabel(schema)],
     ['Metric', metric],
     ['Machine', machine],
     ['Commit', shown],

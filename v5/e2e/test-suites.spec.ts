@@ -407,7 +407,12 @@ test.describe('the Schema tab', () => {
     })
   })
 
-  test("edits a suite's repository", async ({ page, request, signIn, tokenFor }, testInfo) => {
+  test("edits a suite's display name and repository", async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
     const token = await tokenFor('manage')
     await withOwnSuiteName(request, token, testInfo, async (suite) => {
       const created = await request.post('/api/suites', {
@@ -428,9 +433,19 @@ test.describe('the Schema tab', () => {
       await expect(save).toBeDisabled()
       await commitUrl.fill('https://git.example.com/commit/{commit}')
       await editor.getByRole('textbox', { name: 'Label' }).fill('')
+      await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill('Forge suite')
       await save.click()
 
       await expect(editor).toBeHidden()
+      await expect(page.getByRole('group', { name: 'Suite' })).toHaveText(
+        `Name${suite}Display nameForge suite`,
+      )
+      // The suite's card is named by its display name (AR22).
+      await expect(
+        page.getByRole('navigation', { name: 'Test suites' }).getByRole('link', {
+          name: 'Forge suite',
+        }),
+      ).toHaveAttribute('aria-current', 'page')
       await expect(page.getByRole('group', { name: 'Repository' })).toHaveText(
         'Label--Commit URLhttps://git.example.com/commit/{commit}Range URL--',
       )
@@ -438,6 +453,7 @@ test.describe('the Schema tab', () => {
         request,
         `/api/suites/${suite}`,
       )
+      expect(schema.display_name).toBe('Forge suite')
       expect(schema.repository).toEqual({
         label: null,
         commit_url: 'https://git.example.com/commit/{commit}',

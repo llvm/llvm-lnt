@@ -2,7 +2,9 @@ import { Fragment, useId, useState, type FormEvent, type ReactNode } from 'react
 import { Button, Dialog, DialogTrigger } from 'react-aria-components'
 import clsx from 'clsx'
 import { errorMessage } from '../api/client'
+import { useKnownSuites, type SuiteSchema } from '../api/suites'
 import { Popover } from '../components/popover'
+import { suiteLabel, suitesNamed } from '../labels'
 import { RESTRICTED_TO_NOTHING } from './scope'
 import { useAuth, type TokenStatus } from './use-auth'
 import styles from './settings-menu.module.css'
@@ -73,7 +75,8 @@ function SettingsPanel() {
   )
 }
 
-function statusText(status: TokenStatus): ReactNode {
+/** What `status` says, naming suites by their labels as `known` has them (AR22). */
+function statusText(status: TokenStatus, known: SuiteSchema[] | undefined): ReactNode {
   switch (status.state) {
     case 'none':
       return 'No token set.'
@@ -94,10 +97,10 @@ function statusText(status: TokenStatus): ReactNode {
             <>
               {' '}
               in {suites.length === 1 ? 'suite' : 'suites'}{' '}
-              {suites.map((suite, i) => (
-                <Fragment key={suite}>
+              {suitesNamed(known, suites).map((suite, i) => (
+                <Fragment key={suite.name}>
                   {i > 0 && ', '}
-                  <strong>{suite}</strong>
+                  <strong>{suiteLabel(suite)}</strong>
                 </Fragment>
               ))}
             </>
@@ -114,10 +117,11 @@ function statusText(status: TokenStatus): ReactNode {
 }
 
 function StatusLine({ status }: { status: TokenStatus }) {
+  const known = useKnownSuites()
   const failed = status.state === 'invalid' || status.state === 'failed'
   return (
     <p className={clsx(styles.status, failed && styles.error)} role="status">
-      {statusText(status)}
+      {statusText(status, known)}
     </p>
   )
 }

@@ -6,6 +6,7 @@
 import { useMemo, type ReactNode } from 'react'
 import type { CommitFilters } from '../api/commits'
 import type { SuiteSchema } from '../api/suites'
+import { suiteLabel, suiteOption } from '../labels'
 import { Combobox } from './combobox'
 import { CommitPicker } from './commit-picker'
 import { ControlsPanel } from './controls-panel'
@@ -73,7 +74,7 @@ export function SideFields({
     <>
       <Select
         label="Suite"
-        options={suites.map(({ name }) => ({ value: name, label: name }))}
+        options={suites.map(suiteOption)}
         value={schema?.name ?? null}
         placeholder="-- Select suite --"
         onChange={onSuite}
@@ -93,7 +94,7 @@ export function SideFields({
         isDisabled={schema === undefined}
       />
       {/* The machines are only fetched once the suite is known to exist. */}
-      {schema !== undefined && <MachinesError suite={schema.name} machines={machines} />}
+      {schema !== undefined && <MachinesError suite={suiteLabel(schema)} machines={machines} />}
       {/* Without a machine, a commit picker would look its commit up among no machine's. */}
       {schema === undefined || machine === '' ? (
         <Combobox
@@ -148,7 +149,7 @@ export function SideControls({ title, action, children }: SideControlsProps) {
   )
 }
 
-/** Says that the machines of `suite` could not be listed, with a way to try again, if so. */
+/** Says that the machines of the suite labelled `suite` could not be listed, and offers to retry. */
 function MachinesError({ suite, machines }: { suite: string; machines: Machines }) {
   if (!machines.machines.isError) return null
   return (

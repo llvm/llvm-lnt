@@ -70,6 +70,9 @@ const SAMPLES: Record<string, [test: string, value: number][]> = {
   '4': [['a', 1]],
 }
 
+/** The suites of the world, unless it is given others. */
+export const SUITES = [SUITE, OTHER_SUITE, MILLIS_SUITE]
+
 /** Every suite's runs and samples are the same: their machines, commits and tests. */
 interface World {
   suites?: SuiteSchema[]
@@ -97,7 +100,7 @@ const hexOf = (uuid: string) => uuid[0]
  * the hex of each run whose samples were asked for, in order.
  */
 export function mockWorld({
-  suites = [SUITE, OTHER_SUITE, MILLIS_SUITE],
+  suites = SUITES,
   runs = RUNS,
   samples = SAMPLES,
   sampleAnswer,

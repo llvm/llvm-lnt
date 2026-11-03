@@ -1,4 +1,7 @@
+import { act, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { queryKeys } from '../../api/keys'
+import { SUITE } from '../../test/fixtures'
 import { trail } from '../../test/page'
 import { renderWithProviders } from '../../test/render'
 import { SuiteTrail } from './suite-trail'
@@ -24,6 +27,18 @@ describe('SuiteTrail', () => {
       ['libcxx', '/suites/libcxx'],
       [label, href],
     ])
+  })
+
+  it('names the suite by its label once the suites are listed, without listing them', async () => {
+    const { queryClient } = renderWithProviders(<SuiteTrail suite="libcxx" tab="runs" />)
+    expect(links()[0]).toEqual(['libcxx', '/suites/libcxx'])
+
+    act(() => {
+      const items = [{ ...SUITE, display_name: 'Microbenchmarks' }]
+      queryClient.setQueryData(queryKeys.suites, { items })
+    })
+
+    await waitFor(() => expect(links()[0]).toEqual(['Microbenchmarks', '/suites/libcxx']))
   })
 
   it('encodes the suite in its links, and shows it as it is', () => {

@@ -11,10 +11,12 @@ from pydantic import ValidationError
 
 from lnt_v5 import examples
 from lnt_v5.suites.schema import AttributeType, SuiteSchema
+from lnt_v5.tables import DISPLAY_NAME_MAX_LENGTH
 
 # The schema from D4, which exercises every list, the repository, and most of the optional keys.
 EXAMPLE: dict[str, Any] = {
     "name": "nts",
+    "display_name": "LLVM test-suite",
     "metrics": [
         {
             "name": "compile_time",
@@ -413,6 +415,29 @@ class TestRepository:
             SuiteSchema.model_validate(schema(repository=None))
 
 
+class TestSuiteDisplayName:
+    def test_may_be_set_or_null(self) -> None:
+        assert SuiteSchema.model_validate(schema(display_name="Système")).display_name == "Système"
+        assert SuiteSchema.model_validate(schema(display_name=None)).display_name is None
+
+    @pytest.mark.parametrize(
+        "value", ["", "LLVM\x00test-suite", "x" * (DISPLAY_NAME_MAX_LENGTH + 1)]
+    )
+    def test_is_refused_when_empty_too_long_or_holding_a_nul(self, value: str) -> None:
+        with pytest.raises(ValidationError):
+            SuiteSchema.model_validate(schema(display_name=value))
+
+    def test_may_be_as_long_as_allowed_or_only_spaces(self) -> None:
+        for value in ("x" * DISPLAY_NAME_MAX_LENGTH, " "):
+            assert SuiteSchema.model_validate(schema(display_name=value)).display_name == value
+
+    def test_comes_right_after_the_name(self) -> None:
+        assert list(SuiteSchema.model_validate(schema()).model_dump())[:2] == [
+            "name",
+            "display_name",
+        ]
+
+
 class TestNormalization:
     """D4's stored and returned form: every optional key present and explicit.
 
@@ -476,6 +501,7 @@ class TestNormalization:
     def test_names_all_three_lists_and_the_repository_even_when_a_schema_omits_them(self) -> None:
         assert SuiteSchema.model_validate(schema()).model_dump() == {
             "name": "nts",
+            "display_name": None,
             "metrics": [],
             "commit_fields": [],
             "machine_fields": [],

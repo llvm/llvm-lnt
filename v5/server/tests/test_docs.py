@@ -135,8 +135,10 @@ class TestOpenApiDocument:
             for operations in document["paths"].values()
             if "patch" in operations
         ]
-        # A schema change's lists, by their `update` entries, and its repository, as a whole.
+        # A schema change's lists, by their `update` entries, and its repository, as a whole. Its
+        # display name is a property of the body itself, which is checked as one of `bodies`.
         patch = dict(schemas["SchemaPatch"]["properties"])
+        patch.pop("display_name")
         bodies.append(component(patch.pop("repository")))
         bodies += [
             component(schemas[component(changes)]["properties"]["update"]["items"])

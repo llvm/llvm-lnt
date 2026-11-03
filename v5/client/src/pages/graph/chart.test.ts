@@ -168,7 +168,7 @@ describe('withEmphasis (GR7)', () => {
 describe('baselineTraces (GR9)', () => {
   it('draws a dashed line across the chart, on an axis of its own, with a tooltip', () => {
     const line = {
-      suite: 'nts',
+      suiteLabel: 'nts',
       machine: 'm<1>',
       commit: 'r10',
       test: 't',
@@ -190,7 +190,7 @@ describe('baselineTraces (GR9)', () => {
 
   it("shows the test and the commit's display value as they are, even with template fields", () => {
     const line = {
-      suite: 'nts',
+      suiteLabel: 'nts',
       machine: '<&>',
       // The commit's display value, which unlike a commit string may contain a `%` (I1).
       commit: 'r10 %{x}',

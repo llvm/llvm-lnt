@@ -20,6 +20,7 @@ export const NO_REPOSITORY: SuiteSchema['repository'] = {
  */
 export const SUITE: SuiteSchema = {
   name: 'libcxx',
+  display_name: null,
   metrics: [
     {
       name: 'execution_time',
@@ -64,6 +65,7 @@ export const SUITE: SuiteSchema = {
 /** A suite with no fields at all, and so no display field, and no repository. */
 export const BARE_SUITE: SuiteSchema = {
   name: 'nts',
+  display_name: null,
   metrics: [],
   machine_fields: [],
   commit_fields: [],

@@ -407,6 +407,20 @@ describe('sorting the keys', () => {
     expect(prefixes(list)).toEqual(['7d1e40aa', '3f0ac112', '135f502b', '229d78c5', 'aaaaaaaa'])
   })
 
+  it('names the suites of a key by their labels, sorted by them (AR22)', async () => {
+    mockSuites([{ ...SUITE, display_name: 'zeta' }, BARE_SUITE])
+    const both = apiKey('triage', { prefix: 'bbbbbbbb', suites: ['libcxx', 'nts'] })
+    const libcxx = apiKey('triage', { prefix: 'cccccccc', suites: ['libcxx'] })
+    const nts = apiKey('triage', { prefix: 'dddddddd', suites: ['nts'] })
+    const { list } = await renderKeys({ keys: [libcxx, both, nts] })
+
+    await waitFor(() => expect(rowsOf(list)[0].split(' | ')[3]).toBe('zeta'))
+    expect(rowsOf(list)[1].split(' | ')[3]).toBe('nts, zeta')
+
+    fireEvent.click(within(list).getByRole('button', { name: 'Suites' }))
+    expect(prefixes(list)).toEqual(['dddddddd', 'bbbbbbbb', 'cccccccc'])
+  })
+
   it('keeps the sort in the URL, leaving out the default one', async () => {
     const { list } = await renderKeys()
     expect(currentUrl()).toBe('/admin')

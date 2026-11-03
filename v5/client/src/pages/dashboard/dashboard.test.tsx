@@ -110,6 +110,18 @@ function hoverEvent(curveNumber: number) {
 }
 
 describe('the Dashboard', () => {
+  it('heads the section of each suite by its label, in their order (AR22)', async () => {
+    mockSuites([DASH_SUITE, { ...TEXT_SUITE, display_name: 'A text suite' }])
+    mockMachineNames(['m1'])
+    mockTrends(() => POINTS)
+    mockResolve()
+    renderPage('/')
+
+    await chartOf('compile_status')
+    const headings = main().getAllByRole('heading', { level: 2 })
+    expect(headings.map((h) => h.textContent)).toEqual(['A text suite', 'libcxx'])
+  })
+
   it('shows a section per suite, and a card per metric on the Dashboard, in schema order', async () => {
     mockSuites([DASH_SUITE, TEXT_SUITE])
     mockMachineNames(['m1'])

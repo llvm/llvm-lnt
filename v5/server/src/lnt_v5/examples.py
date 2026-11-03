@@ -17,7 +17,8 @@ from typing import Any
 
 SUITE = "libcxx"
 
-# `tests/data/libcxx/schema.json`, with every optional key written out, as the API returns it.
+# `tests/data/libcxx/schema.json`, with every optional key written out, as the API returns it, and
+# a display name.
 METRICS: list[dict[str, Any]] = [
     {
         "name": "execution_time",
@@ -103,6 +104,7 @@ REPOSITORY: dict[str, Any] = {
 }
 SUITE_SCHEMA: dict[str, Any] = {
     "name": SUITE,
+    "display_name": "Microbenchmarks",
     "metrics": METRICS,
     "commit_fields": COMMIT_FIELDS,
     "machine_fields": MACHINE_FIELDS,
