@@ -1,5 +1,5 @@
 import { createRef, useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { optionsIn, pickOption, selectButton } from '../test/select'
@@ -80,15 +80,15 @@ describe('Select', () => {
     const refused = screen.getByRole('option', { name: 'Swift: Needs a token covering it.' })
     expect(screen.getByTitle('Needs a token covering it.')).toHaveTextContent(/^Swift/)
 
-    // It can be reached from the keyboard, so that its reason can be read, but not picked.
+    // It can be reached from the keyboard, so that its reason can be read, but not picked: the list
+    // stays open.
     await user.keyboard('{ArrowDown}{ArrowDown}')
     expect(refused).toHaveFocus()
     await user.keyboard('{Enter}')
+    expect(refused).toHaveFocus()
+    await user.click(refused)
     expect(onChange).not.toHaveBeenCalled()
-    await user.click(selectButton('Project'))
-    await user.click(screen.getByRole('option', { name: 'Swift: Needs a token covering it.' }))
-    expect(onChange).not.toHaveBeenCalled()
-    await user.click(selectButton('Project'))
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: 'LLVM' }))
     expect(onChange).toHaveBeenCalledExactlyOnceWith('llvm')
   })
@@ -151,6 +151,87 @@ describe('Select', () => {
     await userEvent.setup().keyboard('{ArrowRight}')
 
     expect(onChange).toHaveBeenCalledWith('execution_time')
+  })
+
+  describe('with refused options', () => {
+    const WHY = 'Needs a token covering it.'
+    const PROJECTS: Option<string>[] = [
+      { value: 'clang', label: 'Clang' },
+      { value: 'llvm', label: 'LLVM', reason: WHY },
+      { value: 'lldb', label: 'LLDB', reason: WHY },
+      { value: 'lnt', label: 'LNT' },
+    ]
+
+    function ProjectSelect({
+      options = PROJECTS,
+      initial,
+      onChange,
+    }: {
+      options?: Option<string>[]
+      initial: string | null
+      onChange: (value: string) => void
+    }) {
+      const [value, setValue] = useState(initial)
+      return (
+        <Select
+          label="Project"
+          options={options}
+          value={value}
+          placeholder="Select a project"
+          onChange={(next) => {
+            setValue(next)
+            onChange(next)
+          }}
+        />
+      )
+    }
+
+    it('steps past them while closed, with the arrow keys', async () => {
+      const onChange = vi.fn()
+      render(<ProjectSelect initial="clang" onChange={onChange} />)
+      const user = userEvent.setup()
+
+      selectButton('Project').focus()
+      await user.keyboard('{ArrowRight}')
+      expect(onChange).toHaveBeenLastCalledWith('lnt')
+      await user.keyboard('{ArrowLeft}')
+      expect(onChange).toHaveBeenLastCalledWith('clang')
+    })
+
+    it('steps to the first allowed option while closed, with none picked yet', async () => {
+      const onChange = vi.fn()
+      render(<ProjectSelect options={PROJECTS.slice(1)} initial={null} onChange={onChange} />)
+
+      selectButton('Project').focus()
+      await userEvent.setup().keyboard('{ArrowRight}')
+
+      expect(onChange).toHaveBeenLastCalledWith('lnt')
+    })
+
+    it('steps from a refused value to the next allowed option while closed', async () => {
+      const onChange = vi.fn()
+      render(<ProjectSelect initial="llvm" onChange={onChange} />)
+
+      selectButton('Project').focus()
+      await userEvent.setup().keyboard('{ArrowRight}')
+
+      expect(onChange).toHaveBeenLastCalledWith('lnt')
+    })
+
+    it('finds past them by typing while closed, even after one was focused in the list', async () => {
+      const onChange = vi.fn()
+      render(<ProjectSelect initial="clang" onChange={onChange} />)
+      const user = userEvent.setup()
+
+      await user.click(selectButton('Project'))
+      await user.keyboard('{ArrowDown}')
+      expect(screen.getByRole('option', { name: `LLVM: ${WHY}` })).toHaveFocus()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(selectButton('Project')).toHaveFocus())
+      await user.keyboard('l')
+
+      expect(onChange).toHaveBeenCalledExactlyOnceWith('lnt')
+    })
   })
 
   it('changes only on a pick from the open list, with listPicksOnly', async () => {
@@ -356,8 +437,9 @@ describe('Select with options in groups', () => {
     await user.keyboard('{End}')
     expect(option).toHaveFocus()
     await user.keyboard('{Enter}')
-    await user.click(selectButton('Suite'))
-    await user.click(screen.getByRole('option', { name: 'bench: Needs a token covering it.' }))
+    expect(option).toHaveFocus()
+    await user.click(option)
     expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
   })
 })

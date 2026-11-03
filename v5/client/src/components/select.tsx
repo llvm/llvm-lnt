@@ -1,5 +1,6 @@
-import { useId, useMemo, useRef, type Ref } from 'react'
+import { useContext, useEffect, useId, useMemo, useRef, type Ref } from 'react'
 import clsx from 'clsx'
+import type { DisabledBehavior } from '@react-types/shared'
 import {
   Button,
   Collection,
@@ -8,6 +9,7 @@ import {
   ListBoxItem,
   ListBoxSection,
   Select as AriaSelect,
+  SelectStateContext,
   SelectValue,
   VisuallyHidden,
 } from 'react-aria-components'
@@ -22,8 +24,9 @@ export interface Option<Value extends string> {
   label: string
   /**
    * Why the option cannot be picked, if it cannot, such as one the token does not allow (AR17):
-   * shown on hover over the whole option, and part of its accessible name. It can still be focused,
-   * from the keyboard too, so that the reason can be read, but picking it changes nothing.
+   * shown on hover over the whole option, and part of its accessible name. It can still be focused
+   * in the open list, from the keyboard too, so that the reason can be read, but picking it changes
+   * nothing. Stepping through the options of the closed dropdown skips it.
    */
   reason?: string
   /**
@@ -40,6 +43,24 @@ export interface Option<Value extends string> {
    * say, where its project's heading is not shown beside it (AR22).
    */
   selectedLabel?: string
+}
+
+/**
+ * Forgets the option last focused in the list once the list closes, if it is refused: typing on the
+ * closed dropdown looks from there first, and would find it again and again rather than an option
+ * beyond it.
+ */
+function ForgetRefusedFocus({ refused }: { refused: ReadonlySet<string> }) {
+  // Null while React Aria renders the children before it has its state.
+  const state = useContext(SelectStateContext)
+  const isOpen = state?.isOpen
+  const manager = state?.selectionManager
+  useEffect(() => {
+    if (isOpen || !manager) return
+    const key = manager.focusedKey
+    if (key != null && refused.has(String(key))) manager.setFocusedKey(null)
+  }, [isOpen, manager, refused])
+  return null
 }
 
 /** An option as the list shows it. */
@@ -116,6 +137,13 @@ export function Select<Value extends string>({
     () => sectioned(options, (option) => option.section?.key),
     [options],
   )
+  const refused = useMemo(
+    () =>
+      new Set<string>(
+        options.filter((option) => option.reason !== undefined).map((option) => option.value),
+      ),
+    [options],
+  )
   return (
     // On an element of its own, since React Aria does not pass a title on to the button. Always
     // there, so that the dropdown is not mounted again, losing the focus, when the title goes.
@@ -128,13 +156,20 @@ export function Select<Value extends string>({
         // selection.
         onChange={(key) => {
           if (key === null || (!open.current && listPicksOnly)) return
-          if (options.find((option) => option.value === key)?.reason === undefined) {
-            onChange(key as Value)
-          }
+          // A backstop: the closed dropdown sets the value directly, without the checks of a pick
+          // from the list, and skips refused options only through `disabledKeys` below.
+          if (!refused.has(key as string)) onChange(key as Value)
         }}
         onOpenChange={(isOpen) => (open.current = isOpen)}
         isDisabled={isDisabled}
+        // Refused options are disabled for selection only, so that the open list can still focus
+        // them. Stepping through the options of the closed dropdown skips them all the same: React
+        // Aria steps there without regard to `disabledBehavior`, skipping any disabled option.
+        // React Aria Components passes `disabledBehavior` on to React Stately without declaring it.
+        disabledKeys={refused}
+        {...({ disabledBehavior: 'selection' } satisfies { disabledBehavior: DisabledBehavior })}
       >
+        <ForgetRefusedFocus refused={refused} />
         <FieldLabel label={label} hidden={hideLabel} />
         <Button
           ref={ref}
