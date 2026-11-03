@@ -85,23 +85,22 @@ export function useSuites() {
 }
 
 /**
- * The suites as far as they have been listed already, without listing them: for what names a suite
- * by its label (AR22) without needing the list otherwise, which names it by its names until then.
- * It deliberately never fetches the list, which AR22 allows ("including until its display name is
- * known"), so that a gated control or the Settings panel costs no request of its own.
+ * The projects as far as they have been listed already, without listing them: for what names a
+ * project or a suite by its label (AR22) without needing the list otherwise, which names it by its
+ * names until then. It deliberately never fetches the list, which AR22 allows ("including until its
+ * display name is known"), so that a gated control or the Settings panel costs no request of its
+ * own.
  */
-export function useKnownSuites(): Suite[] | undefined {
-  return useQuery({ ...projectsQuery, select: suitesInOrder, enabled: false }).data
-}
-
-/** The projects as far as they have been listed already, without listing them (see above). */
 export function useKnownProjects(): Project[] | undefined {
   return useQuery({ ...projectsQuery, select: projectsInOrder, enabled: false }).data
 }
 
-/** The full label of the suite `ref` names (AR22), or its names until the suites are listed. */
+/**
+ * The full label of the suite `ref` names (AR22), or its names until the suites are listed, which
+ * this does not do (see `useKnownProjects`).
+ */
 export function useSuiteLabel(ref: SuiteRef): string {
-  return fullLabelOf(useKnownSuites(), ref)
+  return fullLabelOf(useQuery({ ...projectsQuery, select: suitesInOrder, enabled: false }).data, ref)
 }
 
 /** Fetch the list of projects again, after a write that found it out of date. */

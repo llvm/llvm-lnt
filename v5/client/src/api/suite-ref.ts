@@ -1,5 +1,3 @@
-/** A suite's identity, apart from what the UI holds of it (see `suites.ts`). */
-
 /** A suite's identity, which the UI takes everywhere (AR22): its project's name and its own. */
 export interface SuiteRef {
   project: string
