@@ -664,8 +664,10 @@ class TestSchemaRepository:
 
         stored = stored_schema_json(empty_engine)["before"]
         assert stored == compact(with_display_name(_BEFORE_DISPLAY_NAME))
-        # Byte for byte what the server itself writes for that schema.
-        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
+        # What the server itself writes for that schema, if not in the same order (D5).
+        assert json.loads(stored) == json.loads(
+            normalized_json(SuiteSchema.model_validate_json(stored))
+        )
 
     def test_bumps_the_schema_version_once_and_leaves_a_block_alone(
         self, empty_engine: Engine
@@ -730,253 +732,6 @@ class TestSchemaRepository:
         assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_REPOSITORY)}
         # Once on the way up, and once on the way down.
         assert schema_version_of(empty_engine) == 2
-
-
-def with_display_name(document: dict[str, Any]) -> dict[str, Any]:
-    """`document` as 0010 rewrites it: with the display name, unset, right after the name."""
-    return {"name": document["name"], "display_name": None} | document
-
-
-class TestSuiteDisplayName:
-    """0010 gives every stored schema the suite's `display_name`, unset, to keep stored schemas
-    normalized."""
-
-    def test_adds_it_right_after_the_name_and_nothing_else(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0009")
-        store_schema_json(empty_engine, {"before": compact(_BEFORE_DISPLAY_NAME)})
-
-        # To the head, so that what is stored is what the latest build writes.
-        upgrade_to_head(empty_engine)
-
-        stored = stored_schema_json(empty_engine)["before"]
-        assert stored == compact(with_display_name(_BEFORE_DISPLAY_NAME))
-        # Byte for byte what the server itself writes for that schema.
-        assert stored == normalized_json(SuiteSchema.model_validate_json(stored))
-
-    def test_bumps_the_schema_version_once_and_leaves_a_display_name_alone(
-        self, empty_engine: Engine
-    ) -> None:
-        already = compact({"name": "already", "display_name": "Already"})
-        upgrade_by_hand(empty_engine, "0009")
-        store_schema_json(
-            empty_engine,
-            {
-                "before": compact(_BEFORE_DISPLAY_NAME),
-                "second": compact({**_BEFORE_DISPLAY_NAME, "name": "second"}),
-                "already": already,
-            },
-        )
-
-        upgrade_by_hand(empty_engine, "0010")
-
-        # D2: like any other change to a stored schema, however many rows it rewrites.
-        assert schema_version_of(empty_engine) == 1
-        assert stored_schema_json(empty_engine)["already"] == already
-
-    def test_changes_nothing_when_every_schema_has_it(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0009")
-        already = compact({"name": "already", "display_name": None})
-        store_schema_json(empty_engine, {"already": already})
-
-        upgrade_by_hand(empty_engine, "0010")
-
-        assert schema_version_of(empty_engine) == 0
-
-    def test_adds_it_to_any_object_and_leaves_the_rest_alone(self, empty_engine: Engine) -> None:
-        rows = {"not_json": "{", "not_an_object": "[]"}
-        upgrade_by_hand(empty_engine, "0009")
-        store_schema_json(empty_engine, {**rows, "nameless": '{"metrics": []}'})
-
-        upgrade_by_hand(empty_engine, "0010")
-
-        assert stored_schema_json(empty_engine) == {
-            **rows,
-            "nameless": compact({"display_name": None, "metrics": []}),
-        }
-
-    def test_downgrading_removes_it_whatever_it_holds(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0009")
-        store_schema_json(empty_engine, {"before": compact(_BEFORE_DISPLAY_NAME)})
-        upgrade_by_hand(empty_engine, "0010")
-        replace_schema_json(
-            empty_engine, {**with_display_name(_BEFORE_DISPLAY_NAME), "display_name": "Before"}
-        )
-
-        downgrade_by_hand(empty_engine, "0009")
-
-        assert stored_schema_json(empty_engine) == {"before": compact(_BEFORE_DISPLAY_NAME)}
-        # Once on the way up, and once on the way down.
-        assert schema_version_of(empty_engine) == 2
-
-
-class TestProjects:
-    """0011 puts each existing suite in a project of its own, named after it (D7)."""
-
-    def test_gives_each_suite_a_project_named_after_it(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0010")
-        store_schema_json(empty_engine, {"nts": "{}", "libcxx": "{}"})
-
-        upgrade_by_hand(empty_engine, "0011")
-
-        with empty_engine.connect() as connection:
-            rows = connection.execute(
-                text(
-                    "SELECT schema.name AS suite, project.name AS project, project.display_name "
-                    "FROM schema JOIN project ON project.id = schema.project_id ORDER BY suite"
-                )
-            ).all()
-        assert [tuple(row) for row in rows] == [("libcxx", "libcxx", None), ("nts", "nts", None)]
-        # Creating projects is a change workers have to notice (D2).
-        assert schema_version_of(empty_engine) == 1
-        unique = {c["name"] for c in inspect(empty_engine).get_unique_constraints("schema")}
-        assert unique == {"uq_schema_namespace", "uq_schema_project_id_name"}
-
-    def test_changes_nothing_workers_cache_in_an_empty_instance(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0011")
-
-        assert schema_version_of(empty_engine) == 0
-
-    def test_keeps_the_restrictions_of_keys(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0010")
-        store_schema_json(empty_engine, {"nts": "{}"})
-        insert_key_row(empty_engine, "aaaaaaaa", "submit")
-        with empty_engine.begin() as connection:
-            connection.execute(
-                text(
-                    "UPDATE api_key SET restricted = true; "
-                    "INSERT INTO api_key_restriction (api_key_id, suite_id) "
-                    "SELECT api_key.id, schema.id FROM api_key, schema"
-                )
-            )
-
-        upgrade_to_head(empty_engine)
-
-        assert restrictions(empty_engine) == {"aaaaaaaa": ["nts"]}
-
-    def test_downgrading_undoes_it(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0010")
-        store_schema_json(empty_engine, {"nts": "{}"})
-        upgrade_by_hand(empty_engine, "0011")
-
-        downgrade_by_hand(empty_engine, "0010")
-
-        assert "project" not in inspect(empty_engine).get_table_names()
-        assert "project_id" not in column_names(empty_engine, "public", "schema")
-        unique = {c["name"] for c in inspect(empty_engine).get_unique_constraints("schema")}
-        assert unique == {"uq_schema_namespace", "uq_schema_name"}
-        assert list(stored_schema_json(empty_engine)) == ["nts"]
-
-    def test_downgrading_refuses_suites_that_share_a_name(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0011")
-        with empty_engine.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO project (name) VALUES ('llvm'), ('other'); "
-                    "INSERT INTO schema "
-                    "(project_id, name, namespace, schema_json, migration_version) "
-                    "SELECT id, 'nts', name, '{}', 0 FROM project"
-                )
-            )
-
-        with pytest.raises(RuntimeError, match="several projects have a suite named nts"):
-            downgrade_by_hand(empty_engine, "0010")
-
-        assert "project" in inspect(empty_engine).get_table_names()
-
-
-class TestProjectRestrictions:
-    """0012 lets a key's restriction list a whole project (D5, I5)."""
-
-    @staticmethod
-    def stage(engine: Engine) -> None:
-        """At 0012: projects `llvm` (suites `nts`, `zeta`), `libcxx` (suite `benchmarks`) and
-        `swift` (no suite), and keys restricted to some of them, as whole projects or not:
-
-        - `aaaaaaaa`: `llvm` as a whole, and `llvm/nts` too (I5);
-        - `bbbbbbbb`: `swift` as a whole, alone;
-        - `cccccccc`: `libcxx/benchmarks`, alone.
-        """
-        upgrade_by_hand(engine, "0012")
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO project (name) VALUES ('llvm'), ('libcxx'), ('swift'); "
-                    "INSERT INTO schema "
-                    "(project_id, name, namespace, schema_json, migration_version) "
-                    "SELECT project.id, suite, suite, '{}', 0 FROM project JOIN (VALUES "
-                    "('llvm', 'nts'), ('llvm', 'zeta'), ('libcxx', 'benchmarks')) AS s(p, suite) "
-                    "ON s.p = project.name"
-                )
-            )
-        for prefix in ("aaaaaaaa", "bbbbbbbb", "cccccccc"):
-            insert_key_row(engine, prefix, "manage")
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    "UPDATE api_key SET restricted = true; "
-                    "INSERT INTO api_key_restriction (api_key_id, project_id, suite_id) "
-                    "SELECT api_key.id, project.id, NULL FROM api_key, project "
-                    "WHERE (prefix, project.name) IN "
-                    "(('aaaaaaaa', 'llvm'), ('bbbbbbbb', 'swift')); "
-                    "INSERT INTO api_key_restriction (api_key_id, project_id, suite_id) "
-                    "SELECT api_key.id, NULL, schema.id FROM api_key, schema "
-                    "WHERE (prefix, schema.name) IN "
-                    "(('aaaaaaaa', 'nts'), ('cccccccc', 'benchmarks'))"
-                )
-            )
-
-    def test_keeps_the_suites_keys_list(self, empty_engine: Engine) -> None:
-        upgrade_by_hand(empty_engine, "0010")
-        store_schema_json(empty_engine, {"nts": "{}"})
-        upgrade_by_hand(empty_engine, "0011")
-        insert_key_row(empty_engine, "aaaaaaaa", "submit")
-        with empty_engine.begin() as connection:
-            connection.execute(
-                text(
-                    "UPDATE api_key SET restricted = true; "
-                    "INSERT INTO api_key_restriction (api_key_id, suite_id) "
-                    "SELECT api_key.id, schema.id FROM api_key, schema"
-                )
-            )
-
-        upgrade_by_hand(empty_engine, "0012")
-
-        assert restrictions(empty_engine) == {"aaaaaaaa": ["nts"]}
-        with empty_engine.connect() as connection:
-            projects = connection.execute(
-                text("SELECT count(*) FROM api_key_restriction WHERE project_id IS NOT NULL")
-            ).scalar_one()
-        assert projects == 0
-
-    def test_downgrading_lists_the_suites_of_each_whole_project(self, empty_engine: Engine) -> None:
-        self.stage(empty_engine)
-
-        downgrade_by_hand(empty_engine, "0011")
-
-        # `llvm/nts` once, though listed both alone and through its project; `swift` held no suite,
-        # so its key is left restricted to nothing, which earlier builds store.
-        assert restrictions(empty_engine) == {
-            "aaaaaaaa": ["nts", "zeta"],
-            "bbbbbbbb": [],
-            "cccccccc": ["benchmarks"],
-        }
-        assert "project_id" not in column_names(empty_engine, "public", "api_key_restriction")
-        (suite_id,) = [
-            column
-            for column in inspect(empty_engine).get_columns("api_key_restriction")
-            if column["name"] == "suite_id"
-        ]
-        assert suite_id["nullable"] is False
-        checks = inspect(empty_engine).get_check_constraints("api_key_restriction")
-        assert checks == []
-
-    def test_downgrading_and_upgrading_again_matches_the_code(self, empty_engine: Engine) -> None:
-        self.stage(empty_engine)
-        downgrade_by_hand(empty_engine, "0011")
-
-        upgrade_by_hand(empty_engine, "0012")
-
-        assert_no_pending_revision(empty_engine)
 
 
 class TestSchemaNamespace:
@@ -1116,11 +871,17 @@ def restrictions(engine: Engine) -> dict[str, Any]:
     return {row.prefix: row.suites if row.restricted else None for row in rows}
 
 
-class TestApiKeyRestriction:
-    """0009 gives suites an identity, and links key restrictions to suites by it (D5, I5)."""
+def with_display_name(document: dict[str, Any]) -> dict[str, Any]:
+    """`document` as 0009 rewrites it: with the display name, unset, at the end."""
+    return {**document, "display_name": None}
+
+
+class TestProjects:
+    """0009 groups suites into projects (D7), gives them an identity, links key restrictions to
+    projects and suites by it (D5, I5), and gives stored schemas a display name (D4)."""
 
     @pytest.fixture
-    def keys_0008(self, empty_engine: Engine) -> Engine:
+    def at_0008(self, empty_engine: Engine) -> Engine:
         """A database at 0008 with two suites, and keys naming them and suites deleted since."""
         upgrade_by_hand(empty_engine, "0008")
         for name in ("libcxx", "nts"):
@@ -1132,52 +893,192 @@ class TestApiKeyRestriction:
         insert_key_row(empty_engine, "dddddddd", "submit", ["nts", "nts"])
         return empty_engine
 
-    def test_restricts_each_key_to_the_suites_it_names_that_still_exist(
-        self, keys_0008: Engine
-    ) -> None:
-        upgrade_by_hand(keys_0008, "0009")
+    @pytest.fixture
+    def at_head(self, empty_engine: Engine) -> Engine:
+        """At 0009: projects `llvm` (suites `nts`, `zeta`), `libcxx` (suite `benchmarks`) and
+        `swift` (no suite), each suite with a display name, and keys:
 
-        assert restrictions(keys_0008) == {
+        - `aaaaaaaa`: `llvm` as a whole, and `llvm/nts` too (I5);
+        - `bbbbbbbb`: `swift` as a whole, alone;
+        - `cccccccc`: `libcxx/benchmarks`, alone;
+        - `dddddddd`: unrestricted;
+        - `eeeeeeee`: restricted to nothing, what it listed having been deleted.
+        """
+        upgrade_by_hand(empty_engine, "0009")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO project (name) VALUES ('llvm'), ('libcxx'), ('swift'); "
+                    "INSERT INTO schema "
+                    "(project_id, name, namespace, schema_json, migration_version) "
+                    "SELECT project.id, suite, suite, "
+                    "json_build_object('name', suite, 'display_name', 'Shown')::text, 0 "
+                    "FROM project JOIN (VALUES "
+                    "('llvm', 'nts'), ('llvm', 'zeta'), ('libcxx', 'benchmarks')) AS s(p, suite) "
+                    "ON s.p = project.name"
+                )
+            )
+        for prefix in ("aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd", "eeeeeeee"):
+            insert_key_row(empty_engine, prefix, "manage")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE api_key SET restricted = true WHERE prefix <> 'dddddddd'; "
+                    "INSERT INTO api_key_restriction (api_key_id, project_id, suite_id) "
+                    "SELECT api_key.id, project.id, NULL FROM api_key, project "
+                    "WHERE (prefix, project.name) IN "
+                    "(('aaaaaaaa', 'llvm'), ('bbbbbbbb', 'swift')); "
+                    "INSERT INTO api_key_restriction (api_key_id, project_id, suite_id) "
+                    "SELECT api_key.id, NULL, schema.id FROM api_key, schema "
+                    "WHERE (prefix, schema.name) IN "
+                    "(('aaaaaaaa', 'nts'), ('cccccccc', 'benchmarks'))"
+                )
+            )
+        return empty_engine
+
+    def test_puts_each_suite_in_a_project_named_after_it(self, at_0008: Engine) -> None:
+        upgrade_by_hand(at_0008, "0009")
+
+        with at_0008.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT schema.name AS suite, project.name AS project, project.display_name "
+                    "FROM schema JOIN project ON project.id = schema.project_id ORDER BY suite"
+                )
+            ).all()
+        assert [tuple(row) for row in rows] == [("libcxx", "libcxx", None), ("nts", "nts", None)]
+        unique = {c["name"] for c in inspect(at_0008).get_unique_constraints("schema")}
+        assert unique == {"uq_schema_namespace", "uq_schema_project_id_name"}
+        # D2: creating the projects and rewriting the stored schemas bump the counter, once.
+        assert schema_version_of(at_0008) == 1
+
+    def test_changes_nothing_workers_cache_in_an_empty_instance(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0009")
+
+        assert schema_version_of(empty_engine) == 0
+
+    def test_restricts_each_key_to_the_suites_it_names_that_still_exist(
+        self, at_0008: Engine
+    ) -> None:
+        upgrade_by_hand(at_0008, "0009")
+
+        assert restrictions(at_0008) == {
             "aaaaaaaa": ["libcxx", "nts"],
-            # Restricted to nothing, rather than valid across the instance (D7).
+            # Restricted to nothing, rather than valid across the instance (I5).
             "bbbbbbbb": [],
             "cccccccc": None,
             "dddddddd": ["nts"],
         }
-        assert "suites" not in column_names(keys_0008, "public", "api_key")
+        assert "suites" not in column_names(at_0008, "public", "api_key")
 
     def test_gives_each_suite_an_identity_that_later_suites_do_not_reuse(
-        self, keys_0008: Engine
+        self, at_0008: Engine
     ) -> None:
-        upgrade_to_head(keys_0008)
-        store_suite(keys_0008, SuiteSchema.model_validate({"name": "new"}), migrations.head())
+        upgrade_to_head(at_0008)
+        store_suite(at_0008, SuiteSchema.model_validate({"name": "new"}), migrations.head())
 
-        with keys_0008.connect() as connection:
+        with at_0008.connect() as connection:
             ids = connection.execute(text("SELECT id FROM schema")).scalars().all()
         assert len(set(ids)) == 3
 
-    def test_downgrading_names_the_suites_again(self, keys_0008: Engine) -> None:
-        upgrade_by_hand(keys_0008, "0009")
-        with keys_0008.begin() as connection:
-            connection.execute(text("DELETE FROM schema WHERE name = 'libcxx'"))
+    def test_gives_stored_schemas_a_display_name_and_nothing_else(
+        self, empty_engine: Engine
+    ) -> None:
+        upgrade_by_hand(empty_engine, "0008")
+        already = compact({"name": "already", "display_name": "Already"})
+        # A global revision that raises stops the server from starting (D6), so what it cannot
+        # make sense of is left alone.
+        untouched = {"not_json": "{", "not_an_object": "[]"}
+        store_schema_json(
+            empty_engine,
+            {
+                "before": compact(_BEFORE_DISPLAY_NAME),
+                "already": already,
+                "nameless": '{"metrics": []}',
+                **untouched,
+            },
+        )
 
-        downgrade_by_hand(keys_0008, "0008")
+        upgrade_by_hand(empty_engine, "0009")
 
-        with keys_0008.connect() as connection:
+        stored = stored_schema_json(empty_engine)
+        assert stored == {
+            "before": compact(with_display_name(_BEFORE_DISPLAY_NAME)),
+            "already": already,
+            "nameless": compact({"metrics": [], "display_name": None}),
+            **untouched,
+        }
+        # What the server itself writes for that schema, if not in the same order (D5).
+        assert json.loads(stored["before"]) == json.loads(
+            normalized_json(SuiteSchema.model_validate_json(stored["before"]))
+        )
+
+    def test_downgrading_names_the_suites_again(self, at_head: Engine) -> None:
+        downgrade_by_hand(at_head, "0008")
+
+        with at_head.connect() as connection:
             rows = connection.execute(text("SELECT prefix, suites, is_active FROM api_key")).all()
         assert {row.prefix: (row.suites, row.is_active) for row in rows} == {
-            "aaaaaaaa": (["nts"], True),
+            # A whole project becomes the suites it holds, `nts` once though listed twice.
+            "aaaaaaaa": (["nts", "zeta"], True),
             # Earlier builds cannot store a key restricted to nothing, and would read it as valid
             # across the instance. It is revoked instead, so its token is refused even for reads.
             "bbbbbbbb": (None, False),
-            "cccccccc": (None, True),
-            "dddddddd": (["nts"], True),
+            "cccccccc": (["benchmarks"], True),
+            "dddddddd": (None, True),
+            "eeeeeeee": (None, False),
         }
-        assert "id" not in column_names(keys_0008, "public", "schema")
-        unique = inspect(keys_0008).get_unique_constraints("schema")
+
+    def test_downgrading_removes_the_display_names_whatever_they_hold(
+        self, at_head: Engine
+    ) -> None:
+        downgrade_by_hand(at_head, "0008")
+
+        assert stored_schema_json(at_head) == {
+            name: compact({"name": name}) for name in ("nts", "zeta", "benchmarks")
+        }
+        # D2: like any other change to a stored schema.
+        assert schema_version_of(at_head) == 1
+
+    def test_downgrading_undoes_the_structure(self, at_head: Engine) -> None:
+        downgrade_by_hand(at_head, "0008")
+
+        assert "id" not in column_names(at_head, "public", "schema")
+        assert "project_id" not in column_names(at_head, "public", "schema")
+        assert "restricted" not in column_names(at_head, "public", "api_key")
+        assert inspect(at_head).get_pk_constraint("schema")["constrained_columns"] == ["name"]
+        unique = inspect(at_head).get_unique_constraints("schema")
         assert [constraint["name"] for constraint in unique] == ["uq_schema_namespace"]
-        assert "api_key_restriction" not in inspect(keys_0008).get_table_names()
-        assert inspect(keys_0008).get_pk_constraint("schema")["constrained_columns"] == ["name"]
+        tables = inspect(at_head).get_table_names()
+        assert "project" not in tables
+        assert "api_key_restriction" not in tables
+
+    def test_downgrading_refuses_suites_that_share_a_name(self, empty_engine: Engine) -> None:
+        upgrade_by_hand(empty_engine, "0009")
+        with empty_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO project (name) VALUES ('llvm'), ('other'); "
+                    "INSERT INTO schema "
+                    "(project_id, name, namespace, schema_json, migration_version) "
+                    "SELECT id, 'nts', name, "
+                    "json_build_object('display_name', 'Shown')::text, 0 FROM project"
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="several projects have a suite named nts"):
+            downgrade_by_hand(empty_engine, "0008")
+
+        assert "project" in inspect(empty_engine).get_table_names()
+        # Refused before changing anything.
+        assert all("display_name" in stored for stored in stored_schema_json(empty_engine).values())
+
+    def test_downgrading_and_upgrading_again_matches_the_code(self, at_head: Engine) -> None:
+        downgrade_by_hand(at_head, "0008")
+
+        upgrade_by_hand(at_head, "0009")
+
+        assert_no_pending_revision(at_head)
 
 
 class TestConcurrentUpgrade:
