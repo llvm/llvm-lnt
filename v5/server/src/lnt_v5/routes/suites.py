@@ -1,4 +1,5 @@
-"""Test suite creation, inspection, evolution and deletion (E10), in a project (D7).
+"""Test suite creation, inspection, renaming and moving, evolution and deletion (E10), in a project
+(D7).
 
 A suite's schema is the whole document here: the body `POST /api/projects/{project}/suites`
 accepts, the body a `GET` returns, and what the `schema` table stores (D4). So one suite fetched
@@ -15,25 +16,31 @@ from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Query, Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from lnt_v5 import examples
-from lnt_v5.auth import Coverage, require_scope
+from lnt_v5.auth import BodyRule, Coverage, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
+from lnt_v5.patching import omit_defaults
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
+from lnt_v5.strings import Storable
 from lnt_v5.suites import evolve
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.registry import RegistryDep, Suite
-from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.schema import NAME_RULE, SuiteNameStr, SuiteSchema
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, ProjectName, SuiteName
 from lnt_v5.suites.store import (
     SCHEMA_NAME_CONSTRAINT,
     add_suite,
     bump,
     full_name,
+    locked_projects,
     locked_suite,
+    move_suite,
+    project_not_found,
     suite_write,
 )
 from lnt_v5.tables import schema as schema_table
@@ -94,6 +101,39 @@ _PATCH_EXAMPLES = {
         "value": {"repository": {"commit_url": examples.REPOSITORY["commit_url"], "label": None}},
     },
 }
+
+
+_RENAME_EXAMPLES = {
+    "rename": {
+        "summary": "Rename the suite within its project",
+        "value": {"name": "microbenchmarks"},
+    },
+    "move": {"summary": "Move the suite to another project", "value": {"project": "llvm"}},
+    "both": {
+        "summary": "Move the suite to another project, under another name",
+        "value": {"project": "llvm", "name": "libcxx-benchmarks"},
+    },
+}
+
+
+class SuiteUpdate(BaseModel):
+    """A test suite's new name and project. Only include what you want to change."""
+
+    # Read with `exclude_unset`, so the defaults are never read, and kept out of the document.
+    model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
+
+    name: SuiteNameStr = Field(
+        default="",
+        description=(
+            f"The suite's new name, unique within the project it ends up in. {NAME_RULE} Can't be "
+            "null."
+        ),
+    )
+    # Any string: one that is not a project's name names no project, which is a 404.
+    project: Annotated[str, Storable] = Field(
+        default="",
+        description="The name of the project to move the suite to. Can't be null.",
+    )
 
 
 def _confirmed(confirm: bool, what: str) -> None:
@@ -177,6 +217,58 @@ def get_suite(
     same suite in another project or on another instance."""
     with engine.connect() as connection:
         return registry.resolve(connection, project, name).schema
+
+
+@router.patch(
+    "/{suite}",
+    dependencies=[require_scope(Scope.MANAGE, body_rule=BodyRule.MOVE)],
+    summary="Rename or move a test suite",
+    responses={
+        404: {
+            "model": ErrorEnvelope,
+            "description": "The test suite, or the project to move it to, doesn't exist.",
+        },
+        409: {
+            "model": ErrorEnvelope,
+            "description": (
+                "`duplicate`: the project the suite ends up in already has a suite with its new "
+                "name. `retry`: the suite or a project was being changed, so the change couldn't "
+                "start. Nothing was saved: send the request again."
+            ),
+        },
+    },
+)
+def patch_suite(
+    project: ProjectName,
+    name: SuiteName,
+    body: Annotated[SuiteUpdate, Body(openapi_examples=_RENAME_EXAMPLES)],
+    engine: EngineDep,
+) -> SuiteSchema:
+    """Rename a test suite, move it to another project, or both. Returns its schema, under its new
+    name. A body that changes nothing, an empty one included, changes nothing.
+
+    Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
+    suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
+    move takes the suite away from the keys that list its old project as a whole, and gives it to
+    those that list the new one.
+    """
+    changes = body.model_dump(exclude_unset=True)
+    new_name = changes.get("name", name)
+    destination = changes.get("project", project)
+    taken = f"A test suite named '{full_name(destination, new_name)}' already exists"
+    with (
+        reporting_violation(SCHEMA_NAME_CONSTRAINT, ErrorCode.DUPLICATE, taken),
+        suite_write(engine, project, name) as connection,
+    ):
+        # Both projects at once, before the suite (see `locked_projects`). `locked_suite` locks the
+        # suite's project again, which it already holds, at the cost of a statement.
+        projects = locked_projects(connection, {project, destination})
+        stored = locked_suite(connection, project, name)
+        if destination not in projects:
+            raise project_not_found(destination)
+        if (destination, new_name) == (project, name):
+            return stored.schema
+        return move_suite(connection, stored, destination, projects[destination], new_name)
 
 
 @router.patch(

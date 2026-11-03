@@ -18,7 +18,7 @@ from sqlalchemy import Engine, insert, inspect, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from conftest import code_of, ensure_project, entry, ndjson_lines, run_payload
-from introspection import namespace_of, schema_version_of, suite_column_names
+from introspection import label_of, namespace_of, schema_version_of, suite_column_names
 from lnt_v5 import examples
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import SUITES_PATH, create_suite, delete_suite, patch_schema
@@ -297,13 +297,8 @@ class TestCreate:
         namespace = namespace_of(db_engine, "nts")
         assert namespace != "nts"
         assert "nts" not in inspect(db_engine).get_schema_names()
-        with db_engine.connect() as connection:
-            label = connection.execute(
-                text("SELECT obj_description(CAST(:namespace AS regnamespace), 'pg_namespace')"),
-                {"namespace": namespace},
-            ).scalar_one()
         # By its full name (D7).
-        assert label == "LNT test suite llvm/nts"
+        assert label_of(db_engine, namespace) == "LNT test suite llvm/nts"
 
     def test_chooses_a_namespace_no_namespace_has(
         self, db_engine: Engine, create: Callable[..., Any]

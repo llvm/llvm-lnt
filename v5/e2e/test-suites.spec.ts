@@ -12,6 +12,7 @@ import { suitePath } from '../client/src/paths.ts'
 import { EXPERIMENT, HARDENED, MACOS, TAG, TAGGED_INFO, UNTRACKED } from '../tools/synthetic.ts'
 import { expect, json, test } from './fixtures.ts'
 import { ownSuite, withOwnSuite } from './own-suite.ts'
+import { pickOption } from './select.ts'
 import { column, rows, settled, table } from './tables.ts'
 
 /** The accessible name of the Runs tab's search. */
@@ -498,6 +499,79 @@ test.describe('the Schema tab', () => {
         commit_url: 'https://git.example.com/commit/{commit}',
         range_url: null,
       })
+    })
+  })
+
+  test('renames a suite of its own, then moves it to another project', async ({
+    page,
+    request,
+    signIn,
+    tokenFor,
+  }, testInfo) => {
+    const token = await tokenFor('manage')
+    const headers = { Authorization: `Bearer ${token}` }
+    await withOwnSuite(request, token, testInfo, async (suite) => {
+      const created = await request.post(`/api/projects/${suite.project}/suites`, {
+        headers,
+        data: { name: suite.suite },
+      })
+      expect(created.status(), await created.text()).toBe(201)
+      const other = `${suite.project}-q`
+      const renamed = { project: suite.project, suite: 'renamed' }
+      const moved = { project: other, suite: 'renamed' }
+      expect((await request.post('/api/projects', { headers, data: { name: other } })).status()).toBe(
+        201,
+      )
+      try {
+        await signIn(page, 'manage')
+        // From another page, for Back to have an entry of the SPA to go back to.
+        await page.goto('/projects')
+        await page.goto(`${suitePath(suite)}?tab=schema`)
+        const move = page.getByRole('button', { name: 'Rename or move' })
+        const panel = page.getByRole('form', { name: 'Rename or move' })
+        const prompt = page.getByRole('form', { name: 'Confirmation' })
+
+        await move.click()
+        await panel.getByRole('textbox', { name: 'Name' }).fill('renamed')
+        await panel.getByRole('button', { name: 'Save' }).click()
+        await expect(prompt).toContainText(
+          `Rename the test suite ${suite.project}/${suite.suite} to ${suite.project}/renamed?`,
+        )
+        await expect(prompt).toContainText('API keys are unaffected.')
+        await prompt.getByRole('button', { name: 'OK' }).click()
+
+        // The page of the new names takes the place of the old one in the history (AR16).
+        await expect(page).toHaveURL(`${suitePath(renamed)}?tab=schema`)
+        await expect(move).toBeFocused()
+        await page.goBack()
+        await expect(page).toHaveURL('/projects')
+        await page.goto(`${suitePath(suite)}?tab=schema`)
+        await expect(page.getByRole('alert')).toHaveText(
+          `Test suite '${suite.project}/${suite.suite}' not found.`,
+        )
+
+        await page.goto(`${suitePath(renamed)}?tab=schema`)
+        await move.click()
+        await pickOption(panel, 'Project', other)
+        await panel.getByRole('button', { name: 'Save' }).click()
+        await expect(prompt).toContainText(
+          `API keys listing the project '${suite.project}' as a whole will no longer cover the ` +
+            `suite, those listing the project '${other}' as a whole will`,
+        )
+        await prompt.getByRole('button', { name: 'OK' }).click()
+
+        await expect(page).toHaveURL(`${suitePath(moved)}?tab=schema`)
+        await expect(move).toBeFocused()
+        const picker = page.getByRole('navigation', { name: 'Test suites' })
+        await expect(picker.getByRole('link', { name: 'renamed', exact: true })).toBeVisible()
+        expect((await request.get(`/api${suitePath(moved)}`)).status()).toBe(200)
+      } finally {
+        await request.delete(`/api${suitePath(moved)}?confirm=true`, { headers })
+        await request.delete(`/api${suitePath(renamed)}?confirm=true`, {
+          headers,
+        })
+        await request.delete(`/api/projects/${other}`, { headers })
+      }
     })
   })
 

@@ -98,7 +98,7 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     expect_status 404
 done
 
-echo "  changing a project's display name is visible on every worker, and renaming it is refused"
+echo "  changing a project's display name is visible on every worker"
 request -X PATCH -H "$AUTH" -H "$JSON" --data '{"display_name": "Projects CRUD"}' \
     "${PROJECTS}/crud"
 expect_status 200
@@ -107,10 +107,6 @@ for _ in $(seq 1 "$ATTEMPTS"); do
     expect_status 200
     expect_body '"display_name":"Projects CRUD"'
 done
-request -X PATCH -H "$AUTH" -H "$JSON" --data '{"name": "renamed"}' "${PROJECTS}/crud"
-expect_status 400
-expect_body '"code":"invalid_request"'
-
 echo "  evolving it is visible on every worker"
 request -X PATCH -H "$AUTH" -H "$JSON" --data '{
   "metrics": {"add": [{"name": "code_size", "type": "integer"}]},
@@ -200,6 +196,56 @@ expect_body '"code":"forbidden"'
 request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"crud-whole"}' "$PROJECTS"
 expect_status 403
 expect_body '"code":"forbidden"'
+
+echo "  moving and renaming a suite is visible on every worker, and its key follows it"
+request -X POST -H "$AUTH" -H "$JSON" --data '{"name":"moving","metrics":[]}' "$SUITES"
+expect_status 201
+mover="$(mint_key mover manage --suite crud/moving)"
+readonly MOVER="Authorization: Bearer ${mover}"
+create_project crud-moved "$AUTH"
+request -X PATCH -H "$AUTH" -H "$JSON" --data '{"project": "crud-moved", "name": "moved"}' \
+    "${SUITES}/moving"
+expect_status 200
+expect_body '"name":"moved"'
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${PROJECTS}/crud-moved/suites/moved"
+    expect_status 200
+    request "${SUITES}/moving"
+    expect_status 404
+done
+request -H "$MOVER" "${BASE_URL}/api/auth"
+expect_body '"restricted_to":\[\{"project":"crud-moved","suite":"moved"\}\]'
+request -X POST -H "$MOVER" -H "$JSON" --data '{"name":"m"}' \
+    "${PROJECTS}/crud-moved/suites/moved/machines"
+expect_status 201
+
+echo "  a key restricted to the old project no longer covers it, nor moves a suite out, nor renames"
+request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"m2"}' \
+    "${PROJECTS}/crud-moved/suites/moved/machines"
+expect_status 403
+request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"project": "crud-moved"}' "${SUITES}/suite-crud"
+expect_status 403
+expect_body 'covering that project in full'
+request -X PATCH -H "$WHOLE" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud"
+expect_status 403
+expect_body 'instance-wide'
+
+echo "  renaming a project is visible on every worker, and its suite's key follows it"
+request -X PATCH -H "$AUTH" -H "$JSON" --data '{"name": "crud-renamed"}' "${PROJECTS}/crud-moved"
+expect_status 200
+expect_body '"name":"crud-renamed"'
+for _ in $(seq 1 "$ATTEMPTS"); do
+    request "${PROJECTS}/crud-renamed/suites/moved"
+    expect_status 200
+    request "${PROJECTS}/crud-moved"
+    expect_status 404
+done
+request -H "$MOVER" "${BASE_URL}/api/auth"
+expect_body '"restricted_to":\[\{"project":"crud-renamed","suite":"moved"\}\]'
+request -X DELETE -H "$AUTH" "${PROJECTS}/crud-renamed/suites/moved?confirm=true"
+expect_status 204
+request -X DELETE -H "$AUTH" "${PROJECTS}/crud-renamed"
+expect_status 204
 
 echo "  a key restricted over the API lists a whole project as such, and not with its own suites"
 admin="$(mint_key crud-admin admin)"

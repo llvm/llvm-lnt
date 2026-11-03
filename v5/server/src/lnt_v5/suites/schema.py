@@ -75,6 +75,12 @@ Label = Annotated[str, StringConstraints(min_length=1), Storable]
 # D4: the suite's own display name, which is a `Label` of bounded length.
 SuiteLabel = Annotated[Label, StringConstraints(max_length=DISPLAY_NAME_MAX_LENGTH)]
 
+# D4's rule for a suite name, which a project name follows too (D7), as I8's document words it.
+NAME_RULE = (
+    "Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at "
+    f"most {SUITE_NAME_MAX_LENGTH} characters."
+)
+
 # Shared with the update model in `evolve.py`, which adds what null means there.
 SUITE_DISPLAY_NAME = (
     "How the web UI names the suite, instead of its `name`. At most "
@@ -433,12 +439,7 @@ class SuiteSchema(BaseModel):
         json_schema_extra={"examples": [examples.SUITE_SCHEMA]},
     )
 
-    name: SuiteNameStr = Field(
-        description=(
-            "The suite's name. Lowercase letters, digits, hyphens and underscores, starting with a "
-            f"letter or a digit, and at most {SUITE_NAME_MAX_LENGTH} characters."
-        )
-    )
+    name: SuiteNameStr = Field(description=f"The suite's name. {NAME_RULE}")
     # Right after the name, where global revision 0010 writes it into stored schemas too.
     display_name: SuiteLabel | None = Field(
         default=None, description=f"{SUITE_DISPLAY_NAME} Null if there is none."

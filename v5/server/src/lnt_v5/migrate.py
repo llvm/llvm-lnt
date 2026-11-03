@@ -200,27 +200,37 @@ def _upgrade_suite(connection: Connection, id_: int, head: int) -> bool:
     that a running server can't change or drop the suite while its tables are being migrated. It
     waits for the lock as long as necessary: unlike a request, nothing else is waiting for this
     connection. The steps use the row as read under the lock.
+
+    The row is locked on its own, and its project's name read next, in a statement of its own: a
+    suite can be moved or its project renamed while this waits for the lock, and a join locking the
+    suite's row alone would check the suite again once the wait is over, but not its project, and
+    find the suite gone, or name it after its old project. The project is not locked: taking it
+    after the suite, against the order writers take them in (see `store.locked_suite`), could
+    deadlock with the deletion of a project. Nothing can rename it meanwhile either way, since a
+    project rename locks the suites of the project without waiting, and gives up on this one.
     """
     with connection.begin():
         row = connection.execute(
             select(
-                project.c.name.label("project"),
+                schema.c.project_id,
                 schema.c.name,
                 schema.c.schema_json,
                 schema.c.namespace,
                 schema.c.migration_version,
             )
-            .select_from(schema.join(project))
             .where(schema.c.id == id_)
-            .with_for_update(of=schema)
+            .with_for_update()
         ).one_or_none()
         if row is None or row.migration_version >= head:
             # Only possible if a running server deleted the suite since the first pass.
             return False
+        project_name = connection.execute(
+            select(project.c.name).where(project.c.id == row.project_id)
+        ).scalar_one()
 
         suite = StoredSuite(
             id_,
-            row.project,
+            project_name,
             row.name,
             SuiteSchema.model_validate_json(row.schema_json),
             row.namespace,

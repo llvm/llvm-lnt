@@ -80,8 +80,10 @@ class TestOpenApiDocument:
         # Creating a project takes no lock to wait for, so it is never a `retry` (D2, E13).
         exactly = {("/api/projects", "post"): {"duplicate"}}
         beyond_retry = {
+            ("/api/projects/{project}", "patch"): {"duplicate"},
             ("/api/projects/{project}", "delete"): {"conflict"},
             ("/api/projects/{project}/suites", "post"): {"duplicate"},
+            ("/api/projects/{project}/suites/{suite}", "patch"): {"duplicate"},
             ("/api/projects/{project}/suites/{suite}/schema", "patch"): {"duplicate"},
             (MACHINES_PATH, "post"): {"duplicate"},
             (f"{MACHINES_PATH}/{{machine_name}}", "patch"): {"duplicate"},
@@ -151,7 +153,7 @@ class TestOpenApiDocument:
             for changes in patch.values()
         ]
 
-        assert len(bodies) == 9
+        assert len(bodies) == 10
         for name in bodies:
             for key, property in schemas[name]["properties"].items():
                 assert "default" not in property, f"{name}.{key} publishes a default"
@@ -337,6 +339,20 @@ class TestDocumentedAuthentication:
                 "post",
                 "requires an API key with the `manage` scope, unrestricted or covering this "
                 "project in full.",
+            ),
+            # A move, which also needs the destination covered in full.
+            (
+                f"{SUITES_PATH}/{{suite}}",
+                "patch",
+                "requires an API key with the `manage` scope, unrestricted or covering this test "
+                "suite. Moving it to another project also needs that project covered in full.",
+            ),
+            # A project rename, which needs an unrestricted key.
+            (
+                f"{PROJECTS_PATH}/{{project}}",
+                "patch",
+                "requires an API key with the `manage` scope, unrestricted or covering this "
+                "project in full. Renaming it needs an unrestricted key.",
             ),
             # One that addresses neither, which no restricted key may make.
             (PROJECTS_PATH, "post", "requires an unrestricted API key with the `manage` scope."),
@@ -1652,6 +1668,8 @@ EXAMPLE_SEQUENCE = [
     (PROJECTS_PATH, "post"),
     (f"{PROJECTS_PATH}/{{project}}", "patch"),
     (SUITES_PATH, "post"),
+    # Each example that renames or moves something is undone at once (see `test_are_accepted`).
+    (f"{SUITES_PATH}/{{suite}}", "patch"),
     (RUNS_PATH, "post"),
     (MACHINES_PATH, "post"),
     (f"{MACHINES_PATH}/{{machine_name}}", "patch"),
@@ -1720,6 +1738,9 @@ class TestRequestExamples:
             "value": examples.NEXT_COMMIT,
         }
 
+        # The project the suite is moved to by the examples that move it.
+        assert api_client.post(PROJECTS_PATH, json={"name": "llvm"}, headers=headers).is_success
+
         for path, method in EXAMPLE_SEQUENCE:
             content = document["paths"][path][method]["requestBody"]["content"]
             for name, example in content["application/json"]["examples"].items():
@@ -1737,6 +1758,18 @@ class TestRequestExamples:
                 )
                 if path == REGRESSIONS_PATH and "uuid" not in names:
                     names["uuid"] = response.json()["uuid"]
+                # Undo a rename or a move, so that the next examples find what they address.
+                if path == f"{PROJECTS_PATH}/{{project}}" and "name" in example["value"]:
+                    back = {"name": names["project"]}
+                    renamed = f"{PROJECTS_PATH}/{example['value']['name']}"
+                    assert api_client.patch(renamed, json=back, headers=headers).is_success
+                if path == f"{SUITES_PATH}/{{suite}}":
+                    moved = suite_path(
+                        example["value"].get("name", names["suite"]),
+                        example["value"].get("project", names["project"]),
+                    )
+                    back = {"project": names["project"], "name": names["suite"]}
+                    assert api_client.patch(moved, json=back, headers=headers).is_success
 
         # The examples that clear a value with an explicit null did clear it.
         suite = suite_path(names["suite"], names["project"])

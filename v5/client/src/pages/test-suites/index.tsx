@@ -1,14 +1,19 @@
-import { useEffect, useId, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { forgetUnobserved } from '../../api/keys'
 import {
   fullName,
   refOf,
   removeSuite,
+  renameSuite,
+  suiteOfFullName,
   suiteRef,
   useProjects,
   type Project,
   type Suite,
+  type SuiteRef,
+  type SuiteSchema,
 } from '../../api/suites'
 import { useAuth } from '../../auth/use-auth'
 import { Alert, ErrorMessage, Loading } from '../../components/feedback'
@@ -22,7 +27,14 @@ import { MachinesTab } from './machines-tab'
 import { RegressionsTab } from './regressions-tab'
 import { RunsTab } from './runs-tab'
 import { SchemaTab } from './schema-tab'
-import { PARAMS, TABS, resetSettings, unusedSettings, type TabId } from './settings'
+import {
+  PARAMS,
+  TABS,
+  resetSettings,
+  suiteTabPath,
+  unusedSettings,
+  type TabId,
+} from './settings'
 import styles from './test-suites.module.css'
 
 /** The Test Suites page (TS1): the suite picker, and the selected suite's tabs. */
@@ -142,14 +154,52 @@ function ProjectSuites({ project, selected }: { project: Project; selected?: str
   )
 }
 
+/** The history state of the page that a rename or a move leads to, in place of the old names'. */
+interface Moved {
+  /** The full name the suite had. */
+  movedFrom: string
+}
+
 function SuiteTabs({ schema }: { schema: Suite }) {
   const [settings, update] = useUrlState(PARAMS)
   const { tab, search } = settings
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const { recheck } = useAuth()
   // Whether the user is still on the suite's page, whichever its tab: these tabs are its page.
   const mounted = useMounted()
+
+  // Once the suite is renamed or moved from its Schema tab, the page leaves for the Schema tab of the
+  // new names, in place of itself in the history, unless the user has left it meanwhile (TS6,
+  // AR16). Before it does, the list of projects holds the suite under its new names, so that the
+  // old ones never show it as gone, and what was read under the old names is forgotten, the page's
+  // own once it has gone (see below). The token is checked again, so that what it covers is named
+  // as it now is (AR17).
+  const onMoved = async (moved: SuiteSchema, to: SuiteRef) => {
+    const leaving = mounted.current
+    const from = refOf(schema)
+    await renameSuite(queryClient, from, to, moved, { leaving })
+    recheck()
+    if (leaving) {
+      const state = { movedFrom: fullName(from) } satisfies Moved
+      navigate(suiteTabPath(to, 'schema'), { replace: true, state })
+    }
+  }
+  // Arriving from the old names: what the page read there, which it has stopped observing, is
+  // dropped rather than shown if the history leads back to them, and "Rename or move" takes the
+  // focus, as once its panel has closed. Only once: the state is taken out of the history entry,
+  // so that a reload or Back does not do it again.
+  const movedFrom = (location.state as Moved | null)?.movedFrom
+  const [focusMove, setFocusMove] = useState(movedFrom !== undefined)
+  useEffect(() => {
+    if (movedFrom === undefined) return
+    forgetUnobserved(queryClient, suiteOfFullName(movedFrom))
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [movedFrom, queryClient, navigate, location.pathname, location.search])
+  const onMoveFocused = useCallback(() => setFocusMove(false), [])
+  // Another tab, chosen before the token has been checked, keeps what it chose.
+  if (focusMove && tab !== 'schema') setFocusMove(false)
 
   // Once the suite is deleted from its Schema tab, the page leaves for the project's suites, in place
   // of itself in the history, unless the user has left it meanwhile (TS6, AR16). Read first, since the suite
@@ -188,7 +238,15 @@ function SuiteTabs({ schema }: { schema: Suite }) {
           onFilters={update}
         />
       )}
-      {tab === 'schema' && <SchemaTab schema={schema} onDeleted={onDeleted} />}
+      {tab === 'schema' && (
+        <SchemaTab
+          schema={schema}
+          onDeleted={onDeleted}
+          onMoved={onMoved}
+          focusMove={focusMove}
+          onMoveFocused={onMoveFocused}
+        />
+      )}
     </Tabs>
   )
 }

@@ -109,32 +109,66 @@ export function refetchProjects(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.projects, exact: true })
 }
 
+type ProjectItems = Schemas['ProjectList']['items']
+
+/**
+ * Change the cached list of projects with `edit`, after a write, once a list on its way, which may
+ * not hold the change, is cancelled. That list is asked for again, since it may have held more than
+ * the cache does, such as a suite created elsewhere, and so is a list that `edit` finds `outdated`,
+ * or that is not cached.
+ */
+async function editProjects(
+  queryClient: QueryClient,
+  edit: (items: ProjectItems) => { items: ProjectItems; outdated: boolean },
+): Promise<void> {
+  const fetching = queryClient.isFetching({ queryKey: queryKeys.projects, exact: true }) > 0
+  await queryClient.cancelQueries({ queryKey: queryKeys.projects, exact: true })
+  let outdated = true
+  queryClient.setQueryData<Schemas['ProjectList']>(queryKeys.projects, (list) => {
+    if (list === undefined) return list
+    const edited = edit(list.items)
+    outdated = edited.outdated
+    return { items: edited.items }
+  })
+  if (fetching || outdated) refetchProjects(queryClient)
+}
+
 /**
  * Put `schema`, as the API returned it after a write, in the list of projects, as a suite of the
- * project `project`: in place of the suite's schema, or as a new suite of the project. A list on
- * its way, which may not hold it yet, is cancelled, and asked for again, since it may have held
- * more than the cache does, such as a suite created elsewhere. So is a list that does not hold the
- * project, created elsewhere since it was fetched.
+ * project `project`: in place of the suite's schema, or as a new suite of the project, once the
+ * suite `from`, if given, is taken out of its project (see `editProjects`). A list that does not
+ * hold the project, created elsewhere since it was fetched, is asked for again.
  */
 async function putSuite(
   queryClient: QueryClient,
   project: string,
   schema: SuiteSchema,
+  from?: SuiteRef,
 ): Promise<void> {
-  const fetching = queryClient.isFetching({ queryKey: queryKeys.projects, exact: true }) > 0
-  await queryClient.cancelQueries({ queryKey: queryKeys.projects, exact: true })
-  let found = false
-  queryClient.setQueryData<Schemas['ProjectList']>(queryKeys.projects, (list) => {
-    if (list === undefined) return list
-    const items = list.items.map((entry) => {
-      if (entry.name !== project) return entry
-      found = true
-      const others = entry.suites.filter((suite) => suite.name !== schema.name)
-      return { ...entry, suites: [...others, schema] }
+  await editProjects(queryClient, (list) => {
+    let found = false
+    const items = list.map((entry) => {
+      let suites = entry.suites
+      if (entry.name === from?.project) {
+        suites = suites.filter((suite) => suite.name !== from.suite)
+      }
+      if (entry.name === project) {
+        found = true
+        suites = [...suites.filter((suite) => suite.name !== schema.name), schema]
+      }
+      return suites === entry.suites ? entry : { ...entry, suites }
     })
-    return { items }
+    return { items, outdated: !found }
   })
-  if (fetching || !found) refetchProjects(queryClient)
+}
+
+/**
+ * Forget the list of API keys, which names the projects and suites the keys list by their current
+ * names (E11), and no longer lists what was deleted (I5).
+ */
+function forgetApiKeys(queryClient: QueryClient): void {
+  queryClient.removeQueries({ queryKey: queryKeys.apiKeys, type: 'inactive' })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys })
 }
 
 /**
@@ -165,25 +199,45 @@ export async function updateSuite(
 }
 
 /**
- * Forget the deleted `suite`: cancel a list of projects on its way, which may still hold it, drop
- * it from the cached list, and drop everything read from inside it, so that a suite created later
- * under the same names starts afresh. The list of API keys goes too, since the suite is gone from
- * the keys restricted to it (I5), which would otherwise still show it.
+ * Put the suite `from`, renamed or moved to `to` (D7), in the list of projects, with the `schema` the
+ * API returned: out of its old project, and into its new one (see `putSuite`). Everything read from
+ * inside an earlier suite of the new names, deleted elsewhere, is dropped, so that the suite starts
+ * afresh there, and what was read under the old names is forgotten, so that it is never shown for
+ * whatever later takes them (AR16): see `forgetSuite`, and `forgetUnobserved` once the page has left
+ * them. The list of API keys goes too, since it names the suite and the projects by their names.
+ *
+ * Nothing it waits for, once the list is changed, is a request, so that the page can leave the old
+ * names before it shows them as gone.
+ */
+export async function renameSuite(
+  queryClient: QueryClient,
+  from: SuiteRef,
+  to: SuiteRef,
+  schema: SuiteSchema,
+  { leaving }: { leaving: boolean },
+): Promise<void> {
+  await putSuite(queryClient, to.project, schema, from)
+  queryClient.removeQueries({ queryKey: queryKeys.suite(to) })
+  void forgetSuite(queryClient, from, { leaving })
+  forgetApiKeys(queryClient)
+}
+
+/**
+ * Forget the deleted `suite`: drop it from the cached list of projects, once a list on its way,
+ * which may still hold it, is cancelled (see `editProjects`), and drop everything read from inside
+ * it, so that a suite created later under the same names starts afresh. The list of API keys goes
+ * too, since the suite is gone from the keys restricted to it (I5), which would otherwise still
+ * show it.
  */
 export async function removeSuite(queryClient: QueryClient, suite: SuiteRef): Promise<void> {
-  await queryClient.cancelQueries({ queryKey: queryKeys.projects })
-  queryClient.setQueryData<Schemas['ProjectList']>(
-    queryKeys.projects,
-    (list) =>
-      list && {
-        items: list.items.map((entry) =>
-          entry.name === suite.project
-            ? { ...entry, suites: entry.suites.filter((schema) => schema.name !== suite.suite) }
-            : entry,
-        ),
-      },
-  )
+  await editProjects(queryClient, (list) => ({
+    items: list.map((entry) =>
+      entry.name === suite.project
+        ? { ...entry, suites: entry.suites.filter((schema) => schema.name !== suite.suite) }
+        : entry,
+    ),
+    outdated: false,
+  }))
   queryClient.removeQueries({ queryKey: queryKeys.suite(suite) })
-  queryClient.removeQueries({ queryKey: queryKeys.apiKeys, type: 'inactive' })
-  void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys })
+  forgetApiKeys(queryClient)
 }

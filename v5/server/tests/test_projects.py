@@ -1,5 +1,6 @@
 """Projects (E13, D7, D2): listing them with their suites, creating them, changing their display
-names and deleting them, and how deleting one and creating a suite in it never both succeed."""
+names and deleting them, and how deleting one and creating a suite in it never both succeed.
+Renaming them is in `test_renames.py`."""
 
 from __future__ import annotations
 
@@ -182,24 +183,6 @@ class TestUpdate:
         assert response.json()["display_name"] == "LLVM"
         assert schema_version_of(db_engine) == before
 
-    @pytest.mark.parametrize("name", ["other", None, 1])
-    def test_does_not_rename_a_project(
-        self,
-        api_client: TestClient,
-        create: Callable[..., Any],
-        manage: dict[str, str],
-        name: Any,
-    ) -> None:
-        create()
-
-        response = api_client.patch(
-            f"{PROJECTS_PATH}/llvm", json={"name": name, "display_name": "LLVM"}, headers=manage
-        )
-
-        assert code_of(response) == "invalid_request"
-        assert "not supported yet" in response.json()["error"]["message"]
-        assert api_client.get(f"{PROJECTS_PATH}/llvm").json()["display_name"] is None
-
     def test_accepts_the_current_name(
         self,
         api_client: TestClient,
@@ -215,11 +198,6 @@ class TestUpdate:
         assert response.status_code == 200
         assert response.json()["name"] == "llvm"
         assert schema_version_of(db_engine) == before
-
-    def test_does_not_document_a_name(self, api_client: TestClient) -> None:
-        document = api_client.get("/api/openapi.json").json()
-        update = document["components"]["schemas"]["ProjectUpdate"]
-        assert "name" not in update["properties"]
 
     @pytest.mark.parametrize("display_name", ["", "x" * (DISPLAY_NAME_MAX_LENGTH + 1)])
     def test_refuses_a_bad_display_name(

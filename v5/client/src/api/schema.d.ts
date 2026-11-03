@@ -176,10 +176,14 @@ export interface paths {
         head?: never;
         /**
          * Change a project
-         * @description Change a project's display name, or remove it with null. A body that changes nothing, an
-         *     empty one included, changes nothing.
+         * @description Rename a project, or change its display name, or remove it with null. A body that changes
+         *     nothing, an empty one included, changes nothing.
          *
-         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full.
+         *     Renaming a project changes only names: its test suites keep all of their data, and API keys
+         *     keep covering what they covered. The old name isn't kept: every URL of the project and of its
+         *     test suites changes, and the old ones answer 404. Renaming needs an unrestricted API key.
+         *
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this project in full. Renaming it needs an unrestricted key.
          */
         patch: operations["patch_project"];
         trace?: never;
@@ -245,7 +249,19 @@ export interface paths {
         delete: operations["delete_suite"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename or move a test suite
+         * @description Rename a test suite, move it to another project, or both. Returns its schema, under its new
+         *     name. A body that changes nothing, an empty one included, changes nothing.
+         *
+         *     Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
+         *     suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
+         *     move takes the suite away from the keys that list its old project as a whole, and gives it to
+         *     those that list the new one.
+         *
+         *     **Authorization:** requires an API key with the `manage` scope, unrestricted or covering this test suite. Moving it to another project also needs that project covered in full.
+         */
+        patch: operations["patch_suite"];
         trace?: never;
     };
     "/api/projects/{project}/suites/{suite}/schema": {
@@ -2389,6 +2405,11 @@ export interface components {
          */
         ProjectUpdate: {
             /**
+             * Name
+             * @description The project's name. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters. Renames the project: every URL of its test suites changes, and the old ones answer 404. Can't be null.
+             */
+            name?: string;
+            /**
              * Display Name
              * @description How the web UI names the project, instead of its `name`. At most 256 characters. Only the name addresses the project in the API. Null removes it.
              */
@@ -3023,14 +3044,14 @@ export interface components {
          *     - `submit`: submit runs and create commits.
          *     - `triage`: create, update and delete regressions and their indicators.
          *     - `manage`: create, update and delete machines; update and delete commits; delete runs; create,
-         *       change and delete test suites and projects.
+         *       rename, move, change and delete test suites; create, rename, change and delete projects.
          *     - `admin`: list, create and revoke API keys.
          *
          *     A `submit`, `triage` or `manage` key can be restricted to some projects as a whole and some
          *     single test suites. It then has its scope only in the suites it covers, and only `read`
-         *     everywhere else. Creating a test suite in a project, or changing the project's display name,
-         *     needs a key covering that project as a whole. Creating and deleting a project always need an
-         *     unrestricted key.
+         *     everywhere else. Creating a test suite in a project, moving one into it, or changing the
+         *     project's display name, needs a key covering that project as a whole. Creating, renaming and
+         *     deleting a project always need an unrestricted key.
          * @enum {string}
          */
         Scope: "read" | "submit" | "triage" | "manage" | "admin";
@@ -3342,6 +3363,22 @@ export interface components {
              * @description The results.
              */
             items: components["schemas"]["SuiteSchema"][];
+        };
+        /**
+         * SuiteUpdate
+         * @description A test suite's new name and project. Only include what you want to change.
+         */
+        SuiteUpdate: {
+            /**
+             * Name
+             * @description The suite's new name, unique within the project it ends up in. Lowercase letters, digits, hyphens and underscores, starting with a letter or a digit, and at most 64 characters. Can't be null.
+             */
+            name?: string;
+            /**
+             * Project
+             * @description The name of the project to move the suite to. Can't be null.
+             */
+            project?: string;
         };
         /**
          * Test
@@ -3975,7 +4012,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description `retry`: the project was busy, for example because a test suite was being created in it, so the change couldn't start. Nothing was saved: send the request again. */
+            /** @description `duplicate`: another project has the new name. `retry`: the project was busy, for example because a test suite was being created in it, so the change couldn't start. Nothing was saved: send the request again. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4221,6 +4258,80 @@ export interface operations {
                 };
             };
             /** @description `retry`: the suite was busy, for example because another request was reading it, so the change couldn't start. Nothing was saved: send the request again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patch_suite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the project. */
+                project: string;
+                /** @description The name of the test suite. */
+                suite: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuiteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuiteSchema"];
+                };
+            };
+            /** @description The request is invalid. This includes query parameters the operation doesn't accept, and single-valued parameters given more than once. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description This operation needs an API key and none was sent, or the key is malformed, unknown or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key doesn't have the scope this operation requires, or has it only in other projects or test suites. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The test suite, or the project to move it to, doesn't exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description `duplicate`: the project the suite ends up in already has a suite with its new name. `retry`: the suite or a project was being changed, so the change couldn't start. Nothing was saved: send the request again. */
             409: {
                 headers: {
                     [name: string]: unknown;
