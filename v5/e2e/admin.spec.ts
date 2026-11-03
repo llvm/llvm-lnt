@@ -8,7 +8,6 @@
 
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../client/src/api/schema.d.ts'
-import { PERMISSION_DENIED } from '../client/src/api/permission-denied.ts'
 import { suitePath } from '../client/src/paths.ts'
 import { BENCHMARKS, expect, json, NTS, test } from './fixtures.ts'
 import { ownName, withOwnSuite } from './own-suite.ts'
@@ -32,15 +31,20 @@ async function revoke(page: Page, prefix: string) {
 }
 
 test.describe('the API Keys tab', () => {
-  test('says that permission is denied without a token', async ({ page }) => {
+  test('says that it needs an admin token without a token', async ({ page }) => {
     await page.goto('/admin')
-    await expect(page.getByRole('main').getByRole('alert')).toHaveText(PERMISSION_DENIED)
+    await expect(page.getByRole('main').getByRole('alert')).toHaveText(
+      "Permission denied. Needs an API token with the 'admin' scope. Set one in Settings.",
+    )
   })
 
-  test('says that permission is denied to a manage token', async ({ page, signIn }) => {
+  test('says that it needs an admin token to a manage token', async ({ page, signIn }) => {
     await signIn(page, 'manage')
     await page.goto('/admin')
-    await expect(page.getByRole('main').getByRole('alert')).toHaveText(PERMISSION_DENIED)
+    await expect(page.getByRole('main').getByRole('alert')).toHaveText(
+      "Permission denied. Needs an API token with the 'admin' scope. The token in Settings has " +
+        "the 'manage' scope.",
+    )
   })
 
   test('creates a key, shows its token once, and revokes it', async ({
@@ -112,12 +116,10 @@ test.describe('the API Keys tab', () => {
     await covers.click()
     // Every project, those without suites included, saying so (AD1).
     await expect(page.getByRole('option', { name: 'swift (no suites)', exact: true })).toBeVisible()
-    await page.getByRole('option', { name: 'libc++', exact: true }).click()
-    // The project then says what it covers, and its suites are listed as covered, without a
-    // checkbox, and cannot be focused or checked.
-    await expect(
-      page.getByRole('option', { name: 'libc++ (all suites, including those created later)' }),
-    ).toHaveAttribute('aria-selected', 'true')
+    const libcxx = page.getByRole('option', { name: 'libc++', exact: true })
+    await libcxx.click()
+    // Its suites are then listed as covered, without a checkbox, and cannot be focused or checked.
+    await expect(libcxx).toHaveAttribute('aria-selected', 'true')
     const benchmarks = page.getByRole('option', {
       name: 'libc++ › Microbenchmarks, covered by libc++',
     })
@@ -207,7 +209,10 @@ test.describe('the API Keys tab', () => {
 
     await revoke(page, token.slice(0, 8))
 
-    await expect(page.getByRole('main').getByRole('alert')).toHaveText(PERMISSION_DENIED)
+    await expect(page.getByRole('main').getByRole('alert')).toHaveText(
+      "Permission denied. Needs an API token with the 'admin' scope. The token in Settings is not " +
+        'valid.',
+    )
     await page.getByRole('navigation').getByRole('button', { name: 'Settings' }).click()
     await expect(page.getByRole('dialog', { name: 'Settings' }).getByRole('status')).toContainText(
       'This token is not valid',

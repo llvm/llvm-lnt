@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { VisuallyHidden } from 'react-aria-components'
 import { NAME_LENGTH, useApiKeys, type ApiKey, type ApiKeyList } from '../../api/api-keys'
-import { authedApi, PERMISSION_DENIED, unwrap, type Schemas } from '../../api/client'
+import { authedApi, unwrap, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import {
   refOf,
@@ -13,6 +13,7 @@ import {
 } from '../../api/suites'
 import {
   grants,
+  refusal,
   RESTRICTABLE_SCOPES,
   RESTRICTED_TO_NOTHING,
   scopeRank,
@@ -53,14 +54,17 @@ interface Sorting {
 }
 
 /**
- * The API Keys tab (AD1). Even listing keys needs `admin`, so without it the tab says only that
- * permission is denied, and asks the API nothing. While the token is being checked, the tab says
+ * The API Keys tab (AD1). Even listing keys needs `admin`, so without it the tab says only that it
+ * needs it, as a control gated on it would (AR17), and asks the API nothing. While the token is
+ * being checked, the tab says
  * so, unless it is already showing the keys, which it keeps until the check settles, so that what
  * it shows -- a token shown only once -- is not lost. Its actions are disabled meanwhile, as AR17
  * gates them, since until the check succeeds no token would be sent.
  */
 export function ApiKeysTab(sorting: Sorting) {
-  const key = acceptedKey(useAuth().status)
+  const { status } = useAuth()
+  const known = useKnownProjects()
+  const key = acceptedKey(status)
   // What the latest settled check said, while another is under way.
   const [settled, setSettled] = useState(key)
   if (key !== undefined && key !== settled) setSettled(key)
@@ -70,7 +74,7 @@ export function ApiKeysTab(sorting: Sorting) {
     return <ApiKeys accepted={isAdmin(key)} ownPrefix={settled?.prefix} {...sorting} />
   }
   if (key === undefined) return <Loading label="Checking the API token..." />
-  return <Alert>{PERMISSION_DENIED}</Alert>
+  return <Alert>Permission denied. {refusal('admin', null, status, known)}</Alert>
 }
 
 interface KeysProps extends Sorting {
@@ -227,9 +231,8 @@ function whyUnrestrictable(scope: Scope, projects: ReturnType<typeof useProjects
 /**
  * The tree of `projects` and their suites the key form checks what a key covers in (AD1): every
  * project, those without suites included, saying so, with its suites below it, each by its own
- * label, and by its full label to assistive technology. A project checked says that it covers its
- * suites, those created later included. Each option's value stands for an entry of the key, which
- * `entries` maps it to.
+ * label, and by its full label to assistive technology. Each option's value stands for an entry of
+ * the key, which `entries` maps it to.
  */
 function coversTree(projects: readonly Project[]) {
   const entries = new Map<string, EntryRef>()
@@ -241,10 +244,6 @@ function coversTree(projects: readonly Project[]) {
       label,
       summary: `${label} (all)`,
       note: project.suites.length === 0 ? '(no suites)' : undefined,
-      checkedNote:
-        project.suites.length === 0
-          ? '(no suites yet; covers those created later)'
-          : '(all suites, including those created later)',
       children: project.suites.map((suite) => {
         const value = fullName(refOf(suite))
         entries.set(value, { project: project.name, suite: suite.name })
@@ -358,6 +357,7 @@ function columns(known: Project[] | undefined): (Column<ApiKey> & { id: SortColu
     {
       id: 'scope',
       header: 'Scope',
+      looks: ['nowrap'],
       cell: (key) => key.scope,
       // By the hierarchy, from the lowest scope to the highest (AD1).
       sortKey: (key) => scopeRank(key.scope),

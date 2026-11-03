@@ -19,9 +19,8 @@ Switching tabs clears the setting of the tab left.
 ### AD1: API Keys tab detail
 
 This tab requires `admin` scope -- listing keys needs `admin` just as creating and
-revoking them do. Otherwise, a red banner saying
-`Permission denied. Set an API token with the required scope in Settings.` is shown in
-place of the tab's content.
+revoking them do. Otherwise, a red banner saying that permission is denied, and why, as the hover of
+a control that needs `admin` would (see AR17), is shown in place of the tab's content.
 
 While the token is being checked (see AR17), the tab says so, unless it is already showing its
 content. It then keeps it until the check settles, so that a check that accepts the token again
@@ -46,7 +45,7 @@ What the key covers is chosen with two radio buttons: "Everything (instance-wide
 can be used only while "Only these:" is selected. It opens a tree of checkboxes: every project,
 those without suites included, with its suites indented below it, labelled and ordered as AR22 says.
 Checking a project restricts the key to the whole project, including the suites it holds later (see
-I5), and the project then says so beside its label. Its suites are listed under it as covered:
+I5). Its suites are listed under it as covered:
 without a checkbox, they cannot be focused or checked, and any that were checked are unchecked.
 Unchecking the project lists them again, unchecked. Checking a suite of a project that is not
 checked restricts the key to that suite alone. The form does not offer a suite along with its whole

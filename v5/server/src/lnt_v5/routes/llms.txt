@@ -21,11 +21,10 @@
   project with its suites and their schemas.
 - **Test suite** -- a self-contained collection of machines, commits, runs and
   regressions, with a schema of its own. A suite's name is unique within its
-  project, so it is identified by both names together, written
-  `project/suite` outside the API. Nearly every endpoint lives under
-  `/api/projects/{project}/suites/{suite}/`, and nothing is shared between
-  suites: two suites may hold machines of the same name and they are different
-  machines.
+  project, so it is identified by both names together. Nearly every endpoint
+  lives under `/api/projects/{project}/suites/{suite}/`, and nothing is shared
+  between suites: two suites may hold machines of the same name and they are
+  different machines.
 - **Schema** -- a suite declares its `metrics`, `machine_fields` and
   `commit_fields` up front. Each entry has a `name` and a `type`: `real`,
   `integer`, `text` or `datetime`. Nothing undeclared can be stored: a metric or
