@@ -259,7 +259,7 @@ reworded at any time, so clients must branch on `code` only and never parse
 | `method_not_allowed` | 405 | The path is an API route, but not for this method. The `Allow` header lists the methods it accepts |
 | `duplicate` | 409 | The entity already exists: a run or regression UUID, a project name, a suite name within its project, a schema entry added to a list that already has one of that name |
 | `conflict` | 409 | The request contradicts the stored state in a way `duplicate` does not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), an ordinal already held by another commit (see O6), the deletion of a project that still has suites (see E13) |
-| `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a schema change, a rename or move of a suite, or a rename, display-name change or deletion of a project could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
+| `retry` | 409 | A concurrent change prevented the request from completing, and nothing was written: the suite's schema changed while the request ran, a write that E10 or E13 lists `retry` for could not take its locks in time, or the request and a schema change deadlocked (see D2); or the machine or commit a run submission resolved was deleted before its run was stored (see O8) |
 | `unsupported_encoding` | 415 | The request body has a content coding the server does not accept (see Compression below) |
 | `internal_error` | 500 | The server failed to process the request |
 
@@ -388,16 +388,7 @@ valid. The body is otherwise validated after authorization.
   `read`: it never becomes instance-wide.
 
 This relies on an invariant of every endpoint: a request writes only to what the
-table checks -- one that addresses a suite only to that suite, plus the
-destination project of a move, and one that creates a suite or changes a
-project's display name only to that project.
-
-Coverage is decided when the request is authorized, from the names its path
-holds at that moment. If a suite is renamed or moved, or a project renamed,
-while a request is being handled, and another suite or project takes the old
-name meanwhile, the request may act on it although it was authorized on the old
-one. Closing that window is not required: it takes two concurrent changes that
-both need `manage`, and lasts no longer than one request.
+table above checks for it.
 
 **Unauthenticated access.** Endpoints that require `read` can be used without a
 token. Endpoints that require a higher scope require a valid Bearer token.
@@ -452,7 +443,7 @@ the rule applies to every endpoint so that there is only one order to implement
 and reason about. It also means that a restricted key gets a 403 for a write to
 a suite it does not cover, whether that suite exists or not. A key that lists a
 project covers whatever the project holds, so a write to a suite missing from it
-is a 404, which tells the caller nothing it could not read anyway.
+is a 404.
 
 Some errors may also be returned before authentication: a 400 for a body that
 cannot be read at all (a content coding that does not decode, or JSON that does
@@ -537,8 +528,7 @@ database query, so a 200 means the process is up *and* can reach PostgreSQL.
 - Each operation states the scope it requires (I5), and an operation requiring
   `read` is marked as callable without credentials. An operation requiring
   `submit`, `triage` or `manage` also states what a restricted key needs to call
-  it (see I5): to cover the suite, to cover the project in full, to cover the
-  suite and the destination project in full (a move), or nothing it can have.
+  it (see I5).
 - `GET /api/docs` serves an interactive documentation viewer for that
   specification, as `text/html`.
 - How the viewer gets its scripts and stylesheets is up to the implementation.

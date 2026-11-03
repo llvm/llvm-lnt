@@ -377,10 +377,7 @@ which leave for the page of the new name. If the user has already left the page
 when the deletion or the rename completes, they stay where they are. Data
 fetched before a deletion is never used to show the deleted entity again: not on
 the page shown next while it loads, and not on the entity's own page if the user
-gets back to it through the browser history. Likewise, once the SPA has renamed
-or moved a suite or renamed a project, data fetched from the suite, or from the
-project's suites, under their old names is never shown for whatever later takes
-those names.
+gets back to it through the browser history.
 
 
 ## AR17: Authentication
@@ -402,10 +399,8 @@ set, unless a page specifies otherwise (see AD1).
 The token is shared by every tab of the SPA: a change made in one tab takes
 effect in the others, which check the new token. It is also checked again
 whenever a request sent with it gets a 401, as its key may have been revoked in
-the meantime, and once the SPA has renamed, moved or deleted a suite or
-renamed or deleted a project, so that the panel and the controls gated on the
-token use the current names, and an entry for what was deleted cannot enable a
-control on something that later takes its name.
+the meantime. The panel and the controls gated on the token follow the SPA's own
+renames, moves and deletions of projects and suites.
 
 Unless a page specifies otherwise, a control whose action needs a scope the
 token does not grant -- or any scope above `read`, when no valid token is set --
@@ -532,13 +527,11 @@ no longer exists, the card says so.
 
 ## AR22: Projects and Suites
 
-Every suite belongs to a project (see D7), and the UI takes the pair of their
-names as the suite's identity everywhere: a page passes both to another page,
-keeps both in its URL, compares suites by both (as when Compare checks whether
-the two sides have the same suite, or the Graph whether a baseline is in the
-suite plotted), and keeps what it fetched from a suite under both. A URL naming
-a suite without its project, or a project without a suite where a suite is
-expected, names no usable suite (see AR2 "State").
+Every suite belongs to a project (see D7), and the UI identifies a suite
+everywhere by the pair of its project's name and its own, as in URLs, between
+pages and when comparing suites. A URL naming a suite without its project, or a
+project without a suite where a suite is expected, names no usable suite (see
+AR2 "State").
 
 **Labels.** A project or a suite is labelled with its `display_name` when it
 has one (see D4 and D7), and with its `name` otherwise, including until its

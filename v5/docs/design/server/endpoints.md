@@ -871,9 +871,7 @@ key object, to restrict the key to them, or null). An omitted or null
   be restricted (see I5). These are checked on creation only: a move can later
   leave a key listing a suite along with its new project (see I5).
 - 404 if an entry names a project that does not exist, or a suite that its
-  project does not have. If a project or a suite that the new key lists is
-  deleted concurrently, either the creation gets 404, or the key is created and
-  the deletion removes the entry.
+  project does not have.
 
 **Revoke** (`DELETE /api/admin/api-keys/{prefix}`): sets `is_active` to false
 rather than deleting the row, so that the revocation stays visible and the
@@ -890,7 +888,6 @@ destructive suite operations, because revoking a key destroys no data.
 
 A key is otherwise immutable: there is no PATCH route, and changing a key's
 scope or restrictions means creating a replacement and revoking the original.
-Its entries change only when a project or a suite they list is deleted (see I5).
 Keys do not expire.
 
 Any `admin` key may revoke any key, including the one authenticating the
@@ -934,8 +931,7 @@ project's display name a key that covers the project in full (see I5).
 
 **Project object:** `name` and `display_name` (see D7), and `suites`: the
 project's suites, as E10's suite objects, ordered by name. List and detail
-responses return the same object. Whole schemas are returned, since suites are
-few and the client needs every suite's metrics and project up front.
+responses return the same object.
 
 ```json
 {"name": "libcxx", "display_name": "libc++", "suites": [{"name": "benchmarks", "display_name": null, "metrics": [...], ...}]}
@@ -972,5 +968,5 @@ suites, and removes it from the API keys that list it (see I5). Since it
 destroys no data, it does not require `?confirm=true`.
 
 - 204 on success.
-- 409 `conflict` if the project has suites (see D2).
+- 409 `conflict` if the project has suites.
 - 409 `retry` if the deletion could not take the locks it needs.

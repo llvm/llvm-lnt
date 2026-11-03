@@ -214,7 +214,7 @@ export async function updateSuite(
  * API returned: out of its old project, and into its new one (see `putSuite`). Everything read from
  * inside an earlier suite of the new names, deleted elsewhere, is dropped, so that the suite starts
  * afresh there, and what was read under the old names is forgotten, so that it is never shown for
- * whatever later takes them (AR16): see `forgetSuite`, and `forgetUnobserved` once the page has left
+ * whatever later takes them: see `forgetSuite`, and `forgetUnobserved` once the page has left
  * them. The list of API keys goes too, since it names the suite and the projects by their names.
  *
  * Nothing it waits for, once the list is changed, is a request, so that the page can leave the old
@@ -294,7 +294,7 @@ export async function updateProject(
 /**
  * Put the project `from`, renamed (D7), in the list of projects, as the API returned it, and drop
  * everything read from inside its suites under the old name, so that it is never shown for whatever
- * later takes that name (AR16), and from inside the suites of an earlier project of the new name,
+ * later takes that name, and from inside the suites of an earlier project of the new name,
  * deleted elsewhere. Dropping them outright is safe: every page of a suite reads the suite from the
  * list of projects, so once the list holds the new name, a page still under the old one says that
  * the suite was not found, and stops reading from it. The list of API keys goes too, since it names

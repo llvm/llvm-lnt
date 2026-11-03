@@ -91,7 +91,7 @@ SCHEMA_VERSION_ID = 1
 project = Table(
     "project",
     metadata,
-    # The project's identity, which no response shows (D5).
+    # The project's identity, which no response shows (I1).
     Column("id", Integer, Identity(), primary_key=True),
     Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False, unique=True),
     Column("display_name", String(DISPLAY_NAME_MAX_LENGTH), nullable=True),
@@ -102,11 +102,11 @@ project = Table(
 schema = Table(
     "schema",
     metadata,
-    # The suite's identity, which no response shows (D5): what an API key's restriction refers to,
+    # The suite's identity, which no response shows (I1): what an API key's restriction refers to,
     # so that it follows the suite rather than its name.
     Column("id", Integer, Identity(), primary_key=True),
     # No cascade: a project that still has suites cannot be deleted (D7), which is what makes its
-    # deletion and the creation of a suite in it never both succeed (D2).
+    # deletion and the creation of a suite in it never both succeed.
     Column("project_id", Integer, ForeignKey(project.c.id), nullable=False),
     Column("name", String(SUITE_NAME_MAX_LENGTH), nullable=False),
     # Chosen by the server when the suite is created, and never changed afterwards (D5). Unique

@@ -258,27 +258,18 @@ confirming stays where they are.
 "Rename or move" shows an inline panel below the buttons, with a Project dropdown listing every
 project (see AR22), which starts on the suite's own, a Name input, which starts on the suite's
 name, and Save and Cancel buttons. The Name input takes the focus when the panel opens, and the
-focus returns to "Rename or move" when it closes. Enter saves and Escape cancels, unless the
-Project dropdown uses the key itself (see AR12): while its list is open, Escape closes the list
-alone. As the user types, the name is checked as the schema editor checks a suite's name (see
-TS7), against the other suites of the project picked. Saving the same project and name closes the
-panel without sending anything. Otherwise, Save first asks for a
-plain confirmation (see AR16), which names the suite's old and new full names (see D7) and
-warns that every URL, bookmark and bot that uses the old name gets a 404 until it is updated.
-For a move, it also says that API keys listing the old project no longer cover the suite, that
-those listing the new project do, and that those listing the suite itself still do (see I5); for
-a rename within the project, it says that API keys are unaffected. Once confirmed, the change is
-sent (`PATCH /api/projects/{project}/suites/{suite}`, see E10). On success, the page goes to the
-suite's Schema tab under its new names, in place of itself in the history (see AR16), unless the
-user has left the suite's page meanwhile. There, once the token has been checked again (see AR17),
-"Rename or move" takes the focus, as when the panel closes, unless the user has put the focus
-elsewhere meanwhile; if the check leaves the button disabled, the row of buttons takes the focus
-instead. If the change fails, the panel stays open with its contents and says why.
+focus returns to "Rename or move" when it closes. Enter saves and Escape cancels, as in AR12. As
+the user types, the name is checked as the schema editor checks a suite's name (see TS7), against
+the other suites of the project picked. Saving the same project and name closes the panel without
+sending anything. Otherwise, Save first asks for a plain confirmation (see AR16), which names the
+suite's old and new full names (see D7), warns that every URL, bookmark and bot that uses the old
+name gets a 404 until it is updated, and says how the change affects API keys (see I5). Once
+confirmed, the change is sent (`PATCH /api/projects/{project}/suites/{suite}`, see E10). On
+success, the page goes to the suite's Schema tab under its new names (see AR16). If the change
+fails, the panel stays open with its contents and says why.
 
 Anyone can view and export a schema. Editing it, or renaming, moving or deleting the suite, requires
-`manage` on the suite, which a key covering it grants (see I5). Moving it to another project also
-requires the project to be covered in full, so the panel's Project dropdown disables the other
-projects the token does not cover in full (see AR17).
+`manage` on the suite, and for a move the destination project in full (see I5).
 
 
 ## TS7: Schema editor

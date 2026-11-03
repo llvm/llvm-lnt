@@ -264,7 +264,7 @@ def _checked_entries(
 
     What the key lists is locked against deletion until the caller's transaction ends, so that a
     project or a suite deleted concurrently is either gone already, and refused here, or deleted
-    once the key is stored, which removes it from the key (E11). Without the lock, a deletion
+    once the key is stored, which removes it from the key (I5). Without the lock, a deletion
     committed between this read and the insert of the key's rows would fail that insert on its
     foreign key instead. The projects are locked before the suites, the order writers that lock
     both take, so that none can deadlock with it.

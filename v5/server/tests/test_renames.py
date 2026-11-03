@@ -1,9 +1,8 @@
 """Renaming a suite, moving it to another project, and renaming a project (D7, E10, E13).
 
 Only names change: the suite keeps its namespace and its data, the namespace is relabelled with the
-suite's new full name, and API keys follow what they list (I5). The races are D2's: every lock is
-taken projects first, and a write through a name that a concurrent rename has just retired finds
-nothing.
+suite's new full name, and API keys follow what they list (I5). In the races, every lock is taken
+projects first, and a write through a name that a concurrent rename has just retired finds nothing.
 """
 
 from __future__ import annotations
@@ -425,8 +424,8 @@ def lock_project(connection: Connection, name: str, *, for_update: bool = False)
 
 
 class TestRaces:
-    """D2: whichever of two concurrent writes gets the rows first, the other waits for it, and then
-    sees what it did."""
+    """Whichever of two concurrent writes gets the rows first, the other waits for it, and then sees
+    what it did."""
 
     def test_a_move_into_a_project_being_deleted_is_a_404(
         self, db_engine: Engine, background: Callable[..., Future[Any]]

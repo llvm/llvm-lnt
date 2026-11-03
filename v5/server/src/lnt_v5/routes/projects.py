@@ -252,7 +252,7 @@ def delete_project(project: ProjectName, engine: EngineDep) -> None:
         "project, first."
     )
     # A suite that the project still has refuses the deletion through its foreign key, even one
-    # whose creation commits while the deletion waits for the project's row (D2).
+    # whose creation commits while the deletion waits for the project's row (E13).
     with (
         reporting_violation(SCHEMA_PROJECT_CONSTRAINT, ErrorCode.CONFLICT, has_suites),
         project_write(engine, project) as connection,
