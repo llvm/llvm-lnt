@@ -179,9 +179,9 @@ describe('the tab', () => {
 
     expect(headersOf(list)).toEqual(['Name', 'Display name', 'Suites', 'Actions'])
     expect(rowsOf(list)).toEqual([
-      'llvmEdit | --Edit | 2 | Delete',
-      'swiftEdit | SwiftEdit | 0 | Delete',
-      'aaaEdit | ZedEdit | 0 | Delete',
+      'llvmEdit | --Edit | 2+ | Delete',
+      'swiftEdit | SwiftEdit | 0+ | Delete',
+      'aaaEdit | ZedEdit | 0+ | Delete',
     ])
     const suites = within(list).getByRole('link', { name: '2 suites of llvm' })
     expect(suites).toHaveAttribute('href', '/projects/llvm')
@@ -209,7 +209,7 @@ describe('the tab', () => {
     )
     fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(rowsOf(await projectsTable())).toEqual(['swiftEdit | SwiftEdit | 0 | Delete'])
+    expect(rowsOf(await projectsTable())).toEqual(['swiftEdit | SwiftEdit | 0+ | Delete'])
   })
 })
 
@@ -299,7 +299,7 @@ describe('creating a project', () => {
     fireEvent.click(createButton())
 
     await waitFor(() => expect(rowsOf(list)).toHaveLength(4))
-    expect(rowsOf(list)[0]).toBe('lldbEdit | LLDBEdit | 0 | Delete')
+    expect(rowsOf(list)[0]).toBe('lldbEdit | LLDBEdit | 0+ | Delete')
     expect(sent).toEqual([
       { method: 'POST', body: { name: 'lldb', display_name: 'LLDB' }, auth: `Bearer ${TOKEN}` },
     ])
@@ -418,13 +418,13 @@ describe('renaming a project', () => {
 
     save('Name of swift', ' apple ')
     expect(prompt()).toHaveTextContent(
-      "Rename the project Swift (swift) to apple? Every URL, bookmark and bot that uses the name " +
-        "swift for any of the project's suites will get a 404 until it is updated.",
+      "Rename the project swift to apple? Every URL, bookmark and bot that uses the name swift " +
+        "for any of the project's suites will get a 404 until it is updated.",
     )
     expect(prompt()).toHaveTextContent('API keys are unaffected.')
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
 
-    await waitFor(() => expect(rowsOf(list)[1]).toBe('appleEdit | SwiftEdit | 0 | Delete'))
+    await waitFor(() => expect(rowsOf(list)[1]).toBe('appleEdit | SwiftEdit | 0+ | Delete'))
     expect(sent).toEqual([
       { method: 'PATCH', project: 'swift', body: { name: 'apple' }, auth: `Bearer ${TOKEN}` },
     ])
@@ -627,7 +627,7 @@ describe('changing a display name', () => {
     save('Display name of aaa', ' Alpha ')
 
     expect(prompt()).not.toBeInTheDocument()
-    await waitFor(() => expect(rowsOf(list)[0]).toBe('aaaEdit | AlphaEdit | 0 | Delete'))
+    await waitFor(() => expect(rowsOf(list)[0]).toBe('aaaEdit | AlphaEdit | 0+ | Delete'))
     expect(sent).toEqual([
       { method: 'PATCH', project: 'aaa', body: { display_name: 'Alpha' }, auth: `Bearer ${TOKEN}` },
     ])
@@ -640,7 +640,7 @@ describe('changing a display name', () => {
 
     save('Display name of swift', '  ')
 
-    await waitFor(() => expect(rowsOf(list)[1]).toBe('swiftEdit | --Edit | 0 | Delete'))
+    await waitFor(() => expect(rowsOf(list)[1]).toBe('swiftEdit | --Edit | 0+ | Delete'))
     expect(sent[0].body).toEqual({ display_name: null })
   })
 

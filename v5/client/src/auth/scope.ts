@@ -1,5 +1,5 @@
 import type { Schemas } from '../api/client'
-import { useKnownProjects, type Project, type ProjectName } from '../api/suites'
+import { useKnownProjects, type Project } from '../api/suites'
 import {
   entriesNamed,
   fullLabel,
@@ -92,17 +92,9 @@ function restrictionText(entries: readonly Entry[], known: readonly Project[] | 
   return `covering only ${entriesNamed(known, entries).map(quoted).join(', ')}`
 }
 
-/** What a reason can be about: a target, or any one project in full, picked among several. */
-type Wanted = Target | typeof SOME_PROJECT
-
-const SOME_PROJECT = 'some project'
-
 /** What the target needs to be covered, as a sentence says it, naming it as AR22 says. */
-function needed(required: Scope, target: Wanted, known: readonly Project[] | undefined): string {
+function needed(required: Scope, target: Target, known: readonly Project[] | undefined): string {
   if (target === null) return `Needs an instance-wide API token with the '${required}' scope.`
-  if (target === SOME_PROJECT) {
-    return `Needs an API token with the '${required}' scope covering a project in full.`
-  }
   if (target.suite === undefined) {
     const project = projectLabel(projectNamed(known, target.project))
     return `Needs an API token with the '${required}' scope covering project '${project}' in full.`
@@ -118,7 +110,7 @@ function needed(required: Scope, target: Wanted, known: readonly Project[] | und
  */
 function reason(
   required: Scope,
-  target: Wanted,
+  target: Target,
   status: TokenStatus,
   known: readonly Project[] | undefined,
 ): string {
@@ -170,9 +162,9 @@ export function useScopeGate(required: Scope, target: Target): ScopeGate {
 }
 
 /**
- * Why the token, as `status` has it, does not grant `required` on `target`, or undefined if it does:
- * for the options of a control that picks what an action writes to, which the token does not allow
- * (AR17), as `useScopeGate` would say it.
+ * Why the token, as `status` has it, does not grant `required` on `target`, or undefined if it does,
+ * as `useScopeGate` would say it: for a control, or an option, that combines this with reasons of
+ * its own (AR17).
  */
 export function refusal(
   required: Scope,
@@ -181,31 +173,5 @@ export function refusal(
   known: readonly Project[] | undefined,
 ): string | undefined {
   if (grants(acceptedKey(status) ?? null, required, target)) return undefined
-  return reason(required, target, status, known)
-}
-
-/**
- * Why the token, as `status` has it, grants `required` on none of `projects` in full, or undefined
- * if it grants it on one of them: for a control starting an action on a project picked among them,
- * such as "New suite", which is enabled as long as one of them is allowed (AR17). Until the
- * projects are listed (undefined), a token is refused if it lacks the scope, or is restricted and
- * lists no project as a whole, which it would need to cover one in full.
- */
-export function refusalInEvery(
-  required: Scope,
-  projects: readonly ProjectName[] | undefined,
-  status: TokenStatus,
-  known: readonly Project[] | undefined,
-): string | undefined {
-  const key = acceptedKey(status) ?? null
-  const allowed =
-    projects === undefined
-      ? key !== null &&
-        scopeRank(key.scope) >= scopeRank(required) &&
-        (key.restricted_to === null || key.restricted_to.some((e) => e.suite === null))
-      : projects.some((project) => grants(key, required, { project: project.name }))
-  if (allowed) return undefined
-  if (projects === undefined) return reason(required, SOME_PROJECT, status, known)
-  const target = projects.length === 1 ? { project: projects[0].name } : SOME_PROJECT
   return reason(required, target, status, known)
 }

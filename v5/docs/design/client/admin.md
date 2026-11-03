@@ -10,11 +10,10 @@ This page provides various tabs with different tools.
 | Tab | Shows | API Calls |
 |-----|-------|-----------|
 | API Keys | List, create, revoke API keys (global to instance) | `GET/POST/DELETE admin/api-keys`, `GET projects` |
-| Projects | List, create, rename and delete projects, change their display names | `GET/POST projects`, `PATCH/DELETE projects/{project}` |
-| Test Suites | Create suites | `GET projects`, `POST projects/{project}/suites` |
+| Projects | List, create, rename and delete projects, change their display names, create suites | `GET/POST projects`, `PATCH/DELETE projects/{project}`, `POST projects/{project}/suites` |
 
-The URL keeps the selected tab as `tab` (`projects` for Projects, `suites` for Test Suites, and
-nothing for API Keys, the default), and the sort of the API Keys tab's table as `sort` (see AD1).
+The URL keeps the selected tab as `tab` (`projects` for Projects, and nothing for API Keys, the
+default), and the sort of the API Keys tab's table as `sort` (see AD1).
 Switching tabs clears the setting of the tab left.
 
 ### AD1: API Keys tab detail
@@ -106,14 +105,6 @@ once, so that the Settings panel, this tab and every control gated on the token 
 away that it is no longer valid. The confirmation of that revocation warns that the tab will no
 longer be available, and that a token shown and not copied yet will be lost.
 
-### AD2: Test Suites tab detail
-
-The tab holds a "New suite" button, which opens the schema editor (see TS7) to create a suite.
-An existing suite's schema is viewed, exported and edited, and the suite renamed, moved and
-deleted, on its Schema tab (see TS6). Creating a suite requires `manage` covering its project in
-full (see I5), so "New suite" needs an instance-wide `manage` token, or one restricted to at least
-one whole project.
-
 ### AD3: Projects tab detail
 
 The tab lists the projects of the instance (see D7) and manages them:
@@ -123,16 +114,16 @@ New project    Name [________]    Display name [________]    [Create project]
 
 Name              Display name         Suites
 ----------------------------------------------------------------------
-libcxx  [Edit]    libc++  [Edit]       2         [red Delete button, disabled]
-swift   [Edit]    --      [Edit]       0         [red Delete button]
+libcxx  [Edit]    libc++  [Edit]       2  [+]    [red Delete button, disabled]
+swift   [Edit]    --      [Edit]       0  [+]    [red Delete button]
 ```
 
 The "New project" form has an input for the project's name and one for its display name, and a
 "Create project" button, which requires an instance-wide `manage` key (see I5). As the user types a
 name, it is checked against D7's rules and the names of the existing projects, as the schema editor
 checks a suite's name (see TS7). The display name is sent as the schema editor sends one (see TS7).
-"Create project" is disabled, saying why on hover, until the list of projects has loaded, as in
-TS7, and while the name is empty or fails its check. On success, the project appears in the table
+"Create project" is disabled, saying why on hover, until the list of projects has loaded, and
+while the name is empty or fails its check. On success, the project appears in the table
 and the form is emptied. On failure, the form keeps its contents and shows the API's error message.
 
 The table has a row for each project, those without suites included, in AR22's order:
@@ -146,7 +137,11 @@ The table has a row for each project, those without suites included, in AR22's o
   Emptying it clears the display name. Saving is not confirmed. It requires `manage` covering the
   project in full (see I5).
 - `Suites` is the number of the project's suites, linking to them on the Projects page
-  (`/projects/{p}`, see TS1).
+  (`/projects/{p}`, see TS1), followed by a "+" button, "New suite in" followed by the project's
+  label for assistive technology, which opens the schema editor (see TS7) to create a suite in the
+  project. It requires `manage` covering the project in full (see I5). The editor takes the place
+  of the tab's whole content. Once it closes, the focus returns to the project's "+", or to the
+  table when the "+" cannot take it.
 - A red Delete button, which requires `manage` covering the project in full, is disabled while
   the project has suites, saying why on hover. Clicking it asks for a plain confirmation (see AR16),
   which says that API keys listing the project lose it, and that a key left with nothing grants

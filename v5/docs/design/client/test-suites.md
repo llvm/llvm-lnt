@@ -279,16 +279,16 @@ Anyone can view and export a schema. Editing it, or renaming, moving or deleting
 
 ## TS7: Schema editor
 
-The schema editor creates a suite, from the Admin page's Test Suites tab (see AD2), or edits a
-suite's schema, from its Schema tab (see TS6). It takes the place of what the tab shows: its
-whole content in the Admin page, and the schema viewer, buttons included, in the Schema tab.
-"Cancel" closes it and discards its changes, without asking, and the tab shows what it showed
-before again. Leaving the tab with unsaved changes asks first (see AR19): when editing a schema,
-the changes "Save" would send; when creating a suite, a project picked, a suite name or display
-name, any entry, a repository value, or a document to import that is not blank.
+The schema editor creates a suite in a project, from the project's row in the Admin page's
+Projects tab (see AD3), or edits a suite's schema, from its Schema tab (see TS6). It takes the
+place of what the tab shows: its whole content in the Admin page, and the schema viewer, buttons
+included, in the Schema tab. "Cancel" closes it and discards its changes, without asking, and the
+tab shows what it showed before again. Leaving the tab with unsaved changes asks first (see
+AR19): when editing a schema, the changes "Save" would send; when creating a suite, a suite name or
+display name, any entry, a repository value, or a document to import that is not blank.
 
 ```
-New suite    Project [libc++ v]    Suite name [________]    Display name [________]    Start from [suite v]    [Import JSON]
+New suite in libc++    Suite name [________]    Display name [________]    Start from [suite v]    [Import JSON]
 
 Metrics
 Name              Type        Display Name        Unit          Abbrev    Bigger is Better    Dashboard
@@ -321,12 +321,12 @@ Display name [LLVM test-suite]                       (the header, when editing a
 Editing LLVM/LLVM test-suite                                                 [Cancel] [Save]
 ```
 
-When creating a suite, the header above the tables holds its project, its name, its display name,
-"Start from" and "Import JSON". When editing one, it holds the suite's display name alone. The
-editor's buttons are below the tables: "Cancel" and "Create" when creating a suite, and its
-heading, "Editing" followed by the suite's full label (see AR22), "Cancel" and "Save" when
-editing one, where the viewer has its own buttons. The tables
-are the same in both modes.
+When creating a suite, the header above the tables names its project, by its label (see AR22),
+and holds its name, its display name, "Start from" and "Import JSON". When editing one, it holds
+the suite's display name alone. The editor's buttons are below the tables: "Cancel" and "Create"
+when creating a suite, and its heading, "Editing" followed by the suite's full label (see AR22),
+"Cancel" and "Save" when editing one, where the viewer has its own buttons. The tables are the
+same in both modes.
 
 The editor shows the same entries and keys as the viewer, with an input for each value, and the
 same repository keys, with an input for each. Each URL's input says which placeholders it
@@ -350,24 +350,23 @@ hover. When editing a schema, a URL the user has not changed is not checked, so 
 stored with one the editor would refuse can still be saved. The server validates everything else
 when the schema is submitted.
 
-**Creating a suite**: The editor starts empty, with a Project dropdown and an extra input for the
-suite's name. The Project dropdown lists every project (see AR22), those the token does not cover in
-full disabled (see AR17), and starts with none picked. The name is also checked against the names of
-the suites of the project picked. A "Start from" dropdown, over every suite (see AR22), replaces the
-editor's entries and repository with a copy of an existing suite's. It copies neither the suite's
-name nor its display name. Until the projects and their suites have loaded, the Project dropdown and
-"Start from" are disabled, and so is "Create", saying why. If they cannot be loaded, the editor says
-so and offers to try again (see AR7). "Create" is also disabled, saying why, while no project is
-picked.
+**Creating a suite**: The editor starts empty, with an extra input for the suite's name, which is
+also checked against the names of the project's suites. A "Start from" dropdown, over every suite
+(see AR22), replaces the editor's entries and repository with a copy of an existing suite's. It
+copies neither the suite's name nor its display name. Creating the suite, with "Create" or with the
+button sending a document to import, requires `manage` covering the project in full (see I5 and
+AR17). Both buttons are disabled, saying why on hover, while the project is no longer listed, as
+when it has been deleted or renamed elsewhere. The editor keeps its contents meanwhile, and names
+the project by its name.
 
-"Create" creates the suite in the project picked. On success, the page goes to the new suite's
+"Create" creates the suite in the project. On success, the page goes to the new suite's
 Schema tab (`/projects/{p}/suites/{name}?tab=schema`), unless the user has left the tab
 meanwhile. If the name was taken meanwhile, the name check says so once "Create" fails.
 
 "Import JSON" creates a suite from a schema document instead, without going through the editor. It
 opens a text area, where the user pastes the document or loads it from a file, and a button that
-sends the document unchanged to `POST /api/projects/{project}/suites` for the project picked, which
-must be picked first, where the server validates it. They take the place of the suite name, the
+sends the document unchanged to `POST /api/projects/{project}/suites` for the project, where the
+server validates it. They take the place of the suite name, the
 display name, "Start from", the tables and "Create" until "Import JSON" is clicked again,
 which goes back to the editor as the user left it, and keeps the document. On success, the page
 goes to the new suite's Schema tab, as with "Create". On failure, the text area keeps its

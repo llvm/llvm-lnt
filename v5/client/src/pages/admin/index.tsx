@@ -4,9 +4,8 @@ import { useUrlState } from '../../url-state'
 import { ApiKeysTab } from './api-keys-tab'
 import { ProjectsTab } from './projects-tab'
 import { PARAMS, TABS, resetSettings, unusedSettings, type TabId } from './settings'
-import { SuitesTab } from './suites-tab'
 
-/** The Admin page: its API Keys (AD1), Projects (AD3) and Test Suites (AD2) tabs. */
+/** The Admin page: its API Keys (AD1) and Projects (AD3) tabs. */
 export default function Admin() {
   const [settings, update] = useUrlState(PARAMS)
   const { tab, sort } = settings
@@ -27,7 +26,6 @@ export default function Admin() {
           <ApiKeysTab sort={sort} onSort={(value) => update({ sort: value })} />
         )}
         {tab === 'projects' && <ProjectsTab />}
-        {tab === 'suites' && <SuitesTab />}
       </Tabs>
     </section>
   )

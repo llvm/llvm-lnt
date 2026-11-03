@@ -1,5 +1,5 @@
 /**
- * The Admin page's API Keys tab (AD1), Projects tab (AD3) and Test Suites tab (AD2).
+ * The Admin page's API Keys tab (AD1) and Projects tab (AD3), where suites are created (TS7).
  *
  * Tests that write change what they create: a key of their own to revoke, and a project or a suite
  * of their own to change and delete. The seeded projects and suites and the harness's admin key are
@@ -85,7 +85,7 @@ test.describe('the API Keys tab', () => {
     expect(await keyOf(request, token)).toBeNull()
 
     // The token is shown only until the user leaves the tab.
-    await page.getByRole('tab', { name: 'Test Suites' }).click()
+    await page.getByRole('tab', { name: 'Projects' }).click()
     await page.getByRole('tab', { name: 'API Keys' }).click()
     await expect(rows(keys).first()).toBeVisible()
     await expect(created).toBeHidden()
@@ -208,44 +208,37 @@ test.describe('the API Keys tab', () => {
   })
 })
 
-test.describe('the Test Suites tab', () => {
-  test('creates a suite in the project a manage token covers in full, and only there', async ({
+/** Open the schema editor creating a suite in the project `project`, from its row (AD3, TS7). */
+async function newSuite(page: Page, project: string) {
+  await page.goto('/admin?tab=projects')
+  await page.getByRole('button', { name: `New suite in ${project}` }).click()
+  return page.getByRole('region', { name: `New suite in ${project}` })
+}
+
+test.describe("the Projects tab's suite creation", () => {
+  test('creates a suite in a project a manage token covers in full, and only there', async ({
     page,
     request,
     signIn,
     tokenFor,
   }, testInfo) => {
     await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
-      await signIn(page, 'manage', [{ project: suite.project, suite: null }])
-      await page.goto('/admin?tab=suites')
-      await page.getByRole('button', { name: 'New suite' }).click()
-      const editor = page.getByRole('region', { name: 'New suite' })
+      await signIn(page, 'manage', [{ project: suite.project, suite: null }, BENCHMARKS])
+      await page.goto('/admin?tab=projects')
 
-      // The other projects are refused, saying why (AD2, TS7).
-      await selectButton(editor, 'Project').click()
-      await expect(page.getByRole('option', { name: /^libc\+\+/ })).toContainText(
-        "Needs an API token with the 'manage' scope covering project 'libc++' in full.",
+      // Not in the other projects, even one with a suite the token covers (AD3).
+      const libcxx = page.getByRole('button', { name: 'New suite in libc++' })
+      await expect(libcxx).toBeDisabled()
+      await expect(libcxx).toHaveAttribute(
+        'title',
+        /^Needs an API token with the 'manage' scope covering project 'libc\+\+' in full\./,
       )
-      await page.keyboard.press('Escape')
-      await pickOption(editor, 'Project', suite.project)
+      const editor = await newSuite(page, suite.project)
       await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
       await editor.getByRole('button', { name: 'Create', exact: true }).click()
 
       await expect(page).toHaveURL(`${suitePath(suite)}?tab=schema`)
     })
-  })
-
-  test('creates no suite with a manage token restricted to a suite', async ({ page, signIn }) => {
-    await signIn(page, 'manage', [BENCHMARKS])
-    await page.goto('/admin?tab=suites')
-
-    // A suite is created in a project, which the token would have to cover in full (AD2).
-    const newSuite = page.getByRole('button', { name: 'New suite' })
-    await expect(newSuite).toBeDisabled()
-    await expect(newSuite).toHaveAttribute(
-      'title',
-      /^Needs an API token with the 'manage' scope covering a project in full\./,
-    )
   })
 
   test('creates a suite in the editor, starting from a seeded suite', async ({
@@ -256,10 +249,7 @@ test.describe('the Test Suites tab', () => {
   }, testInfo) => {
     await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
       await signIn(page, 'manage')
-      await page.goto('/admin?tab=suites')
-      await page.getByRole('button', { name: 'New suite' }).click()
-      const editor = page.getByRole('region', { name: 'New suite' })
-      await pickOption(editor, 'Project', suite.project)
+      const editor = await newSuite(page, suite.project)
       await editor.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
       await editor.getByRole('textbox', { name: 'Display name', exact: true }).fill(' E2E suite ')
       await pickSuite(editor, 'Start from', 'libc++', 'Microbenchmarks')
@@ -309,12 +299,7 @@ test.describe('the Test Suites tab', () => {
   }, testInfo) => {
     await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
       await signIn(page, 'manage')
-      await page.goto('/admin?tab=suites')
-      await page.getByRole('button', { name: 'New suite' }).click()
-      const editor = page.getByRole('region', { name: 'New suite' })
-      // The document goes to the project picked, which comes first.
-      await expect(editor.getByRole('button', { name: 'Import JSON' })).toBeDisabled()
-      await pickOption(editor, 'Project', suite.project)
+      const editor = await newSuite(page, suite.project)
       await editor.getByRole('button', { name: 'Import JSON' }).click()
       await editor
         .getByRole('textbox', { name: /^Schema document/ })
@@ -342,10 +327,7 @@ test.describe('the Test Suites tab', () => {
     const token = await tokenFor('manage')
     await withOwnSuite(request, token, testInfo, async (suite) => {
       await signIn(page, 'manage')
-      await page.goto('/admin?tab=suites')
-      await page.getByRole('button', { name: 'New suite' }).click()
-      const creator = page.getByRole('region', { name: 'New suite' })
-      await pickOption(creator, 'Project', suite.project)
+      const creator = await newSuite(page, suite.project)
       await creator.getByRole('textbox', { name: 'Suite name' }).fill(suite.suite)
       for (const metric of ['execution_time', 'compile_time']) {
         await creator.getByRole('button', { name: '+ Add metric' }).click()
@@ -476,7 +458,7 @@ test.describe('the Projects tab', () => {
       await expect(row(name).locator('td')).toHaveText([
         `${name}Edit`,
         `${name} labelEdit`,
-        '0',
+        '0+',
         'Delete',
       ])
       await expect(form.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('')
@@ -490,8 +472,10 @@ test.describe('the Projects tab', () => {
       await page.getByRole('textbox', { name: `Name of ${name}` }).fill(renamed)
       await page.keyboard.press('Enter')
       const prompt = page.getByRole('form', { name: 'Confirmation' })
+      // By its names, rather than its labels (AR22).
       await expect(prompt).toContainText(
-        `Every URL, bookmark and bot that uses the name ${name} for any of the project's suites`,
+        `Rename the project ${name} to ${renamed}? Every URL, bookmark and bot that uses the ` +
+          `name ${name} for any of the project's suites`,
       )
       await prompt.getByRole('button', { name: 'OK' }).click()
       await expect(row(renamed)).toHaveCount(1)
