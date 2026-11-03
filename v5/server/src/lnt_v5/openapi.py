@@ -44,11 +44,11 @@ from pydantic.json_schema import models_json_schema
 
 from .auth import (
     SECURITY_SCHEME,
-    Coverage,
     RequireScope,
+    addresses_project,
+    addresses_suite,
     iter_routes,
     route_requirement,
-    suite_parameters,
 )
 from .errors import ErrorEnvelope
 from .scopes import UNRESTRICTABLE_SCOPES, Scope
@@ -187,13 +187,13 @@ _FORBIDDEN = _error(
 )
 
 
-def _authorization(requirement: RequireScope, addresses_suite: bool) -> str:
-    """The sentence that tells a reader of one operation what it takes to call it.
+def _authorization(requirement: RequireScope, path: str) -> str:
+    """The sentence that tells a reader of the operation at `path` what it takes to call it.
 
     For a scope that can be restricted (I5), it also says what a restricted key needs (I8): to cover
-    the suite, on an operation that addresses one; to cover the project in full, on one that says
-    so; and otherwise nothing it can have. An operation whose handler checks more says that too
-    (see `RequireScope`).
+    the suite, on an operation that addresses one; to cover the project in full, on one that
+    addresses a project; and otherwise nothing it can have. An operation whose handler checks more
+    says that too (see `RequireScope`).
     """
     scope = requirement.scope
     if scope is Scope.READ:
@@ -202,9 +202,9 @@ def _authorization(requirement: RequireScope, addresses_suite: bool) -> str:
     if scope in UNRESTRICTABLE_SCOPES:
         return f"{sentence}."
     more = "" if requirement.note is None else f" {requirement.note}"
-    if addresses_suite:
+    if addresses_suite(path):
         return f"{sentence}, unrestricted or covering this test suite.{more}"
-    if requirement.coverage is Coverage.PROJECT:
+    if addresses_project(path):
         return f"{sentence}, unrestricted or covering this project in full.{more}"
     return f"**Authorization:** requires an unrestricted API key with the `{scope.value}` scope."
 
@@ -231,9 +231,7 @@ def _requirements_by_operation(app: FastAPI) -> dict[tuple[str, str], RequireSco
     return requirements
 
 
-def _document_scope(
-    operation: dict[str, Any], requirement: RequireScope, addresses_suite: bool
-) -> None:
+def _document_scope(operation: dict[str, Any], requirement: RequireScope, path: str) -> None:
     """State the scope an operation requires, for people and for tools.
 
     For people, a sentence closing the description. For tools, the security requirement: OpenAPI
@@ -245,7 +243,7 @@ def _document_scope(
     security = {SECURITY_SCHEME: [scope.value]}
     operation["security"] = [{}, security] if scope is Scope.READ else [security]
 
-    sentence = _authorization(requirement, addresses_suite)
+    sentence = _authorization(requirement, path)
     description = operation.get("description")
     operation["description"] = f"{description}\n\n{sentence}" if description else sentence
 
@@ -438,7 +436,7 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
 
             requirement = requirements.get((path, method))
             if requirement is not None:
-                _document_scope(operation, requirement, suite_parameters(path) is not None)
+                _document_scope(operation, requirement, path)
                 responses.setdefault("400", _BAD_REQUEST)
                 responses.setdefault("401", _UNAUTHORIZED)
                 # A read-scoped operation can never answer 403: every valid key grants `read`.

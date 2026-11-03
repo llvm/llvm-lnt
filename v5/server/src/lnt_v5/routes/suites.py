@@ -19,7 +19,7 @@ from fastapi import APIRouter, Body, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from lnt_v5 import examples
-from lnt_v5.auth import Coverage, require_in_full, require_scope
+from lnt_v5.auth import require_in_full, require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.keys import ResolvedKey
@@ -171,7 +171,7 @@ def list_suites(
 @router.post(
     "",
     status_code=201,
-    dependencies=[require_scope(Scope.MANAGE, Coverage.PROJECT)],
+    dependencies=[require_scope(Scope.MANAGE)],
     summary="Create a test suite",
     responses={
         404: {"model": ErrorEnvelope, "description": "The project doesn't exist."},

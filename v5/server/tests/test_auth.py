@@ -26,7 +26,7 @@ from sqlalchemy import Engine, update
 
 from conftest import code_of, ensure_project
 from lnt_v5 import keys
-from lnt_v5.auth import Coverage, iter_routes, required_scope, route_requirement, suite_parameters
+from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.querying import _takes_several
 from lnt_v5.scopes import UNRESTRICTABLE_SCOPES, Scope
 from lnt_v5.tables import api_key
@@ -252,26 +252,6 @@ class TestSuiteRestriction:
 
         assert api_client.get("/api/projects/x/suites/x").status_code == 200
         assert refused_whole == UNRESTRICTED_ONLY
-
-    def test_every_operation_that_addresses_no_suite_says_what_a_key_needs(
-        self, api_app: FastAPI
-    ) -> None:
-        # Authorization fails closed: an operation addressing no suite needs an instance-wide key
-        # unless it declares that a key covering its project in full will do. The declarations
-        # are what this pins, so that a new one is a deliberate change.
-        restrictable = set(Scope) - set(UNRESTRICTABLE_SCOPES)
-        declared: dict[Coverage, set[tuple[str, str]]] = {}
-        for route in iter_routes(api_app.routes):
-            requirement = route_requirement(route)
-            if requirement is None or requirement.scope not in restrictable:
-                continue
-            assert route.path_format is not None
-            if suite_parameters(route.path_format) is not None:
-                continue
-            for method in route.methods or ():
-                declared.setdefault(requirement.coverage, set()).add((method, route.path_format))
-
-        assert declared == {Coverage.PROJECT: IN_FULL_ONLY, Coverage.INSTANCE: UNRESTRICTED_ONLY}
 
     def test_reads_every_other_suite(
         self,

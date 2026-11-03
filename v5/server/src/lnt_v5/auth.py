@@ -12,15 +12,15 @@ so an endpoint that resolves what it addresses *in its body* gets that order for
 that instead resolves through a dependency of its own must make that dependency depend on this
 one, or it will resolve first and answer 404 where I5 requires 403.
 
-A restricted key is checked against what the request addresses, which is read off the route's path:
-a suite, for every route under `/api/projects/{project}/suites/{suite}` (see `suite_parameters`), or
-a project, for a route that declares so (see `Coverage`). Any other request needs an instance-wide
-key, so a route that declares nothing fails closed. One handler checks more once it has validated
-its body (see `require_in_full`): moving a suite also needs the destination project in full. That
-is only sound because of an invariant no test can check: a request that addresses a suite writes
-only to that suite, plus the destination project of a move, and one that addresses a project only
-to that project (I5). An endpoint that reached elsewhere would let a restricted key write where it
-has only `read`.
+A restricted key is checked against what the request addresses, which is read off the route's path
+(see `addresses_suite` and `addresses_project`): a suite, for every route under
+`/api/projects/{project}/suites/{suite}`, or else a project, for every route under
+`/api/projects/{project}`. Any other request needs an instance-wide key. One handler checks more
+once it has validated its body (see `require_in_full`): moving a suite also needs the destination
+project in full. That is only sound because of an invariant no test can check: a request that
+addresses a suite writes only to that suite, plus the destination project of a move, and one that
+addresses a project only to that project (I5). An endpoint that reached elsewhere would let a
+restricted key write where it has only `read`.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterator, Sequence
-from enum import Enum
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
@@ -54,44 +53,32 @@ UNAUTHENTICATED_HEADERS = {"WWW-Authenticate": "Bearer"}
 # What I8's document calls the scheme, and so what every operation's security requirement names.
 SECURITY_SCHEME = "ApiKey"
 
-# A path template whose first segments below the project collection and below its suite collection
-# are parameters: every suite-scoped route, and E10's routes for one suite.
-_SUITE_PATH = re.compile(r"\A/api/projects/\{(\w+)\}/suites/\{(\w+)\}(/|\Z)")
+# Every suite-scoped route, and E10's routes for one suite.
+_SUITE_PATH = re.compile(r"\A/api/projects/\{project\}/suites/\{suite\}(/|\Z)")
 
-# A path template whose first segment below the project collection is a parameter.
-_PROJECT_PATH = re.compile(r"\A/api/projects/\{(\w+)\}(/|\Z)")
+# Every route under a project, those under one of its suites included.
+_PROJECT_PATH = re.compile(r"\A/api/projects/\{project\}(/|\Z)")
 
 
-def suite_parameters(path_format: str) -> tuple[str, str] | None:
-    """The path parameters naming the project and the suite a route addresses (I5), or None if it
-    addresses no suite.
+def addresses_suite(path_format: str) -> bool:
+    """Whether a route addresses a suite (I5): the one its `project` and `suite` parameters name.
 
     Rests on I1's layout: everything below `/api/projects/` starts with a project name, and
     everything below its `suites/` with a suite name, so no route has a literal segment directly
-    under either. A route that did (`/api/projects/{project}/suites/import`, say) would not be seen
-    as addressing a suite, and a restricted key would get only `read` on it.
+    under either. A route that did (`/api/projects/{project}/suites/import`, say), or that named
+    its parameters otherwise, would not be seen as addressing a suite, and a restricted key would
+    need to cover the project in full there, or get only `read` on it.
     """
-    match = _SUITE_PATH.match(path_format)
-    return (match.group(1), match.group(2)) if match else None
+    return _SUITE_PATH.match(path_format) is not None
 
 
-def project_parameter(path_format: str) -> str | None:
-    """The path parameter naming the project a route is under, or None if it is under none."""
-    match = _PROJECT_PATH.match(path_format)
-    return match.group(1) if match else None
+def addresses_project(path_format: str) -> bool:
+    """Whether a route addresses a project (I5), the one its `project` parameter names: it is under
+    the project, and addresses no suite of it."""
+    return _PROJECT_PATH.match(path_format) is not None and not addresses_suite(path_format)
 
 
-class Coverage(Enum):
-    """What a restricted key must cover to be granted its scope on a route (I5), when the route
-    addresses no suite: the project its path names, in full, or (by default) the whole instance,
-    which only an instance-wide key covers. A route that addresses a suite needs the suite covered,
-    whatever it declares."""
-
-    INSTANCE = "instance"
-    PROJECT = "project"
-
-
-def _addressed(request: Request, coverage: Coverage) -> tuple[str | None, str | None]:
+def _addressed(request: Request) -> tuple[str | None, str | None]:
     """The project and the suite a request addresses, read off the route it matched: both for a
     suite, the project alone for a project, and neither for the instance (see `ApiKeyInfo.covers`).
 
@@ -101,12 +88,10 @@ def _addressed(request: Request, coverage: Coverage) -> tuple[str | None, str | 
     """
     route = request.scope.get("route")
     path_format = getattr(route, "path_format", "")
-    if (parameters := suite_parameters(path_format)) is not None:
-        project, suite = parameters
-        return request.path_params[project], request.path_params[suite]
-    parameter = project_parameter(path_format)
-    if coverage is Coverage.PROJECT and parameter is not None:
-        return request.path_params[parameter], None
+    if addresses_suite(path_format):
+        return request.path_params["project"], request.path_params["suite"]
+    if addresses_project(path_format):
+        return request.path_params["project"], None
     return None, None
 
 
@@ -169,11 +154,8 @@ class RequireScope:
     needs to know who is calling can depend on this directly rather than resolve the token twice.
     """
 
-    def __init__(
-        self, scope: Scope, coverage: Coverage = Coverage.INSTANCE, note: str | None = None
-    ) -> None:
+    def __init__(self, scope: Scope, note: str | None = None) -> None:
         self.scope = scope
-        self.coverage = coverage
         # What I8's document adds to the sentence saying what the operation needs: what its handler
         # checks on top of this (see `require_in_full`). Documentation only.
         self.note = note
@@ -225,9 +207,7 @@ class RequireScope:
         last_use.record(engine, key.id)
 
         # Only a restricted key depends on what the request addresses.
-        project, suite = (
-            (None, None) if key.restricted_to is None else _addressed(request, self.coverage)
-        )
+        project, suite = (None, None) if key.restricted_to is None else _addressed(request)
         if not key.grants(self.scope, project, suite):
             raise ApiError(ErrorCode.FORBIDDEN, self._refusal(key, project, suite))
 
@@ -289,17 +269,14 @@ def require_in_full(key: ResolvedKey | None, required: Scope, project: str, doin
         )
 
 
-def require_scope(
-    scope: Scope, coverage: Coverage = Coverage.INSTANCE, note: str | None = None
-) -> Any:
-    """Declare the scope an endpoint requires, for its `dependencies=[...]`, and what a restricted
-    key must cover to be granted it there, unless the endpoint addresses a suite (see `Coverage`),
-    and a `note` for its documentation (see `RequireScope`).
+def require_scope(scope: Scope, note: str | None = None) -> Any:
+    """Declare the scope an endpoint requires, for its `dependencies=[...]`, and a `note` for its
+    documentation (see `RequireScope`).
 
     Returns `Any` because that is how FastAPI types `Depends` -- it has to be assignable to a
     parameter of any annotated type.
     """
-    return Depends(RequireScope(scope, coverage, note))
+    return Depends(RequireScope(scope, note))
 
 
 def iter_routes(routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:
