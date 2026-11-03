@@ -1,14 +1,14 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../api/keys'
-import { TOKEN, entry, mockAuth, signIn, unknownToken } from '../test/auth'
+import { TOKEN, entry, mockAuth, signIn, unknownToken, whole } from '../test/auth'
 import { suiteRef } from '../api/suites'
 import { projectList } from '../test/page'
 import { BARE_SUITE, PROJECT, SUITE } from '../test/fixtures'
 import { errorResponse } from '../test/mock-api'
 import { providers } from '../test/render'
 import { TOKEN_STORAGE_KEY } from './storage-key'
-import { grants, refusalInEvery, useScopeGate, type Scope, type Target } from './scope'
+import { grants, refusalInEvery, useScopeGate, type Entry, type Scope, type Target } from './scope'
 import { useAuth } from './use-auth'
 
 const SCOPES: Scope[] = ['read', 'submit', 'triage', 'manage', 'admin']
@@ -50,7 +50,7 @@ describe('grants', () => {
   })
 
   it('grants a key restricted to a whole project its scope in every suite of it, and on it', () => {
-    const key = { scope: 'manage' as const, restricted_to: [{ project: 'llvm' }] }
+    const key = { scope: 'manage' as const, restricted_to: [whole('llvm')] }
     const granted = (target: Target) => SCOPES.filter((scope) => grants(key, scope, target))
 
     expect(granted(NTS)).toEqual(['read', 'submit', 'triage', 'manage'])
@@ -188,7 +188,7 @@ describe('useScopeGate', () => {
   })
 
   it('names a whole project of a restricted token by its label, followed by (all)', async () => {
-    signIn('manage', [{ project: 'swift' }, entry('libcxx'), entry('gone')])
+    signIn('manage', [whole('swift'), entry('libcxx'), entry('gone')])
     const wrapper = providers()
     wrapper.queryClient.setQueryData(
       queryKeys.projects,
@@ -264,7 +264,7 @@ describe('refusalInEvery', () => {
     { ...PROJECT, suites: [] },
     { name: 'swift', display_name: 'Swift', suites: [] },
   ]
-  const valid = (restricted_to: { project: string; suite?: string }[] | null) =>
+  const valid = (restricted_to: Entry[] | null) =>
     ({ state: 'valid', key: { scope: 'manage', restricted_to } }) as const
 
   it('allows an action on a project picked among some to an instance-wide token', () => {
@@ -272,7 +272,7 @@ describe('refusalInEvery', () => {
   })
 
   it('allows it to a token covering one of them in full', () => {
-    const token = valid([entry('nts'), { project: 'swift' }]) as never
+    const token = valid([entry('nts'), whole('swift')]) as never
     expect(refusalInEvery('manage', projects, token, projects)).toBeUndefined()
   })
 
@@ -283,8 +283,8 @@ describe('refusalInEvery', () => {
         "Settings has the 'manage' scope, covering only 'llvm/nts'.",
     )
     // Unlike one listing a whole project, which may well cover one of them in full.
-    const whole = valid([entry('nts'), { project: 'swift' }]) as never
-    expect(refusalInEvery('manage', undefined, whole, undefined)).toBeUndefined()
+    const project = valid([entry('nts'), whole('swift')]) as never
+    expect(refusalInEvery('manage', undefined, project, undefined)).toBeUndefined()
     expect(refusalInEvery('manage', undefined, valid(null) as never, undefined)).toBeUndefined()
   })
 

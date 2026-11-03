@@ -234,7 +234,7 @@ function coversTree(projects: readonly Project[]) {
   const entries = new Map<string, EntryRef>()
   const tree = projects.map((project): TreeParent<string> => {
     const label = projectLabel(project)
-    entries.set(project.name, { project: project.name })
+    entries.set(project.name, { project: project.name, suite: null })
     return {
       value: project.name,
       label,

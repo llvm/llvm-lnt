@@ -41,6 +41,11 @@ export function entry(suite: string): Schemas['RestrictionEntry'] {
   return { project: PROJECT.name, suite }
 }
 
+/** The entry of a restricted key's list naming the whole project `project` (I5). */
+export function whole(project: string): Schemas['RestrictionEntry'] {
+  return { project, suite: null }
+}
+
 type AuthResponse = HttpResponse<Schemas['Authentication'] | Schemas['ErrorEnvelope']>
 
 /** Answer every `GET /api/auth` with `respond`, recording the header each was sent with. */

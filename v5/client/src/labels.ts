@@ -91,7 +91,7 @@ export function suiteOption(suite: Labelled): Option<string> {
   }
 }
 
-/** An entry of what an API key covers (I5): a whole project, without `suite`, or one suite. */
+/** An entry of what an API key covers (I5): a whole project, with a null `suite`, or one suite. */
 export type EntryRef = Schemas['RestrictionEntry']
 
 /** An entry of what an API key covers, as the UI names it: a whole project, or a single suite. */
@@ -116,7 +116,7 @@ export function entriesNamed(
       // What names the project, without its suites.
       const { name, display_name } = projectNamed(projects, ref.project)
       const project = { name, display_name }
-      if (ref.suite === undefined) return { project, suite: null }
+      if (ref.suite === null) return { project, suite: null }
       const listed = findSuite(suites, { project: ref.project, suite: ref.suite })
       return { project, suite: listed ?? { name: ref.suite, display_name: null, project } }
     })

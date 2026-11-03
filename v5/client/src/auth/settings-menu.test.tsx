@@ -14,6 +14,7 @@ import {
   mockAuth,
   signIn,
   unknownToken,
+  whole,
 } from '../test/auth'
 import { projectList } from '../test/page'
 import { renderWithProviders } from '../test/render'
@@ -170,7 +171,7 @@ describe('Settings panel', () => {
   })
 
   it('shows a whole project by its label followed by (all), before its suites', async () => {
-    signIn('manage', [{ project: 'swift' }, entry('nts'), { project: 'llvm' }])
+    signIn('manage', [whole('swift'), entry('nts'), whole('llvm')])
     const { queryClient } = renderMenu()
     queryClient.setQueryData(
       queryKeys.projects,

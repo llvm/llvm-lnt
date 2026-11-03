@@ -14,6 +14,7 @@ import {
   signIn,
   TOKEN,
   unknownToken,
+  whole,
 } from '../../test/auth'
 import { mockClipboard } from '../../test/clipboard'
 import { errorResponse, mockApi } from '../../test/mock-api'
@@ -440,12 +441,12 @@ describe('sorting the keys', () => {
     mockSuites([{ ...SUITE, project: llvm }], {
       projects: [llvm, { name: 'swift', display_name: null }],
     })
-    const whole = apiKey('manage', {
+    const projects = apiKey('manage', {
       prefix: 'bbbbbbbb',
-      restricted_to: [{ project: 'swift' }, entry('libcxx'), { project: 'llvm' }],
+      restricted_to: [whole('swift'), entry('libcxx'), whole('llvm')],
     })
     const suite = apiKey('manage', { prefix: 'cccccccc', restricted_to: [entry('libcxx')] })
-    const { list } = await renderKeys({ keys: [suite, whole] })
+    const { list } = await renderKeys({ keys: [suite, projects] })
 
     await waitFor(() =>
       expect(rowsOf(list)[1].split(' | ')[3]).toBe('LLVM (all), LLVM/libcxx, swift (all)'),
@@ -654,7 +655,7 @@ describe('creating a key', () => {
 
     await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'maintainer', scope: 'manage', restricted_to: [{ project: 'llvm' }] },
+      { name: 'maintainer', scope: 'manage', restricted_to: [{ project: 'llvm', suite: null }] },
     ])
   })
 
@@ -711,7 +712,7 @@ describe('creating a key', () => {
 
     await findCreatedKey()
     expect(sent.map(({ body }) => body)).toEqual([
-      { name: 'swift-bot', scope: 'submit', restricted_to: [{ project: 'swift' }] },
+      { name: 'swift-bot', scope: 'submit', restricted_to: [{ project: 'swift', suite: null }] },
     ])
   })
 

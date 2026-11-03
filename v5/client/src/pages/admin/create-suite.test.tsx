@@ -7,7 +7,7 @@ import { PERMISSION_DENIED, type Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import type { ProjectName, Suite, SuiteSchema } from '../../api/suites'
 import { compareStrings } from '../../format'
-import { entry, signIn } from '../../test/auth'
+import { entry, signIn, whole } from '../../test/auth'
 import { BARE_SUITE, NO_REPOSITORY, PROJECT, SUITE, inProject } from '../../test/fixtures'
 import { renderWithProviders } from '../../test/render'
 import { CreateSuite } from './create-suite'
@@ -177,7 +177,7 @@ describe('opening the editor', () => {
   })
 
   it('opens the editor while the projects load, which says that they are loading', async () => {
-    signIn('manage', [entry('nts'), { project: 'swift' }])
+    signIn('manage', [entry('nts'), whole('swift')])
     const list = gate()
     mockSuites([SUITE, BARE_SUITE], { wait: () => list.promise })
     renderPage('/admin?tab=suites')
@@ -473,7 +473,7 @@ describe('the Project dropdown', () => {
 
   it('enables exactly the projects a token covers in full, and creates a suite in one', async () => {
     // A key restricted to a whole project covers it in full (AD2), and only it.
-    signIn('manage', [{ project: 'swift' }, entry('nts')])
+    signIn('manage', [whole('swift'), entry('nts')])
     const store = mockSuites([SUITE, BARE_SUITE], { projects: [PROJECT, SWIFT] })
     renderPage('/admin?tab=suites')
     await waitFor(() => expect(newSuiteButton()).toBeEnabled())

@@ -132,7 +132,7 @@ test.describe('the API Keys tab', () => {
     expect(await keyOf(request, token)).toMatchObject({
       name,
       scope: 'submit',
-      restricted_to: [{ project: 'libcxx' }, NTS],
+      restricted_to: [{ project: 'libcxx', suite: null }, NTS],
     })
   })
 
@@ -216,7 +216,7 @@ test.describe('the Test Suites tab', () => {
     tokenFor,
   }, testInfo) => {
     await withOwnSuite(request, await tokenFor('manage'), testInfo, async (suite) => {
-      await signIn(page, 'manage', [{ project: suite.project }])
+      await signIn(page, 'manage', [{ project: suite.project, suite: null }])
       await page.goto('/admin?tab=suites')
       await page.getByRole('button', { name: 'New suite' }).click()
       const editor = page.getByRole('region', { name: 'New suite' })
@@ -527,7 +527,7 @@ test.describe('the Projects tab', () => {
     tokenFor,
   }, testInfo) => {
     await withOwnSuite(request, await tokenFor('manage'), testInfo, async ({ project }) => {
-      await signIn(page, 'manage', [{ project }])
+      await signIn(page, 'manage', [{ project, suite: null }])
       await page.goto('/admin?tab=projects')
 
       const instanceWide = /^Needs an instance-wide API token with the 'manage' scope\./

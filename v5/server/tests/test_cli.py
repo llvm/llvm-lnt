@@ -461,7 +461,7 @@ class TestCreateRestrictedKey:
             ("submit", "llvm/ntss", "Project 'llvm' has no test suite named 'ntss'"),
             ("submit", "swift/nts", "No project is named 'swift'"),
             ("submit", "swift", "No project is named 'swift'"),
-            ("submit", "llvm llvm/nts", "along with its whole project: llvm/nts"),
+            ("submit", "llvm llvm", "more than once"),
         ],
     )
     def test_reports_a_restriction_it_refuses_without_a_traceback(

@@ -383,7 +383,7 @@ class TestKeysFollow:
 
         api_client.patch(f"{PROJECTS_PATH}/libcxx", json={"name": "libcpp"}, headers=manage)
 
-        assert self.listed(api_client, headers) == [{"project": "libcpp"}]
+        assert self.listed(api_client, headers) == [{"project": "libcpp", "suite": None}]
         machines = f"{suite_path('nts', 'libcpp')}/machines"
         assert api_client.post(machines, json={"name": "m"}, headers=headers).status_code == 201
 

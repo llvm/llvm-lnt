@@ -5,7 +5,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { suiteRef, type ProjectName, type Suite } from '../../api/suites'
-import { apiKey, entry, mockAuth, signIn, TOKEN, unknownToken } from '../../test/auth'
+import { apiKey, entry, mockAuth, signIn, TOKEN, unknownToken, whole } from '../../test/auth'
 import { BARE_SUITE, PROJECT, SUITE } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
@@ -227,7 +227,7 @@ describe('gating (AR17)', () => {
   })
 
   it('lets a token covering a project in full change its display name only', async () => {
-    signIn('manage', [{ project: 'swift' }])
+    signIn('manage', [whole('swift')])
     mockSuites([SUITE, BARE_SUITE], { projects: PROJECTS })
     renderPage('/admin?tab=projects')
     await projectsTable()

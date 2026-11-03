@@ -245,9 +245,6 @@ class TestCreateRestrictedKey:
             (Scope.SUBMIT, [], "no entry at all"),
             (Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", "nts")], "an entry twice"),
             (Scope.SUBMIT, [Entry("llvm", None), Entry("llvm", None)], "a project twice"),
-            (Scope.MANAGE, [Entry("llvm", "nts"), Entry("llvm", None)], "a suite and its project"),
-            # Checked by name, before anything is read.
-            (Scope.MANAGE, [Entry("swift", None), Entry("swift", "a")], "both, of no project"),
         ],
     )
     def test_rejects_a_restriction_that_cannot_be_valid(
@@ -258,9 +255,11 @@ class TestCreateRestrictedKey:
             create_key(db, "bot", scope, entries)
         assert not isinstance(raised.value, UnknownEntriesError)
 
-    def test_names_a_suite_listed_with_its_whole_project(self, db: Connection) -> None:
-        with pytest.raises(ValueError, match=r"along with its whole project: llvm/nts$"):
-            create_key(db, "bot", Scope.SUBMIT, [Entry("llvm", None), Entry("llvm", "nts")])
+    def test_lists_a_suite_along_with_its_whole_project(self, db: Connection) -> None:
+        # A suite along with its whole project (I5): both entries stay.
+        created = create_key(db, "bot", Scope.SUBMIT, [Entry("llvm", "nts"), Entry("llvm", None)])
+
+        assert created.restricted_to == (Entry("llvm", None), Entry("llvm", "nts"))
 
     def test_names_the_projects_and_suites_that_do_not_exist(self, db: Connection) -> None:
         entries = [
@@ -268,6 +267,7 @@ class TestCreateRestrictedKey:
             Entry("llvm", "ntss"),
             Entry("swift", "nts"),
             Entry("go", None),
+            Entry("go", "x"),
         ]
         with pytest.raises(UnknownEntriesError) as raised:
             create_key(db, "bot", Scope.SUBMIT, entries)

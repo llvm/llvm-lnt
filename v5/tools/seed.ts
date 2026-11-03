@@ -127,6 +127,7 @@ export const PROJECTS: Project[] = [
 export const KEYS: {
   name: string
   scope: components['schemas']['Scope']
+  // The response's type, rather than the request's, so that it compares with what the API lists.
   restricted_to?: components['schemas']['RestrictionEntry'][]
   revoked?: true
 }[] = [
@@ -139,10 +140,14 @@ export const KEYS: {
   { name: 'libcxx-submitter', scope: 'submit', restricted_to: [BENCHMARKS] },
   { name: 'perf-triager', scope: 'triage', restricted_to: [BENCHMARKS, NTS] },
   { name: 'nts-maintainer', scope: 'manage', restricted_to: [NTS] },
-  { name: 'libcxx-maintainer', scope: 'manage', restricted_to: [{ project: 'libcxx' }] },
+  {
+    name: 'libcxx-maintainer',
+    scope: 'manage',
+    restricted_to: [{ project: 'libcxx', suite: null }],
+  },
   // A project without suites: it covers those created in it later.
-  { name: 'swift-submitter', scope: 'submit', restricted_to: [{ project: 'swift' }] },
-  { name: 'perf-lead', scope: 'triage', restricted_to: [{ project: 'libcxx' }, NTS] },
+  { name: 'swift-submitter', scope: 'submit', restricted_to: [{ project: 'swift', suite: null }] },
+  { name: 'perf-lead', scope: 'triage', restricted_to: [{ project: 'libcxx', suite: null }, NTS] },
 ]
 
 function readJson(file: string): unknown {

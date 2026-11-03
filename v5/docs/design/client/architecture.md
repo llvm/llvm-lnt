@@ -546,8 +546,7 @@ renamed or moved (TS6, AD3) use names rather than labels.
 What an API key covers (see I5) is shown as `All` for an instance-wide key, and
 otherwise as its entries, each as it is: a whole project by its label followed
 by `(all)`, and a single suite by its full label, even when its project is
-listed too, as a move can leave it (see I5). A key whose every entry has been
-deleted shows `Nothing`.
+listed too (see I5). A key whose every entry has been deleted shows `Nothing`.
 
 **Order.** Wherever the UI lists projects or suites, it orders projects by
 label, and the suites of each project by label, after the project itself when

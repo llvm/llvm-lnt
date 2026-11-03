@@ -179,8 +179,8 @@ whole="$(mint_key whole manage --project crud)"
 readonly WHOLE="Authorization: Bearer ${whole}"
 request -H "$WHOLE" "${BASE_URL}/api/auth"
 expect_status 200
-# Without a `suite` key at all (E11).
-expect_body '"restricted_to":\[\{"project":"crud"\}\]'
+# With a null `suite` (E11).
+expect_body '"restricted_to":\[\{"project":"crud","suite":null\}\]'
 request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"whole","metrics":[]}' "$SUITES"
 expect_status 201
 request -X POST -H "$WHOLE" -H "$JSON" --data '{"name":"whole-m"}' "${SUITES}/suite-crud/machines"
@@ -247,22 +247,22 @@ expect_status 204
 request -X DELETE -H "$AUTH" "${PROJECTS}/crud-renamed"
 expect_status 204
 
-echo "  a key restricted over the API lists a whole project as such, and not with its own suites"
+echo "  a key restricted over the API lists a whole project as such, and with its own suites too"
 admin="$(mint_key crud-admin admin)"
 readonly ADMIN="Authorization: Bearer ${admin}"
+for entries in '[{"project":"crud"}]' '[{"project":"crud","suite":null}]'; do
+    request -X POST -H "$ADMIN" -H "$JSON" \
+        --data "{\"name\":\"whole\",\"scope\":\"submit\",\"restricted_to\":${entries}}" \
+        "${BASE_URL}/api/admin/api-keys"
+    expect_status 201
+    expect_body '"restricted_to":\[\{"project":"crud","suite":null\}\]'
+done
+both='[{"project":"crud","suite":"suite-crud"},{"project":"crud"}]'
 request -X POST -H "$ADMIN" -H "$JSON" \
-    --data '{"name":"whole","scope":"submit","restricted_to":[{"project":"crud"}]}' \
+    --data "{\"name\":\"both\",\"scope\":\"submit\",\"restricted_to\":${both}}" \
     "${BASE_URL}/api/admin/api-keys"
 expect_status 201
-expect_body '"restricted_to":\[\{"project":"crud"\}\]'
-for entries in '[{"project":"crud"},{"project":"crud","suite":"suite-crud"}]' \
-    '[{"project":"crud","suite":null}]'; do
-    request -X POST -H "$ADMIN" -H "$JSON" \
-        --data "{\"name\":\"bad\",\"scope\":\"submit\",\"restricted_to\":${entries}}" \
-        "${BASE_URL}/api/admin/api-keys"
-    expect_status 400
-    expect_body '"code":"invalid_request"'
-done
+expect_body '"restricted_to":\[\{"project":"crud","suite":null\},\{"project":"crud","suite":"suite-crud"\}\]'
 
 echo "  writes need a credential of their own"
 request -X POST -H "$JSON" --data '{"name":"denied","metrics":[]}' "$SUITES"

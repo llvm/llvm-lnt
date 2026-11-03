@@ -249,11 +249,13 @@ class TestCreateRestricted:
             ("admin", [NTS], "an admin key, whose endpoints address no suite"),
             ("submit", [NTS, NTS], "an entry listed twice"),
             ("submit", [{"project": "llvm"}] * 2, "a project listed twice"),
-            ("submit", [{"project": "llvm"}, NTS], "a suite along with its whole project"),
-            ("submit", [{"project": "go", "suite": "x"}, {"project": "go"}], "both, of no project"),
+            (
+                "submit",
+                [{"project": "llvm"}, {"project": "llvm", "suite": None}],
+                "a project listed twice, once without a suite and once with a null one",
+            ),
             ("submit", [{"suite": "nts"}], "an entry without a project"),
             ("submit", [{**NTS, "machine": "m"}], "a key other than project and suite"),
-            ("submit", [{"project": "llvm", "suite": None}], "a null suite"),
             ("submit", [{"project": None, "suite": "nts"}], "a null project"),
             ("submit", [{"project": "llvm", "suite": 1}], "a name that is not a string"),
             ("submit", ["llvm/nts"], "a full name rather than an entry"),
@@ -273,20 +275,29 @@ class TestCreateRestricted:
         assert response.status_code == 400, why
         assert code_of(response) == "invalid_request"
 
-    def test_lists_a_whole_project_without_a_suite(
+    def test_lists_a_whole_project_with_a_null_suite(
         self, api_client: TestClient, admin: dict[str, str], db_engine: Engine
     ) -> None:
         # A project without suites can be listed too: it covers the suites created in it later.
         with db_engine.begin() as connection:
             ensure_project(connection, "empty")
-        entries = [{"project": "other", "suite": "nts"}, {"project": "llvm"}, {"project": "empty"}]
+        # `suite` null or left out, which E11 accepts both.
+        entries = [
+            {"project": "other", "suite": "nts"},
+            {"project": "llvm", "suite": None},
+            {"project": "empty"},
+        ]
         body = {"name": "bot", "scope": "manage", "restricted_to": entries}
 
         created = api_client.post(KEYS, headers=admin, json=body)
 
         assert created.status_code == 201, created.text
-        # Without a `suite` key at all, rather than a null one (E11); by project name.
-        expected = [{"project": "empty"}, {"project": "llvm"}, {"project": "other", "suite": "nts"}]
+        # By project name, `suite` always present (E11).
+        expected = [
+            {"project": "empty", "suite": None},
+            {"project": "llvm", "suite": None},
+            {"project": "other", "suite": "nts"},
+        ]
         assert created.json()["restricted_to"] == expected
         (listed,) = [
             key
@@ -295,17 +306,23 @@ class TestCreateRestricted:
         ]
         assert listed["restricted_to"] == expected
 
-    def test_says_why_a_suite_cannot_be_listed_with_its_project(
+    def test_lists_a_suite_along_with_its_whole_project(
         self, api_client: TestClient, admin: dict[str, str]
     ) -> None:
-        body = {"name": "bot", "scope": "submit", "restricted_to": [{"project": "llvm"}, NTS]}
+        # A suite along with its whole project (I5): both entries stay.
+        body = {"name": "bot", "scope": "submit", "restricted_to": [NTS, {"project": "llvm"}]}
 
-        response = api_client.post(KEYS, headers=admin, json=body)
+        created = api_client.post(KEYS, headers=admin, json=body)
 
-        assert code_of(response) == "invalid_request"
-        assert response.json()["error"]["message"] == (
-            "A restricted key must not list a test suite along with its whole project: llvm/nts"
-        )
+        assert created.status_code == 201, created.text
+        expected = [{"project": "llvm", "suite": None}, NTS]
+        assert created.json()["restricted_to"] == expected
+        (listed,) = [
+            key
+            for key in api_client.get(KEYS, headers=admin).json()["items"]
+            if key["prefix"] == created.json()["prefix"]
+        ]
+        assert listed["restricted_to"] == expected
 
     @pytest.mark.parametrize(
         ("entry", "says"),
@@ -314,6 +331,7 @@ class TestCreateRestricted:
             ({"project": "libcxx", "suite": "nts"}, "Project 'libcxx' has no test suite named"),
             ({"project": "swift", "suite": "nts"}, "No project is named 'swift'"),
             ({"project": "swift"}, "No project is named 'swift'"),
+            ({"project": "swift", "suite": None}, "No project is named 'swift'"),
         ],
     )
     def test_refuses_what_does_not_exist(
