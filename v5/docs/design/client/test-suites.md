@@ -39,10 +39,8 @@ but clears the search, the filters and the pagination position, as switching tab
 does. Away from a suite's tabs, a suite's chip leads to its default tab. A
 project's chip leads where its first suite's chip would, or to `/projects/{p}`
 when it has no suites. Clicking the selected chip does nothing, though a modified
-click still opens it in a new tab. The chips of both rows are cards, larger than
-the Regressions tab's state chips (TS5), with a bold label: the selected one is
-filled with the accent colour, its label white, and the others are white, with a
-light grey border and a dark label.
+click still opens it in a new tab. The chips of both rows are cards, the
+selected one standing out from the others.
 
 **Tabs**: [Runs] [Machines] [Commits] [Regressions] [Schema]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
@@ -322,13 +320,10 @@ New suite in libc++                                                          [Ca
 Editing libc++ › Microbenchmarks                                             [Cancel] [Save]
 ```
 
-Above the tables, "Suite" is laid out as the viewer's (see TS6), with an input for the suite's name
-and one for its display name. Its project is shown by its label (see AR22) when creating a suite,
-and is a dropdown when editing one (see below). The editor's heading and buttons are below the
-tables, where the viewer has its own buttons: "New suite in" followed by the project's label,
-"Cancel" and "Create" when creating a suite, and "Editing" followed by the suite's full label (see
-AR22), "Cancel" and "Save" when editing one. When creating a suite, "Start from" and "Import JSON"
-are above "Suite". The tables are the same in both modes.
+"Suite" is laid out as the viewer's (see TS6). Its project is shown by its label (see AR22) when
+creating a suite, and is a dropdown when editing one (see below). The heading below the tables,
+where the viewer has its own buttons, is "New suite in" followed by the project's label when
+creating a suite, and "Editing" followed by the suite's full label (see AR22) when editing one.
 
 The editor shows the same entries and keys as the viewer, with an input for each value, and the
 same repository keys, with an input for each. Each URL's input says which placeholders it
