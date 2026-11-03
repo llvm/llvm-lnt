@@ -156,9 +156,7 @@ export function Select<Value extends string>({
         // selection.
         onChange={(key) => {
           if (key === null || (!open.current && listPicksOnly)) return
-          // A backstop: the closed dropdown sets the value directly, without the checks of a pick
-          // from the list, and skips refused options only through `disabledKeys` below.
-          if (!refused.has(key as string)) onChange(key as Value)
+          onChange(key as Value)
         }}
         onOpenChange={(isOpen) => (open.current = isOpen)}
         isDisabled={isDisabled}
