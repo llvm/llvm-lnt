@@ -13,13 +13,17 @@ Below it, a row of chips for the suites of the selected project, each by its own
 label, in AR22's order. What is selected depends on the path:
 
 - `/projects` goes to `/projects/{p}`, without query parameters, for the first
-  project, once the projects have loaded. That page takes the place of
-  `/projects` in the history rather than adding an entry (an exception to AR2
-  "State"). When there are no projects, the page says so.
-- `/projects/{p}` selects the project `{p}`, and no suite. When the project
-  has no suites, the page says so in place of the row of suites.
+  project, once the projects have loaded. When there are no projects, the page
+  says so.
+- `/projects/{p}` goes to `/projects/{p}/suites/{s}`, without query parameters,
+  for the first suite of the project `{p}`, once the projects have loaded. When
+  the project has no suites, the page stays, selects the project, and says that
+  it has none in place of the row of suites.
 - `/projects/{p}/suites/{s}` selects the project `{p}` and its suite `{s}`, and
   shows the tabbed content for that suite below the chips.
+
+The page a path goes to takes its place in the history rather than adding an
+entry (an exception to AR2 "State").
 
 When `{p}` names no project, on either path, the page shows the row of projects,
 none selected, and says that the project was not found. When `{s}` names no
@@ -29,13 +33,16 @@ first place takes the place of the page, with a way to try again; when the list
 is fetched again and that fails, the page keeps showing what it shows (see AR7).
 
 **Chips**: Each chip is a link (see AR2 "Routing"), and the selected one says to
-assistive technology that it is the current one. A project's chip leads to
-`/projects/{p}`. A suite's chip leads to the tab shown, in its default state, of
-that suite: picking another suite keeps the tab, but clears the search, the
-filters and the pagination position, as switching tabs does. Away from a suite's
-tabs, a suite's chip leads to its default tab. Clicking the selected chip does
-nothing, though a modified click still opens it in a new tab. The chips look
-like the Regressions tab's state chips (see TS5 and AR5).
+assistive technology that it is the current one. A suite's chip leads to the tab
+shown, in its default state, of that suite: picking another suite keeps the tab,
+but clears the search, the filters and the pagination position, as switching tabs
+does. Away from a suite's tabs, a suite's chip leads to its default tab. A
+project's chip leads where its first suite's chip would, or to `/projects/{p}`
+when it has no suites. Clicking the selected chip does nothing, though a modified
+click still opens it in a new tab. The chips of both rows are cards, larger than
+the Regressions tab's state chips (TS5), with a bold label: the selected one is
+filled with the accent colour, its label white, and the others are white, with a
+light grey border and a dark label.
 
 **Tabs**: [Runs] [Machines] [Commits] [Regressions] [Schema]. Default tab is Runs.
 Switching tabs clears the search, the filters and the pagination position.
@@ -255,8 +262,8 @@ Clicking the red "Delete This Suite" button shows an inline panel warning that d
 suite permanently destroys all its machines, runs, commits, samples, and regressions, with
 the confirmation prompt AR16 describes. Once the suite is deleted
 (`DELETE /api/projects/{project}/suites/{suite}`, see E10), the page leaves for `/projects/{p}`,
-without query parameters, in place of itself in the history (see AR16), which shows the suites
-left in the project, or says that there is none (see TS1). It does so even if the user has gone
+without query parameters, in place of itself in the history (see AR16), which goes to the first
+suite left in the project, or says that there is none (see TS1). It does so even if the user has gone
 to another of the suite's tabs meanwhile: only a user who has left the suite's page since
 confirming stays where they are.
 

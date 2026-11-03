@@ -132,14 +132,14 @@ async function renderSuite(
 }
 
 /**
- * Show libcxx's Schema tab to a holder of a `manage` token, reached from its project's page through
- * its chip, so that Back leaves the page.
+ * Show libcxx's Schema tab to a holder of a `manage` token, reached from nts's page through its
+ * chip, so that Back leaves the page.
  */
 async function renderFromElsewhere() {
   signIn('manage')
   const store = mockSuites(SUITES)
   mockRuns(() => cursorPage([]))
-  renderPage('/projects/llvm')
+  renderPage('/projects/llvm/suites/nts')
   fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
   fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
   await waitFor(() => expect(deleteButton()).toBeEnabled())
@@ -323,7 +323,7 @@ describe('exporting a schema', () => {
 })
 
 describe('deleting a suite', () => {
-  it("asks for its name, deletes it, forgets it, and leaves for its project's suites", async () => {
+  it('asks for its name, deletes it, forgets it, and leaves for its project', async () => {
     const { store, queryClient } = await renderSuite('libcxx', { manage: true })
     // Something read from inside the suite, which a suite created later under its name must not
     // find.
@@ -339,12 +339,13 @@ describe('deleting a suite', () => {
     expect(prompt()).toHaveTextContent('Type libcxx to confirm')
     confirmDeletion('libcxx')
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    // The project's page, which is that of its first suite left.
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     expect(sent).toEqual([
       { project: 'llvm', suite: 'libcxx', confirm: 'true', auth: `Bearer ${TOKEN}` },
     ])
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(chipTexts('Test suites')).toEqual(['nts', 'units'])
+    expect(chipLink('Test suites', 'nts')).toHaveAttribute('aria-current', 'page')
     expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.suite(REF) })).toEqual([])
   })
 
@@ -379,7 +380,7 @@ describe('deleting a suite', () => {
     fireEvent.click(deleteButton())
     confirmDeletion('libcxx')
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
     expect(queryClient.getQueryData(queryKeys.apiKeys)).toBeUndefined()
   })
@@ -390,10 +391,12 @@ describe('deleting a suite', () => {
 
     fireEvent.click(deleteButton())
     confirmDeletion('libcxx')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
 
+    // Back to the page the suite's was reached from, rather than to the suite's.
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
+    expect(screen.queryByText(/not found/)).not.toBeInTheDocument()
   })
 
   it('says that deleting may take a while, while it does', async () => {
@@ -458,17 +461,17 @@ describe('deleting a suite', () => {
     fireEvent.click(deleteButton())
 
     confirmDeletion('libcxx')
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     // The list on its way, which may have held more than the cache, is asked for again.
     await waitFor(() => expect(refetched.requests).toBe(2))
     await act(async () => stale.open())
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
     expect(chipTexts('Test suites')).toEqual(['nts', 'units'])
-    expect(currentUrl()).toBe('/projects/llvm')
+    expect(currentUrl()).toBe('/projects/llvm/suites/nts')
   })
 
-  it("leaves for the project's suites when the user is on another of its tabs", async () => {
+  it('leaves for the project when the user is on another of its tabs', async () => {
     const { store } = await renderSuite('libcxx', { manage: true })
     const deletion = await startDeleting('libcxx', store)
 
@@ -476,7 +479,7 @@ describe('deleting a suite', () => {
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     await act(async () => deletion.open())
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     expect(chipTexts('Test suites')).toEqual(['nts', 'units'])
   })
 
@@ -500,12 +503,12 @@ describe('deleting a suite', () => {
     const deletion = await startDeleting('libcxx', store)
 
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     await act(async () => deletion.open())
 
     await waitFor(() => expect(store.suites.map((suite) => suite.name)).toEqual(['nts', 'units']))
     await settle()
-    expect(currentUrl()).toBe('/projects/llvm')
+    expect(currentUrl()).toBe('/projects/llvm/suites/nts')
     await waitFor(() => expect(chipTexts('Test suites')).toEqual(['nts', 'units']))
   })
 })
@@ -664,7 +667,7 @@ describe('renaming or moving a suite', () => {
     signIn('manage')
     const store = mockSuites([...SUITES, SWIFT_SUITE], { projects: [PROJECT_LLVM, SWIFT] })
     mockRuns(() => cursorPage([]))
-    renderPage('/projects/llvm')
+    renderPage('/projects/llvm/suites/nts')
     fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
     await waitFor(() => expect(moveButton()).toBeEnabled())
@@ -689,7 +692,7 @@ describe('renaming or moving a suite', () => {
     // Once the token has been checked again, the button takes the focus back.
     await waitFor(() => expect(moveButton()).toHaveFocus())
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
   })
 
   it("moves it, saying what that means for the API keys, by the projects' labels", async () => {
@@ -843,7 +846,7 @@ describe('renaming or moving a suite', () => {
     signIn('manage')
     const store = mockSuites([...SUITES, SWIFT_SUITE], { projects: [PROJECT_LLVM, SWIFT] })
     mockRuns(() => cursorPage([]))
-    renderPage('/projects/llvm')
+    renderPage('/projects/llvm/suites/nts')
     fireEvent.click(await screen.findByRole('link', { name: 'libcxx' }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Schema' }))
     await waitFor(() => expect(moveButton()).toBeEnabled())
@@ -854,7 +857,7 @@ describe('renaming or moving a suite', () => {
     await waitFor(() => expect(moveButton()).toHaveFocus())
 
     fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/nts'))
     fireEvent.click(screen.getByRole('button', { name: 'Browser forward' }))
     await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/benchmarks?tab=schema'))
     await waitFor(() => expect(moveButton()).toBeEnabled())

@@ -4,12 +4,16 @@
 
 import { expect, REAL_RUN, test } from './fixtures.ts'
 
-/** The page of a project, where `/projects` goes on to, for the first project (TS1). */
-const A_PROJECT = /^[^?]*\/projects\/[^/?]+$/
+/**
+ * Where `/projects` goes on to (TS1): the first project's first suite, or the project's own page
+ * when it has none, as a project of another test may have.
+ */
+const A_PROJECT = /^[^?]*\/projects\/[^/?]+(\/suites\/[^/?]+)?$/
 
 test.describe('routing', () => {
   for (const [url, heading] of [
-    ['/projects/libcxx', 'Projects'],
+    // A project without suites, whose page does not go on to a suite's (TS1).
+    ['/projects/swift', 'Projects'],
     ['/projects/libcxx/suites/benchmarks', 'Projects'],
     [`/projects/libcxx/suites/benchmarks/runs/${REAL_RUN}`, `Run: ${REAL_RUN}`],
     ['/graph?project=libcxx&suite=benchmarks', 'Graph'],
@@ -36,12 +40,14 @@ test.describe('routing', () => {
     await page.evaluate(() => (document.documentElement.dataset.loadedOnce = 'yes'))
 
     const navbar = page.getByRole('navigation').first()
+    // Projects after the suite-agnostic pages, whose links it would pre-fill with the suite it
+    // lands on (AR4).
     for (const [link, url, heading] of [
-      ['Projects', A_PROJECT, 'Projects'],
       ['Graph', '/graph', 'Graph'],
       ['Compare', '/compare', 'Compare'],
       ['Profiles', '/profiles', 'Profiles'],
       ['Admin', '/admin', 'Admin'],
+      ['Projects', A_PROJECT, 'Projects'],
       ['LNT', '/', 'Dashboard'],
     ]) {
       await navbar.getByRole('link', { name: link, exact: true }).click()

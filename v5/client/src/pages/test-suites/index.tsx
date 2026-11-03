@@ -10,6 +10,7 @@ import {
   suiteOfFullName,
   suiteRef,
   useProjects,
+  type Project,
   type Suite,
   type SuiteRef,
   type SuiteSchema,
@@ -39,7 +40,8 @@ import styles from './test-suites.module.css'
 
 /**
  * The Projects page (TS1): the chips of the projects, those of the selected project's suites, and
- * the selected suite's tabs.
+ * the selected suite's tabs. The page goes to the first project's, and that of a project with suites
+ * to its first suite's, in place of itself in the history.
  */
 export default function Projects() {
   const { project, suite } = useParams()
@@ -65,16 +67,19 @@ export default function Projects() {
       first === undefined ? (
         <p className={styles.note}>There are no projects yet.</p>
       ) : (
-        <Navigate to={projectPath(first.name)} replace />
+        <Navigate to={projectLanding(first)} replace />
       )
   } else {
+    // Another chip leads to the tab shown, if any.
+    const tab =
+      schema === undefined ? PARAMS.tab.default : readParam(PARAMS.tab, search.getAll('tab'))
     const projectChips = (
       <ChipLinks
         label="Projects"
         chips={projects.data.map((entry) => ({
           key: entry.name,
           text: projectLabel(entry),
-          to: projectPath(entry.name),
+          to: projectLanding(entry, tab),
         }))}
         selected={shown?.name}
         current={suite === undefined ? 'page' : 'true'}
@@ -87,10 +92,9 @@ export default function Projects() {
           <Alert>Project '{project}' not found.</Alert>
         </>
       )
+    } else if (suite === undefined && shown.suites.length > 0) {
+      content = <Navigate to={projectLanding(shown)} replace />
     } else {
-      // Another suite's chip leads to the tab shown, if any.
-      const tab =
-        schema === undefined ? PARAMS.tab.default : readParam(PARAMS.tab, search.getAll('tab'))
       content = (
         <>
           {projectChips}
@@ -125,6 +129,15 @@ export default function Projects() {
       {content}
     </section>
   )
+}
+
+/**
+ * Where the page of `project` goes (TS1): the tab `tab`, in its default state, of its first suite,
+ * or its own page when it has none.
+ */
+function projectLanding(project: Project, tab: TabId = PARAMS.tab.default): string {
+  const first = project.suites.at(0)
+  return first === undefined ? projectPath(project.name) : suiteTabPath(refOf(first), tab)
 }
 
 /**

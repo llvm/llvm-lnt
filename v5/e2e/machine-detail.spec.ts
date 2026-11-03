@@ -38,11 +38,12 @@ test('the Machines tab links to the page of each machine, whose trail leads back
   await trail.getByRole('link', { name: 'Microbenchmarks', exact: true }).click()
   await expect(page).toHaveURL('/projects/libcxx/suites/benchmarks')
   await page.goBack()
+  // The project's page, which goes to its first suite (TS1).
   await trail.getByRole('link', { name: 'libc++', exact: true }).click()
-  await expect(page).toHaveURL('/projects/libcxx')
+  await expect(page).toHaveURL('/projects/libcxx/suites/header-sizes')
   await expect(
     page.getByRole('navigation', { name: 'Projects' }).getByRole('link', { name: 'libc++' }),
-  ).toHaveAttribute('aria-current', 'page')
+  ).toHaveAttribute('aria-current', 'true')
 })
 
 test('shows the machine and its active regressions, and links to all of them', async ({

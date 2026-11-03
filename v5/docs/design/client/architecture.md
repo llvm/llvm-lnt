@@ -68,7 +68,7 @@ within the UI causes a full page reload.
 ```
 /                                             Dashboard (landing page -- sparkline trend overview)
 /projects                                     Projects (goes to the first project's page; see TS1)
-/projects/{p}                                 Projects (the suites of one project)
+/projects/{p}                                 Projects (goes to the project's first suite; see TS1)
 /projects/{p}/suites/{s}                      Projects (browsing tabs and schema of the selected suite)
 /projects/{p}/suites/{s}/machines/{name}      Machine Detail
 /projects/{p}/suites/{s}/runs/{uuid}          Run Detail

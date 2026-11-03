@@ -6,12 +6,13 @@ import type { Schemas } from '../../api/client'
 import { queryKeys } from '../../api/keys'
 import { suiteRef, type ProjectName, type Suite } from '../../api/suites'
 import { apiKey, entry, mockAuth, signIn, TOKEN, unknownToken, whole } from '../../test/auth'
-import { BARE_SUITE, PROJECT, SUITE } from '../../test/fixtures'
+import { BARE_SUITE, PROJECT, SUITE, cursorPage } from '../../test/fixtures'
 import { errorResponse, mockApi } from '../../test/mock-api'
 import {
   currentUrl,
   gate,
   headersOf,
+  mockRuns,
   mockSuites,
   projectList,
   renderPage,
@@ -569,8 +570,9 @@ describe('renaming a project, racing', () => {
     save('Name of swift', 'apple')
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'OK' }))
 
+    mockRuns(() => cursorPage([]))
     fireEvent.click(screen.getByRole('link', { name: '2 suites of llvm' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     await act(async () => held.open())
 
     await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))
@@ -802,8 +804,9 @@ describe('deleting a project', () => {
     fireEvent.click(deleteButton('swift'))
     fireEvent.click(within(prompt()!).getByRole('button', { name: 'Delete' }))
 
+    mockRuns(() => cursorPage([]))
     fireEvent.click(screen.getByRole('link', { name: '2 suites of llvm' }))
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
     await act(async () => held.open())
 
     await waitFor(() => expect(rechecks).toEqual([`Bearer ${TOKEN}`]))

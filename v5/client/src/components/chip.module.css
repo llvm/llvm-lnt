@@ -1,8 +1,7 @@
 /*
- * The look of a chip that can be selected (AR5): the Regressions tab's state chips (TS5), and the
- * Projects page's chips of projects and suites (TS1). A chip's owner gives it the rest of a
- * button's look. Selected, it takes the colours of `--chip-bg`, `--chip-fg` and `--chip-border`,
- * the accent's unless its owner sets them.
+ * The look of a chip that can be selected (AR5): the Regressions tab's state chips (TS5). A chip's
+ * owner gives it the rest of a button's look. Selected, it takes the colours of `--chip-bg`,
+ * `--chip-fg` and `--chip-border`, the accent's unless its owner sets them.
  */
 /* A row of chips. */
 .chips {

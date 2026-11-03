@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
+import { Link } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { SEARCH_DELAY_MS } from '../../components/suggestions'
 import type { ProjectName } from '../../api/suites'
@@ -38,7 +39,7 @@ const EMPTY: ProjectName = { name: 'zzz', display_name: 'Empty' }
 const RUNS_SEARCH = 'Search runs by machine, commit or UUID'
 
 describe('the Projects page', () => {
-  it('goes to the first project once the projects have loaded, in place of /projects', async () => {
+  it('goes to the first project, without suites, once the projects have loaded', async () => {
     const list = gate()
     mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
       projects: [PROJECT, SWIFT, EMPTY],
@@ -58,31 +59,55 @@ describe('the Projects page', () => {
     await waitFor(() => expect(currentUrl()).toBe('/nope'))
   })
 
-  it('goes to the first project without the query, which it has no use for', async () => {
+  it("goes to the first project's first suite, in place of /projects", async () => {
     mockSuites()
-    renderPage('/projects?tab=machines&search=linux')
+    mockRuns(() => cursorPage([]))
+    renderPage('/nope')
+    fireEvent.click(navbarLink('Projects'))
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
+    expect(chipLink('Test suites', 'libcxx')).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
   })
 
-  it("shows every project's chip, and the suites of the project, selecting none", async () => {
+  it('goes to the first suite without the query, which it has no use for', async () => {
+    mockSuites()
+    mockRuns(() => cursorPage([]))
+    renderPage('/projects?tab=machines&search=linux')
+
+    await waitFor(() => expect(currentUrl()).toBe('/projects/llvm/suites/libcxx'))
+  })
+
+  it("goes from a project's page to its first suite's, in place of it", async () => {
     mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
       projects: [PROJECT, SWIFT, EMPTY],
     })
-    renderPage('/projects/swift')
+    mockRuns(() => cursorPage([]))
+    // As the breadcrumb of a detail page, say, leads to it.
+    renderPage('/nope', <Link to="/projects/swift?tab=machines">Swift</Link>)
+    fireEvent.click(await screen.findByRole('link', { name: 'Swift' }))
 
+    // Without the query, which it has no use for.
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/stdlib'))
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Projects')
+    expect(chipTexts('Projects')).toEqual(['Empty', 'llvm', 'Swift'])
+    expect(chipLink('Projects', 'Swift')).toHaveAttribute('aria-current', 'true')
+    expect(chipLink('Test suites', 'stdlib')).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+    await waitFor(() => expect(currentUrl()).toBe('/nope'))
+  })
+
+  it("leads from a project's chip to its first suite, or to its page when it has none", async () => {
+    mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }], {
+      projects: [PROJECT, SWIFT, EMPTY],
+    })
+    renderPage('/projects/zzz')
+
     await waitFor(() => expect(chipTexts('Projects')).toEqual(['Empty', 'llvm', 'Swift']))
-    const swift = chipLink('Projects', 'Swift')
-    expect(swift).toHaveAttribute('href', '/projects/swift')
-    expect(swift).toHaveAttribute('aria-current', 'page')
     expect(chipLink('Projects', 'Empty')).toHaveAttribute('href', '/projects/zzz')
-    expect(chipLink('Projects', 'llvm')).not.toHaveAttribute('aria-current')
-    const stdlib = chipLink('Test suites', 'stdlib')
-    expect(chipTexts('Test suites')).toEqual(['stdlib'])
-    expect(stdlib).toHaveAttribute('href', '/projects/swift/suites/stdlib')
-    expect(stdlib).not.toHaveAttribute('aria-current')
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(chipLink('Projects', 'llvm')).toHaveAttribute('href', '/projects/llvm/suites/libcxx')
+    expect(chipLink('Projects', 'Swift')).toHaveAttribute('href', '/projects/swift/suites/stdlib')
   })
 
   it('says that a project has no suites', async () => {
@@ -167,21 +192,19 @@ describe('the Projects page', () => {
     expect(nts).toBeInTheDocument()
   })
 
-  it('picks another project at its page', async () => {
+  it('picks another project at its first suite, at the same tab, without its search', async () => {
     mockSuites([SUITE, { ...BARE_SUITE, project: SWIFT, name: 'stdlib' }])
     mockMachines(() => ({ items: [] }))
-    renderPage('/projects/llvm/suites/libcxx?tab=machines')
+    renderPage('/projects/llvm/suites/libcxx?tab=machines&search=linux')
     await table('Machines')
 
     fireEvent.click(chipLink('Projects', 'Swift'))
 
-    await waitFor(() => expect(currentUrl()).toBe('/projects/swift'))
+    await waitFor(() => expect(currentUrl()).toBe('/projects/swift/suites/stdlib?tab=machines'))
     expect(chipTexts('Test suites')).toEqual(['stdlib'])
-    expect(chipLink('Test suites', 'stdlib')).toHaveAttribute(
-      'href',
-      '/projects/swift/suites/stdlib',
-    )
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(chipLink('Test suites', 'stdlib')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('tab', { name: 'Machines' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('searchbox', { name: 'Search machines' })).toHaveValue('')
   })
 
   it('ignores a click on a selected chip', async () => {
@@ -279,8 +302,8 @@ describe('the Projects page', () => {
   })
 
   it.each([
-    ['/projects', '/projects/llvm'],
-    ['/projects/llvm', '/projects/llvm'],
+    ['/projects', '/projects/llvm/suites/libcxx'],
+    ['/projects/llvm', '/projects/llvm/suites/libcxx'],
     ['/projects/llvm/suites/libcxx', '/projects/llvm/suites/libcxx'],
   ])(
     'reports a failure to list the projects at %s, showing nothing more until it is retried',
