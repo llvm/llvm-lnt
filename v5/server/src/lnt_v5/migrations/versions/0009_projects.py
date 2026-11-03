@@ -168,7 +168,8 @@ def upgrade() -> None:
     _rewrite_schemas(_add_display_name)
 
     # Creating projects and rewriting stored schemas are changes workers cache, so they bump the
-    # counter, once (D2, D5). Both happen exactly when there is a suite.
+    # counter, once for both (D2, D5). Projects are created exactly when there is a suite, which the
+    # rewrite needs too.
     op.execute(
         "UPDATE schema_version SET version = version + 1 "
         "WHERE id = 1 AND EXISTS (SELECT FROM schema)"
@@ -198,7 +199,6 @@ def downgrade() -> None:
         "ON schema.project_id = api_key_restriction.project_id "
         "ON CONFLICT ON CONSTRAINT uq_api_key_restriction_api_key_id_suite_id DO NOTHING"
     )
-    op.execute("DELETE FROM api_key_restriction WHERE project_id IS NOT NULL")
 
     # Earlier builds reject the key, so it goes, whatever its value.
     if _rewrite_schemas(_strip_display_name):

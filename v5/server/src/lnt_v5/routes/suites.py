@@ -253,7 +253,8 @@ def patch_suite(
     Only names change: the suite keeps all of its data. Its old name isn't kept: every URL of the
     suite changes, and the old ones answer 404. API keys that list the suite keep covering it. A
     move takes the suite away from the keys that list its old project as a whole, and gives it to
-    those that list the new one, so it also needs the new project covered in full.
+    those that list the new one, so a move also needs a key that is unrestricted or covers the new
+    project in full.
     """
     changes = body.model_dump(exclude_unset=True)
     new_name = changes.get("name", name)
