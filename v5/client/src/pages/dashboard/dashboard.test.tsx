@@ -1,7 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import type { PlotData, PlotHoverEvent, PlotMouseEvent } from 'plotly.js'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { queryKeys } from '../../api/keys'
 import type { Suite } from '../../api/suites'
 import type { ChartProps } from '../../components/chart'
 import {
@@ -10,6 +11,7 @@ import {
   commit,
   inProject,
   machine,
+  PROJECT,
   metric,
   trendPoint,
 } from '../../test/fixtures'
@@ -22,9 +24,11 @@ import {
   mockResolve,
   mockSuites,
   mockTrends,
+  query,
   renderPage,
 } from '../../test/page'
 import { chartProps } from '../../test/chart-props'
+import { pickOption, selectButton } from '../../test/select'
 import { server } from '../../test/server'
 import { machineColor } from './sparkline'
 
@@ -92,18 +96,25 @@ function renderDashboard(url = '/') {
   return { trends, ...renderPage(url) }
 }
 
-function section(suite: string) {
-  return within(main().getByRole('region', { name: suite }))
+/** The section of the project labelled `project`. */
+function projectSection(project: string) {
+  return within(main().getByRole('region', { name: project }))
 }
 
-async function card(name: string, suite = 'llvm/libcxx') {
-  const region = await main().findByRole('region', { name: suite })
+/** The section of the suite labelled `suite`, in the section of the project labelled `project`. */
+function section(suite: string, project = 'llvm') {
+  return within(projectSection(project).getByRole('region', { name: suite }))
+}
+
+async function card(name: string, suite = 'libcxx', project = 'llvm') {
+  const projectRegion = await main().findByRole('region', { name: project })
+  const region = await within(projectRegion).findByRole('region', { name: suite })
   return within(await within(region).findByRole('article', { name }))
 }
 
 /** The chart of the card `name`, once drawn, and the props it was last rendered with. */
-async function chartOf(name: string, suite = 'llvm/libcxx') {
-  const element = await (await card(name, suite)).findByRole('img', { hidden: true })
+async function chartOf(name: string, suite = 'libcxx', project = 'llvm') {
+  const element = await (await card(name, suite, project)).findByRole('img', { hidden: true })
   return { element, props: () => chartProps(element) }
 }
 
@@ -113,12 +124,19 @@ async function chartLink(name: string) {
   return element.closest('a')!
 }
 
+/** Fail `GET /api/projects`. */
+function failProjects() {
+  server.use(
+    mockApi('get', '/api/projects', () => errorResponse(500, 'internal_error', 'No projects.')),
+  )
+}
+
 function hoverEvent(curveNumber: number) {
   return { points: [{ curveNumber }] } as PlotHoverEvent & PlotMouseEvent
 }
 
 describe('the Dashboard', () => {
-  it('heads the section of each suite by its full label, in their order (AR22)', async () => {
+  it('heads projects by their labels, and suites by their own, in AR22 order', async () => {
     const extra = { name: 'extra', display_name: 'LLVM Extra' }
     mockSuites([
       DASH_SUITE,
@@ -131,13 +149,27 @@ describe('the Dashboard', () => {
     renderPage('/')
 
     await chartOf('compile_status')
-    const headings = main().getAllByRole('heading', { level: 2 })
-    // A level at a time: the project 'llvm' before 'LLVM Extra', whatever its suites are called.
-    expect(headings.map((h) => h.textContent)).toEqual([
-      'llvm/A text suite',
-      'llvm/libcxx',
-      'LLVM Extra/alpha',
-    ])
+    // The project 'llvm' before 'LLVM Extra', whatever its suites are called.
+    const projects = main().getAllByRole('heading', { level: 2 })
+    expect(projects.map((h) => h.textContent)).toEqual(['llvm', 'LLVM Extra'])
+    // Each heading leads to the project's suites on the Test Suites page (TS1).
+    const extraLink = projectSection('LLVM Extra').getByRole('link', { name: 'LLVM Extra' })
+    expect(extraLink).toHaveAttribute('href', '/projects/extra')
+    const suitesOf = (project: string) =>
+      projectSection(project)
+        .getAllByRole('heading', { level: 3 })
+        .map((h) => h.textContent)
+    expect(suitesOf('llvm')).toEqual(['A text suite', 'libcxx'])
+    expect(suitesOf('LLVM Extra')).toEqual(['alpha'])
+  })
+
+  it('says that a project has no test suites', async () => {
+    mockSuites([TEXT_SUITE], { projects: [PROJECT, { name: 'swift', display_name: null }] })
+    renderPage('/')
+
+    expect(await main().findByText('No test suites.')).toBeInTheDocument()
+    expect(projectSection('swift').getByText('No test suites.')).toBeInTheDocument()
+    expect(projectSection('swift').queryByRole('region')).not.toBeInTheDocument()
   })
 
   it('shows a section per suite, and a card per metric on the Dashboard, in schema order', async () => {
@@ -148,9 +180,9 @@ describe('the Dashboard', () => {
     renderPage('/')
 
     await chartOf('compile_status')
-    const headings = main().getAllByRole('heading', { level: 2 })
-    expect(headings.map((h) => h.textContent)).toEqual(['llvm/libcxx', 'llvm/text_only'])
-    const cards = section('llvm/libcxx').getAllByRole('article')
+    const headings = main().getAllByRole('heading', { level: 3 })
+    expect(headings.map((h) => h.textContent)).toEqual(['libcxx', 'text_only'])
+    const cards = section('libcxx').getAllByRole('article')
     expect(cards.map((article) => article.getAttribute('aria-label'))).toEqual([
       'Execution Time',
       'Cycles',
@@ -158,8 +190,8 @@ describe('the Dashboard', () => {
     ])
     // The title is the metric's label, then its unit as AR6 writes it, when it has one.
     expect(
-      section('llvm/libcxx')
-        .getAllByRole('heading', { level: 3 })
+      section('libcxx')
+        .getAllByRole('heading', { level: 4 })
         .map((h) => h.textContent),
     ).toEqual(['Execution Time — seconds (s)', 'Cycles — cycles', 'compile_status'])
   })
@@ -170,8 +202,8 @@ describe('the Dashboard', () => {
     renderPage('/')
 
     expect(await main().findByText('This suite has no numeric metrics.')).toBeInTheDocument()
-    expect(section('llvm/text_only').queryByRole('article')).not.toBeInTheDocument()
-    expect(section('llvm/text_only').queryByRole('link')).not.toBeInTheDocument()
+    expect(section('text_only').queryByRole('article')).not.toBeInTheDocument()
+    expect(section('text_only').queryByRole('link')).not.toBeInTheDocument()
     expect(asked).toEqual([])
   })
 
@@ -183,8 +215,8 @@ describe('the Dashboard', () => {
     expect(
       await main().findByText(/^This suite shows no metrics on the Dashboard\./),
     ).toBeInTheDocument()
-    expect(section('llvm/unchosen').queryByRole('article')).not.toBeInTheDocument()
-    expect(section('llvm/unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(
+    expect(section('unchosen').queryByRole('article')).not.toBeInTheDocument()
+    expect(section('unchosen').getByRole('link', { name: 'its schema' })).toHaveAttribute(
       'href',
       '/projects/llvm/suites/unchosen?tab=schema',
     )
@@ -257,23 +289,215 @@ describe('the Dashboard', () => {
     await chartOf('Execution Time')
   })
 
-  it('says so when there are no suites', async () => {
-    mockSuites([])
+  it('says so when there are no projects', async () => {
+    mockSuites([], { projects: [] })
     renderPage('/')
 
-    expect(await main().findByText('There are no test suites yet.')).toBeInTheDocument()
+    expect(await main().findByText('There are no projects yet.')).toBeInTheDocument()
   })
 
-  it('shows why the suites could not be loaded, and tries again', async () => {
-    server.use(
-      mockApi('get', '/api/projects', () => errorResponse(500, 'internal_error', 'No suites.')),
-    )
+  it('says that it is loading the projects', async () => {
+    const slow = gate()
+    mockSuites([], { projects: [], wait: () => slow.promise })
     renderPage('/')
 
-    expect(await main().findByRole('alert')).toHaveTextContent('No suites.')
-    mockSuites([])
+    expect(await main().findByRole('status')).toHaveTextContent('Loading projects...')
+    act(() => slow.open())
+    expect(await main().findByText('There are no projects yet.')).toBeInTheDocument()
+  })
+
+  it('shows why the projects could not be loaded, and tries again', async () => {
+    failProjects()
+    renderPage('/')
+
+    expect(await main().findByRole('alert')).toHaveTextContent(
+      'The projects could not be loaded: No projects.',
+    )
+    expect(selectButton('Project')).toBeDisabled()
+    mockSuites([], { projects: [] })
     fireEvent.click(main().getByRole('button', { name: 'Retry' }))
-    expect(await main().findByText('There are no test suites yet.')).toBeInTheDocument()
+    expect(await main().findByText('There are no projects yet.')).toBeInTheDocument()
+  })
+
+  it('keeps showing the page when the projects fetched again cannot be', async () => {
+    const { queryClient } = renderDashboard()
+    await chartOf('Execution Time')
+
+    failProjects()
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.projects }))
+
+    expect(await card('Execution Time')).toBeTruthy()
+    expect(main().queryByText(/No projects/)).not.toBeInTheDocument()
+    // The filter stays usable meanwhile.
+    expect(selectButton('Project')).toBeEnabled()
+    await pickOption('Project', 'llvm')
+    await waitFor(() => expect(currentUrl()).toBe('/?project=llvm'))
+  })
+
+  describe('the project filter', () => {
+    const LIBCXX = { name: 'libcxx', display_name: 'libc++' }
+    const SWIFT = { name: 'swift', display_name: null }
+    const BENCHMARKS = inProject({ ...DASH_SUITE, name: 'benchmarks' }, LIBCXX)
+    const NTS = inProject({ ...DASH_SUITE, name: 'nts' })
+
+    /** libcxx, with benchmarks, llvm, with nts, and swift, without suites. */
+    function mockProjects({ wait }: { wait?: () => Promise<void> } = {}) {
+      const store = mockSuites([BENCHMARKS, NTS], { projects: [LIBCXX, PROJECT, SWIFT], wait })
+      const machines = mockMachineNames(['m1', 'm2'])
+      const trends = mockTrends(() => POINTS)
+      mockResolve()
+      return { store, machines, trends }
+    }
+
+    /** The path of every request sent from now on, in order. */
+    function recordPaths() {
+      const paths: string[] = []
+      const listener = ({ request }: { request: Request }) => {
+        paths.push(new URL(request.url).pathname)
+      }
+      server.events.on('request:start', listener)
+      onTestFinished(() => server.events.removeListener('request:start', listener))
+      return paths
+    }
+
+    const projectHeadings = () =>
+      main()
+        .getAllByRole('heading', { level: 2 })
+        .map((h) => h.textContent)
+
+    it('offers every project, by label in AR22 order, and all of them by default', async () => {
+      mockProjects()
+      renderPage('/')
+
+      await chartOf('Execution Time', 'nts')
+      expect(selectButton('Project')).toHaveTextContent('All projects')
+      expect(projectHeadings()).toEqual(['libc++', 'llvm', 'swift'])
+      fireEvent.click(selectButton('Project'))
+      const options = await screen.findAllByRole('option')
+      expect(options.map((option) => option.textContent)).toEqual([
+        'All projects',
+        'libc++',
+        'llvm',
+        'swift',
+      ])
+    })
+
+    it('shows the project of the URL alone, and fetches only what it shows', async () => {
+      const paths = recordPaths()
+      mockProjects()
+      renderPage('/?project=libcxx')
+
+      await chartOf('Execution Time', 'benchmarks', 'libc++')
+      expect(selectButton('Project')).toHaveTextContent('libc++')
+      expect(projectHeadings()).toEqual(['libc++'])
+      // Everything asked of a project is asked of libcxx, the list of projects aside.
+      const inProjects = paths.filter((path) => path.startsWith('/api/projects/'))
+      expect(inProjects).not.toEqual([])
+      expect(inProjects.filter((path) => !path.startsWith('/api/projects/libcxx/'))).toEqual([])
+    })
+
+    it('keeps the project picked in the URL, in place of the history entry', async () => {
+      mockProjects()
+      renderPage('/projects')
+      fireEvent.click(await screen.findByRole('link', { name: 'LNT' }))
+      await chartOf('Execution Time', 'benchmarks', 'libc++')
+
+      await pickOption('Project', 'libc++')
+      await waitFor(() => expect(currentUrl()).toBe('/?project=libcxx'))
+      expect(projectHeadings()).toEqual(['libc++'])
+
+      await pickOption('Project', 'All projects')
+      await waitFor(() => expect(currentUrl()).toBe('/'))
+      expect(projectHeadings()).toEqual(['libc++', 'llvm', 'swift'])
+
+      // Back leaves the Dashboard rather than stepping back through the projects picked (AR2).
+      fireEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+      await waitFor(() => expect(currentUrl()).toBe('/projects'))
+    })
+
+    it('keeps the sections of the project picked as they are', async () => {
+      const { machines } = mockProjects()
+      renderPage('/')
+      // The second project, whose sections move to the top of the page.
+      const { element } = await chartOf('Execution Time', 'nts', 'llvm')
+      const asked = machines.length
+
+      await pickOption('Project', 'llvm')
+      await waitFor(() => expect(projectHeadings()).toEqual(['llvm']))
+
+      // The same chart, rather than one drawn again in a section mounted again.
+      expect(element).toBeInTheDocument()
+      expect(machines).toHaveLength(asked)
+    })
+
+    it('names the project of the URL by its name until the projects are listed', async () => {
+      const slow = gate()
+      mockProjects({ wait: () => slow.promise })
+      renderPage('/?project=libcxx')
+
+      expect(await main().findByRole('status')).toHaveTextContent('Loading projects...')
+      expect(selectButton('Project')).toHaveTextContent('libcxx')
+      expect(selectButton('Project')).toBeDisabled()
+      act(() => slow.open())
+
+      await waitFor(() => expect(selectButton('Project')).toHaveTextContent('libc++'))
+      expect(selectButton('Project')).toBeEnabled()
+      expect(currentUrl()).toBe('/?project=libcxx')
+    })
+
+    it('drops a project that does not exist, once the projects are listed (AR2)', async () => {
+      const slow = gate()
+      mockProjects({ wait: () => slow.promise })
+      renderPage('/?project=nope')
+
+      expect(await main().findByRole('status')).toHaveTextContent('Loading projects...')
+      expect(currentUrl()).toBe('/?project=nope')
+      act(() => slow.open())
+
+      await waitFor(() => expect(currentUrl()).toBe('/'))
+      expect(selectButton('Project')).toHaveTextContent('All projects')
+      expect(projectHeadings()).toEqual(['libc++', 'llvm', 'swift'])
+    })
+
+    it('keeps a project while the projects cannot be listed', async () => {
+      failProjects()
+      renderPage('/?project=nope')
+
+      expect(await main().findByRole('alert')).toHaveTextContent('No projects.')
+      expect(currentUrl()).toBe('/?project=nope')
+    })
+
+    it('drops the project once a list fetched again no longer holds it', async () => {
+      const { store } = mockProjects()
+      const { queryClient } = renderPage('/?project=libcxx')
+      await chartOf('Execution Time', 'benchmarks', 'libc++')
+
+      // Renamed or deleted elsewhere.
+      store.projects = [PROJECT, SWIFT]
+      store.suites = [NTS]
+      await act(() => queryClient.refetchQueries({ queryKey: queryKeys.projects }))
+
+      await waitFor(() => expect(currentUrl()).toBe('/'))
+      expect(projectHeadings()).toEqual(['llvm', 'swift'])
+    })
+
+    it('goes with the commit range, each kept as the other changes', async () => {
+      const { trends } = mockProjects()
+      renderPage('/?project=libcxx&range=100')
+
+      await chartOf('Execution Time', 'benchmarks', 'libc++')
+      expect(screen.getByRole('button', { name: 'Last 100' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      expect(trends.map((query) => query.get('last_n'))).toEqual(['100', '100', '100'])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Last 1000' }))
+      await waitFor(() => expect(query()).toEqual({ project: ['libcxx'], range: ['1000'] }))
+
+      await pickOption('Project', 'All projects')
+      await waitFor(() => expect(currentUrl()).toBe('/?range=1000'))
+    })
   })
 
   describe('the commit range', () => {

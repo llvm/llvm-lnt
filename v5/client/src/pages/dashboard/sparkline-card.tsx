@@ -74,14 +74,14 @@ export function SparklineCard({ schema, metric, machines, range }: Props) {
 
   return (
     <article className={styles.card} aria-label={title}>
-      <h3 className={styles.title}>
+      <h4 className={styles.title}>
         {unlinked === null ? (
           <Link to={graphPath({ suite, machines: traced, metric: metric.name })}>{title}</Link>
         ) : (
           <DisabledLink title={unlinked}>{title}</DisabledLink>
         )}
         {unit !== null && <span className={styles.unit}> — {unit}</span>}
-      </h3>
+      </h4>
       {body}
     </article>
   )
